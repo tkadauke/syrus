@@ -10,9 +10,32 @@ module Api
           def index = render(json: payload)
 
           def catalog
-            result = PluginRegistryClient.new.search(params[:q])
-            render json: { configured: result.configured, error: result.error, stale: result.stale,
+            result = PluginRegistrySearch.new.search(params[:q])
+            render json: { configured: true, error: result.errors.values.first, errors: result.errors, stale: result.stale.any?,
               entries: result.entries.map(&:to_h) }
+          end
+
+          def registries
+            render json: { registries: PluginRegistry.sources.map { |source| serialize_registry(source) } }
+          end
+
+          def create_registry
+            registry = PluginRegistry.create!(name: params.require(:name), url: params.require(:url), enabled: true,
+              created_by: Current.user)
+            render json: serialize_registry(registry), status: :created
+          end
+
+          def update_registry
+            registry = PluginRegistry.find(params[:id])
+            registry.update!(enabled: ActiveModel::Type::Boolean.new.cast(params.require(:enabled)))
+            render json: serialize_registry(registry)
+          end
+
+          def destroy_registry
+            registry = PluginRegistry.find(params[:id])
+            raise PluginInstaller::Error, "the canonical registry can be disabled but not removed" if registry.canonical?
+            registry.destroy!
+            head :no_content
           end
 
           def stage
@@ -26,7 +49,7 @@ module Api
           end
 
           def stage_release
-            change = installer.stage_release!(params.require(:name), version: params[:version])
+            change = installer.stage_release!(params.require(:name), version: params[:version], registry: params[:registry])
             render json: serialize_change(change), status: :created
           end
 
@@ -47,6 +70,13 @@ module Api
           private
 
           def installer = PluginInstaller.new(actor: Current.user)
+
+          def serialize_registry(source)
+            cache = WorkflowWorkspace.data_root.join("plugin-registries", source.cache_key)
+            { id: source.id, name: source.name, url: source.url, enabled: source.enabled?, canonical: source.canonical?,
+              read_only: source.read_only?, last_refresh_at: cache.join("git-refreshed-at").exist? ? cache.join("git-refreshed-at").mtime : nil,
+              healthy: cache.join("index", "index.json").exist? }
+          end
 
           def payload
             installations = PluginInstallation.includes(:plugin_release).order(:plugin_name).to_a

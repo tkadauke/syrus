@@ -2,9 +2,10 @@ class PluginRelease < ApplicationRecord
   SOURCES = %w[bundled upload registry hand_placed].freeze
   TRUST_LABELS = %w[official verified community unsigned_local].freeze
   DIGEST_PATTERN = /\A[0-9a-f]{64}\z/
-  ARTIFACT_IDENTITY_ATTRIBUTES = %w[name version content_digest source size_bytes publisher_key_fingerprint signature].freeze
+  ARTIFACT_IDENTITY_ATTRIBUTES = %w[name version content_digest source size_bytes publisher_key_fingerprint signature plugin_registry_id].freeze
 
   belongs_to :uploaded_by, class_name: "User", optional: true
+  belongs_to :plugin_registry, optional: true
   has_many :plugin_installations, dependent: :restrict_with_error
   has_one_attached :archive
 

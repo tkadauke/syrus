@@ -104,6 +104,12 @@ module Syrus
           "revoked_releases" => revoked_releases
         }
       end
+
+      def with_official_capped
+        data = as_json
+        data["publishers"].each { |publisher| publisher["label"] = "verified" if publisher["label"] == "official" }
+        self.class.new(data)
+      end
     end
   end
 end

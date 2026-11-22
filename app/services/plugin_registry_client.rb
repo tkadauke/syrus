@@ -9,13 +9,15 @@ class PluginRegistryClient
   GIT_REFRESH_INTERVAL = 5.minutes
   Entry = Data.define(:name, :version, :description, :category, :author, :homepage, :license,
     :requires_syrus, :package_url, :package_digest, :signature_url, :publisher_key_fingerprint,
-    :trust_label, :trust_label_inputs, :capability_summary, :revoked)
+    :trust_label, :trust_label_inputs, :capability_summary, :revoked, :registry_name,
+    :registry_id, :registry_canonical)
   Result = Data.define(:entries, :configured, :error, :stale)
 
-  def initialize(url: ENV["SYRUS_PLUGIN_REGISTRY_URL"], cache_root: WorkflowWorkspace.data_root.join("plugin-registry"),
+  def initialize(source: nil, url: nil, cache_root: nil,
     syrus_version: SyrusVersion.release, git: GitRunner.new)
-    @url = url.to_s.strip
-    @cache_root = Pathname.new(cache_root)
+    @source = source || PluginRegistry::EnvironmentSource.new(url || ENV["SYRUS_PLUGIN_REGISTRY_URL"].to_s)
+    @url = @source.url.to_s.strip
+    @cache_root = Pathname.new(cache_root || WorkflowWorkspace.data_root.join("plugin-registries", @source.cache_key))
     @syrus_version = syrus_version
     @git = git
   end
@@ -57,8 +59,11 @@ class PluginRegistryClient
   # Installation is the explicit boundary where registry revocations become
   # instance policy. Catalog browsing intentionally remains read-only.
   def activate_trust_store!
-    Syrus::PluginPackage::TrustStore.cache!(trust_store(index_root))
+    Syrus::PluginPackage::TrustStore.cache!(trust_store(index_root), path: trust_store_cache_path)
   end
+
+  def cached_trust_store = Syrus::PluginPackage::TrustStore.cached(path: trust_store_cache_path)
+  def source = @source
 
   def index_root = @cache_root.join("index")
 
@@ -74,7 +79,7 @@ class PluginRegistryClient
     raise Error, "Plugin registry is unreachable: #{error.message}"
   end
 
-  def git_source? = @url.start_with?("git+") || @url.end_with?(".git")
+  def git_source? = @source.canonical? || @url.start_with?("git+") || @url.end_with?(".git")
 
   def refresh_git!
     url = @url.delete_prefix("git+")
@@ -142,13 +147,18 @@ class PluginRegistryClient
       revoked = trust.revoked_keys.include?(fingerprint) ||
         trust.revoked_release?(name: data.fetch("name"), version: data.fetch("version"), digest:)
       publisher = trust.publisher(fingerprint)
+      prefix = data.fetch("name").split("_", 2).first
+      raise Error, "publisher does not own plugin name prefix: #{data.fetch('name')}" unless publisher&.prefix == prefix
+      label = publisher.label
+      label = "verified" if !@source.canonical? && label == "official"
       Entry.new(name: data.fetch("name"), version: data.fetch("version"), description: data.fetch("description"),
         category: data.fetch("category"), author: data.fetch("author"), homepage: data.fetch("homepage"),
         license: data.fetch("license"), requires_syrus: data.fetch("requires_syrus"),
         package_url: data.fetch("package_url"), package_digest: digest, signature_url: data.fetch("signature_url"),
-        publisher_key_fingerprint: fingerprint, trust_label: publisher&.label || "community",
+        publisher_key_fingerprint: fingerprint, trust_label: label,
         trust_label_inputs: data.fetch("trust_label_inputs"),
-        capability_summary: data.fetch("capability_summary"), revoked:)
+        capability_summary: data.fetch("capability_summary"), revoked:, registry_name: @source.name,
+        registry_id: @source.id, registry_canonical: @source.canonical?)
     end
   end
 
@@ -176,10 +186,12 @@ class PluginRegistryClient
   end
 
   def cached_index? = index_root.join("index.json").file?
+  def trust_store_cache_path = @cache_root.join("trust-store.json")
 
   def trust_store(root, manifest: nil)
     manifest ||= JSON.parse(read_registry_file(root, "index.json"))
-    Syrus::PluginPackage::TrustStore.new(JSON.parse(read_registry_file(root, manifest.fetch("trust_store"))))
+    store = Syrus::PluginPackage::TrustStore.new(JSON.parse(read_registry_file(root, manifest.fetch("trust_store"))))
+    @source.canonical? ? store : store.with_official_capped
   end
 
   def read_registry_file(root, relative)

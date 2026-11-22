@@ -187,7 +187,13 @@ HTTPS. Omitting the version selects the highest indexed semantic version. The
 downloaded archive and detached signature pass through the same validation,
 trust, storage, and confirmation path as an upload.
 
-Set SYRUS_PLUGIN_REGISTRY_URL on the instance to enable the admin registry
+The built-in canonical registry is enabled by default and administrators can
+disable it or add additional HTTPS or git+https registries. The legacy
+SYRUS_PLUGIN_REGISTRY_URL setting adds a read-only source. Registry catalogs
+show every source; bare installs prefer a canonical collision and require an
+explicit registry for ambiguity among non-canonical sources. Trust and
+revocations are isolated by registry, and non-canonical registries can grant
+at most the `verified` label. Registry URLs are administrator-confirmed input.
 browser, or in the CLI environment to enable `syrus plugin search [TERM]`
 directly against an HTTPS mirror or HTTPS Git URL. It is unset by default.
 Search returns only releases compatible with the running or connected Syrus

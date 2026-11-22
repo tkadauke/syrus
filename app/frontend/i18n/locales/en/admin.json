@@ -638,6 +638,7 @@
     "registry": {
       "heading": "Browse registry",
       "search": "Search compatible plugins",
+      "source": "Registry: {{name}}",
       "unconfigured": "No plugin registry is configured. Set SYRUS_PLUGIN_REGISTRY_URL to browse plugins.",
       "empty": "No compatible plugins found."
     },
