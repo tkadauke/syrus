@@ -7,7 +7,7 @@
   "priority": "{{priority}} priority",
   "dependency_blocked": "Dependency blocked",
   "action_hint": "Open the Job's current review evidence to make a decision. Eligibility is checked again when you act.",
-  "open_review": "Open active review",
+  "open_review": "Start review",
   "dashboard_ready_one": "{{count}} Job is ready for your review.",
   "dashboard_ready_other": "{{count}} Jobs are ready for your review.",
   "all_caught_up": "All caught up",

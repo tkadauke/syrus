@@ -7,7 +7,7 @@
   "priority": "Prioritas {{priority}}",
   "dependency_blocked": "Dependentia impeditum",
   "action_hint": "Aperi testimonia recensionis Job praesentia ut decernas. Potestas tua cum agis iterum probatur.",
-  "open_review": "Recensionem praesentem aperi",
+  "open_review": "Recensionem incipe",
   "dashboard_ready_one": "{{count}} Job recensioni tuae paratum est.",
   "dashboard_ready_other": "{{count}} Jobs recensioni tuae parata sunt.",
   "all_caught_up": "Omnia perfecta",
