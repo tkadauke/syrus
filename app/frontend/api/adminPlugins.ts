@@ -1,4 +1,4 @@
-import { getJson, patchJson, postForm, postJson } from "./client"
+import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { FilterSchemaField } from "../components/FilterBar"
 
 export type AdminPluginExtensionPoint = {
@@ -137,8 +137,24 @@ export type PluginRegistryEntry = {
 export type PluginRegistryCatalog = {
   configured: boolean
   error: string | null
+  errors: Record<string, string>
   stale: boolean
+  stale_registries: string[]
   entries: PluginRegistryEntry[]
+}
+
+export type AdminPluginRegistry = {
+  id: number | null
+  name: string
+  url: string
+  enabled: boolean
+  canonical: boolean
+  read_only: boolean
+  last_refresh_at: string | null
+  entry_count: number
+  error: string | null
+  stale: boolean
+  healthy: boolean
 }
 
 export type AdminPluginDisableConfirmation = {
@@ -160,9 +176,28 @@ export function fetchPluginInstaller() {
   return getJson<PluginInstallerPayload>("/api/v1/app/admin/plugin_installer")
 }
 
-export function fetchPluginRegistryCatalog(term = "") {
-  const query = term ? "?q=" + encodeURIComponent(term) : ""
+export function fetchPluginRegistryCatalog(term = "", registry = "") {
+  const params = new URLSearchParams()
+  if (term) params.set("q", term)
+  if (registry) params.set("registry", registry)
+  const query = params.size ? `?${params}` : ""
   return getJson<PluginRegistryCatalog>("/api/v1/app/admin/plugin_installer/catalog" + query)
+}
+
+export function fetchPluginRegistries() {
+  return getJson<{ registries: AdminPluginRegistry[] }>("/api/v1/app/admin/plugin_installer/registries")
+}
+
+export function createPluginRegistry(input: { name: string; url: string }) {
+  return postJson<AdminPluginRegistry>("/api/v1/app/admin/plugin_installer/registries", input)
+}
+
+export function updatePluginRegistry(id: number, enabled: boolean) {
+  return patchJson<AdminPluginRegistry>(`/api/v1/app/admin/plugin_installer/registries/${id}`, { enabled })
+}
+
+export function removePluginRegistry(id: number) {
+  return deleteJson<void>(`/api/v1/app/admin/plugin_installer/registries/${id}`)
 }
 
 export async function stagePluginArchive(file: File) {
@@ -175,8 +210,8 @@ export function stagePluginRemoval(name: string) {
   return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_remove", { name })
 }
 
-export function stageStoredPluginRelease(name: string, version: string) {
-  return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_release", { name, version })
+export function stageStoredPluginRelease(name: string, version: string, registry?: string) {
+  return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_release", { name, version, registry })
 }
 
 export function confirmPluginChange(id: number) {

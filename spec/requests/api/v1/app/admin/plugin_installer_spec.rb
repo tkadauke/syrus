@@ -40,6 +40,8 @@ RSpec.describe "API: plugin installer", type: :request do
     get "/api/v1/app/admin/plugin_installer/registries"
     serialized = JSON.parse(response.body).fetch("registries").find { |entry| entry["id"] == registry.id }
     expect(serialized.fetch("last_refresh_at")).to be_present
+    expect(serialized).to include("entry_count" => 0, "stale" => false)
+    expect(serialized).to have_key("error")
 
     patch "/api/v1/app/admin/plugin_installer/registries/#{registry.id}", params: { enabled: false }
     expect(response).to have_http_status(:ok)
