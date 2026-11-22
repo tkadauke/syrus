@@ -28,6 +28,8 @@
   "approve_mobile": "Approve",
   "approve_shortcut": "Approve for landing (A)",
   "approve_confirm": "Approve {{slug}} for landing?",
+  "approve_consequence": "This sends the Job to the landing queue. Approval eligibility is checked again before it is accepted.",
+  "approving": "Approving...",
   "feedback_shortcut": "Give feedback (F)",
   "feedback": "Give feedback",
   "feedback_label": "What should change?",

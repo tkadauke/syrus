@@ -21,6 +21,7 @@ const MOBILE_ACTION_BAR_CLASS =
   "mt-5 space-y-2 max-lg:fixed max-lg:inset-x-3 max-lg:bottom-[max(.75rem,env(safe-area-inset-bottom))] max-lg:z-20 max-lg:grid max-lg:grid-cols-4 max-lg:gap-2 max-lg:space-y-0 max-lg:rounded-xl max-lg:border max-lg:border-border max-lg:bg-surface/95 max-lg:p-2 max-lg:shadow-lg max-lg:backdrop-blur"
 const MOBILE_FEEDBACK_SHEET_CLASS =
   "mt-4 space-y-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:rounded-t-2xl max-lg:border max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:shadow-xl"
+const MAX_CARD_ROTATION_DEGREES = 4
 
 export default function ReviewWorkspaceRoute() {
   const { t } = useT("review_workspace")
@@ -211,6 +212,7 @@ function MobileGestureSurface({
   }>()
   const longPress = useRef<number>()
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
   const clearLongPress = () => {
     if (longPress.current) window.clearTimeout(longPress.current)
     longPress.current = undefined
@@ -218,6 +220,7 @@ function MobileGestureSurface({
   const reset = () => {
     clearLongPress()
     start.current = undefined
+    setDragging(false)
     setOffset({ x: 0, y: 0 })
   }
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
@@ -234,6 +237,7 @@ function MobileGestureSurface({
       edge,
       scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
     }
+    setDragging(true)
     event.currentTarget.setPointerCapture?.(event.pointerId)
     longPress.current = window.setTimeout(() => {
       if (!start.current) return
@@ -283,32 +287,47 @@ function MobileGestureSurface({
       else if (x < 0) onDefer()
     } else if (Math.abs(y) >= SWIPE_THRESHOLD) onMove(y < 0 ? 1 : -1)
   }
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  const horizontal = Math.abs(offset.x) > Math.abs(offset.y)
+  const rotation = horizontal && !reducedMotion ? Math.max(-MAX_CARD_ROTATION_DEGREES, Math.min(MAX_CARD_ROTATION_DEGREES, offset.x / 30)) : 0
+  const gestureLabel = horizontal
+    ? offset.x > 0
+      ? t("gesture_approve")
+      : t("gesture_defer")
+    : offset.y < 0
+      ? t("gesture_next")
+      : t("gesture_previous")
+  const cardTransform =
+    offset.x || offset.y ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
   return (
-    <div className="relative min-w-0 lg:contents">
+    <div className="relative isolate min-w-0 overflow-hidden lg:contents lg:overflow-visible">
+      {Boolean(offset.x || offset.y) && (
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 z-0 flex p-5 text-sm font-semibold text-brand lg:hidden ${
+            horizontal ? (offset.x > 0 ? "items-center justify-start" : "items-center justify-end") : offset.y < 0 ? "items-end justify-center" : "items-start justify-center"
+          }`}
+          data-testid="mobile-gesture-reveal"
+        >
+          <span className="max-w-[45%] rounded-full border border-brand/20 bg-brand-subtle px-3 py-2 text-center">{gestureLabel}</span>
+        </div>
+      )}
       <div
         aria-label={t("gesture_surface")}
-        className="touch-none motion-reduce:transform-none lg:contents"
+        className={`relative z-10 touch-none motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
         data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
-        style={{ transform: offset.x || offset.y ? `translate3d(${offset.x}px, ${offset.y}px, 0)` : undefined }}
+        style={{
+          transform: cardTransform,
+          transformOrigin: "50% 75%"
+        }}
       >
         {children}
       </div>
-      {Boolean(offset.x || offset.y) && (
-        <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-20 z-10 text-center text-sm font-semibold text-brand lg:hidden">
-          {Math.abs(offset.x) > Math.abs(offset.y)
-            ? offset.x > 0
-              ? t("gesture_approve")
-              : t("gesture_defer")
-            : offset.y < 0
-              ? t("gesture_next")
-              : t("gesture_previous")}
-        </div>
-      )}
     </div>
   )
 }
@@ -582,7 +601,9 @@ function DecisionPanel({
   const [feedback, setFeedback] = useState("")
   const [confirming, setConfirming] = useState(false)
   const handledGestureSequence = useRef<number>()
+  const approvalStarted = useRef(false)
   useEffect(() => {
+    approvalStarted.current = false
     setConfirming(false)
     setFeedbackOpen(false)
     setFeedback("")
@@ -597,8 +618,16 @@ function DecisionPanel({
   const approve = useMutation({
     mutationFn: () => postJobCommand(detail!.paths.app_approve_path, { expected_revision: job.revision }),
     onError: refreshEligibility,
-    onSuccess: completed
+    onSuccess: completed,
+    onSettled: () => {
+      approvalStarted.current = false
+    }
   })
+  const requestApproval = () => {
+    if (approvalStarted.current) return
+    approvalStarted.current = true
+    approve.mutate()
+  }
   const submitFeedback = useMutation({
     mutationFn: () => submitJobFeedback(job.id, feedback.trim(), job.revision),
     onError: refreshEligibility,
@@ -647,14 +676,14 @@ function DecisionPanel({
         </section>
       </div>
       <div className={MOBILE_ACTION_BAR_CLASS}>
-        {confirming ? (
+        {confirming && isDesktop ? (
           <div className="col-span-3 rounded border border-brand/30 bg-brand-subtle p-3 max-lg:order-2">
             <p className="text-sm font-medium">{t("approve_confirm", { slug: job.slug })}</p>
             <div className="mt-3 flex gap-2">
               <Button disabled={approve.isPending} onClick={() => setConfirming(false)} variant="secondary">
                 {t("common:cancel")}
               </Button>
-              <Button disabled={approve.isPending} onClick={() => approve.mutate()} variant="primary">
+              <Button disabled={approve.isPending} onClick={requestApproval} variant="primary">
                 {t("approve")}
               </Button>
             </div>
@@ -678,6 +707,16 @@ function DecisionPanel({
           <DeferToQueueEndIcon className="hidden size-5 max-lg:block" />
         </Button>
       </div>
+      {confirming && !isDesktop ? (
+        <ApprovalSheet
+          inProgress={approve.isPending}
+          job={job}
+          onApprove={requestApproval}
+          onClose={() => {
+            if (!approve.isPending) setConfirming(false)
+          }}
+        />
+      ) : null}
       {feedbackOpen ? (
         <form
           aria-label={t("feedback")}
@@ -714,6 +753,72 @@ function DecisionPanel({
       ) : null}
       {isDesktop ? <p className="mt-5 text-xs text-text-secondary">{t("shortcuts")}</p> : null}
     </aside>
+  )
+}
+
+function ApprovalSheet({
+  inProgress,
+  job,
+  onApprove,
+  onClose
+}: {
+  inProgress: boolean
+  job: ReviewWorkspaceJob
+  onApprove: () => void
+  onClose: () => void
+}) {
+  const { t } = useT("review_workspace")
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const closeRef = useRef(onClose)
+  const inProgressRef = useRef(inProgress)
+  closeRef.current = onClose
+  inProgressRef.current = inProgress
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    cancelRef.current?.focus()
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || inProgressRef.current) return
+      event.stopImmediatePropagation()
+      closeRef.current()
+    }
+    window.addEventListener("keydown", escape, true)
+    return () => {
+      window.removeEventListener("keydown", escape, true)
+      document.body.style.overflow = previousOverflow
+      previous?.focus()
+    }
+  }, [])
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end bg-black/50"
+      data-testid="mobile-approval-backdrop"
+      onClick={(event) => event.target === event.currentTarget && !inProgress && onClose()}
+    >
+      <section
+        aria-busy={inProgress}
+        aria-labelledby="mobile-approval-title"
+        aria-modal="true"
+        className="w-full rounded-t-2xl border border-border bg-surface px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-xl"
+        data-testid="mobile-approval-sheet"
+        role="dialog"
+      >
+        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-border" />
+        <h2 className="text-lg font-semibold" id="mobile-approval-title">
+          {t("approve_confirm", { slug: job.slug })}
+        </h2>
+        <p className="mt-2 text-sm text-text-secondary">{t("approve_consequence")}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <Button disabled={inProgress} onClick={onClose} ref={cancelRef} type="button" variant="secondary">
+            {t("common:cancel")}
+          </Button>
+          <Button disabled={inProgress} onClick={onApprove} type="button" variant="primary">
+            {inProgress ? t("approving") : t("approve")}
+          </Button>
+        </div>
+      </section>
+    </div>
   )
 }
 

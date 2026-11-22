@@ -28,6 +28,8 @@
   "approve_mobile": "Freigeben",
   "approve_shortcut": "Zur Landung freigeben (A)",
   "approve_confirm": "{{slug}} zur Landung freigeben?",
+  "approve_consequence": "Dadurch wird der Job in die Landing-Warteschlange gestellt. Die Freigabeberechtigung wird vor der Annahme erneut geprüft.",
+  "approving": "Freigabe läuft...",
   "feedback_shortcut": "Feedback geben (F)",
   "feedback": "Feedback geben",
   "feedback_label": "Was soll geändert werden?",
