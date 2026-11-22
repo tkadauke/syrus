@@ -812,6 +812,17 @@ RSpec.describe Ruby::RspecGraderType do
       expect(trace).not_to include("FULL_RAN")
     end
 
+    # Regression: the gate wrote only JSON, so a round that stopped at the
+    # gate left no JUnit for Test Insights. Every repair round after the first
+    # then had no failed-test evidence, and a merge train could never show its
+    # failures were inherited from main -- it ran landing_fix five times.
+    it "records the gate's failures as JUnit where the full suite would" do
+      _exitstatus, trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb", gate_status: 1)
+      gate_trace = trace.lines.find { |line| line.include?("previous-failures-gate.json") }
+
+      expect(gate_trace).to include("--require rspec_junit_formatter", "--format RspecJunitFormatter", "--out .syrus/grade-output/rspec-junit.xml")
+    end
+
     it "still runs the full suite when the gate passes" do
       exitstatus, trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb", gate_status: 0)
 

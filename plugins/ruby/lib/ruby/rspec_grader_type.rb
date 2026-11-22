@@ -634,7 +634,7 @@ module Ruby
       end
 
       command = <<~BASH.squish
-        #{previous_failure_gate(mode)}
+        #{previous_failure_gate(mode, junit_output: junit_output)}
         mkdir -p #{junit_dir} #{json_dir} #{shard_junit_dir} &&
         rm -f #{junit} #{json} #{shard_junit_dir}/#{junit_prefix}-*.xml #{json_dir}/#{output_prefix}-*.json &&
         #{parallel_process_setup}
@@ -769,7 +769,13 @@ module Ruby
     # the full command still runs behind it and still decides the verdict. The
     # gate is skipped entirely when the variable is empty, which is every
     # first iteration and any grader with no recorded failures.
-    def previous_failure_gate(mode)
+    # The gate writes JUnit to the grader's own junit_output as well as its
+    # JSON. A round that stops at the gate otherwise leaves no test results:
+    # every repair round after the first had no failed-test evidence, and a
+    # merge train could never show its failures were inherited from main.
+    def previous_failure_gate(mode, junit_output:)
+      junit = Shellwords.escape(junit_output)
+      junit_dir = Shellwords.escape(File.dirname(junit_output))
       ci_mode = mode.to_s == "ci"
       gate_env = ci_mode ? "RUN_CI_ONLY_SPECS=true " : "RUN_CI_ONLY_SPECS=false "
       # A CI grader has two passes: the parallel pass excludes ci_only and the
@@ -780,9 +786,9 @@ module Ruby
         if [ -n "${SYRUS_PREVIOUS_FAILED_SPECS:-}" ]; then
           echo "[rspec] gate: re-running $(echo $SYRUS_PREVIOUS_FAILED_SPECS | wc -w) previously failing file(s) before the full suite";
           gate_json=".syrus/rspec-json/previous-failures-gate.json";
-          mkdir -p "$(dirname "$gate_json")";
-          rm -f "$gate_json";
-          if ! #{gate_env}bundle exec rspec #{gate_tags} --format progress --format json --out "$gate_json" $SYRUS_PREVIOUS_FAILED_SPECS; then
+          mkdir -p "$(dirname "$gate_json")" #{junit_dir};
+          rm -f "$gate_json" #{junit};
+          if ! #{gate_env}bundle exec rspec #{gate_tags} --require rspec_junit_formatter --format progress --format json --out "$gate_json" --format RspecJunitFormatter --out #{junit} $SYRUS_PREVIOUS_FAILED_SPECS; then
             echo "[rspec] gate: previously failing examples still fail; skipping the full suite";
             exit 1;
           fi;
