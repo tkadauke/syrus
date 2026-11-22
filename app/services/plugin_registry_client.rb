@@ -24,6 +24,9 @@ class PluginRegistryClient
 
   def search(term = nil)
     return Result.new(entries: [], configured: false, error: nil, stale: false) if @url.empty?
+    if @source.configuration_error
+      return Result.new(entries: [], configured: true, error: @source.configuration_error, stale: false)
+    end
 
     stale = false
     begin
