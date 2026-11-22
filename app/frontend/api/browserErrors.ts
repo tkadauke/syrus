@@ -1,6 +1,9 @@
 import { getRecentApiRequests, postJson } from "./client"
 import { readInitialBootstrap } from "./bootstrap"
 import { getRecentErrors } from "../lib/errorRingBuffer"
+import { scrubBrowserErrorText } from "../lib/browserErrorRedaction"
+
+export { scrubBrowserErrorText } from "../lib/browserErrorRedaction"
 
 const REDACTED = "[FILTERED]"
 const SENSITIVE_ROUTE_PARAM_KEYS = new Set(["token"])
@@ -114,14 +117,6 @@ export function buildBrowserErrorPayload(
       ...(options.handledError ? { handled_error: options.handledError } : {})
     }
   }
-}
-
-export function scrubBrowserErrorText(value: string): string {
-  return value
-    .replace(/(https?:\/\/[^\s?#]+)\?[^\s#]+/gi, "$1?[FILTERED]")
-    .replace(/([?&](?:token|key|secret|password|authorization)=)[^\s&#]+/gi, "$1[FILTERED]")
-    .replace(/(\/chats\/shared\/)[^/?#\s]+/gi, "$1[FILTERED]")
-    .replace(/(\/passwords\/)[^/?#\s]+(\/edit\b)/gi, "$1[FILTERED]$2")
 }
 
 function browserErrorSafeLocation(location: Location): { url: string; path: string } {

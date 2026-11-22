@@ -1,5 +1,5 @@
 import { isCancelledError } from "@tanstack/react-query"
-import { buildBrowserErrorPayload, recordBrowserError, scrubBrowserErrorText, type HandledErrorMetadata } from "../api/browserErrors"
+import { buildBrowserErrorPayload, recordBrowserError, type HandledErrorMetadata } from "../api/browserErrors"
 import { ApiError } from "../api/client"
 import { computeBrowserErrorFingerprint } from "./browserErrorFingerprint"
 import { newCorrelationId } from "./recoverableErrorDiagnostics"
@@ -81,10 +81,7 @@ function stableName(value: string, fallback: string): string {
 
 function normalizeError(error: unknown): Error {
   if (!(error instanceof Error)) return new Error("Non-Error rejection")
-  const normalized = new Error(scrubBrowserErrorText(error.message || "Unknown handled error"))
-  normalized.name = scrubBrowserErrorText(error.name || "Error")
-  normalized.stack = error.stack ? scrubBrowserErrorText(error.stack) : undefined
-  return normalized
+  return error
 }
 
 function isObject(value: unknown): value is object {

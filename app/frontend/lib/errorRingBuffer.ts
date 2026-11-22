@@ -1,3 +1,5 @@
+import { scrubBrowserErrorText } from "./browserErrorRedaction"
+
 const MAX_ERRORS = 10
 
 export type RecentError = {
@@ -13,7 +15,7 @@ let errorHandler: ((e: ErrorEvent) => void) | null = null
 let rejectionHandler: ((e: PromiseRejectionEvent) => void) | null = null
 
 function recordError(message: string, source: string) {
-  const trimmedMessage = scrubErrorText(String(message)).slice(0, 500)
+  const trimmedMessage = scrubBrowserErrorText(String(message)).slice(0, 500)
   const at = new Date().toISOString()
 
   const existing = recentErrors.find((e) => e.message === trimmedMessage && e.source === source)
@@ -40,14 +42,6 @@ export function initErrorRingBuffer() {
 
   window.addEventListener("error", errorHandler)
   window.addEventListener("unhandledrejection", rejectionHandler)
-}
-
-function scrubErrorText(value: string): string {
-  return value
-    .replace(/(https?:\/\/[^\s?#]+)\?[^\s#]+/gi, "$1?[FILTERED]")
-    .replace(/([?&](?:token|key|secret|password|authorization)=)[^\s&#]+/gi, "$1[FILTERED]")
-    .replace(/(\/chats\/shared\/)[^/?#\s]+/gi, "$1[FILTERED]")
-    .replace(/(\/passwords\/)[^/?#\s]+(\/edit\b)/gi, "$1[FILTERED]$2")
 }
 
 export function getRecentErrors(): RecentError[] {
