@@ -30,6 +30,10 @@ end
 RSpec.describe Go::TestEcosystem do
   subject { described_class }
 
+  it "uses the public grader type name as its dispatch key" do
+    expect(described_class.key).to eq(:"go-test")
+  end
+
   it_behaves_like "a valid ecosystem provider",
     plugin: "go", provider: "Go::TestEcosystem",
     contexts: -> { { grader_types: Syrus::Plugin::Context::GraderContext.new(config: {}, default_failures: "fail") } },

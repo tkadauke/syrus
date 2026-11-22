@@ -24,6 +24,6 @@ module Go
 
     provides ecosystem: "Go::Ecosystem",
       implements: %i[detect_prepare review_criteria autofix dependency_audit analyze_coverage]
-    provides ecosystem: "Go::TestEcosystem", key: :go_test, implements: %i[grader_types]
+    provides ecosystem: "Go::TestEcosystem", key: :"go-test", implements: %i[grader_types]
   end
 end

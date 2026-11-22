@@ -47,7 +47,7 @@ module Go
 
   class TestEcosystem
     class << self
-      def key = :go_test
+      def key = :"go-test"
       def display_name = "Go test"
       def grader_types(context)
         return nil if context.config.nil?
