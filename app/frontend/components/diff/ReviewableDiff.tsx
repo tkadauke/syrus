@@ -590,7 +590,7 @@ export function ReviewableDiff({
   // (especially the full-screen mobile artifact panel).
   return (
     <div
-      className={["relative min-w-0 max-w-full overflow-x-hidden [contain:inline-size]", className].filter(Boolean).join(" ")}
+      className={["relative min-w-0 max-w-full overflow-x-clip [contain:inline-size]", className].filter(Boolean).join(" ")}
       data-testid="agent-diff-viewer"
       ref={containerRef}
     >
