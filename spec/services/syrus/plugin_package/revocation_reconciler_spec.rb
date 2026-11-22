@@ -8,7 +8,7 @@ RSpec.describe Syrus::PluginPackage::RevocationReconciler do
     digest = Digest::SHA256.hexdigest(body)
     release = PluginRelease.create!(name: "weather", version: "1.2.3", content_digest: digest,
       source: "registry", trust_label: "verified", publisher_key_fingerprint: fingerprint, size_bytes: body.bytesize)
-    PluginArtifacts.store!(release, StringIO.new(body))
+    release.archive.attach(io: StringIO.new(body), filename: "weather.archive")
     PluginInstallation.create!(plugin_name: "weather", plugin_release: release)
   end
 
