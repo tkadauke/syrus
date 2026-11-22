@@ -333,7 +333,7 @@ function MobileGestureSurface({
       )}
       <div
         aria-label={t("gesture_surface")}
-        className={`relative z-10 touch-none motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
+        className={`relative z-10 touch-pan-y motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
         data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
