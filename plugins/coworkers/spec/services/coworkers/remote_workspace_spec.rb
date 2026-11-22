@@ -74,4 +74,27 @@ RSpec.describe Coworkers::RemoteWorkspace, :allow_host_execution do
 
     expect(remote.branch_sha("coworkers/maya")).to be_nil
   end
+
+  it "filters merged run refs in one git process instead of checking each ref separately" do
+    git = instance_double(GitRunner)
+    coworker = instance_double(Coworkers::Coworker, id: 12, handle: "maya")
+    remote = described_class.new(owner: "acme", name: "coworker-homes", user:, git:,
+      authenticated_url: @bare_remote)
+    allow(git).to receive(:capture)
+    allow(git).to receive(:run).with("init", anything)
+    allow(git).to receive(:run).with("fetch", "--no-tags", @bare_remote,
+      "+refs/heads/coworkers/maya:refs/remotes/workspace/home",
+      "+refs/heads/coworkers/run/12-*:refs/remotes/workspace/runs/*", chdir: anything)
+    allow(git).to receive(:run).with("for-each-ref", "--merged=refs/remotes/workspace/home",
+      "--format=%(refname) %(objectname) %(committerdate:unix)",
+      "refs/remotes/workspace/runs", chdir: anything)
+      .and_return("refs/remotes/workspace/runs/345 #{'a' * 40} 1700000000\n")
+
+    refs = remote.merged_run_refs(home_branch: "coworkers/maya", run_prefix: "coworkers/run/12-",
+      guard: Coworkers::PushGuard.new(coworker:))
+
+    expect(refs).to contain_exactly(branch: "coworkers/run/12-345", sha: "a" * 40,
+      committed_at: Time.zone.at(1_700_000_000))
+    expect(git).not_to have_received(:capture)
+  end
 end
