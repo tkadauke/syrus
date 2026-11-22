@@ -3,6 +3,15 @@ require "rails_helper"
 RSpec.describe Syrus::PluginPackage::TrustStore do
   before { allow(PluginDesiredState::Publisher).to receive(:publish!) }
 
+  it "preserves publisher prefixes when caching registry trust" do
+    store = described_class.new("publishers" => [ {
+      "fingerprint" => "a" * 64, "label" => "verified", "prefix" => "acme"
+    } ])
+
+    expect(store.publisher("a" * 64).prefix).to eq("acme")
+    expect(store.as_json.fetch("publishers").first).to include("prefix" => "acme")
+  end
+
   it "caches the registry trust store and immediately quarantines newly revoked installations" do
     body = "plugin archive"
     fingerprint = "a" * 64

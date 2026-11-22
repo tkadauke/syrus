@@ -30,6 +30,7 @@ type Signature struct {
 type Publisher struct {
 	Fingerprint string `json:"fingerprint"`
 	Label       string `json:"label"`
+	Prefix      string `json:"prefix"`
 }
 
 type RevokedRelease struct {
