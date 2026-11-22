@@ -101,5 +101,42 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
       expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
     end
+
+    # Dispatch, the legacy bridge, and capability_providers only invoke a
+    # capability through a conforming declaration. Detection is no exception:
+    # a declaration whose provider breaks the family contract is withheld,
+    # not called anyway.
+    it "does not call a non-conforming declaration" do
+      calls = []
+      stub_const("NonConformingDetectorProvider", Class.new do
+        define_singleton_method(:key) { :non_conforming }
+        define_singleton_method(:display_name) { "Non-conforming" }
+        define_singleton_method(:detect_prepare) { |context, _extra = nil| calls << context.repo_path; [ "prepare" ] }
+      end)
+      declaration = Syrus::Plugin::FamilyDeclaration.build(
+        family: :detector_family, provider: "NonConformingDetectorProvider", implements: %i[detect_prepare]
+      )
+      Syrus::PluginRegistry.register(name: "non-conforming", version: "1", family_provides: [ declaration ])
+      write("family.lock")
+
+      expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
+      expect(described_class.observed_for(@dir, repository: :repository)).to eq([ "family-language" ])
+      expect(calls).to be_empty
+    end
+
+    it "keeps detecting the other plugins when a family provider fails to load" do
+      stub_const("UnloadableDetectorProvider", Class.new do
+        def self.key = :unloadable
+        def self.display_name = "Unloadable"
+        def self.detect_prepare(_context) = raise(LoadError, "cannot load such file -- unloadable/detector")
+      end)
+      declaration = Syrus::Plugin::FamilyDeclaration.build(
+        family: :detector_family, provider: "UnloadableDetectorProvider", implements: %i[detect_prepare]
+      )
+      Syrus::PluginRegistry.register(name: "unloadable", version: "1", family_provides: [ declaration ])
+      write("family.lock")
+
+      expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
+    end
   end
 end

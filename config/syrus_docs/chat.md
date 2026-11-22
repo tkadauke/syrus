@@ -528,6 +528,12 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   not merely `LocalDaemonSession#connected?`'s row-exists/not-yet-disconnected
   check — a session row is minted as soon as the operator requests a connect
   token, before `syrus local` has actually dialed in).
+- In Coding Mode, refused with the error code `containment_required` while
+  the instance requires contained chat execution: the command would run on
+  the worker, in the checkout the contained agent writes, outside its
+  container. A command queued before the setting changed is refused when its
+  job runs. Local Mode commands are unaffected; they run on the operator's
+  own machine.
 - Only one command may run at a time per chat session, and a command is
   refused while an agent turn already owns the checkout
   (`turn_in_flight?`/`agent_busy?`). `ChatShellCommandJob` also joins

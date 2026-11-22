@@ -6,6 +6,14 @@ module ChatShellCommandExecutor
       Feature.coding_mode_enabled?
     end
 
+    # Under `contained_chat_execution: required` the chat agent runs only in a
+    # container, and this checkout is the one it writes. Running `!` commands
+    # here, on the worker, would execute agent-written code outside the
+    # container, so they are refused while containment is required (NY15).
+    def policy_error_code(_chat_session)
+      :containment_required if AppSetting.contained_chat_execution_required?
+    end
+
     def precondition_error_code(chat_session)
       return :repository_not_found unless chat_session.repository
       return :coding_checkout_not_found if chat_session.coding_checkout_branch.blank?
@@ -15,6 +23,11 @@ module ChatShellCommandExecutor
 
     def run!(command_record)
       chat_session = command_record.chat_session
+      # Queued before containment became required: refuse rather than run.
+      if policy_error_code(chat_session)
+        return Result.new(outcome: "error", output: I18n.t("api.chat_shell_commands.preconditions.containment_required"))
+      end
+
       repository = chat_session.repository
       path = ChatWorkspace.repo_path_for(chat_session, repository)
       return Result.new(outcome: "error", output: "Coding checkout not found at #{path}.") unless path.join(".git").directory?

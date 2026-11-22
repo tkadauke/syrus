@@ -757,14 +757,17 @@ RSpec.describe Workflow, :ci_only do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
-    it "does not propagate failure to Job on workflow.fail! for coding_handoff workflows" do
+    # A coding handoff owns its Job's lifecycle, so generic propagation skips
+    # it -- but its own after_fail hook settles the Job rather than leaving it
+    # running with nothing working on it.
+    it "settles the Job through the handoff's own hook when a coding_handoff workflow fails" do
       job.update!(state: "running")
       wf = described_class.create!(job: job, trigger_kind: "coding_handoff", state: "running", started_at: 1.minute.ago)
 
-      expect { wf.fail!; wf.save! }
-        .not_to change { job.reload.state }
+      wf.fail!
+      wf.save!
 
-      expect(job.reload.state).to eq("running")
+      expect(job.reload.state).not_to eq("running")
     end
 
     it "marks Job failed on workflow.fail! for local_mode_handoff grader failures" do

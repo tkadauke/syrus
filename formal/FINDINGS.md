@@ -2188,6 +2188,1546 @@ stays open. That is NY20.
 
 ---
 
+## F69. A database hiccup switched disabled plugins back on — fixed (NY13)
+
+**Found by** DOC-44 plugin host semantics (queued as NY13). Decision:
+"We should not treat installed plugins as enabled. This is potentially
+destructive. We need to retry until we have a straight answer."
+
+**Property.** Outside an asset build, the enablement answer is exactly what
+the first non-transient read within the retry budget says. That is the
+records, or the declared defaults when the database or table does not exist.
+Otherwise there is no answer. It is never "every installed plugin"
+(`EnablementRead.never_enables_disabled_and_answers_when_readable`, checked
+over every outcome sequence of three attempts and every combination of two
+plugins' defaults and records).
+
+**Gap.** Several call sites answered a database error with "every installed
+plugin is enabled":
+
+- `Syrus::PluginRegistry.providers_for`, `all_plugins`, `health` and
+  `credential_types` caught any `ActiveRecord::ActiveRecordError`;
+- `beta_mode_enabled?` answered `true`;
+- the Installer answered "install everything".
+
+So a lock-wait timeout or a dropped connection made a disabled plugin
+callable for that call: an execution backend, an approval provider, a
+repository content provider (`blip_enables_disabled`). The fallback existed
+so that asset precompile and a first boot work without a database.
+
+**Fix.** One read, `PluginRegistry.enablement_records`, decides every case:
+
+- **No database or no table** (`NoDatabaseError`, or `plugin_records`
+  missing, as for `db:create` or a fresh database before migration): the
+  declared defaults, which are exactly what the records will say once
+  created.
+- **Asset build** (`SECRET_KEY_BASE_DUMMY`): every plugin. There is no
+  instance and no database, and the build needs every plugin's assets.
+- **Any other error:** retried three times with short backoff, then
+  `EnablementUnavailable` is raised. The caller fails instead of guessing.
+  `beta_mode_enabled?` raises the same way.
+
+`Syrus::Installer.sync!` resolves the enabled set *before* disposing
+anything. On `EnablementUnavailable` it keeps every installed effect and
+leaves its fingerprint, so the next sync tries again.
+
+A process whose database server is down at boot now fails boot and is
+restarted until it can read enablement, instead of booting with guessed
+plugins. `db:create` and the first `db:prepare` still boot, through the
+missing-database case.
+
+**Spec.**
+
+- `plugin_registry_spec.rb` "when plugin enablement cannot be read":
+  - defaults for a missing table and for a missing database;
+  - raises after the retry budget, from `providers_for`, `all_plugins` and
+    `health`;
+  - a transient error is retried and answered from the records;
+  - every plugin only for an asset build.
+- The four specs that pinned the old fallback now state the decision.
+- `installer_spec.rb` "keeps installed effects while plugin enablement
+  cannot be read, then resyncs".
+
+---
+
+## F70. A user who lost access to a Job kept receiving its live updates — fixed (NY20)
+
+**Found by** DOC-44 Phase 5 (F68's remaining case, queued as NY20). Decision:
+prevent it.
+
+**Property.** No Job event reaches a subscriber more than one recheck interval
+after that subscriber lost access, and every event before that is delivered
+(`ScopedDelivery.bounded_after_revocation`, checked over every revocation
+tick, every message pattern on a ten-tick timeline, and intervals 1 to 3).
+
+**Gap.** `JobChannel` authorized with `Job.visible_to` only on subscribe, then
+streamed one `job_resource:<id>` stream shared by every subscriber. Removing a
+repository membership, narrowing Job visibility, or losing the admin role did
+not end open subscriptions. Until the tab reconnected, that user kept
+receiving the Job's Workflow, Step and Run patches: state, timestamps, PR
+title, summary and cost (`revoked_kept_receiving`).
+
+**Fix.** Each delivery rechecks the same `Job.visible_to` the subscription
+used, trusting a positive answer for `VISIBILITY_RECHECK_INTERVAL` (10 s), so
+high-churn patches do not each cost a query. Once the check fails, the channel
+stops its streams and transmits nothing more.
+
+This differs from the recommendation recorded with NY20, which was to
+disconnect on membership changes. Visibility depends on memberships, teams,
+ownership, archiving, the admin role and plugin-supplied restrictions, so a
+hook-based disconnect would leave a hole for any input it missed. Rechecking
+the one predicate the subscription itself uses covers all of them.
+
+**Spec.** `job_channel_spec.rb` "delivery after access changes":
+
+- a visible subscriber receives;
+- after the membership is removed and the interval passes, nothing is
+  transmitted and the streams are stopped (red before: the method did not
+  exist and every message went out);
+- a second delivery inside the interval does not query again.
+
+---
+
+## F71. A genuinely lost app event left its resource stale — fixed (NY19)
+
+**Found by** DOC-44 Phase 5, the plan's "global sequence-gap issue" (F67's
+remaining case, queued as NY19). Decision: wait about 2 s for late
+deliveries, then sweep.
+
+**Property.** A continuity sweep runs exactly when some sequence in a gap is
+still missing when the grace timer fires
+(`GapRecovery.sweeps_iff_still_missing`). This is checked over every
+assignment of up to four events to an arrival tick or "lost". So every event
+lost for good is recovered, and a gap that closes in time costs no sweep.
+The model's "still missing" is computed from the delivered set rather than
+the client's bookkeeping, so it is close to a restatement; the vitest cases
+below are the behavioural evidence.
+
+**Gap.** On a gap (10, then 12), the client refreshed only event 12's
+queries. Event 11's resource is unknown, so if 11 never arrived, that
+resource stayed stale until an unrelated reconnect, focus refetch or later
+event (`lost_left_stale`).
+
+**Fix.** In `trackAppEventSequence` (`app/frontend/lib/appEvents.ts`), a gap
+records the skipped sequences in `missing`, bounded by the 256-wide window,
+and starts one timer of `APP_EVENT_GAP_GRACE_MS` (2 s). A late delivery
+removes its sequence (F67). When the timer fires with anything still missing,
+the client runs `recoverAppEventContinuity`, the same sweep a reconnect does,
+which already defers for hidden tabs. A reconnect cancels the timer, because
+its own recovery sweeps anyway. The existing `revision_gap_recoveries` metric
+still counts gaps; no metric was added, since client metric names are a
+closed set on both sides.
+
+**Spec.** `appEvents.test.ts` "genuinely lost events":
+
+- a sweep after the grace period with a sequence still missing, and none
+  before it (red before: no sweep ever ran);
+- no sweep when the late sequence arrives in time;
+- no sweep after a reconnect.
+
+All 518 frontend lib tests pass, and lint and tsc are clean.
+
+---
+
+## F72. Plugin-side registries kept unhealthy contributors live — fixed (NY18)
+
+**Found by** the F66 audit of direct `manifest.provides` readers (queued as
+NY18). Decision: B, add a health-aware owner-aware lookup.
+
+**Property.** The single callable gate (`EffectHealth.lean`: enabled and
+healthy, for the host and each contributor) now also governs the two
+plugin-side registries that need to know which plugin contributed each entry.
+
+**Gap.** `ConnectedAccounts::ProviderRegistry` (OAuth provider declarations)
+and `PluginRuntime::DesiredServiceCollection` (supervised and privileged
+services) each read manifests themselves with `enabled?` alone. A degraded or
+failed contributor's OAuth provider stayed offered, and its service kept
+running. The Host API gave plugins no other way to learn the owner of a
+provider.
+
+**Fix.** `Syrus::PluginRegistry.providers_with_owner_for(point)` returns
+`[plugin_name, provider]` pairs for a plugin-hosted point, from the same
+enabled-and-healthy set as `providers_for`, and `hosted_providers_for` is now
+built on it. It is on the declared Host API
+(`lib/syrus/host/public_apis.rb`). Both registries use it. Plugin Runtime's
+first-party allowlist now checks the owning plugin's name
+(`eligible_plugin?`).
+
+**Spec.**
+
+- `plugin_registry_spec.rb` `.providers_with_owner_for`: owners are paired,
+  and a degraded contributor or an unhealthy host yields nothing.
+- `provider_registry_spec.rb` "withholds a valid provider whose contributing
+  plugin is unhealthy" (red before).
+- The connected-accounts spec now registers `credential_store`. It had relied
+  on a host degraded by its own missing hard dependency still contributing,
+  which is the bug itself.
+- The plugin_runtime specs stub the new lookup instead of `all_plugins`
+  doubles. Enablement and health are the core lookup's responsibility.
+
+---
+
+## F73. A worker without a plugin failed that plugin's step on first claim — fixed (NY17)
+
+**Found by** the plugin-set admission audit (M17, queued as NY17). Decision:
+prevent it.
+
+**Property.** A Step of a plugin's kind fails as unknown only after the
+hand-back budget is spent, and a capable worker that claims it within the
+budget runs it (`UnknownKindHandback.fails_only_after_budget_and_capable_claim_runs`,
+checked over every claim sequence of up to six claims).
+
+**Gap.** Routing sends a Run to a queue that every worker of that OS
+consumes. So during a fleet plugin rollout, or for a fleet installation
+limited to some roles, a worker without the plugin could claim the Run.
+`Steps.handler_for` then raised and the Step failed terminally
+(`failed_on_first_wrong_worker`). Failing it also raised a second time,
+because `Step::Kind.remediation_for` looked the unknown kind up during the
+failure cascade.
+
+**Fix.**
+
+- **First claim:** `RunJob#hand_back_unknown_step_kind?`, checked before the
+  Run is claimed. A worker that does not provide the Step's kind hands the
+  Run back after 30 s, counting `unknown_kind_handbacks` on the Step. After 20
+  hand-backs (about 10 minutes with no capable claim) it lets the Step fail as
+  unknown.
+- **Inline successor:** a successor this process cannot run goes back to the
+  queue through the ordinary hand-back.
+- **Failure path:** `Step::Kind.remediation_for` answers `nil`, meaning no
+  step-kind opinion, for an unknown kind, like its `label_for` and
+  `review_gate_for` siblings, so the Step can fail cleanly. This is also a
+  first part of NY14.
+
+**Not done.** Routing by plugin, so that an incapable worker never claims the
+Run at all, would need per-plugin queues. The capability resolver routes by
+queue name, and every worker of an OS shares the queue. The hand-back is
+what makes the step survive in the meantime.
+
+**Spec.** `run_job_unknown_step_kind_spec.rb`:
+
+- an unknown kind is handed back with the Run still queued (red before: it
+  raised);
+- with the budget spent, it fails instead of being handed back again.
+
+The job, step, dispatcher and remediation specs pass (854 examples).
+
+---
+
+## F74. A disabled or unhealthy plugin's in-flight work could not be cancelled — fixed (NY14)
+
+**Found by** F61's remaining case (queued as NY14). Decision: A, keep kind
+metadata resolvable for existing rows, and let only new work require a
+healthy owner.
+
+**Property.** An existing row always gets a definition. A launch gets one
+exactly when the kind is built-in or its owner is enabled and healthy, and
+the neutral `Unavailable` definition is never what a launch receives
+(`ExistingKindDefinition.existing_always_answers`,
+`launch_needs_healthy_owner`, `unavailable_never_launches`).
+
+**Gap.** F61 kept rows of a withdrawn kind saveable. But
+`Workflow#work_definition` still resolved through the live registry, and the
+cancel cascade asks it questions (`infrastructure_workflow?` in
+`Workflows::JobLifecyclePropagation`). So `WorkUnits::WorkflowCancellation`
+raised `WorkDefinitions::UnknownKind` for an in-flight Workflow whose plugin
+was disabled or unhealthy (`cancel_raised`). That work could be neither
+finished nor cancelled.
+
+**Fix.**
+
+- `WorkDefinitions.for_existing(kind)` answers like `.for` while the kind is
+  registered. Otherwise it returns the definition from the installed plugin's
+  own `workflow_kinds` provider, whatever the plugin's state. If the plugin is
+  uninstalled or failed to load, it returns `WorkDefinitions::Unavailable`.
+- `Unavailable` keeps Base's conservative defaults: operator-only retries,
+  not infrastructure. Its plugin marker is never provided, so it is never in
+  the registry, and `.for`, which every launch path uses, never returns it.
+- `Workflow#work_definition` uses `for_existing`.
+- F73 made `Step::Kind.remediation_for` neutral for an unknown kind, so the
+  Step side of the cascade does not raise either.
+
+**Spec.**
+
+- `plugin_kind_persistence_spec.rb` "can still cancel the in-flight workflow,
+  its steps and runs" (red before: `UnknownKind`). This file moved into
+  `plugins/agent_insights/spec/models/`, because core specs must not depend
+  on a bundled plugin.
+- `work_definitions/for_existing_spec.rb`: `Unavailable` for an uninstalled
+  kind, never registered and never returned by `.for`, and identical to
+  `.for` for a registered kind.
+- `agent_insights/work_definition_for_existing_spec.rb`: a disabled plugin's
+  own definition is still resolved for existing rows.
+
+---
+
+## F75. The CLI's API client could send the user's token to another host — fixed
+
+**Found by** DOC-44 Phase 6, Syrus CLI: "API requests attach bearer tokens
+only to the selected instance origin," and "Plugin CLI paths cannot use the
+central client to send credentials to an absolute or scheme-relative foreign
+URL."
+
+**Gap.** `api.Client.newRequest` (`cli/pkg/api/client.go`) resolved the given
+path against the instance URL with `ResolveReference`, then always set
+`Authorization: Bearer <token>`. An absolute path (`https://other.host/x`) or
+a scheme-relative one (`//other.host/x`) resolves to that other host. Because
+`Client.Do` is exported precisely so that third-party plugin CLI modules can
+call it, a plugin, or any path assembled from server-supplied data, could
+deliver the user's Syrus token to an arbitrary host. The test saw `Bearer
+secret-token` arrive at the foreign server for both forms.
+
+Already safe: Go's HTTP client drops `Authorization` on a redirect to a
+different domain. The other places that set the header (`plugin_commands.go`,
+`plugin_new.go`, `local.go`) append fixed paths to the saved instance URL.
+
+**Fix.** `newRequest` refuses a path that names its own scheme or host, and
+checks that the resolved endpoint keeps the instance's scheme and host, before
+any request is built.
+
+**Spec.** `client_test.go` "TestRequestsNeverCarryTheTokenToAnotherOrigin":
+both forms are refused, the foreign host is never contacted, and an instance
+path still works (red before: two foreign hits carrying the token). All CLI
+packages pass and `go vet` is clean. This is adapter behaviour, so it is
+established by the Go test rather than a Lean model, as the plan assigns
+CLI adapters.
+
+---
+
+## F76. Saving credentials wrote the token through a symlink and into a loose file — fixed
+
+**Found by** DOC-44 Phase 6, Syrus CLI: "The credentials file only ever holds
+the token under mode 0600 at the configured path itself."
+
+**Gap.** Both writers of the shared `~/.syrus/credentials` file wrote the path
+directly. In the CLI this is `config.SaveCredentials`, which used `os.WriteFile`
+and then `os.Chmod`. In the desktop app it is `writeCredentialsFile`, which used
+`fs.writeFile` with `mode` and then `chmod`. Writing the path directly causes
+two problems:
+
+- **A symlink at the path** sent the token into the link's target, under that
+  target's permissions. The tests saw `secret-token` land in an unrelated
+  0644 file.
+- **A pre-existing file with loose permissions** held the new token while its
+  mode was still loose, until the chmod ran. Both `WriteFile` and Node's
+  `writeFile` apply `mode` only when they create the file.
+
+A crash in the middle of the write could also leave a truncated credentials
+file.
+
+**Fix.** Both writers now create a fresh 0600 file beside the path, sync it,
+and rename it over the path. The rename replaces the symlink itself and is
+atomic. The temporary file is removed on every exit path.
+
+**Spec.**
+
+- `credentials_test.go` "TestSaveCredentialsNeverWritesThroughASymlink".
+- `desktop/src/credentialsStore.test.ts`: the symlink case, plus the loose
+  pre-existing file, which must be replaced by a new inode at 0600 with no
+  temp-file leftovers.
+
+Both were red before the fix. All CLI packages pass.
+
+---
+
+## F77. A profile name could move the credentials file out of ~/.syrus — fixed
+
+**Found by** DOC-44 Phase 6, Syrus CLI profile precedence: "Every profile
+resolves to a credentials file directly inside `~/.syrus`."
+
+**Gap.** `config.Profile` resolves the profile from `--profile`, then
+`SYRUS_PROFILE`, then argv[0]. It keeps any unrecognized value verbatim.
+`DefaultCredentialsPath` then splices that value into the filename
+`credentials.<profile>` and joins it under `~/.syrus`. As a result:
+
+- `--profile x/../../.ssh/authorized_keys` resolved to `~/.ssh/authorized_keys`.
+- A later `syrus login` would replace that file with `url=`/`token=` lines.
+  After F76 the write is a rename, so the file would be replaced outright.
+
+A `SYRUS_PROFILE` inherited from a hostile environment reaches the same path.
+The desktop app is not affected, because it chooses between two fixed
+filenames.
+
+**Fix.** `DefaultCredentialsPath` refuses any profile that is not a plain name
+of lowercase letters, digits, `-` and `_`. Values are already lowercased by
+normalization.
+
+`go vet` flagged a pre-existing possible context leak in `cmd/local.go`: a
+`WithCancel` call ran before an early return on a JSON-marshal error. The
+context is now created after that return, and vet is clean.
+
+**Spec.** `profile_test.go`
+"TestDefaultCredentialsPathRefusesProfilesThatLeaveTheSyrusDirectory" covers
+separators of both kinds, `..`, and spaces, and checks that valid names still
+resolve. It was red before: the first case resolved to
+`~/.ssh/authorized_keys`. All CLI packages pass, and vet is clean.
+
+---
+
+## F78. A reported Syrus version became Ruby in a scaffolded gemspec — fixed
+
+**Found by** DOC-44 Phase 6, CLI plugins and scaffolding: "Scaffolded
+projects contain only template text and validated names; no input becomes
+code."
+
+**Gap.** `syrus plugin new` takes the oldest supported Syrus version from
+`--syrus-version`. By default it takes it from the connected instance's
+`/api/v1/app/bootstrap` (`connectedInstanceVersion`), and it splices that
+value into `spec.metadata["requires_syrus"] = ">= {{SYRUS_VERSION}}"`.
+
+- **Ruby injection.** Bundler evaluates a gemspec as Ruby. A reported version
+  such as `1.0"; system("touch pwned"); "` produced
+  `">= 1.0"; system("touch pwned"); ""`, which runs on the developer's machine
+  at the next `bundle` or `syrus plugin test`.
+- **Docker image tags.** The same reported value also picks the Docker image
+  tag for `plugin test` and `plugin dev`. It is passed as a single argv
+  element, so it cannot inject flags, but it was otherwise unchecked.
+
+The plugin name was already validated by `pluginNamePattern`. The destination
+must be empty or absent.
+
+**Fix.**
+
+- `instanceVersionFromReported` keeps a reported version only when it is a
+  plain release version: digits and dot-separated parts, with an optional
+  pre-release and build part, at most 64 characters. Anything else falls back
+  to the CLI's release version, as development describes already did.
+- `generatePluginScaffold` refuses any version that is not plain. This also
+  catches a dev-build fallback of `latest`, which used to produce the invalid
+  requirement `>= latest`.
+
+**Spec.** `plugin_new_test.go` has two tests:
+
+- "TestGeneratePluginScaffoldRefusesAVersionThatIsNotAPlainVersion" (red
+  before: the gemspec contained `system("touch pwned")`);
+- "TestInstanceVersionIgnoresAReportedVersionThatIsNotAPlainVersion".
+
+All CLI packages pass and vet is clean.
+
+---
+
+## F79. uninstall.sh and the desktop app classified image tags differently — fixed; channel isolation proved
+
+**Found by** DOC-44 Phase 7, desktop backend lifecycle: "Stable and test
+project names, ports, containers, images, and volumes are disjoint", and
+"Every destructive target derives from a validated channel-specific
+manifest."
+
+**Gap.** Both channels pull from the same `syrus-backend` repository, so an
+image's channel is read from its tag. There are two copies of that rule:
+
+- The desktop's `tagChannel` (`desktop/electron/channel.ts`) says test means
+  `test-<x>`, or a tag *ending* in `-test.<digits>`.
+- `uninstall.sh`'s image sweep used the glob `test-*|*-test.[0-9]*`, which
+  also matches `-test.<digit>` *anywhere* in the tag.
+
+For tags such as `0.1.2-test.4-hotfix` or `0.1.2-test.4.1`, the app says
+stable and the script says test. So a test uninstall retired them, and a
+stable uninstall left them behind. `spec/desktop/channels_spec.rb` only
+checked that the glob text was present. The new example ran the script and
+saw the test channel remove both tags.
+
+The impact is bounded: `rmi` without `-f` refuses an image a container still
+uses. But the disagreement is exactly the cross-channel deletion the property
+forbids.
+
+**Fix.** The script uses tagChannel's exact rule:
+`[[ $tag == test-* || $tag =~ -test\.[0-9]+$ ]]`. This works in macOS's bash
+3.2.
+
+**Proved.** `ChannelIsolation.lean` encodes the per-channel resource table
+that `stackIdentity` and `uninstall.sh` share, and the targets of `wipe` and
+`uninstall` (with and without `--keep-data`). It proves four things:
+
+- the two channels' resources are disjoint;
+- every destructive target lies in its own channel's set;
+- a stable `wipe` removes nothing;
+- `--keep-data` removes no data.
+
+It rests on three audited premises:
+
+- `compose -p` overrides the compose file's `name: syrus`, and no volume has a
+  fixed `name:`;
+- plugin-runtime resources are selected by the project label;
+- `~/.syrus` itself is only `rmdir`'d when empty, and a test uninstall skips
+  the stable-only skill.
+
+**Spec.**
+
+- `spec/desktop/uninstall_spec.rb` "retires exactly the tags the desktop
+  classifies as this channel's" runs the real script over the same tags on
+  both channels. It is CI-only; run it locally with `RUN_CI_ONLY_SPECS=true`.
+  Red before.
+- `desktop/src/channel.test.ts` pins the same tags on the app side.
+
+---
+
+## F80. A watchdog probe in flight could override a deliberate stop — fixed
+
+**Found by** DOC-44 Phase 7, desktop backend lifecycle: "Watchdog recovery
+does not override a deliberate stop."
+
+**Gap.** The watchdog reports only health transitions, measured against
+`lastHealthy`. `stopBackend` sets `lastHealthy := false`, so the "stopped"
+page is not replaced by an outage. But a tick checked `backendBusy()` only
+when it began, and then awaited `backendHealthy()`. The race ran like this:
+
+1. A tick's probe starts while the stack is up.
+2. The user stops the backend, and the stop finishes while the probe is still
+   outstanding.
+3. The stale probe answers "healthy", which flips `lastHealthy` back to true
+   and reports healthy.
+4. The next tick reports the deliberately stopped stack as `containers-down`.
+
+The vitest reproduction saw exactly `[true, null]` followed by
+`[false, "containers-down"]`.
+
+The update path was audited and holds:
+
+- the deadline settles `false` once, and a later `close` cannot resolve it
+  again;
+- `busy` clears in `finally`;
+- `ChildTerminationController` keeps the backend busy until the installer
+  really exits or is SIGKILLed;
+- old images are removed only after `ok && backendHealthy()`.
+
+**Fix.** `start`, `stop` and `update` each bump a lifecycle generation when
+they take the stack. A tick drops its result if the generation changed, or a
+lifecycle action is running, at either await point. It sets `lastHealthy`
+only when it reports.
+
+**Proved.** `WatchdogStop.lean` checks every interleaving of up to seven tick
+begin/end, stop, start, crash and recover events:
+
+- after a stop with no later start or recover, nothing is reported;
+- the old unguarded tick violates this, on tick-begin, stop, tick-end;
+- a crash followed by a full tick is still reported.
+
+**Spec.** `desktop/src/backendWatchdog.test.ts` drives the real module with
+fake timers and stubbed Docker:
+
+- "never lets a probe that started before a deliberate stop override it" (red
+  before);
+- "still reports a stack that goes down and comes back on its own".
+
+**Also fixed.** `spec/desktop/desktop_settings_spec.rb` still looked for the
+`mode: 0o600` text that F76 replaced, and F76 had not run the desktop specs.
+It now checks for the temporary file and the rename. All 389 desktop specs
+(run with `RUN_CI_ONLY_SPECS=true`) and all 299 desktop vitest tests pass.
+
+---
+
+## F81. The desktop cable delivered pings and unconfirmed or rejected frames — fixed
+
+**Found by** DOC-44 Phase 7, desktop ActionCable and notifications:
+"Subscription rejection delivers no messages", "Stale socket callbacks are
+ignored", "Confirmation resets backoff", and "Error and close callbacks
+schedule at most one reconnect".
+
+**Gap.** `AppUserCableClient` forwarded every frame that had a `message` key
+to `onMessage`. That handler broadcasts the payload to every window and to the
+native notification dispatcher. Three kinds of frame got through that should
+not have:
+
+- ActionCable pings, `{type: "ping", message: <timestamp>}`. The server sends
+  one every few seconds, so each window received a stream of numbers.
+- Broadcasts that arrived before `confirm_subscription`.
+- Broadcasts on a socket after `reject_subscription`, and frames for any other
+  identifier.
+
+The handlers currently ignore non-object payloads and unknown types, so the
+harm was noise rather than a false notification. But the property is a
+delivery contract, and the next consumer would have inherited it.
+
+**Already sound.**
+
+- Every callback checks the socket's generation, and `start`/`stop` bump it.
+- `finish` is idempotent, so each socket schedules at most one reconnect.
+- Backoff doubles up to a cap, and resets on confirmation.
+- An `unauthorized` disconnect marks the token suspect and stops reconnecting.
+- A credential change starts a new generation, so the old token is never
+  reused.
+
+**Fix.** Each socket tracks whether its own subscription is confirmed.
+`onMessage` receives a frame only if it is untyped (a broadcast, not a
+protocol frame), carries this channel's identifier, and arrives while the
+subscription is confirmed. A rejection clears the confirmed state.
+
+**Proved.** `CableDelivery.lean` checks every sequence of up to six frames on
+one socket:
+
+- each delivered frame is an own-channel broadcast that follows a confirmation
+  with no rejection after it;
+- the old behaviour violates this;
+- a confirmed broadcast is delivered.
+
+**Spec.** `desktop/src/appUserCable.test.ts` has two new tests, both red
+before:
+
+- "delivers only this channel's broadcasts, and only once the subscription is
+  confirmed";
+- "delivers nothing on a socket whose subscription was rejected".
+
+All 301 desktop vitest tests and 389 desktop specs pass.
+
+---
+
+## F82. A link or file dropped on a privileged desktop window ran with the credential bridge — fixed
+
+**Found by** DOC-44 Phase 7, Electron security boundary: "untrusted renderer
+content cannot invoke filesystem, credential, backend-control, or process
+IPC".
+
+**Gap.** The tray popover, Preferences and onboarding windows load the bundled
+renderer with `preload.cjs`. Its handlers include `get-credentials` (returns
+the saved API token), `save-credentials`, `checkout-job` and the installer
+controls, and none of them check the sender. The windows had no
+`will-navigate`, `will-redirect` or `setWindowOpenHandler` guard, no global
+`web-contents-created` guard existed, and the renderer does not cancel drops.
+Electron navigates a window to a link or file dropped onto it by default. So
+dropping a link or a downloaded HTML file onto Preferences loaded foreign
+content with `window.syrus.getCredentials()` available.
+
+The web-app window was already sound, in three layers:
+
+- navigation, redirects and popups go through `decideWindowOpen`;
+- the window is sandboxed;
+- every handler on its bridge (`shell:*`, `annotation:*`, `recorderHud:*`,
+  `dictation:*`) checks the sender is the web-app window's top frame on the
+  instance origin.
+
+`open-external` allows only http(s). App auto-update is armed only for stable
+packaged builds. "Restart to update" refuses while a backend update is running,
+and a plain Quit kills the installer tree instead of orphaning it.
+
+**Fix.** `windows/privilegedWindowGuard.ts` `lockPrivilegedWindow` refuses
+every content-started navigation, redirect and popup. The main process's own
+`loadFile` and `loadURL` never fire `will-navigate`. The popover, Preferences
+and onboarding windows install the guard.
+
+**Proved.** `PrivilegedWindows.lean` checks every sequence of up to four
+content-started navigations:
+
+- a privileged window only ever shows the local renderer;
+- the web-app window only ever shows the server origin;
+- the unguarded window reaches `file:` content.
+
+**Spec.**
+
+- `desktop/src/privilegedWindowGuard.test.ts` covers the guard.
+- `spec/desktop/privileged_window_guard_spec.rb` finds every `BrowserWindow`
+  given the privileged preload and requires it to be locked. It was red with
+  the wiring removed ("main.ts creates mainWindow with the privileged preload
+  but never locks it").
+
+All 302 desktop vitest tests and 391 desktop specs pass. `npm run typecheck`
+for the desktop is clean; its dependencies are now installed in the worktree.
+This typecheck also covers F76, F80 and F81.
+
+---
+
+## F83. Onboarding: a cancel during lock acquisition still spawned the installer, and a reused PID kept a stale lock forever — fixed
+
+**Found by** DOC-44 Phase 7, installer and onboarding:
+
+- "Only one installer owns the install lock";
+- "Cancellation eventually terminates the complete child-process tree";
+- "Every terminal path releases the lock";
+- "Interrupted installation remains diagnosable and recoverable".
+
+**Gap 1: cancelling while the lock is acquired.**
+`OnboardingDriver.performStartInstall` awaits the state directory, the backend
+manifest and the install lock, then spawns the installer. Cancellation was
+checked only after the manifest. If a cancel arrived while
+`acquireInstallLock` was in flight:
+
+- `cancelInstall` reset the wizard to Welcome;
+- the start then resumed, set `local.installing` and spawned an installer;
+- nothing killed that installer, because the cancel had already been handled.
+
+The vitest reproduction holds the lock's `open` and cancels in that window. It
+saw the spawn.
+
+**Gap 2: a stale lock behind a reused PID.** A stale lock was broken only when
+its PID was dead. An install interrupted by a reboot, which is the case
+reboot-resume exists for, leaves the installer's PID in `install.pid`. After a
+reboot, PIDs are reused. If any process now runs under that PID, every install
+was refused as "A Syrus installation is already running" until the file was
+deleted by hand.
+
+**Already sound.**
+
+- The lock is created with `wx`, so only one creator wins.
+- While the installer runs, the lock holds the installer's own PID.
+- Release only removes a lock that holds our PID, unless the release is
+  forced.
+- A cancel after the spawn kills the process group and escalates to SIGKILL.
+- `handleExit` returns to Welcome on a cancelled run, even if the exit code is
+  0.
+- The backend config is saved only on exit 0, which comes after the
+  installer's own health gate.
+- Quitting waits for the installer tree to close (F82 audit).
+
+**Fix.**
+
+- The start re-checks cancellation after acquiring the lock. If a cancel
+  arrived, it releases the lock and stops.
+- A lock whose modification time is before the current boot (`now - uptime`,
+  with a minute of slack) is treated as stale, whatever its PID.
+
+**Model.** `InstallCancel.lean` is a table of the start's code paths, one row
+per point where a cancel can land:
+
+- a cancel before the spawn never spawns and leaves no lock;
+- a cancel after the spawn kills the installer;
+- every cancelled path ends at Welcome;
+- the old behaviour spawned on a cancel during lock acquisition.
+
+**Spec.** `desktop/src/installerDriverCancel.test.ts` drives the real driver
+with a held lock `open` and a fake `spawn`. Both tests were red before:
+
+- "never spawns an installer after a cancel that lands while the lock is being
+  acquired";
+- "breaks a lock written before the last boot even when its PID is in use".
+
+All 304 desktop vitest tests and 391 desktop specs pass, and the desktop
+typecheck is clean.
+
+---
+
+## F84. A stale onboarding precheck overrode navigation and could start an install — fixed
+
+**Found by** DOC-44 Phase 7, installer and onboarding: "Stale probe results
+cannot race navigation and change wizard state", and "Remote mode cannot
+mutate the local backend".
+
+**Gap.** `OnboardingDriver.precheck` awaits up to six probes in turn:
+
+1. read the `.env`;
+2. check Syrus's health on the port;
+3. fingerprint whatever answers;
+4. find the Docker binary;
+5. check the daemon, which allows up to 10 s;
+6. look for the data volume and probe the port.
+
+Then it sets the next screen, or calls `startInstall()` directly. It never
+re-checked that it was still current. "Run Setup Again…" (`reset`), or any
+other navigation that landed while it probed, was overridden by the stale
+result, which could go on to start an install. The vitest reproduction holds
+the daemon probe, resets the wizard, then answers. The stale precheck spawned
+the installer.
+
+`connectRemote` was already sound: it re-checks the phase and URL after its
+probe. So was `probeInstance`, which is stateless. Remote mode cannot touch the
+local backend: start, stop, update and `ensureRunning` all return early unless
+the backend mode is `local`. The test-only wipe is gated on the channel.
+
+**Fix.** The precheck captures the navigation generation (`pollGeneration`).
+Every navigation bumps it through `stopPolling`. After each probe the precheck
+stops if the generation moved on or the phase is no longer `local.precheck`.
+
+**Spec.** `desktop/src/installerDriverPrecheck.test.ts` "drops its result when
+the wizard was reset while it probed" was red before (an installer was
+spawned). No Lean model: an encoding of "check after every await" would only
+restate the fix, so the adapter test is the evidence. This follows the
+pattern of the existing generation proofs, `WatchdogStop` and the cable
+generations.
+
+All 305 desktop vitest tests and 391 desktop specs pass, and the desktop
+typecheck is clean.
+
+---
+
+## F85. The tray badge never resynced after a cable outage — fixed; credential and notification semantics audited
+
+**Found by** DOC-44 Phase 7:
+
+- desktop credentials: "Failed validation cannot replace valid stored
+  credentials";
+- desktop ActionCable and notifications: "Notification delivery semantics are
+  explicitly at-least-once or exactly-once", "If duplicates are permitted,
+  unread-count behavior eventually reconciles to an authoritative count", and
+  "Main-process and renderer notification paths do not jointly create
+  uncontrolled duplicates".
+
+**Semantics, as implemented.**
+
+- *Delivery is at most once.* `NotificationService` broadcasts once, after the
+  notification row commits, and ActionCable keeps no replay.
+- *The count is authoritative per broadcast.* The broadcast carries the
+  server's `unread_count`, and `handleNotificationCreated` sets the badge from
+  it. Only a payload without a count falls back to `+1`.
+- *No main/renderer duplication.* The main process shows a native
+  notification only when the web-app window is not live, visible and
+  unminimised. Otherwise the web app shows it, so the two paths never both
+  fire for one event.
+
+**Gap.** Because delivery is at most once, a broadcast missed while the cable
+was down is gone. The badge resynced only on bootstrap (startup and
+credentials save), when the tray popover opened, or with the next
+notification. After an outage, a missed notification, or one read on another
+device, left the badge wrong indefinitely if none of those happened.
+
+**Fix.** `AppUserCableClient` reports every confirmed subscription through
+`onSubscribed`, on the first connect and every reconnect. Main resyncs the
+badge from `/notifications` there. Errors are swallowed; the badge is cosmetic.
+
+**Credentials hold.** `saveCredentials` validates with the server before
+`writeCredentialsFile`, so a failed validation throws before anything touches
+the stored file. `CredentialMutationCoordinator` serialises operations and
+lets a newer one supersede an older one. The newest operation always runs
+last, so it is the final mutation on disk.
+
+**Spec.** `desktop/src/appUserCable.test.ts` "reports every confirmed
+subscription so the unread count can resync" was red before (0 calls). All
+306 desktop vitest tests and 391 desktop specs pass, and the desktop typecheck
+is clean.
+
+---
+
+## F86. "Reset Test Setup" could wipe the stack under a running start or update — fixed
+
+**Found by** DOC-44 Phase 7, backend lifecycle and data safety: "Start, stop,
+update, reset, and uninstall are mutually exclusive where required", and
+"Missing data is distinguished from temporarily stopped containers".
+
+**Gap.** `start`, `stop` and `update` are mutually exclusive. Each checks
+`backendBusy()` and sets it with no await in between. The test-channel wipe
+was not part of this:
+
+- `confirmAndResetTestSetup` checked `backendBusy()` *before* its confirmation
+  dialog. That dialog waits on the user indefinitely, and a backend update can
+  be confirmed from its own dialog meanwhile.
+- `wipeBackendStack` never took the lifecycle itself. A start or update
+  confirmed while the reset dialog was open ran under `compose down -v`, and
+  one begun during the wipe recreated the stack it was deleting.
+
+Uninstall quits the app before its script runs (`uninstall.sh`, detached), so
+it cannot overlap.
+
+**Fix.**
+
+- `wipeBackendStack` refuses while any lifecycle action is running, and is a
+  lifecycle action itself: it bumps the F80 generation, holds `busy`, and
+  clears it in `finally`. The work moved to `wipeStack`.
+- `confirmAndResetTestSetup` re-checks after the dialog, so the usual case
+  refuses before supervision is stopped.
+
+**Missing data vs stopped holds.** The watchdog diagnoses `daemon-down`,
+`data-gone` (the data volume is absent) and `containers-down` separately. A
+deliberate stop shows the "stopped" page and is not reported as an outage
+(F80).
+
+**Spec.** `desktop/src/backendWatchdog.test.ts` "refuses while another
+lifecycle action is running, and holds the lifecycle while it wipes" was red
+before: the wipe resolved during a start. Two text specs were updated for the
+`wipeStack` split. No Lean model: exclusion here is a check-and-set with no
+await between, which a model would only restate. All 307 desktop vitest tests
+and 391 desktop specs pass, and the typecheck is clean.
+
+---
+
+## F87. A CI repair that gave up closed a Job with an open PR as "no changes" — fixed
+
+**Found by** DOC-44 job state, coverage item `feedback-does-not-regress-job`:
+"Feedback and repair Workflows on an existing Job never regress its state."
+
+**Gap.** Here is how a CI repair on an implemented Job reached the closure:
+
+1. An approval-blocking follow-up (`ci_failure`, `pr_comment`, …) lifts the
+   implemented Job to `running` when it starts.
+2. `analyze_and_fix` raises `NoChangesProduced` when the agent's step made no
+   change.
+3. `JobLifecyclePropagation.fail!` diverts such a failure to
+   `CiFailureNotReproduced` only when every grader in the Workflow passed or
+   was inconclusive.
+4. Otherwise it fell through to the generic rule, which closes the Job with
+   reason `no_changes`.
+
+So a CI repair whose agent gave up without a diff after a grader had already
+reproduced the failure closed a Job that still had an open, unmerged PR. The
+repair loop's later iterations are exactly this case. The spec saw `closed` /
+`no_changes`. Two things made this worse:
+
+- the PR's work was abandoned;
+- `JobDependency::SatisfactionModes::Landed` treats a `no_changes` closure as
+  landed (`landed.rb:16`), so dependents went ahead as if it had merged.
+
+**Production** (read-only). The four recent `ci_failure` runs that failed with
+`NoChangesProduced` all belong to Jobs that later closed as `pr_merged`. They
+took the diversion branch, so the gap is reachable but not yet observed.
+
+**Fix.** The `no_changes` closure applies only to a Job without a PR (no
+`pr_number`, `external_pr_number` or `fork_review_pr_number`). That is its
+meaning: an attempt that produced nothing. On a Job with a PR, the failure
+follows the ordinary path to `failed`, where it is visible and retryable.
+
+**Not changed.** `cancel!` of a follow-up that lifted the Job moves the Job to
+`failed`, which keeps the PR and stays retryable. Existing specs pin this
+intentionally ("still fails the Job when its only Workflow is cancelled").
+
+**Proved.** `FollowUpFailure.lean` encodes `fail!` branch for branch, over
+every Job state, PR or not, failure kind, CI diversion and lifecycle
+ownership:
+
+- a Job with a PR is never closed by a failed Workflow;
+- it never returns to a pre-PR state;
+- a Job without a PR whose attempt produced nothing is still closed as
+  `no_changes`;
+- the old rule closes a running Job with a PR.
+
+**Spec.** `job_lifecycle_propagation_spec.rb` "fails, rather than closes, a Job
+with a PR when a repair gives up after a reproduced failure" was red before:
+it got `closed` / `no_changes`.
+
+Also run and green:
+
+- the propagation specs;
+- the workflow, job, run_job, poll_pull_request, job_closure and
+  stack_rebase_coordinator specs, with `spec/services/workflows` (370
+  examples);
+- the `ci_failure_repair`, `pr_review_feedback_repair` and
+  `superseded_ci_repair_base_resolves` simulations.
+
+---
+
+## F88. Coding and local-mode handoffs could leave a Job running with nothing working on it — fixed
+
+**Found by** DOC-44 job state, coverage item `job-running-without-work`: "A
+Job is running or landing but no Workflow is working on it" must be
+unreachable.
+
+**Shape.** `JobLifecyclePropagation.lifts_job_on_start?` lifts the Job to
+`running` for every kind except landing and infrastructure ones. Generic
+`fail!` skips kinds that own their Job lifecycle, and generic `cancel!` also
+skips the two handoff kinds. So for a lifecycle-owning kind that lifts the
+Job, its own `after_fail` and `after_cancel` are the only things that can
+settle the Job.
+
+Enumerating the registry, three such kinds lift the Job:
+
+- `coding_handoff`;
+- `local_mode_handoff`;
+- `external_pr_ingest`, which settles failure in `after_fail` and goes through
+  generic `cancel!`.
+
+**Gaps.**
+
+1. `CodingHandoff.after_fail` began `return unless
+   Feature.coding_mode_enabled?`, yet its own comment says generic
+   propagation was suppressed. So a handoff that failed after Coding Mode was
+   switched off left its Job `running`. An existing spec pinned this ("is a
+   no-op … expect(job).to be_running").
+2. Neither handoff defined `after_cancel`. The generic skip has been there
+   since the propagation was first written, apparently copied from the
+   failure-owner list. So any cancellation that did not close the Job
+   stranded it in `running`.
+
+**Fix.**
+
+- `CodingHandoff.after_fail` settles the Job on every failure. Only the chat
+  report depends on Coding Mode.
+- Both handoffs gain `after_cancel` through `Workflows::HandoffCancellation`.
+  It fails a Job left `running`, unless the cancellation was a supersession,
+  and the local-mode variant also clears the chat link. This mirrors generic
+  `cancel!`.
+- The pinned no-op spec now asserts that the chat gets no report and the Job
+  fails.
+
+**Proved.** `RunningHasWork.lean` covers each category of kind that lifts the
+Job, every terminal outcome, and Coding Mode on or off:
+
+- once the Workflow ends, the Job is not `running`, except after a
+  supersession, when newer work owns it;
+- the old hooks strand it in all three cases.
+
+**Specs.**
+
+- `coding_handoff_spec.rb` "terminal outcomes always settle a running Job":
+  red before on flag-off failure and on cancel.
+- `local_mode_handoff_spec.rb` ".after_cancel": red before.
+- `spec/architecture/lifecycle_owning_kinds_settle_job_spec.rb`: every
+  lifecycle-owning kind that lifts its Job must define its own hooks. It was
+  red with the hooks removed ("inherits the no-op after_cancel").
+
+The `spec/services/workflows`, pending-action, workflow and job specs pass
+(513 examples).
+
+---
+
+## F89. The drift classifier reported every rebase on an implemented Job — fixed; Lead L4 closed
+
+**Found by** DOC-44 job state, coverage item
+`job-state-vs-active-workflow-kind`, while working Lead L4.
+
+**Gap.** `JobLifecyclePropagation.lifts_job_on_start?` deliberately leaves an
+*implemented* Job implemented when a non-approval-blocking follow-up starts
+(rebase, stack rebase, manual reviews, visual diff). But
+`classify_job_workflow_drift` reported any active Workflow on an implemented
+Job as `job_workflow_state_drift`, a warning that sends the operator to
+"operator_review_state_transition". So every ordinary rebase on an
+implemented Job read as drift while it ran.
+
+**Fix.** The classifier skips an implemented Job whose active Workflows are
+all non-approval-blocking. An approval-blocking Workflow on an implemented
+Job, which start propagation would have lifted, is still reported.
+
+**Proved.** `LegalJobWorkflowPairs.lean` encodes start propagation and the
+classifier over every launch state and kind category:
+
+- no pair that start propagation produces is reported as drift;
+- an approval-blocking Workflow on an implemented Job still is;
+- the old classifier reports a produced pair.
+
+**Spec.** `reconciler_spec.rb` "does not report an implemented Job with a
+running non-approval-blocking follow-up as drift" was red before. "still
+reports an implemented Job with a running approval-blocking Workflow as drift"
+passes. All 322 examples of `reconciler_spec.rb` and
+`resilience_matrix_spec.rb` pass, with `RUN_CI_ONLY_SPECS=true` since both are
+CI-only, as do the other `work_engine` specs.
+
+**Lead L4 closed: no stall bug.** Read-only production queries, through the
+database browser plugin's read-only query endpoint and the admin API, show
+what happened:
+
+- the operator paused the Job manually during the rebase storm, a minute
+  before `agent_rebase` finished;
+- the pause requested a stop at the WorkUnit's next phase boundary, which was
+  `force_push` (`blocked_details` = `{pause_requested: true, phase_step_kind:
+  force_push}`);
+- runaway protection had been set four days earlier.
+
+So the queued Step is a deliberate wait. The reconciler classified it as
+`queued_step_without_run` and skipped the resume about once a minute: 16,596
+detections and 8,298 skips since 2026-11-14. Main's "Leave queued Steps alone
+while their gate recheck is still due" (`71c415f76a`) excludes deliberate
+waits from that classifier, but it is not in the deployed build
+(`a47a6abd37`). The churn stops on the next deploy.
+
+---
+
+## F90. AutoRetryJob and the stale-retry repair still disagreed about supersession — fixed
+
+**Found by** DOC-44 retries, coverage item `stale-auto-retry-workflow`: "A
+queued auto-retry Workflow is still waiting although its source was
+superseded."
+
+**Gap.** Three places decided whether an auto-retry's source Workflow was
+superseded:
+
+- `AutoRetryJob#stale_attempt?`, before launching the retry;
+- the reconciler's `stale_auto_retry_workflow` classifier;
+- the `CancelStaleAutoRetryWorkflow` executor.
+
+F27 aligned the first two on "the source succeeded", after three intents
+produced fourteen cancelled workflows. But the classifier and the executor
+also count a source whose branch divergence was recovered by the current PR
+branch (`branch_divergence_recovery.action == superseded_by_current_pr_branch`),
+and `AutoRetryJob` did not.
+
+Recovery skips pending `branch_diverged` attempts. But the operator's "retry
+from the current PR branch" choice
+(`mark_branch_divergence_retry_choice!`) passes
+`cancel_stale_retry_workflows: false` and leaves them alive. A surviving
+attempt then passed the launch check and started. The reconciler then
+cancelled it as stale, which leaves a requested WorkIntent behind for the
+launcher: the relaunch loop F27 described. The spec saw the attempt go ahead
+to `RetryWorkflowEnqueuer`.
+
+**Fix.** One predicate, `Workflows::AutoRetrySupersession.superseded?`: the
+source succeeded, or was superseded by a later successful Workflow, or was
+recovered by the current PR branch. `AutoRetryJob`, the classifier and the
+executor all call it, so they cannot drift again. No Lean model: agreement
+now holds by construction, and a model would only restate it.
+
+**Spec.** `auto_retry_job_spec.rb` "skips an attempt whose source divergence
+was recovered by the current PR branch" was red before (the retry was
+performed).
+
+Also run and green:
+
+- the AutoRetryJob, recovery and attempt specs (100 examples);
+- the CI-only reconciler, executor and resilience specs (350 examples);
+- the `auto_retry_budget_exhausts`, `auto_retry_skip_clears_same_attempt_backoff`
+  and `repeated_pr_open_failure_retry_recovers` simulations.
+
+---
+
+## F91. Sibling Runs reset each other's pinned deferral budget, so the loop could not end — fixed
+
+**Found by** DOC-44 runs and queue, coverage item
+`queued-run-placement-livelock`. A Run pinned to one host keeps deferring or
+re-enqueueing itself and never starts. The plan frames it as a termination
+argument, bounded by `PINNED_HOST_ADMISSION_DEFERRAL_BUDGET` (40).
+
+**Gap.** `RunJob#record_host_admission_deferral!` kept the deferral count in a
+single per-Workflow artifact, `run_host_admission`. It took the next count as
+`prior.deferral_count + 1` only if `prior.run_id` was this Run, and otherwise
+restarted at 1. `RunHostAdmission` resource-guards graders, and the
+`WholeHostClaims` comment describes sibling grader shards of one Workflow
+admitted within seconds of each other. On a pinned Workflow, siblings deferred
+by the same host overwrite the artifact in turn, resetting each other's count,
+so the budget never drops the storage affinity.
+
+The spec alternated two sibling Runs for 40 rounds each, and the Workflow was
+still pinned (`storage-a`).
+
+Two things were already sound:
+
+- When recording a deferral fails, the rescue returns a count of 1 for that
+  call, but the stored count is untouched. That only delays exhaustion by one
+  round.
+- Reroutes do not count against the budget, by design.
+
+**Fix.** The artifact keeps per-Run counts in `deferral_counts`, migrating a
+legacy single count into it on first use. Each Run's `deferral_count` is its
+own count. The top-level fields keep their meaning for other readers.
+
+**Proved.** `PinnedDeferralBudget.lean` uses a budget of 4, three siblings and
+every sequence of up to 12 deferrals:
+
+- once some Run has been deferred `budget` times, affinity is dropped, so no
+  interleaving defers forever;
+- under the old shared counter, two alternating siblings never reach the
+  budget in 3·budget rounds.
+
+**Spec.** `run_job_spec.rb` "counts each pinned Run's deferrals separately so
+siblings cannot reset each other" was red before.
+
+Also run and green:
+
+- the existing budget specs;
+- all `spec/jobs` (849 examples);
+- the CI-only reconciler deferral examples;
+- the `pinned_host_admission_deferral_budget_reenqueues_elsewhere` simulation.
+
+---
+
+## F92. A started landing whose agent could not proceed kept the repository landing slot — fixed
+
+**Found by** DOC-44 scheduling, coverage item `gates-starvation-free`. The
+note there warns that the landing-slot release uses an allowlist, so any
+reason that clears only from outside but is missing from the list keeps the
+slot.
+
+**Gap.** `WorkUnit#block!` gives back the repository `landing:` lock in two
+cases:
+
+- the reason is in `EXTERNALLY_CLEARED_BLOCKED_REASONS`, defined as "reasons
+  that cannot clear by waiting";
+- the landing had not started its first Run (NY7, `PrestartSlot.lean`).
+
+When an approval-blocking Workflow is blocked because its agent reported it
+cannot proceed, `Workflows::LifecyclePropagation#blocked!` blocks the unit with
+`agent_cannot_proceed`. The landing Workflows (`auto_merge`, `merge_train`)
+run a `landing_fix` repair agent, and that agent can report it cannot proceed.
+`agent_cannot_proceed` clears only when a person or the agent acts. It meets
+the list's own definition, but it was missing from the list. So a *started*
+landing that ended up there kept the repository's landing slot, and every
+other approved Job in the repository waited behind a Job nobody was working
+on, with nothing marked failed.
+
+Production (read-only): no blocked unit currently holds a landing lock, and no
+landing Workflow has ever been `blocked`. The path is reachable, but has not
+been taken.
+
+**Fix.** `agent_cannot_proceed` joins `EXTERNALLY_CLEARED_BLOCKED_REASONS`.
+Every reader of the list then treats it consistently:
+
+- `block!` gives back the landing slot, and only that slot: the Job and Epic
+  locks stay;
+- the `externally_blocked_landing_slot` repair releases slots that units
+  parked on it before this change still hold;
+- `stranded_landing_job` returns such a Job to `approved` (M42).
+
+**Spec.** `work_unit_spec.rb` "surrenders the landing slot when a started
+landing's agent cannot proceed" was red before (the slot stayed held).
+
+Also run and green:
+
+- `spec/models/work_unit_spec.rb`, `spec/services/workflows` and the
+  cannot-proceed tool spec;
+- the CI-only reconciler, executor and resilience specs;
+- the `stranded_landing_job_without_lock_returns_to_approved` simulation.
+  There is no simulator scenario for the externally blocked landing slot
+  itself; the reconciler spec covers that classifier and repair.
+
+---
+
+## F93. The plugin capability lookup treated every installed plugin as enabled when enablement could not be read — fixed
+
+**Found by** checking main through `31254a466c` (the plugin capability-family
+epic) against NY13. NY13 was decided: "We should not treat installed plugins
+as enabled... retry until we have a straight answer."
+
+The new private `PluginRegistry.available_capability_plugins` backs both
+`capability_providers` (and so `Syrus::Plugin::Dispatch.call`) and
+`capability_catalog`. It read the plugin records inside its own `begin`/`rescue
+ActiveRecord::ActiveRecordError`, and on any database error kept every
+installed plugin. That is exactly the fallback F-NY13 removed from
+`providers_for`, `all_plugins`, `health` and `credential_types`. During a lock
+timeout or a dropped connection, a family capability of a plugin the operator
+had disabled was dispatched.
+
+**Fix.** It now reads through `enablement_records`, like every other
+enablement decision:
+
+- declared defaults while the database or table does not exist;
+- every plugin only for an asset build;
+- otherwise retried, then `EnablementUnavailable`.
+
+**Why the guard missed it.** The Lean model (`EnablementRead.lean`) proves the
+read. That every enablement decision *uses* the read is a fact about call
+sites, which the model cannot see. The behavioural specs pin only the methods
+that existed then.
+`spec/architecture/plugin_enablement_reads_fail_closed_spec.rb` now walks
+`plugin_registry.rb` with Prism. It rejects any method that calls
+`plugin_enabled?` and rescues a database error itself. One method is exempt,
+`eager_load_skippable_plugin_names`, which fails toward loading more code. The
+guard was red on the pre-fix code.
+
+**Same rebase, same rule.** Main switched `providers_for` from `healthy?` to
+`registrations_healthy?`, so a non-conforming family declaration withholds
+only that family. This branch's `providers_with_owner_for` (plugin-hosted
+points) documents "the same callable rule as providers_for" but still used
+`healthy?`, so a plugin's hosted contributions vanished over an unrelated
+family. It now uses `registrations_healthy?`.
+
+**Specs.** Both were red before the fix:
+
+- `capability_registry_spec.rb` "raises instead of offering a disabled
+  plugin's capability when enablement cannot be read";
+- `capability_registry_spec.rb` "keeps a non-conforming plugin's
+  plugin-hosted contributions, like its other registrations".
+
+Also run and green: `spec/lib`, `spec/architecture`, `spec/services/steps`,
+the admin plugins request spec, and the `connected_accounts` and
+`plugin_runtime` plugin specs (1,836 examples).
+
+---
+
+## F94. Family language detection called non-conforming providers, and a load error failed Prepare — fixed
+
+**Found by** checking the same epic. It relies on this invariant: *a family
+capability is only invoked through a conforming declaration*. `Dispatch`,
+`LegacyBridge.providers_for_manifest` and `capability_providers` all check
+`Conformance#conforming?` first.
+
+`RepoPluginDetector#family_language_support?`, called from Prepare on every
+workflow, resolved the declared provider by name and called its
+language-support capability directly. Two counterexamples:
+
+- **Non-conforming provider still claimed repos.** A provider that breaks the
+  family contract (for example, an extra optional positional argument) still
+  claimed the repository in both `detected_plugins` and the observed plugin
+  signals.
+- **A load error failed Prepare.** A family provider resolves lazily, so a
+  provider file that fails to load raises `LoadError`/`SyntaxError`. That is a
+  `ScriptError`, which the per-plugin `rescue StandardError` in `detect_among`
+  let escape out of `record_detected_plugins!` and fail Prepare. That broke the
+  detector's own contract: one plugin's failure must not take the detection
+  pass with it.
+
+No bundled plugin declares `family_provides` yet, so this was latent: an
+external plugin or the first migrated bundled one would hit it.
+
+**Fix.**
+
+- Each manifest's declarations are checked with
+  `Syrus::Plugin::Conformance.new([manifest])`. It is per manifest because
+  `observe` deliberately includes disabled plugins, which the registry lookup
+  omits.
+- `detect_among` also contains `ScriptError`, the same pair `Conformance`
+  contains.
+
+**Specs.** Both were red before the fix, in `repo_plugin_detector_spec.rb`:
+
+- "does not call a non-conforming declaration";
+- "keeps detecting the other plugins when a family provider fails to load".
+
+---
+
+## F95. A closed Job's intent stayed requested when its unit was cancelled after the close — fixed
+
+**Found by** coverage item `closed-job-open-intent`. Its note named the open
+half: "an intent skipped because its unit was active is not re-cancelled when
+the unit later ends".
+
+**Evidence (production, read-only).** Two requested intents belong to closed
+Jobs, each with a single cancelled unit:
+
+- a `retry` intent whose unit was cancelled for `approved` (August). Its Job
+  closed before the close-time cancel shipped, which today's close path would
+  cancel.
+- a `rebase` intent whose Job closed *50 seconds before* its unit was
+  cancelled for `epic_wide_workflow_active` (September). This is the
+  counterexample. F42, which covers specific reasons, is deployed and does not
+  catch it.
+
+**Cause.** Two writers end a Job-scoped intent, and each left this case to the
+other:
+
+1. `Job#cancel_stale_work_intents_after_close` cancels at close only intents
+   with no active unit, and leaves the rest to their unit.
+2. `WorkIntents::TerminalUnitSync` cancels on a unit cancellation only for
+   `SUPERSEDING_CANCEL_REASONS`. It deliberately keeps an Epic-conflict
+   victim's intent requested for its relaunch, and it never asked whether the
+   Job had closed in the meantime.
+
+Nothing relaunches work on a closed Job, so the intent was stranded.
+
+**Fix.** `TerminalUnitSync` also cancels the intent when the cancelled unit
+was its last active one and the intent's Job is closed. While the Job is open,
+the Epic-conflict victim's intent is still kept for the relaunch.
+
+**Proof.** `formal/SyrusModel/ClosedIntent.lean` models both writers with two
+units and four outcomes:
+
+- `after_closed_intents_have_owner`: over every sequence of up to six events,
+  a closed Job's open intent always has an active unit.
+- `before_strands`: replays the production order, close then a
+  relaunch-keeping cancel.
+- `open_job_keeps_relaunch`: pins that the victim relaunch still works while
+  the Job is open.
+
+**Spec.** `terminal_unit_sync_spec.rb` "cancels the intent of a closed Job
+when its last active unit is cancelled for any reason" was red before the fix.
+Also run and green: `spec/services/work_intents`, `spec/services/work_units`,
+`spec/services/work_engine` (CI-only included), and the job, work unit and
+work intent model specs (406 examples).
+
+The two existing production rows are left alone. The reconciler's
+`closed_job_requested_work_intent` classifier is the backstop for them, and
+this mission repairs nothing by hand.
+
+---
+
+## F96. A finished Workflow deleted its workspace inside the finish transaction — fixed
+
+**Found by** the failure sweep and coverage item
+`running-workflow-nothing-left`. Its note recorded three
+`finish_workflow_from_terminal_descendants` executions 20–250 s *after* their
+Workflow finished as "unexplained, recheck after deploy".
+
+**Evidence (production, read-only).** Over two days there were 27 such skips
+("Workflow is succeeded, not running"):
+
+- Most fire within a few seconds of the finish, a classifier snapshot racing
+  the last Step. The repair skips correctly.
+- Three were merge trains, 175, 206 and 251 s late.
+
+The latest was the merge train that landed the plugin capability-family epic:
+
+- It recorded `finished_at` 22:12:34.
+- Four reconciler passes, at 22:13, 22:13:44, 22:14:30 and 22:15, still read
+  it as running with every Step terminal. Their repairs failed on `Lock wait
+  timeout exceeded`, from both `ReapStaleRunsJob` and
+  `LandingQueueProcessorJob.lock_conflict`.
+- Its final Run's log shows why: `[workspace] cleanup starting` at 22:12:38,
+  then `[workspace] cleanup complete` at 22:16:05.
+
+**Cause.** `Workflows::LifecyclePropagation` runs the AASM transition's `after`
+hook inside the event's transaction. It called `workflow.cleanup_workspace!`
+from `succeeded!`, `cancelled!`, `blocked!` and the infrastructure branch of
+`failed!`. That cleanup `rm_rf`s the workspace and scratch directories, which
+for a merge train took 3.5 minutes. For that whole time:
+
+- the terminal state stayed uncommitted, so other processes saw a running
+  Workflow with nothing left;
+- the rows the same transaction had locked (the Workflow, its WorkUnit, and
+  the member Jobs closed by `JobClosure.apply_pending!`) stayed locked;
+- any failure in the deletion rolled back the terminal transition itself.
+
+**Fix.** `Workflow#cleanup_workspace_after_commit!` defers `cleanup_workspace!`
+with `ActiveRecord.after_all_transactions_commit`, which runs immediately when
+no transaction is open, and contains its errors. If the process dies first,
+`WorkflowWorkspacePruneJob` removes the directory, as it does any incomplete
+cleanup. All four lifecycle paths use it. The direct callers (the admin
+endpoint, the admin pending action and the prune job) are outside a
+transaction and need its return value, so they keep the synchronous form.
+
+**Spec.** `lifecycle_propagation_spec.rb` "removes the workspace only after the
+succeed/cancel transition has committed" records the transaction depth inside
+`WorkflowWorkspace.cleanup_for`. It was one level too deep before the fix.
+
+No Lean model: this is about where I/O sits relative to a transaction
+boundary, which the state models abstract away. The spec is the evidence.
+
+---
+
+## F97. A terminal WorkUnit and its intent committed separately — fixed
+
+**Found by** coverage item `unit-intent-outcome-agreement`. Its note said that
+making the intent sync part of the terminal transition would make the
+disagreement states unreachable instead of repaired.
+
+**Cause.**
+
+- `WorkUnit#mark_terminal!` and `#preempt!` committed the unit's terminal
+  state and lock release in a transaction, and only then called
+  `WorkIntents::TerminalUnitSync`.
+- When the call came from inside a Workflow transition, an outer transaction
+  covered both and the result was atomic. A standalone call was not: an
+  exception in the sync (a lock-wait timeout on the intent row, say) or a crash
+  between the two left a finished unit with an open intent. Those are
+  `succeeded_work_unit_unsatisfied_intent`,
+  `failed_work_unit_unfailed_intent` and
+  `superseded_work_unit_uncancelled_intent`.
+- The Lean ownership model (`WorkUnits.lean`: `markTerminal`, `preempt`)
+  already treats the sync as part of the same step, so its proofs assumed an
+  atomicity the code did not provide on failure.
+
+**Fix.** The sync runs inside both transactions. This adds no new lock order:
+the sync only updates the unit's own intent, which the common path already
+did inside the outer Workflow transaction. The only intent row lock
+(`Launcher#instantiate`) precedes units of *other* intents.
+
+**Evidence (production, read-only).** In 14 days there were 72
+`superseded_work_unit_uncancelled_intent` repairs and none of the other two.
+All 72 ran on 11-21, for units that finished 1–85 days earlier with
+`job_closed` / `terminal_parent_work_unit`. That is F42's backstop draining
+its backlog, not a live producer.
+
+**Specs.** `work_unit_spec.rb` "does not commit mark_terminal! / preempt! when
+the intent sync fails". Both were red before the fix: the unit committed as
+terminal. Also run and green: the models, work intents, work units, work
+engine (CI-only included), workflows, step dispatcher, jobs, landing and Epic
+specs (3,878 examples).
+
+**Still reachable (noted, not changed).** The sync skips while a sibling unit
+of the same intent is active. If unit A succeeds while sibling B runs, and B
+is then cancelled for a non-superseding reason, the intent stays open beside
+a succeeded unit. It did not occur in 14 days. Which outcome the intent
+should take then (A's success, or nothing because B was a newer attempt) is a
+question about attempt semantics, so the classifier remains the backstop.
+
+---
+
+## F98. A dependency named webauthn made an infrastructure failure look like a provider auth failure — fixed
+
+**Found by** the failure sweep. A main-branch grader for the external-reviewer
+Epic's merge failed:
+
+```
+immutable source prepare command failed: npm ci
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '.../node_modules/@...'
+```
+
+`RunFailureClassifier` filed it as `provider_auth_or_config`,
+non-retryable. Nothing retried it, and `GraderCollect` does not count that
+classification as an infrastructure failure, so the main grader recorded a
+genuine failure on main over a transient extraction error.
+
+**Cause.** `auth_or_config?` matched a bare `auth` substring. Its search text
+includes the Run's recent logs, which contained the ordinary install lines
+`Installing webauthn 3.5.1` and the deprecation warning for
+`@github/webauthn-json`. Any repository with a WebAuthn or OAuth dependency in
+its install log was exposed. The method's own comment records the same
+mistake fixed earlier for `config` (`--mcp-config`) and `token`
+(`x-access-token`).
+
+**Fix.** `auth` is now matched as a word:
+`\b(?:o?auth|authentication|authorization)\b`. "Authentication failed for
+…", "OAuth token expired" and "auth error" still classify as auth/config.
+
+**Specs.** `run_failure_classifier_spec.rb` (ci_only): the webauthn install
+log example was red before; three genuine auth messages stay green. Also run
+and green: the classifier-dependent specs (`declared_problems_are_known`,
+`problem/kind`, `merge_train_failure_handler`, `rebase_attempt_guard`,
+`problem_emission`, `repair_executor`, `auto_retry_job`).
+
+**Not changed.**
+
+- `permission denied` in the same pattern can also match a filesystem error
+  in a log. That is a related false positive, noted for a separate change.
+- An `npm ci` extraction ENOENT is still not classified as infrastructure.
+  The prepare failure can be genuine (a broken lockfile), so it now falls
+  through to the generic outcome rather than being guessed.
+- What removed the files under the Step's immutable checkout mid-extraction is
+  unexplained. It is the only such Run in two days.
+
+---
+
+## F99. Grader infrastructure failures were filed as provider auth failures — fixed (refines F98)
+
+**Evidence (production, read-only, 14 days).** 35 Runs were classified
+`provider_auth_or_config`, which is non-retryable. Six were *grader* Runs,
+which never authenticate to an agent provider:
+
+- three failed on `ActiveRecord::ConnectionNotEstablished: Can't connect to
+  server on 'syrus-mysql'` (11-14);
+- one failed on a missing table (11-14);
+- two failed on `immutable source prepare command failed: npm ci` (11-19,
+  and the 11-22 one in F98).
+
+Every one is an infrastructure failure, and none was retried. Each log
+contained `webauthn`, which F98 already handles. Two also contained the test
+name "automatically exchanges Codex OAuth callbacks", which F98's word-bounded
+`\bo?auth\b` still matched.
+
+**Fix.** `auth_or_config?` no longer accepts a bare auth word at all. It needs
+a failure phrasing: `(o)auth(entication|orization)` followed by failed,
+failure, error, required, denied, rejected, invalid or expired. These still
+classify as auth/config:
+
+- "Authentication failed for …";
+- "auth error";
+- the `authentication_failed` agent outcome;
+- "OAuth token expired" (through the existing token pattern).
+
+**Spec.** `run_failure_classifier_spec.rb` "does not treat a test name
+mentioning OAuth in grader output as provider auth/config" was red before.
+The classifier spec (121 examples, CI-only included) and its dependants are
+green.
+
+---
+
+## F100. Two main-branch repairs ran at once after a repair failed with a retry pending — fixed
+
+**Evidence (production, read-only, 11-22 UTC).** Main-branch repair Job 9775
+had been retrying since 13:00, while worker pods kept dying (M59):
+
+- Workflow 66277 failed;
+- Workflow 66284 failed at 15:38:37, with an auto-retry scheduled;
+- at 15:40:20 a health signal spawned a **second** repair Job, 9786
+  (Workflow 66298);
+- at 15:43 the auto-retry relaunched 9775 as Workflow 66299.
+
+Both repairs then ran, each with a preflight fan-out of 134 graders, beside a
+main grader with 134 more, on workers that were already being lost. Main
+grader 66295 had *succeeded* at about 14:20. Only the stale `ci_health:
+broken` from before main's hand fix kept repairs being spawned.
+
+**Invariant.** At most one main-branch repair is in progress per repository.
+
+**Cause.** `MainHealthChangedService#ensure_repair_job!` treats a repair Job
+as blocking only in `BLOCKING_FIX_JOB_STATES`, which are the active and
+landing states. Between a repair Workflow's failure and its auto-retry, the
+Job is `failed`.
+
+- `failed_fix_job_for_current_sha` only suppresses a failure *for the current
+  SHA*, and 9775's covered an older commit.
+- The `MAX_OPEN_FAILED_FIX_JOBS` cap allows several failed repairs.
+
+So a health signal in that window spawned a new repair, and the retry then
+revived the old one.
+
+**Fix.** A failed repair Job with a pending `AutoRetryAttempt` now blocks
+spawning (`retrying_fix_job`), just as an active one does.
+
+**Spec.** `main_health_changed_service_spec.rb` (CI-only) "does not spawn
+another fix Job while a failed repair has a pending auto-retry" was red before.
+"Spawns another fix Job after main advances past a failed repair SHA", the same
+setup without the pending retry, still spawns. The spec file (114 examples)
+and the repair, auto-approver, preflight-collect and auto-retry specs are green.
+
+**Not changed.** Whether the duplicate load is what killed the pods is
+unproven (M59). What kept repairs coming was a stale `ci_health` while the
+grader said healthy. That is a question about which signal wins, and it is
+not changed here.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -2476,6 +4016,17 @@ One path does not: Coding Mode `!` shell commands
 workload policy. Under `required` they run on the worker while the chat agent
 is contained, in the same checkout the agent writes. That is NY15.
 
+**Resolved (NY15: disable them with an explanation).**
+`ChatShellCommandExecutor::Coding#policy_error_code` returns
+`containment_required` while `contained_chat_execution` is `required`. The
+endpoint then answers 403 with that code and a translated explanation, which
+the composer shows as its notice, and queues nothing. `run!` refuses a command
+queued before the setting changed, without starting a process. Local Mode is
+unaffected. Specs: `chat_shell_commands_spec.rb` "when contained chat
+execution is required", and `coding_spec.rb` `#policy_error_code` and
+"#run! under required containment". The website and `config/syrus_docs`
+describe it.
+
 `providers_for`'s own database-error fallback hands out disabled backends too.
 That is the NY13 question again, not a separate one.
 
@@ -2522,6 +4073,14 @@ No code reads them and they carry no foreign keys, so they are inert.
 or one of the Solid Queue, Cache and Cable engine schemas. The two orphans are
 listed as pending, and a second example fails once either is dropped or gains
 a migration. Whether to drop them is NY16.
+
+**Resolved (NY16: delete them).** `DropOrphanedOperatorBriefingTables`
+(`plugins/operator_briefing/db/migrate/20261121172512_*`) drops both tables
+with `if_exists: true`, so fresh installs that never had them are a no-op. Its
+`down` is intentionally empty. They are removed from `schema.rb`, and the
+architecture spec no longer carries a pending list: every table must have a
+creating migration. `drop_orphaned_operator_briefing_tables_spec.rb` covers
+the drop, a second run, and that the plugin's other tables survive.
 
 ---
 
@@ -2665,6 +4224,1512 @@ revocation NY20.
 
 ---
 
+## M20. Backup retention never deletes what it must keep — audited, one question
+
+Main's backup epic ("Recheck backup deletion gates atomically," "Fence backup
+replication attempts with leases," "Preserve verified backup replications").
+The invariants it relies on, read against `LocalBackups::Retention` and
+`LocalBackups::ArtifactSource`:
+
+- **Safety holds.** Retention never deletes the protected backup (the newest
+  valid one, or the newest completed one when none is valid), a pinned backup,
+  one with an uploading replication, or, when verified replication is
+  required, one without a verified copy. `claim_deletions!` re-evaluates every
+  gate inside one transaction, from `Backup.lock` and `Replication.lock` rows,
+  and moves the claimed rows to `deleting` before any file is touched. Pinning
+  and verification changes take the same Backup row lock, so they serialize
+  with the claim.
+- **Replication cannot race a deletion.** `ArtifactSource.pin` locks the
+  Backup row and requires it to be `completed`. A pin after the claim finds
+  `deleting` and fails. A pin before it makes the claim skip the backup.
+- **A verified copy is never overwritten.** `pin` refuses a verified
+  replication. `record_replication` and `release_pin` require the current
+  lease token on an uploading row, so a stale attempt that has been taken over
+  cannot record anything.
+- **Failure restores state.** A failed filesystem delete returns the claimed
+  rows to `completed`.
+
+**Liveness question.** The lease lasts six hours and is never renewed. Nothing
+expires it, and retention treats any `uploading` replication as protected,
+lease expired or not. While the destination keeps retrying, it re-pins after
+expiry and the state resolves. If the destination never retries, for example
+because it was removed while an upload was in flight, that backup is
+protected forever, and capacity reclamation cannot free it. Making expiry
+lift the protection would let retention delete an artifact under an upload
+running longer than six hours. That is NY21.
+
+---
+
+## M21. Recovery preflight blocks known incompatibility, warns on unknowns — audited, one question
+
+Main's "Block unknown plugin versions in recovery" and the preflight checks in
+`LocalBackups::Recovery` (`plugins/local_backups/lib/local_backups/recovery.rb`).
+
+- **Plugins: holds.** Every plugin the bundle marks as required must be
+  present. When the bundle names a version, the destination must report
+  exactly that version, and a destination plugin with no version is
+  "unknown" and blocks.
+- **Known mismatches fail.** These block the restore: a different database
+  adapter, a different database major version, a destination application
+  older than the bundle's, or a destination outside a declared compatibility
+  list.
+- **Unknowns only warn.** These are all `warn`, and preflight reports
+  `ready` whenever nothing *failed*, with no acknowledgement required:
+  - the destination's application version, database adapter or database
+    version was not supplied;
+  - the bundle declares no compatibility range;
+  - the application versions do not parse as versions (development builds,
+    SHAs).
+
+  So a restore can proceed into a destination whose compatibility was never
+  established. That is NY22.
+
+---
+
+## M23. CLI mutation confirmation and checkout safety — audited, one design question
+
+**Scope.** DOC-44 Phase 6, Syrus CLI: "Mutations are confirmed, single and
+target what was shown", and "Checkout never destroys local work".
+
+**Confirmation holds.**
+
+- `job create` and `epic create` prompt with the repository they will target,
+  and anything but `y`/`yes` (EOF included) cancels.
+- The repository ID sent is the one whose slug exactly equals the slug shown
+  (`cliplugin.RepositoryIDForSlug`), so the prompt and the request cannot
+  disagree.
+- The API client never retries a request, so one confirmation produces at most
+  one mutation.
+- The remaining mutating commands (`approve`, `cancel`, `retry`, ...) take an
+  explicit ID and are authorized server-side, which is the CLI's convention.
+
+**Checkout holds.**
+
+- *Job and Epic branches (`checkoutJobBranch`).* The current branch is refused
+  if it has any local changes, untracked files included, before
+  `reset --hard`. A local branch that is not an ancestor of origin is copied to
+  `syrus/backup/<branch>-<timestamp>` before `reset --hard` or `branch -f`. A
+  backup-name collision fails the command rather than overwriting. A branch
+  checked out in another worktree makes `branch -f` fail.
+- *Plain branches.* A dirty worktree is refused, and divergence is only ever
+  fast-forwarded (`merge --ff-only`).
+- *Ordering.* `--complete` fetches every Epic branch before the
+  origin-matches-repository check. This only rewrites remote-tracking refs, so
+  nothing local is lost.
+
+**Open: post-checkout hooks run branch-authored commands (NY23).** After a Job
+or Epic checkout, `runPostCheckoutHooks` runs every `hooks.post_checkout`
+command from the `.syrus.yml` files in the *checked-out branch*, with no
+prompt, unless `--no-hooks` is passed. Two concerns follow:
+
+- *Who writes that file.* The only gate is `Job.kind != "external_pr"`. For
+  every other kind, the branch was written by an agent working from issue
+  text. On a repository that accepts outside issues, the issue author can steer
+  the agent into adding a hook, and that hook then runs on the reviewer's
+  machine during `syrus checkout`, before anyone has read the diff.
+- *How the gate is shaped.* It is a deny-list over an open, plugin-extensible
+  kind set, so a new kind carrying outside content, or a response without a
+  `kind`, runs hooks by default.
+
+---
+
+## Lead L8: a CI-failure repair lost to lock waits on a landing Job (see Lead L2)
+
+**Production (read-only, 11-22, 17:10–17:12 UTC).** Job 9748 (a cron Job, in
+`landing`) got a `ci_failure` Workflow (66262) at 17:10:22.
+
+- Its Prepare failed three times in two minutes on
+  `ActiveRecord::LockWaitTimeout`. The waits were about 35–45 s each, the
+  failures were classified `timeout` (retryable), and the Workflow failed
+  without ever starting its first Step.
+- Seconds later the landing queue launched `auto_merge` (Workflow 66267) for
+  the same Job.
+
+The landing is not unsafe: auto-merge runs its own mergeability preflight and
+graders before merging. But the CI repair is lost, and nothing records who
+held the lock. Step failures do not reach `backend_exception_events`, and the
+Run logs carry no backtrace.
+
+The likely holder is the landing path working on the same Job row while it
+prepared the auto-merge. That is the same shape as Lead L2's hot rows, and as
+F96's long finish transaction (F96 is not deployed).
+
+**Next step if it recurs.** Record the waiting statement and the lock holder
+(`performance_schema.data_lock_waits`, or a backtrace on the Run) before
+changing anything.
+
+---
+
+## Lead L7: workspace recovery requeues stranded Runs away from the worker it rebuilt on
+
+Coverage item `workspace-missing` (storage loss). Production evidence is not
+checked: searching Run logs is too expensive for the read-only connection.
+
+`WorkflowWorkspaceRecovery` handles a missing workspace in three states:
+
+1. `Reconstruct` rebuilds the workspace on the current worker from a durable
+   source and records that worker as the Workflow's storage owner
+   (`WorkflowWorkspaceLifecycle.record_identity!`).
+2. `Resume` either refuses, returning `retry_required` when a mutating Run is
+   still marked running, or requeues every non-live active Run through
+   `Run#reenqueue!(ignore_workflow_affinity: true)`.
+3. With that flag, `RunQueueResolver#compatible_resume_queue` returns `nil`.
+   The Run goes to the general queue, not to the storage-specific resume
+   queue of the worker that holds the rebuilt workspace.
+
+The flag escapes the *lost* worker's affinity. By the time Resume runs,
+`record_identity!` has already replaced that affinity with the live
+rebuilding worker, so honouring it would route the Run where the workspace
+is. As written, any worker may claim the Run. One without the workspace finds
+it missing and rebuilds again.
+
+That converges, because every worker can rebuild from durable sources, but it
+can repeat a rebuild for nothing and stretches the window in which recovery
+can fail. The proof obligation for the item is still that recovery leaves no
+Run pinned to the lost storage key. On this reading that holds: requeued Runs
+are unpinned, and an unrequeued running mutation returns `retry_required` to
+the caller. It is not yet modelled.
+
+---
+
+## M59. A production outage on 11-22 (read-only observation, cause unknown)
+
+**Timeline (UTC).**
+
+- **13:28 and 13:59:** two worker-compute pods were replaced without a deploy,
+  on the same version `424204c35b`. Runs on them failed `worker_died`. That
+  included a main grader's `e2e` grader, twice, which failed two main graders
+  as "required graders failed due to infrastructure". It also included the
+  graders of a main-branch repair, whose Workflow then failed with
+  `workspace_recovery_failed` and was relaunched.
+- **About 14:59:** `/up` returned 503 Service Unavailable, and the admin API
+  returned 500/502 or hung for over two minutes.
+- **15:10–15:13:** every instance restarted on the same version: the web,
+  preview, all six workers and the home worker. A Mac worker on the old
+  version `6570ee323f` also reconnected. `/up` was back to 200 by about 15:13.
+  A few Runs that were in flight failed `worker_died` and are retried
+  automatically. No Workflow failed afterwards.
+
+**Not known.** Why the pods died, and why the whole stack went down. From
+this session, the cluster is not reachable (kubectl is blocked), and the
+database can only be read through the admin API, which was down. Worth
+checking against the previous production failures in the operator notes:
+MySQL OOM kills from glibc arena retention, and a MySQL volume filled by
+`--log-output=TABLE`. The two earlier pod deaths may have been the first sign.
+
+**After the restart (UTC).** Worker pods kept being replaced, all on the same
+version `424204c35b`:
+
+- compute `rnfjm` at 15:34, then `j27bx` at 16:07;
+- the old-version Mac worker (`6570ee323f`, data root 85–86% full) at 15:38
+  and again at 15:52.
+
+Each restart fails the Runs on that worker as `worker_died`. The two
+concurrent main-branch repairs (F100) were cancelled at the operator's request
+at about 15:55, and `j27bx` still restarted afterwards. So the duplicate
+repair load was not the only cause. The cause remains unknown from this
+session.
+
+---
+
+## M58. Main through `c2e7a2f7cb` — main's React failure fixed by hand, coworker ref filter equivalent
+
+Two commits.
+
+- **"Wait for lazy plugin panels in carousel specs"** (`c2e7a2f7cb`) fixes the
+  two `pluginUiSlots.test.tsx` failures from M55 and M56. They now pass
+  locally on the rebased branch. Main was repaired by hand, not by the
+  main-branch repair that NY30 describes, so NY30 stands for the next time.
+- **"Harden remote workspace command construction and coverage"**
+  (`fd19193276`, Coworkers plugin) replaces a per-ref
+  `merge-base --is-ancestor <sha> refs/remotes/workspace/home` loop with one
+  `for-each-ref --merged=refs/remotes/workspace/home`.
+
+  *Relied-on invariant:* the selected run refs are exactly those whose tip is
+  reachable from the home branch. `--merged=<commit>` lists exactly the refs
+  whose tip is reachable from `<commit>`, which is the `--is-ancestor` test, so
+  the set is unchanged. Ref names cannot contain spaces, so the
+  whitespace-split parse is safe.
+
+  *Not changed by it:* `ref.split("/").last` would truncate a run branch with
+  a `/` after the prefix. The branches Coworkers creates have none.
+
+Rebased without conflicts.
+
+---
+
+## M57. Main through `e6aa5d7d0e` — the permission matrix optimisation preserves decisions
+
+One commit: "Speed up permission rule specs with cached payload lookups". It is
+an app-code change, not only specs.
+
+**What changed.** `Permissions::RulesPayload` now groups the active rules by
+`subject_selector_type`. For each subject it passes only that subject's rules,
+and their policy rules, into `Management#matrix_state`. Previously every
+subject's matrix state was explained against *all* active rules.
+
+**Invariant it relies on.** A rule of one selector type never decides a
+matrix cell for another. This holds: `PermissionRule#to_policy_rule` puts the
+rule's own `subject_selector_type` into its selectors, and `matrix_state`
+explains with `context: { subject_selector_type: … }`. A rule whose selector
+type differs from the context can never match, so filtering it out
+beforehand cannot change a decision.
+
+This includes the `eligible_roles` selector. Its `subject_role_keys` would
+have suggested cross-subject reach, but they are not part of the policy
+selectors.
+
+Rebased without conflicts.
+
+---
+
+## M56. One timed-out preflight grader stopped the repair of a reproducible main failure (NY30)
+
+**Production (read-only, 11-22).** The `main_branch_repair` from M55
+(Workflow 66236) ran 134 preflight graders. Two did not pass:
+
+- `react-tests-ci` failed with a genuine assertion failure (`test_failed`):
+  `pluginUiSlots.test.tsx`, reproduced locally on `7fe0e61d29`.
+- `e2e` timed out after about 25 minutes (exit 124).
+
+`Steps::PreflightGraderCollect` then logged:
+
+```
+required preflight graders have no conclusive result: e2e (inconclusive: timed_out)
+— main health stays inconclusive, not spawning a coding repair
+```
+
+It skipped `implement`, every grader step, `summarize`, `test_plan` and
+`pr_open`. `Workflows::MainBranchRepair.mark_inconclusive!` set the
+repository's grader and CI health to `inconclusive` and closed the anchor Job
+as `preflight_inconclusive`. The Workflow *succeeded*.
+
+**Why.** This is the documented rule:
+
+- `GraderOutcome` classifies a timeout as `inconclusive`, not
+  `infrastructure_failed`, so `retryable_infrastructure_failure?` never retries
+  it. Note that `GraderCollect` lists `timed_out` among its infrastructure
+  classifications.
+- `PreflightGraderCollect` makes the whole preflight inconclusive whenever any
+  required grader is unproven, "even when another grader reproducibly failed",
+  so that a repair never proceeds on partial evidence.
+
+**Result.** Main is genuinely red on two React tests, but:
+
+- its health reads `inconclusive`, not unhealthy;
+- landing is not paused;
+- the repair Job is closed;
+- no coding repair runs.
+
+Whether this ever ends depends on a later main grader both failing
+`react-tests-ci` and getting a repair whose `e2e` preflight does not time out.
+A slow e2e suite under load can keep re-masking the failure.
+
+**Also observed.** The newer main grader, Workflow 66241, ran only 22 graders,
+apparently not `react-tests-ci`, and succeeded at 05:20. At 06:22 the repair,
+deciding from its own earlier evidence, stamped `inconclusive` onto the
+current `last_health_checked_sha`. Here that is closer to the truth, but it is
+a verdict about one commit recorded against another.
+
+---
+
+## M55. Main through `7fe0e61d29` (the Ecosystem family migration), and main's broken React test
+
+**Epic #554** (25 commits) does two things:
+
+- migrates every bundled language plugin to the Ecosystem capability family;
+- removes the legacy `prepare_detector`-style extension points, routing core
+  ecosystem lookups (prepare plans, grader coverage, dependency audits)
+  through `Syrus::Plugin::Dispatch`.
+
+It relies on three invariants this branch already proved or fixed:
+
+- **Only conforming declarations are invoked.** That holds for dispatch, the
+  bridge and the detector (F94). It now matters for every bundled plugin, not
+  a latent external one. `RepoPluginDetector` is now
+  `preview_provider` plus the family language-support path, and F94's
+  per-manifest conformance gate merged unchanged.
+- **The capability lookup fails closed when enablement cannot be read**
+  (F93). Core Prepare now goes through that lookup, so a database outage now
+  retries and then raises in Prepare instead of running every installed
+  plugin. That is the behaviour decided for NY13.
+- **`restore_built_ins!` keeps built-in families** (M53).
+
+**Rebase.** The only conflicts were `host/public_apis.rb` (main added
+`capability_providers` and three Ecosystem value types; this branch added
+`providers_with_owner_for`, so both are kept) and the regenerated
+`plugin-spec.md`. `bin/check-plugin-boundaries` passes. `spec/lib`,
+`spec/architecture`, the detector, every plugin's specs, `spec/services/steps`,
+the plugin admin requests, and this branch's touched specs pass, CI-only
+included: 9,774 examples.
+
+**Main is red on two React tests (production, read-only, and reproduced
+locally).** `app/frontend/pluginUiSlots.test.tsx` fails twice. The test expects
+"1 unlabeled open issue" from `screen.findByRole("status")`, but receives
+"Loading...". That is the lazy plugin component's new loading status, from
+"Give suspending plugin components a loading state, not an error"
+(`2f0c0f60a3`). M45 waved that commit through as not engine-relevant; it
+needed its tests run.
+
+A `main_branch_repair` (Workflow 66236) is already working on it. Its
+preflight graders reproduce `react-tests-ci`, and an `e2e` timeout too. So
+this branch leaves the fix to that repair rather than racing it with a
+conflicting change. The main grader that triggered the repair failed first on
+F98's misclassified `npm ci` error; the React failure was underneath it.
+
+---
+
+## M54. An unpublished stacked child whose work conflicts with its moved parent has no recovery (NY29)
+
+**Found by** the failure sweep (production, read-only, 11-22). Epic 553 is a
+linear chain, 9452 → 9453 → 9454 → 9455 → 9456. Job 9453's initial Workflow
+ran a grader loop from 11-19 to 11-22, then failed at `pr_open`:
+
+```
+stack_base_freshness: stack base syrus/direct-9452 moved (5f15df7d -> b0bb597b); rebasing completed work (attempt 1/3)
+CONFLICT (content): Merge conflict in cli/cmd/plugin_local.go
+error: could not apply b3b225b2f... Add plugin package signing and trust verification
+FAIL: Steps::PrOpen::AwaitingStableBase: rebasing completed work onto syrus/direct-9452 (b0bb597b) failed
+```
+
+The parent had been restacked onto main after the plugin capability-family
+Epic landed, and that Epic changed `cli/cmd/plugin_local.go`, which 9453's own
+first commit also edits. This is a genuine content conflict. An auto-retry
+(`retry` Workflow 66238) replayed the same mechanical rebase twice and failed
+the same way. 9453 is failed, and 9454–9456 wait on it (M49).
+
+**Why nothing recovers it.**
+
+1. `StackBaseFreshness#rebase_onto!` raises `RebaseConflict` on a conflict.
+   `Steps::PrOpen#raise_awaiting_stable_base!` converts every
+   `StackBaseFreshness::Error` into `AwaitingStableBase`. The artifact keeps
+   `reason: rebase_conflict`, but the failure is classified
+   `awaiting_stable_base`, which is *retryable*. That is right for a parent
+   that keeps moving, and pointless for a conflict: every retry repeats the
+   same deterministic rebase.
+2. The path that can resolve conflicts with an agent is
+   `StackRebaseCoordinator#enqueue_rebase`, a Rebase Workflow. It skips a child
+   with no PR (`return if child.pr_number.blank?`). A child that fails *at*
+   `pr_open` has never published one.
+3. The coordinator does supersede a pending `awaiting_stable_base` retry with
+   a stack rebase (`SUPERSEDABLE_RETRY_CLASSIFICATION`), but only for children
+   it is willing to rebase. Point 2 excludes this one.
+
+So an unpublished stacked child whose completed work conflicts with its
+parent's new base ends failed, and takes the rest of its chain with it, until
+an operator rebases by hand.
+
+---
+
+## M53. Main commits through `127ea3b964` — the external-reviewer contract
+
+Five commits, one Epic merge. They add a provisional `review` plugin family
+with one `external_reviewer` capability (`first_claim`, absent `nil`), the
+`Syrus::Plugin::ExternalReviewer` service contract, its value types, a
+contract test kit and a fake provider. Nothing in the engine calls it yet.
+
+**The one new core invariant.** `Family.define(..., built_in: true)` plus
+`restore_built_ins!` keep the built-in families across a registry reset.
+`restore_built_ins!` uses `Hash#replace`, which copies the entries instead of
+aliasing the hash, so a later `define` cannot leak into the built-in set.
+
+The rebase conflicted only in the generated `plugin-spec.md`, which was
+regenerated. After the rebase, `spec/lib`, `spec/architecture`, the detector,
+classifier, plugin admin, work unit, work intent, lifecycle and filter specs
+are green (2,154 examples), CI-only included.
+
+---
+
+## M52. Job state drift has stopped since the 11-21 deploys (read-only)
+
+Coverage item `job-state-matches-latest-workflow`.
+`unambiguous_job_state_drift` was applied 40, 37 and 62 times a day on 11-18
+to 11-20, and 14 times on 11-21. All of those 11-21 cases came before about
+22:00 UTC, when `d9be256158` and `424204c35b` went live. The shapes were the
+F20 and F33 ones:
+
+- queued → running and implemented → running under a running Workflow;
+- running → implemented or failed after the Workflow finished.
+
+There were none in the following five hours. Too short a window to call
+closed. The check-then-act on a cached Job in `JobLifecyclePropagation`
+(decided without reloading under the Job lock) remains the open hazard for
+this item.
+
+---
+
+## M51. Merge-train sweep (read-only): F25 verified, terminal hooks noted (Lead L6)
+
+**F25 verified in production.** The reconciler detected
+`succeeded_merge_train_failed_member_reconciliation` 9 times between 11-17 and
+11-20, 18:12 UTC. Each detection came within about 30 s of a successful train
+finishing, with 1–7 members wrongly failed per train. That is F25's
+signature: a member that landed through the integration rebase was rejected
+by the pre-rebase ancestry check.
+
+Since the 11-21 deploys, five trains have landed (three Epics and two Job
+bundles) with no detection. That includes the plugin capability-family Epic's
+train, which landed through `merge_train_land_after_rebase`, F25's exact path.
+
+**`stale_active_merge_train_without_runtime`.** Two repairs, both on 11-16,
+none since.
+
+**Lead L6: terminal hooks swallow their errors.** `Workflow#dispatch_hook`
+rescues `StandardError` and only logs it. `Workflows::MergeTrain.after_fail` /
+`after_cancel` run `MergeTrainFailureHandler` through it, inside the
+terminal transition's transaction and with no savepoint. If the handler raises
+partway through:
+
+- the Workflow still commits as failed or cancelled;
+- whatever the handler wrote before the error commits with it;
+- the train can be left active with no owner. That is the
+  `stale_active_merge_train_without_runtime` producer that coverage item
+  `stale-active-merge-train` lists as "atomic terminal hooks".
+
+The reconciler backstops the stale train (F43). Making it unreachable would
+mean either failing the transition when a hook fails, or running each hook in
+a savepoint and recording the failure for retry. Either changes a deliberate
+"a hook never blocks a transition" contract that every Workflow kind shares,
+so it is left as a lead, not changed. The swallowed exception leaves only a
+log line, so production cannot show how often it happens.
+
+---
+
+## M50. Landing units can deadlock on a cycle the Job graph does not have — proved, latent (NY28)
+
+Coverage item `landing-queue-order` named the order computation as unmodelled.
+`LandingQueueProcessor#ordered_landing_units` contracts each Epic to one
+landing unit (its merge train) and sorts the units topologically, appending
+any cyclic remainder. A unit is blocked while a transitive prerequisite
+outside it is not closed (`transitive_blocker_jobs_for` /
+`dependency_blocker?`).
+
+`JobDependency#no_cycle` rejects cycles in the *Job* graph only. The derived
+Epic edges (`EpicDependencies::DerivedEdgeReconciler`) relate only Epic to
+Epic, so a path through an Epic-less Job is never contracted. Take Epic child
+J1 ← outside Job J2 ← Epic child J3:
+
+- each edge is accepted, and the Job graph is acyclic;
+- the Epic's unit waits for J2, J3's prerequisite;
+- J2 waits for J1, which only lands with the Epic's train.
+
+Neither unit ever becomes landable.
+
+`formal/SyrusModel/LandingUnitCycle.lean` checks four Jobs, up to two Epics
+and every dependency relation (332k cases):
+
+- `contracted_acyclic_progress`: when the Epic-contracted graph is acyclic,
+  some unit is always free to land;
+- `epic_through_outside_job_deadlocks`: the counterexample blocks both units;
+- `job_acyclic_not_enough`: Job-level acyclicity does not imply the
+  contracted condition.
+
+**Production (read-only).** No Epic child has ever depended on an outside Job
+that depends back into the same Epic, so nothing is stuck today. The shape is
+reachable by filing dependencies, so whether to refuse it is NY28.
+
+---
+
+## M49. Epic-conflict victims in production: every one was relaunched or legitimately held
+
+Coverage item `epic-conflict-victim-not-relaunched`. Every WorkUnit cancelled
+for `epic_wide_workflow_active` in the last 21 days was checked (read-only),
+51 units across 31 Jobs:
+
+- **Relaunched or finished.** Every victim's Job either got a later unit on the
+  same intent or a later Workflow, and all but three Jobs are closed.
+- **Three legitimately held.** Jobs 9454 → 9455 → 9456 of one Epic chain are
+  queued, with intents `waiting` on `dependency` and no later work. Their first
+  predecessor, 9453, *failed*. That is a correct hold behind a failed
+  predecessor, which `JobWakeup` starts once the dependency is satisfied. It is
+  not a stranded victim.
+- **Relaunch-into-cancellation loops, both before F34 was deployed.** These are
+  the once-a-minute relaunch loops F34 describes:
+  - Job 8686: 6 cancellations on 11-07;
+  - Job 9449: 10 cancellations on 11-20 and 9 more on 11-21, between 13:39
+    and 13:48 UTC.
+
+  F34 (`31b7c3e224`) reached main at 17:00 UTC on 11-21, after the 11-21
+  loop. It was first deployed in `d9be256158` (21:53 UTC). The workers live at
+  13:39 ran a version without it.
+
+There have been no Epic-conflict victims since 13:48 UTC on 11-21, so F34 is
+not yet *observed* under load, only unrefuted. The item stays partial: there
+is still no proof that every victim of a running-member/running-keeper race
+is relaunched.
+
+---
+
+## M48. Auto-retry is bounded in production — audit, no new counterexample
+
+Coverage item `auto-retry-bounded` asks whether a budget-exempt skip whose
+cause persists re-plans forever. Seven days of `auto_retry_attempts` were
+grouped by Job, reason, kind, classification and provider (read-only):
+
+- **"job branch was rewritten since the source run recorded its workspace"**
+  ran 324 times on one Run in 27 minutes, all attempt 1, as a `retry_workflow`.
+  That is the F44/F45 loop.
+  - Both worker versions live then, `4a424455d6` and `637033715e`, predate F45
+    (`cbbfcc5b39` landed on main at 12:00 ET).
+  - Since `d9be256158` (F45 included) went live, there have been none.
+  - The second instance (69 rows, 11-16) predates both fixes.
+- **"Job is already approved for landing"** (33 rows, one Job): every row is a
+  different failed Run, one skip each. Bounded by the Runs; no re-planning.
+- **A `grader_collect` Step retried in place 11 times** (attempt numbers up to
+  14, hourly, 11-16). This is F22's superseded-iteration cycle, already fixed.
+  It stayed inside the budget, because `worker_died` is budgeted at
+  `MAX_WORKER_DIED_ATTEMPTS = 20`, not `MAX_ATTEMPTS = 3`.
+- **No other reason repeats on a Job.**
+
+The budget-exempt reasons that persist in production are all ones the planner
+now excludes. "That agent is not available" never appeared in the window.
+
+---
+
+## M47. Failure sweep (read-only): recent fixes verified in production
+
+Main had no new commits. The sweep looked at failed Runs and Workflows in the
+last three hours, and reconciler repair activity over two days.
+
+**Run failures.**
+
+- Grader failures are real test results.
+- One implement Run failed with `worker_died`, and a second Run on the same
+  Step succeeded.
+- The merge-train `merge_train_land` failure was the designed fallback: land
+  failed, rebase, `merge_train_land_after_rebase` succeeded.
+- No Workflow failed or blocked.
+
+**Repair loops, both stopped after their fixes deployed.**
+
+- `clear_waiting_work_intent_active_unit` ran 4,000–6,000 times a day through
+  11-20. It hit the same intents every minute: Epic children whose queued
+  Workflow's intent `JobWakeup` parks on `dependency`. It stopped once
+  "Stop the reconciler undoing justified dependency waits" deployed, and has
+  applied once since.
+- `resume_queued_step` was refused once a minute on one Step behind
+  `ci_repair_safety` until 12:36 UTC on 11-21. F40 is deployed, and since then
+  only one-off `not_ready` skips remain, each on a distinct Step.
+
+**Late "nothing left" detections.** Explained and fixed in F96.
+
+**Full-suite gate** (`bin/rspec-fast`, 24,587 examples): one order-dependent
+failure. `chip_contract_spec.rb` found the latest-workflow trigger-kind filter
+chip offering `coworker_run` after an earlier spec had taken it out of the
+registry. The chip copied `Workflow::TriggerKind.values` at class load. In the
+product that meant a disabled plugin's kinds stayed selectable, and kinds
+registered later were missing. It now reads the registry on every call, with
+a deterministic regression example. The filter specs (985) are green.
+
+---
+
+## M46. Main commits through `2bfca771f5` — unread-only chat sidebar, invariant holds
+
+Four frontend commits after `31254a466c` stop the recent-chats sidebar from
+refetching, and from resetting its loaded sections, on every navigation in
+unread-only mode. The route's chat id leaves the query key. The open chat is
+tracked in a module-level `openRecentChatId`. On navigation, the previously
+open chat is dropped locally. A mark-read response is now applied even after
+the route has moved on (`updateChatUnread`, not a refetch).
+
+**Relied-on invariant:** in unread-only mode, the list shows exactly the
+unread chats plus the open one.
+
+**Checked:**
+
+- **The mark-read response lands before navigation.** The chat stays while
+  open (`openRecentChatId === id`). Leaving it finds it read in the cache, so
+  it is dropped.
+- **The response lands after navigation.** The navigation effect still sees it
+  unread and keeps it. The late `updateChatUnread` then drops it, because it is
+  no longer the open chat and no longer in the query key.
+- **The open chat came only from "show more".** It is not in the query cache
+  at all. The navigation effect reads "not unread in the cache" and drops it
+  from the loaded sections, so it cannot linger as read.
+- **The sidebar unmounts while a chat is open.** `openRecentChatId` goes to
+  `null`. A later mark-read removes the open chat from the unread-only cache,
+  which is correct for the next mount.
+
+**Lead L5 (not fixed, self-healing).** The navigation effect decides "still
+unread" from the query cache alone, and `updateChatUnread` never patches the
+loaded sections. A chat reached only through "show more" whose mark-read
+*failed* is dropped on navigation although it is still unread. It reappears on
+the next refetch (30-second stale time, or window focus). Deciding from the
+loaded sections as well would need `updateChatUnread` to reach them first.
+Otherwise a successfully read chat from a loaded section would be kept as
+unread.
+
+---
+
+## M45. Main commits through `31254a466c` — the plugin capability-family epic
+
+Forty-one commits landed on main after `d9be256158`:
+
+- the plugin capability-family epic (merge `31254a466c`);
+- e2e spec maintenance;
+- a loading state for suspending plugin components.
+
+The rebase conflicted in `plugin_registry.rb`, `host/public_apis.rb` and the
+generated `plugin-spec.md`, where this branch's NY13 enablement read and
+`providers_with_owner_for` met the epic. The conflicts were resolved by
+keeping both. The plugin docs were regenerated with `bin/generate-plugin-docs`.
+
+**Invariants the epic relies on, and how each was checked:**
+
+1. **An unreadable enablement table never enables a plugin (NY13).**
+   *Counterexample:* `available_capability_plugins` rescued and kept every
+   plugin. Fixed in F93, with a structural guard.
+2. **A non-conforming family withholds only that family.** Holds for
+   `providers_for`, the legacy bridge, `capability_providers` and the health
+   state. `non_conforming` replaces only `:ok`, so a plugin that is also
+   degraded stays unhealthy. *Counterexample:* `providers_with_owner_for`,
+   which is on this branch only. Fixed in F93.
+3. **A family capability is only invoked through a conforming declaration.**
+   Holds for `Dispatch`, `LegacyBridge` and `capability_providers`.
+   *Counterexample:* the detector's language-support path. Fixed in F94.
+4. **A plugin's failure does not take down core work.**
+   - `Dispatch` invokes through `PluginInvocation`. A `ValidationError` passes
+     through deliberately, without counting against health.
+   - The detector rescued only `StandardError`, while a lazily resolved
+     provider can raise `ScriptError`. Fixed in F94.
+5. **Conformance results are never stale.** The `conformance_for` cache is
+   keyed by `[generation, sorted manifest names]`, and every `register` and
+   `reset!` bumps the generation, so a changed manifest set is never answered
+   from an old entry. Old keys are never evicted. Generations only advance at
+   registration (boot, test reset), so this is bounded in production.
+
+**Not engine-relevant:** e2e spec updates, the plugin error-boundary loading
+state, the admin plugin capability table and CLI `plugin capabilities`, the
+scaffold and authoring guide, and generated catalogs.
+
+---
+
+## M44. Main commits through `d9be256158` — invariants checked, no counterexample
+
+Thirteen commits landed on main after `05d1c36ce1`. The branch rebased onto
+them without conflicts. The invariants they rely on, and how each was checked:
+
+- **"Let a failed main-branch repair retry itself"** (`41b0c16234`). Retry
+  eligibility looked for the opening workflow only as `initial`, so
+  main-branch repair Jobs were refused forever as `initial_not_run`. The fix
+  adds `OPENING_TRIGGER_KINDS = initial, main_branch_repair`.
+  - *Relied-on invariant:* every Job kind that goes through the generic retry
+    (`RetryWorkflowEligibility`, `RetryJobs::Mode`) opens with one of those
+    kinds.
+  - *Checked:* every caller of `RetryWorkflowEligibility` and every Job kind.
+    `external_pr` retries through its own `ExternalPrIngestRetryEnqueuer` and
+    never reaches this check. In production (read-only), the opening kinds of
+    failed Jobs are only `initial` (issue, direct) and `main_branch_repair`
+    (direct).
+  - *Assumption to keep:* a plugin Job kind that opens with its own Workflow
+    and uses generic retry would hit the same refusal. Deriving the opening
+    workflow as the Job's first Workflow would remove the list.
+- **"Refuse to retry an attempt a newer success already replaced"**
+  (`b57d999ab1`). Implementation-retry preflight now refuses a source that
+  `superseded_by_newer_successful_publication?`.
+  - This is the *manual* path. It differs from the automatic rule F90 unified
+    (`Workflows::AutoRetrySupersession`), but they govern different decisions.
+  - The reconciler's stale-retry repair only targets Workflows carrying
+    `auto_retry_attempt_id`, so the difference cannot produce the
+    launch-then-cancel loop.
+- **"Do not fail a workflow over a grader whose failure it advances past"**
+  (`98ee966907`). `orphaned_failed_step` now skips advance-on-failure kinds.
+  - This closes part of NY26: the reconciler no longer hard-fails a Workflow
+    over a grader-style failure that the live dispatch would have advanced
+    past.
+  - NY26 remains for the try-branch and in-place infrastructure-retry outcomes.
+- **The others** are local, and none touches an invariant proved on this
+  branch:
+  - the main-repair preflight graders and simulator database path;
+  - the `list_recent_workflows` worker budget;
+  - retry operator guidance;
+  - the grader-failure attribution prompt;
+  - the publication-resolved retry headline;
+  - replacing Syrus's own earlier PR branch;
+  - e2e menu lookup;
+  - GitHub Actions log parsing;
+  - leaving failed graders to their collector.
+
+**Post-rebase checks:**
+
+- the CI-only reconciler, executor and resilience specs: 351 examples, 0
+  failures;
+- `spec/jobs`, `spec/services/workflows`, the retry specs and `spec/models`:
+  3,342 examples, 0 failures.
+
+---
+
+## M43. Which blocked reasons a started landing can hold the slot on — audited, one design question
+
+**Scope.** DOC-44 scheduling, the coverage item `gates-starvation-free`,
+following F92.
+
+**The reasons a started landing can block on.** At a phase boundary, the base
+unit gates are `ActiveWorkLock`, `MainBranchHealth`, `ProviderAvailability`,
+`ManualPause` and `AdmissionControl`. The lifecycle adds
+`agent_cannot_proceed` (F92). Grouped by how they clear:
+
+| Clears | Reasons | Landing slot |
+|---|---|---|
+| On its own, with a scheduled recheck | `active_work_lock`, `provider_availability`, `admission_control`, `resource_safety` | kept; the unit really is next |
+| When main is repaired, by the main grader and repair work | `main_branch_health` | kept; while main is broken no landing proceeds anyway |
+| Only when someone acts | `ci_repair_disabled`, `no_capable_worker`, `agent_cannot_proceed` | released |
+| Only when someone unpauses | `manual_pause` | **kept** |
+
+**Open: a manual pause of a started landing (NY27).** NY7 settled the
+pre-start case: any block before the first Run gives the slot back,
+`manual_pause` included. A pause after the landing started still keeps the
+repository's `landing:` lock. So pausing one landing Job stops every other
+approved Job in that repository from landing until it is unpaused.
+
+Releasing it would follow the allowlist's own rule, since a paused unit is not
+about to run. The cost is that, on unpause, the Job may wait for another
+landing to finish. `ensure_active_locks!` then raises `LockConflict` and the
+unit waits its turn. Whether pausing a Job should also hold the repository's
+queue is a design decision.
+
+---
+
+## M42. A landing Job whose units are all blocked externally is returned to approved — audited, no bug
+
+**Scope.** DOC-44 landing, the partial coverage item `stranded-landing-job`: "A
+Job stays in landing although every unit landing it is blocked externally."
+
+**The gap.** `WorkUnit#block!` on an externally cleared reason gives back the
+landing slot (M41), but it does not move the Job: the Job stays in `landing`.
+After F7, the only such reason left for landings is `ci_repair_disabled`. A
+Job parked on it reads as landing, and nothing lands until an operator
+re-enables CI repair. Separately, `Launcher.start!` lifts the Job to landing
+(`ensure_landing_job_state!`) before `Scheduler.evaluate!`, so a gate that
+blocks at start can leave the same shape.
+
+**Covered by an auto-repair.** `classify_stranded_landing_job` reports a Job in
+`landing` whose landing units exist and are *all* blocked on an externally
+cleared condition (`externally_blocked?`). It is safe to auto-repair:
+`defer_stranded_landing_job` returns the Job to `approved`. The landing queue
+then re-admits it once the condition clears, instead of leaving it apparently
+in flight. If any landing unit is not externally blocked (it is running, or
+waiting on something that clears by itself), the Job is legitimately landing
+and is left alone.
+
+Production (one week, read-only): zero `stranded_landing_job` detections; 3
+`landing_job_without_active_runtime_work`, all skipped because the Job had
+already left landing.
+
+---
+
+## M41. A blocked landing holds the repository slot only while it is about to run — audited, no bug
+
+**Scope.** DOC-44 landing, the partial coverage item
+`externally-blocked-landing-slot`. F7 made `no_capable_worker` landings fail
+and release instead of blocking. Two reasons remained unproved:
+`ci_repair_disabled`, and the `AutoRetryBackoff` re-lock.
+
+The repository landing slot (`landing:` lock) is the mutex every landing path
+checks. A blocked unit that keeps it stalls every other landing in the
+repository.
+
+**`WorkUnit#block!` releases the slot in two cases:**
+
+- **The reason cannot clear by waiting** (`EXTERNALLY_CLEARED_BLOCKED_REASONS`:
+  `ci_repair_disabled`, `no_capable_worker`). It clears only when an operator
+  changes the configuration or the fleet, so the unit is not about to run and
+  gives the slot back at once.
+- **The landing has not started its first Run** (`prestart_landing_block?`).
+  Decision NY7, proved in `PrestartSlot.lean`, says a prestart block gives the
+  slot back whatever the reason.
+
+Only the `landing:` lock is surrendered. Job- and Epic-scoped locks stay held,
+because they still correctly stop a second attempt at the same work.
+
+**`auto_retry_backoff` keeps the slot on purpose, and only for a bounded
+time.** It is a self-clearing reason: the unit has `blocked_until` set and
+really is next. Releasing would let a later landing cut ahead of a landing
+that is waiting out a backoff. The slot is held for at most the backoff
+interval. The number of backoffs is bounded by the cumulative auto-retry
+budget per (job, provider, classification) (`auto-retry-bounded`, F44/F45),
+so the slot cannot be squatted indefinitely.
+
+---
+
+## M40. A requested WorkIntent without a unit is dormant, not stuck — audited, no bug
+
+**Scope.** DOC-44 ownership, the partial coverage item
+`requested-intent-without-unit`. F42 found that both of its classifiers return
+nothing unless the Reconciler is invoked with a `work_intent_id`, and no
+production caller passes one, so the state is never detected. The question
+here is whether that matters.
+
+**Nothing acts on such an intent by itself.** The production readers of
+`requested` intents are the repair executor's guards and
+`WorkUnit#reactivate_work_intent!`. No background process scans requested
+intents and launches work from them. "Materializing" one only means
+`Launcher#find_or_create_intent!` reusing it when a later launch passes the
+*same* idempotency key (the rebase, merge-state and stale-branch pollers,
+and auto-retry). That launch then creates the unit under the intent lock
+(`intent.lock!` when a key is present), so the reuse is serialized.
+
+**So the record is dormant.** A requested intent with no unit:
+
+- holds no lock, since locks belong to units;
+- blocks nothing, since admission gates key on units and Jobs;
+- is either reused by the next keyed launch for the same work, or stays inert.
+
+Whatever work it stood for is still observed where it matters: through the
+Job and Workflow states that the Job-level classifiers check, including a
+running Job with no work (F88), a queued Workflow with no first Run, and a
+stalled intake.
+
+The undetectable classifier is therefore a monitoring gap, not a liveness
+gap. Wiring a `work_intent_id` into a production Reconciler caller would make
+the count visible, but no Job waits on these records.
+
+---
+
+## M39. No WorkUnit state write bypasses the lock release — audited, pinned
+
+**Scope.** DOC-44 ownership, the partial coverage item
+`terminal-unit-holds-locks`. `Proofs.lean` `inv_no_terminal_locks` proves that
+no terminal unit holds an active lock under the modelled transitions. The gap
+was callback-skipping `update_columns` writers outside the model.
+
+**Audit.** The two terminal transitions release locks inside the same
+transaction as the state write:
+
+- `WorkUnit#mark_terminal!` (`work_unit_locks.active.find_each(&:release!)`);
+- `WorkUnit#preempt!`.
+
+Lock *acquisition* is an INSERT against a unique key (M25), so release is the
+only half that a raw write could skip. A search of `app/`, `lib/` and the
+plugins' `app/` and `lib/` finds no production write of a WorkUnit's state
+through `update_columns`, `update_column` or `update_all`. The only one is the
+simulator's scenario loader, which builds fixtures. So the model's transitions
+are the only ways a unit becomes terminal, and the proof covers the code.
+
+**Pinned.** `spec/architecture/work_unit_terminal_writes_release_locks_spec.rb`
+fails on any callback-skipping write of WorkUnit state outside the simulator.
+Its pattern was checked against the loader's real line, which it matches, so a
+production write would be caught.
+
+---
+
+## M38. Work launched on a closed Job is cancelled at start and its intent retired — audited, no bug
+
+**Scope.** DOC-44 job state, the partial coverage item `closed-job-active-unit`:
+"A closed Job still has an active job-scoped WorkUnit without a Workflow."
+The note asked for the launch to check that the Job is open under the same
+lock as the close.
+
+**`WorkUnits::Launcher.instantiate` does not check that the Job is open.**
+Closure is enforced where work would *run*:
+
+- `StepDispatcher.start_workflow` cancels a Workflow whose Job is closed
+  (`cancel_unstartable_closed_job_workflow!`, reason `job_closed`), unless it
+  is a redeploy on a closed Job;
+- `enqueue_next_runnable_steps!` applies the same check at every step
+  boundary (`job_closed_for_execution?`);
+- `classify_closed_jobs_with_active_runtime_work` auto-cancels anything left
+  active under a closed Job.
+
+So a launch that races a close produces at most a queued unit, and that unit
+is cancelled the moment it would start. No Step runs for a closed Job.
+
+**The intent does not relaunch.** Cancelling that Workflow preempts its unit
+with reason `job_closed`. That string is `JobClosure::CANCELLED_REASON`, which
+is in `WorkIntents::TerminalUnitSync::SUPERSEDING_CANCEL_REASONS`, so the
+unit's intent is cancelled instead of left `requested`. That rules out the
+F27-shaped loop of a requested intent re-materializing on a closed Job.
+
+**Left as is.** `closed-job-open-intent` stays partial: member-scoped (Epic or
+merge-train) intents outlive the close of a single member by design.
+
+---
+
+## M37. The last queued-Run recoveries: wedged claims, cached grader failures, pre-start crashes — audited, no bug
+
+**Scope.** These are the three remaining open DOC-44 runs and queue items:
+`queued-run-wedged-or-stale-claim`, `queued-grader-collect-cached-failure`
+and `queued-run-failed-execution`. All three are liveness questions that
+depend on workers and the queue (class c, or class a with infrastructure
+causes).
+
+**Wedged or stale claim.** `wedged_queue_claim?` matches a SolidQueue row
+claimed for longer than `WEDGED_QUEUE_CLAIM_AFTER` while the Run never
+started. The repair is the same `ReenqueueRun` as for a dead resume queue
+(M32), done under the Run lock. It deletes the stale queue rows *before*
+dropping affinity, so no old resume job can stamp the storage key back while
+the repair runs. The replacement then goes to the general queue. As its
+comment notes, routing would otherwise hand the Run straight back to the
+still-heartbeating storage key it is stuck on, and the repair would loop. It
+terminates in one step.
+
+**Cached grader failure.** When a queued `grader_collect` Run belongs to a
+Workflow whose grader conclusion for this commit is already cached as failed
+(`GraderConclusionCache.failed_for_workflow?`), the classifier reports
+`queued_grader_collect_cached_failure`, whatever queue the Run is stuck on.
+The repair, `mark_cached_grader_collect_failed`, fails the Run from the cached
+conclusion instead of replaying graders whose result is known. Its spec pins
+that writing the diagnostic cannot double-insert. Every other queued-Run
+repair refuses to re-enqueue when a cached failure exists, so the two cannot
+disagree.
+
+**Pre-start crash.** RunJob failures before the Run starts are
+infrastructure: lock-wait timeouts and SolidQueue process pruning, from the
+read-only production analysis of 61 executions. They leave the Run queued
+with a failed queue execution. The reconciler re-enqueues it, which is the
+intended recovery. Step failures that RunJob re-raises *after* handling them
+are finished Runs, not pre-start crashes.
+
+This closes the runs and queue area, apart from the NY26-dependent bound
+`worker-loss-bounded-recovery`.
+
+---
+
+## M36. Stalled intake classification is retried, bounded by real attempts — audited, no bug
+
+**Scope.** DOC-44 job state, the coverage item `stalled-intake`: "A Job stays
+in triaging because its classification job vanished." The fault is a lost
+token, and the plan asks for bounded retries rather than prevention.
+
+**Detection.** `classify_stalled_classifier_pending_jobs` covers triaging Jobs
+of a classifiable kind with no classification activity for
+`CLASSIFIER_PENDING_STUCK_AFTER` (activity is the later of the last attempt's
+`started_at`, `updated_at` and `created_at`). It applies only while retries
+remain:
+
+- a `classifier_pending` Job needs `classifier_attempts < MAX_CLASSIFIER_ATTEMPTS`;
+- a `classifier_uncertain` Job needs `classifier_retry_available?`.
+
+It is safe to auto-repair.
+
+**Repair.** Under the Job lock, `ReclassifyStalledIntake` rechecks the state,
+the kind and the attempt cap. It moves an uncertain Job back to pending, then
+enqueues `ClassifyIssueJob` in the same transaction, so a blocked enqueue rolls
+the transition back. Each repair is audited as a `StateTransition`.
+
+**The bound.** Only a real `IngestionClassifier` invocation advances
+`classifier_attempts`, and every real run does so, retryable failures
+included. So a classifier that keeps running is cut off at
+`MAX_CLASSIFIER_ATTEMPTS`, and the triage decision then hands the Job to a
+person.
+
+A queue job that is *lost* never advances the counter, so the cap does not
+bound those re-enqueues. They are still harmless:
+
+- `ClassifyIssueJob` has `limits_concurrency to: 1` per Job, so duplicates
+  queue behind each other instead of running together;
+- `ClassifyIssueJob` refuses to run unless the Job is still
+  `classifier_pending`, so every duplicate after the first real classification
+  is a no-op.
+
+**Refinement worth considering, not a bug.** The repair does not touch any of
+the timestamps the classifier measures staleness from. A Job whose
+classification is merely *slow* (queued behind a backlog past the threshold)
+is therefore re-enqueued on every reconciler pass until it runs. Each copy is
+serialized and becomes a no-op, so the cost is a queue of blocked executions,
+not wrong work. Stamping the enqueue time onto the activity that staleness is
+measured from would limit it to one re-enqueue per threshold.
+
+---
+
+## M35. A Workflow paused at a phase boundary by admission resumes — audited, no bug
+
+**Scope.** DOC-44 start blocks, the coverage item
+`resource-admission-start-block`: "A Workflow paused at a phase boundary is not
+resumed after its admission recheck."
+
+**Two layers.**
+
+- **The gate's own recheck.** A phase-boundary admission or resource block
+  goes through `Launcher.schedule_blocked_recheck!`, which enqueues
+  `WorkflowPhaseAdmissionJob` at the gate's `retry_at`, or after
+  `START_BLOCKED_BACKOFF`.
+- **The overdue safety net.** If that recheck is lost, `classify_start_blocks`
+  reports `resource_admission_start_block`. It does so only for a *running*
+  Workflow whose recorded block has a `phase_step_id`, whose recheck time has
+  passed (`start_blocked_check_due?`), and whose reason is an admission or
+  resource reason (`WorkflowAdmissionCapacityWakeup.admission_or_resource_reason?`).
+  It is safe to auto-repair, through `resume_deferred_phase`, which goes back
+  through the same gates.
+
+The repair re-runs the gates instead of bypassing them. So it can only resume
+a phase that admission now allows, and otherwise re-blocks with a fresh
+recheck. Capacity freeing up also wakes blocked work directly
+(`WorkflowAdmissionCapacityWakeup`).
+
+---
+
+## M34. Provider pauses only pause admission, and recovery re-admits the paused work — audited, no bug
+
+**Scope.** DOC-44 start blocks, the coverage item `provider-pause-readmits`:
+"Provider unavailability only pauses admission, and recovery re-admits exactly
+the paused work." This is liveness under fairness.
+
+**Pause.** `WorkUnits::Gates::ProviderAvailability` asks
+`ProviderAvailabilityPause` for a decision:
+
+- On *pause* it blocks the WorkUnit with `provider_availability` and the
+  pause's `retry_at`.
+- On *failover* it re-pins a Workflow that has no Runs to the selected
+  provider, under the Workflow lock, and passes.
+
+No Run is failed and no Step is touched. The work only waits.
+
+**Two independent ways back:**
+
+- **Recheck.** `Launcher.schedule_blocked_recheck!` enqueues
+  `WorkflowPhaseAdmissionJob` at `retry_at`, or after `START_BLOCKED_BACKOFF`.
+  This covers first admission and phase boundaries of running Workflows alike.
+  That matters because `provider_availability` is a pause reason, so the
+  reconciler treats it as a deliberate wait and leaves it alone.
+- **Wake-up (fast path).** `ProviderAdmissionWakeup` runs when the provider
+  recovers. It restarts exactly the queued Workflows on that provider that have
+  no Runs and whose unit is blocked on `provider_availability`, skipping any
+  whose circuit is still open. It also releases pending auto-retries on the
+  provider to the reconciler.
+
+So paused work is re-admitted at the latest by its own recheck. The wake-up
+only shortens the wait. A Workflow blocked on a provider its Job no longer
+resolves to is relaunched by `StaleProviderRelauncher`.
+
+**Simulations**, all passing:
+
+- `provider_usage_pause_then_resume`;
+- `provider_auth_pause_then_resume`;
+- `provider_switch_relaunches_blocked_work`;
+- `codex_overload_initial_retries`.
+
+---
+
+## M33. A finished Workflow's workspace is never deleted under live work — audited, no bug
+
+**Scope.** DOC-44 steps and workflows, the coverage item
+`terminal-workflow-live-processes`: "A finished Workflow still has a running
+OS process or a step that only looks running". The safety side is that
+cleanup never deletes a workspace something may still be using.
+
+**What counts as live.** `Workflow#live_descendants?` is true for any of:
+
+- an active Run;
+- a *projected* running Step;
+- a running `SpawnedProcess` recorded for the Workflow or any of its Runs.
+
+It is deliberately conservative. A Step that only looks running through its
+projection still counts.
+
+**Every deletion path is guarded:**
+
+- `Workflow#cleanup_workspace!` defers while `cleanup_blocked_by_active_descendants?`
+  holds.
+- `WorkflowWorkspace.cleanup_for` re-checks the same predicate. It also takes
+  the workspace's exclusive file lock, and defers if a live process holds it.
+  It defers again if the Workflow became active during cleanup.
+- The retention sweep `WorkflowWorkspacePruneJob#filesystem_sweep` sends every
+  directory whose Workflow still exists through `cleanup_workflow` and so
+  through `cleanup_for`.
+- The only direct `rm_rf` is for directories whose Workflow record no longer
+  exists. No DB-tracked Run, Step or `SpawnedProcess` can reference those.
+
+**The stuck case is reported, not forced.** A terminal Workflow whose live
+descendants never clear (an orphaned `SpawnedProcess` heartbeat, or a
+projection-only running Step) is reported as
+`cleanup_blocked_by_active_descendants` for operator review. It is reachable
+only when no persisted Step or Run is active. Cleanup stays deferred rather
+than deleting under a process that might be alive. Whether such a process is
+really dead depends on `SpawnedProcess` liveness, which is outside this model.
+
+---
+
+## M32. Runs stranded on a dead worker's resume queue are rerouted once — audited, no bug
+
+**Scope.** DOC-44 runs and queue, the coverage item
+`queued-run-dead-resume-queue`: "A queued Run sits on a resume/worker queue
+that no live worker consumes." This is a liveness question that depends on
+workers (class c).
+
+**Detection.** `classify_queued_runs` reports `queued_run_on_dead_resume_queue`
+only when both hold:
+
+- none of the Run's SolidQueue rows can progress;
+- a ready row sits on an explicit worker or storage queue with no live
+  consumer (`dead_worker_queue?`).
+
+A cached failed grader conclusion takes the separate cached-failure path
+instead.
+
+**Repair, which terminates in one step.** `ReenqueueRun` rechecks under the
+Run lock:
+
+1. the Run is still queued;
+2. the Workflow is still active;
+3. no auto-retry is pending;
+4. no cached failure blocks it;
+5. the affinity queue is still stranded (`remove_stranded_affinity_queue`).
+
+It then clears the Workflow's dead resume affinity and re-enqueues with
+`ignore_workflow_affinity`. So the replacement goes to the general queue and
+the workspace is re-prepared there. Routing cannot hand the Run back to the
+dead storage queue, because the affinity that pointed at it is gone. Each
+stranded Run is therefore repaired once, not looped.
+
+**Production** (read-only): 60 applied re-enqueues, all in four windows on
+2026-11-19 while worker pods were being replaced. That is the intended
+recovery. Handing Runs off when a pod drains, instead of waiting for the
+reconciler, belongs to the graceful-deploy work.
+
+---
+
+## M31. Checkpoint-backed retry of a blocked Workflow is gated on proof, not age — audited, no bug
+
+**Scope.** DOC-44 retries, the coverage item `checkpoint-backed-blocked`. A
+blocked Workflow on a failed Job has a verified checkpoint and could be
+retried. This is a recovery opportunity, not a bad state. The safety side is
+that a retry from the checkpoint never resumes past work that is still live or
+semantically failed.
+
+**`BaseRefreshRetryEligibility`** admits a blocked source only if all of these
+hold:
+
+- it has no active Runs;
+- the Job has no live WorkUnit ownership or retained mutation locks;
+- *every* failed Run carries a structured, retryable
+  infrastructure classification (`disk_full`, `storage_unavailable`,
+  `worker_died`, `worker_died_under_resource_pressure`). Anything semantic or
+  ambiguous goes to operator review.
+
+It then requires a published `RunCheckpoint` whose provenance matches the Job,
+the Workflow and the checkpoint's Run, with a commit SHA and a durable remote
+ref. That ref must resolve to exactly that SHA right now, with `max_age: 0`,
+and the Job's effective base must resolve. An unresolvable checkpoint or base
+is refused. The existing negative fixture pins the case of a dirty grader
+barrier.
+
+So a blocked Workflow is only ever retried from a checkpoint that is provably
+the work it recorded, onto a base that exists, with nothing else live.
+
+---
+
+## M30. Landing start-blocks always recheck or fail — audited, no bug
+
+**Scope.** DOC-44 landing, the coverage item `landing-start-blocked`: "A
+landing Workflow is blocked before start (main repair, transient gate)." The
+liveness question is whether every block is rechecked, and whether its marker
+outlives the gate.
+
+**Every start-block on a landing Workflow either fails it or schedules its own
+recheck** (`StepDispatcher.start_workflow`):
+
+- **Fail explicitly.** A failed dependency, an unresolved stack base, and a
+  Job-level block each call `fail_unstartable_landing_workflow!` with the
+  reason. The landing never sits waiting on them.
+- **Record and recheck.** The provider, repository-preflight and Epic-wide
+  locks, the landing-queue pause, main health, and urgent work each record the
+  block, then enqueue `WorkflowPhaseAdmissionJob` after
+  `START_BLOCKED_BACKOFF`. The comments on the main-health and urgent gates
+  record that their release wakes nothing else, which is why they look again
+  on their own backoff.
+- **Pause.** A manual pause is a deliberate wait that `unpause!` resumes.
+
+**The marker is a cache of the gate.** Each gate calls `clear_start_blocked!`
+for its own reason the first time it passes. So a `start_blocked_reason` left
+behind after the gate cleared lasts at most until the next recheck.
+`warn_if_stuck_queued` surfaces a block that persists.
+
+---
+
+## M29. A cancelled retry-until barrier never blocks its tail for long — audited, no bug
+
+**Scope.** DOC-44 steps and workflows, the coverage item
+`cancelled-barrier-blocks-tail`. The invariant: "a queued Step with a
+dependency cancelled without runs is itself cancelled". The hazard is a
+cancellation made with the cascade suppressed
+(`Step.suppress_cancel_cascade`, used by `Workflow#cancel_active_descendants!`
+and the loop-exit paths), on a Workflow that is later reopened.
+
+**Covered by two auto-repairs, both scoped to a running Workflow** (only a
+running Workflow can have a queued tail waiting on a barrier):
+
+- `cancelled_retry_until_barrier_blocking_tail` (`classify_queued_steps_without_runs`)
+  covers a queued Step outside the loop whose latest unsuperseded
+  retry-until barrier is cancelled with *no* Runs.
+  `ReopenCancelledRetryUntilBarrier` requeues the barrier and creates its Run,
+  once its own dependencies are settled.
+- The terminal-workflow cleanup revival covers a cleanup-cancelled Step that
+  *had* started a Run. After the Workflow is reopened, the reconciler and
+  `DeferredPhaseResume#revive_cancelled_tail_after!` revive the earliest such
+  Step, so dispatch can pass it.
+
+So whichever path left the barrier cancelled, the tail is released on the next
+reconciler pass instead of waiting forever. Neither repair requeues a barrier
+whose Runs exist or whose dependencies are unsettled, so neither can start
+work out of order.
+
+---
+
+## M28. Finished infrastructure Jobs are closed — audited, no bug
+
+**Scope.** DOC-44 infrastructure Jobs, the coverage item
+`completed-infrastructure-job`: "An infrastructure or main-branch-repair Job
+finished its work but stays open."
+
+**Hooks.** Infrastructure kinds manage their own Job lifecycle, and generic
+propagation skips them.
+
+- `MainGrader.after_success` / `after_fail` close the anchor Job.
+- `Deploy.after_success` / `after_fail` close it with `DEPLOY_CLOSURE_REASON`.
+- `MainBranchRepair.after_success` closes it with `preflight_passed` or
+  `preflight_inconclusive`.
+- None of the three defines `after_cancel`. For `main_branch_repair` there is
+  no `after_fail` either: generic `fail!` drives that Job to `failed`.
+
+**Safety net.** `classify_completed_infrastructure_jobs` covers any open Job
+whose latest Workflow is terminal, cancelled included. It auto-repairs
+infrastructure Jobs (`main_grader`, `deploy`), and a `main_branch_repair` Job
+whose Workflow succeeded with `preflight_passed` and opened no PR. So a skipped
+or raising hook, or a cancelled Workflow, closes on the next reconciler pass.
+
+**Not auto-closed, by design.** A cancelled or failed `main_branch_repair`
+Workflow leaves its Job open or failed. While that Job blocks main health,
+`stuck_main_branch_repair_job` surfaces it as critical for operator review
+(the by-design item `stuck-main-branch-repair`).
+
+Production (read-only): 2 `close_completed_infrastructure_job` executions,
+both skipped because the Job had already closed itself.
+
+---
+
+## M27. Epic-blocked Jobs are released once the Epic releases them — audited, no bug
+
+**Scope.** DOC-44 Epics, the coverage item `epic-blocked-job-releasable`: "A
+Job stays blocked by its Epic although the Epic now releases it." This should
+be transient at most.
+
+**Inputs of `Epic#releases_jobs_for_execution?`.** It holds when the Epic is
+in progress (or done) and `execution_dependencies_ready?` holds. That in turn
+means every upstream Epic is done, or the Linear early-execution policy says
+the dependencies are ready. The Linear policy depends on:
+
+- the feature flag;
+- a single same-repository upstream Epic that is also linear;
+- every upstream Job implemented, approved, landing or succeeded, with a
+  branch, a PR and a head SHA.
+
+**Each input change wakes the release:**
+
+- the Epic starting (`start` and `set_state(in_progress)`) runs
+  `unblock_child_jobs!`;
+- an upstream Epic's state change runs `refresh_dependent_epic_auto_states`
+  (`after_update_commit`), and through `refresh_auto_state!` reaches
+  `release_child_jobs_if_ready!`;
+- adding, changing or removing a dependency edge runs
+  `EpicDependency#refresh_dependent_epic` (`after_commit`);
+- an upstream Job becoming implemented runs
+  `Job#refresh_execution_ready_dependent_epics`. Its head SHA is derived from
+  its Runs and is already present by then.
+
+**The one unwatched input is the flag.** Turning on
+`early_epic_dependency_execution` wakes nothing. Even so, the Job is not
+stuck: `classify_releasable_epic_blocked_jobs` tests the *same* predicate
+(`releases_jobs_for_execution?` and `dependencies_satisfied_for_execution?`),
+and is safe to auto-repair whenever the Job can still be released. So any
+missed wake-up is released on the next reconciler pass.
+
+Production (read-only): no `releasable_epic_blocked_job` repairs in the
+retained history.
+
+---
+
+## M26. A failed Step on a queued Workflow — dispatch audited, one design question
+
+**Scope.** DOC-44, the coverage item `queued-workflow-with-failed-step`:
+"An unsuperseded failed Step with no live work implies the Workflow is
+terminal or a loop continuation is pending."
+
+**The live dispatch is total.** `StepDispatcher#fail!` ends every branch with
+the Workflow terminal, new live work, or a pending loop continuation:
+
+- a step kind that advances on failure (`:advance`) advances;
+- a loop-iteration kind continues the loop, stops it, or hard-fails;
+- a run that died of retryable infrastructure is retried, bounded by
+  `INFRASTRUCTURE_STEP_RETRY_LIMIT`;
+- a try branch is taken;
+- otherwise the Workflow hard-fails.
+
+So the state is reachable only if the cascade itself is lost, for example an
+exception in the Step's `after_update_commit`. In that case
+`queued_workflow_with_failed_step`, and its running twin
+`running_workflow_with_failed_step`, auto-repair it.
+
+**Open: the repair does not replay the cascade (NY26).** The reconciler offers
+two repairs. A pending loop with budget remaining gets
+`StepDispatcher.fail_from(step)`, which is the cascade itself. Everything else
+gets `fail_workflow_from_failed_step`, which calls `Workflow#fail!` directly.
+That skips three of the cascade's outcomes:
+
+- advance-on-failure kinds;
+- try branches;
+- the in-place retry of a run classified as retryable infrastructure.
+
+A failed `test_plan` Step whose run was classified `worker_died` illustrates
+it. A first version of `failed_step_with(retryable: true)` showed the cascade
+retrying the Step, while the repair failed the Workflow, and with it the Job.
+The existing spec "fails a running workflow that already has a failed step and
+a queued tail" pins the repair's behaviour on purpose, with a retryable
+`agent_resume_unavailable` run: fail the Workflow "and let the normal
+failed-step retry path take over".
+
+The two recovery paths disagree about the same state, and choosing which is
+right is a design decision, so the code is unchanged. This also bears on
+`worker-loss-bounded-recovery` ("Worker or storage loss never fails a Job by
+itself").
+
+---
+
+## M25. Row-lock order across the engine — counterexample, design question
+
+**Scope.** DOC-44 concurrency, the coverage item `lock-order-acyclic`. Every
+transaction that takes FOR UPDATE locks on more than one of these models was
+traced one or two calls deep: Job, Workflow, Step, Run, WorkUnit, WorkIntent,
+WorkUnitLock, Epic, AppSetting, User and Repository. The traced forms are
+`lock!`, `with_lock`, `.lock` and `lock(true)`.
+
+**Ground rules.**
+
+- `Workflow#start` and `Run#start` lock the Job in a `before` callback
+  (`workflow.rb:103`, `run.rb:176`).
+- `Workflow#set_artifact!`, `#delete_artifacts!` and `#request_job_closure!`
+  take the Workflow lock.
+- `WorkflowCancellation` locks the Workflow, then its active Steps, then the
+  WorkUnit.
+- Lifecycle propagation runs in `after_update_commit`, so it does not nest
+  inside the caller's locks.
+- WorkUnitLock rows are inserted against a unique key, never locked.
+- `AppEvents.next_sequence` runs after the outermost commit, so it is not part
+  of any cycle (lead L2's User row is refuted).
+- `GraderFanoutAdmission` does hold the AppSetting lock while it creates grader
+  Runs. This is a long holder, not a cycle.
+
+**Counterexample.** The recorded graph has cycles. The clearest one involves
+the same records from two plausible concurrent actions:
+
+- An operator **cancel** or force-transition of a landing Job runs
+  `Job#cancel_active_runs_and_close!`. It locks the Job (`job.rb:1365`), then
+  `WorkflowCancellation` locks each active Workflow
+  (`workflow_cancellation.rb:51`).
+- The **landing queue's** `release_blocked_landing_slots!` locks that Job's
+  queued landing Workflow (`landing_queue_processor.rb:757`), then its Job
+  (`:759`).
+
+Under InnoDB, one of the two is rolled back with `ActiveRecord::Deadlocked`.
+The other inversions are:
+
+- **Run ↔ Job.**
+  - RunJob takes Run → Job.
+  - `PlannedExecutionOverrides` takes Job → Run.
+- **Run ↔ Workflow.**
+  - The RepairExecutor requeue and `RepairQueueAffinity` take Run → Workflow.
+  - `PlannedExecutionOverrides` takes Workflow → Run.
+- **Epic ↔ Job.**
+  - `MergeTrainDispatcher` takes Epic → Job.
+  - The merge-train rebuild in `RetryFailedStepEnqueuer` takes Job → Epic.
+- **Workflow → Job**, more generally: any path that holds a Workflow lock and
+  calls `workflow.start!` takes it, because of the `before { job.lock! }`.
+  Examples are `TerminalWorkflowSync` called without a Job lock, and
+  auto-merge `record_run_failure!`.
+
+In production (read-only, 7 days) no deadlocks occurred, but there were 33
+lock-wait timeouts on hot rows. So the cycles are latent, not yet observed.
+
+**Model.** `LockOrder.lean` encodes the audited edge set:
+
+- `observed_has_cycle`: the observed graph has cycles;
+- `job_workflow_inversion`: the two-transaction witness;
+- `exactly_four_inversions`: under the proposed order
+  AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit →
+  User, exactly four edge kinds are wrong (Job → Run, Job → Epic,
+  Workflow → Job, Workflow → Run). The hot RunJob Run → Job path keeps its
+  order.
+
+The model proves a property of the recorded graph, not of the code. The edges
+come from this audit.
+
+Not counted: plain UPDATEs also take InnoDB row X locks. Paths that UPDATE a
+Job inside a Workflow lock without FOR UPDATE (for example
+`WorkflowCancellation`'s Job writes) add implicit Workflow → Job orders. The
+proposed order makes those consistent too.
+
+**Open: NY25.** Fixing this is choosing a global order and changing the
+inverted sites to follow it, which is a design decision.
+
+---
+
+## M24. Desktop image cleanup and reboot resume — audited, one design question
+
+**Scope.** DOC-44 Phase 7:
+
+- "Cleanup never deletes the active or recovery image", "Old images are
+  removed only after the new backend is healthy", and "Failed backend update
+  retains the current or rollback-relevant image";
+- "Reboot recovery resumes only the intended channel and phase".
+
+**Cleanup holds for the active image.**
+`removeSupersededSyrusImages` runs only on the update path, and only after
+`ok && backendHealthy()` (F80 audit). The pure filter `supersededSyrusImages`
+removes a ref only if all of these are true:
+
+- the ref has a Syrus basename;
+- it is in the *same repository* as the pin;
+- it has the *same tag channel* as the pin (the rule F79 made both callers
+  share);
+- it is neither the pin nor referenced by a running container.
+
+Removal is a plain `docker image rm` without `-f`, so any image a container
+still references, running or stopped, refuses and stays. Two cases fail
+safe and remove nothing:
+
+- there is no pin;
+- the pin is a digest (`repo@sha256:…`). Its "repository" then matches no
+  listing.
+
+**Open: the previous image is the only local rollback target (NY24).** After
+a *healthy* update, every same-channel sibling of the new pin is removed,
+including the image that was running a minute earlier. If the new version
+then misbehaves after its health gate (a data migration or runtime bug), the
+only rollback is re-pulling the old multi-GB image, which may be impossible
+offline. Keeping it costs one image, about 7.6 GB.
+
+**Reboot resume holds.** The Windows RunOnce value name is per channel
+(`SyrusResumeSetup` / `SyrusResumeSetupTest`), and it launches the running
+channel's own executable. The resume flag (`onboardingResumeLocal`) lives in
+the channel-specific settings store. `clearRebootResume` removes only this
+channel's value. So a reboot resumes exactly the interrupted channel, and the
+local flow is the only phase that arms it.
+
+---
+
+## M22. Diff review endpoints and per-job review state — audited, no bug
+
+Main's "Keep diff review endpoints independent across versions," "Keep diff
+review range endpoints independent," and "Isolate review state across cached
+jobs."
+
+- **Endpoints are compared exactly.** The client keys the range query on both
+  SHAs (`["jobs", id, "review_source_diff_range", base, head]`) and sends both.
+  `App::JobSourceDiffPayload` resolves exactly the requested `base` and `head`,
+  and under `explicit_selection?` it skips the stored-version fallback. So an
+  incomparable or unresolvable pair surfaces `diff_error` instead of a diff of
+  some other pair, which is what lets the selector keep FROM and TO
+  independent without lying about what is shown.
+- **One job's review data never shows under another.** The source-diff query
+  uses `placeholderData: keepPreviousData`, which carries data across a key
+  change within one mounted observer. Both mounts are keyed by job: the
+  desktop `ReviewWorkspace` uses `key={payload.job.id}` in `JobDetail.tsx`,
+  and the mobile `MobileReviewCard` uses `key={job.id}` (added by that
+  commit). Each job therefore gets a fresh observer with no previous data,
+  and the version list additionally checks `job_id === jobId`.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
@@ -2717,7 +5782,18 @@ Later commits, checked in the next iteration:
   fix whose invariant (a file row never widens the page) is geometry, pinned by
   its own `ReviewableDiff.test.tsx` regression; no engine state involved.
 
-Checked through main `d7403fee64`. Each loop iteration continues from there:
+Later commits, checked through main `cb5b006575` (two merge trains):
+
+- The backup and disaster-recovery epic: retention, replication leases and
+  verified-copy preservation hold (M20, NY21). Recovery preflight blocks
+  known incompatibilities but only warns on unknowns (M21, NY22). Capture,
+  capacity admission, partial cleanup and the S3 destination are covered by
+  their own specs. Their macOS-only spec failures were fixed while merging.
+- The diff review and mobile review train: endpoint independence and per-job
+  state isolation hold (M22). The remaining commits are layout and
+  accessibility only.
+
+Checked through main `7ebcdb2429`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
@@ -2880,6 +5956,37 @@ something in the same process already built a sidecar tool list. Static
 wrapping, as about 37 tools already do in their class body, would make gating
 independent of load history. Not yet checked: whether any production caller
 invokes tool classes directly.
+
+## Lead L4: a running rebase whose next Step never got a Run, for 22 days (production, read-only) — closed by F89: a deliberate operator pause
+
+Found while working the coverage item `job-state-vs-active-workflow-kind`.
+The `/admin/stuck` list shows one `job_workflow_state_drift`: a `failed` Job
+that still has a `running` rebase Workflow. The evidence:
+
+- **The storm.** Five rebase Workflows on the Job ran in about 15 minutes.
+  Each one ran `auto_rebase` → `agent_rebase` (both succeeded) →
+  `force_push`, which failed with `StepFailed`. That ends in
+  `enforce_workflow_runaway_limits!` setting
+  `runaway_protection = too_many_failed_workflows` and force-failing the
+  Job.
+- **The stall.** The last Workflow started 3 minutes after the previous one
+  failed. Its `auto_rebase` and `agent_rebase` succeeded, but its `force_push`
+  Step has been `queued` with no Run ever since. The Workflow is still
+  `running`.
+- **Not the gate.** `WorkIntents::Gates::RunawayProtection` gates only
+  admission of new intents, so it does not explain a Step that never got a
+  Run inside an already-running Workflow.
+
+Open questions for the next pass:
+
+1. Why did step advancement after `agent_rebase` not create the `force_push`
+   Run?
+2. Why does no reconciler classifier repair "running Workflow, next Step
+   queued with no Run"? The existing `queued_workflow_without_first_run` only
+   covers a queued Workflow's first Step.
+3. Should the drift classifier treat `implemented` plus an active
+   non-approval-blocking follow-up (rebase), whose start deliberately leaves
+   the Job `implemented`, as legal? Today it reports it as drift.
 
 ## Leads not yet worked (from the catalog)
 

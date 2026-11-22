@@ -288,10 +288,13 @@ RSpec.describe Workflows::CodingHandoff do
                      iteration: 1, state: "failed")
       end
 
-      it "is a no-op" do
-        described_class.after_fail(workflow)
-        # no state change from the hook
-        expect(job.reload).to be_running
+      # The chat side is Coding Mode's and stays silent; the Job is not. It
+      # used to stay :running here, with nothing working on it.
+      it "reports nothing to the chat but still fails the Job" do
+        expect {
+          described_class.after_fail(workflow)
+        }.not_to change { chat.messages.count }
+        expect(job.reload).to be_failed
       end
     end
   end
@@ -352,6 +355,39 @@ RSpec.describe Workflows::CodingHandoff do
 
       expect(workflow.reload).to be_failed
       expect(job.reload).to be_failed
+    end
+  end
+
+  # A coding handoff lifts its Job to :running when it starts, and generic
+  # propagation leaves both its failure and its cancellation to this
+  # definition (it owns the Job lifecycle). after_fail returned before failing
+  # the Job whenever Coding Mode was switched off, and there was no
+  # after_cancel at all, so either ending left a :running Job with nothing
+  # working on it.
+  describe "terminal outcomes always settle a running Job" do
+    let(:job) { Factories.job_record(user: user, repository: repository, state: "running") }
+    let(:workflow) { Workflow.create!(job: job, trigger_kind: "coding_handoff", state: "running") }
+
+    it "fails the Job on failure even when Coding Mode is off" do
+      described_class.after_fail(workflow)
+
+      expect(job.reload).to be_failed
+    end
+
+    it "fails the Job when the handoff is cancelled" do
+      workflow.set_artifact!("cancelled_reason", "operator_cancelled")
+
+      described_class.after_cancel(workflow)
+
+      expect(job.reload).to be_failed
+    end
+
+    it "leaves the Job alone when the handoff was superseded by newer work" do
+      workflow.set_artifact!("cancelled_reason", Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
+
+      described_class.after_cancel(workflow)
+
+      expect(job.reload).to be_running
     end
   end
 end

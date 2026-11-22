@@ -67,12 +67,28 @@ export const writeCredentialsFile = async (credentials: Credentials) => {
   const filePath = credentialsPath()
   await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 })
   await fs.chmod(path.dirname(filePath), 0o700)
-  await fs.writeFile(
-    filePath,
-    `url=${credentials.url}\ntoken=${credentials.token}\n`,
-    { mode: 0o600 }
+  // Write a fresh 0600 file beside the path and rename it over the path.
+  // Writing the path directly followed a symlink into its target, and kept a
+  // pre-existing loose file's mode while it held the new token (writeFile's
+  // mode applies only on create). The rename replaces the path itself and is
+  // atomic, matching the CLI's SaveCredentials.
+  const tempPath = path.join(
+    path.dirname(filePath),
+    `.credentials-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   )
-  await fs.chmod(filePath, 0o600)
+  try {
+    const handle = await fs.open(tempPath, "wx", 0o600)
+    try {
+      await handle.chmod(0o600)
+      await handle.writeFile(`url=${credentials.url}\ntoken=${credentials.token}\n`)
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await fs.rename(tempPath, filePath)
+  } finally {
+    await fs.rm(tempPath, { force: true })
+  }
 }
 
 export const deleteCredentialsFile = async () => {

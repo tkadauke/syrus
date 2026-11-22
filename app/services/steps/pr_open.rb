@@ -181,21 +181,44 @@ module Steps
     # validation still grades the final tree with the landing set.
     # No configured graders means nothing to run.
     def post_rebase_validation_passed?
-      post_rebase_graders.all? do |grader|
+      graders = post_rebase_graders
+      return true if graders.empty?
+      return false unless prepare_for_post_rebase_validation
+
+      graders.all? do |grader|
         log("pr_open: post-rebase validation $ #{grader.command}")
-        result = ProcessRunner.new(
-          env: ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env),
-          command: [ "bash", "-c", grader.command ],
-          mounts: ProcessRunner.mounts(workspace.path),
-          network: "grader",
-          timeout: grader.timeout_minutes.minutes,
-          kind: "grader",
-          run: run,
-          workflow: workflow,
-          on_output_chunk: ->(chunk) { log(chunk, kind: "grade_log") }
-        ).run
-        !result.timed_out && result.exit_status.to_i.zero?
+        post_rebase_command_passed?(grader.command, timeout: grader.timeout_minutes.minutes, kind: "grader", network: "grader")
       end
+    end
+
+    # The graders that need this checkout's dependencies normally run in
+    # immutable checkouts of their own, so the rebased workspace may never
+    # have installed them: `npm run lint` died on "eslint: not found" and the
+    # stacked PR could not open. Run the repository's prepare plan first --
+    # the same commands the prepare step runs, all idempotent.
+    def prepare_for_post_rebase_validation
+      plan = RepoPrepPlan.for(workspace.path)
+      return true if plan.error? || plan.commands.empty?
+
+      plan.commands.all? do |command|
+        log("pr_open: post-rebase prepare $ #{command}")
+        post_rebase_command_passed?(command, timeout: Prepare::PER_COMMAND_TIMEOUT, kind: "prepare", network: "prepare")
+      end
+    end
+
+    def post_rebase_command_passed?(command, timeout:, kind:, network:)
+      result = ProcessRunner.new(
+        env: ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env),
+        command: [ "bash", "-c", command ],
+        mounts: ProcessRunner.mounts(workspace.path),
+        network: network,
+        timeout: timeout,
+        kind: kind,
+        run: run,
+        workflow: workflow,
+        on_output_chunk: ->(chunk) { log(chunk, kind: "grade_log") }
+      ).run
+      !result.timed_out && result.exit_status.to_i.zero?
     end
 
     def post_rebase_graders

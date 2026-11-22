@@ -1465,6 +1465,34 @@ RSpec.describe RunJob, :ci_only do
       )
     end
 
+    # The deferral count lives in one per-Workflow artifact keyed by run_id,
+    # and restarted at 1 whenever a different Run recorded a deferral. Sibling
+    # Runs of one pinned Workflow (parallel grader shards deferring each other
+    # on the same host) therefore reset each other's count on every round, and
+    # the budget that bounds the deferral loop was never reached.
+    it "counts each pinned Run's deferrals separately so siblings cannot reset each other" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      sibling_step = wf.steps.create!(kind: "grader", position: 50, state: "queued")
+      sibling = sibling_step.runs.create!(job: job, trigger_kind: wf.trigger_kind, agent_provider: wf.agent_provider, state: "queued")
+      wf.update!(worker_hostname: "worker-a", worker_storage_key: "storage-a")
+      decision = RunHostAdmission::Decision.new(
+        action: "defer", reason: "host_resource_semaphore_busy", delay: 30.seconds,
+        details: { "hostname" => "worker-a", "worker_storage_key" => "storage-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).and_return(decision)
+
+      RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET.times do
+        break if wf.reload.worker_storage_key.nil?
+
+        RunJob.perform_now(run.id)
+        RunJob.perform_now(sibling.id)
+      end
+
+      expect(wf.reload.worker_storage_key).to be_nil
+    end
+
     it "drops storage affinity after a pinned Run exhausts its host admission deferral budget" do
       job
       wf = job.workflows.last

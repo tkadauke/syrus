@@ -483,6 +483,23 @@ RSpec.describe AutoRetryJob do
     expect(RetryFailedStepEnqueuer).not_to have_received(:call)
   end
 
+  # The reconciler's CancelStaleAutoRetryWorkflow also treats a source whose
+  # branch divergence was recovered by the current PR branch as superseded;
+  # this check did not. A retry the operator kept through "retry from the
+  # current PR branch" left pending attempts alive, one fired, passed this
+  # check, launched, and was cancelled as stale -- the same disagreement the
+  # source-succeeded case above had, with the same relaunch loop behind it.
+  it "skips an attempt whose source divergence was recovered by the current PR branch" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    workflow.set_artifact!("branch_divergence_recovery", { "action" => "superseded_by_current_pr_branch" })
+    allow(RetryWorkflowEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded by a successful workflow")
+    expect(RetryWorkflowEnqueuer).not_to have_received(:call)
+  end
+
   it "skips stale attempts after a newer workflow has already succeeded" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     Workflow.create!(

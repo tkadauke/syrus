@@ -30,10 +30,11 @@ module Steps
   #   graders plus a replacement collector and finishes; only the retried
   #   grader is affected, never the whole Workflow. Genuine assertion failures
   #   (`test_failed`) are never retried as infrastructure.
-  # - Only reproducible `test_failed` results are sent to the repair agent, and
-  #   only when every nonpassing required grader is one.
-  # - If any required grader lacks a conclusive result
-  #   (exhausted infrastructure retries, inconclusive, cancelled), the
+  # - Only reproducible `test_failed` results are sent to the repair agent.
+  #   Required graders without a conclusive result beside them are recorded
+  #   as `preflight_unproven`; the repair's grade loop re-runs them.
+  # - If no required grader failed reproducibly and any lacks a conclusive
+  #   result (exhausted infrastructure retries, inconclusive, cancelled), the
   #   `preflight_inconclusive` artifact is set and downstream steps are skipped:
   #   Workflows::MainBranchRepair#after_success keeps main health inconclusive
   #   and tells the operator, instead of spawning a coding repair.
@@ -82,13 +83,22 @@ module Steps
 
       reproducible, unproven = nonpassing_required.partition { |grader_step| outcome_for(grader_step).test_failed? }
 
-      # Any required grader without a conclusive result (exhausted
-      # infrastructure retries, inconclusive, cancelled, ...) makes the whole
-      # preflight inconclusive, even when another grader reproducibly failed:
-      # the repair would otherwise proceed on partial evidence.
-      if unproven.any?
+      # With no reproducible failure, a required grader without a conclusive
+      # result (exhausted infrastructure retries, inconclusive, cancelled, ...)
+      # leaves main unproven either way, so no coding repair runs.
+      if reproducible.empty?
         record_inconclusive!(nonpassing_required, unproven)
         return
+      end
+
+      # A reproducible failure is worth repairing even when another grader has
+      # no result: discarding it handed a fixable red main to an operator. The
+      # repair's grade loop re-runs every grader, the unproven ones included.
+      if unproven.any?
+        workflow.set_artifact!("preflight_unproven", preflight_failure_entries(unproven))
+        log("[preflight_grader_collect] required preflight graders have no conclusive result: " \
+            "#{unproven.map { |grader_step| grader_step.details["name"] }.join(', ')} — " \
+            "repairing the reproducible failures; the grade loop re-runs these")
       end
 
       workflow.set_artifact!("preflight_failures", preflight_failure_entries(reproducible))

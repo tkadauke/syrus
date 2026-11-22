@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -175,9 +176,27 @@ func connectedInstanceVersion(ctx context.Context) string {
 	if json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload) != nil {
 		return ""
 	}
-	version := strings.TrimPrefix(strings.TrimSpace(payload.App.Version), "v")
+	return instanceVersionFromReported(payload.App.Version)
+}
+
+// instanceVersionFromReported keeps a version the instance reports only when
+// it is a plain release version. The value becomes an image tag and is spliced
+// into a generated gemspec's Ruby string literal, so anything else (a
+// development describe like 1.2.3-4-gabcdef, or a string with quotes or
+// spaces) falls back to the CLI's own release version.
+func instanceVersionFromReported(reported string) string {
+	version := strings.TrimPrefix(strings.TrimSpace(reported), "v")
 	if strings.Contains(version, "-") && strings.Contains(version, "-g") {
 		return ""
 	}
+	if !plainVersion(version) {
+		return ""
+	}
 	return version
+}
+
+var plainVersionPattern = regexp.MustCompile(`^[0-9]+(\.[0-9A-Za-z]+)*(-[0-9A-Za-z.]+)?(\+[0-9A-Za-z.]+)?$`)
+
+func plainVersion(version string) bool {
+	return len(version) <= 64 && plainVersionPattern.MatchString(version)
 }

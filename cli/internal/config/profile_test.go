@@ -147,3 +147,34 @@ func TestDefaultCredentialsPathHonorsProfile(t *testing.T) {
 		t.Errorf("test path = %q; want %q", path, want)
 	}
 }
+
+// A profile name is spliced into the credentials filename, and an unrecognized
+// value was preserved verbatim, so a name carrying path separators or ".."
+// (from --profile or an inherited SYRUS_PROFILE) moved the credentials file
+// out of ~/.syrus: `syrus login` would then replace an arbitrary file under
+// the home directory with url=/token= lines. A profile must be a plain name.
+func TestDefaultCredentialsPathRefusesProfilesThatLeaveTheSyrusDirectory(t *testing.T) {
+	saved := ProfileFlag
+	t.Cleanup(func() { ProfileFlag = saved })
+	t.Setenv("SYRUS_PROFILE", "")
+
+	for _, profile := range []string{
+		"x/../../.ssh/authorized_keys",
+		`x\..\..\.ssh\authorized_keys`,
+		"..",
+		"a/b",
+		"te st",
+	} {
+		ProfileFlag = profile
+		if path, err := DefaultCredentialsPath(); err == nil {
+			t.Errorf("profile %q resolved to %q; want an error", profile, path)
+		}
+	}
+
+	for _, profile := range []string{"test", "staging-2", "dev_eu"} {
+		ProfileFlag = profile
+		if _, err := DefaultCredentialsPath(); err != nil {
+			t.Errorf("profile %q: %v", profile, err)
+		}
+	}
+}

@@ -30,6 +30,12 @@ module Api
           end
           return unless authorize_repository_write!(repository)
 
+          policy_error_code = executor.policy_error_code(chat_session)
+          if policy_error_code
+            render_error(policy_error_code.to_s, t("api.chat_shell_commands.preconditions.#{policy_error_code}"), status: :forbidden)
+            return
+          end
+
           precondition_error_code = executor.precondition_error_code(chat_session)
           if precondition_error_code
             render_error("not_found", t("api.chat_shell_commands.preconditions.#{precondition_error_code}"), status: :not_found)

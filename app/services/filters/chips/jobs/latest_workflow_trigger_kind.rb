@@ -6,9 +6,15 @@ module Filters
         label "Latest workflow trigger"
         bucket :enum
         operators :is, :is_not, :is_one_of, :is_none_of
-        # Derive from the registry so new trigger kinds are always selectable
-        # (this list previously drifted and omitted half the kinds).
-        values(*Workflow::TriggerKind.values)
+        # Read the registry on every call so every registered trigger kind is
+        # selectable. A hardcoded list once omitted half the kinds, and a
+        # load-time copy kept a disabled plugin's kinds and missed ones
+        # registered later.
+        def self.values(*list)
+          return super if list.any?
+
+          Workflow::TriggerKind.values
+        end
 
         def apply
           case op

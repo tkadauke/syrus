@@ -508,6 +508,12 @@ for another `!` command and a stop control lets you cancel it. Either way,
 the command and its output post to the chat and the agent takes a turn to
 look at the result.
 
+When an administrator sets contained chat execution to *required*, Coding
+Mode `!` commands are disabled, and trying one explains why. They would run
+on the worker, in the checkout the contained chat agent writes, outside the
+container the agent is confined to. Local Mode commands keep working, because
+they run on the operator's own machine.
+
 The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. Chat collects pending actions and permission
 requests in a carousel immediately above the composer, showing one standalone

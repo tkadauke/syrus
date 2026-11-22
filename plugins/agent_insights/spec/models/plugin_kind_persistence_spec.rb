@@ -41,6 +41,18 @@ RSpec.describe "plugin-contributed kinds after their plugin is disabled" do
     expect { workflow.update!(updated_at: Time.current) }.not_to raise_error
   end
 
+  # The kinds go away with the plugin (disabled, or unhealthy after boot), and
+  # with them the WorkDefinition the cancel cascade consulted: cancelling
+  # in-flight work of those kinds raised WorkDefinitions::UnknownKind, so it
+  # could be neither finished nor cancelled (NY14).
+  it "can still cancel the in-flight workflow, its steps and runs" do
+    expect { WorkUnits::WorkflowCancellation.cancel!(workflow, reason: "plugin_unavailable") }.not_to raise_error
+
+    expect(workflow.reload).to be_cancelled
+    expect(step.reload).to be_cancelled
+    expect(run.reload).to be_cancelled
+  end
+
   it "still rejects new rows of a kind no installed plugin provides" do
     expect(Step.new(workflow: workflow, kind: "agent_insight_run", position: 1, state: "queued")).not_to be_valid
     expect(Workflow.new(job: job, user: job.user, trigger_kind: "agent_insight", agent_provider: job.agent_provider, priority: job.priority)).not_to be_valid

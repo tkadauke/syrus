@@ -440,11 +440,16 @@ class Step
       nil
     end
 
+    # An unknown kind (its plugin is not loaded on this process) has no
+    # step-kind opinion, like an unknown kind's label or review gate: failing
+    # or cancelling its Step must not raise in the cascade.
     def remediation_for(kind)
       action = FAIL_POLICY_ACTIONS[fetch(kind).fail_policy]
       return nil unless action
 
       Remediation[action, source: :template_override]
+    rescue ArgumentError
+      nil
     end
 
     def label_for(kind)

@@ -9,12 +9,12 @@ RSpec.describe CiRepair::FailingCheckComparison do
     )
   end
 
-  def record_health!(sha:, ci_failed_checks: nil, grader_failed_names: nil)
+  def record_health!(sha:, ci_failed_checks: nil, grader_failed_names: nil, source: "ci_poll")
     MainBranchHealthCheck.create!(
       repository: repository,
       sha: sha,
       checked_at: Time.current,
-      source: "ci_poll",
+      source: source,
       ci_failed_checks: ci_failed_checks,
       grader_failed_names: grader_failed_names
     )
@@ -44,6 +44,26 @@ RSpec.describe CiRepair::FailingCheckComparison do
     record_health!(sha: "newer", ci_failed_checks: [ "rspec", "frontend" ])
 
     expect(described_class.call(job: job, base_sha: "missing")).to be_nil
+  end
+
+  # Regression: a merge's grader-run health record stores no CI results
+  # (ci_failed_checks nil), and its empty CI list read as "main's CI passed".
+  # A cron job's PR then saw main's own red React shard as introduced and
+  # opened a CI repair for a failure it had inherited.
+  it "reads CI failures from the newest CI result when the base has only a grader record" do
+    job.update!(pr_checks_failing_names: [ "react (1/3)" ])
+    record_health!(sha: "old-main-sha", ci_failed_checks: [ { "name" => "react (1/3)" } ])
+    record_health!(sha: "base-sha", source: "grader_workflow", ci_failed_checks: nil, grader_failed_names: [ "react-tests-ci" ])
+
+    expect(described_class.call(job: job, base_sha: "base-sha")).to be_nil
+  end
+
+  it "still uses the grader record's failures alongside the newest CI result" do
+    job.update!(pr_checks_failing_names: [ "react (1/3)", "rspec" ])
+    record_health!(sha: "old-main-sha", ci_failed_checks: [ { "name" => "react (1/3)" } ])
+    record_health!(sha: "base-sha", source: "grader_workflow", ci_failed_checks: nil, grader_failed_names: [ "rspec" ])
+
+    expect(described_class.call(job: job, base_sha: "base-sha")).to be_nil
   end
 
   it "prefers a stacked parent's failures over repository health when requested" do

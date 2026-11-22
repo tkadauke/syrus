@@ -125,6 +125,49 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(result.workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
+  # Regression: a checkpoint-resume attempt restores the checkpoint it resumed
+  # from but never publishes one of its own. When it failed again (pr_open's
+  # stack rebase), the next automatic retry found no checkpoint in it and
+  # started a fresh implementation, discarding the completed work and the
+  # operator guidance it carried.
+  it "resumes a failed checkpoint-resume attempt from the checkpoint it inherited" do
+    failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
+    original = Workflow.create!(job: failed_job, user: user, trigger_kind: "initial", agent_provider: "claude",
+                                state: "failed", created_at: 1.hour.ago)
+    implement = Step.create!(workflow: original, kind: "implement", position: 1, state: "succeeded", finished_at: 1.hour.ago)
+    original_pr_open = Step.create!(workflow: original, kind: "pr_open", position: 2, state: "failed", finished_at: 1.hour.ago)
+    implement.update!(next_step: original_pr_open)
+    implement_run = implement.runs.create!(job: failed_job, user: user, trigger_kind: "initial", agent_provider: "claude",
+                                           state: "succeeded", head_sha: "implsha", base_sha: "basesha", finished_at: 1.hour.ago)
+    RunCheckpoint.create!(run: implement_run, workflow: original, step: implement, job: failed_job, repository: repository,
+                          user: user, step_kind: "implement", commit_sha: "implsha", base_sha: "basesha",
+                          remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}", status: "published",
+                          published_at: 1.hour.ago)
+    resumed = Workflow.create!(
+      job: failed_job, user: user, trigger_kind: "retry", agent_provider: "claude", state: "failed",
+      created_at: 10.minutes.ago, finished_at: 5.minutes.ago,
+      artifacts: {
+        "checkpoint_resume" => true,
+        "checkpoint_ref" => "refs/syrus/checkpoints/runs/#{implement_run.id}",
+        "checkpoint_sha" => "implsha",
+        "checkpoint_source_run_id" => implement_run.id,
+        "checkpoint_source_workflow_id" => original.id,
+        "replay_context" => "Operator guidance: keep the host surface baseline at 479."
+      }
+    )
+    prepare = Step.create!(workflow: resumed, kind: "prepare", position: 0, state: "succeeded", finished_at: 8.minutes.ago)
+    pr_open = Step.create!(workflow: resumed, kind: "pr_open", position: 1, state: "failed", finished_at: 5.minutes.ago)
+    prepare.update!(next_step: pr_open)
+
+    result = described_class.call(job: failed_job)
+
+    expect(result).to be_success
+    expect(result.workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare pr_open])
+    expect(result.workflow.artifact("checkpoint_sha")).to eq("implsha")
+    expect(result.workflow.artifact("checkpoint_source_workflow_id")).to eq(resumed.id)
+    expect(result.workflow.artifact("replay_context")).to eq("Operator guidance: keep the host surface baseline at 479.")
+  end
+
   # Regression (formal/SyrusModel/CheckpointLineage.lean): a retry resumes
   # the attempt it retries -- the Job's newest. It used to pick the newest
   # failed workflow that *had* a resumable checkpoint, so after a newer

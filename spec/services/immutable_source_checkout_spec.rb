@@ -352,6 +352,35 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(prepared_file.read).to eq("ready\n")
   end
 
+  # Regression: a main grader's `npm ci` hit ECONNRESET once and failed a
+  # required grader, turning main red on network noise. The mutable prepare
+  # step already retries a failed command once; this checkout now does too.
+  it "retries a prepare command that fails once, as network noise does" do
+    update_remote_config(<<~YAML)
+      prepare:
+        - if [ -f "$BUNDLE_PATH/attempted" ]; then printf 'ready\\n' > "$BUNDLE_PATH/prepared.txt"; else mkdir -p "$BUNDLE_PATH" && touch "$BUNDLE_PATH/attempted" && echo "npm error code ECONNRESET" && exit 1; fi
+    YAML
+    logs = []
+    checkout = described_class.new(step, log: ->(message, **) { logs << message })
+
+    checkout.setup
+
+    expect(checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(logs.join("\n")).to include("prepare command failed; retrying once")
+  end
+
+  it "still fails a prepare command that fails on its retry too" do
+    update_remote_config(<<~YAML)
+      prepare:
+        - mkdir -p "$BUNDLE_PATH" && echo attempt >> "$BUNDLE_PATH/attempts" && exit 1
+    YAML
+    checkout = described_class.new(step)
+
+    expect { checkout.setup }
+      .to raise_error(Steps::Base::StepFailed, /immutable source prepare command failed/)
+    expect(checkout.path.join(".syrus/deps/bundle/attempts").read.lines.size).to eq(2)
+  end
+
   it "fails loudly on invalid explicit prepare config without recording a prepared cache" do
     update_remote_config("prepare: bundle install\n")
     checkout = described_class.new(step)

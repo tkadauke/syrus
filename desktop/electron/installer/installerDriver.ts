@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process"
 import { createWriteStream } from "node:fs"
 import fs from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import readline from "node:readline"
 import { promisify } from "node:util"
@@ -212,6 +213,20 @@ export class OnboardingDriver {
     }
   }
 
+  // A lock written before this boot cannot be held by a running process, even
+  // if its PID has since been reused by an unrelated one (an install
+  // interrupted by a reboot leaves exactly that behind). A minute of slack
+  // absorbs clock and uptime rounding.
+  private async lockPredatesBoot(lockPath: string) {
+    try {
+      const { mtimeMs } = await fs.stat(lockPath)
+      const bootedAt = Date.now() - os.uptime() * 1000
+      return mtimeMs < bootedAt - 60_000
+    } catch {
+      return false
+    }
+  }
+
   private async acquireInstallLock() {
     const lockPath = this.installLockPath()
 
@@ -228,7 +243,7 @@ export class OnboardingDriver {
         }
 
         const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
-        if (Number.isFinite(pid) && pid > 0 && (await this.processIsRunning(pid))) {
+        if (Number.isFinite(pid) && pid > 0 && !(await this.lockPredatesBoot(lockPath)) && (await this.processIsRunning(pid))) {
           return false
         }
 
@@ -388,6 +403,11 @@ export class OnboardingDriver {
   async precheck() {
     this.stopPolling()
     this.setState({ phase: "local.precheck" })
+    // Every navigation (Back, Run Setup Again, a new precheck) goes through
+    // stopPolling, which bumps pollGeneration. A precheck whose generation is
+    // gone must not set wizard state or start an install from stale probes.
+    const generation = this.pollGeneration
+    const superseded = () => generation !== this.pollGeneration || this.state.phase !== "local.precheck"
 
     const stateDir = localStateDir()
     const envPath = path.join(stateDir, ".env")
@@ -399,19 +419,21 @@ export class OnboardingDriver {
     } catch {
       this.port = channelDefaultPort()
     }
+    if (superseded()) return
 
     // A healthy Syrus already answering that we don't own: offer to adopt it
     // as remote-at-localhost (no lifecycle control) instead of clobbering.
     // Fingerprinted — a foreign app's /up must not masquerade as Syrus.
     if (!hasEnv && (await syrusHealthy(this.port))) {
       const localUrl = `http://localhost:${this.port}`
-      if (await isSyrusInstance(localUrl)) {
+      if ((await isSyrusInstance(localUrl)) && !superseded()) {
         this.setState({ phase: "local.adoptRunning", url: localUrl })
         return
       }
     }
 
     const binary = await findDockerBinary()
+    if (superseded()) return
     if (!binary) {
       if (installedRuntimeApp()) {
         await this.startRuntime()
@@ -422,14 +444,18 @@ export class OnboardingDriver {
       return
     }
 
-    if (!(await daemonUp())) {
+    const daemonIsUp = await daemonUp()
+    if (superseded()) return
+    if (!daemonIsUp) {
       await this.startRuntime()
       return
     }
 
     // The encryption-key guard, surfaced before install.sh would exit 20:
     // a data volume encrypted with keys from a .env we don't have.
-    if (!hasEnv && (await volumeExists(dataVolumeName()))) {
+    const foreignVolume = !hasEnv && (await volumeExists(dataVolumeName()))
+    if (superseded()) return
+    if (foreignVolume) {
       this.setState({ phase: "local.adoptExisting", error: null })
       return
     }
@@ -439,7 +465,9 @@ export class OnboardingDriver {
     // --port), and a busy-but-unhealthy port there is usually our own stack
     // still booting — let the install proceed; a genuine foreign bind
     // surfaces as compose exit 40.
-    if (!hasEnv && !(await syrusHealthy(this.port)) && (await portInUse(this.port))) {
+    const portConflict = !hasEnv && !(await syrusHealthy(this.port)) && (await portInUse(this.port))
+    if (superseded()) return
+    if (portConflict) {
       this.setState({ phase: "local.portConflict", port: this.port })
       return
     }
@@ -867,7 +895,16 @@ export class OnboardingDriver {
       flags.push("--port", String(this.port))
     }
 
-    if (!(await this.acquireInstallLock())) {
+    const acquired = await this.acquireInstallLock()
+    // A cancel can land while the lock is being acquired: cancelInstall has
+    // already put the wizard back at Welcome, so stop here — never set
+    // "installing" or spawn an installer nobody would kill.
+    if (this.cancelRequested) {
+      this.cancelRequested = false
+      if (acquired) await this.releaseInstallLock()
+      return
+    }
+    if (!acquired) {
       this.setState({
         phase: "local.failed",
         code: 1,

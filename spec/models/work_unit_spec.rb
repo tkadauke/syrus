@@ -231,6 +231,24 @@ RSpec.describe WorkUnit do
       expect(job_lock.reload.released_at).to be_nil
     end
 
+    # A started landing whose repair agent reports it cannot proceed blocks its
+    # unit on `agent_cannot_proceed` (Workflows::LifecyclePropagation#blocked!).
+    # That clears only when a person or the agent acts, never by waiting -- the
+    # same class as no_capable_worker -- but it was not in the allowlist, so the
+    # unit kept `landing:repository:<id>` and every other landing in the
+    # repository waited behind a Job nobody was working on.
+    it "surrenders the landing slot when a started landing's agent cannot proceed" do
+      unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
+                                     scope_type: "job", scope_id: 123)
+      landing = unit.work_unit_locks.create!(lock_key: "landing:repository:7")
+      job_lock = unit.work_unit_locks.create!(lock_key: "job:123")
+
+      unit.block!(reason: "agent_cannot_proceed")
+
+      expect(landing.reload.released_at).to be_present
+      expect(job_lock.reload.released_at).to be_nil
+    end
+
     it "keeps the landing slot for reasons that clear on their own" do
       unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
                                      scope_type: "job", scope_id: 123)
@@ -304,6 +322,37 @@ RSpec.describe WorkUnit do
       expect(original_landing_lock.reload).not_to be_active
       expect(unit.work_unit_locks.active.where(lock_key: original_landing_lock.lock_key)).to exist
       expect(workflow.first_step.runs).to be_empty
+    end
+  end
+
+  # A terminal unit and its intent end together or not at all. The intent sync
+  # used to run after the unit's transaction had committed, so an exception
+  # or a crash in between left a finished unit with an open intent, the state
+  # the reconciler's three unit/intent agreement classifiers repair
+  # (coverage item unit-intent-outcome-agreement).
+  describe "terminal intent sync is part of the terminal transition" do
+    def running_unit
+      described_class.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "job", scope_id: 123)
+    end
+
+    before do
+      allow(WorkIntents::TerminalUnitSync).to receive(:call).and_raise(ActiveRecord::LockWaitTimeout, "intent row locked")
+    end
+
+    it "does not commit mark_terminal! when the intent sync fails" do
+      unit = running_unit
+
+      expect { unit.mark_terminal!("succeeded") }.to raise_error(ActiveRecord::LockWaitTimeout)
+
+      expect(unit.reload).to be_running
+    end
+
+    it "does not commit preempt! when the intent sync fails" do
+      unit = running_unit
+
+      expect { unit.preempt!(reason: "job_closed") }.to raise_error(ActiveRecord::LockWaitTimeout)
+
+      expect(unit.reload).to be_running
     end
   end
 

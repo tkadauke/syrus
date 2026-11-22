@@ -1178,12 +1178,11 @@ module WorkEngine
           intent.cancel!
         end
 
+        # The same rule the classifier and AutoRetryJob apply.
         def source_superseded?(job, source)
           return false unless job && source
-          return true if source.succeeded?
-          return true if branch_divergence_recovered_by_current_pr_branch?(source)
 
-          Workflows::ValidationSupersession.superseded_by_successful_workflow?(source)
+          Workflows::AutoRetrySupersession.superseded?(source)
         end
 
         def retry_workflow_attempt?(workflow)
@@ -1191,11 +1190,6 @@ module WorkEngine
           definition.retry_workflow_attempt?
         rescue WorkDefinitions::UnknownKind
           false
-        end
-
-        def branch_divergence_recovered_by_current_pr_branch?(workflow)
-          workflow&.artifact("branch_divergence_recovery").is_a?(Hash) &&
-            workflow.artifact("branch_divergence_recovery")["action"] == "superseded_by_current_pr_branch"
         end
       end
 

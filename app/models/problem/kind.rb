@@ -82,6 +82,9 @@ class Problem
                 default_remediation: :defer,
                 failure_codes: %w[push_remote_transient],
                 label: "Git transport temporarily unavailable"),
+      Entry.new(code: "prepare_network_transient", scope: :external, retryable: true,
+                default_remediation: :retry_step,
+                label: "Package registry temporarily unreachable"),
 
       # -- The workspace ------------------------------------------------------
       Entry.new(code: "workspace_checkout_invalid", scope: :run, retryable: true,

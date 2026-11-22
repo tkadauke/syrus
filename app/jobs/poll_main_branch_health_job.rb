@@ -83,7 +83,11 @@ class PollMainBranchHealthJob < ApplicationJob
       )
     end
 
-    if current && current.ci_health.in?(%w[healthy broken inconclusive]) && !grading_needed
+    # Only a record that holds a CI result counts as measured. A main-grading
+    # record copies the repository's carried-forward CI health but has no CI
+    # result (ci_failed_checks nil); returning early on it meant CI was never
+    # read for the new SHA and main's CI health went stale.
+    if current && !current.ci_failed_checks.nil? && current.ci_health.in?(%w[healthy broken inconclusive]) && !grading_needed
       MainHealthChangedService.ensure_repair_job!(repository) if default_track_branch && repository.main_health_broken?
       return
     end

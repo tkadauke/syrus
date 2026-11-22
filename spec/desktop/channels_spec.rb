@@ -68,7 +68,7 @@ RSpec.describe "desktop channels" do
     end
 
     it "scopes the uninstall image sweep to the channel's tag shape (test-* vs semver), like imageCleanup.ts" do
-      expect(uninstall_sh).to include("test-*|*-test.[0-9]*) tag_channel=test ;;")
+      expect(uninstall_sh).to include('if [[ "$tag" == test-* || "$tag" =~ -test\.[0-9]+$ ]]; then')
       expect(uninstall_sh).to include('[ "$tag_channel" = "$CHANNEL" ] || continue')
     end
   end

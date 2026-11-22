@@ -30,7 +30,16 @@ module CiRepair
         branch: job.effective_base_branch,
         sha: base_sha
       ).to_a
-      return normalize(checks.flat_map { |check| check_names(check) }) if checks.any?
+      if checks.any?
+        names = checks.flat_map { |check| check_names(check) }
+        # A grader-run record stores no CI results (ci_failed_checks nil), so
+        # an empty CI list there means "not read yet", not "CI passed". Until
+        # the base's own CI result arrives, take CI failures from the newest
+        # record that has one -- otherwise main's own red checks read as
+        # introduced by every PR built on it.
+        names += newest_ci_failure_names unless checks.any? { |check| ci_evidence?(check) }
+        return normalize(names)
+      end
 
       # A stacked base is its parent PR branch, which main-health polling never
       # evaluates. Prefer that parent's check snapshot at the start gate so a
@@ -46,6 +55,18 @@ module CiRepair
         branch: job.effective_base_branch
       ).order(id: :desc).first
       latest && normalize(check_names(latest))
+    end
+
+    def ci_evidence?(check)
+      !check.ci_failed_checks.nil?
+    end
+
+    def newest_ci_failure_names
+      latest = MainBranchHealthCheck.where(
+        repository_id: job.repository_id,
+        branch: job.effective_base_branch
+      ).where.not(ci_failed_checks: nil).order(id: :desc).first
+      Array(latest&.ci_failed_checks)
     end
 
     def check_names(check)

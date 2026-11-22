@@ -713,4 +713,22 @@ RSpec.describe PerformanceLogging do
       expect(fingerprint).not_to include("TRAILING_MARKER")
     end
   end
+
+  # Regression: on a CPU-starved worker the SQL fingerprint regexps exceeded
+  # Ruby's global Regexp timeout. Regexp::TimeoutError escaped the SQL
+  # notification subscriber and failed the RunJob it was measuring -- a
+  # stacked job's auto_rebase died on "regexp match timeout".
+  it "never raises out of SQL fingerprinting when a regexp times out" do
+    previous = Regexp.timeout
+    Regexp.timeout = 0.000_001
+    sql = "SELECT * FROM solid_queue_processes WHERE metadata = '#{"x' '" * 900}"
+
+    fingerprint = described_class.fingerprint_sql(sql)
+
+    expect(fingerprint).to start_with("SELECT * FROM solid_queue_processes")
+    expect(fingerprint.bytesize).to be <= 1_000
+    expect(described_class.safe_string("  #{"a " * 3_000}", 600).bytesize).to be <= 600
+  ensure
+    Regexp.timeout = previous
+  end
 end

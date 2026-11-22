@@ -147,6 +147,28 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     end
   end
 
+  # An unreadable enablement answer must neither install every plugin's effects
+  # (treating installed as enabled) nor tear the current ones down. It keeps
+  # what is installed and lets the next sync try again (NY13).
+  it "keeps installed effects while plugin enablement cannot be read, then resyncs" do
+    Syrus::PluginRegistry.register(name: "effect_plugin", version: "1.0.0")
+    log = []
+    described_class.define("effect", plugin: "effect_plugin") do |scope|
+      scope.effect("x") { log << :install; -> { log << :dispose } }
+    end
+    described_class.sync!
+    expect(log).to eq([ :install ])
+
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_raise(Syrus::PluginRegistry::EnablementUnavailable, "database unavailable")
+    Syrus::PluginRegistry.bump_generation!
+    expect(described_class.sync!).to be(false)
+    expect(log).to eq([ :install ])
+
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_call_original
+    expect(described_class.sync!).to be(true)
+    expect(log).to eq([ :install, :dispose, :install ])
+  end
+
   it "disposes everything on reset!" do
     log = []
     described_class.define("probe") { |scope| scope.effect("x") { -> { log << :disposed } } }

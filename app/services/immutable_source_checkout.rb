@@ -512,7 +512,7 @@ class ImmutableSourceCheckout
     plan.commands.each_with_index do |command, index|
       occurrence = index + 1
       log("[immutable_source_checkout] prepare (#{occurrence}/#{plan.commands.size}) $ #{command}")
-      next if run_prepare_command(command, occurrence: occurrence)
+      next if run_prepare_command_with_retry(command, occurrence: occurrence)
 
       if plan.guessed?
         log("[immutable_source_checkout] guessed prepare command failed; continuing with immutable checkout unprepared")
@@ -555,7 +555,22 @@ class ImmutableSourceCheckout
     path.join(PREPARED_MARKER)
   end
 
-  def run_prepare_command(command, occurrence:)
+  # Same policy as Steps::Prepare: install commands are idempotent, and a
+  # failure is often registry or network noise (an `npm ci` ECONNRESET), so a
+  # failed command gets one more attempt before it fails a required grader.
+  # A timeout or a stop is not retried -- a second attempt would only spend
+  # the full timeout again, or override whoever stopped it.
+  def run_prepare_command_with_retry(command, occurrence:)
+    outcome = run_prepare_command(command, occurrence: occurrence)
+    return true if outcome == :ok
+    return false unless outcome == :failed
+
+    log("[immutable_source_checkout] prepare command failed; retrying once " \
+        "(setup commands are idempotent, and install failures are often network noise)")
+    run_prepare_command(command, occurrence: occurrence, attempt: 2) == :ok
+  end
+
+  def run_prepare_command(command, occurrence:, attempt: 1)
     current_run = Thread.current[:syrus_current_run] || @step.latest_run
     span_plan = GraderCommandSpans::Plan.for(command)
     span_recorder = GraderCommandSpans::Recorder.new(
@@ -563,7 +578,7 @@ class ImmutableSourceCheckout
       step: @step,
       workflow: @workflow,
       plan: span_plan,
-      idempotency_scope: "prepare:#{@step.id}:#{occurrence}:#{Digest::SHA256.hexdigest(command)}"
+      idempotency_scope: "prepare:#{@step.id}:#{occurrence}#{":#{attempt}" if attempt > 1}:#{Digest::SHA256.hexdigest(command)}"
     ) if current_run
     runner_command = span_recorder ? span_recorder.wrap(span_plan.shell_command) : command
 
@@ -592,7 +607,10 @@ class ImmutableSourceCheckout
       operator_killed: result.operator_killed
     )
 
-    result.success? && !result.timed_out?
+    return :timed_out if result.timed_out?
+    return :stopped if result.stopped || result.operator_killed
+
+    result.success? ? :ok : :failed
   rescue StandardError
     span_recorder&.finalize!(exit_code: nil, timed_out: false)
     raise

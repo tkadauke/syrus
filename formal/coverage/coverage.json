@@ -1,5 +1,5 @@
 {
-  "generated_from_commit": "14b5eb2155",
+  "generated_from_commit": "05d1c36ce1",
   "line_numbers_note": "Producer file:line references come from the catalog pass at eca9ba0db5 and are approximate (~) where later commits (F1-F7) moved code; classifier names are verified at the generated commit.",
   "areas": [
     {
@@ -71,6 +71,31 @@
       "id": "reconciler",
       "title": "Reconciler agreement",
       "summary": "The reconciler only flags states it can repair, never undoes deliberate domain states, and converges."
+    },
+    {
+      "id": "plugin-host",
+      "title": "Plugin host",
+      "summary": "Plugin contributions are callable only while their plugin and its required closure are enabled and healthy; lifecycle, disable, purge and fleet changes never strand or broaden anything."
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend realtime",
+      "summary": "The browser's event stream, entity store and query caches converge on committed server state, and scoped events reach exactly the authorized subscribers."
+    },
+    {
+      "id": "backups",
+      "title": "Backups",
+      "summary": "Retention, replication and recovery never delete, overwrite or restore the wrong thing."
+    },
+    {
+      "id": "cli",
+      "title": "Syrus CLI",
+      "summary": "Credentials reach only the selected instance; mutations are confirmed, single and authorized server-side; checkout never destroys work."
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop supervisor",
+      "summary": "Channels are isolated; destructive operations target only their own channel; installs, updates and sockets settle."
     }
   ],
   "items": [
@@ -142,9 +167,9 @@
         "requested_intent_without_active_unit",
         "stale_initial_intent_after_successful_retry"
       ],
-      "status": "partial",
-      "done_by": "F42",
-      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean. Production (read-only): 87 of 92 requested intents had only cancelled units; for finished work these are now cancelled with the unit (F42). Remaining: Epic-conflict victims rely on the Job-level retry repair, and the generic relaunch classifier still never runs without a work_intent_id."
+      "status": "done",
+      "done_by": "F42 · M40",
+      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean. Production (read-only): 87 of 92 requested intents had only cancelled units; for finished work these are now cancelled with the unit (F42). Remaining: Epic-conflict victims rely on the Job-level retry repair, and the generic relaunch classifier still never runs without a work_intent_id. M40: nothing launches from a requested intent except a later launch with the same idempotency key (serialized by intent.lock!); the record holds no lock and blocks nothing, so the unreachable classifier is a visibility gap, not a liveness one."
     },
     {
       "id": "active-unit-without-workflow",
@@ -195,8 +220,8 @@
         "superseded_unit_uncancelled_intent"
       ],
       "status": "partial",
-      "done_by": "model round 1 (Reconciler.lean, Proofs.lean) · F41",
-      "notes": "Repairs satisfyFromSucceeded / failFromFailed / cancelFromSuperseded are proved to preserve Inv; making the intent sync part of the terminal transition would make the states unreachable."
+      "done_by": "model round 1 (Reconciler.lean, Proofs.lean) · F41 · F97",
+      "notes": "Repairs satisfyFromSucceeded / failFromFailed / cancelFromSuperseded are proved to preserve Inv; making the intent sync part of the terminal transition would make the states unreachable. F97: the sync now runs inside mark_terminal!/preempt!'s transaction, so a failing sync or a crash can no longer split them (the model already assumed this). Still reachable: a unit finishing while a sibling is active is skipped, and if that sibling then ends with a non-superseding cancel the intent stays open (0 occurrences in 14 days)."
     },
     {
       "id": "mixed-unit-outcomes",
@@ -237,9 +262,9 @@
       "simulator": [
         "terminal_work_unit_active_lock"
       ],
-      "status": "partial",
-      "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks)",
-      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered."
+      "status": "done",
+      "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks) · M39",
+      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered. M39: no production writer bypasses mark_terminal!/preempt!; pinned by an architecture spec."
     },
     {
       "id": "active-unit-terminal-workflow-locks",
@@ -361,9 +386,9 @@
         "landing_queue_serializes_contention",
         "terminal_work_unit_active_lock"
       ],
-      "status": "partial",
-      "done_by": "model round 1 (LockSafety.lean)",
-      "notes": "Proved under UniqueRuntime (O1) and the unique-index abstraction; the nil-owner rescue hole (concurrency/lock-acquisition-nil-owner) is outside the model."
+      "status": "done",
+      "done_by": "model round 1 (LockSafety.lean) · LockAcquire.lean",
+      "notes": "Proved under UniqueRuntime (O1) and the unique-index abstraction; the nil-owner rescue hole (concurrency/lock-acquisition-nil-owner) is outside the model. Closed: the nil-owner rescue hole is fixed at both acquisition sites (Launcher#create_lock! and WorkUnit#ensure_active_locks!), which retry once and then fail closed with LockConflict instead of running without the lock, proved in LockAcquire.lean. Remaining lock-free paths are deliberate (advisory keys, the non-blocking main-branch-repair repository lock, materialize-behind-active-lock kinds that acquire at start)."
     },
     {
       "id": "job-mutex-dedup",
@@ -450,9 +475,9 @@
       "simulator": [
         "dead_resume_queue_reenqueues_elsewhere"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Production (60 applied re-enqueues, read-only): all in four windows on 2026-11-19 evening (22/5/15/18 per hour), i.e. worker pods being replaced. Runs pinned to a replaced pod's storage-specific resume queue are re-routed by the reconciler after clearing affinity -- the intended recovery. Handing them off when a pod drains (instead of waiting for the reconciler) belongs with the graceful-deploy work, not this pass. No correctness bug."
+      "status": "done",
+      "done_by": "M32",
+      "notes": "Production (60 applied re-enqueues, read-only): all in four windows on 2026-11-19 evening (22/5/15/18 per hour), i.e. worker pods being replaced. Runs pinned to a replaced pod's storage-specific resume queue are re-routed by the reconciler after clearing affinity -- the intended recovery. Handing them off when a pod drains (instead of waiting for the reconciler) belongs with the graceful-deploy work, not this pass. No correctness bug. M32: the repair rechecks under the Run lock and clears the affinity before re-enqueueing to the general queue, so it cannot route back to the dead queue and terminates in one step."
     },
     {
       "id": "queued-run-failed-execution",
@@ -471,9 +496,9 @@
       "prod_applied": 3,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": null,
-      "notes": "Production (61 executions, all applied re-enqueues, read-only). The SolidQueue failed-execution table since 2026-11-19 shows RunJob failures from ActiveRecord::LockWaitTimeout (10) and SolidQueue ProcessPrunedError (8+) -- infrastructure, before the Run starts -- plus StepFailed subclasses (e.g. Steps::PrOpen::AwaitingStableBase) that RunJob re-raises after handling the Step failure, which are finished Runs, not pre-start crashes. The reconciler's re-enqueue is the intended recovery here; no producer bug found. A lock-timeout retry inside RunJob's pre-start path would remove the 2-minute delay, but is an infrastructure-resilience choice, not a correctness fix."
+      "status": "done",
+      "done_by": "M37",
+      "notes": "Production (61 executions, all applied re-enqueues, read-only). The SolidQueue failed-execution table since 2026-11-19 shows RunJob failures from ActiveRecord::LockWaitTimeout (10) and SolidQueue ProcessPrunedError (8+) -- infrastructure, before the Run starts -- plus StepFailed subclasses (e.g. Steps::PrOpen::AwaitingStableBase) that RunJob re-raises after handling the Step failure, which are finished Runs, not pre-start crashes. The reconciler's re-enqueue is the intended recovery here; no producer bug found. A lock-timeout retry inside RunJob's pre-start path would remove the 2-minute delay, but is an infrastructure-resilience choice, not a correctness fix. M37: audited; recovery is a one-step repair with the cached-failure guard shared across queued-run repairs."
     },
     {
       "id": "queued-grader-collect-cached-failure",
@@ -494,9 +519,9 @@
       "simulator": [
         "infrastructure_grader_failure_does_not_poison_cache"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "An optimisation over a lost queue token; not needed for safety. The infrastructure-grader fixture guards that only real failures are cached."
+      "status": "done",
+      "done_by": "M37",
+      "notes": "An optimisation over a lost queue token; not needed for safety. The infrastructure-grader fixture guards that only real failures are cached. M37: audited; recovery is a one-step repair with the cached-failure guard shared across queued-run repairs."
     },
     {
       "id": "queued-run-placement-livelock",
@@ -519,9 +544,9 @@
         "pinned_host_admission_deferral_budget_reenqueues_elsewhere",
         "healthy_reenqueue_loop_clears_affinity"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "A placement livelock bounded by a 40-deferral budget and a staleness window; a fairness/termination-measure argument, not a safety invariant."
+      "status": "done",
+      "done_by": "F91",
+      "notes": "A placement livelock bounded by a 40-deferral budget and a staleness window; a fairness/termination-measure argument, not a safety invariant. F91: sibling Runs reset the shared per-Workflow count, so the budget never ran out; per-Run counts now, termination proved in PinnedDeferralBudget.lean."
     },
     {
       "id": "queued-run-wedged-or-stale-claim",
@@ -543,9 +568,9 @@
       "simulator": [
         "wedged_queue_claim_reenqueues_elsewhere"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "External fault; the stale-claim variant only waits for SolidQueue's own process pruning."
+      "status": "done",
+      "done_by": "M37",
+      "notes": "External fault; the stale-claim variant only waits for SolidQueue's own process pruning. M37: audited; recovery is a one-step repair with the cached-failure guard shared across queued-run repairs."
     },
     {
       "id": "running-run-without-worker",
@@ -570,9 +595,9 @@
         "visual_diff_worker_loss_does_not_fail_job",
         "grader_fanout_worker_loss_stays_in_loop"
       ],
-      "status": "open",
+      "status": "done",
       "done_by": "F52",
-      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change. F52 / WorkerEvidence.lean: the live-claim guard now attributes an inline-chained Run's worker (the finished root Run's RunJob) to it (after_complete) without borrowing a running sibling's claim (after_ignores_running_siblings)."
+      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change. F52 / WorkerEvidence.lean: the live-claim guard now attributes an inline-chained Run's worker (the finished root Run's RunJob) to it (after_complete) without borrowing a running sibling's claim (after_ignores_running_siblings). Closed: the production skips are the repair correctly declining a second retry after its own worker_died propagation; the live-claim guard is proved in WorkerEvidence.lean."
     },
     {
       "id": "runs-paused",
@@ -615,9 +640,9 @@
         "visual_diff_worker_loss_does_not_fail_job",
         "grader_fanout_worker_loss_stays_in_loop"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key."
+      "status": "partial",
+      "done_by": "M26/F91 (NY26 open)",
+      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key. Bounds established so far: the in-place infrastructure retry is capped by INFRASTRUCTURE_STEP_RETRY_LIMIT, pinned host-admission deferral by the per-Run budget (F91, PinnedDeferralBudget.lean), dead resume queues are rerouted once (M32). Open: a lost failure cascade after worker death is recovered by failing the Workflow rather than retrying in place (NY26)."
     },
     {
       "id": "active-run-on-terminal-step",
@@ -663,7 +688,7 @@
       ],
       "status": "partial",
       "done_by": "F18, F19",
-      "notes": "Production (~2 days, 324 executions). ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips were RunJob committing run.succeed! and step.succeed! separately — F19 commits them together, so the success path can no longer produce the state (AtomicSuccess.atomic_hides). Still open: Workflow#fail! cancel_orphan_active_runs! via update_columns, and ImmutableReviewHeadBarrier.cancel_run_without_cascade!."
+      "notes": "Production (~2 days, 324 executions). ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips were RunJob committing run.succeed! and step.succeed! separately — F19 commits them together, so the success path can no longer produce the state (AtomicSuccess.atomic_hides). Still open: Workflow#fail! cancel_orphan_active_runs! via update_columns, and ImmutableReviewHeadBarrier.cancel_run_without_cascade!. Explained (no change): Workflow#cancel_orphan_active_runs! runs in failed! propagation and cancels Runs with update_columns on purpose -- a callback cancel would cascade and cancel the failed Workflow's queued tail, which Retry-from-failed-step resumes through. The running Step it leaves behind is stale_terminal_steps for a failed Workflow, so terminal cleanup turns it back, and active_step_with_terminal_runs reconciles it from its latest terminal Run in the meantime. Remaining: the ImmutableReviewHeadBarrier producer."
     },
     {
       "id": "in-place-retry-reconciled-away",
@@ -734,7 +759,7 @@
       ],
       "status": "partial",
       "done_by": "F16, F40",
-      "notes": "The 534 skipped resume_queued_step repairs in the production sample were one rebase Workflow whose WorkUnit an operator paused (manual_pause) right before force_push, three weeks earlier: the classifier flagged the deliberately held Step on every pass and the resume refused every time. Fixed: Steps held by a pause (manual_pause, provider_availability) are not flagged; the executor's skip message now names the resume's actual status and reason. Agreement.lean: resume_before_not_actionable / resume_after_actionable. Remaining: other deferral reasons (phase admission, gates) can still produce refused resumes; the 'no recheck scheduled' branches belong to deferral-schedules-recheck. F40: a fresh 9-hour sample showed 437 refused resumes behind ci_repair_safety -- any gate blocking with retry_at already schedules its own recheck; the classifier now skips a unit in a deliberate wait (pause, or blocked_until still in the future) and acts again once the recheck is overdue (Agreement.gated_after_skips_due)."
+      "notes": "The 534 skipped resume_queued_step repairs in the production sample were one rebase Workflow whose WorkUnit an operator paused (manual_pause) right before force_push, three weeks earlier: the classifier flagged the deliberately held Step on every pass and the resume refused every time. Fixed: Steps held by a pause (manual_pause, provider_availability) are not flagged; the executor's skip message now names the resume's actual status and reason. Agreement.lean: resume_before_not_actionable / resume_after_actionable. Remaining: other deferral reasons (phase admission, gates) can still produce refused resumes; the 'no recheck scheduled' branches belong to deferral-schedules-recheck. F40: a fresh 9-hour sample showed 437 refused resumes behind ci_repair_safety -- any gate blocking with retry_at already schedules its own recheck; the classifier now skips a unit in a deliberate wait (pause, or blocked_until still in the future) and acts again once the recheck is overdue (Agreement.gated_after_skips_due). M47: verified after deploy — the per-minute ci_repair_safety refusal stopped; only one-off not_ready skips on distinct Steps remain."
     },
     {
       "id": "cancelled-barrier-blocks-tail",
@@ -756,9 +781,9 @@
         "cancelled_retry_until_barrier_blocks_tail",
         "terminal_cleanup_cancelled_retry_recovers"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: queued step with a dependency cancelled-without-runs is itself cancelled; suppressed cascades are the hazard."
+      "status": "done",
+      "done_by": "M29",
+      "notes": "Invariant: queued step with a dependency cancelled-without-runs is itself cancelled; suppressed cascades are the hazard. M29: both cancelled-barrier shapes (no runs; cleanup-cancelled with runs) are auto-repaired on running workflows, each guarded by settled dependencies."
     },
     {
       "id": "terminal-workflow-active-descendants",
@@ -804,9 +829,9 @@
       "simulator": [
         "active_run_on_terminal_step"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Operator-only variant of the same issue kind, reachable only when no persisted Step or Run is active; the external part is SpawnedProcess liveness."
+      "status": "done",
+      "done_by": "M33",
+      "notes": "Operator-only variant of the same issue kind, reachable only when no persisted Step or Run is active; the external part is SpawnedProcess liveness. M33: every workspace deletion path checks live_descendants? (runs, projected running steps, spawned processes) and the workspace file lock; only DB-orphaned directories are removed directly."
     },
     {
       "id": "queued-workflow-with-failed-step",
@@ -827,9 +852,9 @@
       "simulator": [
         "queued_workflow_with_failed_step"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending."
+      "status": "partial",
+      "done_by": "M26 (NY26 open)",
+      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending. M26: the live dispatch (StepDispatcher#fail!) is total; a lost cascade is auto-repaired, but the fail_workflow repair hard-fails instead of replaying the cascade (skipping advance, try branches and the infrastructure retry) — NY26."
     },
     {
       "id": "running-workflow-with-failed-step",
@@ -875,8 +900,8 @@
         "manual_grade_loop_restart_ignores_superseded_failures"
       ],
       "status": "partial",
-      "done_by": "F4, F19",
-      "notes": "Production (93 executions): 44 skipped 'Workflow is succeeded, not running'. Sampling 12: 9 executed 0.3–5.7 s *before* the last Step's recorded finish — the classifier saw the Run committed succeeded while its Step was still running (no active Run, Step projected terminal), i.e. the window F19 closed by committing Run and Step success together; expect these to vanish after deploy. 3 executed 20–250 s after the Workflow finished: the classifier acted on a stale snapshot — unexplained, recheck after deploy. 15 skips were MySQL lock-wait timeouts (infrastructure)."
+      "done_by": "F4, F19 · F96",
+      "notes": "Production (93 executions): 44 skipped 'Workflow is succeeded, not running'. Sampling 12: 9 executed 0.3–5.7 s *before* the last Step's recorded finish — the classifier saw the Run committed succeeded while its Step was still running (no active Run, Step projected terminal), i.e. the window F19 closed by committing Run and Step success together; expect these to vanish after deploy. 3 executed 20–250 s after the Workflow finished: the classifier acted on a stale snapshot — unexplained, recheck after deploy. 15 skips were MySQL lock-wait timeouts (infrastructure). F96: the late detections were merge trains whose finish transaction stayed open for minutes while it rm_rf'd the workspace (3.5 min in the latest, with lock-wait timeouts in the landing queue); cleanup now runs after commit. The remaining skips fire within seconds of the finish and are benign snapshot races."
     },
     {
       "id": "two-definitions-of-active-step",
@@ -978,7 +1003,7 @@
       ],
       "status": "partial",
       "done_by": "F20, F33",
-      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). running->implemented (5) traced: 4 are the echo of F20's wrong implemented->running repair about a minute before the Workflow succeeded, after which succeed! decided on the Workflow's cached (stale, still implemented) Job and returned early. Hunting other writers that change a Job under a running Workflow found F33: a polled GitHub review approved Jobs under non-feedback approval-blocking work and moved running Jobs to implemented even when declined (ApprovalPaths.lean). failed->queued (2): JOB-9430 was the Epic conflict cancel/relaunch loop fixed by F34; JOB-9436 is the cancel!/[failed, cancelled] disagreement queued as NY6. Remaining: JobLifecyclePropagation decides on a cached Job instead of reloading under the Job lock (not exploitable with F20+F33, still check-then-act); other silent returns (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model."
+      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). running->implemented (5) traced: 4 are the echo of F20's wrong implemented->running repair about a minute before the Workflow succeeded, after which succeed! decided on the Workflow's cached (stale, still implemented) Job and returned early. Hunting other writers that change a Job under a running Workflow found F33: a polled GitHub review approved Jobs under non-feedback approval-blocking work and moved running Jobs to implemented even when declined (ApprovalPaths.lean). failed->queued (2): JOB-9430 was the Epic conflict cancel/relaunch loop fixed by F34; JOB-9436 is the cancel!/[failed, cancelled] disagreement queued as NY6. Remaining: JobLifecyclePropagation decides on a cached Job instead of reloading under the Job lock (not exploitable with F20+F33, still check-then-act); other silent returns (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model. M52: applied drift repairs fell from 62/day (11-20) to none in the five hours after the 11-21 22:00 UTC deploys; recheck over a longer window."
     },
     {
       "id": "job-state-vs-active-workflow-kind",
@@ -1002,9 +1027,9 @@
         "ci_failure_repair",
         "pr_review_feedback_repair"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Needs a declared table of legal (job state, active workflow kind) pairs; failed_job_active_repair_work is the legal 'repair in flight on a failed Job' entry of that table (info only)."
+      "status": "done",
+      "done_by": "F89",
+      "notes": "Needs a declared table of legal (job state, active workflow kind) pairs; failed_job_active_repair_work is the legal 'repair in flight on a failed Job' entry of that table (info only). F89: the legal-pair table is start propagation itself; the classifier reported implemented + non-approval-blocking (rebase) as drift. Fixed; proved in LegalJobWorkflowPairs.lean."
     },
     {
       "id": "job-running-without-work",
@@ -1026,9 +1051,9 @@
       "simulator": [
         "stranded_landing_job_without_lock_returns_to_approved"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide. Production (read-only): no running_job_without_active_runtime_work repairs; 3 landing_job_without_active_runtime_work executions, all skipped because the Job had already left landing."
+      "status": "done",
+      "done_by": "F88",
+      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide. Production (read-only): no running_job_without_active_runtime_work repairs; 3 landing_job_without_active_runtime_work executions, all skipped because the Job had already left landing. F88: handoff kinds own the Job lifecycle but lacked after_cancel and skipped after_fail when Coding Mode was off; fixed, pinned by an architecture spec, proved in RunningHasWork.lean."
     },
     {
       "id": "stale-workflow-fails-job",
@@ -1114,9 +1139,9 @@
       "simulator": [
         "closed_job_active_work_unit"
       ],
-      "status": "partial",
-      "done_by": "F6",
-      "notes": "F6 models Workflows on closed Jobs, not bare units; launch must check job.open? under the same lock as the close."
+      "status": "done",
+      "done_by": "F6 · M38",
+      "notes": "F6 models Workflows on closed Jobs, not bare units; launch must check job.open? under the same lock as the close. M38: no open-check at instantiate, but start and every step boundary cancel work on a closed Job, the reconciler auto-cancels leftovers, and the job_closed preemption reason retires the intent."
     },
     {
       "id": "closed-job-open-intent",
@@ -1135,9 +1160,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "F42",
-      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close."
+      "status": "done",
+      "done_by": "F42 · F95 (ClosedIntent.lean)",
+      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close. F95: an intent whose unit was still active at close is now cancelled when that unit is cancelled for any reason after the close (production had one, cancelled 50 s after close for epic_wide_workflow_active); ClosedIntent.lean proves a closed Job's open intent always has an active unit. Member-scoped intents remain covered by F42's reason list."
     },
     {
       "id": "queued-job-after-cancelled-workflow",
@@ -1206,9 +1231,9 @@
       "simulator": [
         "stalled_intake_reclassifies"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Lost-token fault; prove bounded retries via the attempt cap rather than prevention."
+      "status": "done",
+      "done_by": "M36",
+      "notes": "Lost-token fault; prove bounded retries via the attempt cap rather than prevention. M36: real classifier runs are capped by MAX_CLASSIFIER_ATTEMPTS; lost-token re-enqueues are uncapped but serialized by limits_concurrency and no-ops once classified. Refinement noted: stamp the enqueue time so a slow (not lost) classification is re-enqueued once per threshold, not every pass."
     },
     {
       "id": "feedback-does-not-regress-job",
@@ -1228,9 +1253,9 @@
         "remote_moved_push_rebases",
         "superseded_ci_repair_base_resolves"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Medium priority; overlaps job-state-matches-latest-workflow for follow-up kinds."
+      "status": "done",
+      "done_by": "F87",
+      "notes": "F87: a follow-up failure with no changes closed a Job with an open PR as no_changes (counted as landed by dependents). Fixed; proved in FollowUpFailure.lean."
     },
     {
       "id": "run-before-review-barrier",
@@ -1330,9 +1355,9 @@
         "stale_initial_intent_after_successful_retry",
         "auto_retry_skip_clears_same_attempt_backoff"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically. Production (read-only): 1 applied repair over the reconciler's retained history; the AutoRetryJob stale check (F27) already covers the success-before-perform race."
+      "status": "done",
+      "done_by": "F90",
+      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically. Production (read-only): 1 applied repair over the reconciler's retained history; the AutoRetryJob stale check (F27) already covers the success-before-perform race. F90: AutoRetryJob lacked the branch-divergence-recovered clause the classifier and executor used; all three now share Workflows::AutoRetrySupersession."
     },
     {
       "id": "auto-retry-bounded",
@@ -1355,7 +1380,7 @@
       ],
       "status": "partial",
       "done_by": "F44, F45 · Agreement.planned_retry_never_skipped",
-      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11 decided A: per-Step budget kept."
+      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11 decided A: per-Step budget kept. M48 (production, 7 days): the only repeating exempt skip was the branch-rewritten loop on worker versions predating F45; none since F45 went live. 'That agent is not available' did not occur. Note the worker_died budget is MAX_WORKER_DIED_ATTEMPTS = 20, not 3."
     },
     {
       "id": "resumable-agent-session",
@@ -1515,8 +1540,8 @@
         "stale_pr_check_base"
       ],
       "status": "partial",
-      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35)",
-      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). Not modelled: how the order itself is computed (epic grouping, dependency topological sort and its cycle fallback), and the merge-train and bundle dispatchers' own selection."
+      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35) · LandingUnitCycle.lean (M50)",
+      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). Not modelled: how the order itself is computed (epic grouping, dependency topological sort and its cycle fallback), and the merge-train and bundle dispatchers' own selection. M50: the unit order is a topological sort of the Epic-contracted graph; LandingUnitCycle.lean proves an acyclic contracted graph always leaves a landable unit, and that Job-level acyclicity (all JobDependency#no_cycle checks) does not imply it: Epic child <- outside Job <- Epic child deadlocks both units. Latent (never in production); NY28."
     },
     {
       "id": "externally-blocked-landing-slot",
@@ -1538,9 +1563,9 @@
         "blocked_no_capable_worker_does_not_hold_landing_slot",
         "blocked_ci_repair_does_not_block_job_bundle"
       ],
-      "status": "partial",
-      "done_by": "F7",
-      "notes": "no_capable_worker landings now fail and hold instead of blocking (F7); ci_repair_disabled and the AutoRetryBackoff re-lock remain unproved."
+      "status": "done",
+      "done_by": "F7 · M41",
+      "notes": "no_capable_worker landings now fail and hold instead of blocking (F7); ci_repair_disabled and the AutoRetryBackoff re-lock remain unproved. M41: ci_repair_disabled is externally cleared and releases the landing slot; auto_retry_backoff keeps it for a bounded time (backoff interval, cumulative retry budget)."
     },
     {
       "id": "urgent-blocked-landing-slot",
@@ -1586,9 +1611,9 @@
         "stranded_landing_job_without_lock_returns_to_approved",
         "blocked_no_capable_worker_does_not_hold_landing_slot"
       ],
-      "status": "partial",
-      "done_by": "F7",
-      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons. Production check (one week, read-only): zero stranded_landing_job detections and 3 landing_job_without_active_runtime_work, all skipped because the Job had already left landing. Not observed; left as a modelled hypothesis, not worked further."
+      "status": "done",
+      "done_by": "F7 · M42",
+      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons. Production check (one week, read-only): zero stranded_landing_job detections and 3 landing_job_without_active_runtime_work, all skipped because the Job had already left landing. Not observed; left as a modelled hypothesis, not worked further. M42: block! leaves the Job in landing, but classify_stranded_landing_job auto-defers it to approved when every landing unit is externally blocked."
     },
     {
       "id": "landing-work-job-state",
@@ -1636,9 +1661,9 @@
         "stale_pr_check_base",
         "main_branch_break_then_heal"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Liveness: the block is eventually rechecked and the marker is a cache of the gate. Low priority."
+      "status": "done",
+      "done_by": "M30",
+      "notes": "Liveness: the block is eventually rechecked and the marker is a cache of the gate. Low priority. M30: each landing start-block either fails the Workflow explicitly or schedules a phase-admission recheck; the marker is cleared when its gate passes."
     },
     {
       "id": "locked-landing-recheck",
@@ -1730,7 +1755,7 @@
       ],
       "status": "partial",
       "done_by": "F43",
-      "notes": "F43: the repair's re-check ignored blocked train Workflows and a pending preserved relaunch, so an owner appearing after planning did not stop it failing the train; classifier and repair now share WorkEngine::MergeTrainOwnership#owned?. Remaining: atomic terminal hooks (MergeTrainFailureHandler completing with the Workflow) and a fairness assumption for preserved relaunches."
+      "notes": "F43: the repair's re-check ignored blocked train Workflows and a pending preserved relaunch, so an owner appearing after planning did not stop it failing the train; classifier and repair now share WorkEngine::MergeTrainOwnership#owned?. Remaining: atomic terminal hooks (MergeTrainFailureHandler completing with the Workflow) and a fairness assumption for preserved relaunches. M51/Lead L6: the non-atomic part is Workflow#dispatch_hook, which swallows a MergeTrainFailureHandler error inside the terminal transaction without a savepoint (partial writes commit, train can stay active). 2 production repairs in 21 days, both 11-16."
     },
     {
       "id": "stack-children-rebased-after-train",
@@ -1795,7 +1820,7 @@
       "simulator": [],
       "status": "partial",
       "done_by": "F34",
-      "notes": "The main producer of victims was the reconciler itself: ConflictDetector cancelled members that were only waiting for the Epic-wide Workflow (11 of 13 applied cancellations in production had never started; one pass cancelled six queued members of one Epic), and the queued-job repair relaunched them into the same cancellation once a minute (JOB-9430's failed->queued drift). F34 stops cancelling waiters, so with F30 victims arise only from a running member and a running keeper together -- a race between the two start checks. Remaining: whether every such victim is relaunched (retry_job_after_epic_workflow_conflict covers queued Jobs only)."
+      "notes": "The main producer of victims was the reconciler itself: ConflictDetector cancelled members that were only waiting for the Epic-wide Workflow (11 of 13 applied cancellations in production had never started; one pass cancelled six queued members of one Epic), and the queued-job repair relaunched them into the same cancellation once a minute (JOB-9430's failed->queued drift). F34 stops cancelling waiters, so with F30 victims arise only from a running member and a running keeper together -- a race between the two start checks. Remaining: whether every such victim is relaunched (retry_job_after_epic_workflow_conflict covers queued Jobs only). M49 (production, 21 days, 51 victims): every victim was relaunched or its Job closed, except three Jobs correctly held behind a failed predecessor; the two once-a-minute relaunch loops both ran on versions without F34. No victims since F34 deployed."
     },
     {
       "id": "epic-blocked-job-releasable",
@@ -1819,9 +1844,9 @@
         "happy_path_job_with_epic_dependency_lands",
         "cross_epic_approved_parent_waits_for_merge"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift. Production (read-only): no releasable_epic_blocked_job repairs in the retained history."
+      "status": "done",
+      "done_by": "M27",
+      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift. Production (read-only): no releasable_epic_blocked_job repairs in the retained history. M27: every input except the early-execution flag has a wake-up; the reconciler classifier uses the identical predicate and auto-repairs, so a missed wake-up resolves within one pass."
     },
     {
       "id": "epic-linear-children",
@@ -1940,9 +1965,9 @@
       "simulator": [
         "parallel_merge_train_blocks_dirty_publication"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Same kind is also emitted (info) for a queued workflow intentionally waiting on admission; model the recheck job as a token whose loss is a fault."
+      "status": "done",
+      "done_by": "M35",
+      "notes": "Same kind is also emitted (info) for a queued workflow intentionally waiting on admission; model the recheck job as a token whose loss is a fault. M35: each block schedules its own recheck; an overdue one on a running Workflow is auto-resumed through the same gates."
     },
     {
       "id": "intentional-start-blocks",
@@ -1992,7 +2017,7 @@
       ],
       "status": "partial",
       "done_by": "PrestartSlot.lean · NY7 (A)",
-      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7. NY7 implemented: a pre-start landing block surrenders the slot for every reason, so a new block reason can no longer squat it before the first Run. In-flight (post-first-Run) blocks still keep it unless externally cleared."
+      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7. NY7 implemented: a pre-start landing block surrenders the slot for every reason, so a new block reason can no longer squat it before the first Run. In-flight (post-first-Run) blocks still keep it unless externally cleared. F92: agent_cannot_proceed was an externally cleared reason missing from the allowlist, so a started landing blocked on it kept the repository slot; added."
     },
     {
       "id": "provider-pause-readmits",
@@ -2018,9 +2043,9 @@
         "provider_switch_relaunches_blocked_work",
         "codex_overload_initial_retries"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Liveness under fairness; low priority."
+      "status": "done",
+      "done_by": "M34",
+      "notes": "Liveness under fairness; low priority. M34: the gate only blocks (or fails over a run-less Workflow); every block schedules its own phase-admission recheck at retry_at, and the provider wake-up is a fast path for queued work. Four simulations pass."
     },
     {
       "id": "resource-congestion",
@@ -2084,9 +2109,9 @@
         "checkpoint_backed_blocked_stack_recovery",
         "checkpoint_resume_rejects_dirty_grader_barrier"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Recovery opportunity, not a bad state; the negative fixture guards against resuming past a dirty grader barrier."
+      "status": "done",
+      "done_by": "M31",
+      "notes": "Recovery opportunity, not a bad state; the negative fixture guards against resuming past a dirty grader barrier. M31: eligibility requires no live work or locks, only retryable infrastructure failure evidence, and a checkpoint whose provenance and ref resolve exactly."
     },
     {
       "id": "workspace-missing",
@@ -2112,7 +2137,7 @@
       ],
       "status": "partial",
       "done_by": "F26",
-      "notes": "Production: 1,275 executions all-time; 113 of the latest 150 skipped 'Workflow is no longer active' -- the classifier also flagged failed Workflows awaiting retry, which the repair never acts on. Fixed F26 (Agreement.ws_after_actionable). Still open: modelling storage loss as an environment action and proving recovery leaves no Run pinned to the lost storage key."
+      "notes": "Production: 1,275 executions all-time; 113 of the latest 150 skipped 'Workflow is no longer active' -- the classifier also flagged failed Workflows awaiting retry, which the repair never acts on. Fixed F26 (Agreement.ws_after_actionable). Still open: modelling storage loss as an environment action and proving recovery leaves no Run pinned to the lost storage key. Lead L7: recovery rebuilds on the current worker and records it as owner, then requeues stranded Runs with ignore_workflow_affinity, so they may run on a worker without the rebuilt workspace and rebuild again (converges, wasteful). Code reading: requeued Runs are unpinned and a still-running mutation returns retry_required, so no Run stays pinned to the lost key; not yet modelled."
     },
     {
       "id": "workspace-prune-risk",
@@ -2204,9 +2229,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": null,
-      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven."
+      "status": "partial",
+      "done_by": "M25 (NY25 open)",
+      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven. M25: full audit; observed graph has cycles (Job↔Workflow, Run↔Job, Run↔Workflow, Epic↔Job). LockOrder.lean proves the cycles and that a proposed global order needs exactly four edge kinds flipped (NY25)."
     },
     {
       "id": "launch-funnel",
@@ -2224,9 +2249,9 @@
         "single_initial_success",
         "happy_path_single_job_lands"
       ],
-      "status": "partial",
-      "done_by": "O1",
-      "notes": "Architecture-spec enforced; the Lean statement 'every Workflow has a WorkUnit' needs N:1 allowance (O1)."
+      "status": "done",
+      "done_by": "O1 · workflow_launch_funnel_spec · UnitReentry.lean",
+      "notes": "Architecture-spec enforced; the Lean statement 'every Workflow has a WorkUnit' needs N:1 allowance (O1). Closed: the only persisted Workflow creations are the instantiation primitives the launcher calls (Workflows::Base, CheckpointResume), enforced by spec/architecture/workflow_launch_funnel_spec.rb; the two other Workflow.new calls are unsaved capability probes for RunQueueResolver. The N:1 allowance is the deliberate same-attempt re-entry pinned by UnitReentry.lean, so 'every persisted Workflow has a WorkUnit' holds with a unit owning one or more attempts."
     },
     {
       "id": "completed-infrastructure-job",
@@ -2247,9 +2272,9 @@
       "simulator": [
         "agent_insight_sweep_does_not_block_job_bundle"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic. Production (read-only): 2 executions, both skipped 'Job is already closed' (the Job closed itself before the repair ran) -- no stuck infra Jobs."
+      "status": "done",
+      "done_by": "M28",
+      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic. Production (read-only): 2 executions, both skipped 'Job is already closed' (the Job closed itself before the repair ran) -- no stuck infra Jobs. M28: hooks close on success/failure; no after_cancel, but the classifier covers any terminal latest workflow for infra kinds and auto-closes; a cancelled main_branch_repair is operator-reviewed by design."
     },
     {
       "id": "stuck-main-branch-repair",
@@ -2367,6 +2392,652 @@
       "status": "done",
       "done_by": "F51",
       "notes": "RepairLift.lean: after_declares_only_landed, after_declare_was_before. Before: the live default-branch head was declared healthy, whatever had reached main after the repair."
+    },
+    {
+      "id": "plugin-contribution-callable",
+      "area": "plugin-host",
+      "title": "A contribution is callable only while its plugin and its whole required dependency closure are enabled and healthy",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginHealth propagation, Installer effects, plugin-hosted extension points, the database-error fallback in providers_for",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F60, F62, F66, F69, F72",
+      "notes": "Proved in PluginClosure, EffectHealth and EnablementRead: health propagates up hard dependencies (F60); effects, plugin-hosted points and plugin-side registries use the same enabled-and-healthy gate as providers (F62, F66, F72); an unreadable enablement answer is retried and then refused (F69)."
+    },
+    {
+      "id": "plugin-capabilities-pass-evaluator",
+      "area": "plugin-host",
+      "title": "Plugin capabilities cannot bypass core authorization",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "approval_effect declared in a plugin tool-set definition (Mcp::CoworkerToolCatalog)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M9-M12 (NY12 decided)",
+      "notes": "Ask never approves, lease scope, scope matching, invocation claims and delegated approval are proved (M9-M12). Decided NY12: approval_effect is honoured only when Syrus can verify the tool creates a confirmation card. To implement."
+    },
+    {
+      "id": "plugin-disable-recovery",
+      "area": "plugin-host",
+      "title": "Disabling or degrading a plugin never leaves its work unable to finish or be cancelled",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "kind inclusion validated on every save; disable guard without a work-of-own-kinds blocker; health degradation withdrawing kinds",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F61, F73, F74",
+      "notes": "Kinds are validated on create or change only, and the disable guard blocks while the plugin's work is active (F61). An unknown kind's Step fails cleanly (F73). An existing Workflow resolves its definition whatever its plugin's state, so in-flight work can always be cancelled, while launches still need a healthy owner (F74, ExistingKindDefinition.lean)."
+    },
+    {
+      "id": "plugin-missing-contribution-defaults",
+      "area": "plugin-host",
+      "title": "A missing contribution never silently selects a core default that changes behaviour",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Execution::Router local fallback; ChatShellCommandExecutor::Coding without a workload policy",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M14, NY15",
+      "notes": "The router authorizes the backend it picked and fails closed for the required chat workload (M14). Under required containment, Coding Mode ! commands are refused with an explanation, at the endpoint and at run time (NY15)."
+    },
+    {
+      "id": "plugin-purge-ownership",
+      "area": "plugin-host",
+      "title": "Purge removes only resources the plugin owns and preserves generic history",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "edited migrations leaving schema-only tables",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M15, NY16",
+      "notes": "The purge rule holds by construction across all bundled plugins. The two orphaned operator briefing tables are dropped by an idempotent plugin migration, and every schema.rb table must now have a creating migration (schema_tables_have_migrations_spec)."
+    },
+    {
+      "id": "plugin-fleet-admission",
+      "area": "plugin-host",
+      "title": "Work needing a plugin is never admitted to a worker that lacks it",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RunQueueResolver routes by OS and toolchain only; fleet plugin rollouts and role-limited installations",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M17, F73",
+      "notes": "A worker without the plugin hands the Run back instead of failing its Step (F73, UnknownKindHandback.lean). Not done: per-plugin queue routing, so an incapable worker never claims it."
+    },
+    {
+      "id": "plugin-optional-dependencies",
+      "area": "plugin-host",
+      "title": "Optional dependency absence never disables the dependent plugin",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginHealth, PluginLoader, PluginDependencyGraph",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M13",
+      "notes": "All three follow hard edges only; pinned by plugin_health, plugin_loader and plugin_dependency_graph specs."
+    },
+    {
+      "id": "plugin-cli-collisions",
+      "area": "plugin-host",
+      "title": "Plugin CLI command collisions fail deterministically",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "first-wins bare-path mounting in the Go CLI over a catalog sorted by plugin name",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F63",
+      "notes": "Colliding commands are withheld from the catalog and reported as a health warning (CliCollisions.lean)."
+    },
+    {
+      "id": "plugin-lifecycle-order",
+      "area": "plugin-host",
+      "title": "Queued plugin callbacks never act on a state that has moved on",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginTickJob and PluginLifecycleJob ran without rechecking state",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F65",
+      "notes": "Ticks recheck enablement and health; enable/disable events run only while they still describe the plugin (LifecycleOrder.lean)."
+    },
+    {
+      "id": "plugin-permission-renames",
+      "area": "plugin-host",
+      "title": "Permission upgrades and renames cannot broaden authority",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PolicyRule matched identifiers literally, ignoring aliases",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F64",
+      "notes": "Renamed capabilities and operations match stored rules through their aliases (RuleAliases.lean). Scope migrations are validated but never applied at runtime yet."
+    },
+    {
+      "id": "plugin-repair-executors",
+      "area": "plugin-host",
+      "title": "Every automatic repair action has an executor, and a missing policy stays manual",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RepairExecutor Default policy; dead DeferLandingStartBlockedWorkflow",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M16",
+      "notes": "Pinned both directions by repair_action_executors_spec; the dead executor was removed."
+    },
+    {
+      "id": "plugin-migrations-before-enable",
+      "area": "plugin-host",
+      "title": "Required migrations are present before enablement becomes active",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "deploy migration Job over every installed plugin's db/migrate",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M17",
+      "notes": "Holds by construction; an external plugin added between deploys is a deployment precondition."
+    },
+    {
+      "id": "frontend-sequence-gap",
+      "area": "frontend",
+      "title": "Every delivered app event is applied exactly once, and a lost one is recovered",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "trackAppEventSequence dropped late deliveries as duplicates; gap recovery refreshes only the next event's resource",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F67, F71",
+      "notes": "Late deliveries are applied, and only a seen sequence is a duplicate (F67, EventSequence.lean). A sequence still missing 2 s after a gap triggers the reconnect continuity sweep (F71, GapRecovery.lean)."
+    },
+    {
+      "id": "frontend-scoped-events",
+      "area": "frontend",
+      "title": "Job- and Chat-scoped events reach exactly the authorized subscribers",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "chat resource events sent to participants only; JobChannel authorized only on subscribe",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F68, F70",
+      "notes": "Chat events reach participants and share viewers, recomputed per broadcast (F68, ChatDelivery.lean). Job events are rechecked against Job.visible_to on delivery, so a revoked subscriber stops within 10 s (F70, ScopedDelivery.lean)."
+    },
+    {
+      "id": "frontend-entity-merge",
+      "area": "frontend",
+      "title": "Entity revisions never decrease and an older snapshot never overwrites a newer patch",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "upsertEntity revision merge",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M18",
+      "notes": "Proved in EntityMerge.lean; partial patches and equal revisions converge through the refetch every job event triggers."
+    },
+    {
+      "id": "frontend-subscriptions-recovery",
+      "area": "frontend",
+      "title": "Route changes, optimistic acknowledgement, hidden tabs and reconnects converge",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "appEvents and inFlightComposerDraftStore",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M19",
+      "notes": "Events key on their own identifiers; acknowledgement matches chat and key; hidden-tab invalidations flush on visibility; reconnect staleness is bounded by staleTime."
+    },
+    {
+      "id": "backup-retention-safety",
+      "area": "backups",
+      "title": "Retention never deletes the protected, pinned, uploading or unreplicated backup",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "LocalBackups::Retention#claim_deletions!, ArtifactSource.pin/record_replication",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M20 (NY21 open)",
+      "notes": "Safety holds: every gate is re-evaluated under Backup and Replication row locks, and replication serializes with deletion on the Backup row lock. Open liveness question: an abandoned upload (expired lease, destination gone) protects its backup forever (NY21)."
+    },
+    {
+      "id": "backup-recovery-preflight",
+      "area": "backups",
+      "title": "Recovery never restores into a destination it has not established as compatible",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "LocalBackups::Recovery preflight checks",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M21 (NY22 open)",
+      "notes": "Known mismatches (adapter, database major version, older application, missing or mismatched required plugin) block. Missing or unparseable version information only warns and still reports ready (NY22)."
+    },
+    {
+      "id": "cli-token-origin",
+      "area": "cli",
+      "title": "Bearer tokens are attached only to the selected instance's origin",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "api.Client.newRequest resolved absolute and scheme-relative paths, then attached the token",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F75",
+      "notes": "Paths with their own scheme or host are refused, and the resolved endpoint must keep the instance origin. Cross-domain redirects already drop Authorization."
+    },
+    {
+      "id": "cli-credential-file",
+      "area": "cli",
+      "title": "The token is only ever stored 0600 at the credentials path itself",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "CLI SaveCredentials and desktop writeCredentialsFile wrote the path directly, then chmodded it",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F76",
+      "notes": "Both writers now write a fresh 0600 file and rename it over the path, which replaces a symlink and is atomic."
+    },
+    {
+      "id": "cli-profile-path",
+      "area": "cli",
+      "title": "Every profile resolves to a credentials file directly inside ~/.syrus",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "config.Profile kept unrecognized values verbatim; DefaultCredentialsPath spliced them into the filename",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F77",
+      "notes": "Profiles must be plain names ([a-z0-9_-]). The desktop app uses two fixed filenames. Precedence order flag > env > argv0 was already pinned by TestProfileResolutionOrder."
+    },
+    {
+      "id": "cli-mutation-confirmation",
+      "area": "cli",
+      "title": "A confirmed CLI mutation is single and targets the repository shown",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "job/epic create prompts; RepositoryIDForSlug; api.Client.do",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M23",
+      "notes": "Default-no prompt, exact slug match, no client retries. Audited, no bug."
+    },
+    {
+      "id": "cli-checkout-safety",
+      "area": "cli",
+      "title": "syrus checkout never destroys local work",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "checkoutJobBranch, checkoutPlainBranch, backupLocalBranchIfNeeded",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M23 (NY23 open)",
+      "notes": "Dirty trees are refused; diverged local branches are backed up before any reset or branch -f; plain branches only fast-forward. Open: post-checkout hooks run commands authored in the checked-out branch (NY23)."
+    },
+    {
+      "id": "cli-plugin-scaffold",
+      "area": "cli",
+      "title": "Scaffolded plugin projects contain only template text and validated values",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "generatePluginScaffold / renderPluginTemplate; connectedInstanceVersion",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F78",
+      "notes": "Names match pluginNamePattern; versions must be plain release versions, and a reported one that is not falls back to the CLI release. Destination must be empty. Docker image tags are single argv elements."
+    },
+    {
+      "id": "desktop-channel-isolation",
+      "area": "desktop",
+      "title": "Stable and test installations are disjoint, and destructive operations stay in their channel",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "stackIdentity, wipeBackendStack, uninstall.sh channel table and image sweep",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F79",
+      "notes": "Proved in ChannelIsolation.lean. Fixed uninstall.sh's tag classifier to match tagChannel exactly."
+    },
+    {
+      "id": "desktop-watchdog-stop",
+      "area": "desktop",
+      "title": "Watchdog recovery never overrides a deliberate stop",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "startWatchdog tick vs stopBackend/startBackend/updateBackend",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F80",
+      "notes": "Lifecycle generation; proved in WatchdogStop.lean over all 7-event interleavings."
+    },
+    {
+      "id": "desktop-update-settles",
+      "area": "desktop",
+      "title": "A backend update settles once, never reports success after cancellation, and never leaves busy set",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "updateBackend, ChildTerminationController",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F80 (audit)",
+      "notes": "Deadline settles false once; busy clears in finally; the child keeps the backend busy until it exits or is SIGKILLed; image cleanup only after ok && healthy."
+    },
+    {
+      "id": "desktop-cable-delivery",
+      "area": "desktop",
+      "title": "The desktop cable delivers only confirmed own-channel broadcasts, with one socket per credential generation",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "AppUserCableClient",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F81",
+      "notes": "Proved in CableDelivery.lean. Generations, single reconnect per socket, capped backoff, unauthorized stop, and confirmation reset were audited sound."
+    },
+    {
+      "id": "desktop-privileged-bridge",
+      "area": "desktop",
+      "title": "Untrusted content never reaches the privileged preload bridge",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "popover/preferences/onboarding windows (preload.cjs); webAppWindow navigation and shellSenderAllowed",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F82",
+      "notes": "Privileged windows refuse every content-started navigation; web-app window stays on the server origin. Proved in PrivilegedWindows.lean."
+    },
+    {
+      "id": "desktop-update-coordination",
+      "area": "desktop",
+      "title": "App self-update is stable-only and never races a backend update",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "appUpdates.updatesEnabled, deferRelaunchWhileBackendBusy, before-quit",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F82 (audit)",
+      "notes": "Packaged, stable channel, not a pinned test build; both restart-to-update entries defer while backendBusy; quit SIGKILLs the installer tree rather than orphaning it."
+    },
+    {
+      "id": "desktop-install-lock",
+      "area": "desktop",
+      "title": "One installer owns the install lock; cancellation never leaves an unkilled installer; interrupted installs stay recoverable",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "OnboardingDriver.performStartInstall, acquireInstallLock, cancelInstall, handleExit",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F83",
+      "notes": "Re-check cancel after the lock; a lock older than the current boot is stale. Table model in InstallCancel.lean."
+    },
+    {
+      "id": "desktop-wizard-stale-probes",
+      "area": "desktop",
+      "title": "Stale onboarding probes never change wizard state; remote mode never touches the local backend",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "OnboardingDriver.precheck / connectRemote / probeInstance; backendLifecycle mode gates",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F84",
+      "notes": "precheck now drops results after any navigation (generation). connectRemote already re-checked; lifecycle actions are gated on local mode."
+    },
+    {
+      "id": "desktop-notification-semantics",
+      "area": "desktop",
+      "title": "Notifications are at-most-once, the badge reconciles to the server's count, and main/renderer never both notify",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "NotificationService broadcast; handleNotificationCreated; webAppWindowHandlingNotifications; AppUserCableClient.onSubscribed",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F85",
+      "notes": "Resync on every (re)subscription closes the missed-broadcast staleness."
+    },
+    {
+      "id": "desktop-credential-validation",
+      "area": "desktop",
+      "title": "Failed validation never replaces valid stored credentials; the newest credential action is the final disk mutation",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "saveCredentials, CredentialMutationCoordinator",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F85 (audit)",
+      "notes": "Validate-then-write; serialized queue with generation supersession."
+    },
+    {
+      "id": "desktop-image-cleanup",
+      "area": "desktop",
+      "title": "Image cleanup never deletes the active image and runs only after a healthy update",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "supersededSyrusImages / removeSupersededSyrusImages",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M24 (NY24 open)",
+      "notes": "Same repository and channel, never the pin or an in-use ref, unforced rm. Open: the previous image (rollback target) is removed too (NY24)."
+    },
+    {
+      "id": "desktop-reboot-resume",
+      "area": "desktop",
+      "title": "Reboot recovery resumes only the interrupted channel and phase",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "windowsResume RunOnce value, onboardingResumeLocal",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M24",
+      "notes": "Per-channel RunOnce value name and settings store; audited, no bug."
+    },
+    {
+      "id": "desktop-lifecycle-exclusion",
+      "area": "desktop",
+      "title": "Start, stop, update and the test wipe are mutually exclusive; missing data is distinguished from a stopped stack",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "backendLifecycle start/stop/update/wipeBackendStack; confirmAndResetTestSetup; watchdog diagnosis",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F86",
+      "notes": "The wipe is now a lifecycle action; uninstall quits first."
+    },
+    {
+      "id": "plugin-capability-gates",
+      "area": "plugins",
+      "title": "A family capability is dispatched only for an enabled, conforming declaration, and an unreadable enablement table fails closed",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginRegistry.capability_providers/capability_catalog; Plugin::Dispatch; LegacyBridge; RepoPluginDetector family path",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F93, F94",
+      "notes": "The read itself is proved in EnablementRead.lean; routing every enablement decision through it is pinned by plugin_enablement_reads_fail_closed_spec."
     }
   ],
   "needs_you": [
@@ -2524,7 +3195,7 @@
         "C. Keep as is: plugins are trusted code reviewed like core."
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
-      "decision": null
+      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two."
     },
     {
       "id": "NY13",
@@ -2537,7 +3208,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. It keeps precompile and boot working, keeps a running instance's behaviour stable through a blip, and never activates a plugin the operator disabled. B is safer still but turns a transient error into every plugin vanishing for that call.",
-      "decision": null
+      "decision": "Retry until there is a definite answer (2026-11-21): never treat installed plugins as enabled. Implemented as F69: defaults for a missing database or table, every plugin only for an asset build, otherwise retried and then EnablementUnavailable; the Installer keeps its effects when enablement cannot be read."
     },
     {
       "id": "NY14",
@@ -2550,7 +3221,7 @@
         "C. Keep as is: an unhealthy plugin's in-flight work stays stuck until it is healthy again."
       ],
       "recommendation": "A. Cancellation and display need only metadata, not the plugin's code paths. It matches F61's create-only validation, and it keeps the 'withheld providers are never called' rule for anything that starts work. B loses work that a plugin fix would have resumed.",
-      "decision": null
+      "decision": "A (2026-11-21). Implemented as F74: existing rows resolve their definition from the installed plugin whatever its state (WorkDefinitions.for_existing), or the neutral Unavailable; launches still need an enabled and healthy owner."
     },
     {
       "id": "NY15",
@@ -2563,7 +3234,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. The containment boundary is about where agent-influenced code executes, and the checkout is agent-written. Under 'preferred' nothing changes, because an unavailable backend still falls back to the worker.",
-      "decision": null
+      "decision": "New option (2026-11-21): when containment is required, Coding Mode ! commands are disabled with an explanation. Implemented: 403 containment_required with a translated explanation, refused again at run time, Local Mode unaffected."
     },
     {
       "id": "NY16",
@@ -2576,7 +3247,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. The rows came from a pipeline that no longer exists and nothing reads them. B alone comes back the next time someone dumps the schema from a database that still has the tables, which is how they came back the first time.",
-      "decision": null
+      "decision": "A (2026-11-21): delete the leftovers. Implemented: an idempotent drop migration in operator_briefing, both removed from schema.rb, and no pending list in the spec."
     },
     {
       "id": "NY17",
@@ -2589,7 +3260,7 @@
         "C. Keep as is: a fleet plugin rollout can fail in-flight steps of that plugin's kinds."
       ],
       "recommendation": "A. It reuses the existing capability-routing contract and the no_capable_worker diagnosis, so a blocked start explains itself. B is smaller, but it spins on a worker that will never have the plugin.",
-      "decision": null
+      "decision": "Prevent it (2026-11-21). Implemented as F73: a worker that does not provide a step's kind hands the Run back (30 s, up to 20 times) instead of failing it, and an unknown kind's Step can fail cleanly. Per-plugin queue routing, which would avoid the hand-backs, is a larger change and not done."
     },
     {
       "id": "NY18",
@@ -2602,7 +3273,7 @@
         "C. Keep as is: plugin-side registries own their own filtering."
       ],
       "recommendation": "B. It keeps plugins out of manifest internals and makes the health rule impossible to forget, because there is no enabled-only path left to reach for. A adds a second public notion of 'enabled'.",
-      "decision": null
+      "decision": "B (2026-11-21): add one. Implemented as F72: public PluginRegistry.providers_with_owner_for on the health-aware hosted path; Connected Accounts and Plugin Runtime use it."
     },
     {
       "id": "NY19",
@@ -2615,7 +3286,7 @@
         "C. Keep the targeted refresh, and state the weaker guarantee: the stale resource converges on the next reconnect or focus refetch."
       ],
       "recommendation": "A. It needs no server change and sweeps only on a genuine loss. revision_gap_recoveries already measures how often that happens, so the cost is visible before and after. B is the strongest option, but it adds server state and a new endpoint.",
-      "decision": null
+      "decision": "A (2026-11-21): wait about 2 s for late deliveries, then sweep. Implemented as F71."
     },
     {
       "id": "NY20",
@@ -2628,7 +3299,135 @@
         "C. Accept it: visibility revocation takes effect on the next reconnect, and the patches carry no secrets."
       ],
       "recommendation": "B. It keeps the shared stream, which matters because Job events are the high-churn ones, and makes revocation immediate at the single place access changes. A is simpler to reason about, but it multiplies the cost of every Job broadcast.",
+      "decision": "Prevent it (2026-11-21). Implemented as F70, by rechecking Job.visible_to on delivery (cached 10 s) rather than disconnect hooks, because visibility has more inputs than any hook list would cover."
+    },
+    {
+      "id": "NY21",
+      "item": "backup-retention-safety",
+      "title": "Should an expired replication lease stop protecting a backup from deletion?",
+      "context": "LocalBackups::Retention never deletes a backup that has an uploading replication. Replication leases last six hours, are never renewed, and nothing expires them, so a replication whose worker died stays 'uploading' until the same destination re-pins after expiry. If the destination never comes back, for example because it was removed mid-upload, the backup is protected from retention and capacity reclamation forever. Letting expiry lift the protection would allow deleting an artifact under an upload that runs longer than the lease.",
+      "options": [
+        "A. Keep deletion conservative, and add a sweep that marks a replication 'failed' once its lease has expired and its destination is no longer configured, so only an abandoned upload is released.",
+        "B. Treat an uploading replication as protecting the backup only while its lease is active, and renew the lease while a long upload is running.",
+        "C. Keep as is: an abandoned upload pins its backup until an operator deletes it."
+      ],
+      "recommendation": "A. It never deletes under a live or recoverable upload, and it releases exactly the case that cannot recover on its own.",
       "decision": null
+    },
+    {
+      "id": "NY22",
+      "item": "backup-recovery-preflight",
+      "title": "Should recovery preflight block when it cannot establish compatibility, rather than warn?",
+      "context": "LocalBackups::Recovery preflight fails on a known mismatch: a different database adapter or major version, an older destination application, or a required plugin missing or at another version. But it only warns when information is missing: the destination's application version, database adapter or database version not supplied, no compatibility range in the bundle, or versions that do not parse. Warnings need no acknowledgement, so preflight reports 'ready' and a restore can proceed into a destination whose compatibility was never established. Restore replaces the database.",
+      "options": [
+        "A. Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown.",
+        "B. Keep warnings, but require the operator to acknowledge the listed warnings by passing their codes before a restore starts.",
+        "C. Keep as is."
+      ],
+      "recommendation": "A, in line with NY13: an unknown is not a pass, and restore is destructive. The break-glass flag keeps the empty-instance and development cases possible on purpose.",
+      "decision": null
+    },
+    {
+      "id": "NY23",
+      "item": "cli-checkout-safety",
+      "title": "Should syrus checkout run post-checkout hooks that the branch itself introduced or changed?",
+      "context": "After a Job or Epic checkout the CLI runs every hooks.post_checkout command from the checked-out branch's .syrus.yml files without prompting, unless --no-hooks is passed. The only gate is a deny-list: hooks are skipped for external_pr Jobs. Every other branch is written by an agent working from issue text, so on a repository that accepts outside issues the issue author can steer the agent into adding a hook, which then runs on the reviewer's machine before the diff has been read. Because the kind set is open to plugins, a new kind carrying outside content, or a response without a kind, also runs hooks.",
+      "options": [
+        "A. Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed.",
+        "B. Keep the kind deny-list, but turn it into an allow-list so that unknown kinds and a missing kind fail closed.",
+        "C. Keep as is: hooks are a convenience for trusted repositories, and --no-hooks is the escape hatch."
+      ],
+      "recommendation": "A. It keeps the convenience for hooks the repository already trusts on its base branch, and stops the one path where text from outside becomes code running on the operator's machine without anyone reading it.",
+      "decision": null
+    },
+    {
+      "id": "NY24",
+      "item": "desktop-image-cleanup",
+      "title": "Should a backend update keep the previous image for rollback?",
+      "context": "After a backend update passes its health gate, the desktop removes every same-channel image of the backend except the new pin, including the image that was running a minute earlier. If the new version misbehaves after the health gate (a migration or runtime problem), rolling back means re-pulling a multi-GB image, which may be impossible offline. Keeping it costs one image (about 7.6 GB).",
+      "options": [
+        "A. Keep exactly one previous same-channel image (the one the update replaced) and remove anything older.",
+        "B. Keep the previous image only until the next successful update or for a fixed period, such as 7 days.",
+        "C. Keep as is: reclaim all space immediately, and rely on re-pulling for rollback."
+      ],
+      "recommendation": "A. It bounds disk use at two images, and it keeps the one image that makes a local rollback possible.",
+      "decision": null
+    },
+    {
+      "id": "NY25",
+      "item": "lock-order-acyclic",
+      "title": "Should the engine adopt one global row-lock order and fix the sites that invert it?",
+      "context": "An audit of every multi-lock transaction found lock-order cycles. The clearest: cancelling a landing Job locks the Job and then its Workflows, while the landing queue's slot release locks the queued landing Workflow and then its Job. Both can target the same records, so under InnoDB one of them is rolled back as a deadlock. Others: RunJob locks Run then Job, while a planned-execution override locks Job then Run; merge-train dispatch locks Epic then Job, while a merge-train step retry locks Job then Epic. Workflow#start's before { job.lock! } turns any held Workflow lock into Workflow then Job. No deadlocks were seen in production over 7 days, so these are latent.",
+      "options": [
+        "A. Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order.",
+        "B. Fix only the Job ↔ Workflow landing inversion (the one with two automatic actors on the same records) and accept the rarer operator-path inversions, relying on InnoDB deadlock detection plus retries.",
+        "C. Keep as is: InnoDB detects deadlocks and aborts one side; the callers already tolerate failures."
+      ],
+      "recommendation": "A. The order matches what the hot paths already do, so the changes are confined to four rarer paths. The checker stops new sites from reintroducing a cycle, which an audit alone cannot.",
+      "decision": null
+    },
+    {
+      "id": "NY26",
+      "item": "queued-workflow-with-failed-step",
+      "title": "Should recovering a lost Step-failure cascade replay the cascade instead of failing the Workflow?",
+      "context": "When a Step fails, StepDispatcher#fail! decides what happens: advance (for kinds that advance on failure), continue a retry loop, take a try branch, retry the Step in place if its run died of retryable infrastructure, or hard-fail the Workflow. If that cascade is lost, the reconciler repairs the Workflow with fail_workflow_from_failed_step, which calls Workflow#fail! directly unless a loop has budget left. So a lost cascade on a Step whose worker died fails the Workflow (and its Job) where the live cascade would have retried the Step in place. An existing spec deliberately pins the repair's behaviour for a retryable agent_resume_unavailable run: fail the Workflow and let the normal failed-step retry path take over. Update: main 98ee966907 made the reconciler skip advance-on-failure kinds (graders) when looking for an orphaned failed Step, so that outcome no longer diverges; the question remains for try branches and the in-place infrastructure retry.",
+      "options": [
+        "A. Replay the cascade: the repair calls StepDispatcher.fail_from(failed_step), so recovery reaches exactly the outcome the lost cascade would have (hard-failing only when nothing else applies). Update the pinned spec.",
+        "B. Keep failing the Workflow, but exclude runs classified as retryable infrastructure, retrying those in place, so worker loss never fails a Workflow through the repair path.",
+        "C. Keep as is: the repair always fails the Workflow, and retries happen through the Job-level failed-step retry."
+      ],
+      "recommendation": "A. One function deciding what a Step failure means, used by both the live path and its recovery, is the only way the two can never disagree; the pinned case then retries in place, bounded by the existing infrastructure retry limit.",
+      "decision": null
+    },
+    {
+      "id": "NY27",
+      "item": "gates-starvation-free",
+      "title": "Should manually pausing a started landing give the repository landing slot back?",
+      "context": "Each repository has one landing slot. A landing gives it back when it is blocked on a reason only a person can clear (CI repair disabled, no capable worker, and since F92 the agent being unable to proceed), and NY7 made any block before the landing's first Run give it back too. A manual pause after the landing started still keeps it, so pausing one landing Job stops every other approved Job in that repository from landing until it is unpaused.",
+      "options": [
+        "A. Add manual_pause to the externally cleared reasons: a paused started landing gives the slot back; on unpause it re-acquires the slot, waiting its turn if another landing took it.",
+        "B. Keep the slot while paused, but surface a 'repository landings held by a paused Job' warning so the operator sees what the pause costs.",
+        "C. Keep as is: pausing a landing deliberately holds the repository queue."
+      ],
+      "recommendation": "A. It is the same rule NY7 chose before the first Run and the allowlist's own definition (a paused unit is not about to run); the only cost is that an unpaused landing may wait behind one that went ahead.",
+      "decision": null
+    },
+    {
+      "id": "NY28",
+      "item": "landing-queue-order",
+      "title": "Should Syrus refuse a dependency that makes an Epic depend on itself through an outside Job?",
+      "context": "An Epic lands as one unit (its merge train), and a unit waits until every prerequisite outside it has landed. JobDependency only rejects cycles between Jobs, so this is accepted: Epic child A <- outside Job B <- Epic child C (B needs A, C needs B). The Epic's train then waits for B, and B waits for A, which only lands with that train; neither ever lands, with no error, until an operator overrides the dependencies. LandingUnitCycle.lean proves this deadlock and that rejecting cycles in the Epic-contracted graph is exactly what guarantees progress. Production has never had the shape.",
+      "options": [
+        "A. Reject it when the dependency is created: extend JobDependency#no_cycle to treat each Epic as one node, with an error naming the Epic and the outside Job.",
+        "B. Allow it, and land the outside Job inside the Epic's merge train (pull it into the unit).",
+        "C. Leave it: rare, and the operator can override the dependencies."
+      ],
+      "recommendation": "A. It matches the existing rule (cycles are refused up front) on the graph landing actually uses, costs one more graph walk at creation, and the proposing agent gets an actionable error instead of a silent deadlock later. B changes what an Epic train contains, which other proofs (EpicAtomicLanding) rely on."
+    },
+    {
+      "id": "NY29",
+      "item": "branch-diverged",
+      "title": "How should an unpublished stacked Job recover when its finished work conflicts with its parent's new base?",
+      "context": "Live in production now: JOB-9453 (Epic 553) finished three days of work, then pr_open's mechanical rebase onto its restacked parent conflicted in cli/cmd/plugin_local.go (the plugin capability-family Epic and 9453 both edit it). pr_open reports any freshness error as awaiting_stable_base, which is retryable, so the auto-retry replayed the same rebase and failed again; the agent-capable path (StackRebaseCoordinator -> Rebase Workflow) skips children without a PR, and 9453 never opened one. 9453 is failed and 9454-9456 wait behind it. Update (11-22): JOB-9453 recovered through a retry Workflow (66239, succeeded; one in-place pr_open attempt there failed post-rebase validation, also filed as retryable awaiting_stable_base) and is implemented, so Epic 553 is moving again. The gap remains for the next such conflict.",
+      "options": [
+        "A. On a rebase conflict, have pr_open (or the retry it schedules) run an agent conflict resolution in the same workspace -- the merge-train pattern (merge_train_agent_rebase) -- and only fail if the agent cannot resolve it.",
+        "B. Let StackRebaseCoordinator run its Rebase Workflow for an unpublished child too (rebase the local work, then let the original Workflow publish).",
+        "C. Classify a rebase conflict as non-retryable (not awaiting_stable_base) so it fails once with a clear 'needs manual rebase' reason instead of burning retries; operators resolve it."
+      ],
+      "recommendation": "A, with C's classification as the fallback when the agent fails. The workspace and completed work are right there, conflicts after a parent restack are expected in long Epic chains, and it reuses an existing pattern. For 9453 today: it needs a manual rebase onto syrus/direct-9452 (or a retry once one of A/B exists)."
+    },
+    {
+      "id": "NY30",
+      "item": "stuck-main-branch-repair",
+      "title": "Should a reproducible main failure still be repaired when another preflight grader timed out?",
+      "context": "Live now: main is red on two React tests (app/frontend/pluginUiSlots.test.tsx, from the 'loading state for suspending plugin components' commit). The main-branch repair's preflight reproduced react-tests-ci as test_failed, but e2e timed out; a timeout is 'inconclusive' and never retried, and any inconclusive required grader makes the whole preflight inconclusive, so no coding repair ran, health became 'inconclusive' (landing not paused) and the repair Job closed. A slow e2e can keep re-masking real failures. Update (11-22): main's React failure was fixed by hand in c2e7a2f7cb; the masking rule is unchanged, so the question stands for the next reproducible failure that meets an inconclusive grader.",
+      "options": [
+        "A. Repair what is proven: if some required graders reproducibly failed, hand those to the repair agent even when others are inconclusive; keep main health unhealthy (not inconclusive) while a reproducible failure exists.",
+        "B. Retry a timed-out preflight grader once (as GraderCollect already treats timed_out as infrastructure) before declaring the preflight inconclusive.",
+        "C. Keep the rule, but surface 'inconclusive with a reproducible failure' to the operator as needing action (and pause landing).",
+        "D. Keep as is."
+      ],
+      "recommendation": "A plus B. The reproducible failure is evidence enough to start a repair, and its own grade loop re-runs every grader before landing, so 'partial evidence' cannot ship anything; retrying a single timeout removes most inconclusive verdicts. For today: main needs pluginUiSlots.test.tsx updated for the loading status (or a manual repair Job)."
     }
   ]
 }

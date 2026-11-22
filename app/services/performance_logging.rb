@@ -556,6 +556,16 @@ module PerformanceLogging
       .gsub(/\s+/, " ")
       .strip
       .safe_byteslice(0, 1_000)
+  rescue Regexp::TimeoutError
+    # Instrumentation must never fail the code it measures. On a CPU-starved
+    # worker these patterns can exceed Ruby's global Regexp timeout, and the
+    # error escaped the SQL subscriber into the Run being measured. Fall back
+    # to a regexp-free prefix: coarser grouping, but never an exception.
+    coarse_sql_fingerprint(sql)
+  end
+
+  def coarse_sql_fingerprint(sql)
+    sql.to_s.safe_byteslice(0, 2_000).tr("\t\r\n", "   ").squeeze(" ").strip.safe_byteslice(0, 200)
   end
 
   # Bound the input before any regexp touches it. Ruby applies a global
@@ -569,6 +579,8 @@ module PerformanceLogging
     scan_limit = limit * SAFE_STRING_SCAN_HEADROOM
     raw = raw.safe_byteslice(0, scan_limit) if raw.bytesize > scan_limit
     raw.gsub(/[[:space:]]+/, " ").strip.safe_byteslice(0, limit)
+  rescue Regexp::TimeoutError
+    raw.tr("\t\r\n", "   ").squeeze(" ").strip.safe_byteslice(0, limit)
   end
 
   def safe_metadata(metadata)

@@ -913,7 +913,13 @@ grade:
     # no resources → assumed serial, claims one core
 ```
 
-A request is a claim about the work, not a reservation. At spawn time Syrus
+A declared `memory` is also the floor of what host admission reserves for
+the grader while it runs: Syrus will not start it on a worker without that
+much headroom, and learned measurements can only raise the reservation. Declare
+it for graders that start servers or browsers, whose memory is easy to
+under-count.
+
+A CPU request is a claim about the work, not a reservation. At spawn time Syrus
 resolves it against the worker's capacity and what concurrent graders already
 claim: a grader that declares nothing is assumed serial and charged one core,
 so a `cpu: all` grader receives everything the declared and undeclared peers

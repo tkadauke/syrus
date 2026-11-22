@@ -12,8 +12,14 @@ RSpec.describe PluginRuntime::DesiredPrivilegedServices do
     double("manifest", name: name, enabled?: enabled, provides: provides)
   end
 
+  # Enablement and health are decided by PluginRegistry.providers_with_owner_for
+  # (covered in core's plugin_registry_spec); this stands in for it with the
+  # enabled contributors' [plugin, provider] pairs.
   def with_manifests(*manifests)
-    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return(manifests)
+    pairs = manifests.select(&:enabled?).flat_map do |manifest|
+      Array(manifest.provides[described_class::POINT]).map { |provider| [ manifest.name, provider ] }
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_with_owner_for).with(described_class::POINT).and_return(pairs)
   end
 
   it "lists a first-party plugin's privileged service" do

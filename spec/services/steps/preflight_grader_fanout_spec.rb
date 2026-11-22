@@ -352,18 +352,34 @@ RSpec.describe Steps::PreflightGraderFanout do
       write_grade_config("grade:\n" + (1..13).map { |i| "  - name: g#{i}\n    run: bin/g#{i}\n" }.join)
     end
 
-    it "releases a 100+ style batch in bounded waves, each behind the previous one" do
+    it "releases a 100+ style batch in bounded lanes, each grader behind the previous one in its lane" do
       stub_const("ENV", ENV.to_h.merge(PreflightGraderPolicy::WAVE_SIZE_ENV => "5"))
 
       handler.call
 
       graders = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
       expect(graders.map { |g| g.details["preflight_wave"] }).to eq([ 0 ] * 5 + [ 1 ] * 5 + [ 2 ] * 3)
+      expect(graders.map { |g| g.details["preflight_lane"] }).to eq([ 0, 1, 2, 3, 4 ] * 2 + [ 0, 1, 2 ])
       expect(graders.first(5).map(&:depends_on_step_ids).uniq).to eq([ [ step.id ] ])
-      expect(graders[5, 5].map(&:depends_on_step_ids).uniq).to eq([ graders.first(5).map(&:id) ])
-      expect(graders.last(3).map(&:depends_on_step_ids).uniq).to eq([ graders[5, 5].map(&:id) ])
+      expect(graders.drop(5).map(&:depends_on_step_ids)).to eq(graders.first(8).map { |g| [ g.id ] })
       expect(graders.map { |g| g.details["infrastructure_retry_attempt"] }.uniq).to eq([ 0 ])
       expect(collect_step.reload.depends_on_step_ids).to eq(graders.map(&:id))
+    end
+
+    # Regression: each wave used to wait for *every* grader of the previous
+    # wave, so one slow grader idled the rest of the admission budget. A main
+    # repair's 134-grader preflight sat with one grader running for most of
+    # an hour while the cluster had 20 free slots.
+    it "lets the other lanes move on while one grader is still running" do
+      stub_const("ENV", ENV.to_h.merge(PreflightGraderPolicy::WAVE_SIZE_ENV => "5"))
+      handler.call
+      step.update!(state: "succeeded")
+
+      graders = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+      graders.first(5).each_with_index { |g, i| g.update_columns(state: i.zero? ? "running" : "succeeded") }
+
+      ready = graders.drop(5).select { |g| g.reload.dependencies_settled? }
+      expect(ready.map { |g| g.details["name"] }).to eq(%w[g7 g8 g9 g10])
     end
 
     it "never lets more than the wave size be ready while a wave is still running (saturation)" do
@@ -381,9 +397,10 @@ RSpec.describe Steps::PreflightGraderFanout do
 
   # The property that actually matters: every grader is ready at once, so the
   # dispatcher's ready set contains the whole batch rather than one step.
-  # Temporarily disabled: this is flaky in CI and is blocking unrelated landing.
-  # Re-enable after the dependency-settling assertion is made deterministic.
-  xit "makes every preflight grader ready as soon as the fanout settles" do
+  # `dependencies_settled?(settled_step:)` only counts a settled step that is
+  # terminal, so the fanout has to actually finish here -- asserting readiness
+  # while it is still running is what made this example fail.
+  it "makes every preflight grader ready as soon as the fanout settles" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_grade_config(<<~YAML)
@@ -397,6 +414,7 @@ RSpec.describe Steps::PreflightGraderFanout do
     YAML
 
     handler.call
+    step.update!(state: "succeeded")
 
     grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
     expect(grader_steps.size).to eq(3)

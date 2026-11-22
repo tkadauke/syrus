@@ -107,6 +107,7 @@ module Steps
                 .merge(
                   "fanout_grader_count" => graders.size,
                   "preflight_wave" => wave_by_index.fetch(index),
+                  "preflight_lane" => index % PreflightGraderPolicy.wave_size,
                   "infrastructure_retry_attempt" => 0
                 )
             )
@@ -122,12 +123,13 @@ module Steps
           # Solid Queue concurrency key allow (a production workflow ran 14 of
           # them one at a time, ~1s apart, with the distributed gate fully on).
           #
-          # Admission: the batch is released in bounded waves
-          # (PreflightGraderPolicy.wave_size). Each wave waits for every grader
-          # of the previous wave to settle -- whatever its outcome, a failed
-          # dependency is still a settled one -- so a 100+ grader plan never
-          # dogpiles shared worker and database resources.
-          chain_waves!(new_steps, wave_by_index)
+          # Admission: the batch runs in PreflightGraderPolicy.wave_size lanes.
+          # Each grader waits for the one before it in its lane to settle --
+          # whatever its outcome, a failed dependency is still a settled one --
+          # so at most wave_size graders are active and a 100+ grader plan never
+          # dogpiles shared worker and database resources. Lanes, not whole
+          # waves: one slow grader holds back only its own lane.
+          chain_lanes!(new_steps)
           continuation&.update!(depends_on_ids: new_steps.map(&:id))
           materialized = true
         end
@@ -150,13 +152,11 @@ module Steps
       end.to_h
     end
 
-    def chain_waves!(new_steps, wave_by_index)
-      previous_ids = [ step.id ]
-      new_steps.each_with_index.group_by { |_grader, index| wave_by_index.fetch(index) }
-        .sort.each do |_wave, entries|
-        wave_steps = entries.map(&:first)
-        wave_steps.each { |grader| grader.update!(depends_on_ids: previous_ids) }
-        previous_ids = wave_steps.map(&:id)
+    def chain_lanes!(new_steps)
+      size = PreflightGraderPolicy.wave_size
+      new_steps.each_with_index do |grader, index|
+        predecessor = index >= size ? new_steps[index - size] : step
+        grader.update!(depends_on_ids: [ predecessor.id ])
       end
     end
 

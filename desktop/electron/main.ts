@@ -53,6 +53,7 @@ import { CredentialMutationCoordinator } from "./credentialMutationCoordinator.j
 import { paintUnreadDot } from "./trayBadge.js"
 import { desktopCommandEnvironment } from "./shellEnvironment.js"
 import { createOnboardingWindow } from "./windows/onboardingWindow.js"
+import { lockPrivilegedWindow } from "./windows/privilegedWindowGuard.js"
 import { resolveInstanceOrigin, resolveOpenInSyrusTarget } from "./windows/openInSyrusTarget.js"
 import { computePopoverPosition } from "./windows/popoverPosition.js"
 import { createWebAppWindow, type WebAppWindowHandle } from "./windows/webAppWindow.js"
@@ -433,6 +434,11 @@ const appUserCableClient = new AppUserCableClient({
   },
   onUnauthorized: (credentials) => {
     suspectTokenKey = credentialsKey(credentials)
+  },
+  // Broadcasts missed while disconnected are never replayed; resync the badge
+  // from the server's count on every (re)subscription.
+  onSubscribed: () => {
+    void syncUnreadCount().catch(() => {})
   }
 })
 
@@ -1626,6 +1632,7 @@ const createPopoverWindow = async () => {
     }
   })
 
+  lockPrivilegedWindow(mainWindow.webContents)
   mainWindow.on("blur", () => {
     mainWindow?.hide()
   })
@@ -1711,6 +1718,7 @@ const showPreferencesWindow = async () => {
     }
   })
 
+  lockPrivilegedWindow(preferencesWindow.webContents)
   preferencesWindow.on("closed", () => {
     preferencesWindow = null
   })
@@ -2312,6 +2320,17 @@ const confirmAndResetTestSetup = async () => {
   })
 
   if (choice.response !== 1) {
+    return
+  }
+
+  // The dialog waited on the user; an update may have started meanwhile.
+  // (wipeBackendStack refuses too, but checking here keeps supervision running.)
+  if (backendLifecycle.backendBusy()) {
+    void dialog.showMessageBox({
+      type: "info",
+      message: t("dialog.finishing_update"),
+      detail: t("dialog.update_busy_test")
+    })
     return
   }
 

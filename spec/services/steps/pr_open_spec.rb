@@ -1631,9 +1631,48 @@ RSpec.describe Steps::PrOpen, :ci_only do
           instance_double(ProcessRunner, run: Struct.new(:timed_out, :exit_status).new(false, 0))
         end
         allow(handler).to receive(:workspace_dependency_env).and_return({})
+        allow(RepoPrepPlan).to receive(:for).and_return(RepoPrepPlan::Result.new(commands: [], source: ".syrus.yml", note: nil, error: nil))
 
         expect(handler.send(:post_rebase_validation_passed?)).to be(true)
         expect(commands).to eq(%w[run-lint run-rspec-focused])
+      end
+
+      # Regression: the rebased checkout had never installed its JavaScript
+      # dependencies -- the graders that needed them ran in immutable
+      # checkouts of their own -- so `npm run lint` died on "eslint: not
+      # found" and a stacked job's PR could not open.
+      it "prepares the workspace before validating the rebased tree" do
+        lint = RepoGradePlan::Grader.new(name: "lint", display_name: "lint", command: "npm run lint", phases: %w[review],
+          description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: nil,
+          base_retry: nil, deps: [], metadata: {}, capabilities: {}, resources: nil)
+        allow(RepoGradePlan).to receive(:for).and_return(instance_double(RepoGradePlan::Result, graders: [ lint ]))
+        allow(RepoPrepPlan).to receive(:for).and_return(RepoPrepPlan::Result.new(commands: [ "npm ci" ], source: ".syrus.yml", note: nil, error: nil))
+        commands = []
+        allow(ProcessRunner).to receive(:new) do |command:, **|
+          commands << command.last
+          instance_double(ProcessRunner, run: Struct.new(:timed_out, :exit_status).new(false, 0))
+        end
+        allow(handler).to receive(:workspace_dependency_env).and_return({})
+
+        expect(handler.send(:post_rebase_validation_passed?)).to be(true)
+        expect(commands).to eq([ "npm ci", "npm run lint" ])
+      end
+
+      it "fails validation without running graders when preparing the workspace fails" do
+        lint = RepoGradePlan::Grader.new(name: "lint", display_name: "lint", command: "npm run lint", phases: %w[review],
+          description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: nil,
+          base_retry: nil, deps: [], metadata: {}, capabilities: {}, resources: nil)
+        allow(RepoGradePlan).to receive(:for).and_return(instance_double(RepoGradePlan::Result, graders: [ lint ]))
+        allow(RepoPrepPlan).to receive(:for).and_return(RepoPrepPlan::Result.new(commands: [ "npm ci" ], source: ".syrus.yml", note: nil, error: nil))
+        commands = []
+        allow(ProcessRunner).to receive(:new) do |command:, **|
+          commands << command.last
+          instance_double(ProcessRunner, run: Struct.new(:timed_out, :exit_status).new(false, 1))
+        end
+        allow(handler).to receive(:workspace_dependency_env).and_return({})
+
+        expect(handler.send(:post_rebase_validation_passed?)).to be(false)
+        expect(commands).to eq([ "npm ci" ])
       end
 
       it "surfaces post-rebase validation failure as awaiting-stable-base" do

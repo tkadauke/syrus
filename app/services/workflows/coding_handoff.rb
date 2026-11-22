@@ -68,10 +68,12 @@ module Workflows
       workflow.job.update!(linked_chat_id: nil)
     end
 
+    # Generic propagation leaves this kind's Job to these hooks, so the Job is
+    # settled on every failure. Only the chat report depends on Coding Mode: a
+    # handoff that fails after the feature was switched off must not leave its
+    # Job :running with nothing working on it.
     def self.after_fail(workflow)
-      return unless Feature.coding_mode_enabled?
-
-      chat = ChatSession.find_by(id: chat_id_for(workflow))
+      chat = Feature.coding_mode_enabled? ? ChatSession.find_by(id: chat_id_for(workflow)) : nil
 
       if grader_failure?(workflow)
         GraderChatReporter.report_failure(workflow: workflow, chat: chat, enqueue_agent_turn: false) if chat
@@ -90,6 +92,13 @@ module Workflows
       end
     rescue StandardError => e
       Rails.logger.warn("[CodingHandoff] after_fail raised for workflow #{workflow.id}: #{e.class}: #{e.message}")
+    end
+
+    # Generic cancel propagation skips this kind too. A cancelled handoff on
+    # the Job it lifted to :running fails that Job (the normal Retry path),
+    # unless newer work superseded it and now owns the Job's state.
+    def self.after_cancel(workflow)
+      Workflows::HandoffCancellation.settle_job!(workflow)
     end
 
     def self.grader_failure?(workflow)
