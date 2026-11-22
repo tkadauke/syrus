@@ -317,7 +317,8 @@ function MobileGestureSurface({
       : { action: t("gesture_action_previous"), consequence: t("gesture_previous"), direction: "down" as const }
   const progress = Math.min(1, (horizontal ? Math.abs(offset.x) : Math.abs(offset.y)) / SWIPE_THRESHOLD)
   const cueStyle = reducedMotion ? undefined : { opacity: 0.2 + progress * 0.8, transform: `scale(${0.88 + progress * 0.12})` }
-  const cardTransform = !reducedMotion && (offset.x || offset.y) ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
+  const cardTransform =
+    !reducedMotion && (offset.x || offset.y) ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
   return (
     <div className="relative isolate min-w-0 overflow-hidden lg:contents lg:overflow-visible">
       {Boolean(offset.x || offset.y) && (
