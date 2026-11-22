@@ -82,6 +82,24 @@ class RunCheckpointResume
     RunCheckpoint.published
                  .where(workflow_id: step.workflow_id, step_id: step_ids)
                  .order(created_at: :desc, id: :desc)
+                 .first || inherited_checkpoint(step.workflow)
+  end
+
+  # A checkpoint-resume attempt restores the checkpoint it resumed from and
+  # replays only the steps after it, so it publishes no checkpoint of its own.
+  # When it fails, that inherited checkpoint is still the right basis -- every
+  # step it ran is one it will run again. Without this, its retry fell back to
+  # a fresh implementation and discarded the completed work.
+  def inherited_checkpoint(workflow)
+    return nil unless workflow.artifact("checkpoint_resume")
+
+    run_id = workflow.artifact("checkpoint_source_run_id")
+    sha = workflow.artifact("checkpoint_sha").to_s
+    return nil if run_id.blank? || sha.blank?
+
+    RunCheckpoint.published
+                 .where(run_id: run_id, commit_sha: sha)
+                 .order(created_at: :desc, id: :desc)
                  .first
   end
 
