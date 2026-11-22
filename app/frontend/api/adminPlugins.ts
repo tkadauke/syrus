@@ -121,6 +121,23 @@ export type PluginInstallerPayload = {
   available_releases: Array<{ name: string; version: string; source: string; trust_label: string }>
 }
 
+export type PluginRegistryEntry = {
+  name: string
+  version: string
+  description: string
+  category: string
+  author: string
+  trust_label: string
+  capability_summary: Record<string, string[]>
+}
+
+export type PluginRegistryCatalog = {
+  configured: boolean
+  error: string | null
+  stale: boolean
+  entries: PluginRegistryEntry[]
+}
+
 export type AdminPluginDisableConfirmation = {
   requires_confirmation: true
   plugin_name: string
@@ -138,6 +155,11 @@ export function fetchAdminPlugins(search = "") {
 
 export function fetchPluginInstaller() {
   return getJson<PluginInstallerPayload>("/api/v1/app/admin/plugin_installer")
+}
+
+export function fetchPluginRegistryCatalog(term = "") {
+  const query = term ? "?q=" + encodeURIComponent(term) : ""
+  return getJson<PluginRegistryCatalog>("/api/v1/app/admin/plugin_installer/catalog" + query)
 }
 
 export async function stagePluginArchive(file: File) {

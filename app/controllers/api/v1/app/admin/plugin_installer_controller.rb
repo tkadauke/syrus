@@ -9,6 +9,12 @@ module Api
 
           def index = render(json: payload)
 
+          def catalog
+            result = PluginRegistryClient.new.search(params[:q])
+            render json: { configured: result.configured, error: result.error, stale: result.stale,
+              entries: result.entries.map(&:to_h) }
+          end
+
           def stage
             change = installer.stage_archive!(params.require(:archive), signature: params[:signature])
             render json: serialize_change(change), status: :created

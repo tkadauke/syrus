@@ -9,19 +9,21 @@ class PluginRegistryPackageFetcher
   MAX_ARCHIVE_BYTES = Syrus::PluginPackage::Validator::MAX_TOTAL_SIZE
   MAX_SIGNATURE_BYTES = 1.megabyte
 
-  def initialize(index_root: WorkflowWorkspace.data_root.join("plugin-registry", "index"))
+  def initialize(index_root: WorkflowWorkspace.data_root.join("plugin-registry", "index"), client: nil)
     @index_root = Pathname.new(index_root)
+    @client = client
   end
 
   def fetch(name:, version: nil)
-    path = index_path(name, version)
+    registry_entry = @client&.entry(name:, version:)
+    path = registry_entry ? @index_root.join(name, "#{registry_entry.version}.json") : index_path(name, version)
     metadata = JSON.parse(File.read(path))
     raise Error, "registry entry name does not match requested plugin" unless metadata.fetch("name") == name
     indexed_version = path.basename(".json").to_s
     raise Error, "registry entry version does not match its index path" unless metadata.fetch("version") == indexed_version
 
     Package.new(
-      archive: StringIO.new(download(metadata.fetch("artifact_url"), limit: MAX_ARCHIVE_BYTES)),
+      archive: StringIO.new(download_and_verify(metadata.fetch("package_url", metadata["artifact_url"]), metadata["package_digest"])),
       signature: download(metadata.fetch("signature_url"), limit: MAX_SIGNATURE_BYTES),
       name:, version: indexed_version
     )
@@ -32,6 +34,14 @@ class PluginRegistryPackageFetcher
   end
 
   private
+
+  def download_and_verify(url, expected_digest)
+    body = download(url, limit: MAX_ARCHIVE_BYTES)
+    if expected_digest.present? && Digest::SHA256.hexdigest(body) != expected_digest.delete_prefix("sha256:")
+      raise Error, "plugin registry package digest does not match the index"
+    end
+    body
+  end
 
   def index_path(name, version)
     raise Error, "invalid registry plugin name" unless name.match?(/\A[a-z][a-z0-9_]*\z/)

@@ -3,7 +3,8 @@ require "digest"
 class PluginInstaller
   Error = Class.new(StandardError)
 
-  def initialize(actor:, trust_store: Syrus::PluginPackage::TrustStore.cached, registry_fetcher: PluginRegistryPackageFetcher.new)
+  def initialize(actor:, trust_store: Syrus::PluginPackage::TrustStore.cached,
+    registry_fetcher: PluginRegistryPackageFetcher.new(client: PluginRegistryClient.new))
     @actor = actor
     @trust_store = trust_store
     @registry_fetcher = registry_fetcher
@@ -43,6 +44,7 @@ class PluginInstaller
     release = version.present? ? releases.find_by(version:) : releases.to_a.max_by { |candidate| Gem::Version.new(candidate.version) }
     unless release
       package = @registry_fetcher.fetch(name:, version:)
+      @trust_store = Syrus::PluginPackage::TrustStore.cached
       return stage_archive!(package.archive, signature: package.signature, source: "registry",
         expected_name: package.name, expected_version: package.version)
     end
