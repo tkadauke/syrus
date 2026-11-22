@@ -7,7 +7,7 @@
   "priority": "Priorität: {{priority}}",
   "dependency_blocked": "Durch Abhängigkeit blockiert",
   "action_hint": "Öffne die aktuellen Review-Nachweise des Jobs, um zu entscheiden. Deine Berechtigung wird bei der Aktion erneut geprüft.",
-  "open_review": "Aktive Review öffnen",
+  "open_review": "Review starten",
   "dashboard_ready_one": "{{count}} Job ist für deine Review bereit.",
   "dashboard_ready_other": "{{count}} Jobs sind für deine Review bereit.",
   "all_caught_up": "Alles erledigt",
