@@ -3002,6 +3002,7 @@ module WorkEngine
         path = WorkflowWorkspace.path_for(workflow)
         next if File.directory?(path)
         next unless workflow.live_descendants?
+        next unless live_work_needs_workflow_workspace?(workflow)
 
         issue(
           kind: :workspace_missing,
@@ -3017,6 +3018,28 @@ module WorkEngine
           explanation: "Workflow ##{workflow.id} needs its workspace, but the directory is not present on the inspected worker."
         )
       end
+    end
+
+    # Steps placed outside the mutable workflow workspace never read it:
+    # immutable-checkout graders run from a recorded source snapshot, and
+    # control-plane/external steps run nowhere near it. Only a live Run on a
+    # workspace-bound Step needs the directory now. Recovery that cannot
+    # rebuild it fails the whole Workflow, so judging a preflight full of
+    # snapshot graders "missing its workspace" after a worker died threw away
+    # every queued grader. A workspace-bound Step that starts later is judged
+    # then.
+    WORKSPACE_FREE_PLACEMENTS = [
+      Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      Step::PlacementPolicy::CONTROL_PLANE,
+      Step::PlacementPolicy::EXTERNAL_CONTEXT
+    ].freeze
+
+    def live_work_needs_workflow_workspace?(workflow)
+      workflow.steps
+        .where.not(placement_policy: WORKSPACE_FREE_PLACEMENTS)
+        .joins(:runs)
+        .merge(Run.active)
+        .exists?
     end
 
     def classify_resumable_sessions

@@ -7290,6 +7290,30 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
   end
 
+  # Regression: a worker died under memory pressure mid-preflight, taking the
+  # mutable workflow workspace with it. The only live work was preflight
+  # graders, which run from immutable snapshot checkouts and never touch that
+  # workspace, yet it was flagged missing, recovery could not rebuild it, and
+  # the repair failed the Workflow and cancelled 116 queued graders.
+  it "does not flag a missing workspace when only immutable-checkout graders are live" do
+    allow(Feature).to receive(:distributed_workflow_dag_enabled?).and_return(true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: nil)
+    step.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    grader = Step.create!(workflow: workflow, kind: "grader", position: 50, state: "running",
+                          placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, details: { "name" => "rspec" })
+    grader.runs.create!(job: job, user: job.user, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+                        state: "running", started_at: 1.minute.ago, last_heartbeat_at: 10.seconds.ago)
+    Step.create!(workflow: workflow, kind: "implement", position: 60, state: "queued")
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :workspace_missing)).to be_nil
+  end
+
   # Grader scratch used to live at <workspace>/.syrus/immutable-checkouts, so
   # a worker that had only ever run a grader for this workflow held a
   # workspace directory with no checkout in it, File.directory? answered
