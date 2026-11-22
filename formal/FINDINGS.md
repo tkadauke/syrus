@@ -4208,6 +4208,24 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M52. Job state drift has stopped since the 11-21 deploys (read-only)
+
+Coverage item `job-state-matches-latest-workflow`.
+`unambiguous_job_state_drift` was applied 40, 37 and 62 times a day on 11-18
+to 11-20, and 14 times on 11-21. All of those 11-21 cases came before about
+22:00 UTC, when `d9be256158` and `424204c35b` went live. The shapes were the
+F20 and F33 ones:
+
+- queued → running and implemented → running under a running Workflow;
+- running → implemented or failed after the Workflow finished.
+
+There were none in the following five hours. Too short a window to call
+closed. The check-then-act on a cached Job in `JobLifecyclePropagation`
+(decided without reloading under the Job lock) remains the open hazard for
+this item.
+
+---
+
 ## M51. Merge-train sweep (read-only): F25 verified, terminal hooks noted (Lead L6)
 
 **F25 verified in production.** The reconciler detected
