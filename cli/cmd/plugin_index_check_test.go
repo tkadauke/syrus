@@ -78,14 +78,15 @@ func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 	newDockerPluginRunner = func() pluginRunner { return runner }
 	t.Cleanup(func() { pluginIndexCheckHTTP, newDockerPluginRunner = previousHTTP, previousRunner })
 	sum := sha256.Sum256(packageBytes)
-	entry := pluginRegistryRelease{Name: "acme_weather", Version: "1.2.3", Description: "Weather", Category: "automation", Author: "Acme", Homepage: "https://example.test", License: "MIT", RequiresSyrus: ">= 1.0", PackageURL: server.URL + "/package", PackageDigest: "sha256:" + hex.EncodeToString(sum[:]), SignatureURL: server.URL + "/package.sig", PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: json.RawMessage(`{}`)}
+	entry := pluginRegistryRelease{Name: "acme_weather", Version: "1.2.3", Description: "Weather", Category: "automation", Author: "Acme", Homepage: "https://example.test", License: "MIT", RequiresSyrus: ">= 1.0", PackageURL: server.URL + "/package", PackageDigest: "sha256:" + hex.EncodeToString(sum[:]), SignatureURL: server.URL + "/package.sig", PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: mustJSON(manifest)}
 	trust, _ := json.Marshal(plugintrust.TrustStore{Publishers: []plugintrust.Publisher{{Fingerprint: key.Fingerprint, Label: "community"}}})
 	root := t.TempDir()
 	trustPath := filepath.Join(root, "trust.json")
 	os.WriteFile(trustPath, trust, 0644)
 	run := func(value pluginRegistryRelease) error {
 		payload, _ := json.Marshal(value)
-		path := filepath.Join(root, "entry.json")
+		path := filepath.Join(root, value.Name, value.Version+".json")
+		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, payload, 0644)
 		command := NewRootCommand()
 		command.SetOut(&bytes.Buffer{})
@@ -110,6 +111,18 @@ func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 	bad.PublisherKeyFingerprint = strings.Repeat("0", 64)
 	if err := run(bad); err == nil {
 		t.Fatal("expected bad signature metadata failure")
+	}
+	badSignature := signature
+	badSignature.Signature = "AAAA"
+	signatureBytes, _ = json.Marshal(badSignature)
+	if err := run(entry); err == nil || !strings.Contains(err.Error(), "signature verification failed") {
+		t.Fatalf("bad cryptographic signature: %v", err)
+	}
+	signatureBytes, _ = json.Marshal(signature)
+	bad = entry
+	bad.CapabilitySummary = json.RawMessage(`{"name":"acme_weather"}`)
+	if err := run(bad); err == nil || !strings.Contains(err.Error(), "capability summary") {
+		t.Fatalf("capability mismatch: %v", err)
 	}
 	runner.runErr = os.ErrInvalid
 	if err := run(entry); err == nil || !strings.Contains(err.Error(), "contract tests") {

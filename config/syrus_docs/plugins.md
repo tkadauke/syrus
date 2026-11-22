@@ -72,7 +72,8 @@ sandbox the plugin, review its code, or authorize its tools.
 signs, and uploads a GitHub release, then prints its registry entry. Passing
 `--index-repository OWNER/INDEX --submit` explicitly consents to opening the
 index pull request. Authentication is read from `GITHUB_TOKEN` and is not
-printed or stored.
+printed or stored. The description and license default to gemspec metadata;
+use `--description`, `--license`, or `--category` to override registry metadata.
 
 `syrus plugin new NAME` creates a complete external plugin project in `./NAME`
 or the empty directory selected by `--path`. It rejects invalid Ruby namespace
