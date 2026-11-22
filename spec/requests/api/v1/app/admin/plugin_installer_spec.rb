@@ -40,6 +40,27 @@ RSpec.describe "API: plugin installer", type: :request do
       "capability_manifest" => { "routes" => [ "/weather" ] })
   end
 
+  it "fetches and stages a registry release by name and version" do
+    sign_in_as(admin)
+    package = PluginRegistryPackageFetcher::Package.new(archive: StringIO.new("package"), signature: "signature",
+      name: "weather", version: "2.0.0")
+    allow_any_instance_of(PluginRegistryPackageFetcher).to receive(:fetch).with(name: "weather", version: "2.0.0").and_return(package)
+    manifest = { "name" => "weather", "version" => "2.0.0", "routes" => [ "/weather" ] }
+    allow_any_instance_of(Syrus::PluginPackage::Validator).to receive(:call).and_return(
+      Syrus::PluginPackage::Validator::Result.new(valid: true, errors: [], manifest:)
+    )
+    allow_any_instance_of(Syrus::PluginPackage::Verifier).to receive(:call).and_return(
+      Syrus::PluginPackage::Verifier::Result.new(valid: true, trust_label: "verified", fingerprint: "a" * 64, errors: [])
+    )
+    allow(PluginArtifacts).to receive(:store!)
+
+    post "/api/v1/app/admin/plugin_installer/stage_release", params: { name: "weather", version: "2.0.0" }
+
+    expect(response).to have_http_status(:created)
+    expect(JSON.parse(response.body)).to include("name" => "weather", "version" => "2.0.0", "source" => "registry")
+    expect(PluginRelease.find_by!(name: "weather", version: "2.0.0")).to have_attributes(trust_label: "verified", source: "registry")
+  end
+
   it "rejects a revoked release when confirmation would change desired state" do
     sign_in_as(admin)
     change = PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,

@@ -3,17 +3,20 @@ require "digest"
 class PluginInstaller
   Error = Class.new(StandardError)
 
-  def initialize(actor:, trust_store: Syrus::PluginPackage::TrustStore.cached)
+  def initialize(actor:, trust_store: Syrus::PluginPackage::TrustStore.cached, registry_fetcher: PluginRegistryPackageFetcher.new)
     @actor = actor
     @trust_store = trust_store
+    @registry_fetcher = registry_fetcher
   end
 
-  def stage_archive!(io, signature: nil, source: "upload")
+  def stage_archive!(io, signature: nil, source: "upload", expected_name: nil, expected_version: nil)
     bytes = io.read
     signature = signature.read if signature.respond_to?(:read)
     result = Syrus::PluginPackage::Validator.new(StringIO.new(bytes), signature: signature_io(signature),
       trust_store: @trust_store, local: source != "registry").call
     raise Error, result.errors.join("; ") unless result.valid?
+    raise Error, "registry package name does not match the requested plugin" if expected_name && result.manifest["name"] != expected_name
+    raise Error, "registry package version does not match the requested plugin" if expected_version && result.manifest["version"] != expected_version
 
     verification = Syrus::PluginPackage::Verifier.new(package: StringIO.new(bytes), signature: signature_io(signature),
       trust_store: @trust_store, local: source != "registry", name: result.manifest["name"], version: result.manifest["version"]).call
@@ -38,12 +41,16 @@ class PluginInstaller
     releases = releases.where(content_digest: digest) if digest.present?
     releases = releases.where(source:) if source.present?
     release = version.present? ? releases.find_by(version:) : releases.to_a.max_by { |candidate| Gem::Version.new(candidate.version) }
-    raise ActiveRecord::RecordNotFound, "stored plugin release not found: #{name}#{"@#{version}" if version.present?}" unless release
+    unless release
+      package = @registry_fetcher.fetch(name:, version:)
+      return stage_archive!(package.archive, signature: package.signature, source: "registry",
+        expected_name: package.name, expected_version: package.version)
+    end
     raise Error, "plugin release has been revoked" if @trust_store.revoked?(release)
 
     manifest = capability_manifest(release)
     stage!(release.name, PluginInstallation.exists?(plugin_name: release.name) ? "update" : "install", release, manifest)
-  rescue ArgumentError => error
+  rescue ArgumentError, PluginRegistryPackageFetcher::Error => error
     raise Error, error.message
   end
 
@@ -73,7 +80,7 @@ class PluginInstaller
   private
 
   def capability_manifest(release)
-    PluginChange.where(plugin_release: release).where.not(action: "remove").order(:created_at).last&.capability_manifest || {}
+    PluginChange.where(plugin_release: release, status: "confirmed").where.not(action: "remove").order(:confirmed_at).last&.capability_manifest || {}
   end
 
   def stage!(name, action, release, manifest)

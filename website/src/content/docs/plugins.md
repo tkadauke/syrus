@@ -233,6 +233,13 @@ and health. `syrus plugin remove NAME` requires confirmation. The admin API can
 also export and import `syrus-plugins.lock.yml`; it records name, version,
 digest, and source while the database remains canonical.
 
+`syrus plugin install NAME[@VERSION]` uses a matching stored release when one
+is available, or reads the synchronized git registry entry from
+`$SYRUS_DATA_ROOT/plugin-registry/index/NAME/VERSION.json` and downloads its
+HTTPS artifact and detached signature. Without a version, Syrus selects the
+highest indexed semantic version. Registry downloads use the same validation,
+signature verification, staging, and confirmation flow as uploaded archives.
+
 ### Reading fleet convergence
 
 **Admin → Plugins** compares the desired revision with every process heartbeat.

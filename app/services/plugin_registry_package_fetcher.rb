@@ -1,0 +1,65 @@
+require "json"
+require "net/http"
+require "openssl"
+require "uri"
+
+class PluginRegistryPackageFetcher
+  Error = Class.new(StandardError)
+  Package = Data.define(:archive, :signature, :name, :version)
+  MAX_ARCHIVE_BYTES = Syrus::PluginPackage::Validator::MAX_TOTAL_SIZE
+  MAX_SIGNATURE_BYTES = 1.megabyte
+
+  def initialize(index_root: WorkflowWorkspace.data_root.join("plugin-registry", "index"))
+    @index_root = Pathname.new(index_root)
+  end
+
+  def fetch(name:, version: nil)
+    path = index_path(name, version)
+    metadata = JSON.parse(File.read(path))
+    raise Error, "registry entry name does not match requested plugin" unless metadata.fetch("name") == name
+    indexed_version = path.basename(".json").to_s
+    raise Error, "registry entry version does not match its index path" unless metadata.fetch("version") == indexed_version
+
+    Package.new(
+      archive: StringIO.new(download(metadata.fetch("artifact_url"), limit: MAX_ARCHIVE_BYTES)),
+      signature: download(metadata.fetch("signature_url"), limit: MAX_SIGNATURE_BYTES),
+      name:, version: indexed_version
+    )
+  rescue Errno::ENOENT
+    raise Error, "plugin release is not present in the registry index: #{name}#{"@#{version}" if version.present?}"
+  rescue JSON::ParserError, KeyError => error
+    raise Error, "invalid plugin registry entry: #{error.message}"
+  end
+
+  private
+
+  def index_path(name, version)
+    raise Error, "invalid registry plugin name" unless name.match?(/\A[a-z][a-z0-9_]*\z/)
+
+    directory = @index_root.join(name)
+    if version.present?
+      raise Error, "invalid registry plugin version" unless version.match?(/\A[0-9A-Za-z][0-9A-Za-z.+_-]*\z/)
+      return directory.join("#{version}.json")
+    end
+
+    candidates = directory.glob("*.json")
+    candidates.max_by { |path| Gem::Version.new(path.basename(".json").to_s) } || directory.join("missing.json")
+  rescue ArgumentError => error
+    raise Error, "invalid version in plugin registry index: #{error.message}"
+  end
+
+  def download(url, limit:)
+    uri = URI.parse(url)
+    raise Error, "plugin registry artifacts must use HTTPS" unless uri.is_a?(URI::HTTPS)
+
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 60) do |http|
+      http.request(Net::HTTP::Get.new(uri.request_uri))
+    end
+    raise Error, "plugin registry download failed with HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+    raise Error, "plugin registry download is too large" if response.body.to_s.bytesize > limit
+
+    response.body.to_s
+  rescue URI::InvalidURIError, SocketError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError => error
+    raise Error, "plugin registry download failed: #{error.message}"
+  end
+end
