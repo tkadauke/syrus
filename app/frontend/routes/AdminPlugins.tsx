@@ -11,6 +11,10 @@ import {
   fetchAdminPlugins,
   fetchPluginInstaller,
   fetchPluginRegistryCatalog,
+  fetchPluginRegistries,
+  createPluginRegistry,
+  updatePluginRegistry,
+  removePluginRegistry,
   stagePluginArchive,
   stagePluginRemoval,
   stageStoredPluginRelease,
@@ -33,7 +37,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { DataTable, Input, Page, Surface } from "../components/ui"
+import { DataTable, Input, Page, Select, Surface } from "../components/ui"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -100,11 +104,13 @@ function PluginInstallerPanel() {
   const [fileInputKey, setFileInputKey] = useState(0)
   const [restartRequired, setRestartRequired] = useState(false)
   const [catalogTerm, setCatalogTerm] = useState("")
+  const [catalogRegistry, setCatalogRegistry] = useState("")
   const installer = useQuery({ queryKey: ["admin", "plugin-installer"], queryFn: fetchPluginInstaller })
   const catalog = useQuery({
-    queryKey: ["admin", "plugin-registry", catalogTerm],
-    queryFn: () => fetchPluginRegistryCatalog(catalogTerm)
+    queryKey: ["admin", "plugin-registry", catalogTerm, catalogRegistry],
+    queryFn: () => fetchPluginRegistryCatalog(catalogTerm, catalogRegistry)
   })
+  const catalogOverview = useQuery({ queryKey: ["admin", "plugin-registry-overview"], queryFn: () => fetchPluginRegistryCatalog() })
   const stage = useMutation({
     mutationFn: stagePluginArchive,
     onSuccess: () => {
@@ -114,7 +120,7 @@ function PluginInstallerPanel() {
     }
   })
   const restore = useMutation({
-    mutationFn: ({ name, version }: { name: string; version: string }) => stageStoredPluginRelease(name, version),
+    mutationFn: ({ name, version, registry }: { name: string; version: string; registry?: string }) => stageStoredPluginRelease(name, version, registry),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
   })
   const remove = useMutation({
@@ -136,6 +142,9 @@ function PluginInstallerPanel() {
       <SectionHeading>{t("plugins.installer.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("plugins.installer.body")}</p>
       <div className="mt-4 border-t border-border pt-4">
+        <PluginRegistriesPanel />
+      </div>
+      <div className="mt-4 border-t border-border pt-4">
         <SectionHeading>{t("plugins.registry.heading")}</SectionHeading>
         {!catalog.data?.configured && !catalog.isPending ? <p className="mt-2 text-sm text-text-secondary">{t("plugins.registry.unconfigured")}</p> : null}
         {catalog.data?.configured ? (
@@ -148,7 +157,27 @@ function PluginInstallerPanel() {
               type="search"
               value={catalogTerm}
             />
-            {catalog.data.error ? <p className="mt-2 text-sm text-danger">{catalog.data.error}</p> : null}
+            <label className="mt-2 block text-sm">
+              {t("plugins.registry.filter")}
+              <Select className="ml-2 inline-block" fullWidth={false} onChange={(event) => setCatalogRegistry(event.target.value)} value={catalogRegistry}>
+                <option value="">{t("plugins.registry.all")}</option>
+                {Array.from(new Set((catalogOverview.data?.entries || catalog.data.entries).map((entry) => entry.registry_name))).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {Object.entries(catalog.data.errors || {}).map(([name, message]) => (
+              <p className="mt-2 text-sm text-danger" key={name}>
+                {t("plugins.registry.source_error", { name, message })}
+              </p>
+            ))}
+            {(catalog.data.stale_registries || []).map((name) => (
+              <p className="mt-2 text-sm text-warning" key={name}>
+                {t("plugins.registry.source_stale", { name })}
+              </p>
+            ))}
             <div className="mt-3 space-y-2">
               {catalog.data.entries.map((entry) => (
                 <div className="rounded border border-border p-3" key={entry.registry_name + "-" + entry.name + "-" + entry.version}>
@@ -159,6 +188,13 @@ function PluginInstallerPanel() {
                     <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registry.source", { name: entry.registry_name })}</span>
                   </div>
                   <p className="mt-1 text-sm text-text-secondary">{entry.description}</p>
+                  <Button
+                    className="mt-2"
+                    disabled={restore.isPending}
+                    onClick={() => restore.mutate({ name: entry.name, version: entry.version, registry: entry.registry_id?.toString() || entry.registry_name })}
+                  >
+                    {t("plugins.registry.install")}
+                  </Button>
                 </div>
               ))}
               {catalog.data.entries.length === 0 && !catalog.data.error ? <p className="text-sm text-text-secondary">{t("plugins.registry.empty")}</p> : null}
@@ -245,6 +281,116 @@ function PluginInstallerPanel() {
         </div>
       ) : null}
     </Surface>
+  )
+}
+
+function PluginRegistriesPanel() {
+  const { t } = useT("admin")
+  const queryClient = useQueryClient()
+  const [url, setUrl] = useState("")
+  const [name, setName] = useState("")
+  const [confirming, setConfirming] = useState(false)
+  const registries = useQuery({ queryKey: ["admin", "plugin-registries"], queryFn: fetchPluginRegistries })
+  const catalog = useQuery({ queryKey: ["admin", "plugin-registry-overview"], queryFn: () => fetchPluginRegistryCatalog() })
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-registries"] })
+    void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-registry"] })
+    void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-registry-overview"] })
+  }
+  const add = useMutation({
+    mutationFn: createPluginRegistry,
+    onSuccess: () => {
+      setUrl("")
+      setName("")
+      setConfirming(false)
+      refresh()
+    }
+  })
+  const toggle = useMutation({ mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => updatePluginRegistry(id, enabled), onSuccess: refresh })
+  const remove = useMutation({ mutationFn: removePluginRegistry, onSuccess: refresh })
+
+  return (
+    <section aria-label={t("plugins.registries.aria")}>
+      <SectionHeading>{t("plugins.registries.heading")}</SectionHeading>
+      {registries.isPending ? <p className="mt-2 text-sm text-text-secondary">{t("plugins.registries.loading")}</p> : null}
+      <div className="mt-3 space-y-2">
+        {registries.data?.registries?.map((registry) => (
+          <div className="rounded border border-border p-3" key={`${registry.id}-${registry.url}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>{registry.name}</strong>
+              {registry.canonical ? <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registries.canonical")}</span> : null}
+              {registry.read_only ? <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registries.read_only")}</span> : null}
+              <span className="text-xs text-text-secondary">{registry.enabled ? t("plugins.registries.enabled") : t("plugins.registries.disabled")}</span>
+            </div>
+            <p className="mt-1 break-all text-sm text-text-secondary">{registry.url}</p>
+            <p className="mt-1 text-xs text-text-secondary">
+              {t("plugins.registries.details", {
+                count: catalog.data?.entries.filter((entry) => entry.registry_name === registry.name).length ?? registry.entry_count,
+                time: registry.last_refresh_at ? new Date(registry.last_refresh_at).toLocaleString() : t("plugins.registries.never")
+              })}
+            </p>
+            {registry.stale || catalog.data?.stale_registries?.includes(registry.name) ? (
+              <p className="mt-1 text-sm text-warning">{t("plugins.registries.stale")}</p>
+            ) : null}
+            {registry.error || catalog.data?.errors?.[registry.name] ? (
+              <p className="mt-1 text-sm text-danger">{registry.error || catalog.data?.errors[registry.name]}</p>
+            ) : null}
+            {!registry.read_only && registry.id !== null ? (
+              <div className="mt-2 flex gap-2">
+                <Button disabled={toggle.isPending} onClick={() => toggle.mutate({ id: registry.id!, enabled: !registry.enabled })}>
+                  {registry.enabled ? t("plugins.registries.disable") : t("plugins.registries.enable")}
+                </Button>
+                {!registry.canonical ? (
+                  <Button disabled={remove.isPending} onClick={() => remove.mutate(registry.id!)}>
+                    {t("plugins.registries.remove")}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <form
+        className="mt-4 space-y-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (confirming) add.mutate({ name: name || `registry-${new URL(url).hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, url })
+          else setConfirming(true)
+        }}
+      >
+        <Input
+          aria-label={t("plugins.registries.url")}
+          onChange={(event) => {
+            setUrl(event.target.value)
+            setConfirming(false)
+          }}
+          placeholder={t("plugins.registries.url")}
+          required
+          type="url"
+          value={url}
+        />
+        <Input
+          aria-label={t("plugins.registries.name")}
+          onChange={(event) => {
+            setName(event.target.value)
+            setConfirming(false)
+          }}
+          pattern="[a-z][a-z0-9_-]*"
+          placeholder={t("plugins.registries.name")}
+          value={name}
+        />
+        {confirming ? (
+          <div className="rounded border border-warning p-3 text-sm">
+            <p>{t("plugins.registries.trust_disclosure")}</p>
+            <p className="mt-2">{t("plugins.installer.disclosure")}</p>
+          </div>
+        ) : null}
+        {add.isError ? <p className="text-sm text-danger">{errorMessage(add.error, t("plugins.registries.add_error"))}</p> : null}
+        <Button disabled={add.isPending} type="submit">
+          {confirming ? t("plugins.registries.confirm_add") : t("plugins.registries.add")}
+        </Button>
+      </form>
+    </section>
   )
 }
 
