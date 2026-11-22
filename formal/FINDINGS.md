@@ -4346,6 +4346,33 @@ the caller. It is not yet modelled.
 
 ---
 
+## M59. A production outage on 11-22 (read-only observation, cause unknown)
+
+**Timeline (UTC).**
+
+- **13:28 and 13:59:** two worker-compute pods were replaced without a deploy,
+  on the same version `424204c35b`. Runs on them failed `worker_died`. That
+  included a main grader's `e2e` grader, twice, which failed two main graders
+  as "required graders failed due to infrastructure". It also included the
+  graders of a main-branch repair, whose Workflow then failed with
+  `workspace_recovery_failed` and was relaunched.
+- **About 14:59:** `/up` returned 503 Service Unavailable, and the admin API
+  returned 500/502 or hung for over two minutes.
+- **15:10–15:13:** every instance restarted on the same version: the web,
+  preview, all six workers and the home worker. A Mac worker on the old
+  version `6570ee323f` also reconnected. `/up` was back to 200 by about 15:13.
+  A few Runs that were in flight failed `worker_died` and are retried
+  automatically. No Workflow failed afterwards.
+
+**Not known.** Why the pods died, and why the whole stack went down. From
+this session, the cluster is not reachable (kubectl is blocked), and the
+database can only be read through the admin API, which was down. Worth
+checking against the previous production failures in the operator notes:
+MySQL OOM kills from glibc arena retention, and a MySQL volume filled by
+`--log-output=TABLE`. The two earlier pod deaths may have been the first sign.
+
+---
+
 ## M58. Main through `c2e7a2f7cb` — main's React failure fixed by hand, coworker ref filter equivalent
 
 Two commits.
