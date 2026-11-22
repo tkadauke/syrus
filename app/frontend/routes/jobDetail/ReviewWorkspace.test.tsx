@@ -1181,7 +1181,7 @@ describe("ReviewWorkspace", () => {
     expect(within(header).queryByText(/pending/i)).not.toBeInTheDocument()
   })
 
-  it("never wraps the diff viewer in an ancestor with non-visible overflow, which would block its sticky file headers from pinning", async () => {
+  it("never wraps the diff viewer in an ancestor whose overflow captures vertical stickiness", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
@@ -1189,7 +1189,10 @@ describe("ReviewWorkspace", () => {
 
     const diffViewer = await screen.findByTestId("agent-diff-viewer")
     for (let ancestor = diffViewer.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
-      expect(ancestor.className).not.toMatch(/\boverflow-(hidden|auto|scroll|y-auto|y-scroll|x-auto|x-scroll)\b/)
+      // Any non-visible overflow on either axis can make CSS compute the other
+      // axis to auto. `clip` is the deliberate exception: unlike `hidden`, it
+      // clips without establishing a scroll container.
+      expect(ancestor.className).not.toMatch(/\boverflow-(?:hidden|auto|scroll|x-(?:hidden|auto|scroll)|y-(?:hidden|auto|scroll))\b/)
     }
   })
 
