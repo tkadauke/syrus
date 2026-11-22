@@ -591,6 +591,17 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).not_to eq("provider_auth_or_config")
   end
 
+  # Regression: grader logs carry test names. A database outage failed graders
+  # whose output listed "automatically exchanges Codex OAuth callbacks", and
+  # the bare word OAuth filed them as non-retryable provider auth failures.
+  it "does not treat a test name mentioning OAuth in grader output as provider auth/config" do
+    run.update!(state: "failed")
+    diagnostic("ActiveRecord::ConnectionNotEstablished", "Can't connect to server on 'syrus-mysql' (115)")
+    JobLog.append!(run: run, chunk: "App > automatically exchanges Codex OAuth callbacks received over ActionCable", kind: "system")
+
+    expect(classification.classification).not_to eq("provider_auth_or_config")
+  end
+
   [
     "fatal: Authentication failed for 'https://github.com/acme/widgets.git/'",
     "OAuth token expired",

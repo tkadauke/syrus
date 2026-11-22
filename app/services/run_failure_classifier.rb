@@ -549,9 +549,11 @@ class RunFailureClassifier
     # appears in a logged authenticated git push URL (the redaction scrubs
     # the credential value, not that identifier), which mislabeled an
     # ordinary rejected push (branch_diverged) as a provider auth/config
-    # failure. Likewise `auth` is a word, not a substring: a bare `auth`
-    # matched `webauthn` in an ordinary dependency-install log.
-    text_match?(/\b(?:o?auth|authentication|authorization)\b|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|invalid.+credential|mcp.+(?:failed|error).+initialize|connection closed: initialize/i)
+    # failure. Likewise `auth` is never enough on its own: a bare `auth`
+    # matched `webauthn` in a dependency-install log, and even the whole word
+    # `OAuth` appears in grader output as a test name. Only an auth *failure*
+    # phrasing counts ("Authentication failed", "auth error", ...).
+    text_match?(/\b(?:o?auth(?:entication|orization)?)[\s_-]*(?:failed|failure|error|required|denied|rejected|invalid|expired)|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|invalid.+credential|mcp.+(?:failed|error).+initialize|connection closed: initialize/i)
   end
 
   def argument_list_too_long?
