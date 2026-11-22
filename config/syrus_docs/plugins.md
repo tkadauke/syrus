@@ -26,13 +26,11 @@ longest command path to the first word for a trusted `syrus-<path>` executable,
 passes it the unmatched arguments, and exposes the configured instance and
 token as `SYRUS_URL` and `SYRUS_TOKEN`.
 
-`syrus plugin validate [DIR]` and `syrus plugin test [DIR]` are built-in local
-SDK commands. They run the plugin in an isolated SQLite test host using the
-release-matched plugin-test container; `test` continues from host validation to
-the plugin's RSpec suite. `--syrus-version` selects a release, `--json` emits
-the stable final summary, and `--checkout PATH` runs the identical entrypoint
-from a contributor checkout. The test container never receives instance
-credentials.
+`syrus plugin validate [DIR]` and `syrus plugin test [DIR]` run the plugin in an
+isolated SQLite test host using the release-matched plugin-test container;
+`test` continues through the plugin's RSpec suite. `--syrus-version` selects a
+release, `--json` emits the stable final summary, and `--checkout PATH` uses a
+contributor checkout. The container never receives instance credentials.
 
 `syrus plugin pack [DIR]` validates the plugin and writes a deterministic
 `.syrus-plugin.tar.gz` package. When a frontend source exists but its bundle is
@@ -81,11 +79,11 @@ signs, and uploads a GitHub release, then prints its registry entry. Passing
 `--submit` uses the canonical registry's GitHub repository by default;
 `--registry NAME` selects another configured GitHub registry and
 `--index-repository OWNER/INDEX` overrides the selection. Submission explicitly
-consents to opening the
-index pull request from the authenticated author's fork and listing the release
-in `index.json`. Authentication is read from `GITHUB_TOKEN` and is not
-printed or stored. The description and license default to gemspec metadata;
-use `--description`, `--license`, or `--category` to override registry metadata.
+consents to opening the index pull request from the authenticated author's fork
+and listing the release in `index.json`. Authentication is read from
+`GITHUB_TOKEN` and is not printed or stored. The description and license default
+to gemspec metadata; use `--description`, `--license`, or `--category` to
+override registry metadata.
 
 `syrus plugin new NAME` creates a complete external plugin project in `./NAME`
 or the empty directory selected by `--path`. It rejects invalid Ruby namespace
@@ -103,12 +101,6 @@ browser to fetch the new content-hashed bundle. Ruby, manifest, and locale
 changes restart Syrus and print the resulting health, including load failures.
 Ctrl-C removes the container and its data volume unless `--keep-data` is used,
 which retains the stopped container and prints its name for later inspection.
-
-The development instance supports one plugin and intentionally has no real
-agent provider credentials. Configure a provider from the normal settings UI
-if you want to exercise real agent calls; those credentials remain only in the
-throwaway data volume. This command requires Docker and does not model MySQL or
-a multi-worker deployment.
 
 ## Per-origin Job visibility
 
