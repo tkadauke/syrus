@@ -240,6 +240,12 @@ HTTPS artifact and detached signature. Without a version, Syrus selects the
 highest indexed semantic version. Registry downloads use the same validation,
 signature verification, staging, and confirmation flow as uploaded archives.
 
+Set SYRUS_PLUGIN_REGISTRY_URL to an HTTPS mirror or HTTPS Git URL to enable
+the Admin → Plugins browser and the plugin search CLI command. No registry is
+configured by default. Results include trust labels, exclude revoked releases,
+and are filtered for the running Syrus version. Network and malformed-index
+errors are reported without taking down plugin administration.
+
 ### Reading fleet convergence
 
 **Admin → Plugins** compares the desired revision with every process heartbeat.

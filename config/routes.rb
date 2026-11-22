@@ -500,6 +500,7 @@ Rails.application.routes.draw do
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
           get "plugin_installer", to: "plugin_installer#index"
+          get "plugin_installer/catalog", to: "plugin_installer#catalog"
           post "plugin_installer/stage", to: "plugin_installer#stage"
           post "plugin_installer/stage_remove", to: "plugin_installer#stage_remove"
           post "plugin_installer/stage_release", to: "plugin_installer#stage_release"

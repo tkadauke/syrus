@@ -10,6 +10,7 @@ import {
   fetchAdminPlugin,
   fetchAdminPlugins,
   fetchPluginInstaller,
+  fetchPluginRegistryCatalog,
   stagePluginArchive,
   stagePluginRemoval,
   stageStoredPluginRelease,
@@ -98,7 +99,12 @@ function PluginInstallerPanel() {
   const [file, setFile] = useState<File | null>(null)
   const [fileInputKey, setFileInputKey] = useState(0)
   const [restartRequired, setRestartRequired] = useState(false)
+  const [catalogTerm, setCatalogTerm] = useState("")
   const installer = useQuery({ queryKey: ["admin", "plugin-installer"], queryFn: fetchPluginInstaller })
+  const catalog = useQuery({
+    queryKey: ["admin", "plugin-registry", catalogTerm],
+    queryFn: () => fetchPluginRegistryCatalog(catalogTerm)
+  })
   const stage = useMutation({
     mutationFn: stagePluginArchive,
     onSuccess: () => {
@@ -129,6 +135,29 @@ function PluginInstallerPanel() {
     <Surface aria-label={t("plugins.installer.aria")} role="region">
       <SectionHeading>{t("plugins.installer.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("plugins.installer.body")}</p>
+      <div className="mt-4 border-t border-border pt-4">
+        <SectionHeading>{t("plugins.registry.heading")}</SectionHeading>
+        {!catalog.data?.configured && !catalog.isPending ? <p className="mt-2 text-sm text-text-secondary">{t("plugins.registry.unconfigured")}</p> : null}
+        {catalog.data?.configured ? (
+          <>
+            <Input aria-label={t("plugins.registry.search")} className="mt-2" onChange={(event) => setCatalogTerm(event.target.value)}
+              placeholder={t("plugins.registry.search")} type="search" value={catalogTerm} />
+            {catalog.data.error ? <p className="mt-2 text-sm text-danger">{catalog.data.error}</p> : null}
+            <div className="mt-3 space-y-2">
+              {catalog.data.entries.map((entry) => (
+                <div className="rounded border border-border p-3" key={entry.name + "-" + entry.version}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>{entry.name}</strong><span>{entry.version}</span>
+                    <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{entry.trust_label}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-text-secondary">{entry.description}</p>
+                </div>
+              ))}
+              {catalog.data.entries.length === 0 && !catalog.data.error ? <p className="text-sm text-text-secondary">{t("plugins.registry.empty")}</p> : null}
+            </div>
+          </>
+        ) : null}
+      </div>
       <form
         className="mt-3 flex flex-wrap items-center gap-2"
         onSubmit={(event) => {
