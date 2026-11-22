@@ -52,6 +52,28 @@ func TestIndexCheckRejectsInvalidPackage(t *testing.T) {
 	}
 }
 
+func TestIndexCheckExtractsValidatorApprovedDirectoryEntries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "directories.tar.gz")
+	file, _ := os.Create(path)
+	gz := gzip.NewWriter(file)
+	tarball := tar.NewWriter(gz)
+	tarball.WriteHeader(&tar.Header{Name: "plugin/", Mode: 0755, Typeflag: tar.TypeDir})
+	manifest := packageManifest{FormatVersion: 1, Name: "acme_weather", Version: "1.2.3", RequiresSyrus: ">= 1.0", Files: []packageFile{}}
+	manifestBytes, _ := json.Marshal(manifest)
+	tarball.WriteHeader(&tar.Header{Name: "package.json", Mode: 0644, Size: int64(len(manifestBytes)), Typeflag: tar.TypeReg})
+	tarball.Write(manifestBytes)
+	tarball.Close()
+	gz.Close()
+	file.Close()
+	root := t.TempDir()
+	if _, err := extractSubmittedPackage(path, root); err != nil {
+		t.Fatalf("directory entry rejected: %v", err)
+	}
+	if info, err := os.Stat(filepath.Join(root, "plugin")); err != nil || !info.IsDir() {
+		t.Fatalf("plugin directory was not extracted: %v", err)
+	}
+}
+
 func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 	plugin := packageFixture(t)
 	gemspec := filepath.Join(plugin, "weather.gemspec")
