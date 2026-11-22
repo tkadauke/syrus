@@ -3603,6 +3603,51 @@ question about attempt semantics, so the classifier remains the backstop.
 
 ---
 
+## F98. A dependency named webauthn made an infrastructure failure look like a provider auth failure — fixed
+
+**Found by** the failure sweep. A main-branch grader for the external-reviewer
+Epic's merge failed:
+
+```
+immutable source prepare command failed: npm ci
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '.../node_modules/@...'
+```
+
+`RunFailureClassifier` filed it as `provider_auth_or_config`,
+non-retryable. Nothing retried it, and `GraderCollect` does not count that
+classification as an infrastructure failure, so the main grader recorded a
+genuine failure on main over a transient extraction error.
+
+**Cause.** `auth_or_config?` matched a bare `auth` substring. Its search text
+includes the Run's recent logs, which contained the ordinary install lines
+`Installing webauthn 3.5.1` and the deprecation warning for
+`@github/webauthn-json`. Any repository with a WebAuthn or OAuth dependency in
+its install log was exposed. The method's own comment records the same
+mistake fixed earlier for `config` (`--mcp-config`) and `token`
+(`x-access-token`).
+
+**Fix.** `auth` is now matched as a word:
+`\b(?:o?auth|authentication|authorization)\b`. "Authentication failed for
+…", "OAuth token expired" and "auth error" still classify as auth/config.
+
+**Specs.** `run_failure_classifier_spec.rb` (ci_only): the webauthn install
+log example was red before; three genuine auth messages stay green. Also run
+and green: the classifier-dependent specs (`declared_problems_are_known`,
+`problem/kind`, `merge_train_failure_handler`, `rebase_attempt_guard`,
+`problem_emission`, `repair_executor`, `auto_retry_job`).
+
+**Not changed.**
+
+- `permission denied` in the same pattern can also match a filesystem error
+  in a log. That is a related false positive, noted for a separate change.
+- An `npm ci` extraction ENOENT is still not classified as infrastructure.
+  The prepare failure can be genuine (a broken lockfile), so it now falls
+  through to the generic outcome rather than being guessed.
+- What removed the files under the Step's immutable checkout mid-extraction is
+  unexplained. It is the only such Run in two days.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -4205,6 +4250,25 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 - *How the gate is shaped.* It is a deny-list over an open, plugin-extensible
   kind set, so a new kind carrying outside content, or a response without a
   `kind`, runs hooks by default.
+
+---
+
+## M53. Main commits through `127ea3b964` — the external-reviewer contract
+
+Five commits, one Epic merge. They add a provisional `review` plugin family
+with one `external_reviewer` capability (`first_claim`, absent `nil`), the
+`Syrus::Plugin::ExternalReviewer` service contract, its value types, a
+contract test kit and a fake provider. Nothing in the engine calls it yet.
+
+**The one new core invariant.** `Family.define(..., built_in: true)` plus
+`restore_built_ins!` keep the built-in families across a registry reset.
+`restore_built_ins!` uses `Hash#replace`, which copies the entries instead of
+aliasing the hash, so a later `define` cannot leak into the built-in set.
+
+The rebase conflicted only in the generated `plugin-spec.md`, which was
+regenerated. After the rebase, `spec/lib`, `spec/architecture`, the detector,
+classifier, plugin admin, work unit, work intent, lifecycle and filter specs
+are green (2,154 examples), CI-only included.
 
 ---
 
@@ -5361,7 +5425,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `2bfca771f5`. Each loop iteration continues from there:
+Checked through main `127ea3b964`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
