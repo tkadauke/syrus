@@ -30,6 +30,15 @@ describe("errorRingBuffer", () => {
     expect(errors[0]).toMatchObject({ message: "Same error", source: "script", count: 3 })
   })
 
+  it("deduplicates matching script errors without retaining distinct filenames", () => {
+    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "app.js" }))
+    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "other.js" }))
+
+    expect(getRecentErrors()).toEqual([
+      expect.objectContaining({ message: "Same error", source: "script", count: 2 })
+    ])
+  })
+
   it("does not retain filenames or sensitive URL values", () => {
     window.dispatchEvent(
       new ErrorEvent("error", {
