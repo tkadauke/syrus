@@ -155,7 +155,8 @@ module Syrus
           previous = settings.beta_mode_enabled?
           desired = !beta_mode_excluded?(example)
           settings.update!(beta_mode_enabled: desired) unless previous == desired
-        rescue ActiveRecord::ActiveRecordError
+        rescue ActiveRecord::ActiveRecordError => e
+          report_beta_mode_failure("could not set beta mode for #{example.metadata[:file_path]}", e)
           return yield
         end
 
@@ -170,8 +171,20 @@ module Syrus
 
         settings = AppSetting.current
         settings.update!(beta_mode_enabled: true) unless settings.beta_mode_enabled?
-      rescue ActiveRecord::ActiveRecordError
+      rescue ActiveRecord::ActiveRecordError => e
+        report_beta_mode_failure("could not establish the beta-mode baseline", e)
         nil
+      end
+
+      # Both callers carry on without the beta-mode default, so the examples
+      # that depend on it fail far from the cause. Say why, once per error,
+      # where the failing run's output will show it.
+      def report_beta_mode_failure(context, error)
+        @reported_beta_mode_failures ||= Set.new
+        signature = "#{error.class}: #{error.message}"
+        return unless @reported_beta_mode_failures.add?(signature)
+
+        warn "[bundled_plugins] #{context}: #{signature}"
       end
     end
   end

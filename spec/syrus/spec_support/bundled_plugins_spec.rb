@@ -111,6 +111,19 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
     end
   end
 
+  # The hook used to swallow a failed beta-mode update silently. On CI the
+  # examples that need the default then failed with "requires beta mode",
+  # far from the cause and with nothing naming it.
+  it "reports why it could not set beta mode instead of failing silently" do
+    example = Struct.new(:metadata).new({ file_path: "./spec/models/feature_spec.rb" })
+    AppSetting.current.update!(beta_mode_enabled: true)
+    allow_any_instance_of(AppSetting).to receive(:update!).and_raise(ActiveRecord::RecordInvalid.new(AppSetting.current))
+
+    expect {
+      described_class.with_default_beta_mode(example) { nil }
+    }.to output(%r{\[bundled_plugins\] could not set beta mode for \./spec/models/feature_spec\.rb: ActiveRecord::RecordInvalid}).to_stderr
+  end
+
   describe ".establish_default_beta_mode" do
     it "establishes the common suite baseline once" do
       AppSetting.current.update!(beta_mode_enabled: false)
