@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { MAX_WALKTHROUGH_DURATION_SECONDS } from "../api/videoWalkthroughs"
 import { Button } from "./Button"
 import { useT } from "../hooks/useT"
+import { reportHandledError } from "../lib/handledErrorReporting"
 import {
   annotationBridge,
   recorderHudBridge,
@@ -208,7 +209,13 @@ export function useWalkthroughRecorder({
 
       try {
         recorder.stop() // onstop assembles + delivers the result
-      } catch {
+      } catch (error) {
+        reportHandledError(error, {
+          surface: "walkthrough_recorder",
+          operation: "stop_recording",
+          stage: "finalize",
+          recoverability: "non_retryable"
+        })
         cleanup()
         setState({ phase: "error", message: t("walkthrough_finalize_error") })
       }
@@ -270,7 +277,13 @@ export function useWalkthroughRecorder({
           // nudge while the tap fallback stays advertised and functional.
           setAnnotationReason(result.hold === true ? null : (result.reason ?? null))
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          reportHandledError(error, {
+            surface: "walkthrough_recorder",
+            operation: "enable_annotation",
+            stage: "desktop_bridge",
+            recoverability: "retryable"
+          })
           if (!finishedRef.current && mountedRef.current) {
             setAnnotationReady(false)
             setAnnotationHold(false)
@@ -311,7 +324,13 @@ export function useWalkthroughRecorder({
         videoBitsPerSecond: RECORDER_VIDEO_BITS_PER_SECOND,
         audioBitsPerSecond: RECORDER_AUDIO_BITS_PER_SECOND
       })
-    } catch {
+    } catch (error) {
+      reportHandledError(error, {
+        surface: "walkthrough_recorder",
+        operation: "start_recording",
+        stage: "media_recorder",
+        recoverability: "non_retryable"
+      })
       cleanup()
       setState({ phase: "error", message: t("walkthrough_browser_recording_error") })
       return

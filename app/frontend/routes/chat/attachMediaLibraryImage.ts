@@ -1,6 +1,7 @@
 import { uploadChatAttachment } from "../../api/chats"
 import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
 import { type AttachMediaToComposerDetail, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT } from "./constants"
+import { reportHandledError } from "../../lib/handledErrorReporting"
 
 export type AttachMediaLibraryImageResult = { ok: true } | { ok: false; reason: "fetch_failed" | "too_large" }
 
@@ -18,7 +19,13 @@ export async function attachMediaLibraryImage(detail: AttachMediaToComposerDetai
     if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
     const blob = await response.blob()
     file = new File([blob], detail.name, { type: blob.type || detail.mimeType })
-  } catch (_error) {
+  } catch (error) {
+    reportHandledError(error, {
+      surface: "chat_media_library",
+      operation: "attach_image",
+      stage: "fetch_file",
+      recoverability: "retryable"
+    })
     return { ok: false, reason: "fetch_failed" }
   }
 
