@@ -503,7 +503,7 @@ describe("ReviewWorkspaceRoute", () => {
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
     scroller.scrollTop = 200
     let card = screen.getByTestId("mobile-review-card")
-    expect(card).toHaveClass("touch-pan-y")
+    expect(card).toHaveClass("touch-pan-x", "touch-pan-y")
     expect(card).not.toHaveClass("touch-none")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 12, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
@@ -733,9 +733,17 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
     const gestureSurface = screen.getByTestId("mobile-review-card")
     expect(gestureSurface.style.transform).toBe("")
-    expect(gestureSurface).toHaveClass("touch-pan-y")
+    expect(gestureSurface).toHaveClass("touch-pan-x", "touch-pan-y")
     expect(gestureSurface).not.toHaveClass("touch-none")
-    expect(carousel.element.closest(".touch-none")).toBeNull()
+    const touchActionAncestors = Array.from(carousel.element.parentElement ? [carousel.element.parentElement] : []).flatMap((ancestor) => {
+      const elements: HTMLElement[] = []
+      for (let element: HTMLElement | null = ancestor; element; element = element.parentElement) elements.push(element)
+      return elements
+    })
+    expect(touchActionAncestors.some((element) => element.classList.contains("touch-none"))).toBe(false)
+    expect(
+      touchActionAncestors.some((element) => element.classList.contains("touch-pan-y") && !element.classList.contains("touch-pan-x"))
+    ).toBe(false)
     expect(carousel.element).toHaveClass("overscroll-x-contain", "touch-pan-x", "touch-pan-y")
   })
 
