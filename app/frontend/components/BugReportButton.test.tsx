@@ -851,7 +851,9 @@ describe("BugReportButton", () => {
 
       fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
 
-      expect(await screen.findByText("This page is too complex for a safe full-page screenshot. The viewport screenshot is still available.")).toBeInTheDocument()
+      expect(
+        await screen.findByText("This page is too complex for a safe full-page screenshot. The viewport screenshot is still available.")
+      ).toBeInTheDocument()
       expect(screen.getByRole("radio", { name: "Viewport" })).toBeChecked()
       expect(mockHtml2canvas).toHaveBeenCalledOnce()
     })

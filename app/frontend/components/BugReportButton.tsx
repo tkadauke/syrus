@@ -17,13 +17,7 @@ import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
 import { formatBytes } from "../lib/format"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { mergeOptionalAttachments } from "../lib/bugReportOptionalAttachments"
-import {
-  captureFullPage,
-  captureViewport,
-  installScreenshotCaptureDebugHook,
-  loadHtml2Canvas,
-  UnsafeFullPageCaptureError
-} from "../lib/screenshotCapture"
+import { captureFullPage, captureViewport, installScreenshotCaptureDebugHook, loadHtml2Canvas, UnsafeFullPageCaptureError } from "../lib/screenshotCapture"
 
 installScreenshotCaptureDebugHook()
 
