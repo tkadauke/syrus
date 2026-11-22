@@ -1,3 +1,5 @@
+import { scrubBrowserErrorText } from "./browserErrorRedaction"
+
 function fnv1a64(input: string): string {
   let hash = 0xcbf29ce484222325n
   const prime = 0x100000001b3n
@@ -12,5 +14,8 @@ function fnv1a64(input: string): string {
 }
 
 export function computeBrowserErrorFingerprint(error: Error): string {
-  return fnv1a64(`${error.name}\n${error.message}\n${error.stack ?? ""}`)
+  const name = scrubBrowserErrorText(error.name)
+  const message = scrubBrowserErrorText(error.message)
+  const stack = scrubBrowserErrorText(error.stack ?? "")
+  return fnv1a64(`${name}\n${message}\n${stack}`)
 }
