@@ -1062,7 +1062,7 @@ describe("BugReportButton", () => {
         }
         return canvas.__mockContext
       })
-      vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,YW5ub3RhdGVk")
+      vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => callback(new Blob(["annotated"], { type: "image/png" })))
       vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
         bottom: 80,
         height: 80,

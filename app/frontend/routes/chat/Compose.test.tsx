@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
+import { useState } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { updateChatRepository, uploadChatAttachment, type ChatPayload, type ChatPendingAction, type ChatPendingActionGroup } from "../../api/chats"
 import { useWalkthroughRecorder } from "../../components/WalkthroughRecorder"
@@ -17,13 +18,51 @@ vi.mock("../../components/WalkthroughRecorder", async (importOriginal) => {
 })
 
 vi.mock("../../components/ImageAnnotationModal", () => ({
-  ImageAnnotationModal: ({ onDone, onExportError }: { onDone: (blob: Blob, shapes: []) => void; onExportError: (error: Error, retry: () => void) => void }) => (
-    <div role="dialog">
-      <button onClick={() => onDone(new Blob(["annotated"], { type: "image/png" }), [])}>Finish annotation</button>
-      <button onClick={() => onDone(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: "image/png" }), [])}>Finish oversized annotation</button>
-      <button onClick={() => onExportError(new Error("export failed"), () => onDone(new Blob(["retry"], { type: "image/png" }), []))}>Fail export</button>
-    </div>
-  )
+  ImageAnnotationModal: ({
+    onDone,
+    onExportError,
+    onClose
+  }: {
+    onDone: (blob: Blob, shapes: []) => void
+    onExportError: (error: Error, retry: () => void) => void
+    onClose: () => void
+  }) => {
+    const [failed, setFailed] = useState(false)
+    const retry = () => onDone(new Blob(["retry"], { type: "image/png" }), [])
+    return (
+      <div role="dialog">
+        {failed ? (
+          <div role="alert">
+            The annotated image could not be exported.
+            <button onClick={retry} type="button">
+              Retry
+            </button>
+            <button onClick={() => setFailed(false)} type="button">
+              Dismiss
+            </button>
+            <button onClick={onClose} type="button">
+              Cancel
+            </button>
+          </div>
+        ) : null}
+        <button onClick={() => onDone(new Blob(["annotated"], { type: "image/png" }), [])} type="button">
+          Finish annotation
+        </button>
+        <button onClick={() => onDone(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: "image/png" }), [])} type="button">
+          Finish oversized annotation
+        </button>
+        <button
+          onClick={() => {
+            setFailed(true)
+            onExportError(new Error("export failed"), retry)
+          }}
+          type="button"
+        >
+          Fail export
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock("../../lib/handledErrorReporting", () => ({ reportHandledError: vi.fn(() => true) }))
@@ -475,7 +514,7 @@ describe("Compose attachments", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fail export" }))
 
     expect(await screen.findByRole("alert")).toBeInTheDocument()
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible()
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible()

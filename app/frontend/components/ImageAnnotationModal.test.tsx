@@ -944,8 +944,13 @@ describe("ImageAnnotationModal", () => {
 
     expect(onDone).not.toHaveBeenCalled()
     expect(onExportError).toHaveBeenCalledWith(expect.any(Error), expect.any(Function))
-    onExportError.mock.calls[0][1]()
+    expect(screen.getByRole("alert")).toHaveTextContent("The annotated image could not be exported.")
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible()
+    expect(screen.getByRole("alert")).toContainElement(screen.getAllByRole("button", { name: "Cancel" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ type: "image/png" }), expect.any(Array))
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
   // --- Shape persistence across open/close cycles ---
