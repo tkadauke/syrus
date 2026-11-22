@@ -21,9 +21,30 @@ module.exports = {
   create(context) {
     const relative = relativePath(context.filename)
     if (isTestFile(relative) || APPROVED_INFRASTRUCTURE.has(relative)) return {}
+    const payloadBuilders = new Set(["buildBrowserErrorPayload"])
+    const browserErrorNamespaces = new Set()
+
     return {
+      ImportDeclaration(node) {
+        if (!/(?:^|\/)api\/browserErrors$/.test(node.source.value)) return
+        for (const specifier of node.specifiers) {
+          if (specifier.type === "ImportSpecifier" && specifier.imported.name === "buildBrowserErrorPayload") {
+            payloadBuilders.add(specifier.local.name)
+          }
+          if (specifier.type === "ImportNamespaceSpecifier") browserErrorNamespaces.add(specifier.local.name)
+        }
+      },
       CallExpression(node) {
-        if (node.callee.type === "Identifier" && node.callee.name === "buildBrowserErrorPayload") {
+        const directCall = node.callee.type === "Identifier" && payloadBuilders.has(node.callee.name)
+        const namespaceCall =
+          node.callee.type === "MemberExpression" &&
+          !node.callee.computed &&
+          node.callee.object.type === "Identifier" &&
+          browserErrorNamespaces.has(node.callee.object.name) &&
+          node.callee.property.type === "Identifier" &&
+          node.callee.property.name === "buildBrowserErrorPayload"
+
+        if (directCall || namespaceCall) {
           context.report({ node, messageId: "forbidden" })
         }
       }

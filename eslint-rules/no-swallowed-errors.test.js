@@ -30,4 +30,26 @@ describe("no-swallowed-errors", () => {
     )
     expect(messages).toHaveLength(0)
   })
+
+  it("does not treat unexecuted nested handlers as handling the failure", () => {
+    const messages = lintWithRule(
+      rule,
+      `
+      async function deferredReport() {
+        try { await work() } catch (error) {
+          const later = () => reportHandledError(error, context)
+          setError("failed")
+        }
+      }
+      async function deferredThrow() {
+        try { await work() } catch (error) {
+          function later() { throw error }
+          setError("failed")
+        }
+      }
+    `,
+      FILE
+    )
+    expect(messages).toHaveLength(2)
+  })
 })
