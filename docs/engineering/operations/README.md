@@ -1,5 +1,7 @@
 # Operations
 
+- [Plugin registry](plugin-registry.md) — index layout, serving, trust, and revocation.
+
 These are maintainer procedures for deploying, observing, diagnosing, and
 recovering Syrus itself. Operator feature instructions remain in
 `config/syrus_docs/`; public installation guidance remains in `website/`.
