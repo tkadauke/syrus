@@ -81,7 +81,7 @@ class PluginRegistryClient
     uri = URI.parse(url)
     raise Error, "Plugin registry git URL must use HTTPS" unless uri.is_a?(URI::HTTPS)
     raise Error, "Plugin registry git host is not permitted" unless SsrfGuard.safe_host?(uri.host)
-    refreshed_at = index_root.join(".syrus-refreshed-at")
+    refreshed_at = @cache_root.join("git-refreshed-at")
     return parse_entries(index_root) if index_root.join(".git").directory? && refreshed_at.exist? &&
       Time.current - refreshed_at.mtime < GIT_REFRESH_INTERVAL
     if index_root.join(".git").directory?
