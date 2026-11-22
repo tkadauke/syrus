@@ -105,7 +105,13 @@ describe("AdminBrowserErrors", () => {
           recent_errors: [],
           viewport: {},
           feature_flags: {},
-          metadata: {},
+          metadata: {
+            resource_path: "/assets/spa-entry.js",
+            last_completed_milestone: "shell_loaded",
+            browser_online: "false",
+            service_worker_controlled: "true",
+            resource_timing: { response_status: "503", transfer_classification: "network" }
+          },
           route_params: {},
           url: null,
           user_agent: null
@@ -137,6 +143,9 @@ describe("AdminBrowserErrors", () => {
     expect(screen.getByText(/ChunkError/)).toBeInTheDocument()
     expect(screen.getByText(/lazy\.js/)).toBeInTheDocument()
     expect(screen.getByText(/correlation-123/)).toBeInTheDocument()
+    expect(screen.getByText(/spa-entry\.js/)).toBeInTheDocument()
+    expect(screen.getByText(/shell_loaded/)).toBeInTheDocument()
+    expect(screen.getByText(/transfer_classification/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Hide" })).toBeInTheDocument()
   })
 })

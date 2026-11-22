@@ -8,6 +8,17 @@ class BrowserErrorEvent < ApplicationRecord
   MAX_RECENT_ITEMS = 20
   MAX_RESOURCE_TIMINGS = 8
   RECOVERABLE_BURST_WINDOW = 30.seconds
+  STARTUP_RESOURCE_EPISODE_WINDOW = 5.minutes
+  STARTUP_RESOURCE_METADATA_KEYS = %w[
+    resource_path resource_type initiator_type startup_phase last_completed_milestone
+    event_kind browser_online service_worker_present service_worker_controlled
+    revision_changed previous_app_revision resource_timing app_revision asset_revision
+  ].freeze
+  STARTUP_RESOURCE_TIMING_KEYS = %w[
+    response_status duration_bucket transfer_size_bucket encoded_size_bucket transfer_classification
+  ].freeze
+  STARTUP_RESOURCE_BUCKETS = %w[unavailable zero under_10kb 10kb_to_100kb 100kb_to_1mb over_1mb].freeze
+  STARTUP_DURATION_BUCKETS = %w[unavailable under_100ms 100ms_to_1s 1s_to_5s over_5s].freeze
 
   belongs_to :user
 
@@ -48,7 +59,7 @@ class BrowserErrorEvent < ApplicationRecord
           fingerprint: candidate.fingerprint,
           app_revision: candidate.app_revision,
           path: candidate.path,
-          last_occurred_at: (candidate.occurred_at - RECOVERABLE_BURST_WINDOW)..candidate.occurred_at
+          last_occurred_at: (candidate.occurred_at - candidate.merge_window)..candidate.occurred_at
         )
         .order(last_occurred_at: :desc)
         .first
@@ -60,13 +71,16 @@ class BrowserErrorEvent < ApplicationRecord
   def self.record_attributes(user:, payload:)
     raw = payload.respond_to?(:to_unsafe_h) ? payload.to_unsafe_h : payload.to_h
     attrs = Observability::EventPayloadSanitizer.sanitize(raw.deep_symbolize_keys)
+    attrs[:metadata] = sanitize_startup_resource_metadata(attrs[:metadata]) if attrs[:name] == "StartupResourceError"
     occurred_at = parse_event_time(attrs[:occurred_at]) || Time.current
+    startup_resource = attrs[:name] == "StartupResourceError"
+    fingerprint = startup_resource ? startup_resource_fingerprint(attrs) : attrs[:fingerprint]
     {
       user: user,
       occurred_at: occurred_at,
       last_occurred_at: occurred_at,
       app_revision: attrs[:app_revision] || SyrusVersion.current,
-      fingerprint: attrs[:fingerprint],
+      fingerprint: fingerprint,
       name: attrs[:name],
       message: attrs[:message],
       stack: attrs[:stack],
@@ -78,8 +92,50 @@ class BrowserErrorEvent < ApplicationRecord
       viewport: attrs[:viewport], feature_flags: attrs[:feature_flags],
       recent_api_requests: attrs[:recent_api_requests], recent_errors: attrs[:recent_errors],
       last_interaction: attrs[:last_interaction], resource_timings: attrs[:resource_timings],
-      recoverable: ActiveModel::Type::Boolean.new.cast(attrs[:recoverable]) || false, metadata: attrs[:metadata]
+      recoverable: startup_resource || ActiveModel::Type::Boolean.new.cast(attrs[:recoverable]) || false, metadata: attrs[:metadata]
     }
+  end
+
+  def self.sanitize_startup_resource_metadata(metadata)
+    source = normalized_event_json(metadata)
+    safe = source.slice(*STARTUP_RESOURCE_METADATA_KEYS)
+    path = safe["resource_path"].to_s.split(/[?#]/, 2).first
+    safe["resource_path"] = path.match?(%r{\A/assets/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\z}) ? path : "unknown"
+    safe["resource_type"] = "unknown" unless %w[script stylesheet].include?(safe["resource_type"])
+    safe["initiator_type"] = "unknown" unless %w[script link].include?(safe["initiator_type"])
+    safe["event_kind"] = "unknown" unless %w[error load].include?(safe["event_kind"])
+    safe["startup_phase"] = "unknown" unless %w[startup post_render].include?(safe["startup_phase"])
+    safe["last_completed_milestone"] = "unknown" unless %w[none shell_loaded react_module_evaluated react_commit react_post_paint].include?(safe["last_completed_milestone"])
+    %w[browser_online service_worker_present service_worker_controlled revision_changed].each do |key|
+      safe[key] = ActiveModel::Type::Boolean.new.cast(safe[key])
+    end
+    %w[previous_app_revision app_revision asset_revision].each do |key|
+      value = safe[key].to_s
+      safe[key] = value.match?(%r{\A[A-Za-z0-9._-]{1,100}\z}) ? value : nil
+    end
+    safe["resource_timing"] = sanitize_startup_resource_timing(safe["resource_timing"])
+    safe
+  end
+
+  def self.sanitize_startup_resource_timing(timing)
+    return nil unless timing.is_a?(Hash)
+
+    safe = normalized_event_json(timing).slice(*STARTUP_RESOURCE_TIMING_KEYS)
+    status = Integer(safe["response_status"], exception: false)
+    safe["response_status"] = status&.between?(0, 599) ? status : nil
+    safe["duration_bucket"] = "unavailable" unless STARTUP_DURATION_BUCKETS.include?(safe["duration_bucket"])
+    %w[transfer_size_bucket encoded_size_bucket].each do |key|
+      safe[key] = "unavailable" unless STARTUP_RESOURCE_BUCKETS.include?(safe[key])
+    end
+    safe["transfer_classification"] = "unavailable" unless %w[unavailable cache service_worker network].include?(safe["transfer_classification"])
+    safe
+  end
+
+  def self.startup_resource_fingerprint(attrs)
+    metadata = normalized_event_json(attrs[:metadata])
+    Digest::SHA256.hexdigest([
+      "startup-resource", metadata["previous_app_revision"], attrs[:app_revision], attrs[:path], metadata["resource_path"]
+    ].join("\n"))
   end
 
   def merge_recoverable_occurrence!(candidate)
@@ -97,6 +153,10 @@ class BrowserErrorEvent < ApplicationRecord
       updated_at: Time.current
     )
     self
+  end
+
+  def merge_window
+    name == "StartupResourceError" ? STARTUP_RESOURCE_EPISODE_WINDOW : RECOVERABLE_BURST_WINDOW
   end
 
   private

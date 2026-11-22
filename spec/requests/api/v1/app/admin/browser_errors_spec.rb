@@ -31,6 +31,13 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
         "error_cause" => { "name" => "ChunkError" },
         "last_interaction" => { "event_type" => "click", "target" => { "tag" => "button" } },
         "resource_timings" => [ { "name" => "/assets/lazy.js", "duration_ms" => 450 } ],
+        "metadata" => {
+          "resource_path" => "/assets/spa-entry.js",
+          "last_completed_milestone" => "shell_loaded",
+          "browser_online" => false,
+          "service_worker_controlled" => true,
+          "resource_timing" => { "response_status" => 503, "transfer_classification" => "network" }
+        },
         "recent_api_requests" => [ { "path" => "/api/v1/app/jobs/3188", "status" => 200 } ]
       }
     )
@@ -76,6 +83,13 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
       "error_cause" => { "name" => "ChunkError" },
       "last_interaction" => include("event_type" => "click"),
       "resource_timings" => [ include("name" => "/assets/lazy.js") ]
+    )
+    expect(detail.fetch("metadata")).to include(
+      "resource_path" => "/assets/spa-entry.js",
+      "last_completed_milestone" => "shell_loaded",
+      "browser_online" => "false",
+      "service_worker_controlled" => "true",
+      "resource_timing" => include("response_status" => "503", "transfer_classification" => "network")
     )
   end
 
