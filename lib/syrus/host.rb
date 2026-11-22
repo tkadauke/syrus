@@ -1,7 +1,12 @@
 require "rubygems/version"
+require "syrus/plugin/family"
+require "syrus/plugin/composition"
+require "syrus/plugin/dispatch"
 
 module Syrus
   module Host
+    CapabilityFamily = Syrus::Plugin::Family
+    CapabilityDispatch = Syrus::Plugin::Dispatch
     Api = Data.define(:name, :since, :summary, :members)
 
     class << self

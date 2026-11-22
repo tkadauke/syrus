@@ -721,6 +721,21 @@ asking for exact-invocation authority. Service-specific mailboxes, calendars,
 drives, channels, or comparable selectors belong in the scope's typed
 `sub_resources` object rather than in the capability name.
 
+The bundled, experimental **Mail** and **Personal Calendar** concept plugins
+provide the read-only reference pattern. They are disabled by default. Mail
+adapters implement keyed, provisional `search` and `read_message` capabilities;
+personal-calendar adapters implement keyed, provisional `list_events` and
+`get_event` capabilities. The personal-calendar name deliberately distinguishes
+account calendars from Syrus's operations Calendar plugin.
+
+Both concept plugins select a connected account explicitly, request only their
+read scope through the account broker, and require an authorized invocation.
+Adapters receive short-lived access rather than stored token material. The
+concept layer labels returned data `external_untrusted`, removes markup, and
+writes oversized bodies and every attachment to workspace files. Adapter tests
+can use the bundled fake adapters without network access; their plugin docs
+describe the context and result shapes.
+
 Data removal is a separate, explicit operation after uninstall. Operators can
 preview it with `bin/rails 'plugin:data[name]'` and confirm it with
 `bin/rails 'plugin:purge[name]'`. Purge removes declared plugin tables,
