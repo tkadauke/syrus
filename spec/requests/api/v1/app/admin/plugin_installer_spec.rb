@@ -14,6 +14,43 @@ RSpec.describe "API: plugin installer", type: :request do
     sign_in_as(Factories.user(admin: false))
     get "/api/v1/app/admin/plugin_installer"
     expect(response).to have_http_status(:forbidden)
+
+    [
+      [ "/api/v1/app/admin/plugin_installer/stage", { archive: "invalid" } ],
+      [ "/api/v1/app/admin/plugin_installer/stage_remove", { name: "weather" } ],
+      [ "/api/v1/app/admin/plugin_installer/stage_release", { name: "weather", version: "1.0.0" } ],
+      [ "/api/v1/app/admin/plugin_installer/changes/1/confirm", {} ],
+      [ "/api/v1/app/admin/plugin_installer/lockfile", { lockfile: "invalid" } ]
+    ].each do |path, params|
+      post path, params: params
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  it "stages a stored release for rollback" do
+    sign_in_as(admin)
+    PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,
+      capability_manifest: { "routes" => [ "/weather" ] }, status: "confirmed", staged_by: admin,
+      confirmed_by: admin, confirmed_at: Time.current)
+
+    post "/api/v1/app/admin/plugin_installer/stage_release", params: { name: "weather", version: "1.0.0" }
+
+    expect(response).to have_http_status(:created)
+    expect(JSON.parse(response.body)).to include("name" => "weather", "version" => "1.0.0",
+      "capability_manifest" => { "routes" => [ "/weather" ] })
+  end
+
+  it "rejects a revoked release when confirmation would change desired state" do
+    sign_in_as(admin)
+    change = PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,
+      capability_manifest: {}, status: "pending", staged_by: admin)
+    trust_store = instance_double(Syrus::PluginPackage::TrustStore, revoked?: true)
+    allow(Syrus::PluginPackage::TrustStore).to receive(:cached).and_return(trust_store)
+
+    post "/api/v1/app/admin/plugin_installer/changes/#{change.id}/confirm"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(PluginInstallation).not_to exist(plugin_name: "weather")
   end
 
   it "does not change desired state until the staged install is confirmed" do

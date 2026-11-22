@@ -492,6 +492,8 @@
       "restart_required": "Status desideratus mutatus est. Mutationes applica ut classis congruat et denuo incipiat.",
       "apply": "Mutationes applica",
       "remove": "Remove",
+      "stored_releases": "Emissiones servatae",
+      "restore": "Restitue",
       "actions": { "install": "Institue", "update": "Renova", "remove": "Remove" }
     },
     "trust_labels": {

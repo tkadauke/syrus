@@ -15,7 +15,7 @@ func TestPluginListShowsInstalledReleaseTrustAndHealth(t *testing.T) {
 		if r.URL.Path != "/api/v1/app/admin/plugin_installer" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
-		_, _ = io.WriteString(w, `{"installations":[{"Name":"weather","Version":"1.2.3","Source":"upload","TrustLabel":"verified","Health":"healthy"}]}`)
+		_, _ = io.WriteString(w, `{"installations":[{"name":"weather","version":"1.2.3","source":"upload","trust_label":"verified","health":"healthy"}]}`)
 	}))
 	defer server.Close()
 	writePluginTestCredentials(t, server.URL)
@@ -87,6 +87,36 @@ func TestPluginInstallUploadsArchiveAndConfirms(t *testing.T) {
 	command := NewRootCommand()
 	command.SetOut(io.Discard)
 	command.SetArgs([]string{"plugin", "install", archive, "--yes"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !confirmed {
+		t.Fatal("confirmation endpoint was not called")
+	}
+}
+
+func TestPluginInstallStagesStoredVersionAndConfirms(t *testing.T) {
+	confirmed := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/admin/plugin_installer/stage_release":
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), `"name":"weather"`) || !strings.Contains(string(body), `"version":"1.0.0"`) {
+				t.Fatalf("body = %s", body)
+			}
+			_, _ = io.WriteString(w, `{"id":10,"name":"weather","action":"update","version":"1.0.0","source":"registry","trust_label":"verified","capability_manifest":{"routes":["/weather"]}}`)
+		case "/api/v1/app/admin/plugin_installer/changes/10/confirm":
+			confirmed = true
+			_, _ = io.WriteString(w, `{"restart_required":true}`)
+		default:
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writePluginTestCredentials(t, server.URL)
+	command := NewRootCommand()
+	command.SetOut(io.Discard)
+	command.SetArgs([]string{"plugin", "install", "weather@1.0.0", "--yes"})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
