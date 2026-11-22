@@ -38,7 +38,7 @@ describe("PluginErrorBoundary", () => {
       </PluginErrorBoundary>
     )
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading...")
+    expect(screen.getByTestId("plugin-loading")).toHaveTextContent("Loading...")
     resolveChunk({ default: () => <p>Schema ERD</p> })
 
     expect(await screen.findByText("Schema ERD")).toBeInTheDocument()

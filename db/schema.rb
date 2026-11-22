@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_172512) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2808,28 +2808,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
     t.index ["source_type", "source_id"], name: "idx_operator_briefing_items_source"
   end
 
-  create_table "operator_briefing_review_findings", force: :cascade do |t|
-    t.integer "workflow_id", null: false
-    t.integer "step_id"
-    t.integer "run_id"
-    t.string "review_kind", null: false
-    t.integer "iteration", null: false
-    t.string "verdict", null: false
-    t.text "critique", null: false
-    t.json "artifacts"
-    t.boolean "overridden", default: false, null: false
-    t.datetime "overridden_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "skipped", default: false, null: false
-    t.string "skip_reason"
-    t.index ["run_id"], name: "index_operator_briefing_review_findings_on_run_id"
-    t.index ["step_id"], name: "index_operator_briefing_review_findings_on_step_id"
-    t.index ["workflow_id", "review_kind", "iteration", "run_id"], name: "idx_operator_briefing_review_findings_identity", unique: true
-    t.index ["workflow_id", "review_kind", "verdict", "overridden"], name: "idx_operator_briefing_review_findings_lookup"
-    t.index ["workflow_id"], name: "index_operator_briefing_review_findings_on_workflow_id"
-  end
-
   create_table "operator_briefing_revisions", force: :cascade do |t|
     t.integer "briefing_id", null: false
     t.integer "revision_number", null: false
@@ -2921,24 +2899,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
     t.index ["first_seen_briefing_item_id"], name: "index_operator_briefing_topics_on_first_seen_briefing_item_id"
     t.index ["repository_id", "slug"], name: "idx_operator_briefing_topics_repo_slug", unique: true
     t.index ["repository_id"], name: "index_operator_briefing_topics_on_repository_id"
-  end
-
-  create_table "operator_briefing_workflow_notable_changes", force: :cascade do |t|
-    t.integer "workflow_id", null: false
-    t.integer "job_id", null: false
-    t.integer "repository_id", null: false
-    t.string "detector_key", null: false
-    t.string "fact_key", null: false
-    t.string "severity", null: false
-    t.text "summary", null: false
-    t.json "evidence"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_id"], name: "index_operator_briefing_workflow_notable_changes_on_job_id"
-    t.index ["repository_id", "severity", "created_at"], name: "idx_operator_briefing_notable_changes_repo_severity"
-    t.index ["repository_id"], name: "idx_on_repository_id_f6cdaacbc0"
-    t.index ["workflow_id", "fact_key"], name: "idx_operator_briefing_notable_changes_identity", unique: true
-    t.index ["workflow_id"], name: "idx_on_workflow_id_92b5d0245e"
   end
 
   create_table "passkey_challenges", force: :cascade do |t|

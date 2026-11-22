@@ -74,7 +74,17 @@ func (c *Client) newRequest(ctx context.Context, method string, path string, bod
 	if err != nil {
 		return nil, err
 	}
+	// The bearer token belongs to the selected instance only. Do is exported
+	// for plugin CLI modules, so a path that names its own scheme or host
+	// (absolute, or scheme-relative "//host/...") would otherwise send the
+	// user's token to that host.
+	if relative.Scheme != "" || relative.Host != "" {
+		return nil, fmt.Errorf("refusing request outside the Syrus instance: %q", relative.Redacted())
+	}
 	endpoint := c.baseURL.ResolveReference(relative)
+	if endpoint.Scheme != c.baseURL.Scheme || endpoint.Host != c.baseURL.Host {
+		return nil, fmt.Errorf("refusing request outside the Syrus instance: %q", endpoint.Redacted())
+	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
 	if err != nil {
 		return nil, err

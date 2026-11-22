@@ -54,7 +54,11 @@ class WorkUnit < ApplicationRecord
   # lock contention, dependencies finishing) keep their locks, because they
   # genuinely are about to run and releasing would let a later landing cut
   # ahead of them.
+  # `agent_cannot_proceed` belongs here too: a started landing whose repair
+  # agent reported it cannot proceed waits for a person or the agent to act,
+  # never for time to pass.
   EXTERNALLY_CLEARED_BLOCKED_REASONS = %w[
+    agent_cannot_proceed
     ci_repair_disabled
     no_capable_worker
   ].freeze
@@ -220,9 +224,11 @@ class WorkUnit < ApplicationRecord
         blocked_by_user: nil
       )
       work_unit_locks.active.find_each(&:release!)
+      # Inside the transaction: a finished unit and its intent's outcome commit
+      # together, so neither a crash nor a failing sync can leave a terminal
+      # unit with an open intent.
+      WorkIntents::TerminalUnitSync.call(self)
     end
-
-    WorkIntents::TerminalUnitSync.call(self)
   end
 
   def preempt!(reason:, by_work_unit: nil)
@@ -251,9 +257,10 @@ class WorkUnit < ApplicationRecord
         work_unit_locks.active.find_each(&:release!)
         sync_terminal = true
       end
+      # Same transaction as the cancellation, as in mark_terminal!.
+      WorkIntents::TerminalUnitSync.call(self) if sync_terminal
     end
 
-    WorkIntents::TerminalUnitSync.call(self) if sync_terminal
     self
   end
 

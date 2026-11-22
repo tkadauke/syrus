@@ -45,12 +45,19 @@ RSpec.describe "uninstall scripts", :ci_only do
   #                  drives the honest-failure / keys-preservation path.
   #   rmi_fails:     every `rmi` refuses (image in use) — drives the
   #                  "left in place, not counted as removed" path.
-  def write_docker_stub(dir, daemon_up: true, stuck_volumes: false, rmi_fails: false)
+  def write_docker_stub(dir, daemon_up: true, stuck_volumes: false, rmi_fails: false, images: nil)
     calls = File.join(dir, "calls.log")
     containers = File.join(dir, "containers.txt")
     volumes = File.join(dir, "volumes.txt")
     File.write(containers, "cid-web\ncid-worker\ncid-setup\n")
     File.write(volumes, "syrus_syrus-data\nsyrus_syrus-mise-cache\nsyrus_syrus-search\n")
+    images ||= [
+      "ghcr.io/tkadauke/syrus-backend 0.1.2", "ghcr.io/someone/syrus-local dev-abc",
+      "registry.example.com:5000/fork/syrus-backend latest", "my-syrus-backend latest", "nginx latest",
+      "ghcr.io/tkadauke/syrus-plugin-git-mirror 0.1.2", "my-syrus-plugin-thing latest"
+    ]
+    images_file = File.join(dir, "images.txt")
+    File.write(images_file, images.map { |image| "#{image}\n" }.join)
     volume_rm_body =
       if stuck_volumes
         "exit 1"
@@ -74,7 +81,7 @@ RSpec.describe "uninstall scripts", :ci_only do
         ps) cat "#{containers}" 2>/dev/null; exit 0 ;;
         rm) : > "#{containers}"; exit 0 ;;
         images)
-          printf 'ghcr.io/tkadauke/syrus-backend 0.1.2\\nghcr.io/someone/syrus-local dev-abc\\nregistry.example.com:5000/fork/syrus-backend latest\\nmy-syrus-backend latest\\nnginx latest\\nghcr.io/tkadauke/syrus-plugin-git-mirror 0.1.2\\nmy-syrus-plugin-thing latest\\n'
+          cat "#{images_file}"
           exit 0 ;;
         rmi) exit #{rmi_fails ? 1 : 0} ;;
         volume)
@@ -144,6 +151,38 @@ RSpec.describe "uninstall scripts", :ci_only do
       end
       # The interactive prompt is a real one-question y/N gate.
       expect(script_text).to include('read -r -p "Remove Syrus from this machine? [y/N] "')
+    end
+
+    # The image sweep's channel filter must classify tags exactly as the
+    # desktop's tagChannel (channel.ts) does: test only for test-<x> or a tag
+    # ENDING in -test.<digits>. The glob *-test.[0-9]* also matched a
+    # -test.<digit> anywhere, so a test uninstall retired tags the app
+    # treats as stable, and a stable uninstall left them behind.
+    it "retires exactly the tags the desktop classifies as this channel's" do
+      images = [
+        "ghcr.io/tkadauke/syrus-backend 0.1.2",
+        "ghcr.io/tkadauke/syrus-backend test-abc123",
+        "ghcr.io/tkadauke/syrus-backend 0.1.2-test.4",
+        "ghcr.io/tkadauke/syrus-backend 0.1.2-test.4-hotfix",
+        "ghcr.io/tkadauke/syrus-backend 0.1.2-test.4.1"
+      ]
+      removed = {}
+      %w[test stable].each do |channel|
+        Dir.mktmpdir do |stub_dir|
+          Dir.mktmpdir do |home|
+            write_uname_stub(stub_dir)
+            write_docker_stub(stub_dir, images: images)
+            populate_home(home)
+
+            _out, _err, status = run_uninstall("--keep-data", "--channel", channel, "--json", home: home, stub_dir: stub_dir)
+            expect(status.exitstatus).to eq(0)
+            removed[channel] = stub_calls(stub_dir).grep(/\Armi /).map { |call| call.split(":").last }
+          end
+        end
+      end
+
+      expect(removed["test"]).to contain_exactly("test-abc123", "0.1.2-test.4")
+      expect(removed["stable"]).to contain_exactly("0.1.2", "0.1.2-test.4-hotfix", "0.1.2-test.4.1")
     end
 
     it "refuses to run unconfirmed outside a terminal instead of assuming yes" do

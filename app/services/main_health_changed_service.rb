@@ -7,6 +7,13 @@ class MainHealthChangedService
   MAX_RECOVERY_RETRIES = 10
   MAX_RECOVERY_SCAN = 1_000
   MAX_OPEN_FAILED_FIX_JOBS = 3
+  # The cap stops a runaway: three repairs failing in a row. It is not a
+  # permanent latch. Failed repair Jobs stay open until someone closes them, so
+  # counting every one ever made the third failure stop automatic repair for
+  # good -- three repairs that died on harness bugs (now fixed) left main broken
+  # until a human closed them, while main moved on to commits none of them had
+  # tried. Only repairs that failed recently count.
+  FAILED_FIX_JOB_CAP_WINDOW = 6.hours
   REPAIR_CANCELLATION_COOLDOWN = 30.minutes
   MAX_SUMMARY_ATTACHMENT_BYTES = 256.kilobytes
   MAX_CI_ATTACHMENT_BYTES = 4.megabytes
@@ -101,6 +108,16 @@ class MainHealthChangedService
       surface_stuck_blocking_repair!(stuck_job) if stuck_job
       return
     end
+    # A failed repair with a pending auto-retry is not over: the retry will
+    # relaunch it. Spawning another repair meanwhile ran two at once, each with
+    # a full preflight grader fan-out on the same main.
+    if (job = retrying_fix_job)
+      Rails.logger.info(
+        "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
+        "failed repair job #{job.slug} has a pending auto-retry"
+      )
+      return
+    end
     if !force && (job = failed_fix_job_for_current_sha)
       Rails.logger.warn(
         "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
@@ -139,7 +156,7 @@ class MainHealthChangedService
       return
     end
 
-    failed_count = open_failed_fix_jobs.count
+    failed_count = capped_failed_fix_jobs.count
     if failed_count >= MAX_OPEN_FAILED_FIX_JOBS
       Rails.logger.warn(
         "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
@@ -515,6 +532,10 @@ class MainHealthChangedService
     repair_jobs.where(state: "failed")
   end
 
+  def capped_failed_fix_jobs(now: Time.current)
+    open_failed_fix_jobs.where("COALESCE(jobs.finished_at, jobs.updated_at) >= ?", now - FAILED_FIX_JOB_CAP_WINDOW)
+  end
+
   def failed_fix_job_for_current_sha
     sha = checked_sha
     return if sha == "unknown"
@@ -567,18 +588,25 @@ class MainHealthChangedService
       .order(updated_at: :desc, id: :desc)
       .limit(50)
       .to_a
-    failed_count = repair_jobs.where(state: "failed").count
+    capped = capped_failed_fix_jobs.order(updated_at: :desc, id: :desc).limit(MAX_OPEN_FAILED_FIX_JOBS).to_a
 
     {
       blocking: candidates.find { |job| BLOCKING_FIX_JOB_STATES.include?(job.state) },
-      failed_jobs: candidates.select(&:failed?).first(MAX_OPEN_FAILED_FIX_JOBS),
-      failed_count: failed_count
+      failed_jobs: capped,
+      failed_count: capped_failed_fix_jobs.count
     }
   end
 
   def blocking_fix_job
     repair_jobs
       .where(state: BLOCKING_FIX_JOB_STATES)
+      .order(updated_at: :desc, id: :desc)
+      .first
+  end
+
+  def retrying_fix_job
+    open_failed_fix_jobs
+      .where(id: AutoRetryAttempt.pending.select(:job_id))
       .order(updated_at: :desc, id: :desc)
       .first
   end

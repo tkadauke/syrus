@@ -108,3 +108,47 @@ func TestLoadDefaultCredentialsReportsIncompleteInvocationContext(t *testing.T) 
 		t.Fatalf("expected ErrMissingInvocationContext, got %v", err)
 	}
 }
+
+// SaveCredentials wrote the token into whatever the path pointed at and only
+// then tightened its mode, so a credentials path that is a symlink sent the
+// token into the link's target (with that file's permissions), and a
+// pre-existing loose file held the new token readable until the chmod. The
+// token is now written to a fresh 0600 file beside the path and renamed over
+// it, replacing the link itself.
+func TestSaveCredentialsNeverWritesThroughASymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(t.TempDir(), "elsewhere")
+	if err := os.WriteFile(target, []byte("unrelated\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "credentials")
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveCredentials(path, Credentials{URL: "https://syrus.example.com", Token: "secret-token"}); err != nil {
+		t.Fatalf("SaveCredentials: %v", err)
+	}
+
+	contents, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(contents), "secret-token") {
+		t.Fatalf("token was written through the symlink into %s", target)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("credentials path is still a symlink")
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("mode = %v, want 0600", info.Mode().Perm())
+	}
+	saved, err := LoadCredentials(path)
+	if err != nil || saved.Token != "secret-token" {
+		t.Fatalf("LoadCredentials = %+v, %v", saved, err)
+	}
+}

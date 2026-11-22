@@ -563,7 +563,27 @@ class RunHostAdmission
     grader_memory_reserve_bytes
   end
 
+  # A grader's declared working set (`.syrus.yml` resources.memory) is the
+  # floor of its reservation. Learned evidence can only raise it: a suite whose
+  # browser or server processes escape command attribution would otherwise be
+  # charged one generic unit while it fills the host.
   def memory_reservation_for(candidate_step)
+    reservation = observed_memory_reservation_for(candidate_step)
+    declared = declared_memory_bytes_for(candidate_step)
+    return reservation unless declared && declared > reservation.fetch(:bytes)
+
+    { bytes: declared, source: "declared" }
+  end
+
+  def declared_memory_bytes_for(candidate_step)
+    return nil unless grader_step?(candidate_step)
+
+    GraderResourceRequest.from_details(candidate_step.details.to_h["resources"])&.memory_bytes
+  rescue ArgumentError
+    nil
+  end
+
+  def observed_memory_reservation_for(candidate_step)
     fallback = memory_unit_bytes.to_i * compute_units_for(candidate_step)
     attributed = process_attributed_memory_bytes_for(candidate_step)
     if attributed

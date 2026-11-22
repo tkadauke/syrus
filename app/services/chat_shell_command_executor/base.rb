@@ -23,6 +23,12 @@ module ChatShellCommandExecutor
       raise NotImplementedError
     end
 
+    # Returns a stable error code when `!` commands are refused by instance
+    # policy rather than not ready yet, or nil.
+    def policy_error_code(_chat_session)
+      nil
+    end
+
     # Blocks the calling job until the command finishes, is cancelled, or
     # times out, and returns a Result.
     def run!(command_record)

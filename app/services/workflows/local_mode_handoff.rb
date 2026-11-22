@@ -55,6 +55,13 @@ module Workflows
       Rails.logger.warn("[LocalModeHandoff] after_fail raised for workflow #{workflow.id}: #{e.class}: #{e.message}")
     end
 
+    # Generic cancel propagation skips this kind. A cancelled handoff fails the
+    # Job it lifted to :running and unlinks its chat, unless newer work
+    # superseded it.
+    def self.after_cancel(workflow)
+      Workflows::HandoffCancellation.settle_job!(workflow, clear_chat_link: true)
+    end
+
     def self.grader_failure?(workflow)
       workflow.steps.where(kind: "grader_collect", state: "failed").exists?
     end

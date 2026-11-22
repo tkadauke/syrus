@@ -1776,12 +1776,11 @@ module WorkEngine
         end
     end
 
+    # The same rule AutoRetryJob applies before launching the retry.
     def source_auto_retry_superseded?(job, source)
       return false unless job && source
 
-      source.succeeded? ||
-        Workflows::ValidationSupersession.superseded_by_successful_workflow?(source) ||
-        branch_divergence_recovered_by_current_pr_branch?(source)
+      Workflows::AutoRetrySupersession.superseded?(source)
     end
 
     # A pending AutoRetryAttempt already owns recovery for this workflow (it
@@ -1828,6 +1827,9 @@ module WorkEngine
         latest = latest_workflow_for_job(job)
         next if job.failed? && latest&.queued? && ReconcileJobStatesJob::Plan.for(job)
         next if job.failed? && active_repair_workflows?(active)
+        # A non-approval-blocking follow-up leaves an implemented Job
+        # implemented on purpose (JobLifecyclePropagation.lifts_job_on_start?).
+        next if job.implemented? && active.all? { |workflow| Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind) }
         next if active.all? { |workflow| expected_start_blocked_workflow?(job, workflow) }
 
         issue(

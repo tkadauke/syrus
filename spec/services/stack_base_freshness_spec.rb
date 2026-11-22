@@ -158,6 +158,58 @@ RSpec.describe StackBaseFreshness, :ci_only do
     expect(work).to be_present
   end
 
+  # Regression: a stacked child that had merged main (a grader repair does
+  # this) carried main's commits in prepared..HEAD. Once the parent was rebased
+  # onto that same main, `rebase --onto live prepared` replayed those main
+  # commits one by one on top of a base that already contained them, and the
+  # replay conflicted -- 123 commits for a child with a handful of its own.
+  it "replays only the child's own commits when the child merged main the parent has since absorbed" do
+    sh(parent_clone, "checkout", "-q", "main")
+    commit(parent_clone, "shared.txt", "one\n")
+    commit(parent_clone, "shared.txt", "two\n")
+    sh(parent_clone, "push", "-q", "origin", "main")
+    sh(child, "fetch", "-q", "origin", "main")
+    sh(child, "-c", "user.name=t", "-c", "user.email=t@example.com", "merge", "-q", "--no-edit", "origin/main")
+    commit(child, "child-after-merge.txt")
+    sh(parent_clone, "checkout", "-q", "parent")
+    sh(parent_clone, "-c", "user.name=t", "-c", "user.email=t@example.com", "rebase", "-q", "main")
+    sh(parent_clone, "push", "-q", "--force", "origin", "HEAD:refs/heads/#{parent_ref}")
+    live = fetch_live.call
+
+    # Prove the fixture hits the bug with the plain --onto replay.
+    expect { sh(child, "rebase", "--onto", live, @prepared) }.to raise_error(GitRunner::GitError)
+    sh(child, "rebase", "--abort")
+
+    result = barrier.ensure_fresh!
+
+    expect(result.status).to eq(:rebased)
+    expect(barrier.descends_from?(live)).to be(true)
+    expect(sh(child, "log", "--format=%s", "#{live}..HEAD").split("\n"))
+      .to eq([ "add child-after-merge.txt", "add child.txt" ])
+    expect(child.join("shared.txt").read).to eq("two\n")
+    expect(child_files).to include("child.txt", "child-after-merge.txt", "parent.txt")
+  end
+
+  it "restores the completed work when replaying the child's own commits conflicts" do
+    sh(parent_clone, "checkout", "-q", "main")
+    commit(parent_clone, "shared.txt", "one\n")
+    sh(parent_clone, "push", "-q", "origin", "main")
+    sh(child, "fetch", "-q", "origin", "main")
+    sh(child, "-c", "user.name=t", "-c", "user.email=t@example.com", "merge", "-q", "--no-edit", "origin/main")
+    work = sh(child, "rev-parse", "HEAD")
+    sh(parent_clone, "checkout", "-q", "parent")
+    sh(parent_clone, "-c", "user.name=t", "-c", "user.email=t@example.com", "rebase", "-q", "main")
+    commit(parent_clone, "child.txt", "conflicting")
+    sh(parent_clone, "push", "-q", "--force", "origin", "HEAD:refs/heads/#{parent_ref}")
+
+    expect { barrier.ensure_fresh! }.to raise_error(described_class::RebaseConflict) { |error|
+      expect(error.evidence["conflicted_files"]).to include(hash_including("path" => "child.txt"))
+    }
+    expect(sh(child, "rev-parse", "HEAD")).to eq(work)
+    expect(child.join(".git/CHERRY_PICK_HEAD")).not_to exist
+    expect(child.join(".git/sequencer")).not_to exist
+  end
+
   it "aborts and raises when the child's commits conflict with the moved parent" do
     sh(parent_clone, "checkout", "-q", "parent")
     sh(parent_clone, "reset", "-q", "--hard", "main")

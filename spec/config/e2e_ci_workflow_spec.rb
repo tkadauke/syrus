@@ -14,6 +14,14 @@ RSpec.describe "e2e CI workflow" do
   let(:workflow_text) { File.read(workflow_path, encoding: "UTF-8") }
   let(:workflow) { YAML.safe_load(workflow_text) }
 
+  # A red e2e check used to say only "Process completed with exit code 1";
+  # which tests failed lived in the raw log alone.
+  it "reports failed tests as check annotations on GitHub Actions" do
+    config = File.read(File.join(repo_root, "playwright.config.ts"), encoding: "UTF-8")
+
+    expect(config).to match(/reporter:\s*process\.env\.GITHUB_ACTIONS\s*\?\s*\[\["github"\]/)
+  end
+
   it "exists and parses as a single e2e job" do
     expect(File).to exist(workflow_path)
     expect(workflow.dig("jobs", "e2e")).to be_present

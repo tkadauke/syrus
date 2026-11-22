@@ -114,6 +114,29 @@ RSpec.describe "Plugin source boundaries" do
     end
   end
 
+  # Regression: pr_open's post-rebase validation ran this audit in a checkout
+  # where `git ls-files` was unavailable, so it fell back to scanning every
+  # file -- including the minified Vite bundles an earlier grader built into
+  # app/assets/builds -- and failed the stack rebase on "core references
+  # connected_accounts" inside a digested bundle.
+  it "never scans compiled build output, even when the git index is unavailable" do
+    Dir.mktmpdir do |dir|
+      root = Pathname.new(dir)
+      builds = root.join("app/assets/builds")
+      builds.mkpath
+      builds.join("spa-SyrusDevPanel-abc123.digested.js").write("import{x}from\"./a.js\";SyrusDev::SqlExplain.call(sql)\n")
+      services = root.join("app/services")
+      services.mkpath
+      services.join("core_file.rb").write("SyrusDev::SqlExplain.call(sql: 'select 1')\n")
+      File.symlink(Rails.root.join("plugins").to_s, root.join("plugins").to_s)
+
+      messages = Admin::PluginSourceBoundaryAudit.new(root: root).core_violations.map(&:message)
+
+      expect(messages).to include(/app\/services\/core_file\.rb/)
+      expect(messages).not_to include(/app\/assets\/builds/)
+    end
+  end
+
   it "treats shared frontend test-support modules as test code", :requires_git_checkout do
     Dir.mktmpdir do |dir|
       root = Pathname.new(dir)

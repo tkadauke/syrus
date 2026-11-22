@@ -1,7 +1,14 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatBookmark, ChatPayload, ChatsIndexPayload } from "../api/chats"
-import { applyAppEvent, queryKeysFor, recoverAppEventContinuity, recoverChatResourceContinuity, resetAppEventSequenceTracking } from "./appEvents"
+import {
+  APP_EVENT_GAP_GRACE_MS,
+  applyAppEvent,
+  queryKeysFor,
+  recoverAppEventContinuity,
+  recoverChatResourceContinuity,
+  resetAppEventSequenceTracking
+} from "./appEvents"
 import { recentChatsQueryKey } from "./chatCache"
 import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
 import { flushClientMetricsQueue, resetClientMetricsForTest } from "./clientMetrics"
@@ -1558,6 +1565,66 @@ describe("applyAppEvent revisioned event patches", () => {
 
     expect(readEntity("workflows", 7)?.fields.state).toBe("running")
     expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["workflows", "7"] }))
+  })
+
+  // A sequence that never arrives carries an unknown resource, so the targeted
+  // refresh of the event after the gap cannot cover it. After a short grace
+  // period for late delivery (F67), any sequence still missing triggers the
+  // same continuity sweep a reconnect does (NY19,
+  // formal/SyrusModel/GapRecovery.lean).
+  describe("genuinely lost events", () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    // The continuity sweep is the one refetch over every active query that
+    // matches a predicate rather than naming a query key.
+    function sweeps(refetch: { mock: { calls: unknown[][] } }) {
+      return refetch.mock.calls.filter(([filters]: unknown[]) => {
+        const value = filters as { type?: string; predicate?: unknown; queryKey?: unknown } | undefined
+        return value?.type === "active" && typeof value.predicate === "function" && value.queryKey === undefined
+      }).length
+    }
+
+    it("sweeps active continuity queries once the grace period passes with a sequence still missing", () => {
+      vi.useFakeTimers()
+      const queryClient = new QueryClient()
+      const refetch = vi.spyOn(queryClient, "refetchQueries")
+
+      applyAppEvent(queryClient, { ...event("job", 1), sequence: 10 })
+      applyAppEvent(queryClient, { ...event("job", 1), sequence: 12 })
+      vi.advanceTimersByTime(APP_EVENT_GAP_GRACE_MS - 1)
+      expect(sweeps(refetch)).toBe(0)
+
+      vi.advanceTimersByTime(1)
+      expect(sweeps(refetch)).toBe(1)
+    })
+
+    it("does not sweep when the missing sequence arrives late within the grace period", () => {
+      vi.useFakeTimers()
+      const queryClient = new QueryClient()
+      const refetch = vi.spyOn(queryClient, "refetchQueries")
+
+      applyAppEvent(queryClient, { ...event("job", 1), sequence: 10 })
+      applyAppEvent(queryClient, { ...event("job", 1), sequence: 12 })
+      applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 11 })
+      vi.advanceTimersByTime(APP_EVENT_GAP_GRACE_MS * 2)
+
+      expect(sweeps(refetch)).toBe(0)
+    })
+
+    it("forgets missing sequences on reconnect, whose own recovery already sweeps", () => {
+      vi.useFakeTimers()
+      const queryClient = new QueryClient()
+      const refetch = vi.spyOn(queryClient, "refetchQueries")
+
+      applyAppEvent(queryClient, { ...event("job", 1), sequence: 10 })
+      applyAppEvent(queryClient, { ...event("job", 1), sequence: 12 })
+      resetAppEventSequenceTracking(queryClient)
+      vi.advanceTimersByTime(APP_EVENT_GAP_GRACE_MS * 2)
+
+      expect(sweeps(refetch)).toBe(0)
+    })
   })
 
   it("still lets the entity store's revision guard reject a late event's older fields", () => {

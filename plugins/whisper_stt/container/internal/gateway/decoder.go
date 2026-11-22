@@ -57,7 +57,13 @@ func startMediaDecoder(cmd *exec.Cmd) (*mediaDecoder, error) {
 		return nil, err
 	}
 	go d.readOutput()
-	go func() { d.processDone <- cmd.Wait() }()
+	// cmd.Wait closes stdout once the process exits, so reaping before the
+	// reader has hit EOF drops whatever PCM is still buffered in the pipe.
+	// The reader always reaches EOF when the process exits or is killed.
+	go func() {
+		<-d.readerDone
+		d.processDone <- cmd.Wait()
+	}()
 	return d, nil
 }
 

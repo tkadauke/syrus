@@ -204,3 +204,41 @@ func TestNetworkErrorIsShort(t *testing.T) {
 		t.Fatalf("error = %q", err.Error())
 	}
 }
+
+// Client.Do is exported for plugin CLI modules, and newRequest resolved the
+// path against the instance URL and then always attached the bearer token, so
+// an absolute or scheme-relative path sent the user's token to another host.
+// A request is only ever built for the selected instance's origin.
+func TestRequestsNeverCarryTheTokenToAnotherOrigin(t *testing.T) {
+	var foreignHits int
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		foreignHits++
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("foreign host received Authorization %q", got)
+		}
+		w.Write([]byte(`{"v":1}`))
+	}))
+	defer foreign.Close()
+	instance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"v":1}`))
+	}))
+	defer instance.Close()
+
+	client, err := NewClient(instance.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignHost := strings.TrimPrefix(foreign.URL, "http://")
+	for _, path := range []string{foreign.URL + "/api/v1/app/jobs", "//" + foreignHost + "/api/v1/app/jobs"} {
+		if err := client.Do(context.Background(), http.MethodGet, path, nil, nil); err == nil {
+			t.Errorf("Do(%q) succeeded; want an error refusing a foreign origin", path)
+		}
+	}
+	if foreignHits != 0 {
+		t.Fatalf("foreign host was contacted %d times", foreignHits)
+	}
+
+	if err := client.Do(context.Background(), http.MethodGet, "/api/v1/app/jobs", nil, nil); err != nil {
+		t.Fatalf("instance path failed: %v", err)
+	}
+}

@@ -222,6 +222,24 @@ RSpec.describe PollMainBranchHealthJob do
     described_class.perform_now(repository.id)
   end
 
+  # Regression: after a merge, main grading recorded the new SHA first. The
+  # grader record copies the repository's carried-forward CI health ("broken")
+  # but holds no CI result, and the poll early-returned on it as if CI were
+  # measured -- so GitHub CI was never read for that SHA and main's CI health
+  # stayed stale for hours.
+  it "reads CI for a SHA whose only record came from main grading" do
+    repository.update!(last_health_checked_sha: sha, last_graded_sha: sha, ci_health: "broken", grader_health: "healthy")
+    MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
+    expect(MainBranchHealthCheck.find_by!(repository: repository, sha: sha)).to have_attributes(ci_health: "broken", ci_failed_checks: nil)
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, any_cancelled?: false, failed_checks: [] })
+
+    described_class.perform_now(repository.id)
+
+    expect(MainBranchHealthCheck.find_by!(repository: repository, sha: sha)).to have_attributes(ci_health: "healthy", ci_failed_checks: [])
+    expect(repository.reload.ci_health).to eq("healthy")
+  end
+
   it "re-evaluates a carried-forward broken CI signal once the new SHA's checks pass" do
     # Regression: main advanced off a broken SHA, so ci_health was carried
     # forward as "broken" and last_health_checked_sha advanced to `sha` while

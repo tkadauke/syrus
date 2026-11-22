@@ -205,6 +205,13 @@ module Syrus
     RegistrationError = Class.new(StandardError)
     PLUGIN_RECORD_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
 
+    # Plugin enablement could not be read. Raised instead of guessing: treating
+    # installed plugins as enabled could switch on one the operator disabled
+    # (formal/SyrusModel/EnablementRead.lean).
+    EnablementUnavailable = Class.new(StandardError)
+    ENABLEMENT_READ_ATTEMPTS = 3
+    ENABLEMENT_RETRY_DELAYS = [ 0.05, 0.2 ].freeze
+
     @mutex            = Mutex.new
     @generation       = 0
     @plugins          = []
@@ -349,17 +356,26 @@ module Syrus
       # disabled as well as when the contributor is: a point only exists while
       # whoever offers it does.
       def hosted_providers_for(extension_point)
+        providers_with_owner_for(extension_point).map(&:last)
+      end
+
+      # [plugin_name, provider] pairs for a plugin-hosted point
+      # ("<host>:<point>"), for registries that must know which plugin
+      # contributed each entry. The same callable rule as providers_for:
+      # enabled *and* healthy, for the host and for each contributor. A host
+      # degrades a malformed contributor through add_validation_error, which
+      # must then stop it contributing (formal/SyrusModel/EffectHealth.lean).
+      # Public Host API, so plugin-side registries never fall back to reading
+      # manifests with enabled? alone.
+      def providers_with_owner_for(extension_point)
         key = extension_point.to_s
+        raise ArgumentError, "providers_with_owner_for takes a plugin-hosted point (\"<host>:<point>\"), got #{key.inspect}" unless key.include?(":")
+
         host_name = key.split(":", 2).first
         plugins = all_plugins
-
-        # The same callable rule as the core points: enabled *and* healthy,
-        # for the host and for each contributor. A host degrades a malformed
-        # contributor through add_validation_error, which must then stop it
-        # contributing (formal/SyrusModel/EffectHealth.lean).
         enabled = plugins.select(&:enabled?)
         health = health_for(plugins, enabled_names: enabled.map(&:name))
-        live = enabled.select { |manifest| health.healthy?(manifest.name) }
+        live = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
 
         host = live.find { |manifest| manifest.name == host_name }
         return [] if host.nil?
@@ -371,8 +387,8 @@ module Syrus
         return [] unless host.hosted_extension_points.include?(key)
 
         live.flat_map do |manifest|
-          Array(manifest.provides[key] || manifest.provides[key.to_sym])
-        end.compact
+          Array(manifest.provides[key] || manifest.provides[key.to_sym]).compact.map { |provider| [ manifest.name, provider ] }
+        end
       end
 
       def hosted_extension_points
@@ -449,10 +465,16 @@ module Syrus
             @mutex.synchronize { @plugins.dup }
           end
 
-          begin
-            records = performance_phase("plugin_registry.providers_for.records", extension_point: ep, plugin_count: plugins.size) do
-              records_for(plugins)
+          records = performance_phase("plugin_registry.providers_for.records", extension_point: ep, plugin_count: plugins.size) do
+            enablement_records(plugins)
+          end
+          if records.nil?
+            conformance = conformance_for(plugins) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
+            sort_by_prepare_priority(plugins).flat_map do |manifest|
+              Array(manifest.provides[ep]) +
+                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
             end
+          else
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
               enabled = plugins.select { |m| plugin_enabled?(m, records[m.name]) }
               health = health_for(plugins, enabled_names: enabled.map(&:name))
@@ -466,12 +488,6 @@ module Syrus
                   Array(manifest.provides[ep]) +
                     Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
                 end
-            end
-          rescue ActiveRecord::ActiveRecordError
-            conformance = conformance_for(plugins) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
-            sort_by_prepare_priority(plugins).flat_map do |manifest|
-              Array(manifest.provides[ep]) +
-                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
             end
           end
         end
@@ -530,13 +546,14 @@ module Syrus
 
       def available_capability_plugins
         plugins = @mutex.synchronize { @plugins.dup }
-        begin
-          records = records_for(plugins)
+        # The same enablement read as providers_for: declared defaults before
+        # the table exists, retried and then raised on any other read error,
+        # never "every installed plugin" (formal/SyrusModel/EnablementRead.lean).
+        records = enablement_records(plugins)
+        unless records.nil?
           enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
           health = health_for(plugins, enabled_names: enabled.map(&:name))
           plugins = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
-        rescue ActiveRecord::ActiveRecordError
-          # Registration remains usable before the plugin_records table exists.
         end
         sort_by_prepare_priority(plugins)
       end
@@ -567,14 +584,16 @@ module Syrus
       def credential_types
         plugins = @mutex.synchronize { @plugins.dup }
 
-        begin
-          records = records_for(plugins)
-          enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
-          health = health_for(plugins, enabled_names: enabled.map(&:name))
-          enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
-        rescue ActiveRecord::ActiveRecordError
-          plugins
-        end.flat_map do |manifest|
+        records = enablement_records(plugins)
+        live =
+          if records.nil?
+            plugins
+          else
+            enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
+            health = health_for(plugins, enabled_names: enabled.map(&:name))
+            enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
+          end
+        live.flat_map do |manifest|
           Array(manifest.credential_types).map { |entry| entry.merge("plugin" => manifest.name) }
         end
       end
@@ -593,26 +612,26 @@ module Syrus
       end
 
       # Returns a snapshot of all registered manifests, each annotated with the
-      # current enabled state from PluginRecord. Falls back to enabled: true
-      # for every plugin when the table doesn't exist yet.
+      # current enabled state from PluginRecord. See enablement_records for a
+      # missing table, an asset build, and a database error.
       def all_plugins
         performance_phase("plugin_registry.all_plugins") do
           plugins = performance_phase("plugin_registry.all_plugins.snapshot") do
             @mutex.synchronize { @plugins.dup }
           end
 
-          begin
-            records = performance_phase("plugin_registry.all_plugins.records", plugin_count: plugins.size) do
-              records_for(plugins)
-            end
+          records = performance_phase("plugin_registry.all_plugins.records", plugin_count: plugins.size) do
+            enablement_records(plugins)
+          end
+          if records.nil?
+            plugins
+          else
             performance_phase("plugin_registry.all_plugins.annotate", plugin_count: plugins.size) do
               plugins.map do |m|
                 record = records[m.name]
-                record ? manifest_with_record(m, record) : m
+                record ? manifest_with_record(m, record) : m.with(enabled: plugin_enabled?(m, nil))
               end
             end
-          rescue ActiveRecord::ActiveRecordError
-            plugins
           end
         end
       end
@@ -633,12 +652,12 @@ module Syrus
         plugins = @mutex.synchronize { @plugins.dup }
 
         if enabled_names.nil?
+          records = enablement_records(plugins)
           enabled_names =
-            begin
-              records = records_for(plugins)
-              plugins.select { |m| plugin_enabled?(m, records[m.name]) }.map(&:name)
-            rescue ActiveRecord::ActiveRecordError
+            if records.nil?
               plugins.map(&:name)
+            else
+              plugins.select { |m| plugin_enabled?(m, records[m.name]) }.map(&:name)
             end
         end
 
@@ -833,8 +852,10 @@ module Syrus
         value = AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.beta_mode_enabled? || false
         store_cached_beta_mode_enabled(value)
         value
-      rescue ActiveRecord::ActiveRecordError
-        true
+      rescue ActiveRecord::ActiveRecordError => e
+        # Beta mode decides whether experimental plugins may be enabled, so an
+        # unreadable flag must not read as "on".
+        raise EnablementUnavailable, "beta mode could not be read: #{e.class}: #{e.message}"
       end
 
       # Called by AppSetting when beta_mode_enabled changes. Separate from
@@ -904,6 +925,49 @@ module Syrus
         tokens = Array(points).map(&:to_s).reject(&:blank?).sort
         tokens.any? ? "\n#{tokens.join("\n")}\n" : nil
       end
+
+      # PluginRecord rows by name, read for an enablement decision:
+      #
+      # - nil for an asset build (SECRET_KEY_BASE_DUMMY): there is no instance
+      #   and no database, and the build needs every plugin's assets;
+      # - {} when the database or the plugin_records table does not exist yet
+      #   (db:create, a fresh database before migration): the declared
+      #   defaults decide, exactly as the records about to be created will;
+      # - otherwise the rows. Any other database error is retried a few times
+      #   and then raised as EnablementUnavailable, never answered by treating
+      #   installed plugins as enabled.
+      def enablement_records(plugins)
+        return nil if build_time_without_database?
+
+        attempt = 0
+        begin
+          records_for(plugins)
+        rescue ActiveRecord::NoDatabaseError
+          # `db:create` and a first `db:prepare` boot before the database
+          # exists: no records exist either, so the defaults are the answer.
+          {}
+        rescue ActiveRecord::ActiveRecordError => e
+          return {} if plugin_records_table_missing?
+
+          attempt += 1
+          if attempt >= ENABLEMENT_READ_ATTEMPTS
+            raise EnablementUnavailable, "plugin enablement could not be read after #{attempt} attempts: #{e.class}: #{e.message}"
+          end
+
+          enablement_retry_sleep(ENABLEMENT_RETRY_DELAYS.fetch(attempt - 1, ENABLEMENT_RETRY_DELAYS.last))
+          retry
+        end
+      end
+
+      def build_time_without_database? = ENV["SECRET_KEY_BASE_DUMMY"].present?
+
+      def plugin_records_table_missing?
+        !PluginRecord.table_exists?
+      rescue ActiveRecord::ActiveRecordError
+        false
+      end
+
+      def enablement_retry_sleep(seconds) = sleep(seconds)
 
       def plugin_enabled?(manifest, record)
         return false if manifest.experimental? && !beta_mode_enabled?

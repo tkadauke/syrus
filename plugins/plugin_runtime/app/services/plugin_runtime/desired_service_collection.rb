@@ -3,12 +3,13 @@ module PluginRuntime
     Entry = Data.define(:name, :plugin, :provider)
 
     def all
-      entries = Syrus::PluginRegistry.all_plugins.select(&:enabled?).flat_map do |manifest|
-        next [] unless eligible_manifest?(manifest)
+      # Contributions from plugins that are enabled *and* healthy, with the
+      # plugin that made each one. Reading manifests with enabled? alone kept
+      # a degraded or failed plugin's service running (NY18).
+      entries = Syrus::PluginRegistry.providers_with_owner_for(point).filter_map do |plugin_name, ref|
+        next unless eligible_plugin?(plugin_name)
 
-        Array(manifest.provides[point] || manifest.provides[point.to_sym]).filter_map do |ref|
-          entry_for(manifest.name, ref)
-        end
+        entry_for(plugin_name, ref)
       end
       deduplicate(entries)
     end
@@ -37,6 +38,6 @@ module PluginRuntime
       end
     end
 
-    def eligible_manifest?(_manifest) = true
+    def eligible_plugin?(_plugin_name) = true
   end
 end

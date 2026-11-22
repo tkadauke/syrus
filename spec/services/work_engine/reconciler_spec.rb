@@ -6511,6 +6511,31 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue.affected_ids[:workflow_ids]).to include(workflow.id)
   end
 
+  # A non-approval-blocking follow-up (rebase, manual review, visual diff)
+  # deliberately leaves an implemented Job implemented when it starts
+  # (JobLifecyclePropagation.lifts_job_on_start?), so the pair is legal.
+  # The drift classifier reported every such run as Job/Workflow drift.
+  it "does not report an implemented Job with a running non-approval-blocking follow-up as drift" do
+    workflow.update_columns(state: "succeeded", finished_at: 10.minutes.ago)
+    workflow.work_unit&.mark_terminal!("succeeded")
+    job.update_columns(state: "implemented", pr_number: 42)
+    rebase = WorkUnits::Launcher.instantiate(kind: "rebase", job: job)
+    rebase.update_columns(state: "running", started_at: 5.minutes.ago)
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+  end
+
+  it "still reports an implemented Job with a running approval-blocking Workflow as drift" do
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+    job.update_columns(state: "implemented", pr_number: 42)
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_present
+  end
+
   it "classifies failed Jobs with active repair workflows without reporting generic state drift" do
     workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
     workflow.work_unit&.mark_terminal!("failed")

@@ -132,14 +132,40 @@ type AppEventSequenceOutcome = "ok" | "duplicate" | "gap" | "late"
 // broadcasts, so delivery can reorder them (11 before 10): only a sequence
 // actually seen is a duplicate, and an unseen lower one is a late delivery
 // that still has to be applied (formal/SyrusModel/EventSequence.lean).
-type AppEventSequenceState = { highest: number; seen: Set<number> }
+type AppEventSequenceState = {
+  highest: number
+  seen: Set<number>
+  missing: Set<number>
+  gapTimer?: ReturnType<typeof setTimeout>
+}
 
 const APP_EVENT_SEQUENCE_WINDOW = 256
+
+// How long a gap may stay open before it counts as a lost event. A missing
+// sequence usually arrives late (two processes publishing out of order);
+// one that never does carries an unknown resource, so after this grace
+// period the client runs the same continuity sweep a reconnect does
+// (formal/SyrusModel/GapRecovery.lean).
+export const APP_EVENT_GAP_GRACE_MS = 2_000
 
 const appEventSequenceState = new WeakMap<QueryClient, AppEventSequenceState>()
 
 export function resetAppEventSequenceTracking(queryClient: QueryClient) {
+  const state = appEventSequenceState.get(queryClient)
+  if (state?.gapTimer) clearTimeout(state.gapTimer)
   appEventSequenceState.delete(queryClient)
+}
+
+function scheduleGapCheck(queryClient: QueryClient, state: AppEventSequenceState) {
+  if (state.gapTimer) return
+
+  state.gapTimer = setTimeout(() => {
+    state.gapTimer = undefined
+    if (state.missing.size === 0) return
+
+    state.missing.clear()
+    recoverAppEventContinuity(queryClient)
+  }, APP_EVENT_GAP_GRACE_MS)
 }
 
 // Stream-level ordering check, independent of any single resource: every
@@ -153,7 +179,7 @@ function trackAppEventSequence(queryClient: QueryClient, event: AppEvent): AppEv
   const sequence = event.sequence
   const state = appEventSequenceState.get(queryClient)
   if (!state) {
-    appEventSequenceState.set(queryClient, { highest: sequence, seen: new Set([sequence]) })
+    appEventSequenceState.set(queryClient, { highest: sequence, seen: new Set([sequence]), missing: new Set() })
     return "ok"
   }
 
@@ -164,7 +190,13 @@ function trackAppEventSequence(queryClient: QueryClient, event: AppEvent): AppEv
     for (const seen of state.seen) {
       if (seen <= sequence - APP_EVENT_SEQUENCE_WINDOW) state.seen.delete(seen)
     }
-    return sequence > previous + 1 ? "gap" : "ok"
+    if (sequence <= previous + 1) return "ok"
+
+    for (let skipped = Math.max(previous + 1, sequence - APP_EVENT_SEQUENCE_WINDOW + 1); skipped < sequence; skipped++) {
+      state.missing.add(skipped)
+    }
+    scheduleGapCheck(queryClient, state)
+    return "gap"
   }
 
   // Below the window nothing is remembered, so it cannot be told apart from
@@ -172,6 +204,7 @@ function trackAppEventSequence(queryClient: QueryClient, event: AppEvent): AppEv
   if (state.seen.has(sequence) || sequence <= state.highest - APP_EVENT_SEQUENCE_WINDOW) return "duplicate"
 
   state.seen.add(sequence)
+  state.missing.delete(sequence)
   return "late"
 }
 

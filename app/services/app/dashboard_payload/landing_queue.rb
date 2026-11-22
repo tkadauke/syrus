@@ -548,9 +548,13 @@ module App
         timestamp.present? && timestamp < cutoff
       end
 
+      # An approved Epic member waiting on siblings that are still being
+      # implemented is an ordinary wait, not a dispatch about to happen.
+      EPIC_SIBLINGS_WAIT_KEY = "waiting_epic_siblings".freeze
+
       def landing_queue_normal_wait_status(jobs)
         reason = jobs.map { |job| job.landing_queue_blocked_reason.presence }.find { |candidate| normal_landing_queue_wait_reason?(candidate) }
-        return unless reason
+        return landing_queue_epic_siblings_wait_status(jobs) if reason.nil?
 
         key = (reason.to_h["key"] || reason.to_h[:key]).to_s
         blocker_count = jobs.flat_map { |job| Array(job.landing_queue_blocker_job_ids) }.uniq.size
@@ -579,6 +583,23 @@ module App
           title: title,
           summary: summary,
           links: landing_queue_status_links(jobs)
+        }
+      end
+
+      def landing_queue_epic_siblings_wait_status(jobs)
+        waiting = jobs.select do |job|
+          reason = job.landing_queue_blocked_reason.to_h
+          (reason["key"] || reason[:key]).to_s == EPIC_SIBLINGS_WAIT_KEY
+        end
+        return if waiting.empty?
+
+        unfinished = waiting.flat_map { |job| Array(job.landing_queue_blocker_job_ids) }.uniq.size
+        {
+          tone: "warning",
+          title: "Landing queue is waiting for an Epic merge-train.",
+          summary: "#{landing_queue_unit_label(waiting)} is approved, but #{unfinished} Epic #{'member'.pluralize(unfinished)} " \
+                   "#{unfinished == 1 ? 'is' : 'are'} still unfinished. The Epic lands as one merge train once every member is approved.",
+          links: landing_queue_status_links(waiting)
         }
       end
 

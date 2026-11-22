@@ -128,8 +128,21 @@ module Steps
           include_guidance: false,
           include_git_safety: false
         ).to_s,
-        preflight_failure_evidence(failures)
+        preflight_failure_evidence(failures),
+        preflight_unproven_note
       ].compact.join("\n\n")
+    end
+
+    # Graders that produced no conclusive result in preflight (timed out,
+    # exhausted infrastructure retries). They are not proven broken, so the
+    # agent should not chase them, but the grade loop will run them again.
+    def preflight_unproven_note
+      names = Array(workflow.artifact("preflight_unproven")).filter_map { |entry| entry.to_h["name"].presence }
+      return nil if names.empty?
+
+      "These preflight graders produced no conclusive result (for example a timeout), so they are not " \
+        "known to be broken: #{names.join(', ')}. Do not try to fix them blind; the grade loop runs them again " \
+        "after your repair."
     end
 
     # Exact, durable evidence per reproducible failure: named examples, exit

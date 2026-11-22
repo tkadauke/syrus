@@ -81,6 +81,12 @@ class RunJob < ApplicationJob
   # which is fine for a kill-switch state that's typically minutes,
   # not days.
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
+  # A worker that does not provide a step's kind (its plugin is not loaded
+  # here, during a fleet rollout or for a role-limited installation) hands the
+  # Run back for one that does, at most this many times, before the Step fails
+  # as unknown (formal/SyrusModel/UnknownKindHandback.lean).
+  UNKNOWN_KIND_HANDBACK_DELAY = 30.seconds
+  UNKNOWN_KIND_HANDBACK_LIMIT = 20
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
   STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
   WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
@@ -112,6 +118,7 @@ class RunJob < ApplicationJob
     @workflow = @step&.workflow
     @job = @run.job
     return if defer_for_macos_worker_drain?
+    return if hand_back_unknown_step_kind?
 
     @shutdown_requested = false
     prior_trap = Signal.trap("TERM") do
@@ -124,6 +131,9 @@ class RunJob < ApplicationJob
       break if defer_for_macos_worker_drain?
       perform_step
       next_run = next_inline_run
+      # An inline successor this process cannot run goes back to the queue
+      # through the ordinary hand-back, for a worker that provides its kind.
+      next_run = nil if next_run && !step_kind_provided_here?(next_run.step)
       release_inline_held_runs!(except: @shutdown_requested ? nil : next_run)
       break unless next_run
       if @shutdown_requested
@@ -276,6 +286,26 @@ class RunJob < ApplicationJob
     true
   end
 
+  def hand_back_unknown_step_kind?
+    return false unless @run&.queued? && @step
+    return false if step_kind_provided_here?(@step)
+
+    handbacks = @step.details.to_h["unknown_kind_handbacks"].to_i
+    return false if handbacks >= UNKNOWN_KIND_HANDBACK_LIMIT
+
+    @step.update!(details: @step.details.to_h.merge("unknown_kind_handbacks" => handbacks + 1))
+    Rails.logger.info(
+      "[RunJob] step kind #{@step.kind.inspect} is not provided on this worker - " \
+        "handing Run ##{@run.id} back (#{handbacks + 1}/#{UNKNOWN_KIND_HANDBACK_LIMIT})"
+    )
+    defer_run(@run.id, UNKNOWN_KIND_HANDBACK_DELAY)
+    true
+  end
+
+  def step_kind_provided_here?(step)
+    Step::Kind.values.include?(step.kind.to_s)
+  end
+
   def defer_for_macos_worker_drain?
     return false unless @run&.queued?
     return false unless compute_run?
@@ -331,7 +361,13 @@ class RunJob < ApplicationJob
 
   def record_host_admission_deferral!(admission, routing: nil)
     prior = @workflow.artifact("run_host_admission").to_h
-    count = prior["run_id"].to_i == @run.id ? prior["deferral_count"].to_i + 1 : 1
+    # Per-Run counts: the artifact is per Workflow, and sibling Runs (parallel
+    # grader shards deferring each other) would otherwise reset each other's
+    # count on every round, so the budget that ends this loop never ran out.
+    counts = prior["deferral_counts"].is_a?(Hash) ? prior["deferral_counts"].dup : {}
+    counts[prior["run_id"].to_s] ||= prior["deferral_count"].to_i if prior["run_id"].present?
+    count = counts[@run.id.to_s].to_i + 1
+    counts[@run.id.to_s] = count
     first_deferred_at = count == 1 ? Time.current.iso8601 : prior["first_deferred_at"].presence || Time.current.iso8601
     payload = admission.details.merge(routing&.details.to_h || {}).merge(
       "action" => routing&.action || admission.action,
@@ -345,6 +381,7 @@ class RunJob < ApplicationJob
       "routed_at" => routing&.reroute? ? Time.current.iso8601 : nil,
       "routed_queue" => routing&.queue_name,
       "deferral_count" => count,
+      "deferral_counts" => counts,
       "deferral_budget" => PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
     )
     @workflow.update!(

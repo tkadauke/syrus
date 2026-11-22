@@ -469,6 +469,7 @@ Supported members:
 - `capability_providers`
 - `extension_point?`
 - `providers_for`
+- `providers_with_owner_for`
 - `register`
 
 ### `Syrus::Host::ProcessRunner`

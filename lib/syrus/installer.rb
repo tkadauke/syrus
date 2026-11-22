@@ -73,9 +73,19 @@ module Syrus
         @mutex.synchronize do
           return false if @applied_fingerprint == current
 
+          # Resolved before anything is disposed: if enablement cannot be read,
+          # the installed effects stay exactly as they are and the next sync
+          # tries again, rather than installing every plugin or none.
+          begin
+            active = enabled_plugin_names
+          rescue Syrus::PluginRegistry::EnablementUnavailable => e
+            Rails.logger.warn("[Syrus::Installer] keeping installed effects: #{e.message}")
+            return false
+          end
+
           Thread.current[:syrus_installer_applying] = true
           begin
-            apply!(current)
+            apply!(current, active)
           ensure
             Thread.current[:syrus_installer_applying] = nil
           end
@@ -124,9 +134,10 @@ module Syrus
         [ Syrus::PluginRegistry.generation, Syrus::PluginRegistry.beta_mode_enabled? ]
       end
 
-      # nil means "cannot tell yet" (no plugin_records table during early boot
-      # or on a fresh database); installs run rather than being suppressed,
-      # matching how providers_for degrades.
+      # The registry answers for a fresh database (declared defaults) and an
+      # asset build (every plugin) itself. Anything it cannot read raises
+      # PluginRegistry::EnablementUnavailable, which apply! never reaches: sync!
+      # resolves the set first and leaves the applied effects alone.
       #
       # Enabled means what providers_for means by it: switched on *and*
       # healthy. A while_enabled effect is a contribution like any provider (a
@@ -137,8 +148,6 @@ module Syrus
         names = Syrus::PluginRegistry.all_plugins.select(&:enabled?).map(&:name)
         health = Syrus::PluginRegistry.health(enabled_names: names)
         names.select { |name| health.healthy?(name) }.to_set
-      rescue StandardError
-        nil
       end
 
       # A plugin that has never been switched on here wrote no rows, so its
@@ -152,14 +161,12 @@ module Syrus
         nil
       end
 
-      def apply!(current)
+      def apply!(current, active)
+        ever_active = ever_enabled_plugin_names
         @scope&.dispose
         @scope = EffectScope.new(label: "installer")
         @applied_fingerprint = current
         failed = false
-
-        active = enabled_plugin_names
-        ever_active = ever_enabled_plugin_names
 
         # A snapshot, because an install can define a new registration: a
         # KindRegistry constructed for the first time during an install adds
@@ -186,7 +193,7 @@ module Syrus
 
         case registration.requires
         when :ever_enabled then ever_active.nil? || ever_active.include?(registration.plugin)
-        else active.nil? || active.include?(registration.plugin)
+        else active.include?(registration.plugin)
         end
       end
     end

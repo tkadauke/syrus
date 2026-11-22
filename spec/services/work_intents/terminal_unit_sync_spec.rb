@@ -124,6 +124,25 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     expect(intent.reload).to be_requested
   end
 
+  # Regression: closing a Job leaves an intent whose unit is still active to
+  # that unit. If the unit is then cancelled for a reason that normally keeps
+  # the intent for a relaunch (here the Epic-conflict victim), nothing
+  # relaunches work on a closed Job, so the intent must end with the unit.
+  # Production had an intent stranded exactly this way.
+  it "cancels the intent of a closed Job when its last active unit is cancelled for any reason" do
+    closing_job = Factories.job_record(user: user, repository: repository, state: "landing")
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: closing_job)
+    intent = workflow.work_unit.work_intent
+
+    closing_job.close_with_reason!("pr_merged")
+    expect(intent.reload).to be_requested
+    expect(workflow.work_unit.reload).to be_active
+
+    workflow.work_unit.preempt!(reason: EpicWorkflowLock::BLOCK_REASON)
+
+    expect(intent.reload).to be_cancelled
+  end
+
   it "cancels a requested WorkIntent when its only WorkUnit is superseded by a rebase" do
     workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
     intent = workflow.work_unit.work_intent

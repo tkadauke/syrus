@@ -234,4 +234,30 @@ RSpec.describe Workflows::LocalModeHandoff do
       expect(job.reload).to be_failed
     end
   end
+
+  # The local-mode handoff lifts its Job to :running and owns the Job's
+  # lifecycle, but had no after_cancel: generic cancel propagation skips this
+  # kind, so a cancelled handoff left a :running Job with nothing working on it
+  # (and its chat still linked).
+  describe ".after_cancel" do
+    let(:job) { Factories.job_record(user: user, repository: repository, state: "running", linked_chat_id: chat.id) }
+    let(:workflow) { Workflow.create!(job: job, trigger_kind: "local_mode_handoff", state: "running") }
+
+    it "fails the running Job and clears its chat link" do
+      workflow.set_artifact!("cancelled_reason", "operator_cancelled")
+
+      described_class.after_cancel(workflow)
+
+      expect(job.reload).to be_failed
+      expect(job.linked_chat_id).to be_nil
+    end
+
+    it "leaves the Job alone when the handoff was superseded by newer work" do
+      workflow.set_artifact!("cancelled_reason", Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
+
+      described_class.after_cancel(workflow)
+
+      expect(job.reload).to be_running
+    end
+  end
 end

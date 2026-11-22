@@ -75,7 +75,22 @@ export const wipeBackendStack = async (): Promise<void> => {
   if (currentChannel() !== "test") {
     throw new Error("wipeBackendStack is only available on the test channel")
   }
+  // A lifecycle action like start/stop/update: never under one that is
+  // running (its compose recreate would race `down -v`), and none may begin
+  // until the wipe is done. The caller's pre-dialog check is not enough — the
+  // dialog waits on the user indefinitely.
+  if (backendBusy()) {
+    throw new Error("A backend start, stop or update is in progress; try again when it finishes.")
+  }
+  beginLifecycleAction()
+  try {
+    await wipeStack()
+  } finally {
+    busy = false
+  }
+}
 
+const wipeStack = async (): Promise<void> => {
   const identity = currentStackIdentity()
 
   // `down -v` removes the containers + the Compose-managed named volumes, when
@@ -157,6 +172,15 @@ const ensureDaemon = async () => {
 
 let busy = false
 let lastHealthy = true
+// Bumped whenever a lifecycle action takes the stack. A watchdog tick only
+// trusts a probe that started and finished within one generation, so a probe
+// already in flight when the user stops (or starts, or updates) the backend
+// cannot overwrite the state that action established.
+let lifecycleGeneration = 0
+const beginLifecycleAction = () => {
+  busy = true
+  lifecycleGeneration += 1
+}
 const updateTermination = new ChildTerminationController(TERMINATION_GRACE_MS)
 
 // Whether a lifecycle action (start/stop/update) is in flight. Exposed so
@@ -182,7 +206,7 @@ export const startBackend = async (): Promise<boolean> => {
     return false
   }
 
-  busy = true
+  beginLifecycleAction()
   try {
     if (!(await ensureDaemon())) {
       return false
@@ -211,7 +235,7 @@ export const stopBackend = async (): Promise<boolean> => {
     return false
   }
 
-  busy = true
+  beginLifecycleAction()
   try {
     await compose(["stop"])
     // A deliberate stop is not an outage: pre-marking the transition keeps
@@ -254,7 +278,7 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
     return false
   }
 
-  busy = true
+  beginLifecycleAction()
   const report = (progress: BackendUpdateProgress | null) => {
     try {
       deps.onProgress?.(progress)
@@ -418,14 +442,17 @@ export const startWatchdog = (deps: WatchdogDeps) => {
     }
 
     watchdogTickInFlight = true
+    const generation = lifecycleGeneration
+    // A lifecycle action started (or ran to completion) during this tick's
+    // probes: its outcome, not this tick's stale observation, is current.
+    const superseded = () => generation !== lifecycleGeneration || backendBusy()
     void (async () => {
       try {
         const healthy = await backendHealthy()
-        if (healthy === lastHealthy) {
+        if (superseded() || healthy === lastHealthy) {
           return
         }
 
-        lastHealthy = healthy
         let diagnosis: BackendDiagnosis | null = null
         if (!healthy) {
           if (!(await daemonUp())) {
@@ -436,7 +463,11 @@ export const startWatchdog = (deps: WatchdogDeps) => {
             diagnosis = "containers-down"
           }
         }
+        if (superseded()) {
+          return
+        }
 
+        lastHealthy = healthy
         deps.onHealthyChanged(healthy, diagnosis)
       } finally {
         watchdogTickInFlight = false

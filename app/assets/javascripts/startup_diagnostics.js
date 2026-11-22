@@ -8,6 +8,16 @@
   var MAX_STARTUP_RESOURCES = 40;
   var startupTraceId = "startup-" + startupAt + "-" + Math.random().toString(36).slice(2, 10);
   var watchdogTimer = null;
+  // A startup script or stylesheet that fails to load is almost always the
+  // network (a phone reconnecting its VPN, a dropped request), not the app. The
+  // page used to sit on "Check your connection, then retry." until someone
+  // tapped Retry, again and again through a five-minute outage. Retry by itself
+  // instead -- on a backoff, and the moment the browser reports it is back
+  // online -- counted across reloads so it can never loop forever.
+  var AUTO_RETRY_DELAYS_MS = [2000, 5000, 15000, 30000, 60000];
+  var AUTO_RETRY_KEY = "syrus.startup.autoRetryAttempt";
+  var autoRetryTimer = null;
+  var autoRetrying = false;
 
   function meta(name) {
     var el = document.querySelector('meta[name="' + name + '"]');
@@ -158,6 +168,41 @@
     }).catch(function () {});
   }
 
+  function storedRetryAttempt() {
+    try {
+      return parseInt(window.sessionStorage.getItem(AUTO_RETRY_KEY) || "0", 10) || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function storeRetryAttempt(attempt) {
+    try {
+      if (attempt > 0) {
+        window.sessionStorage.setItem(AUTO_RETRY_KEY, String(attempt));
+      } else {
+        window.sessionStorage.removeItem(AUTO_RETRY_KEY);
+      }
+    } catch (e) {
+      // Private browsing can refuse storage; retrying still works, uncounted.
+    }
+  }
+
+  function reloadForRetry() {
+    if (window.__syrusReactFirstRender || autoRetrying) return;
+    autoRetrying = true;
+    storeRetryAttempt(storedRetryAttempt() + 1);
+    (window.__syrusStartupReload || function () { window.location.reload(); })();
+  }
+
+  function scheduleAutoRetry() {
+    if (autoRetryTimer !== null) return;
+    var delay = AUTO_RETRY_DELAYS_MS[storedRetryAttempt()];
+    if (delay === undefined) return;
+    autoRetryTimer = window.setTimeout(reloadForRetry, delay);
+    window.addEventListener("online", reloadForRetry, { once: true });
+  }
+
   function startupStatus() {
     return document.getElementById("syrus-startup-status");
   }
@@ -255,6 +300,11 @@
     if (milestones.length > 20) milestones.shift();
     if (milestone === "react_commit") {
       window.__syrusReactFirstRender = true;
+      storeRetryAttempt(0);
+      if (autoRetryTimer !== null) {
+        window.clearTimeout(autoRetryTimer);
+        autoRetryTimer = null;
+      }
       if (window.__syrusStartupFallbackTimer) {
         window.clearTimeout(window.__syrusStartupFallbackTimer);
         window.__syrusStartupFallbackTimer = null;
@@ -315,6 +365,7 @@
             message: "Check your connection, then retry.",
             retry: true
           });
+          scheduleAutoRetry();
         }
         report("StartupResourceError", "SPA startup resource failed to load", {
           resource_tag: tagName,

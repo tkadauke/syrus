@@ -128,15 +128,43 @@ export type SlugReferenceType = {
   mobile_interaction_hints: Record<string, string>
 }
 
-export async function fetchBootstrap() {
+// A request that never got an HTTP response -- a pod restarting during a
+// rollout, a mobile browser suspending a backgrounded tab mid-request -- rejects
+// with a bare TypeError ("Load failed" in Safari, "Failed to fetch" in Chrome).
+// Those are retried here before startup is declared failed; the single query
+// retry outlasted neither, and every one was recorded as a startup failure even
+// when the next attempt worked. An HTTP error response is a real answer and
+// fails at once, as before.
+export const BOOTSTRAP_NETWORK_RETRY_DELAYS_MS = [400, 1500]
+
+function networkFailure(error: unknown) {
+  return error instanceof TypeError
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
+export function fetchBootstrap() {
+  return fetchBootstrapWithRetries(wait)
+}
+
+export async function fetchBootstrapWithRetries(sleep: (ms: number) => Promise<void>) {
   markStartupMilestone("bootstrap_fetch_started")
-  try {
-    const payload = await getJson<BootstrapPayload>("/api/v1/app/bootstrap")
-    markStartupMilestone("bootstrap_fetch_succeeded")
-    return payload
-  } catch (error) {
-    reportStartupFailure("bootstrap_fetch", error, { request_correlation: getRecentApiRequests().slice(-1)[0] ?? null })
-    throw error
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const payload = await getJson<BootstrapPayload>("/api/v1/app/bootstrap")
+      markStartupMilestone("bootstrap_fetch_succeeded")
+      return payload
+    } catch (error) {
+      const delay = BOOTSTRAP_NETWORK_RETRY_DELAYS_MS[attempt]
+      if (networkFailure(error) && delay !== undefined) {
+        await sleep(delay)
+        continue
+      }
+      reportStartupFailure("bootstrap_fetch", error, { request_correlation: getRecentApiRequests().slice(-1)[0] ?? null })
+      throw error
+    }
   }
 }
 

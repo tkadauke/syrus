@@ -45,6 +45,12 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`
 
 export default defineConfig({
   timeout: 30_000,
+  // On GitHub Actions, report each failed test as a check annotation as well.
+  // Without it a red e2e check said only "Process completed with exit code 1":
+  // which tests failed was visible only in the raw job log, so neither an
+  // operator glancing at the check nor a CI-repair agent reading annotations
+  // could tell what broke.
+  reporter: process.env.GITHUB_ACTIONS ? [["github"], ["list"]] : [["list"]],
   // One worker. Every spec signs in as the same seeded demo user and drives
   // the same Rails app, and several of them legitimately change that shared
   // world: settings-preferences switches the user's locale (the whole UI

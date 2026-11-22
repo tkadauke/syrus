@@ -20,6 +20,10 @@ type AppUserCableDeps = {
   credentialsKey: (credentials: Credentials) => string
   onMessage: (message: unknown) => void
   onUnauthorized: (credentials: Credentials) => void
+  // Called on every confirmed subscription (first connect and each
+  // reconnect). The cable has no replay, so this is where state derived from
+  // broadcasts (the unread badge) resyncs from its authoritative source.
+  onSubscribed?: () => void
   setTimeout?: (callback: () => void, delay: number) => Timer
   clearTimeout?: (timer: Timer) => void
 }
@@ -101,10 +105,13 @@ export class AppUserCableClient {
       socket.send(JSON.stringify({ command: "subscribe", identifier: CHANNEL_IDENTIFIER }))
     }
 
+    // Per socket: a broadcast is only a message once THIS socket's
+    // subscription is confirmed, and never after it was rejected.
+    let subscribed = false
     socket.onmessage = (event) => {
       if (generation !== this.generation) return
 
-      let message: { type?: string; reason?: string; message?: unknown }
+      let message: { type?: string; reason?: string; identifier?: unknown; message?: unknown }
       try {
         message = JSON.parse(String(event.data)) as typeof message
       } catch {
@@ -118,14 +125,20 @@ export class AppUserCableClient {
         return
       }
       if (message.type === "reject_subscription") {
+        subscribed = false
         socket.close()
         return
       }
       // The upgrade alone does not prove that the token or channel is usable.
       if (message.type === "confirm_subscription") {
+        subscribed = true
         this.reconnectMs = INITIAL_RECONNECT_MS
+        this.deps.onSubscribed?.()
         return
       }
+      // Protocol frames (welcome, ping — whose "message" is a timestamp) carry
+      // a type; channel broadcasts carry this subscription's identifier.
+      if (message.type !== undefined || !subscribed || message.identifier !== CHANNEL_IDENTIFIER) return
       if ("message" in message) this.deps.onMessage(message.message)
     }
 

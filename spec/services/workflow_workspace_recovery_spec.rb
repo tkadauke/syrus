@@ -137,6 +137,54 @@ RSpec.describe WorkflowWorkspaceRecovery do
     expect(workspace).not_to have_received(:reconstruct_from!)
   end
 
+  # Regression: a worker died mid-preflight under memory pressure, taking the
+  # mutable workflow workspace with it. Every live Run was an immutable-checkout
+  # grader that never reads that workspace, yet the failed reconstruction
+  # failed the Workflow and cancelled 116 queued graders. With no live Run that
+  # uses the workspace there is nothing to rebuild for: release the dead
+  # worker's hold and resume the stranded graders elsewhere.
+  context "when every live Run runs outside the workflow workspace" do
+    before do
+      allow(Feature).to receive(:distributed_workflow_dag_enabled?).and_return(true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      workflow.runs.update_all(state: "succeeded", finished_at: 10.minutes.ago)
+      workflow.steps.update_all(state: "succeeded", finished_at: 10.minutes.ago)
+      allow(WorkflowWorkspaceLifecycle).to receive(:clear_routing_affinity!)
+    end
+
+    def immutable_grader_run(position, state:)
+      step = workflow.steps.create!(kind: "grader", position: position, state: state,
+                                    placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: state)
+    end
+
+    it "releases the lost workspace and resumes the stranded graders instead of failing" do
+      stranded = immutable_grader_run(90, state: "queued")
+      stale = pending_run_job(stranded, queue_name: "resume-dead-storage")
+      recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+      allow(recovery).to receive(:durable_candidates).and_return([])
+      allow_any_instance_of(Run).to receive(:reenqueue!)
+
+      result = recovery.call
+
+      expect(result).to be_recovered
+      expect(result.message).to include("no live Run uses the workflow workspace")
+      expect(WorkflowWorkspaceLifecycle).to have_received(:clear_routing_affinity!).with(workflow, actor: "workspace_recovery", reason: anything)
+      expect(SolidQueue::Job.where(id: stale.id)).not_to exist
+    end
+
+    it "still requires a fresh retry when a live Run needs the workspace" do
+      immutable_grader_run(90, state: "queued")
+      pinned = workflow.steps.create!(kind: "implement", position: 95, state: "running")
+      pinned.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: "running")
+      recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+      allow(recovery).to receive(:durable_candidates).and_return([])
+
+      expect(recovery.call).to have_attributes(status: "retry_required")
+      expect(WorkflowWorkspaceLifecycle).not_to have_received(:clear_routing_affinity!)
+    end
+  end
+
   it "rejects a valid snapshot that predates the latest successful mutation" do
     implementation_sha = "b" * 40
     source_sha = "c" * 40

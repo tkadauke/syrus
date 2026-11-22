@@ -75,8 +75,21 @@ class WorkflowWorkspaceRecovery
   end
 
   class RetryRequired < State
-    def call = machine.failure
+    def call
+      return machine.release_unused_workspace! if machine.no_live_run_uses_workspace?
+
+      machine.failure
+    end
   end
+
+  # Steps placed outside the mutable workflow workspace never read it:
+  # immutable-checkout graders run from a recorded source snapshot, and
+  # control-plane/external steps run nowhere near it.
+  WORKSPACE_FREE_PLACEMENTS = [
+    Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+    Step::PlacementPolicy::CONTROL_PLANE,
+    Step::PlacementPolicy::EXTERNAL_CONTEXT
+  ].freeze
 
   attr_reader :workflow, :workspace, :git, :candidate
   attr_writer :candidate
@@ -149,6 +162,28 @@ class WorkflowWorkspaceRecovery
     end
     retire_pending_queue_jobs!(run)
     run.reenqueue!(ignore_workflow_affinity: true)
+  end
+
+  # A worker that died mid-preflight took the mutable workspace with it, but
+  # every live Run was a snapshot grader. Failing the attempt there cancelled
+  # every queued grader for nothing: with no live Run that uses the workspace,
+  # release the lost worker's hold and resume the stranded Runs elsewhere. A
+  # workspace-bound Step that starts later is judged again then.
+  def no_live_run_uses_workspace?
+    active_runs.any? && active_runs.all? { |run| run.step&.placement_policy.in?(WORKSPACE_FREE_PLACEMENTS) }
+  end
+
+  def release_unused_workspace!
+    WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+      workflow,
+      actor: "workspace_recovery",
+      reason: "workspace not reconstructable (#{@failure_message}); no live Run uses it"
+    )
+    stranded = active_runs.reject { |run| live_execution?(run) }
+    stranded.each { |run| requeue!(run) }
+    success(stranded.last,
+      "workspace could not be reconstructed, but no live Run uses the workflow workspace; " \
+      "released it and resumed #{stranded.size} stranded Run#{'s' unless stranded.one?}")
   end
 
   def retire_pending_queue_jobs!(run)

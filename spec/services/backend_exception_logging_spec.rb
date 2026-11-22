@@ -132,4 +132,35 @@ RSpec.describe BackendExceptionLogging do
       }, 12.3)
     }.not_to change(BackendExceptionEvent, :count)
   end
+
+  # A lock-wait timeout names only its victim. Three production bursts left
+  # no trace of the transaction holding the rows, so the event now records
+  # the long-open transactions at the moment the waiter gave up.
+  it "records the long-open transactions behind a lock-wait timeout" do
+    allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(false)
+    holders = [ { "trx_id" => "4711", "thread_id" => 88, "age_seconds" => 172, "statement" => "UPDATE jobs ..." } ]
+    allow(MysqlLockDiagnostics).to receive(:snapshot).and_return(holders)
+    exception = ActiveRecord::LockWaitTimeout.new("Lock wait timeout exceeded; try restarting transaction")
+
+    described_class.ingest_job({
+      exception: [ exception.class.name, exception.message ],
+      exception_object: exception,
+      job_class: "RunJob"
+    }, 50_000.0)
+
+    expect(BackendExceptionEvent.last.metadata).to include(
+      "lock_holders" => [ { "trx_id" => "4711", "thread_id" => "88", "age_seconds" => "172", "statement" => "UPDATE jobs ..." } ]
+    )
+  end
+
+  it "does not query lock state for unrelated exceptions" do
+    allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(false)
+    allow(MysqlLockDiagnostics).to receive(:snapshot)
+    exception = NoMethodError.new("undefined method `kind'")
+
+    described_class.ingest_job({ exception: [ exception.class.name, exception.message ], exception_object: exception, job_class: "RunJob" }, 5.0)
+
+    expect(MysqlLockDiagnostics).not_to have_received(:snapshot)
+    expect(BackendExceptionEvent.last.metadata).not_to have_key("lock_holders")
+  end
 end

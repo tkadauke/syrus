@@ -863,6 +863,40 @@ RSpec.describe RunHostAdmission do
       expect(decision.details.fetch("candidate_reserved_memory_bytes")).to eq(6.gigabytes)
     end
 
+    # Regression: the Playwright suite declared nothing, so admission charged
+    # it one generic unit while its Rails server, Vite dev server and Chromium
+    # took several gigabytes. Concurrent graders filled worker hosts until the
+    # pods were OOM-killed -- once taking the MySQL node down with them. A
+    # grader's declared working set is now the floor of its reservation.
+    it "reserves at least a grader's declared memory" do
+      worker_sample(cpu_pressure_some: 1.0)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(8.gigabytes)
+      run = grader_run(name: "e2e-1-of-3")
+      run.step.update!(details: run.step.details.merge("resources" => GraderResourceRequest.new(memory_bytes: 5.gigabytes).to_h))
+
+      decision = described_class.call(run: run)
+
+      expect(decision.details).to include(
+        "candidate_reserved_memory_bytes" => 5.gigabytes,
+        "candidate_memory_evidence_source" => "declared"
+      )
+    end
+
+    it "keeps learned memory evidence when it exceeds the declared working set" do
+      worker_sample(cpu_pressure_some: 1.0)
+      process_attributed_grader_profile(grader_name: "rspec", io_bytes: 1.megabyte, memory_bytes: 6.gigabytes)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(8.gigabytes)
+      run = grader_run(name: "rspec")
+      run.step.update!(details: run.step.details.merge("resources" => GraderResourceRequest.new(memory_bytes: 2.gigabytes).to_h))
+
+      decision = described_class.call(run: run)
+
+      expect(decision.details).to include(
+        "candidate_reserved_memory_bytes" => 6.gigabytes,
+        "candidate_memory_evidence_source" => "command_attributed"
+      )
+    end
+
     it "charges graders against the same host budget as agentic runs" do
       worker_sample(cpu_pressure_some: 1.0)
       saturate_guarded_slots!

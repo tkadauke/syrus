@@ -8,7 +8,9 @@
 # branch descends from the *live* parent head.
 #
 #   fetch live parent -> descends?  yes -> fresh
-#                                   no  -> rebase --onto live <prepared>,
+#                                   no  -> rebase --onto live <prepared>
+#                                          (cherry-pick the child's own
+#                                          commits if it merged main),
 #                                          post-rebase validation,
 #                                          fetch live parent again ...
 #
@@ -126,24 +128,62 @@ class StackBaseFreshness
   # Replays only the child's own commits (prepared..HEAD) so commits of the
   # superseded parent history are not carried over. Without a usable prepared
   # SHA, falls back to a plain rebase onto the live head.
+  #
+  # A child that merged main carries main's commits in prepared..HEAD. When
+  # the parent has since been rebased onto that main, `rebase --onto` would
+  # replay them on a base that already contains them, and conflict. Such a
+  # child instead gets only the commits the live parent does not already
+  # contain, cherry-picked onto it.
   def rebase_onto!(live, prepared, history)
     drivers = GitMergeDrivers.register!(git: @git, path: @path)
+    original_head = @git.run("rev-parse", "HEAD", chdir: @path).strip
+    replaying = false
     if prepared.present? && commit_available?(prepared) && descends_from?(prepared)
-      @git.run("rebase", "--onto", live, prepared, chdir: @path)
+      if merges_since?(prepared, live)
+        replaying = true
+        replay_own_commits!(live, prepared)
+      else
+        @git.run("rebase", "--onto", live, prepared, chdir: @path)
+      end
     else
       @git.run("rebase", live, chdir: @path)
     end
   rescue GitRunner::GitError => e
     conflicts = conflicted_files(drivers)
-    begin
-      @git.run("rebase", "--abort", chdir: @path)
-    rescue GitRunner::GitError
-      nil
-    end
+    replaying ? abandon_replay!(original_head) : abort_rebase!
     raise RebaseConflict.new(
       "rebasing completed work onto #{@parent_ref} (#{short(live)}) failed: #{e.message}",
       evidence: evidence(prepared, live, history).merge("conflicted_files" => conflicts)
     )
+  end
+
+  def merges_since?(prepared, live)
+    @git.run("rev-list", "--merges", "--max-count=1", "HEAD", "^#{prepared}", "^#{live}", chdir: @path).strip.present?
+  end
+
+  def replay_own_commits!(live, prepared)
+    own = @git.run("rev-list", "--reverse", "--topo-order", "--no-merges", "HEAD", "^#{prepared}", "^#{live}", chdir: @path)
+      .lines.map(&:strip).reject(&:blank?)
+    say("child merged history the live parent already contains; replaying its #{own.size} own commit(s)")
+    @git.run("reset", "--hard", live, chdir: @path)
+    # --keep-redundant-commits: a child commit the parent already absorbed
+    # stays as an empty commit instead of stopping the replay.
+    @git.run("cherry-pick", "--keep-redundant-commits", *own, chdir: @path) if own.any?
+  end
+
+  def abandon_replay!(original_head)
+    begin
+      @git.run("cherry-pick", "--abort", chdir: @path)
+    rescue GitRunner::GitError
+      nil
+    end
+    @git.run("reset", "--hard", original_head, chdir: @path)
+  end
+
+  def abort_rebase!
+    @git.run("rebase", "--abort", chdir: @path)
+  rescue GitRunner::GitError
+    nil
   end
 
   def conflicted_files(drivers)

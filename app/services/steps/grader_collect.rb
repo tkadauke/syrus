@@ -35,6 +35,7 @@ module Steps
       database_lock
       disk_full
       git_transport_transient
+      prepare_network_transient
       grader_cancelled
       silent_timed_out
       timed_out

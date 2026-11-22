@@ -1,4 +1,5 @@
 import { BrowserWindow } from "electron"
+import { lockPrivilegedWindow } from "./privilegedWindowGuard.js"
 
 type OnboardingWindowOptions = {
   preloadPath: string
@@ -24,6 +25,7 @@ export const createOnboardingWindow = async ({ preloadPath, loadRenderer, onClos
     }
   })
 
+  lockPrivilegedWindow(window.webContents)
   window.on("closed", onClosed)
   await loadRenderer(window, "onboarding")
   return window

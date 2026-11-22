@@ -44,4 +44,15 @@ RSpec.describe "Filters chip contract" do
     expect(Filters::Chips::Jobs::LatestWorkflowTriggerKind.values)
       .to match_array(Workflow::TriggerKind.values)
   end
+
+  # Regression: the chip captured the registry once, at class load. Plugin
+  # trigger kinds come and go with their plugin (a disabled Coworkers plugin
+  # took coworker_run out of the registry while the chip still offered it),
+  # which made the example above fail depending on spec order.
+  it "follows the live TriggerKind registry rather than a load-time copy" do
+    live = Workflow::TriggerKind.values - [ "coworker_run" ] + [ "spec_plugin_kind" ]
+    allow(Workflow::TriggerKind).to receive(:values).and_return(live.freeze)
+
+    expect(Filters::Chips::Jobs::LatestWorkflowTriggerKind.values).to match_array(live)
+  end
 end

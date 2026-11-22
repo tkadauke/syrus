@@ -52,6 +52,41 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
       expect(response).to have_http_status(:unauthorized)
     end
 
+    # Under `required` the chat agent runs only in a container, and the
+    # checkout these commands run in is the one the contained agent writes, so
+    # running them on the worker would execute agent-written code outside the
+    # container. They are refused with an explanation (NY15). Local Mode runs
+    # on the user's own machine and is unaffected.
+    context "when contained chat execution is required" do
+      before { AppSetting.current.update!(contained_chat_execution: "required") }
+
+      it "refuses a Coding Mode command with an explanation and queues nothing" do
+        sign_in_as(user)
+        chat = coding_chat
+        enable_coding_mode!
+
+        expect {
+          post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "npm test" }
+        }.not_to have_enqueued_job(ChatShellCommandJob)
+
+        expect(response).to have_http_status(:forbidden)
+        expect(parse_body.dig("error", "code")).to eq("containment_required")
+        expect(parse_body.dig("error", "message")).to eq(I18n.t("api.chat_shell_commands.preconditions.containment_required"))
+        expect(chat.chat_shell_commands).to be_empty
+      end
+
+      it "still runs Local Mode commands, which never touch the worker" do
+        sign_in_as(user)
+        chat = local_chat
+        enable_local_mode!
+        connect_local_daemon!(chat)
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "ls" }
+
+        expect(response).to have_http_status(:created)
+      end
+    end
+
     it "404s when the coding_mode feature flag is off" do
       sign_in_as(user)
       chat = coding_chat

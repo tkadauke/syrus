@@ -56,7 +56,10 @@ class RepoPluginDetector
   def detect_among(manifests)
     manifests.filter_map do |manifest|
       manifest.name if detected_by?(manifest)
-    rescue StandardError => e
+    # ScriptError too: a family provider is resolved by name only here, so a
+    # provider file that fails to load surfaces as LoadError / SyntaxError
+    # (the same pair Syrus::Plugin::Conformance contains).
+    rescue StandardError, ScriptError => e
       Rails.logger.debug { "[repo_plugin_detector] #{manifest.name}: #{e.class}: #{e.message}" }
       nil
     end.uniq
@@ -69,8 +72,18 @@ class RepoPluginDetector
     extension_point_match || family_language_support?(manifest)
   end
 
+  # Only a conforming declaration is called, the same gate Dispatch, the
+  # legacy bridge, and PluginRegistry.capability_providers apply. Checked per
+  # manifest because #observe deliberately includes disabled plugins, which
+  # the registry's capability lookup leaves out.
   def family_language_support?(manifest)
-    Syrus::Plugin::Family.all.select(&:indicates_language_support?).any? do |family|
+    families = Syrus::Plugin::Family.all.select(&:indicates_language_support?)
+    return false if families.empty? || manifest.family_provides.empty?
+
+    conformance = Syrus::Plugin::Conformance.new([ manifest ])
+    families.any? do |family|
+      next false unless conformance.conforming?(plugin: manifest.name, family: family.name)
+
       manifest.family_provides.any? do |declaration|
         capability = family.language_support_capability
         next false unless declaration.family == family.name && declaration.capabilities.include?(capability)

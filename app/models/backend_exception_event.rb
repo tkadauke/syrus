@@ -42,7 +42,7 @@ class BackendExceptionEvent < ApplicationRecord
       metadata: {
         format: payload[:format],
         duration_ms: duration_ms.to_f.round(1)
-      }.compact_blank
+      }.compact_blank.merge(lock_diagnostics_for(exception_class || exception.class.name))
     )
   end
 
@@ -70,8 +70,16 @@ class BackendExceptionEvent < ApplicationRecord
       run_id: current_run&.id,
       metadata: {
         duration_ms: duration_ms.to_f.round(1)
-      }
+      }.merge(lock_diagnostics_for(exception_class || exception.class.name))
     )
+  end
+
+  # A lock-wait timeout names only its victim; record what held the rows.
+  def self.lock_diagnostics_for(exception_class)
+    return {} unless MysqlLockDiagnostics.lock_wait_error?(exception_class)
+
+    holders = MysqlLockDiagnostics.snapshot
+    holders.any? ? { lock_holders: holders } : {}
   end
 
   # Rails' default cleaner keeps only app/, config/, lib/ and test/ frames, so a

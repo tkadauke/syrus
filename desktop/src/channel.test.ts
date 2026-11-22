@@ -72,4 +72,11 @@ describe("tagChannel", () => {
     expect(tagChannel("test-0.1.5-test.3")).toBe("test")
     expect(tagChannel("0.1.5-test.3")).toBe("test")
   })
+
+  // uninstall.sh's image sweep mirrors this rule; spec/desktop/uninstall_spec.rb
+  // runs the script over these same tags.
+  it("treats -test.<digits> as test only at the end of the tag", () => {
+    expect(tagChannel("0.1.2-test.4-hotfix")).toBe("stable")
+    expect(tagChannel("0.1.2-test.4.1")).toBe("stable")
+  })
 })

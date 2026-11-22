@@ -273,7 +273,6 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, apiToken, r
 	}
 	defer conn.Close()
 	activity := newLocalActivityLogger(out)
-	connectionCtx, cancelConnection := context.WithCancel(ctx)
 
 	identJSON, err := json.Marshal(map[string]any{
 		"channel":         "LocalTunnelChannel",
@@ -284,6 +283,7 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, apiToken, r
 		return err
 	}
 	identifier := string(identJSON)
+	connectionCtx, cancelConnection := context.WithCancel(ctx)
 
 	// Tracks the cancel func for each in-flight tool call, keyed by
 	// tool_use_id, so a "cancel_tool_call" frame (the chat shell-command cancellation feature `!` command stop

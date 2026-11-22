@@ -503,10 +503,14 @@ if [ "$docker_ready" = "1" ]; then
         # semver/latest, test tags are test-<sha> / <X.Y.Z-test.N>. Both
         # channels share the syrus-backend repo, so an unscoped rmi on the test
         # channel would delete the production image (forcing a multi-GB re-pull).
-        case "$tag" in
-          test-*|*-test.[0-9]*) tag_channel=test ;;
-          *) tag_channel=stable ;;
-        esac
+        # Exactly tagChannel's rule: test-<x>, or a tag ENDING in
+        # -test.<digits>. A glob like *-test.[0-9]* would also match
+        # -test.<digit> mid-tag and disagree with the app.
+        if [[ "$tag" == test-* || "$tag" =~ -test\.[0-9]+$ ]]; then
+          tag_channel=test
+        else
+          tag_channel=stable
+        fi
         [ "$tag_channel" = "$CHANNEL" ] || continue
         ref="$repo:$tag"
         # Plain rmi by repo:tag, never -f: -f would untag EVERY tag sharing
