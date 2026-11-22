@@ -241,6 +241,8 @@ the affected processes.
 and health. `syrus plugin remove NAME` requires confirmation. The admin API can
 also export and import `syrus-plugins.lock.yml`; it records name, version,
 digest, and source while the database remains canonical.
+Registry-sourced entries also record the registry name so imports preserve
+provenance when catalogs collide.
 
 `syrus plugin install NAME[@VERSION]` uses a matching stored release when one
 is available, or resolves it across the enabled registry catalogs and
@@ -261,6 +263,8 @@ only the canonical registry can grant the official label. The legacy
 read-only source. Results include trust labels, exclude revoked releases, and are
 filtered for the running or connected Syrus version. Network and
 malformed-index errors are reported without taking down plugin administration.
+Use `syrus plugin install NAME[@VERSION] --registry REGISTRY` to select an
+ambiguous source by registry name or ID.
 
 ### Reading fleet convergence
 

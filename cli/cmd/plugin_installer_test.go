@@ -101,7 +101,7 @@ func TestPluginInstallStagesStoredVersionAndConfirms(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/app/admin/plugin_installer/stage_release":
 			body, _ := io.ReadAll(r.Body)
-			if !strings.Contains(string(body), `"name":"weather"`) || !strings.Contains(string(body), `"version":"1.0.0"`) {
+			if !strings.Contains(string(body), `"name":"weather"`) || !strings.Contains(string(body), `"version":"1.0.0"`) || !strings.Contains(string(body), `"registry":"partners"`) {
 				t.Fatalf("body = %s", body)
 			}
 			_, _ = io.WriteString(w, `{"id":10,"name":"weather","action":"update","version":"1.0.0","source":"registry","trust_label":"verified","capability_manifest":{"routes":["/weather"]}}`)
@@ -116,7 +116,7 @@ func TestPluginInstallStagesStoredVersionAndConfirms(t *testing.T) {
 	writePluginTestCredentials(t, server.URL)
 	command := NewRootCommand()
 	command.SetOut(io.Discard)
-	command.SetArgs([]string{"plugin", "install", "weather@1.0.0", "--yes"})
+	command.SetArgs([]string{"plugin", "install", "weather@1.0.0", "--registry", "partners", "--yes"})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
