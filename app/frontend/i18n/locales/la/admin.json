@@ -478,6 +478,12 @@
     "aria": "Acta operationalia administrativa"
   },
   "plugins": {
+    "trust_labels": {
+      "official": "Publicum",
+      "verified": "Comprobatum",
+      "community": "Communitatis",
+      "unsigned_local": "Locale sine signo"
+    },
     "recovery_active": "Modus recuperationis pluginorum activus est",
     "recovery_active_body": "Modus tutus: {{mode}}. Plugina segregata: {{count}}. Mutationes post initium novum valent.",
     "none": "nullus",

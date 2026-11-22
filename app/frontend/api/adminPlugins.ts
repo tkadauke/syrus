@@ -44,6 +44,7 @@ export type AdminPlugin = {
   display_name: string
   display_name_i18n_key?: string | null
   version: string
+  trust_label: "official" | "verified" | "community" | "unsigned_local"
   enabled: boolean
   default_enabled: boolean
   disableable: boolean
