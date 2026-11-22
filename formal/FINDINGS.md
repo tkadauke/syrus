@@ -4346,6 +4346,32 @@ the caller. It is not yet modelled.
 
 ---
 
+## M58. Main through `c2e7a2f7cb` — main's React failure fixed by hand, coworker ref filter equivalent
+
+Two commits.
+
+- **"Wait for lazy plugin panels in carousel specs"** (`c2e7a2f7cb`) fixes the
+  two `pluginUiSlots.test.tsx` failures from M55 and M56. They now pass
+  locally on the rebased branch. Main was repaired by hand, not by the
+  main-branch repair that NY30 describes, so NY30 stands for the next time.
+- **"Harden remote workspace command construction and coverage"**
+  (`fd19193276`, Coworkers plugin) replaces a per-ref
+  `merge-base --is-ancestor <sha> refs/remotes/workspace/home` loop with one
+  `for-each-ref --merged=refs/remotes/workspace/home`.
+
+  *Relied-on invariant:* the selected run refs are exactly those whose tip is
+  reachable from the home branch. `--merged=<commit>` lists exactly the refs
+  whose tip is reachable from `<commit>`, which is the `--is-ancestor` test, so
+  the set is unchanged. Ref names cannot contain spaces, so the
+  whitespace-split parse is safe.
+
+  *Not changed by it:* `ref.split("/").last` would truncate a run branch with
+  a `/` after the prefix. The branches Coworkers creates have none.
+
+Rebased without conflicts.
+
+---
+
 ## M57. Main through `e6aa5d7d0e` — the permission matrix optimisation preserves decisions
 
 One commit: "Speed up permission rule specs with cached payload lookups". It is
@@ -5681,7 +5707,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `e6aa5d7d0e`. Each loop iteration continues from there:
+Checked through main `c2e7a2f7cb`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
