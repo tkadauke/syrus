@@ -966,6 +966,15 @@ revision after the latest fix.
 
 Non-agentic. Pushes the branch and opens the PR using the title/body from workflow artifacts. Falls back to `PrSummarizer`, then to a templated default if no agent-authored copy is available.
 
+For a Job stacked on another Job's branch, `pr_open` first proves the finished
+work descends from the parent's current head, replaying the work onto it when
+the parent was rebased meanwhile. If that replay conflicts, `pr_open` fails with
+`stack_base_rebase_conflict` and expands a recovery branch:
+`stack_base_agent_rebase -> grade loop repaired by landing_fix -> pr_open`. A
+second conflict in that last `pr_open` fails the Workflow instead of resolving
+again. A parent that keeps moving, or a replay that fails validation, still
+ends as `awaiting_stable_base`, which is retried.
+
 ### post_implementation_review
 
 Agentic and advisory. Enabled review-note providers inspect the already-published
@@ -1044,6 +1053,14 @@ Agentic. Resolves a rebase conflict mid-push-chain.
 ### push_after_rebase
 
 Non-agentic. Final push after a conflict-resolved rebase.
+
+### stack_base_agent_rebase
+
+Agentic. Resolves the conflict `pr_open` hit while replaying a stacked Job's
+unpublished work onto its restacked parent. It fetches the parent's current
+head, starts the replay again (skipping the agent if it now applies cleanly),
+and requires a completed rebase, a clean working tree, and a HEAD that
+descends from the parent. It fails if the agent leaves the conflict unresolved.
 
 ### auto_rebase
 

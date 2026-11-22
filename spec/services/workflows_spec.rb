@@ -216,7 +216,7 @@ RSpec.describe Workflows do
         [ "test_plan", 10, 1, nil ],
         [ "pr_open", 11, 1, nil ]
       ])
-      expect(wf.chain_template).to eq([
+      expect(wf.chain_template).to match([
         { "type" => "step", "kind" => "prepare" },
         { "type" => "step", "kind" => "implement" },
         {
@@ -235,7 +235,7 @@ RSpec.describe Workflows do
         { "type" => "step", "kind" => "dependency_audit" },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
-        { "type" => "step", "kind" => "pr_open" }
+        stack_aware_pr_open_node
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ adversarial_review format generate grader_fanout grader_collect ])
     end
@@ -333,7 +333,7 @@ RSpec.describe Workflows do
         [ "test_plan", 9, 1 ],
         [ "pr_open", 10, 1 ]
       ])
-      expect(wf.chain_template).to eq([
+      expect(wf.chain_template).to match([
         { "type" => "step", "kind" => "prepare" },
         { "type" => "step", "kind" => "implement" },
         {
@@ -347,7 +347,7 @@ RSpec.describe Workflows do
         { "type" => "step", "kind" => "dependency_audit" },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
-        { "type" => "step", "kind" => "pr_open" }
+        stack_aware_pr_open_node
       ])
     end
 
@@ -931,6 +931,32 @@ RSpec.describe Workflows do
       # failing instantiate.
       expect(Workflow.where(job: job).count).to eq(baseline_wf)
       expect(Step.count).to eq(baseline_step)
+    end
+  end
+
+  # NY29 (decided A): a conflicting stack-base rebase in pr_open branches to
+  # an agent conflict resolution in the same workspace, the validation loop,
+  # and one more pr_open. That last pr_open is a plain step, so a second
+  # conflict fails the Workflow instead of looping.
+  describe "pr_open's stack-base conflict branch" do
+    it "wraps the initial pr_open in a try that resolves a stack-base conflict with an agent" do
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to include("pr_open")
+      expect(wf.steps.pluck(:kind)).not_to include("stack_base_agent_rebase")
+      node = wf.chain_template.find { |candidate| candidate["type"] == "try" && candidate["step"] == "pr_open" }
+      expect(node).to be_present
+      expect(node.dig("on_failure", "stack_base_rebase_conflict")).to eq([
+        { "type" => "step", "kind" => "stack_base_agent_rebase" },
+        {
+          "type" => "retry_until",
+          "max_iterations" => AppSetting.grade_max_iterations,
+          "repair" => %w[ landing_fix ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        },
+        { "type" => "step", "kind" => "pr_open" }
+      ])
     end
   end
 

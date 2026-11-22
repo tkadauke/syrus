@@ -11,7 +11,7 @@ module Throughput
 
     OUTPUT_STEP_KINDS = %w[
       implement respond analyze_and_fix landing_fix merge_train_build
-      agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase
+      agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase stack_base_agent_rebase
     ].freeze
     LANDING_TRIGGER_KINDS = %w[ auto_merge merge_train ].freeze
     REBASE_TRIGGER_KINDS = %w[ rebase stack_rebase ].freeze

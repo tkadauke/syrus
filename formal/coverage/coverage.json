@@ -3072,6 +3072,40 @@
       "producer": "PluginInstaller#stored_release",
       "done_by": "F104",
       "notes": "Pinned by plugin_installer_spec; no Lean model (a single selection function)."
+    },
+    {
+      "area": "workflow",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "id": "try-branch-bounded",
+      "title": "A Try branch's recovery is bounded by its nesting: a plain Step a branch inserted never re-expands a Try",
+      "safety_or_liveness": "liveness",
+      "producer": "StepDispatcher#try_node_for/materialize_branch_steps!; Workflows::MergeTrain.merge_train_land_with_rebase_recovery",
+      "done_by": "F105",
+      "notes": "BranchBound.lean: from the top Try, recovery expands exactly k times for k attempts; before, the deepest plain land re-expanded without end."
+    },
+    {
+      "area": "workflow",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "id": "stack-conflict-recovery",
+      "title": "An unpublished stacked Job whose work conflicts with its restacked parent is resolved by an agent, or fails once",
+      "safety_or_liveness": "liveness",
+      "producer": "Steps::PrOpen#ensure_stack_base_fresh!; Workflows::Base.stack_aware_pr_open; Steps::StackBaseAgentRebase",
+      "done_by": "F106 (NY29)",
+      "notes": "StackConflictRecovery.lean: a resolved conflict publishes; every path ends within two pr_open attempts, never as an exhausted retry budget."
     }
   ],
   "needs_you": [
@@ -3450,7 +3484,7 @@
         "C. Classify a rebase conflict as non-retryable (not awaiting_stable_base) so it fails once with a clear 'needs manual rebase' reason instead of burning retries; operators resolve it."
       ],
       "recommendation": "A, with C's classification as the fallback when the agent fails. The workspace and completed work are right there, conflicts after a parent restack are expected in long Epic chains, and it reuses an existing pattern. For 9453 today: it needs a manual rebase onto syrus/direct-9452 (or a retry once one of A/B exists).",
-      "decision": "A (2026-11-22, answered on the lean-plan site): On a rebase conflict, have pr_open (or the retry it schedules) run an agent conflict resolution in the same workspace -- the merge-train pattern (merge_train_agent_rebase) -- and only fail if the agent cannot resolve it. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): On a rebase conflict, have pr_open (or the retry it schedules) run an agent conflict resolution in the same workspace -- the merge-train pattern (merge_train_agent_rebase) -- and only fail if the agent cannot resolve it. Implemented as F106."
     },
     {
       "id": "NY30",

@@ -351,7 +351,7 @@ module Workflows
     end
 
     def self.initial_pr_finish_steps(job, syrus_yml: nil)
-      steps = [ "summarize", "test_plan", "pr_open" ]
+      steps = [ "summarize", "test_plan", stack_aware_pr_open ]
       steps << "post_implementation_review" if post_implementation_review_requested?(job, trigger_kind: trigger_kind)
       steps
     end
@@ -401,6 +401,22 @@ module Workflows
           :push_agent_rebase,
           landing_grader_retry_loop(max_iterations: max_iterations),
           :push_after_rebase
+        ]
+      )
+    end
+
+    # A stacked Job's finished work can conflict with its restacked parent.
+    # pr_open then fails with stack_base_rebase_conflict, and this branch
+    # resolves the conflict with an agent in the same workspace, re-validates
+    # the result, and opens the PR. The trailing pr_open is a plain step, so a
+    # second conflict fails the Workflow rather than looping.
+    def self.stack_aware_pr_open(max_iterations: AppSetting.grade_max_iterations)
+      Workflows::Try.new(:pr_open).on_failure(
+        Steps::PrOpen::StackBaseRebaseConflict::FAILURE_CODE,
+        [
+          :stack_base_agent_rebase,
+          landing_grader_retry_loop(max_iterations: max_iterations),
+          :pr_open
         ]
       )
     end

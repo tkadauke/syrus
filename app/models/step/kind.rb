@@ -236,6 +236,8 @@ class Step
                 agent_role: AgentRole::WORKFLOW_REBASE_CONFLICT),
       Entry.new(kind: "push_after_rebase",  handler: "PushAfterRebase",    label: "Push rebased branch",       style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
+      Entry.new(kind: "stack_base_agent_rebase", handler: "StackBaseAgentRebase", label: "Resolve stack base rebase", style: "bg-teal-100 text-teal-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_REBASE_CONFLICT),
       Entry.new(kind: "analyze_and_fix",    handler: "AnalyzeAndFix",      label: "Fix CI failures",            style: "bg-red-100 text-red-700",     agentic: true,
                 advance_handler: "CiRepair::NonActionableDiagnosis"),
       Entry.new(kind: "auto_rebase",        handler: "AutoRebase",         label: "Auto-rebase",                style: "bg-teal-100 text-teal-700",   agentic: false,

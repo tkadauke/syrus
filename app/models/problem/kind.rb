@@ -176,6 +176,11 @@ class Problem
       Entry.new(code: "awaiting_stable_base", scope: :external, retryable: true,
                 default_remediation: :defer,
                 label: "Awaiting stable base"),
+      # Replaying finished stacked work onto its restacked parent conflicted.
+      # Retrying the same mechanical rebase conflicts again, so it is handled
+      # by pr_open's agent conflict-resolution branch, not by a retry.
+      Entry.new(code: "stack_base_rebase_conflict", scope: :external, retryable: false,
+                default_remediation: :branch),
       Entry.new(code: "github_push_protection", scope: :external, retryable: false,
                 default_remediation: :escalate),
       Entry.new(code: "pr_open_no_commits_between", scope: :external, retryable: true,

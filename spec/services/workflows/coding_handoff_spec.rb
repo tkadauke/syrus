@@ -31,7 +31,7 @@ RSpec.describe Workflows::CodingHandoff do
       expect(kinds[1].repair_steps).to eq(%w[ coding_handoff_fix ])
       expect(kinds[1].check_steps).to eq(%w[ grader_fanout grader_collect ])
       expect(kinds[1].repair_first).to be(false)
-      expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
+      expect(step_kind_names(kinds.last(3))).to eq(%w[ summarize test_plan pr_open ])
     end
 
     it "materializes the representative chain template" do
@@ -41,13 +41,13 @@ RSpec.describe Workflows::CodingHandoff do
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
         %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
       )
-      expect(workflow.chain_template).to eq([
+      expect(workflow.chain_template).to match([
         { "type" => "step", "kind" => "prepare" },
         { "type" => "retry_until", "max_iterations" => 5, "repair_first" => false,
           "repair" => [ "coding_handoff_fix" ], "check" => [ "grader_fanout", "grader_collect" ] },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
-        { "type" => "step", "kind" => "pr_open" }
+        stack_aware_pr_open_node(max_iterations: 5)
       ])
     end
 
@@ -56,7 +56,7 @@ RSpec.describe Workflows::CodingHandoff do
       kinds = described_class.steps_for(job)
       expect(kinds).not_to include("prepare")
       expect(kinds.first).to be_a(Workflows::RetryUntil)
-      expect(kinds.last).to eq("pr_open")
+      expect(step_kind_names([ kinds.last ])).to eq(%w[ pr_open ])
     end
 
     context "when legacy review_plan is enabled in .syrus.yml" do
@@ -67,7 +67,7 @@ RSpec.describe Workflows::CodingHandoff do
         )
 
         kinds = described_class.steps_for(job)
-        expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
+        expect(step_kind_names(kinds.last(3))).to eq(%w[ summarize test_plan pr_open ])
         expect(kinds).not_to include("review_plan")
       end
     end

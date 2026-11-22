@@ -57,6 +57,14 @@ RSpec.describe Problem::Kind do
       end
     end
 
+    it "treats a conflicting stack-base rebase as a non-retryable problem handled by a branch" do
+      problem = described_class.resolve("stack_base_rebase_conflict")
+
+      expect(problem.code).to eq("stack_base_rebase_conflict")
+      expect(problem.retryable).to be(false)
+      expect(problem.default_remediation).to eq(:branch)
+    end
+
     it "maps the merge-train step failure code onto the rebuild problem" do
       expect(described_class.resolve("merge_train_base_moved").code).to eq("merge_train_rebuild_required")
     end

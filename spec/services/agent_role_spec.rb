@@ -78,7 +78,7 @@ RSpec.describe AgentRole do
 
   describe ".for_step_kind" do
     it "maps rebase-conflict step kinds to WORKFLOW_REBASE_CONFLICT" do
-      %w[agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase].each do |kind|
+      %w[agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase stack_base_agent_rebase].each do |kind|
         expect(described_class.for_step_kind(kind)).to eq(described_class::WORKFLOW_REBASE_CONFLICT)
       end
     end
@@ -114,7 +114,7 @@ RSpec.describe AgentRole do
 
     it "declares every specialized core role on its Step::Kind entry" do
       specialized_kinds = %w[
-        agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase
+        agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase stack_base_agent_rebase
         summarize summarize_amend test_plan refresh_job_metadata submit_report
         adversarial_review security_review visual_review
       ]

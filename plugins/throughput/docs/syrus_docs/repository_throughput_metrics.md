@@ -157,6 +157,7 @@ Output-producing Step kinds:
 - `agent_rebase`
 - `stack_agent_rebase`
 - `push_agent_rebase`
+- `stack_base_agent_rebase`
 
 Source fields:
 

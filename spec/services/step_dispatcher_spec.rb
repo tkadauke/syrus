@@ -3368,6 +3368,38 @@ RSpec.describe StepDispatcher, :ci_only do
     # Step, not a Try. A plain Step inserted by a branch carries no try_id, and
     # a Step without one used to match any Try of its kind, so the deepest land
     # re-expanded the nested Try on every base move and the bound never held.
+    # NY29 (decided A): a conflicting stack-base rebase in pr_open runs the
+    # agent conflict resolution, the validation loop and one more pr_open. A
+    # second conflict there fails the Workflow instead of resolving again.
+    it "resolves a stack-base conflict in pr_open with an agent, once" do
+      pr_open_node = Workflows::Base.stack_aware_pr_open(max_iterations: 2)
+      try_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        chain_template: Workflows::Base.serialize_chain_template([ "summarize", pr_open_node ])
+      )
+      summarize = Step.create!(workflow: try_workflow, kind: "summarize", position: 0, state: "succeeded")
+      pr_open = Step.create!(workflow: try_workflow, kind: "pr_open", position: 1, details: { "try_id" => pr_open_node.id })
+      summarize.update!(next_step_id: pr_open.id)
+      pr_open.update!(details: pr_open.details.merge("failure_code" => Steps::PrOpen::StackBaseRebaseConflict::FAILURE_CODE))
+
+      described_class.fail_from(pr_open)
+
+      expect(try_workflow.reload.steps.order(:position).pluck(:kind)).to eq(%w[
+        summarize pr_open stack_base_agent_rebase grader_fanout grader_collect pr_open
+      ])
+      expect(try_workflow).not_to be_failed
+      expect(try_workflow.steps.find_by!(kind: "stack_base_agent_rebase").runs).to exist
+
+      second_pr_open = try_workflow.steps.where(kind: "pr_open").order(:position).last
+      second_pr_open.update!(details: second_pr_open.details.merge("failure_code" => Steps::PrOpen::StackBaseRebaseConflict::FAILURE_CODE))
+
+      expect {
+        described_class.fail_from(second_pr_open)
+      }.not_to change { try_workflow.steps.count }
+      expect(try_workflow.reload).to be_failed
+    end
+
     it "hard-fails the plain land at the bottom of the recovery nesting instead of expanding again" do
       try_workflow = workflow_with_try_merge_train_land_branch
       land = try_workflow.steps.find_by!(kind: "merge_train_land")

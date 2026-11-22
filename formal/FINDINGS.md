@@ -3894,6 +3894,68 @@ became 17). Dispatcher spec, CI-only included: 244 examples, 0 failures.
 
 ---
 
+## F106. A stacked Job's conflict with its restacked parent burned retries — fixed (NY29)
+
+**Decision (NY29, A).** On a rebase conflict, run an agent conflict resolution
+in the same workspace, and fail only if the agent cannot resolve it.
+
+**Before.** `pr_open` replays a stacked Job's finished work onto the parent's
+live head (`StackBaseFreshness`). A conflicting replay was reported as
+`awaiting_stable_base`, which is retryable, so the auto-retry ran the same
+mechanical replay and conflicted again. The agent path
+(`StackRebaseCoordinator` → Rebase Workflow) skips children without a PR, and
+`stack_agent_rebase` resets each branch to its remote copy, which an
+unpublished child does not have. A production Epic stalled this way for days
+(`StackConflictRecovery.before_never_publishes`).
+
+**Fix.**
+
+- `StackBaseFreshness::RebaseConflict` now fails `pr_open` with
+  `stack_base_rebase_conflict`, a non-retryable Problem whose remediation is a
+  branch, and sets it as the Step's failure code. The parent that keeps moving,
+  and the replay that fails validation, stay `awaiting_stable_base`.
+- `Workflows::Base.stack_aware_pr_open` wraps `pr_open` in a Try for every
+  chain that opens a new PR (Initial, Retry, coding and local-mode handoff,
+  main-branch repair, base-refresh retry). Its branch is
+  `stack_base_agent_rebase → grade loop repaired by landing_fix → pr_open`,
+  the follow-up push's shape.
+- `Steps::StackBaseAgentRebase` (agentic, rebase-conflict role) fetches the
+  parent's current head and starts the same replay. It skips the agent if the
+  replay now applies. It requires a finished rebase, a clean tree and a HEAD
+  that descends from the parent, then records that head as the prepared base,
+  so the trailing `pr_open` finds the branch fresh.
+- The trailing `pr_open` is a plain branch Step, so with F105 a second
+  conflict fails the Workflow rather than resolving again.
+- Docs: `workflow_steps.md` (`pr_open`, `stack_base_agent_rebase`) and the
+  website's workflow page.
+
+**Proof.** `StackConflictRecovery.lean`: `after_resolved_publishes`, and
+`after_terminates` (every path ends within two `pr_open` attempts and never
+as an exhausted retry budget).
+
+**Specs.** All red before:
+
+- `pr_open_spec.rb` "hands a conflicting stack-base rebase to the agent branch
+  instead of awaiting a stable base";
+- `workflows_spec.rb` "wraps the initial pr_open in a try that resolves a
+  stack-base conflict with an agent";
+- `kind_spec.rb` "treats a conflicting stack-base rebase as a non-retryable
+  problem handled by a branch";
+- `step_dispatcher_spec.rb` "resolves a stack-base conflict in pr_open with an
+  agent, once";
+- `stack_base_agent_rebase_spec.rb` (new, real git): the agent resolves a real
+  conflict; an unresolved rebase fails; a parent that moved past the conflict
+  replays without the agent; no recorded conflict refuses to run.
+
+Ten pinned template specs now match the Try node through
+`spec/support/stack_aware_pr_open.rb`. Run and green, CI-only included: the
+dispatcher, workflows, Problem, Step kind, agent role, checkpoint publisher,
+stack freshness and stack rebase coordinator specs (852 examples); the work
+engine and the throughput plugin (697); the docs architecture specs; and
+`bin/check-plugin-boundaries`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

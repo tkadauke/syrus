@@ -70,6 +70,13 @@ chronological order, so clarifications added before the Run starts are part
 of the agent context. A successful Initial workflow leaves the Job open
 with a PR number attached.
 
+A Job stacked on another Job's branch may finish after its parent was rebased.
+`pr_open` then replays the finished work onto the parent's current head before
+publishing. If the replay conflicts, it expands a recovery branch,
+`stack_base_agent_rebase -> grade loop repaired by landing_fix -> pr_open`, so
+an agent resolves the conflict in the same workspace instead of the Job
+failing. A second conflict fails the Job with a clear reason.
+
 ### PrFeedback
 
 Trigger: new review feedback or PR comments on an existing Syrus PR. Steps:
@@ -339,6 +346,7 @@ Optional panels do not block this gate.
 | `push` | No | Push commits to an existing PR branch, update the cost footer, and clean-rebase once if the remote branch advanced |
 | `push_agent_rebase` | Yes | Resolve a conflicting follow-up push rebase onto the current remote PR branch |
 | `push_after_rebase` | No | Push a branch after the agentic follow-up rebase and grade loop |
+| `stack_base_agent_rebase` | Yes | Resolve a conflict replaying a stacked Job's unpublished work onto its rebased parent, before `pr_open` runs again |
 | `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. Unland workflows select the dedicated `unland` phase and reject a selection with no required grader. |
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
 | `agent_rebase` | Yes | Resolve rebase conflicts with the agent |

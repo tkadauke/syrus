@@ -36,6 +36,15 @@ module Steps
       problem_code :awaiting_stable_base
     end
 
+    # Replaying the finished work onto the live parent conflicted. The
+    # conflict-resolution branch (stack_base_agent_rebase) matches on
+    # FAILURE_CODE; outside that branch the failure is final.
+    class StackBaseRebaseConflict < StepFailed
+      FAILURE_CODE = "stack_base_rebase_conflict".freeze
+      ARTIFACT = "stack_base_rebase_conflict".freeze
+      problem_code :stack_base_rebase_conflict
+    end
+
     def call
       workspace.setup
       verify_coding_handoff_snapshot!
@@ -100,8 +109,20 @@ module Steps
         "rebases" => result.rebases, "checked_at" => Time.current.iso8601
       }.compact)
       log("pr_open: stack base #{base} confirmed at #{result.live_sha} (#{result.status})")
+    rescue StackBaseFreshness::RebaseConflict => e
+      raise_stack_base_rebase_conflict!(e)
     rescue StackBaseFreshness::Error => e
       raise_awaiting_stable_base!(e)
+    end
+
+    def raise_stack_base_rebase_conflict!(error)
+      workflow.set_artifact!(StackBaseRebaseConflict::ARTIFACT, error.evidence.merge(
+        "message" => error.message,
+        "detected_at" => Time.current.iso8601
+      ))
+      mark_failure_code!(StackBaseRebaseConflict::FAILURE_CODE)
+      log("pr_open: replaying #{job.slug} onto its restacked parent conflicted; handing the conflict to the agent: #{error.message}")
+      raise StackBaseRebaseConflict.new(error.message, evidence: error.evidence)
     end
 
     def stack_base_freshness(git, base)

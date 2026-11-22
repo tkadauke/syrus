@@ -1675,6 +1675,34 @@ RSpec.describe Steps::PrOpen, :ci_only do
         expect(commands).to eq([ "npm ci" ])
       end
 
+      # NY29 (decided A): a conflicting replay of the finished work onto the
+      # restacked parent is not a parent that will settle on its own. Retrying
+      # the same mechanical rebase only conflicts again, so it fails once,
+      # non-retryably, with the failure code the agent conflict-resolution
+      # branch matches on.
+      it "hands a conflicting stack-base rebase to the agent branch instead of awaiting a stable base" do
+        barrier = instance_double(StackBaseFreshness)
+        allow(barrier).to receive(:ensure_fresh!).and_raise(
+          StackBaseFreshness::RebaseConflict.new(
+            "rebasing completed work onto #{parent.branch_name} (cccccccc) failed",
+            evidence: { "parent_ref" => parent.branch_name, "prepared_sha" => "a" * 40, "live_sha" => "c" * 40,
+                        "conflicted_files" => [ { "path" => "cli/cmd/plugin_local.go" } ] }
+          )
+        )
+        allow(StackBaseFreshness).to receive(:new).and_return(barrier)
+
+        expect { handler.send(:ensure_stack_base_fresh!) }
+          .to raise_error(described_class::StackBaseRebaseConflict) { |e|
+            expect(e.problem.code).to eq("stack_base_rebase_conflict")
+            expect(e.problem).not_to be_retryable
+          }
+        expect(pr_open_step.reload.details).to include("failure_code" => "stack_base_rebase_conflict")
+        expect(workflow.reload.artifact("stack_base_rebase_conflict")).to include(
+          "parent_ref" => parent.branch_name, "prepared_sha" => "a" * 40, "live_sha" => "c" * 40
+        )
+        expect(workflow.artifact("awaiting_stable_base")).to be_nil
+      end
+
       it "surfaces post-rebase validation failure as awaiting-stable-base" do
         barrier = instance_double(StackBaseFreshness)
         allow(barrier).to receive(:ensure_fresh!).and_raise(StackBaseFreshness::ValidationFailed.new("graders red"))
