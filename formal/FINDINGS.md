@@ -4501,6 +4501,37 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M62. Main through `0fa6023754`
+
+Eleven commits. Seven are mobile review UI (gestures, evidence carousel), and
+`eb1b9e1b0f` pre-pulls the app image before a rollout. The rest:
+
+- **"Supersede a main repair still in preflight when main advances"**
+  (`6c5cc09b25`). It closes a running repair, as `superseded`, when its
+  preflight snapshot is an older commit than the new head and `implement` has
+  not started.
+
+  *Relied-on invariant:* a still-broken new head gets its own repair at once.
+  The suspected counterexample was the 30-minute
+  `suppressed_by_recent_closed_repair?` cooldown, which applies to every closed
+  repair except merged ones. A spec shows it does not bite here: closing the
+  stale repair already drives the health flow, which spawns the replacement.
+  The spec ("spawns a fix Job for a still-broken head right after superseding
+  a stale preflight repair") passes with and without excluding `superseded`
+  from the cooldown, so it is kept as a pin and the code is unchanged.
+
+  It also composes with F100: a *failed* repair with a pending retry is not
+  `running`, so supersession skips it, and `retrying_fix_job` keeps blocking a
+  second spawn.
+- **"Say why the spec harness could not set beta mode"** (`e09f7fbc78`). The
+  spec harness now prints the error it used to swallow when setting beta mode.
+  The next CI run should name Lead L9's cause.
+- **"Compare a grader shard against its whole family's base failures"**
+  (`fd9a97e43c`). This is grader base-failure attribution for sharded graders,
+  in grader tooling. No engine invariant.
+
+---
+
 ## M61. Main through `7a6949c328` — main green again, the F88 spec settled on main
 
 Main's grader went red after this branch was pushed to main. There were three
@@ -5990,7 +6021,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `7a6949c328`. Each loop iteration continues from there:
+Checked through main `0fa6023754`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
