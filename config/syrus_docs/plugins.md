@@ -72,7 +72,8 @@ sandbox the plugin, review its code, or authorize its tools.
 `syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
 signs, and uploads a GitHub release, then prints its registry entry. Passing
 `--index-repository OWNER/INDEX --submit` explicitly consents to opening the
-index pull request. Authentication is read from `GITHUB_TOKEN` and is not
+index pull request from the authenticated author's fork and listing the release
+in `index.json`. Authentication is read from `GITHUB_TOKEN` and is not
 printed or stored. The description and license default to gemspec metadata;
 use `--description`, `--license`, or `--category` to override registry metadata.
 
