@@ -1397,6 +1397,35 @@ describe("AdminPlugins", () => {
     expect(screen.queryByText(/Suggested for this instance/)).not.toBeInTheDocument()
   })
 
+  it("renders pending installer capability differences and the disclosure confirmation", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("plugin_installer")) {
+        return Promise.resolve(jsonResponse({
+          installations: [],
+          pending_changes: [{
+            id: 4,
+            name: "weather",
+            action: "update",
+            version: "2.0.0",
+            source: "upload",
+            trust_label: "verified",
+            capability_manifest: { routes: ["/weather"] },
+            capability_diff: { routes: { added: ["/weather"], removed: ["/forecast"] } }
+          }]
+        }))
+      }
+      return Promise.resolve(jsonResponse({ plugins: [] }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("weather 2.0.0")).toBeInTheDocument()
+    expect(screen.getByText("routes: +/weather / −/forecast")).toBeInTheDocument()
+    expect(screen.getByText(/disclosure, not enforcement/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Confirm desired-state change" })).toBeInTheDocument()
+  })
+
   it("shows localized load states and messages for isolated plugins", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({

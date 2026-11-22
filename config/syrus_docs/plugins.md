@@ -158,6 +158,20 @@ database, filesystem, network, and credential access. Install only reviewed
 plugin directories from trusted sources. Dropped-in plugins cannot add
 third-party Ruby gems; they may depend on Rails and use Syrus's plugin APIs.
 
+For packaged plugins, an administrator uploads the archive on **Admin →
+Plugins** or runs `syrus plugin install PATH`. Syrus validates the package and
+signature, rejects revoked releases, and stages a capability manifest for
+review. Staging does not change desired state. Confirmation is explicit; CLI
+scripts use `--yes`. The capability manifest is disclosure, not enforcement,
+and plugin tools still use normal permissions. Updates and removals follow the
+same confirmation gate. After confirmation, **Apply changes** synchronizes the
+active set and restarts the fleet. `syrus plugin list` reports versions, trust,
+sources, and health; `syrus plugin remove NAME` stages removal. Import/export
+lockfiles record name, version, digest, and source while the database remains
+canonical.
+
+For legacy hand placement, use the following stopped-process procedure.
+
 Set `SYRUS_PLUGIN_PATH` to a root whose immediate children are complete plugin
 directories. Mount identical contents read-only at that path in every web,
 worker, setup, preview, and other container that boots Rails. Stage a complete
