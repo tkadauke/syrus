@@ -85,15 +85,19 @@ class PluginRegistry < ApplicationRecord
     return unless reactivating
 
     configured = self.class.active.where(environment_managed: false).where.not(url: CANONICAL_URL).where.not(id:)
-    errors.add(:base, "at most #{MAX_CONFIGURED} plugin registries may be configured") if configured.count >= MAX_CONFIGURED
+    if configured.count >= MAX_CONFIGURED
+      errors.add(:base, I18n.t("server.errors.plugin_registry.configured_limit", count: MAX_CONFIGURED))
+    end
   end
 
   def supported_safe_url
     uri = URI.parse(url.to_s.delete_prefix("git+"))
-    errors.add(:url, "must use HTTPS or git+https") unless uri.is_a?(URI::HTTPS)
-    errors.add(:url, "must not contain credentials") if uri.userinfo.present?
-    errors.add(:url, "host is not permitted") if uri.host.blank? || !SsrfGuard.safe_host?(uri.host)
+    errors.add(:url, I18n.t("server.errors.plugin_registry.unsupported_transport")) unless uri.is_a?(URI::HTTPS)
+    errors.add(:url, I18n.t("server.errors.plugin_registry.credentials_forbidden")) if uri.userinfo.present?
+    if uri.host.blank? || !SsrfGuard.safe_host?(uri.host)
+      errors.add(:url, I18n.t("server.errors.plugin_registry.host_not_permitted"))
+    end
   rescue URI::InvalidURIError
-    errors.add(:url, "is invalid")
+    errors.add(:url, I18n.t("server.errors.plugin_registry.invalid_url"))
   end
 end
