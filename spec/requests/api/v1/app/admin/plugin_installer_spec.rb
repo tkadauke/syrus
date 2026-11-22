@@ -27,6 +27,27 @@ RSpec.describe "API: plugin installer", type: :request do
     end
   end
 
+  it "manages configured registries but only disables the canonical and keeps environment sources read-only" do
+    sign_in_as(admin)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    post "/api/v1/app/admin/plugin_installer/registries", params: { name: "partners", url: "https://partners.example.test" }
+    expect(response).to have_http_status(:created)
+    registry = PluginRegistry.find_by!(name: "partners")
+
+    patch "/api/v1/app/admin/plugin_installer/registries/#{registry.id}", params: { enabled: false }
+    expect(response).to have_http_status(:ok)
+    expect(registry.reload).not_to be_enabled
+
+    canonical = PluginRegistry.ensure_canonical!
+    delete "/api/v1/app/admin/plugin_installer/registries/#{canonical.id}"
+    expect(response).to have_http_status(:unprocessable_content)
+
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_PLUGIN_REGISTRY_URL").and_return("https://legacy.example.test")
+    get "/api/v1/app/admin/plugin_installer/registries"
+    expect(JSON.parse(response.body).fetch("registries")).to include(include("url" => "https://legacy.example.test", "read_only" => true))
+  end
+
   it "stages a stored release for rollback" do
     sign_in_as(admin)
     PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,

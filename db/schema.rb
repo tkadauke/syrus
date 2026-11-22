@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_065455) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3263,6 +3263,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_065455) do
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 
+  create_table "plugin_registries", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "url", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_plugin_registries_on_created_by_id"
+    t.index ["name"], name: "index_plugin_registries_on_name", unique: true
+    t.index ["url"], name: "index_plugin_registries_on_url", unique: true
+  end
+
   create_table "plugin_releases", force: :cascade do |t|
     t.string "name", null: false
     t.string "version", null: false
@@ -3275,8 +3287,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_065455) do
     t.datetime "updated_at", null: false
     t.string "publisher_key_fingerprint"
     t.text "signature"
+    t.integer "plugin_registry_id"
     t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
     t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["plugin_registry_id"], name: "index_plugin_releases_on_plugin_registry_id"
     t.index ["publisher_key_fingerprint"], name: "index_plugin_releases_on_publisher_key_fingerprint"
     t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"
   end
