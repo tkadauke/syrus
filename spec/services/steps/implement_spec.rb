@@ -306,6 +306,23 @@ RSpec.describe Steps::Implement do
       expect(prompt).to include("commit the repair before optional full-suite")
     end
 
+    it "tells the repair agent which preflight graders had no conclusive result, so it does not chase them" do
+      workflow.update!(trigger_kind: "main_branch_repair")
+      workflow.set_artifact!("preflight_failures", [
+        { "name" => "react-tests-ci", "command" => "npm run test:ci", "status" => "failed", "required" => true,
+          "outcome" => "test_failed", "exit_code" => 1, "output" => "1 failed\n" }
+      ])
+      workflow.set_artifact!("preflight_unproven", [
+        { "name" => "e2e", "command" => "bin/test-e2e", "status" => "failed", "required" => true, "outcome" => "inconclusive" }
+      ])
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt).to include("Reproduce with: npm run test:ci")
+      expect(prompt).to include("produced no conclusive result (for example a timeout), so they are not known to be broken: e2e.")
+    end
+
     it "includes exact commands, named failing examples, exit metadata and durable references for preflight failures" do
       workflow.update!(trigger_kind: "main_branch_repair")
       workflow.set_artifact!("preflight_failures", [

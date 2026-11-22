@@ -253,7 +253,11 @@ RSpec.describe Steps::PreflightGraderCollect do
       ])
     end
 
-    it "stays inconclusive and skips the repair when another required grader exhausted its infrastructure retries" do
+    # Regression: one inconclusive grader (an e2e suite that timed out) used to
+    # discard a reproducible failure next to it and skip the repair entirely,
+    # handing a fixable red main to an operator after hours of preflight. The
+    # repair's own grade loop re-runs every grader, the unproven one included.
+    it "repairs the reproducible failure and records a grader without a conclusive result beside it" do
       create_preflight_grader(
         name: "lint", required: true, state: "failed",
         details: { "command" => "bin/lint", "exit_code" => nil, "outcome" => "infrastructure_failed", "outcome_reason" => "worker_died",
@@ -263,9 +267,11 @@ RSpec.describe Steps::PreflightGraderCollect do
 
       handler.call
 
-      expect(workflow.reload.artifact("preflight_failures")).to be_nil
-      expect(workflow.artifact("preflight_inconclusive").map { |entry| entry["name"] }).to contain_exactly("rspec", "lint")
-      expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("skipped"))
+      expect(workflow.reload.artifact("preflight_failures").map { |entry| entry["name"] }).to eq([ "rspec" ])
+      expect(workflow.artifact("preflight_unproven").map { |entry| entry["name"] }).to eq([ "lint" ])
+      expect(workflow.artifact("preflight_inconclusive")).to be_nil
+      expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("queued"))
+      expect(run.reload.job_logs.pluck(:chunk).join).to include("no conclusive result: lint")
     end
   end
 
