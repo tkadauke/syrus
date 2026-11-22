@@ -59,10 +59,13 @@ class PluginRegistryClient
   # Installation is the explicit boundary where registry revocations become
   # instance policy. Catalog browsing intentionally remains read-only.
   def activate_trust_store!
-    Syrus::PluginPackage::TrustStore.cache!(trust_store(index_root), path: trust_store_cache_path)
+    Syrus::PluginPackage::TrustStore.cache!(trust_store(index_root), path: trust_store_cache_path,
+      plugin_registry: @source)
   end
 
-  def cached_trust_store = Syrus::PluginPackage::TrustStore.cached(path: trust_store_cache_path)
+  def cached_trust_store
+    Syrus::PluginPackage::TrustStore.cached(path: trust_store_cache_path, plugin_registry: @source)
+  end
   def source = @source
 
   def index_root = @cache_root.join("index")

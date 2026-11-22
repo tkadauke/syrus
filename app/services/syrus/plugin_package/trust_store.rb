@@ -15,23 +15,29 @@ module Syrus
         WorkflowWorkspace.data_root.join("plugin-registry", "trust-store.json")
       end
 
-      def self.cached(path: cache_path)
-        with_cache_lock(path) { reconcile_pending_or_load(path) }
+      def self.cached(path: cache_path, plugin_registry: nil)
+        with_cache_lock(path) { reconcile_pending_or_load(path, plugin_registry:) }
       end
 
-      def self.cache!(data, path: cache_path)
+      def self.for_release(release)
+        return cached unless release.plugin_registry
+
+        PluginRegistryClient.new(source: release.plugin_registry).cached_trust_store
+      end
+
+      def self.cache!(data, path: cache_path, plugin_registry: nil)
         store = data.is_a?(self) ? data : new(data)
         with_cache_lock(path) do
           write_pending(store, path:)
-          reconcile_pending_or_load(path)
+          reconcile_pending_or_load(path, plugin_registry:)
         end
       end
 
-      def self.reconcile_pending_or_load(path)
+      def self.reconcile_pending_or_load(path, plugin_registry: nil)
         pending_path = reconciliation_path(path)
         if File.exist?(pending_path)
           store = load(pending_path)
-          RevocationReconciler.new(store).call
+          RevocationReconciler.new(store, plugin_registry:).call
           File.rename(pending_path, path)
           return store
         end

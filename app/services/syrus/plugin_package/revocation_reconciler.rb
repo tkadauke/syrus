@@ -1,12 +1,15 @@
 module Syrus
   module PluginPackage
     class RevocationReconciler
-      def initialize(trust_store)
+      def initialize(trust_store, plugin_registry: nil)
         @trust_store = trust_store
+        @plugin_registry = plugin_registry
       end
 
       def call
-        revoked_installations = PluginInstallation.includes(:plugin_release).find_each.filter_map do |installation|
+        installations = PluginInstallation.includes(:plugin_release)
+        installations = installations.where(plugin_releases: { plugin_registry_id: @plugin_registry&.id })
+        revoked_installations = installations.find_each.filter_map do |installation|
           installation if @trust_store.revoked?(installation.plugin_release)
         end
         return [] if revoked_installations.empty?
