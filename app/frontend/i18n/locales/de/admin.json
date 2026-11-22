@@ -492,6 +492,8 @@
       "restart_required": "Der Sollzustand wurde geändert. Wende die Änderungen an, um die Flotte zu synchronisieren und neu zu starten.",
       "apply": "Änderungen anwenden",
       "remove": "Entfernen",
+      "stored_releases": "Gespeicherte Versionen",
+      "restore": "Wiederherstellen",
       "actions": { "install": "Installieren", "update": "Aktualisieren", "remove": "Entfernen" }
     },
     "trust_labels": {
