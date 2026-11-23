@@ -1124,12 +1124,18 @@ describe("RecentChatsSidebar action and marker slot", () => {
       ])
 
       const marker = screen.getByTestId("job-running-marker")
+      const reference = marker.closest('[role="button"]')!
+      expect(reference).toHaveAttribute("aria-expanded", "false")
       const row = screen.getByTitle("Chat").parentElement!
       fireEvent.mouseEnter(row)
       expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
 
+      fireEvent.mouseEnter(reference)
+      expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
+
       fireEvent.click(marker)
       expect(screen.getByTestId("recent-chat-indicator-popover")).toBeInTheDocument()
+      expect(reference).toHaveAttribute("aria-expanded", "true")
       expect(screen.getByTestId("location")).toHaveTextContent("/")
 
       fireEvent.click(marker)
