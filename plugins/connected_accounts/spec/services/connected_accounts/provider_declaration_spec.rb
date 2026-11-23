@@ -54,6 +54,21 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
     }.to raise_error(ArgumentError, /register_system_access/)
   end
 
+  it "requires a fixed system invocation implementation for declared system identities" do
+    provider = Class.new do
+      class << self
+        ConnectedAccounts::Provider::REQUIRED_CAPABILITIES.each { |capability| define_method(capability) { |_context| } }
+        def register_system_access(_identity, _binding) = nil
+      end
+    end
+    stub_const("ProviderWithoutSystemInvocation", provider)
+
+    expect {
+      described_class.build(plugin_name: "example_plugin", attributes: valid_attributes.merge(
+        provider: "ProviderWithoutSystemInvocation", system_service_identities: [ "platform.telegram_delivery" ]))
+    }.to raise_error(ArgumentError, /system_invoke/)
+  end
+
   it "rejects missing capabilities and malformed manifest fields" do
     attributes = valid_attributes.merge(
       key: "Not Stable", display_name: "", capabilities: %w[authorization],
