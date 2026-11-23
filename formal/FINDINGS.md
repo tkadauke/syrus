@@ -4918,6 +4918,41 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M67. Main through `a469015745`
+
+Ten commits. Startup diagnostics (`b7abea2d8d`, `92e7d08f7a`, `3d3121d34f`), a
+mobile coworker sidebar alignment (`eac45e6e55`) and formatting carry no engine
+invariant. The rest:
+
+- **"Harden core Job persistence against MySQL lock waits"** (`836d0ad0eb`).
+  Adds attempt and exhaustion telemetry to RunJob's lifecycle-write retry and a
+  retryable conflict response for bulk Job actions. *Relied-on invariants:* a
+  retried block is idempotent, and the telemetry cannot fail a write. Both
+  hold. Each retried block is one transaction (or a reload and one
+  transaction), so a lock wait rolls it back whole; `Workflow#record_run_failure!`
+  documents the same. The counter is declared `run_lifecycle_lock_retries_total`
+  and fetched as `syrus_run_lifecycle_lock_retries_total`, which matches,
+  because every core declaration is prefixed `syrus_`. One residue: a lock wait
+  inside a Step's after-commit cascade, after the success committed, is retried
+  into a reload that finds the Step terminal and returns, so the cascade is
+  dropped. That is the lost-cascade shape the reconciler already repairs, and
+  F102 makes the repair replay it.
+- **"Enable QA coworkers to perform visual acceptance reviews"** (`4918d4d863`).
+  Opens `run_visual_review` and `run_visual_diff` to coworker roles. *Relied-on
+  invariant:* a coworker tool skips the generic approval only when its card is
+  backed (F108). Holds: both are core tools whose `approval_effect` is derived
+  from their registered pending actions.
+- **"Require explicit plugin release metadata"** (`07eb776139`, `bf8a33a67c`)
+  and **"Fix merge-readiness integration regressions"** (`a469015745`). Plugin
+  manifest metadata and plugin-health reporting. They rewrite part of
+  `lib/syrus/plugin_registry.rb`, which F93 changed; the rebase merged cleanly,
+  and F93's specs, the plugin enablement guard, the Coworkers and Local Backups
+  plugins, `spec/lib/syrus`, the architecture specs and both RunJob lock-wait
+  specs pass on the result with the lock-order checker raising (1,859
+  examples).
+
+---
+
 ## M66. Main through `29c22a4edd`
 
 One commit: macOS workers run the release's pinned Ruby through mise. Worker
@@ -6541,7 +6576,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `29c22a4edd`. Each loop iteration continues from there:
+Checked through main `a469015745`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
