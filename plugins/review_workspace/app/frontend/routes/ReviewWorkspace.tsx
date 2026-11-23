@@ -368,7 +368,7 @@ function MobileGestureSurface({
       )}
       <div
         aria-label={t("gesture_surface")}
-        className={`relative z-10 touch-pan-x touch-pan-y motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
+        className={`relative z-10 motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
         data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
@@ -534,7 +534,7 @@ function JobReview({
     )
   return (
     <section aria-label={t("evidence")} className="min-w-0 bg-page p-4 sm:p-6 lg:overflow-y-auto">
-      <div className="mb-5 touch-pan-y">
+      <div className="mb-5 touch-none">
         <p className="text-xs text-text-secondary">
           {job.slug} · {job.repository.slug}
         </p>
@@ -619,8 +619,10 @@ function MobileReviewCard({
   const canApprove = Boolean(payload.actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
   return (
     <article className="relative space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
-      <div aria-hidden="true" className="absolute inset-0 touch-pan-y" data-testid="mobile-decision-touch-region" />
-      <div className="relative z-10 touch-pan-y">
+      {/* Gesture-start regions disable native panning so the pending lock owns
+          arbitration. The evidence section remains exempt and keeps native pan. */}
+      <div aria-hidden="true" className="absolute inset-0 touch-none" data-testid="mobile-decision-touch-region" />
+      <div className="relative z-10 touch-none">
         {payload.summary?.text ? (
           <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
         ) : (
@@ -629,7 +631,7 @@ function MobileReviewCard({
       </div>
       <section
         aria-label={t("visual_evidence")}
-        className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle"
+        className={`relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle ${evidence ? "" : "touch-none"}`}
         data-review-gesture-exempt={evidence ? "true" : undefined}
       >
         {evidence ? (
@@ -679,7 +681,7 @@ function MobileReviewCard({
           <div className="grid min-h-40 place-items-center p-5 text-center text-sm text-text-secondary">{t("no_visual_evidence")}</div>
         )}
       </section>
-      <div className="relative z-10 space-y-4 touch-pan-y">
+      <div className="relative z-10 space-y-4 touch-none">
         <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
           <span
             className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
