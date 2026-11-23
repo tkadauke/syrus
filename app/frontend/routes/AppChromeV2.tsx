@@ -1530,7 +1530,7 @@ function SidebarContent({
         </Button>
       ) : null}
       <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} searchShortcutsEnabled={searchShortcutsEnabled} />
-      {collapsed ? null : <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />}
+      {collapsed ? null : <SidebarMaintenanceTasks admin={Boolean(user?.admin)} prefix={prefix} />}
     </>
   )
 
