@@ -990,7 +990,6 @@ class Job < ApplicationRecord
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :finish_stale_work_units_after_close, if: :saved_change_to_closed?
   after_update_commit :cancel_stale_work_intents_after_close, if: :saved_change_to_closed?
-  after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
   after_update_commit :enqueue_close_external_pr, if: :saved_change_to_closed_external_pr_to_close?
   after_update_commit :ensure_main_branch_repair_after_close, if: :saved_change_to_closed_main_branch_repair?
   after_update_commit :enqueue_urgent_job_closed, if: :saved_change_to_closed_urgent_job?
@@ -1864,14 +1863,6 @@ class Job < ApplicationRecord
   def mark_infrastructure_job_closed
     self.closure_reason = kind
     self.finished_at ||= Time.current
-  end
-
-  def purge_coverage_hit_maps_on_close
-    workflows.find_each do |workflow|
-      workflow.purge_coverage_hit_map! if workflow.coverage_hit_map.attached?
-    rescue StandardError => e
-      Rails.logger.warn("Job#purge_coverage_hit_maps_on_close: workflow #{workflow.id} failed: #{e.message}")
-    end
   end
 
   def notify_pr_merged

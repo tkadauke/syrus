@@ -1,11 +1,11 @@
 module Steps
   # Non-agentic step that runs after the grader retry loop, alongside
-  # coverage_analyze. Language plugins register :dependency_audit_command
+  # the post-implementation steps. Language plugins register :dependency_audit_command
   # providers (Ruby's `bundle-audit check`, JavaScript's `npm/yarn/pnpm
   # audit --json`, Python's `pip-audit`, Go's `govulncheck ./...`); this
   # step only runs a provider's command when the PR diff actually touched
   # one of that provider's declared lockfiles — reusing the diff-vs-default
-  # computation grader_fanout/coverage_analyze already use rather than
+  # computation grader_fanout already uses rather than
   # re-implementing lockfile detection, and scoped to the same lockfile
   # ownership :prepare_detector's language plugins already encode.
   #

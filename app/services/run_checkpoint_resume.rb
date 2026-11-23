@@ -3,8 +3,6 @@ class RunCheckpointResume
     summarize
     test_plan
     pr_open
-    coverage_analyze
-    coverage_pr_comment
     summarize_amend
     refresh_job_metadata
     push

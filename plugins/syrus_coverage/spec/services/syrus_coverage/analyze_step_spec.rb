@@ -1,0 +1,908 @@
+require "rails_helper"
+require "tmpdir"
+
+RSpec.describe SyrusCoverage::AnalyzeStep, :ci_only do
+  let(:job) { Factories.job }
+  let(:workflow) { job.workflows.last }
+  let(:step) do
+    Step.create!(workflow: workflow, kind: "coverage_analyze", position: 99)
+  end
+  let(:run) do
+    step.runs.create!(job: job, trigger_kind: workflow.trigger_kind,
+                      state: "running", iteration: step.iteration)
+  end
+  let(:handler) { described_class.new(run) }
+
+  # These examples exercise SyrusCoverage::AnalyzeStep's built-in parsing. The
+  # bundled `ruby` and `go` plugins also provide `analyze_coverage` and are
+  # consulted first, so disable them here; the extension-point context below
+  # covers the plugin path explicitly.
+  before do
+    %w[ruby go].each do |name|
+      PluginRecord.find_or_create_by!(name: name).update!(enabled: false, disableable: true)
+    end
+  end
+
+  around do |example|
+    Dir.mktmpdir("syrus-coverage-analyze") do |dir|
+      @ws_path = Pathname.new(dir)
+      example.run
+    end
+  end
+
+  before do
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: WorkflowWorkspace.base_ref_for(job))
+    allow(handler).to receive(:workspace).and_return(fake_ws)
+    # Default: no diff changes so annotations are empty
+    allow(GitRunner).to receive(:new).and_return(
+      instance_double(GitRunner, run: "")
+    )
+  end
+
+  SAMPLE_LCOV = <<~LCOV
+    TN:
+    SF:app/models/user.rb
+    DA:1,5
+    DA:2,0
+    DA:3,3
+    LF:3
+    LH:2
+    BRF:0
+    BRH:0
+    FNF:1
+    FNH:1
+    end_of_record
+  LCOV
+
+  def write_syrus_yml(content)
+    @ws_path.join(".syrus.yml").write(content)
+  end
+
+  def write_lcov(path: "coverage/lcov.info", content: SAMPLE_LCOV)
+    abs = @ws_path.join(path)
+    FileUtils.mkdir_p(abs.dirname)
+    abs.write(content)
+  end
+
+  def write_nested_syrus_yml(dir, content)
+    abs = @ws_path.join(dir, ".syrus.yml")
+    FileUtils.mkdir_p(abs.dirname)
+    abs.write(content)
+  end
+
+  context "when no coverage configuration is present" do
+    it "logs a skip message and returns without writing an artifact" do
+      # No .syrus.yml at all
+      expect { handler.call }.not_to raise_error
+      expect(workflow.reload.artifact("coverage")).to be_nil
+    end
+
+    it "skips when .syrus.yml has no coverage key" do
+      write_syrus_yml("grade:\n  - name: tests\n    run: bin/rspec\n")
+      expect { handler.call }.not_to raise_error
+      expect(workflow.reload.artifact("coverage")).to be_nil
+    end
+  end
+
+  context "when coverage is configured but all artifact files are missing" do
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+    end
+
+    it "writes coverage_unavailable: true and passes" do
+      expect { handler.call }.not_to raise_error
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact["coverage_unavailable"]).to be true
+      expect(artifact["sources_status"].first).to include("found" => false)
+    end
+  end
+
+  context "with coverage retained from isolated grader checkouts" do
+    it "merges multiple grader outputs, annotates changed lines, and reports an absent source" do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/ruby/lcov.info
+              format: lcov
+            - artifact: coverage/js/lcov.info
+              format: lcov
+            - artifact: coverage/absent/lcov.info
+              format: lcov
+      YAML
+      diff = <<~DIFF
+        diff --git a/app/models/user.rb b/app/models/user.rb
+        --- a/app/models/user.rb
+        +++ b/app/models/user.rb
+        @@ -0,0 +1,2 @@
+        +covered
+        +uncovered
+        diff --git a/app/frontend/app.ts b/app/frontend/app.ts
+        --- a/app/frontend/app.ts
+        +++ b/app/frontend/app.ts
+        @@ -0,0 +1 @@
+        +covered
+      DIFF
+      allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner, run: diff))
+
+      collect = workflow.steps.create!(kind: "grader_collect", position: 98, state: "succeeded")
+      outputs = [
+        [ "ruby", "coverage/ruby/lcov.info", SAMPLE_LCOV ],
+        [ "vitest", "coverage/js/lcov.info", <<~LCOV ]
+          TN:
+          SF:app/frontend/app.ts
+          DA:1,2
+          LF:1
+          LH:1
+          end_of_record
+        LCOV
+      ]
+      outputs.each_with_index do |(name, artifact_path, content), index|
+        grader = workflow.steps.create!(
+          kind: "grader", position: 90 + index, state: "succeeded",
+          details: { "name" => name, "coverage_outputs" => [ { "artifact" => artifact_path, "format" => "lcov" } ] }
+        )
+        grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded")
+        checkout = @ws_path.dirname.join("immutable-checkouts/steps/#{grader.id}")
+        FileUtils.mkdir_p(checkout.join(File.dirname(artifact_path)))
+        checkout.join(artifact_path).write(content)
+        GraderCoverageOutputCollector.call(
+          run: grader_run, workspace_path: checkout,
+          outputs: grader.details["coverage_outputs"], grader_name: name,
+          project_path: nil, source_snapshot_id: nil, log: ->(_) { }
+        )
+        FileUtils.rm_rf(checkout)
+      end
+
+
+      sql = []
+      callback = ->(*, payload) { sql << payload[:sql] unless payload[:name] == "SCHEMA" }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        RetainedGraderCoverageOutputs.for(workflow)
+      end
+      expect(sql.count { |query| query.match?(/FROM ["`]runs["`]/i) }).to eq(1)
+      expect(sql.count { |query| query.match?(/FROM ["`]active_storage_attachments["`]/i) }).to eq(1)
+      expect(sql.count { |query| query.match?(/FROM ["`]active_storage_blobs["`]/i) }).to eq(1)
+
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("diff_annotations", "app/models/user.rb")).to include("1" => "covered", "2" => "uncovered")
+      expect(artifact.dig("diff_annotations", "app/frontend/app.ts", "1")).to eq("covered")
+      expect(artifact.fetch("sources_status").map { |status| [ status["artifact"], status["found"] ] }).to contain_exactly(
+        [ "coverage/ruby/lcov.info", true ], [ "coverage/js/lcov.info", true ], [ "coverage/absent/lcov.info", false ]
+      )
+      expect(collect).to be_succeeded
+    end
+  end
+
+  context "with a valid LCOV file" do
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          hitmap_ttl_days: 1
+      YAML
+      write_lcov
+    end
+
+    it "writes the coverage artifact with summary, files, and sources_status" do
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+      expect(artifact["files"]).to have_key("app/models/user.rb")
+      expect(artifact["sources_status"].first).to include("found" => true, "artifact" => "coverage/lcov.info")
+      expect(artifact["coverage_unavailable"]).to be_nil
+    end
+
+    it "creates a SyrusCoverage::Snapshot" do
+      expect { handler.call }.to change(SyrusCoverage::Snapshot, :count).by(1)
+      snapshot = SyrusCoverage::Snapshot.last
+      expect(snapshot.workflow).to eq(workflow)
+      expect(snapshot.repository).to eq(job.repository)
+      expect(snapshot.lines_pct).to be_within(0.01).of(66.67)
+    end
+
+    it "enqueues SyrusCoverage::HitMapPruneJob" do
+      expect {
+        handler.call
+      }.to have_enqueued_job(SyrusCoverage::HitMapPruneJob).with(workflow.id)
+    end
+
+    it "attaches the hit map to the workflow" do
+      handler.call
+      expect(workflow.reload.coverage_hit_map).to be_attached
+    end
+
+    it "sets hit_map_attached: true in the artifact" do
+      handler.call
+      expect(workflow.reload.artifact("coverage")["hit_map_attached"]).to be true
+    end
+  end
+
+  context "with nested project coverage" do
+    let(:frontend_lcov) do
+      <<~LCOV
+        TN:
+        SF:src/App.tsx
+        DA:1,1
+        DA:2,0
+        LF:2
+        LH:1
+        end_of_record
+      LCOV
+    end
+
+    let(:desktop_lcov) do
+      <<~LCOV
+        TN:
+        SF:src/main.ts
+        DA:1,1
+        DA:2,1
+        LF:2
+        LH:2
+        end_of_record
+      LCOV
+    end
+
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+      write_nested_syrus_yml("frontend", <<~YAML)
+        project:
+          label: Frontend
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 80
+      YAML
+      write_nested_syrus_yml("desktop", <<~YAML)
+        project:
+          label: Desktop
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 90
+      YAML
+      write_lcov(path: "coverage/lcov.info")
+      write_lcov(path: "frontend/coverage/lcov.info", content: frontend_lcov)
+      write_lcov(path: "desktop/coverage/lcov.info", content: desktop_lcov)
+    end
+
+    it "reports root and affected nested projects while preserving the root aggregate" do
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: <<~DIFF)
+          diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+          index abc..def 100644
+          --- a/frontend/src/App.tsx
+          +++ b/frontend/src/App.tsx
+          @@ -0,0 +1,2 @@
+          +one
+          +two
+        DIFF
+      )
+
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("summary", "lines_pct")).to eq(66.67)
+      expect(artifact["projects"].map { |project| project.dig("project", "id") }).to contain_exactly("repo", "frontend")
+      expect(artifact["projects"].find { |project| project.dig("project", "id") == "frontend" })
+        .to include("threshold_miss" => true)
+      expect(artifact.dig("projects", 1, "files")).to have_key("frontend/src/App.tsx")
+      expect(artifact["projects"].flat_map(&:keys)).not_to include("hit_map")
+    end
+
+    it "creates project-identified snapshots" do
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/desktop/src/main.ts b/desktop/src/main.ts\n")
+      )
+
+      expect { handler.call }.to change(SyrusCoverage::Snapshot, :count).by(2)
+      expect(SyrusCoverage::Snapshot.order(:id).last(2).map(&:project_id)).to contain_exactly("repo", "desktop")
+      expect(SyrusCoverage::Snapshot.last.target_label).to eq("//desktop:coverage")
+    end
+  end
+
+  context "with only nested project coverage" do
+    before do
+      write_nested_syrus_yml("apps/web", <<~YAML)
+        project:
+          id: web
+          label: Web App
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          pr_comment: true
+      YAML
+      write_lcov(path: "apps/web/coverage/lcov.info", content: <<~LCOV)
+        TN:
+        SF:src/index.ts
+        DA:1,1
+        DA:2,1
+        LF:2
+        LH:2
+        end_of_record
+      LCOV
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/apps/web/src/index.ts b/apps/web/src/index.ts\n")
+      )
+    end
+
+    it "computes a repository aggregate only from configured nested coverage" do
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("summary", "lines_pct")).to eq(100.0)
+      expect(artifact["projects"].size).to eq(1)
+      expect(artifact.dig("projects", 0, "project")).to include(
+        "id" => "web",
+        "label" => "Web App",
+        "path" => "apps/web",
+        "coverage_base_path" => "apps/web",
+        "target_label" => "//apps/web:coverage"
+      )
+      expect(artifact.dig("projects", 0, "files")).to have_key("apps/web/src/index.ts")
+      expect(artifact["pr_comment_body"]).to include("## Test Coverage Report")
+    end
+  end
+
+  context "when a nested project overrides project.path metadata" do
+    before do
+      write_nested_syrus_yml("packages/ui", <<~YAML)
+        project:
+          id: ui
+          label: UI
+          path: apps/frontend
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+      write_lcov(path: "packages/ui/coverage/lcov.info", content: <<~LCOV)
+        TN:
+        SF:src/button.ts
+        DA:1,1
+        DA:2,0
+        LF:2
+        LH:1
+        end_of_record
+      LCOV
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/packages/ui/src/button.ts b/packages/ui/src/button.ts\n")
+      )
+    end
+
+    it "uses the declaring .syrus.yml directory for artifacts and path normalization" do
+      handler.call
+
+      project_artifact = workflow.reload.artifact("coverage").fetch("projects").sole
+      expect(project_artifact.fetch("project")).to include(
+        "id" => "ui",
+        "path" => "apps/frontend",
+        "coverage_base_path" => "packages/ui",
+        "target_label" => "//packages/ui:coverage"
+      )
+      expect(project_artifact.fetch("sources_status").first).to include("artifact" => "packages/ui/coverage/lcov.info")
+      expect(project_artifact.fetch("files")).to have_key("packages/ui/src/button.ts")
+    end
+  end
+
+  context "diff coverage annotations" do
+    let(:diff_text) do
+      <<~DIFF
+        diff --git a/app/models/user.rb b/app/models/user.rb
+        index abc..def 100644
+        --- a/app/models/user.rb
+        +++ b/app/models/user.rb
+        @@ -0,0 +1,3 @@
+        +line one
+        +line two
+        +line three
+      DIFF
+    end
+
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+      write_lcov
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: diff_text)
+      )
+    end
+
+    it "annotates added lines based on the hit map" do
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      annotations = artifact.dig("diff_annotations", "app/models/user.rb")
+      expect(annotations["1"]).to eq("covered")     # DA:1,5
+      expect(annotations["2"]).to eq("uncovered")   # DA:2,0
+      expect(annotations["3"]).to eq("covered")     # DA:3,3
+    end
+
+    it "computes pr_delta with covered/total counts" do
+      handler.call
+
+      pr_delta = workflow.reload.artifact("coverage")["pr_delta"]
+      expect(pr_delta["covered"]).to eq(2)
+      expect(pr_delta["total"]).to eq(3)
+      expect(pr_delta["pct"]).to be_within(0.01).of(66.67)
+    end
+
+    context "when LCOV SF: paths are absolute (vitest/v8 output)" do
+      let(:absolute_lcov) do
+        <<~LCOV
+          TN:
+          SF:#{@ws_path}/app/models/user.rb
+          DA:1,5
+          DA:2,0
+          DA:3,3
+          LF:3
+          LH:2
+          BRF:0
+          BRH:0
+          FNF:1
+          FNH:1
+          end_of_record
+        LCOV
+      end
+
+      before do
+        write_lcov(content: absolute_lcov)
+      end
+
+      it "normalizes absolute SF: paths and annotates diff lines" do
+        handler.call
+
+        artifact = workflow.reload.artifact("coverage")
+        annotations = artifact.dig("diff_annotations", "app/models/user.rb")
+        expect(annotations["1"]).to eq("covered")
+        expect(annotations["2"]).to eq("uncovered")
+        expect(annotations["3"]).to eq("covered")
+      end
+
+      it "computes pr_delta correctly when SF: paths are absolute" do
+        handler.call
+
+        pr_delta = workflow.reload.artifact("coverage")["pr_delta"]
+        expect(pr_delta["covered"]).to eq(2)
+        expect(pr_delta["total"]).to eq(3)
+        expect(pr_delta["pct"]).to be_within(0.01).of(66.67)
+      end
+    end
+  end
+
+  context "threshold enforcement" do
+    let(:lcov_all_uncovered) do
+      <<~LCOV
+        TN:
+        SF:app/models/user.rb
+        DA:1,0
+        DA:2,0
+        LF:2
+        LH:0
+        end_of_record
+      LCOV
+    end
+
+    context "on_miss: block" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 80
+            on_miss: block
+        YAML
+        write_lcov(content: lcov_all_uncovered)
+      end
+
+      it "raises StepFailed with a descriptive message when lines_pct is below threshold" do
+        expect { handler.call }.to raise_error(
+          Steps::Base::StepFailed,
+          /Coverage threshold not met \(lines: 0\.0%, threshold: 80\.0%\)\. Add tests and retry this Job\./
+        )
+      end
+    end
+
+    context "on_miss: warn" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 80
+            on_miss: warn
+        YAML
+        write_lcov(content: lcov_all_uncovered)
+      end
+
+      it "passes but sets threshold_miss: true in the artifact" do
+        expect { handler.call }.not_to raise_error
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["threshold_miss"]).to be true
+        expect(artifact["threshold_miss_details"]["lines_pct"]).to eq(0.0)
+        expect(artifact["threshold_miss_details"]["threshold_lines"]).to eq(80.0)
+      end
+    end
+
+    context "on_miss: schedule" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 80
+            on_miss: schedule
+        YAML
+        write_lcov(content: lcov_all_uncovered)
+      end
+
+      it "passes and enqueues SyrusCoverage::ScheduleTriggerJob" do
+        expect { handler.call }.not_to raise_error
+        expect(SyrusCoverage::ScheduleTriggerJob).to have_been_enqueued.with(workflow.id)
+      end
+    end
+
+    context "when coverage meets the threshold" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 50
+            on_miss: block
+        YAML
+        write_lcov  # 66.67% coverage
+      end
+
+      it "passes without raising" do
+        expect { handler.call }.not_to raise_error
+        expect(workflow.reload.artifact("coverage")["threshold_miss"]).to be_nil
+      end
+    end
+  end
+
+  context "branch coverage threshold" do
+    let(:lcov_with_branches) do
+      <<~LCOV
+        TN:
+        SF:app/models/user.rb
+        DA:1,5
+        DA:2,0
+        DA:3,3
+        LF:3
+        LH:2
+        BRDA:1,0,0,1
+        BRDA:1,0,1,0
+        BRF:2
+        BRH:1
+        FNF:1
+        FNH:1
+        end_of_record
+      LCOV
+    end
+
+    context "when branch coverage misses threshold.branches" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              branches: 90
+            on_miss: warn
+        YAML
+        write_lcov(content: lcov_with_branches)
+      end
+
+      it "does not fail the step" do
+        expect { handler.call }.not_to raise_error
+      end
+
+      it "records a WorkflowWarning with kind coverage_branches_threshold_miss" do
+        expect { handler.call }.to change(WorkflowWarning, :count).by(1)
+
+        warning = WorkflowWarning.last
+        expect(warning.workflow).to eq(workflow)
+        expect(warning.job).to eq(job)
+        expect(warning.kind).to eq("coverage_branches_threshold_miss")
+        expect(warning.evidence).to include("branches_pct" => 50.0, "threshold_branches" => 90.0)
+        expect(warning.suggested_prompt).to include("Branch coverage is 50.0%")
+        expect(warning.suggested_prompt).to include("coverage.threshold.branches")
+      end
+    end
+
+    context "when branch coverage meets threshold.branches" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              branches: 40
+        YAML
+        write_lcov(content: lcov_with_branches)
+      end
+
+      it "does not record a WorkflowWarning" do
+        expect { handler.call }.not_to change(WorkflowWarning, :count)
+      end
+    end
+
+    context "when threshold.branches is not configured" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 90
+            on_miss: warn
+        YAML
+        write_lcov(content: lcov_with_branches)
+      end
+
+      it "does not record a branches WorkflowWarning even though lines misses" do
+        expect { handler.call }.not_to change(WorkflowWarning, :count)
+        expect(workflow.reload.artifact("coverage")["threshold_miss"]).to be true
+      end
+    end
+  end
+
+  context "coverage_analyzer plugin extension point" do
+    def coverage_analyzer_provider(callable)
+      Class.new do
+        define_singleton_method(:analyze_coverage) do |context|
+          callable.call(artifact_path: context.artifact_path, format_hint: context.format_hint)
+        end
+      end
+    end
+
+    let(:parse_result) do
+      CoverageAnalysis::Parsers::Base::ParseResult.new(
+        raw: {
+          hit_map:    { "app/models/user.rb" => { 1 => 5, 2 => 0, 3 => 3 } },
+          lf: 3, lh: 2,
+          brf: 0, brh: 0,
+          fnf: 1, fnh: 1,
+          file_stats: { "app/models/user.rb" => { lf: 3, lh: 2 } }
+        },
+        lines_pct: 66.67
+      )
+    end
+
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          hitmap_ttl_days: 1
+      YAML
+      write_lcov
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
+    context "when a registered plugin returns nil" do
+      let(:plugin) { double("coverage_analyzer_plugin") }
+
+      before do
+        allow(plugin).to receive(:call).and_return(nil)
+        register_ecosystem_provider(name: "nil_coverage_plugin", provider: coverage_analyzer_provider(plugin),
+          implements: %i[analyze_coverage])
+      end
+
+      it "tries the registered plugin before built-in detection" do
+        handler.call
+        expect(plugin).to have_received(:call).with(
+          artifact_path: @ws_path.join("coverage/lcov.info"),
+          format_hint: "lcov"
+        )
+      end
+
+      it "falls back to the built-in parser and writes the artifact" do
+        handler.call
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+        expect(artifact["files"]).to have_key("app/models/user.rb")
+      end
+    end
+
+    context "when a registered plugin returns a result" do
+      let(:plugin) { double("coverage_analyzer_plugin") }
+
+      before do
+        allow(plugin).to receive(:call).and_return(parse_result)
+        register_ecosystem_provider(name: "result_coverage_plugin", provider: coverage_analyzer_provider(plugin),
+          implements: %i[analyze_coverage])
+      end
+
+      it "uses the plugin result without calling the built-in parser" do
+        expect(CoverageAnalysis::Parsers).not_to receive(:for)
+        handler.call
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+      end
+    end
+
+    context "when multiple plugins are registered and the first returns nil" do
+      let(:first_plugin)  { double("first_plugin") }
+      let(:second_plugin) { double("second_plugin") }
+
+      before do
+        allow(first_plugin).to receive(:call).and_return(nil)
+        allow(second_plugin).to receive(:call).and_return(parse_result)
+        register_ecosystem_provider(name: "first_coverage_plugin", provider: coverage_analyzer_provider(first_plugin),
+          implements: %i[analyze_coverage])
+        register_ecosystem_provider(name: "second_coverage_plugin", provider: coverage_analyzer_provider(second_plugin),
+          implements: %i[analyze_coverage])
+      end
+
+      it "tries plugins in registration order and uses the first non-nil result" do
+        handler.call
+        expect(first_plugin).to have_received(:call)
+        expect(second_plugin).to have_received(:call)
+        expect(workflow.reload.artifact("coverage")["summary"]["lines_pct"]).to eq(66.67)
+      end
+    end
+
+    context "when no plugins are registered (unregistered format fallback)" do
+      it "works via built-in lcov fallback without any registered plugins" do
+        expect(Syrus::PluginRegistry.capability_providers(:ecosystem, :analyze_coverage)).to be_empty
+        handler.call
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+        expect(artifact["coverage_unavailable"]).to be_nil
+      end
+    end
+  end
+
+  context "native Go grader coverage" do
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage.out
+              format: go-cover
+      YAML
+      File.write(@ws_path.join("coverage.out"), <<~COVERAGE)
+        mode: atomic
+        example.com/acme/app/main.go:2.1,3.8 4 4
+        example.com/acme/app/main.go:5.1,7.12 1 0
+      COVERAGE
+      File.write(@ws_path.join("go.mod"), "module example.com/acme\n")
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: <<~DIFF)
+          diff --git a/app/main.go b/app/main.go
+          --- a/app/main.go
+          +++ b/app/main.go
+          @@ -0,0 +2,2 @@
+          +covered
+          +covered
+        DIFF
+      )
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
+        name: "go_coverage_integration", version: "1.0.0",
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Go::Ecosystem", implements: %i[analyze_coverage]
+        ) ]
+      )
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
+    it "discovers and analyzes a go test coverprofile artifact through the plugin registry" do
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("summary", "lines_pct")).to eq(80.0)
+      expect(artifact.fetch("files")).to include(
+        "app/main.go" => include("line_count" => 5, "covered_line_count" => 4)
+      )
+      expect(artifact.fetch("diff_annotations")).to include(
+        "app/main.go" => include("2" => "covered", "3" => "covered")
+      )
+      expect(artifact.fetch("sources_status")).to include(
+        include("artifact" => "coverage.out", "found" => true, "lines_pct" => 80.0)
+      )
+    end
+  end
+
+  context "pr_comment body generation" do
+    context "when pr_comment: false (default)" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+        YAML
+        write_lcov
+      end
+
+      it "does not write pr_comment_body into the artifact" do
+        handler.call
+        expect(workflow.reload.artifact("coverage")).not_to have_key("pr_comment_body")
+      end
+    end
+
+    context "when pr_comment: true" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            pr_comment: true
+        YAML
+        write_lcov
+      end
+
+      it "writes pr_comment_body into the artifact" do
+        handler.call
+        body = workflow.reload.artifact("coverage")["pr_comment_body"]
+        expect(body).to be_present
+        expect(body).to include(SyrusCoverage::PrCommentFormatter::MARKER)
+        expect(body).to include("## Test Coverage Report")
+      end
+
+      it "renders the measured lines_pct in the comment" do
+        handler.call
+        body = workflow.reload.artifact("coverage")["pr_comment_body"]
+        expect(body).to include("66.7%")
+      end
+    end
+
+    context "when pr_comment: true but artifacts are missing" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            pr_comment: true
+        YAML
+        # No LCOV file written — coverage_unavailable path
+      end
+
+      it "does not write pr_comment_body (coverage is unavailable)" do
+        handler.call
+        expect(workflow.reload.artifact("coverage")).not_to have_key("pr_comment_body")
+      end
+    end
+  end
+end

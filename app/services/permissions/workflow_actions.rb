@@ -18,7 +18,6 @@ module Permissions
 
     OPERATIONS = {
       "read_live_state" => Operation.new(OBSERVATION, "read_live_state", READ, :low, false),
-      "get_coverage_report" => Operation.new(OBSERVATION, "read_coverage_report", READ, :low, false),
       "read_run_worker_health" => Operation.new(OBSERVATION, "read_worker_health", READ, :low, false),
       "read_preview_log" => Operation.new(OBSERVATION, "read_preview_log", READ, :low, false),
       "search_jobs" => Operation.new(SOURCE, "search_jobs", CONFIDENTIAL_READ, :low, false),

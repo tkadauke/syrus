@@ -5,7 +5,7 @@ RSpec.describe Permissions::WorkflowActions do
   let(:insight_entries) { McpToolRegistry.entries(surface: :agent_insight).index_by(&:tool_name) }
 
   it "replaces the complete core workflow and insight compatibility inventories" do
-    expect(workflow_entries.size).to eq(37)
+    expect(workflow_entries.size).to eq(36)
     expect(insight_entries.keys).to contain_exactly("read_live_state", "read_run_worker_health")
     expect(workflow_entries.values + insight_entries.values).to all(
       have_attributes(explicit_descriptor: true)

@@ -740,7 +740,7 @@ development_preview_seed = lambda do
   end
 
   # Coverage report sample data for the core Job detail Summary/Review
-  # surfaces. A fresh preview does not run coverage_analyze, but the operator
+  # surfaces. A fresh preview does not run coverage analysis, but the operator
   # review flow should still show realistic coverage numbers, PR-delta data,
   # and changed-file breakdowns for the seeded implemented Job.
   quality_gate_workflow = implemented_job.workflows.order(:created_at).first

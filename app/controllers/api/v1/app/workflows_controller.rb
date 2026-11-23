@@ -12,32 +12,6 @@ module Api
           render json: ::App::JobDetailPayload.workflow_detail(workflow: workflow, user: Current.user)
         end
 
-        def coverage_hit_map
-          workflow = find_workflow
-          file = params[:file].to_s.strip
-
-          unless workflow.coverage_hit_map.attached?
-            render json: { hit_map_attached: false, file: file, lines: {} }
-            return
-          end
-
-          begin
-            full_map = workflow.coverage_hit_map_data
-          rescue => e
-            Rails.logger.warn("[WorkflowsController] Failed to decompress hit map for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
-            render json: { hit_map_attached: false, file: file, lines: {} }
-            return
-          end
-
-          lines = file.present? ? (full_map[file] || {}) : {}
-
-          render json: {
-            hit_map_attached: true,
-            file: file,
-            lines: lines
-          }
-        end
-
         def visual_artifact
           workflow = find_workflow
           attachment = workflow.visual_artifact_for(params[:type].to_s.strip)

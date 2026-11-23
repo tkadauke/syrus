@@ -1173,21 +1173,11 @@ deterministic rebase; when the deterministic rebase conflicts, it resolves and
 completes that in-progress rebase. `merge_train_land_after_rebase` is
 non-agentic and lands the recovered integration branch after validation.
 
-## Coverage steps
-
-### coverage_analyze
-
-Non-agentic. Parses coverage artifacts produced by graders, merges multiple sources, computes diff annotations against the PR diff, stores a coverage artifact on the workflow, attaches a hit-map blob, creates a `CoverageSnapshot`, and evaluates the configured threshold.
-
-### coverage_pr_comment
-
-Non-agentic. Posts the formatted coverage summary as a PR comment when `pr_comment: true` is set in `.syrus.yml`.
-
 ## Dependency audit steps
 
 ### dependency_audit
 
-Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by an Ecosystem `dependency_audit` provider (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see `plugins.md`, "Autofix, audits, affected tests, and review criteria" for the capability contract.
+Non-agentic. Runs after the post-implementation contributions (such as the Coverage plugin's `coverage_analyze`), in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by an Ecosystem `dependency_audit` provider (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see `plugins.md`, "Autofix, audits, affected tests, and review criteria" for the capability contract.
 
 When a matching lockfile changed, runs each matching provider's audit command (`bundle-audit check --update`, `npm`/`yarn`/`pnpm audit --json`, `pip-audit`, `govulncheck ./...`) and stores the results as the `dependency_audit` workflow artifact. A non-zero exit status is not a step failure — it is how these tools report that vulnerabilities were found, and `dependency_audit`'s `fail_policy` is `:advance` so a broken audit tool never blocks the chain. A clean scan across every scanned ecosystem leaves no `pr_comment_body` in the artifact, so nothing gets posted — a clean scan is a silent no-op. `Steps::PrOpen` posts the formatted findings as a PR comment (alongside the coverage comment) when it opens or updates the PR in `initial`/`retry` workflows.
 

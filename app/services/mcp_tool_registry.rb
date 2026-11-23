@@ -523,7 +523,6 @@ class McpToolRegistry
       [
         workflow_action(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles,
           descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
-        workflow_action(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles,
           descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
         workflow_action(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),

@@ -294,7 +294,6 @@ RSpec.describe "documentation audiences" do
       "skills.md" => %w[Skills::ParameterSchema SkillJobs::Creator workflow_serializers.rb ChatTurnJob],
       "chat_goals.md" => %w[ChatGoalIterationAuditor ChatScopedEvent ChatQueuedMessagePromoter ChatTurnJob],
       "target_graph.md" => %w[TargetHealthRecord NestedConfigDiscovery TargetGraph:: Steps:: /api/v1/app/repositories],
-      "coverage.md" => %w[CoverageHitMapPruneJob CoverageSnapshot.where],
       "local_mode.md" => %w[LocalTunnelChannel LocalDaemonSessionController],
       "pr_feedback_classification.md" => %w[PrCommentClassifier classification_decision pr_review_comments],
       "epicless_job_bundling.md" => %w[JobBundleDispatcher JobsTable.tsx landing_queue_entry_key],

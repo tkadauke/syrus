@@ -31,7 +31,7 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
       target_sha: "target",
       line_facts: line_facts,
       engagements: engagements,
-      coverage_snapshot: instance_double(CoverageSnapshot, data: {}),
+      coverage_snapshot: double("coverage snapshot", data: {}),
       target_health_records: [],
       generated_at: generated_at
     }.merge(overrides))
@@ -103,8 +103,8 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
   end
 
   it "ranks blind, churning, untested, complex files above covered files" do
-    coverage = instance_double(
-      CoverageSnapshot,
+    coverage = double(
+      "coverage snapshot",
       data: {
         "app/risky.rb" => { "lines_pct" => 0.0 },
         "app/calm.rb" => { "lines_pct" => 95.0 }
@@ -128,7 +128,7 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
   end
 
   it "preserves explanation breakdowns for ranked items" do
-    coverage = instance_double(CoverageSnapshot, data: { "app/risky.rb" => { "lines_pct" => 0.0 } })
+    coverage = double("coverage snapshot", data: { "app/risky.rb" => { "lines_pct" => 0.0 } })
     target_health = TargetHealthRecord.new(status: "failed")
 
     snapshot = build_snapshot(
@@ -176,7 +176,7 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
         line("app/models/widget.rb", 1, modified_at: "2026-09-01"),
         line("app/models/widget.rb", 2, modified_at: "2026-09-01")
       ],
-      coverage_snapshot: instance_double(CoverageSnapshot, data: {}),
+      coverage_snapshot: double("coverage snapshot", data: {}),
       target_health_records: [],
       generated_at: generated_at
     )
@@ -207,7 +207,7 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
         line("app/models/widget.rb", 1, modified_at: "2026-09-01"),
         line("app/models/widget.rb", 2, modified_at: "2026-09-01")
       ],
-      coverage_snapshot: instance_double(CoverageSnapshot, data: {}),
+      coverage_snapshot: double("coverage snapshot", data: {}),
       target_health_records: [],
       generated_at: generated_at
     )

@@ -7,7 +7,8 @@ module Workflows
       [
         "base_refresh_rebase", "agent_rebase", "publish_source_snapshot", "prepare",
         grader_retry_loop(job, :implement, autofix: true, repair_first: false, syrus_yml: syrus_yml),
-        "coverage_analyze", "dependency_audit", *initial_pr_finish_steps(job, syrus_yml: syrus_yml)
+        post_implementation_steps(job), "dependency_audit", *initial_pr_finish_steps(job, syrus_yml: syrus_yml),
+        post_pr_steps(job)
       ].flatten.compact
     end
 

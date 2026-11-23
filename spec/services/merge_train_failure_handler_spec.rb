@@ -542,7 +542,7 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       workflow.update_columns(state: "failed")
       config = SyrusYml::Config.new(
         prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-        coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil,
         merge_train: SyrusYml::MergeTrainConfig.new(failure_policy: nil, failure_rungs: [ "multisect" ]),
         project: nil, targets: [], target_graph: nil, scripts: {}, visual_review: nil

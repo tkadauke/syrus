@@ -484,7 +484,6 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         [ "generate", "succeeded" ],
         [ "grader_fanout", "succeeded" ],
         [ "grader_collect", "succeeded" ],
-        [ "coverage_analyze", "succeeded" ],
         [ "dependency_audit", "succeeded" ],
         [ "summarize", "succeeded" ],
         [ "test_plan", "succeeded" ],

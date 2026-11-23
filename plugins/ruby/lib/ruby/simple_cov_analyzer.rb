@@ -1,10 +1,10 @@
 require "json"
 
 module Ruby
-  # Parses SimpleCov's .resultset.json into the same partial CoverageArtifact
-  # hash shape that Steps::CoverageAnalyze uses for summary and files.
+  # Parses SimpleCov's .resultset.json into the same partial coverage artifact
+  # hash shape that SyrusCoverage::AnalyzeStep uses for summary and files.
   #
-  # Output shape (subset of Workflow::CoverageArtifact):
+  # Output shape (subset of SyrusCoverage::Artifact):
   #   {
   #     "summary" => {
   #       "lines_pct"     => Float | nil,

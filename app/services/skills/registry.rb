@@ -13,7 +13,8 @@ module Skills
   module Registry
     Entry = Data.define(:name, :klass) do
       def klass_const
-        "Skills::#{klass}".constantize
+        # Plugin-contributed entries carry a fully qualified constant name.
+        (klass.include?("::") ? klass : "Skills::#{klass}").constantize
       end
     end
 
@@ -25,7 +26,6 @@ module Skills
       Entry.new(name: "rebase-conflict-resolver", klass: "RebaseConflictResolver"),
       Entry.new(name: "dependency-audit", klass: "DependencyAudit"),
       Entry.new(name: "explain-failing-ci", klass: "ExplainFailingCi"),
-      Entry.new(name: "coverage-gap-report", klass: "CoverageGapReport"),
       Entry.new(name: "dead-code-sweep", klass: "DeadCodeSweep"),
       Entry.new(name: "license-audit", klass: "LicenseAudit"),
       Entry.new(name: "security-review", klass: "SecurityReview"),
@@ -39,12 +39,36 @@ module Skills
     module_function
 
     def values
-      BY_NAME.keys.freeze
+      by_name.keys.freeze
     end
 
     def fetch(name)
-      BY_NAME.fetch(name.to_s) do
+      by_name.fetch(name.to_s) do
         raise NotFoundError, "unknown built-in skill name=#{name.inspect}"
+      end
+    end
+
+    # Built-ins plus the skills enabled :skill plugins contribute. A plugin
+    # cannot shadow a skill the host defines; the entry is dropped and logged.
+    def by_name
+      plugin_entries.each_with_object(BY_NAME.dup) do |entry, merged|
+        if merged.key?(entry.name)
+          Rails.logger.warn("[Skills::Registry] ignoring plugin skill #{entry.name.inspect}: name is already registered")
+        else
+          merged[entry.name] = entry
+        end
+      end
+    end
+
+    def plugin_entries
+      Syrus::PluginRegistry.providers_for(:skill).flat_map do |provider|
+        result = Syrus::PluginInvocation.call(
+          extension_point: :skill, provider:, operation: :skill_entries, on_decline: []
+        ) { provider.skill_entries }
+        Array(Syrus::PluginInvocation.value(result)).map do |attributes|
+          attributes = attributes.to_h.symbolize_keys
+          Entry.new(name: attributes.fetch(:name).to_s, klass: attributes.fetch(:klass).to_s)
+        end
       end
     end
 

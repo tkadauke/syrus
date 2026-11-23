@@ -24,7 +24,7 @@ RSpec.describe SyrusMcp::CoreToolSet do
       names = definitions.map { |d| d[:name] }
       expect(names).to contain_exactly(
         "read_live_state",
-        "get_coverage_report", "read_run_worker_health",
+        "read_run_worker_health",
         "start_preview", "stop_preview", "read_preview_log",
         "report_main_concern", "record_isolated_repro",
         "submit_summary", "submit_test_plan", "submit_artifact", "run_target_prepare", "submit_visual_artifact", "list_artifacts", "read_artifact", "submit_job_metadata", "submit_adversarial_review", "submit_security_review"

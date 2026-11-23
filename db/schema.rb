@@ -14,8 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_120100) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1158,33 +1157,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.datetime "updated_at", null: false
     t.boolean "allow_as_owner", default: false, null: false
     t.index ["provider_key"], name: "idx_connected_accounts_provider_key", unique: true
-  end
-
-  create_table "coverage_snapshots", force: :cascade do |t|
-    t.integer "repository_id", null: false
-    t.integer "workflow_id", null: false
-    t.integer "job_id"
-    t.string "sha", null: false
-    t.string "branch", null: false
-    t.decimal "lines_pct", precision: 5, scale: 2
-    t.decimal "branches_pct", precision: 5, scale: 2
-    t.decimal "functions_pct", precision: 5, scale: 2
-    t.decimal "pr_delta_pct", precision: 5, scale: 2
-    t.integer "file_count"
-    t.json "data"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "project_id"
-    t.string "project_label"
-    t.string "target_label"
-    t.index ["job_id"], name: "index_coverage_snapshots_on_job_id"
-    t.index ["repository_id", "branch", "created_at", "lines_pct", "branches_pct", "functions_pct"], name: "idx_coverage_snapshots_repo_branch_trend"
-    t.index ["repository_id", "branch", "created_at"], name: "idx_coverage_snapshots_repo_branch_created"
-    t.index ["repository_id", "branch"], name: "index_coverage_snapshots_on_repository_id_and_branch"
-    t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
-    t.index ["repository_id", "project_id", "branch", "created_at"], name: "idx_coverage_snapshots_project_branch"
-    t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
-    t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
   end
 
   create_table "coworker_chats", force: :cascade do |t|
@@ -4227,6 +4199,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
+  end
+
+  create_table "syrus_coverage_hit_maps", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "idx_syrus_coverage_hit_maps_created"
+    t.index ["workflow_id"], name: "idx_syrus_coverage_hit_maps_workflow", unique: true
+  end
+
+  create_table "syrus_coverage_snapshots", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.integer "workflow_id", null: false
+    t.integer "job_id"
+    t.string "sha", null: false
+    t.string "branch", null: false
+    t.decimal "lines_pct", precision: 5, scale: 2
+    t.decimal "branches_pct", precision: 5, scale: 2
+    t.decimal "functions_pct", precision: 5, scale: 2
+    t.decimal "pr_delta_pct", precision: 5, scale: 2
+    t.integer "file_count"
+    t.json "data"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "project_id"
+    t.string "project_label"
+    t.string "target_label"
+    t.index ["job_id"], name: "index_syrus_coverage_snapshots_on_job_id"
+    t.index ["repository_id", "branch", "created_at", "lines_pct", "branches_pct", "functions_pct"], name: "idx_coverage_snapshots_repo_branch_trend"
+    t.index ["repository_id", "branch", "created_at"], name: "idx_coverage_snapshots_repo_branch_created"
+    t.index ["repository_id", "branch"], name: "index_syrus_coverage_snapshots_on_repository_id_and_branch"
+    t.index ["repository_id", "created_at"], name: "index_syrus_coverage_snapshots_on_repository_id_and_created_at"
+    t.index ["repository_id", "project_id", "branch", "created_at"], name: "idx_coverage_snapshots_project_branch"
+    t.index ["repository_id"], name: "index_syrus_coverage_snapshots_on_repository_id"
+    t.index ["workflow_id"], name: "index_syrus_coverage_snapshots_on_workflow_id"
   end
 
   create_table "syrus_dev_permission_factory_resets", force: :cascade do |t|

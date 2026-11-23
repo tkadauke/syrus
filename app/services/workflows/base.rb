@@ -203,10 +203,6 @@ module Workflows
       job.skip_prepare?
     end
 
-    def self.coverage_analyze_for(job)
-      "coverage_analyze" if RepoCoveragePlanReader.for_job(job)
-    end
-
     # Fetches and parses the repository's default-branch `.syrus.yml`
     # exactly once. Callers that consult more than one Repo*Plan while
     # building a chain (Initial, Retry, CodingHandoff, MainBranchRepair,
@@ -370,8 +366,6 @@ module Workflows
 
     def self.feedback_finish_steps(job = nil)
       [
-        "coverage_analyze",
-        "coverage_pr_comment",
         "dependency_audit",
         "dependency_audit_pr_comment",
         "summarize_amend",

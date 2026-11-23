@@ -6,7 +6,7 @@ Every Workflow has a trigger kind that identifies why the attempt exists and whi
 
 **When it fires:** A new GitHub issue receives the trigger label (or a `direct` or `cron` Job is created).
 
-**Step chain:** `prepare → implement → adversarial_review_loop? → visual_review_loop? → retry_until(format/generate/graders, repair: implement) → coverage_analyze? → dependency_audit → summarize → test_plan → pr_open`
+**Step chain:** `prepare → implement → adversarial_review_loop? → visual_review_loop? → retry_until(format/generate/graders, repair: implement) → post-implementation contributions (`coverage_analyze?`) → dependency_audit → summarize → test_plan → pr_open → post-PR contributions (`coverage_pr_comment?`)`
 
 The primary workflow: explores the repo, writes code, runs graders, and opens a PR.
 
@@ -64,7 +64,7 @@ Investigation attempts are bounded and must use the repository's available tools
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.
 
-**Step chain:** `prepare → retry_until(respond, graders) → coverage_analyze? → coverage_pr_comment? → summarize_amend → refresh_job_metadata → try(push)`
+**Step chain:** `prepare → retry_until(respond, graders) → post-implementation contributions (`coverage_analyze?`) → summarize_amend → refresh_job_metadata → try(push) → post-PR contributions (`coverage_pr_comment?`)`
 
 Syrus records which comments the workflow is addressing and marks them handled only after success. Failed or rate-limited feedback remains visible for manual retry. A non-fast-forward push adds an agent-assisted rebase recovery chain.
 
@@ -129,7 +129,7 @@ before falling back to the repository's newest main-branch health record.
 
 **When it fires:** Operator triggers a retry of a failed Job from the UI or admin API.
 
-**Step chain:** Same quality gates as `initial`, but with `implement` inside the adversarial review loop when configured: `prepare → adversarial_review_loop? → visual_review_loop? → retry_until(implement, format/generate/graders) → coverage_analyze? → dependency_audit → summarize → test_plan → pr_open`.
+**Step chain:** Same quality gates as `initial`, but with `implement` inside the adversarial review loop when configured: `prepare → adversarial_review_loop? → visual_review_loop? → retry_until(implement, format/generate/graders) → post-implementation contributions (`coverage_analyze?`) → dependency_audit → summarize → test_plan → pr_open → post-PR contributions`.
 
 Starts the implementation from scratch on the existing branch.
 
@@ -161,7 +161,7 @@ Validates mergeability, mechanically rebases and force-pushes the PR branch onto
 the current base when that rebase is clean, re-runs required graders on the exact
 rebased PR branch, then merges. If the mechanical rebase conflicts, Syrus
 dispatches the normal `rebase` workflow and defers. Landing does not run
-`coverage_analyze` because landing graders are pass/fail gates and do not
+the coverage analysis because landing graders are pass/fail gates and do not
 produce the full coverage flow.
 Transient GitHub errors defer the Job back to `approved` for retry. Does not run
 `implement` — only landing validation and merge.

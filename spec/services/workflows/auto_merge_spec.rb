@@ -6,7 +6,11 @@ RSpec.describe Workflows::AutoMerge do
   let(:job) { Factories.job_record(user: user, repository: repository, state: "landing") }
 
   context "without coverage configured" do
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(nil) }
+    before do
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: nil)
+      )
+    end
 
     it "materializes the standard chain without coverage_analyze" do
       workflow = described_class.instantiate(job: job)
@@ -18,8 +22,12 @@ RSpec.describe Workflows::AutoMerge do
   end
 
   context "with coverage configured" do
-    let(:coverage_plan) { instance_double(RepoCoveragePlan) }
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(coverage_plan) }
+    before do
+      config = SyrusYml.new("coverage:\n  sources:\n    - artifact: coverage/lcov.info\n      format: lcov\n").parse
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+      )
+    end
 
     it "does not insert coverage_analyze because landing uses fast graders" do
       workflow = described_class.instantiate(job: job)

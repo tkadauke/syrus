@@ -7,7 +7,6 @@ module Api
 
         PER_PAGE = 20
         GITHUB_SELECTOR_CACHE_TTL = 1.minute
-        COVERAGE_TREND_MAX_DAYS = 365
 
         HEALTH_FILTER_VALUES = %w[ healthy broken inconclusive unknown ].freeze
         HEALTH_FILTER_LABELS = {
@@ -327,38 +326,6 @@ module Api
             message: I18n.t("api.repositories.repository_landing_resumed", slug: repository.slug),
             landing_paused: false
           }
-        end
-
-        def coverage_trend
-          repository = find_repository
-          days = params.fetch(:days, 30).to_i.clamp(1, COVERAGE_TREND_MAX_DAYS)
-
-          averages = CoverageSnapshot.daily_averages(repository: repository, days: days)
-          latest_snapshot = CoverageSnapshot.where(repository: repository)
-                                            .for_project(TargetGraph::ROOT_PROJECT_ID)
-                                            .on_branch(repository.default_branch)
-                                            .order(created_at: :desc)
-                                            .first
-
-          trend = averages.map do |row|
-            {
-              "date" => row.date.to_s,
-              "lines_pct" => row.avg_lines_pct&.to_f&.round(2),
-              "branches_pct" => row.avg_branches_pct&.to_f&.round(2),
-              "functions_pct" => row.avg_functions_pct&.to_f&.round(2)
-            }
-          end
-
-          latest = if latest_snapshot
-            {
-              "lines_pct" => latest_snapshot.lines_pct&.to_f,
-              "branches_pct" => latest_snapshot.branches_pct&.to_f,
-              "functions_pct" => latest_snapshot.functions_pct&.to_f
-            }
-          end
-
-          payload = { "days" => days, "trend" => trend, "latest" => latest }
-          render_cached_json(payload)
         end
 
         def readiness
@@ -692,7 +659,7 @@ module Api
             adversarial_review_rounds: config.adversarial_review&.rounds,
             security_review_rounds: config.security_review&.rounds,
             security_review_criteria: Array(config.security_review&.criteria),
-            coverage_configured: config.coverage.present?,
+            coverage_configured: config.plugin_configurations.contribution("syrus_coverage.config").present?,
             delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0,
             merge_train_failure_policy: config.merge_train&.failure_policy.presence
           }
