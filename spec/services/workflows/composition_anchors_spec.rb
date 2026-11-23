@@ -8,7 +8,7 @@ RSpec.describe Workflows::CompositionAnchors, :reset_plugin_registry do
       def self.step_kinds
         [
           { kind: "fixture_judge", handler: "Prepare", label: "Fixture judge", style: "bg-gray-100", agentic: false },
-          { kind: "fixture_post_implementation", handler: "Prepare", label: "Fixture post implementation", style: "bg-gray-100", agentic: false },
+          { kind: "fixture_post_implementation", handler: "Prepare", label: "Fixture post implementation", style: "bg-gray-100", agentic: false, fail_policy: :advance },
           { kind: "fixture_post_implementation_later", handler: "Prepare", label: "Fixture later post implementation", style: "bg-gray-100", agentic: false },
           { kind: "fixture_post_pr", handler: "Prepare", label: "Fixture post PR", style: "bg-gray-100", agentic: false, fail_policy: :advance }
         ]
@@ -130,6 +130,31 @@ RSpec.describe Workflows::CompositionAnchors, :reset_plugin_registry do
     expect(described_class.post_pr(job: enabled_job)).to eq([ "fixture_post_pr" ])
     expect(described_class.post_implementation(job: disabled_job)).to be_empty
     expect(Step::Kind.fetch("fixture_post_pr").fail_policy).to eq(:advance)
+  end
+
+  it "does not require the post-implementation contract to repeat the step kind fail policy" do
+    expect(Step::Kind.fetch("fixture_post_implementation").fail_policy).to eq(:advance)
+    expect(described_class.post_implementation(job: enabled_job)).to eq([ "fixture_post_implementation" ])
+  end
+
+  it "rejects a post-PR contribution that omits its required fail policy" do
+    allow(WorkflowCompositionFixture::PostPr).to receive(:post_pr).and_return(
+      [ { step_kind: "fixture_post_pr", order: 30, enabled_for: ->(_job) { true } } ]
+    )
+
+    expect(described_class.post_pr(job: enabled_job)).to be_empty
+    expect(Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "workflow_composition_fixture" }.validation_errors)
+      .to contain_exactly(/key not found: :fail_policy/)
+  end
+
+  it "records callable validation errors without wrapping them as unknown step kinds" do
+    allow(WorkflowCompositionFixture::Judge).to receive(:judges).and_return(
+      [ { step_kind: "fixture_judge", trigger_kinds: %w[initial], rounds_for: 2 } ]
+    )
+
+    expect(described_class.judges(job: enabled_job, trigger_kind: "initial", agent_step: :implement)).to be_empty
+    expect(Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "workflow_composition_fixture" }.validation_errors)
+      .to contain_exactly("workflow_composition_fixture judge rounds_for must be callable")
   end
 
   it "orders multiple contributions by declared order" do
