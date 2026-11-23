@@ -4034,6 +4034,34 @@ chat MCP, admin, chats request and architecture specs (3,147 examples), and
 
 ---
 
+## F109. A queued CI repair held behind a main repair of a superseded base waited forever — fixed
+
+Found checking main's `39f7f9c254` (M65).
+
+**Before.** The CI repair gate parks a repair on `base_not_known_healthy` or
+`base_repair_active` while its own base is unproven. Once main has moved past
+that base, neither can clear, and the repair is moot. Main taught the running
+path (`RepairExecutor#cancel_superseded_ci_repair`) the second kind, but the
+queued path (`CancelSupersededCiRepair`), the reconciler's detection
+(`superseded_ci_repair_start_block?`) and the planner's precondition still
+accepted only the first. A repair still queued behind a stale main repair, and
+the approved Job's landing behind it, waited forever
+(`SupersededCiRepair.queued_before_parks`).
+
+**Fix.** `CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS` is the one list; the
+running and queued paths, the reconciler's detection and the planner's
+precondition read it. The issue evidence records the block kind.
+
+**Proof.** `SupersededCiRepair.lean`: `after_cancels_exactly_moot` and
+`after_phases_agree` (the queued and running paths agree on every block kind).
+
+**Spec.** The simulation `superseded_ci_repair_behind_main_repair_resolves`
+and `scenario_runner_spec.rb` "cancels a queued CI repair held behind a main
+repair once its base is superseded", red before. `spec/services/work_engine`
+and `spec/services/work_units`, CI-only included: 815 examples, 0 failures.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -4759,6 +4787,39 @@ reused test database.
 
 **To confirm:** list `db/*.sqlite3` in a grader's immutable checkout before
 the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
+
+---
+
+## M65. Main through `ebbcb88009`
+
+Five commits. `25b268d453` (previous-failures gate JUnit), `ff64d942f9` (enable
+Design Docs for E2E) and `ebbcb88009` (keep macOS credential helpers out of
+git calls) carry no engine invariant. The rest:
+
+- **"Cancel a superseded CI repair held behind a main repair"**
+  (`39f7f9c254`). *Relied-on invariant:* a CI repair whose base main has moved
+  past is cancelled whatever block holds it. Counterexample on the queued
+  path: F109.
+- **"Write GitHub rate-limit snapshots after the transaction commits"**
+  (`9aadb46309`). *Relied-on invariant:* a GitHub call inside a transaction
+  takes no lock on the calling user's row. Holds: both writes (the snapshot
+  and the API-blocked mark) now go through `after_all_transactions_commit`,
+  and the client's only other write (`mark_installation_removed!`) is on the
+  installation row. One gap that predates the change: Lead L11.
+
+---
+
+## Lead L11. The rate-limit block mark is lost when the exhausting call's transaction rolls back
+
+A GitHub response with `remaining: 0` sets the user's API-blocked mark. Since
+`9aadb46309` the mark is written after the outermost transaction commits, and
+before it the UPDATE ran inside that transaction; either way, a rollback drops
+it. The exhausting call is often the one that raises (a 403), and an exception
+that leaves a transaction rolls it back, so the call most likely to exhaust the
+limit is the one whose mark is most likely lost. Later calls outside a
+transaction re-observe the headers, so this delays the mark rather than losing
+it for good. No production evidence yet; check `gh_rate_limit_*` against
+403s with remaining 0 before fixing.
 
 ---
 
@@ -6345,7 +6406,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `d381b27bd3`. Each loop iteration continues from there:
+Checked through main `ebbcb88009`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

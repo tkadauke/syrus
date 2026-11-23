@@ -3,6 +3,10 @@ module WorkUnits
     class CiRepairSafety
       REASON = "ci_repair_safety"
       SUPERSEDED_BASE_REASON = "superseded_ci_repair_base"
+      # Blocks a superseded base makes moot: waiting for an old base to be
+      # graded, or behind a repair of that old base. The running and queued
+      # cancellation paths and the reconciler read this one list.
+      SUPERSEDABLE_BLOCK_KINDS = %w[base_not_known_healthy base_repair_active].freeze
       RETRY_DELAY = 5.minutes
       RESERVING_STATES = %w[queued running].freeze
 

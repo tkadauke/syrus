@@ -918,8 +918,6 @@ module WorkEngine
         # moved past that base, no health check will ever grade it, so the
         # workflow would sit "running" forever -- cancel it as superseded, the
         # same outcome CancelSupersededCiRepair gives a repair still queued.
-        SUPERSEDABLE_CI_REPAIR_BLOCKS = %w[base_not_known_healthy base_repair_active].freeze
-
         def cancel_superseded_ci_repair(workflow, step)
           return nil unless workflow.trigger_kind == "ci_failure" && workflow.work_unit
 
@@ -928,7 +926,7 @@ module WorkEngine
           # for an old base to be graded, or behind a main repair of that old
           # base -- which kept an approved Job's CI repair parked all afternoon
           # after main had moved four commits on.
-          return nil unless gate.blocked? && SUPERSEDABLE_CI_REPAIR_BLOCKS.include?(gate.details["kind"])
+          return nil unless gate.blocked? && WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(gate.details["kind"])
 
           base_sha = gate.details["base_sha"]
           return nil unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
@@ -1351,8 +1349,8 @@ module WorkEngine
           unless unit.blocked_reason == WorkUnits::Gates::CiRepairSafety::REASON
             return skipped("#{work_unit_label(unit)} is blocked on #{unit.blocked_reason}, not ci_repair_safety")
           end
-          unless ci_repair_block_kind(workflow) == "base_not_known_healthy"
-            return skipped("CI repair block is #{ci_repair_block_kind(workflow)}, not base_not_known_healthy")
+          unless WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(ci_repair_block_kind(workflow))
+            return skipped("CI repair block is #{ci_repair_block_kind(workflow)}, not one a superseded base makes moot")
           end
 
           base_sha = ci_repair_block_base_sha(workflow)

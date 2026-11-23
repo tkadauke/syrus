@@ -3123,6 +3123,26 @@
       "producer": "Mcp::Tools::AuthorizationSupport.approval_effect_backed?; PendingActions.registered?; Coworkers spawn tools",
       "done_by": "F108 (NY12)",
       "notes": "ApprovalEffectBacking.lean: a skipped ask implies a backed effect; backed claims still skip, so the spawn tools keep one card."
+    },
+    {
+      "id": "superseded-ci-repair-cancelled",
+      "area": "workflow",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "superseded_ci_repair_base_resolves",
+        "superseded_ci_repair_behind_main_repair_resolves"
+      ],
+      "status": "done",
+      "title": "A CI repair whose base main has moved past is cancelled whatever block holds it, queued or running",
+      "producer": "WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS; RepairExecutor (running and queued paths); Reconciler",
+      "done_by": "F109 (M65)",
+      "notes": "SupersededCiRepair.lean: both paths cancel exactly the blocks that wait on the repair's own base."
     }
   ],
   "needs_you": [

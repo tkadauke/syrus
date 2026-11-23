@@ -1271,6 +1271,7 @@ module WorkEngine
               start_blocked_reason: start_block_reason(workflow),
               start_blocked_details: start_block_details(workflow),
               ci_repair_base_sha: ci_repair_start_block_base_sha(workflow),
+              ci_repair_block_kind: ci_repair_start_block_kind(workflow),
               ci_repair_current_base_sha: workflow.job && WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
             ),
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
@@ -3859,7 +3860,7 @@ module WorkEngine
     def superseded_ci_repair_start_block?(workflow)
       return false unless workflow.work_unit&.kind == "ci_failure" || workflow.trigger_kind == "ci_failure"
       return false unless start_block_reason(workflow).to_s == WorkUnits::Gates::CiRepairSafety::REASON
-      return false unless ci_repair_start_block_kind(workflow) == "base_not_known_healthy"
+      return false unless WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(ci_repair_start_block_kind(workflow))
 
       WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, ci_repair_start_block_base_sha(workflow), since: workflow.created_at)
     end

@@ -54,6 +54,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     succeeded_merge_train_failed_member_reconciliation
     succeeded_unit_unsatisfied_intent
     superseded_ci_repair_base_resolves
+    superseded_ci_repair_behind_main_repair_resolves
     superseded_unit_uncancelled_intent
     terminal_bundle_train_final_fix_rebuilds
     terminal_cleanup_cancelled_retry_recovers
@@ -561,6 +562,20 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
     expect(result).to be_success
     expect(result.events.join("\n")).to include("workspace reconstruction failed")
+  end
+
+  # The queued sibling of the running-repair fix: a CI repair still queued
+  # behind a main repair of a base main has moved past is just as moot, but
+  # only the "base not known healthy" block was recognised, so it waited for
+  # the stale main repair forever.
+  it "cancels a queued CI repair held behind a main repair once its base is superseded" do
+    result = run_scenario("superseded_ci_repair_behind_main_repair_resolves")
+
+    expect(result).to be_success
+    workflow = Job.find(result.job_ids.first).workflows.find_by!(trigger_kind: "ci_failure")
+    expect(workflow).to be_cancelled
+    expect(workflow.artifact("cancelled_reason")).to eq(WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON)
+    expect(result.events.join("\n")).to include("cancel_superseded_ci_repair")
   end
 
   it "cancels a CI repair blocked on a superseded base instead of waiting forever" do
