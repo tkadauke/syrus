@@ -1,4 +1,4 @@
-class Coworkers::ReviewContext < ApplicationRecord
+class Coworkers::ReviewContext < Syrus::Host::Record
   self.table_name = "coworker_review_contexts"
 
   STATES = %w[prepared persisted failed tombstoned].freeze

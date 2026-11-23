@@ -12,7 +12,7 @@ module Mcp::Tools
 
     class << self
       def call(server_context:, query: nil, include_non_requestable: false)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
           return Mcp::Tools.not_authorized
         end
@@ -20,7 +20,7 @@ module Mcp::Tools
         capabilities = Permissions::CoworkerCapabilityDiscovery.new(context)
           .call(query:, include_non_requestable:)
           .map(&:to_h)
-        Mcp::Tools.success(capabilities: capabilities, states: %w[available requestable prohibited plugin_disabled resource_unconfigured unavailable])
+        Syrus::Host::McpTools.success(capabilities: capabilities, states: %w[available requestable prohibited plugin_disabled resource_unconfigured unavailable])
       end
     end
   end

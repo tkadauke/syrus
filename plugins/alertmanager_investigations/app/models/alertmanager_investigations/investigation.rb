@@ -1,5 +1,5 @@
 module AlertmanagerInvestigations
-  class Investigation < ApplicationRecord
+  class Investigation < Syrus::Host::Record
     self.table_name = "alertmanager_investigations"
 
     belongs_to :job, optional: true

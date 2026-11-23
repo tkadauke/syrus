@@ -1,19 +1,19 @@
 module Api
   module V1
     module App
-      class CoworkersController < BaseController
+      class CoworkersController < Syrus::Host::AppController
         include ChatProviderOptions
         include AgentProviderCatalogOptions
 
         def index
           coworkers = scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).to_a
           weekly_spend = Coworkers::Activity.weekly_spend_by_coworker(
-            coworkers: coworkers, user: Current.user
+            coworkers: coworkers, user: Syrus::Host::Current.user
           )
           render json: {
             coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
-            provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Current.user)
+            provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Syrus::Host::Current.user)
               .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status)
           }
         end
@@ -39,7 +39,7 @@ module Api
         def conversation_index
           coworker = authorized_coworker
           render json: Coworkers::ConversationIndex.new(
-            coworker: coworker, user: Current.user, filter: params[:q], sort: params[:sort], cursor: params[:cursor]
+            coworker: coworker, user: Syrus::Host::Current.user, filter: params[:q], sort: params[:sort], cursor: params[:cursor]
           ).call
         rescue Coworkers::ConversationIndex::InvalidCursor => error
           render_error("invalid_cursor", error.message, status: :bad_request)
@@ -60,11 +60,11 @@ module Api
 
         def review_context
           coworker = Coworkers::Coworker.find(params[:id])
-          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+          unless Syrus::Host::Current.user.admin? || coworker.owner_user_id == Syrus::Host::Current.user.id
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -72,11 +72,11 @@ module Api
 
         def review_context
           coworker = Coworkers::Coworker.find(params[:id])
-          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+          unless Syrus::Host::Current.user.admin? || coworker.owner_user_id == Syrus::Host::Current.user.id
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -86,7 +86,7 @@ module Api
           coworker = authorized_review_coworker
           return unless coworker
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -97,11 +97,11 @@ module Api
           return unless coworker
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
           repository = coworker.workspace_repository or raise ActiveRecord::RecordNotFound
-          reader = RepositoryContent.for(repository, user: Current.user)
+          reader = RepositoryContent.for(repository, user: Syrus::Host::Current.user)
           revision = reader.resolve("coworkers/#{coworker.handle}")
           path = "reviews/journal/evidence-#{context.review_evidence_id}.md"
           journal = reader.read(revision, path, max_bytes: 64.kilobytes)
-          AdminAction.log!(user: Current.user, action: "coworker_review_journal_read",
+          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_journal_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id, "review_evidence_id" => context.review_evidence_id })
           render json: { run_id: context.run_id, review_evidence_id: context.review_evidence_id, path:, content: journal.text,
                          truncated: journal.truncated, persisted_commit_sha: context.persisted_commit_sha }
@@ -109,11 +109,11 @@ module Api
 
         def review_context
           coworker = Coworkers::Coworker.find(params[:id])
-          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+          unless Syrus::Host::Current.user.admin? || coworker.owner_user_id == Syrus::Host::Current.user.id
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -121,20 +121,20 @@ module Api
 
         def review_context
           coworker = Coworkers::Coworker.find(params[:id])
-          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+          unless Syrus::Host::Current.user.admin? || coworker.owner_user_id == Syrus::Host::Current.user.id
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
         end
 
         def create
-          coworker = Coworkers::Coworker.new(owner_user: Current.user)
+          coworker = Coworkers::Coworker.new(owner_user: Syrus::Host::Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy
-          created = Coworkers::Create.call(owner: Current.user, idempotency_key: request.headers["Idempotency-Key"] || params[:idempotency_key],
+          created = Coworkers::Create.call(owner: Syrus::Host::Current.user, idempotency_key: request.headers["Idempotency-Key"] || params[:idempotency_key],
             **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: requested_grants)
           render json: { coworker: detail_json(created), redirect_to: "/coworkers/#{created.id}" }, status: :created
         rescue ActiveRecord::RecordInvalid => error
@@ -156,7 +156,7 @@ module Api
           unless attempt.state == "manual_attention"
             return render_error("invalid_state", "only manual-attention cleanup can be acknowledged", status: :unprocessable_content)
           end
-          attempt.update!(acknowledged_at: Time.current, acknowledged_by: Current.user)
+          attempt.update!(acknowledged_at: Time.current, acknowledged_by: Syrus::Host::Current.user)
           render json: { provisioning_attempt: attempt.public_status }
         end
 
@@ -187,7 +187,7 @@ module Api
           coworker = find_coworker
           authorize coworker, :manage_grants?, policy_class: CoworkerPolicy
           Coworkers::GrantUpdate.call(
-            owner: Current.user, coworker: coworker, capability: params[:capability],
+            owner: Syrus::Host::Current.user, coworker: coworker, capability: params[:capability],
             approval_policy: params.require(:approval_policy), constraints: grant_constraints, **grant_scope_argument,
             confirmed: params[:confirmed]
           )
@@ -201,7 +201,7 @@ module Api
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
-          chat = Coworkers::CreateSideChat.call(coworker:, user: Current.user, repository: workspace_repository(coworker))
+          chat = Coworkers::CreateSideChat.call(coworker:, user: Syrus::Host::Current.user, repository: workspace_repository(coworker))
           render json: { chat_path: "/chats/#{chat.id}" }, status: :created
         end
 
@@ -209,7 +209,7 @@ module Api
           chat = owned_chat
           coworker = find_coworker
           entry = Coworkers::ChatAgent.create_or_find_by!(chat_session: chat, coworker: coworker) do |agent|
-            agent.added_by_user = Current.user
+            agent.added_by_user = Syrus::Host::Current.user
           end
           render json: { agent: roster_json(entry) }, status: :created
         rescue ActiveRecord::RecordInvalid => error
@@ -234,13 +234,13 @@ module Api
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
           payload = Coworkers::WorkspaceBrowser.new(
-            coworker: coworker, repository: workspace_repository(coworker), user: Current.user
+            coworker: coworker, repository: workspace_repository(coworker), user: Syrus::Host::Current.user
           ).call(path: params[:path], filters: params.permit(:search, :extension, :folder, :path_prefix, :filename,
             :filename_exact, :area, :content_kind, :min_size, :max_size, :modified_after, :modified_before, :sort, :cursor).to_h.symbolize_keys)
           render json: payload
         rescue Coworkers::WorkspaceBrowser::InvalidCursor => error
           render_error("invalid_cursor", error.message, status: :bad_request)
-        rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
+        rescue ActiveRecord::RecordNotFound, Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnknownRevision => error
           Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
         end
@@ -258,7 +258,7 @@ module Api
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
           render json: Coworkers::Activity.new(
-            coworker: coworker, user: Current.user,
+            coworker: coworker, user: Syrus::Host::Current.user,
             jobs_cursor: params[:jobs_cursor], side_chats_cursor: params[:side_chats_cursor],
             filters: params.permit(:state, :created_after, :created_before, :source, :failures_only, :query).to_h.symbolize_keys
           ).call.merge(message_traffic: message_traffic_json(coworker))
@@ -269,12 +269,12 @@ module Api
         def approvals
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
-          render json: { approvals: Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.map { |action| approval_json(action, coworker:) } }
+          render json: { approvals: Coworkers::PendingApprovals.new(owner: Syrus::Host::Current.user, coworker: coworker).relation.map { |action| approval_json(action, coworker:) } }
         end
 
         def approve
           action = find_approval
-          if action.enqueue_confirmation!(user: Current.user)
+          if action.enqueue_confirmation!(user: Syrus::Host::Current.user)
             render json: { approval: approval_json(action.reload, coworker: find_coworker) }, status: :accepted
           else
             render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
@@ -285,7 +285,7 @@ module Api
 
         def reject
           action = find_approval
-          if action.reject!(user: Current.user)
+          if action.reject!(user: Syrus::Host::Current.user)
             render json: { approval: approval_json(action.reload, coworker: find_coworker) }
           else
             render_error("approval_inactive", I18n.t("api.coworkers.approval_inactive"), status: :unprocessable_content)
@@ -300,7 +300,7 @@ module Api
 
           task = coworker.schedules.new(
             schedule_params.merge(
-              user: Current.user, repository: repository,
+              user: Syrus::Host::Current.user, repository: repository,
               pr_pileup_policy: "skip", auto_approve_mode: "never",
               after_run: schedule_params[:after_run].presence || "wake"
             )
@@ -353,31 +353,31 @@ module Api
           match = params.require(:workspace_repo).to_s.strip.match(%r{\A(?:https://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?/?\z}i)
           return render_error("validation_failed", I18n.t("api.coworkers.invalid_workspace_remote"), status: :unprocessable_content) unless match
 
-          Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: Current.user).test_push_access!
+          Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: Syrus::Host::Current.user).test_push_access!
           render json: { message: I18n.t("api.coworkers.push_access_verified") }
         rescue StandardError => error
           render_error("remote_unavailable", error.message, status: :unprocessable_content)
         end
 
         def sidebar_badge
-          render json: { count: Coworkers::PendingApprovals.new(owner: Current.user).count }
+          render json: { count: Coworkers::PendingApprovals.new(owner: Syrus::Host::Current.user).count }
         end
 
         private
 
         def authorized_review_coworker
           coworker = Coworkers::Coworker.find(params[:id])
-          return coworker if Current.user.admin? || coworker.owner_user_id == Current.user.id
+          return coworker if Syrus::Host::Current.user.admin? || coworker.owner_user_id == Syrus::Host::Current.user.id
 
           head :forbidden
           nil
         end
 
         def provisioning_attempt
-          Coworkers::ProvisioningAttempt.where(owner_user: Current.user).find(params[:attempt_id])
+          Coworkers::ProvisioningAttempt.where(owner_user: Syrus::Host::Current.user).find(params[:attempt_id])
         end
 
-        def scope = CoworkerPolicy::Scope.new(Current.user, Coworkers::Coworker.all).resolve
+        def scope = CoworkerPolicy::Scope.new(Syrus::Host::Current.user, Coworkers::Coworker.all).resolve
 
         def find_coworker = scope.includes(coworker_chats: :chat_session).find(params[:id])
 
@@ -386,13 +386,13 @@ module Api
         end
 
         def owned_chat
-          ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
+          ChatSession.active.find_by!(id: params[:chat_id], user_id: Syrus::Host::Current.user.id)
         end
 
         def find_approval
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
-          Coworkers::PendingApprovals.new(owner: Current.user, coworker: coworker).relation.find(params[:approval_id])
+          Coworkers::PendingApprovals.new(owner: Syrus::Host::Current.user, coworker: coworker).relation.find(params[:approval_id])
         end
 
         def approval_json(action, coworker:)
@@ -448,11 +448,11 @@ module Api
 
         def grant_catalog_json
           defaults = Coworkers::Create::DEFAULT_GRANTS.keys.to_set
-          Coworkers::GrantCatalog.all.map { |descriptor| descriptor.as_json(user: Current.user).merge(default_enabled: defaults.include?(descriptor.name)) }
+          Coworkers::GrantCatalog.all.map { |descriptor| descriptor.as_json(user: Syrus::Host::Current.user).merge(default_enabled: defaults.include?(descriptor.name)) }
         end
 
         def summary_json(coworker, weekly_spend_usd: nil)
-          weekly_spend_usd ||= Coworkers::Activity.new(coworker: coworker, user: Current.user).week_spend
+          weekly_spend_usd ||= Coworkers::Activity.new(coworker: coworker, user: Syrus::Host::Current.user).week_spend
           {
             id: coworker.id, name: coworker.name, handle: coworker.handle, role_summary: coworker.role_summary,
             state: coworker.state, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
@@ -487,12 +487,12 @@ module Api
 
         def schedules_json(coworker)
           tasks = coworker.schedules.alive.order(:created_at).to_a
-          results = Coworkers::ScheduleLatestResults.new(tasks:, user: Current.user).call
+          results = Coworkers::ScheduleLatestResults.new(tasks:, user: Syrus::Host::Current.user).call
           tasks.map { |task| schedule_json(task, latest_result: results.fetch(task)) }
         end
 
         def schedule_json(task, latest_result: nil)
-          latest_result ||= Coworkers::ScheduleLatestResults.new(tasks: [ task ], user: Current.user).call.fetch(task)
+          latest_result ||= Coworkers::ScheduleLatestResults.new(tasks: [ task ], user: Syrus::Host::Current.user).call.fetch(task)
           journaling_overdue = task.system_key == Coworkers::SystemSchedules::JOURNALING &&
             Coworkers::Prompts::Journaling.new.attention_required?(task:, now: Time.current)
           {
@@ -540,7 +540,7 @@ module Api
         end
 
         def available_chats_json(coworker)
-          chats = Current.user.chat_sessions.active.order(last_message_at: :desc, id: :desc).limit(100).to_a
+          chats = Syrus::Host::Current.user.chat_sessions.active.order(last_message_at: :desc, id: :desc).limit(100).to_a
           chat_ids = chats.map(&:id)
           rostered_ids = Coworkers::ChatAgent.where(coworker: coworker, chat_session_id: chat_ids).pluck(:chat_session_id).to_set
           own_chat_ids = Coworkers::Chat.where(coworker: coworker, chat_session_id: chat_ids).pluck(:chat_session_id).to_set
@@ -565,7 +565,7 @@ module Api
         end
 
         def model_options_json
-          agent_provider_catalog_options(Current.user).fetch(:agent_providers).filter_map do |provider|
+          agent_provider_catalog_options(Syrus::Host::Current.user).fetch(:agent_providers).filter_map do |provider|
             next unless provider.fetch(:configured)
 
             {

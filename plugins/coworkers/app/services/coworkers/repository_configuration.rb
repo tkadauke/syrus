@@ -3,7 +3,7 @@ module Coworkers
   # `coworker_review:` key is a plugin-owned compatibility alias for the
   # namespaced `plugins: { coworkers.review: ... }` envelope.
   class RepositoryConfiguration
-    include Syrus::Plugin::RepositoryConfiguration
+    include Syrus::Host::RepositoryConfiguration
 
     MIN_ROUNDS = 1
     MAX_ROUNDS = 10

@@ -1,5 +1,5 @@
 class Coworkers::ChatTurnLifecycle
-  include Syrus::Plugin::ChatTurnLifecycle
+  include Syrus::Host::ChatTurnLifecycle
 
   def self.applies_to?(chat_session:, user_message:)
     Coworkers::Chat.exists?(chat_session_id: chat_session.id)

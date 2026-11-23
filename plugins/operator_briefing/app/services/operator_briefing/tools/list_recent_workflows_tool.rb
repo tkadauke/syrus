@@ -30,7 +30,7 @@ module OperatorBriefing
         MAX_LIMIT = 50
 
         def call(server_context:, limit: nil, page: nil)
-          run = Mcp::Tools.run_from_context(server_context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
           briefing = Briefing.find_by!(job: run.job)
           per_page = normalized_limit(limit)
           page_num = Mcp::Pagination.normalize_page(page)
@@ -141,7 +141,7 @@ module OperatorBriefing
         end
 
         def redact(value)
-          ::Mcp::Tools::EvidenceRedactor.call(value)
+          Mcp::Tools::EvidenceRedactor.call(value)
         end
       end
     end

@@ -22,20 +22,20 @@ module Coworkers
       def call(thread_id:, text:, server_context:)
         chat_session = server_context.fetch(:chat_session)
         coworker = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)&.coworker
-        return Mcp::Tools.invalid("reply_in_chat_thread is only available from a coworker's chat") unless coworker
+        return Syrus::Host::McpTools.invalid("reply_in_chat_thread is only available from a coworker's chat") unless coworker
 
         body = text.to_s.strip
-        return Mcp::Tools.invalid("text is required") if body.blank?
+        return Syrus::Host::McpTools.invalid("text is required") if body.blank?
 
         thread = ChatBridgeThread.find_by(id: thread_id)
         return inaccessible unless thread_member?(thread, chat_session)
         return inaccessible unless owner_thread?(thread, chat_session, coworker)
-        return Mcp::Tools.invalid("chat bridge thread #{thread.id} is closed") unless thread.open?
-        return Mcp::Tools.invalid("chat bridge thread #{thread.id} reached its hop limit") if thread.at_max_hops?
+        return Syrus::Host::McpTools.invalid("chat bridge thread #{thread.id} is closed") unless thread.open?
+        return Syrus::Host::McpTools.invalid("chat bridge thread #{thread.id} reached its hop limit") if thread.at_max_hops?
 
         result = ChatSession::CrossChatMessage.new(thread: thread, text: body, from: chat_session).deliver!
         thread.reload
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           thread_id: thread.id,
           state: thread.state,
           hop_count: thread.hop_count,
@@ -45,7 +45,7 @@ module Coworkers
           message_id: result.fetch(:outbound_message).id
         )
       rescue ChatSession::CrossChatMessage::ClosedThreadError => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
 
       private
@@ -62,7 +62,7 @@ module Coworkers
       end
 
       def inaccessible
-        Mcp::Tools.invalid("chat bridge thread not found or not accessible")
+        Syrus::Host::McpTools.invalid("chat bridge thread not found or not accessible")
       end
     end
   end

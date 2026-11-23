@@ -193,6 +193,40 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::ChatIdentityProvider`
+
+Since: `0.1.16`
+
+Lets a plugin supply chat identities, turn identity and message presentation; chat storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_group_ownership`
+- `chat_identities`
+- `chat_message_presentations`
+- `chat_search_ownership`
+- `chat_status_contributions`
+- `chat_turn_identity`
+- `chat_turn_trigger`
+
+### `Syrus::Host::ChatMcpToolSet`
+
+Since: `0.1.16`
+
+Marks a class as a chat-surface MCP tool set; chat tool exposure and rendering are not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatPayloadContributor`
+
+Since: `0.1.16`
+
+Lets a plugin add fields to chat message payloads; payload assembly is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_message_payload`
+- `chat_payload_counts`
+- `chat_payload_paths`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
@@ -216,6 +250,30 @@ Queues automatic title generation for a chat; job implementation and queue detai
 Supported members:
 
 - `enqueue`
+
+### `Syrus::Host::ChatTurnFinalizer`
+
+Since: `0.1.16`
+
+Lets a plugin finalize a chat turn; turn orchestration is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatTurnLifecycle`
+
+Since: `0.1.16`
+
+Lets a plugin observe chat turn lifecycle events; turn orchestration is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatTurnOrientation`
+
+Since: `0.1.16`
+
+Lets a plugin contribute orientation text to a chat turn; prompt assembly is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatWorkspaceLifecycle`
+
+Since: `0.1.16`
+
+Lets a plugin observe chat workspace lifecycle events; workspace storage is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::CliCommandHandler`
 
@@ -456,6 +514,16 @@ Supported members:
 - `api_user`
 - `user`
 
+### `Syrus::Host::DiffReviewAnnotationProvider`
+
+Since: `0.1.16`
+
+Lets a plugin annotate a diff-review version; review storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `review_annotations`
+
 ### `Syrus::Host::DiskUsage`
 
 Since: `0.1.16`
@@ -637,6 +705,7 @@ Supported members:
 
 - `GitError`
 - `new`
+- `redact`
 - `run`
 
 ### `Syrus::Host::GraderBaseRetry`
@@ -762,6 +831,17 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::JobVisibilityRestriction`
+
+Since: `0.1.16`
+
+Lets a plugin restrict which job origins a user may see; the visibility query itself is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `origin_key`
+- `visible_origin_ids`
+
 ### `Syrus::Host::LocalExecution`
 
 Since: `0.1.16`
@@ -772,6 +852,22 @@ Supported members:
 
 - `new`
 - `run`
+
+### `Syrus::Host::McpRunContextContributor`
+
+Since: `0.1.16`
+
+Lets a plugin add attributes to the MCP run context; context construction is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `context_attributes`
+
+### `Syrus::Host::McpToolSet`
+
+Since: `0.1.16`
+
+Marks a class as a plugin tool set for workflow and review runs; tool dispatch and exposure policy are not promised. Only the listed members are supported.
 
 ### `Syrus::Host::McpTools`
 
@@ -888,6 +984,18 @@ Supported members:
 - `providers_with_owner_for`
 - `register`
 
+### `Syrus::Host::PostImplementationReviewProvider`
+
+Since: `0.1.16`
+
+Lets a plugin request a post-implementation review step; review orchestration is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `prompt_sections`
+- `required_mcp_tools`
+- `review_needed?`
+
 ### `Syrus::Host::ProcessRunner`
 
 Since: `0.1.16`
@@ -925,7 +1033,9 @@ Bases plugin-owned records in the primary database; private core helpers are not
 Supported members:
 
 - `belongs_to`
+- `connection`
 - `has_many`
+- `sanitize_sql_like`
 - `transaction`
 
 ### `Syrus::Host::Repository`
@@ -945,6 +1055,18 @@ Supported members:
 - `name`
 - `owner`
 - `writable_by`
+
+### `Syrus::Host::RepositoryConfiguration`
+
+Since: `0.1.16`
+
+Lets a plugin own a section of repository configuration; configuration parsing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `affected_project?`
+- `legacy_keys`
+- `overlay`
 
 ### `Syrus::Host::RepositoryContentProvider`
 
@@ -971,6 +1093,81 @@ Supported members:
 - `tree`
 - `tree_sha`
 
+### `Syrus::Host::RepositoryFilter`
+
+Since: `0.1.16`
+
+Lets a plugin narrow a repository query; the host query is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `apply`
+
+### `Syrus::Host::RetentionPolicy`
+
+Since: `0.1.16`
+
+Lets a plugin declare data retention definitions; pruning scheduling is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `retention_definitions`
+
+### `Syrus::Host::ReviewContextContributor`
+
+Since: `0.1.16`
+
+Lets a plugin contribute review-target context, tools and links; review orchestration is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `operator_links`
+- `retention`
+- `tombstone`
+- `tool_capability`
+- `tool_set`
+
+### `Syrus::Host::ReviewGate`
+
+Since: `0.1.16`
+
+Lets a plugin declare review gates; gate evaluation order is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `SLOTS`
+- `job_detail_fields`
+- `review_gates`
+
+### `Syrus::Host::ReviewPresentationContributor`
+
+Since: `0.1.16`
+
+Lets a plugin contribute review editors and renderers; review UI composition is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `audit_renderers`
+- `evidence_renderers`
+- `settings_summaries`
+- `target_editors`
+- `translation_namespaces`
+
+### `Syrus::Host::ReviewerTargetProvider`
+
+Since: `0.1.16`
+
+Lets a plugin provide reviewer targets; reviewer dispatch is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `audit_snapshot`
+- `available?`
+- `options`
+- `resolve`
+- `target_type`
+- `uniqueness_key`
+
 ### `Syrus::Host::Run`
 
 Since: `0.1.16`
@@ -984,6 +1181,12 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::SidebarPage`
+
+Since: `0.1.16`
+
+Declares sidebar navigation pages a plugin contributes; sidebar rendering is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::SourceControlProvider`
 
@@ -1171,6 +1374,17 @@ Supported members:
 
 - `chat_tool_set_for`
 - `chat_tool_sets`
+
+### `Syrus::Host::UiSlot`
+
+Since: `0.1.16`
+
+Declares named UI slots a plugin may fill; slot layout is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `SLOTS`
+- `valid_slot?`
 
 ### `Syrus::Host::User`
 
@@ -1385,8 +1599,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Filters::UnknownFilterField`
 - `FtsQueryParser`
 - `GitMergeDrivers`
-- `GitRunner`
-- `GitRunner::GitError`
 - `GithubApiUsageRollup`
 - `GithubAuthenticatedGit`
 - `GithubClient`
@@ -1529,12 +1741,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Repository`
 - `RepositoryBareClone`
 - `RepositoryContent`
-- `RepositoryContent::Error`
-- `RepositoryContent::NotFound`
-- `RepositoryContent::Truncated`
-- `RepositoryContent::Unavailable`
-- `RepositoryContent::UnknownRevision`
-- `RepositoryContent::Unsupported`
 - `RepositoryMembership`
 - `RepositoryPolicy`
 - `RepositorySummarySerialization`
@@ -1590,42 +1796,28 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::AdminPage`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
 - `Syrus::Plugin::Callbacks`
-- `Syrus::Plugin::ChatIdentityProvider`
 - `Syrus::Plugin::ChatJobStatusExtension`
 - `Syrus::Plugin::ChatMcpToolSet`
 - `Syrus::Plugin::ChatMediaSource`
 - `Syrus::Plugin::ChatPayloadContributor`
 - `Syrus::Plugin::ChatPromptInjector`
 - `Syrus::Plugin::ChatProvider`
-- `Syrus::Plugin::ChatTurnFinalizer`
-- `Syrus::Plugin::ChatTurnLifecycle`
 - `Syrus::Plugin::ChatTurnOrientation`
-- `Syrus::Plugin::ChatWorkspaceLifecycle`
 - `Syrus::Plugin::CliCommandHandler`
-- `Syrus::Plugin::DiffReviewAnnotationProvider`
 - `Syrus::Plugin::DomainSubscriber`
 - `Syrus::Plugin::ExecutionBackend`
 - `Syrus::Plugin::GraderFailureSummarizer`
 - `Syrus::Plugin::InputSource`
 - `Syrus::Plugin::JobOrigin`
-- `Syrus::Plugin::JobVisibilityRestriction`
-- `Syrus::Plugin::McpRunContextContributor`
 - `Syrus::Plugin::McpToolSet`
 - `Syrus::Plugin::MemoryStore`
 - `Syrus::Plugin::PermissionProvider`
 - `Syrus::Plugin::PlatformDelivery`
-- `Syrus::Plugin::PostImplementationReviewProvider`
 - `Syrus::Plugin::PreviewPanelRetention`
 - `Syrus::Plugin::PurgeContributor`
 - `Syrus::Plugin::RepoPageTab`
-- `Syrus::Plugin::RepositoryConfiguration`
-- `Syrus::Plugin::RepositoryFilter`
 - `Syrus::Plugin::RepositoryRecommendation`
 - `Syrus::Plugin::RetentionPolicy`
-- `Syrus::Plugin::ReviewContextContributor`
-- `Syrus::Plugin::ReviewGate`
-- `Syrus::Plugin::ReviewPresentationContributor`
-- `Syrus::Plugin::ReviewerTargetProvider`
 - `Syrus::Plugin::RuntimeSessionProvider`
 - `Syrus::Plugin::SidebarPage`
 - `Syrus::Plugin::SourceControlProvider`

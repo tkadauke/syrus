@@ -1,4 +1,4 @@
-class Coworkers::Chat < ApplicationRecord
+class Coworkers::Chat < Syrus::Host::Record
   self.table_name = "coworker_chats"
   ROLES = %w[main side mention].freeze
 

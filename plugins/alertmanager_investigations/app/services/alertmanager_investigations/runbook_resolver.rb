@@ -42,9 +42,9 @@ module AlertmanagerInvestigations
       return nil unless opted_in?(blob.text)
 
       Result.new(repository: repository, ref: revision.ref || location.ref, path: location.path, content: blob.text)
-    rescue RepositoryContent::NotFound
+    rescue Syrus::Host::ContentNotFound
       nil
-    rescue RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision => e
+    rescue Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnsupported, Syrus::Host::ContentUnknownRevision => e
       Rails.logger.warn("[AlertmanagerInvestigations] runbook unavailable for #{@url}: #{e.class}: #{e.message}")
       nil
     end

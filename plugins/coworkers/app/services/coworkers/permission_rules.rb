@@ -120,12 +120,12 @@ module Coworkers
     def catalog_tool_descriptor(tool)
       if tool.tool
         entry = McpToolRegistry.entry_for(tool.tool)
-        entry&.descriptor || (entry && Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        entry&.descriptor || (entry && Syrus::Host::CapabilityDescriptor.for_registry_entry(
           tool_name: entry.tool_name, capability: entry.capability, mutation: entry.mutation,
           required_roles: entry.required_roles, admin_only: entry.admin_only
         ))
       elsif tool.definition
-        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
+        Syrus::Host::CapabilityDescriptor.for_plugin_definition(tool.definition)
       end
     end
 
@@ -141,7 +141,7 @@ module Coworkers
       return descriptors if descriptors.any?
 
       grant = Coworkers::GrantCatalog.fetch(capability)
-      [ Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+      [ Syrus::Host::CapabilityDescriptor.for_registry_entry(
         tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
         required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
         default_policy: POLICY.fetch(grant.default_policy).to_sym

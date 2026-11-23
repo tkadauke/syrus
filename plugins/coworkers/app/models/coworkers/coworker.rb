@@ -1,4 +1,4 @@
-class Coworkers::Coworker < ApplicationRecord
+class Coworkers::Coworker < Syrus::Host::Record
   # Opts in as an exact-agent permission rule subject (see Permissions::RuleDraft).
   def self.permission_agent_subject? = true
   self.table_name = "coworkers"

@@ -12,7 +12,7 @@ class Coworkers::SpawnSyrusChat
   def call
     chat = nil
     thread = nil
-    ApplicationRecord.transaction do
+    Syrus::Host::Record.transaction do
       chat = ChatSession.create!(
         user: @coworker.owner_user,
         repository: @repository,

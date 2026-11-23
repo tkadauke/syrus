@@ -1,15 +1,15 @@
 module Api
   module V1
     module App
-      class ReviewWorkspaceController < BaseController
+      class ReviewWorkspaceController < Syrus::Host::AppController
         before_action :require_review_workspace_enabled
 
         def index
-          render json: ReviewWorkspacePlugin::Payload.call(user: Current.user, scope: reviewable_job_scope)
+          render json: ReviewWorkspacePlugin::Payload.call(user: Syrus::Host::Current.user, scope: reviewable_job_scope)
         end
 
         def count
-          render json: { count: ReviewWorkspacePlugin::EligibleJobs.call(user: Current.user, scope: reviewable_job_scope).length }
+          render json: { count: ReviewWorkspacePlugin::EligibleJobs.call(user: Syrus::Host::Current.user, scope: reviewable_job_scope).length }
         end
 
         private

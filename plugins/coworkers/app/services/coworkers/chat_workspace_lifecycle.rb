@@ -2,7 +2,7 @@ require "fileutils"
 require "tmpdir"
 
 class Coworkers::ChatWorkspaceLifecycle
-  include Syrus::Plugin::ChatWorkspaceLifecycle
+  include Syrus::Host::ChatWorkspaceLifecycle
   MAX_PUSH_ATTEMPTS = 3
   MAX_RESOLUTION_ATTEMPTS = 2
   MAX_SYNC_ATTEMPTS = 3
@@ -23,7 +23,7 @@ class Coworkers::ChatWorkspaceLifecycle
     end
   end
 
-  def initialize(chat_session, git: GitRunner.new, remote_url: nil, repository: nil, resolver: nil)
+  def initialize(chat_session, git: Syrus::Host::GitRunner.new, remote_url: nil, repository: nil, resolver: nil)
     @chat = chat_session
     @resolver = resolver
     @link = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: chat_session.id)
@@ -136,7 +136,7 @@ class Coworkers::ChatWorkspaceLifecycle
   rescue Coworkers::RemoteWorkspace::RefChanged => error
     Rails.logger.warn("[Coworkers::ChatWorkspaceLifecycle] retained changed run ref: #{error.message}")
   rescue StandardError => error
-    Rails.logger.warn("[Coworkers::ChatWorkspaceLifecycle] run ref cleanup deferred: #{GitRunner.redact(error.message)}")
+    Rails.logger.warn("[Coworkers::ChatWorkspaceLifecycle] run ref cleanup deferred: #{Syrus::Host::GitRunner.redact(error.message)}")
   end
 
   def remote_workspace
@@ -178,8 +178,8 @@ class Coworkers::ChatWorkspaceLifecycle
       git_run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
       return :synchronized
     end
-  rescue GitRunner::GitError => error
-    warn_stale_checkout!(path, "Git synchronization failed: #{GitRunner.redact(error.message)}")
+  rescue Syrus::Host::GitRunner::GitError => error
+    warn_stale_checkout!(path, "Git synchronization failed: #{Syrus::Host::GitRunner.redact(error.message)}")
   end
 
   def synchronization_blocker(path)
@@ -229,7 +229,7 @@ class Coworkers::ChatWorkspaceLifecycle
       push_guard.allow!(chat_branch)
       @git.run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: dir, env: @env)
     end
-  rescue GitRunner::GitError
+  rescue Syrus::Host::GitRunner::GitError
     # Another worker may have created the immutable chat ref concurrently.
     raise unless @git.run("ls-remote", "--heads", @remote_url, "refs/heads/#{chat_branch}", env: @env).present?
   end
@@ -251,7 +251,7 @@ class Coworkers::ChatWorkspaceLifecycle
     MAX_PUSH_ATTEMPTS.times do |attempt|
       outcome = merge_once(source_branch, conflict_checkout:)
       return outcome unless outcome == :retry
-      raise GitRunner::GitError.new([ "push", home_branch ], 1, "home branch kept moving") if attempt == MAX_PUSH_ATTEMPTS - 1
+      raise Syrus::Host::GitRunner::GitError.new([ "push", home_branch ], 1, "home branch kept moving") if attempt == MAX_PUSH_ATTEMPTS - 1
     end
   end
 
@@ -282,7 +282,7 @@ class Coworkers::ChatWorkspaceLifecycle
 
       git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
       :merged
-    rescue GitRunner::GitError => error
+    rescue Syrus::Host::GitRunner::GitError => error
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
       :retry
     end
@@ -390,7 +390,7 @@ class Coworkers::ChatWorkspaceLifecycle
     outcome = merge_into_home!(chat_branch)
     conflict.update!(state: "resolved", resolved_at: Time.current) if outcome == :merged
     outcome
-  rescue GitRunner::GitError => error
+  rescue Syrus::Host::GitRunner::GitError => error
     retry_or_fail!(conflict, files:, detail: error.output.to_s.last(500))
   end
 

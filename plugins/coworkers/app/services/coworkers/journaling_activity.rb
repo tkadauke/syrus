@@ -78,7 +78,7 @@ module Coworkers
       reader = RepositoryContent.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
       @daily_memory = text(reader.read(revision, daily_memory_path, max_bytes: 64.kilobytes).text, label: daily_memory_path)
-    rescue RepositoryContent::NotFound, RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision
+    rescue Syrus::Host::ContentNotFound, Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnsupported, Syrus::Host::ContentUnknownRevision
       @daily_memory = nil
     end
 

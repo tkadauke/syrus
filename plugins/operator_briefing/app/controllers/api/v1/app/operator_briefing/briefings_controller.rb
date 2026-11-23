@@ -2,31 +2,31 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class BriefingsController < BaseController
+        class BriefingsController < Syrus::Host::AppController
           include ChatSessionLifecycle
 
           def show
-            render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
+            render json: ::OperatorBriefing::Payload.new(user: Syrus::Host::Current.user).as_json
           end
 
           def history
             archived = ::OperatorBriefing::Briefing
               .joins(:job)
-              .where(owner_user: Current.user, repository_id: Repository.accessible_repository_ids_for(Current.user))
+              .where(owner_user: Syrus::Host::Current.user, repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
               .where(jobs: { state: "closed" })
               .includes(:job)
               .find(params.require(:briefing_id))
 
-            render json: { briefing: ::OperatorBriefing::Payload.new(user: Current.user).briefing_payload(archived) }
+            render json: { briefing: ::OperatorBriefing::Payload.new(user: Syrus::Host::Current.user).briefing_payload(archived) }
           end
 
           def regenerate
-            repository = Repository.where(id: Repository.accessible_repository_ids_for(Current.user)).find(params[:repository_id])
-            ::OperatorBriefing::BriefingSubscription.find_or_create_by!(user: Current.user, repository: repository)
-            result = ::OperatorBriefing::Generator.generate!(user: Current.user, repository: repository, mode: :on_demand)
+            repository = Repository.where(id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user)).find(params[:repository_id])
+            ::OperatorBriefing::BriefingSubscription.find_or_create_by!(user: Syrus::Host::Current.user, repository: repository)
+            result = ::OperatorBriefing::Generator.generate!(user: Syrus::Host::Current.user, repository: repository, mode: :on_demand)
 
             render json: {
-              briefing: result.briefing && ::OperatorBriefing::Payload.new(user: Current.user).briefing_payload(result.briefing),
+              briefing: result.briefing && ::OperatorBriefing::Payload.new(user: Syrus::Host::Current.user).briefing_payload(result.briefing),
               status: result.status,
               reason: result.reason
             }
@@ -57,11 +57,11 @@ module Api
 
           def discuss
             current_briefing = briefing
-            chat_session = ::App::JobDiscussionChatResolver.new(job: current_briefing.job, user: Current.user).resolve
+            chat_session = ::App::JobDiscussionChatResolver.new(job: current_briefing.job, user: Syrus::Host::Current.user).resolve
             message = chat_session.messages.create!(
               role: "user",
               content: { "text" => discussion_message(current_briefing) },
-              sender_user_id: Current.user.id
+              sender_user_id: Syrus::Host::Current.user.id
             )
             chat_session.pin_chat_provider!
             enqueue_chat_title(chat_session, message) if chat_session.messages.where(role: "user").count == 1
@@ -74,7 +74,7 @@ module Api
 
           def briefing
             @briefing ||= ::OperatorBriefing::Briefing
-              .where(owner_user: Current.user, repository_id: Repository.accessible_repository_ids_for(Current.user))
+              .where(owner_user: Syrus::Host::Current.user, repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
               .find(params[:id])
           end
 

@@ -65,7 +65,7 @@ module Permissions
       if tool.tool
         McpToolRegistry.entry_for(tool.tool)&.descriptor
       elsif tool.definition
-        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(
+        Syrus::Host::CapabilityDescriptor.for_plugin_definition(
           tool.definition.merge(requestable_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
         )
       end

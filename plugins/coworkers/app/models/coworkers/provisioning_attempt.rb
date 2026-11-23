@@ -1,4 +1,4 @@
-class Coworkers::ProvisioningAttempt < ApplicationRecord
+class Coworkers::ProvisioningAttempt < Syrus::Host::Record
   self.table_name = "coworker_provisioning_attempts"
 
   STATES = %w[provisioning completed cleanup_pending cleaned manual_attention].freeze

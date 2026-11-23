@@ -45,7 +45,7 @@ module Mcp
               definition = by_name[name]
               definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
               essential = definition.present? &&
-                Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).essential?
+                Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition).essential?
               Descriptor.new(tool_name: name, capability: capability, ungated: essential,
                 approval_effect: definition.present? && value(definition, :approval_effect) == true,
                 tier: definition ? tiers_by_name.fetch(name, :essential) : :essential,
@@ -57,7 +57,7 @@ module Mcp
           end
           unclassified_descriptors = unclassified.to_h do |definition|
             [ value(definition, :name).to_s,
-              Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition) ]
+              Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition) ]
           end
           unclassified_defaults = unclassified_descriptors.values.group_by(&:capability).transform_values do |descriptors|
             descriptors.all? do |descriptor|
@@ -67,7 +67,7 @@ module Mcp
           end
           shared = unclassified.map do |definition|
             name = value(definition, :name).to_s
-            descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+            descriptor = Syrus::Host::CapabilityDescriptor.for_coworker_parity(
               unclassified_descriptors.fetch(name),
               default_policy: unclassified_defaults.fetch(unclassified_descriptors.fetch(name).capability)
             )

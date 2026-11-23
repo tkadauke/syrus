@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingSettings < ApplicationRecord
+  class BriefingSettings < Syrus::Host::Record
     self.table_name = "operator_briefing_settings"
     include ValidatesAgentProvider
 

@@ -1,5 +1,5 @@
 class Coworkers::ReviewContextContributor
-  include Syrus::Plugin::ReviewContextContributor
+  include Syrus::Host::ReviewContextContributor
 
   def self.target_type = "coworker"
 

@@ -7,7 +7,7 @@ class Coworkers::Create
     def initialize(outcome:, attempt:, cause:)
       @outcome = outcome
       @attempt_id = attempt.id
-      super("coworker creation failed; remote cleanup #{outcome == :fully_rolled_back ? 'completed' : 'is pending'}: #{GitRunner.redact(cause.message)}")
+      super("coworker creation failed; remote cleanup #{outcome == :fully_rolled_back ? 'completed' : 'is pending'}: #{Syrus::Host::GitRunner.redact(cause.message)}")
     end
   end
 
@@ -97,7 +97,7 @@ class Coworkers::Create
         @attempt.update!(expected_seeded_commit: expected_sha)
       end
       @attempt.update!(expected_seeded_commit: sha, seeded_at: Time.current)
-      ApplicationRecord.transaction do
+      Syrus::Host::Record.transaction do
         coworker = create_records!(register_repository!)
         Coworkers::SystemSchedules.reconcile!(coworker)
         create_kickoff!(coworker)
@@ -131,7 +131,7 @@ class Coworkers::Create
   end
 
   def redacted_error(error)
-    GitRunner.redact("#{error.class}: #{error.message}")
+    Syrus::Host::GitRunner.redact("#{error.class}: #{error.message}")
   end
 
   def branch = "coworkers/#{@handle}"

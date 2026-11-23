@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class Briefing < ApplicationRecord
+  class Briefing < Syrus::Host::Record
     self.table_name = "operator_briefing_briefings"
 
     belongs_to :job

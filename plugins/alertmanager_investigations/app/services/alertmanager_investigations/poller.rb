@@ -26,7 +26,7 @@ module AlertmanagerInvestigations
 
     def process_alert(payload)
       alert = Alert.new(payload: payload, host_label: @configuration.host_label)
-      ApplicationRecord.transaction(requires_new: true) { process(alert) }
+      Syrus::Host::Record.transaction(requires_new: true) { process(alert) }
     rescue StandardError => e
       fingerprint = alert&.fingerprint || payload["fingerprint"].presence || "unknown"
       Rails.logger.warn(

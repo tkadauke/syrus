@@ -1,6 +1,6 @@
 module CognitiveReview
   class DiffReviewAnnotationProvider
-    include Syrus::Plugin::DiffReviewAnnotationProvider
+    include Syrus::Host::DiffReviewAnnotationProvider
     COMMENT_SIDE_BY_NOTE_SIDE = { "old" => "left", "new" => "right" }.freeze
     COMMENT_LINE_BY_NOTE_SIDE = {
       "old" => ->(comment) { comment.old_line.to_i },

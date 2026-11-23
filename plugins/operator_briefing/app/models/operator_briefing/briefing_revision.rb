@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingRevision < ApplicationRecord
+  class BriefingRevision < Syrus::Host::Record
     self.table_name = "operator_briefing_revisions"
 
     BLOCK_KINDS = %w[narrative chart image artifact link_card].freeze

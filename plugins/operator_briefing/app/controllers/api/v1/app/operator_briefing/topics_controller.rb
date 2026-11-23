@@ -2,12 +2,12 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class TopicsController < BaseController
+        class TopicsController < Syrus::Host::AppController
           REVISION_LIMIT = 3
 
           def show
             topic = ::OperatorBriefing::BriefingTopic
-              .where(repository_id: Repository.accessible_repository_ids_for(Current.user))
+              .where(repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
               .find(params[:id])
             render json: topic_payload(topic)
           end

@@ -1,5 +1,5 @@
 module CognitiveReview
-  class DiscussionEntry < ApplicationRecord
+  class DiscussionEntry < Syrus::Host::Record
     self.table_name = "cognitive_review_discussion_entries"
 
     belongs_to :note, class_name: "CognitiveReview::Note", inverse_of: :discussion_entries

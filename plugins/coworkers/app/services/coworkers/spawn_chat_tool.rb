@@ -25,17 +25,17 @@ module Coworkers
 
     class << self
       def call(prompt:, server_context:, handle: nil, title: nil)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         coworker = context.agent_actor
-        return Mcp::Tools.invalid("spawn_coworker_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
+        return Syrus::Host::McpTools.invalid("spawn_coworker_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
 
         requested_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@")) if handle.present?
-        return Mcp::Tools.invalid("a coworker can only spawn a side chat of itself") if requested_handle && requested_handle != coworker.handle
-        return Mcp::Tools.invalid("prompt is required") if prompt.to_s.strip.blank?
+        return Syrus::Host::McpTools.invalid("a coworker can only spawn a side chat of itself") if requested_handle && requested_handle != coworker.handle
+        return Syrus::Host::McpTools.invalid("prompt is required") if prompt.to_s.strip.blank?
 
         coworker.with_lock do
           limiter = Coworkers::SpawnChatLimiter.new(coworker:, server_context:)
-          next Mcp::Tools.invalid(limiter.refusal) unless limiter.allowed?
+          next Syrus::Host::McpTools.invalid(limiter.refusal) unless limiter.allowed?
 
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
             tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title }, always_pending: true
@@ -43,10 +43,10 @@ module Coworkers
           next pending if pending
 
           result = Coworkers::SpawnChat.call(coworker:, prompt:, title:, server_context:)
-          Mcp::Tools.success(chat_id: result.id, chat_path: "/chats/#{result.id}", handle: coworker.handle)
+          Syrus::Host::McpTools.success(chat_id: result.id, chat_path: "/chats/#{result.id}", handle: coworker.handle)
         end
       rescue ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+        Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
       end
     end
   end

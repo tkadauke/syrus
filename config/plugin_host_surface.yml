@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 428
+legacy_baseline: 406
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -132,8 +132,6 @@ constants:
 - name: Filters::UnknownFilterField
 - name: FtsQueryParser
 - name: GitMergeDrivers
-- name: GitRunner
-- name: GitRunner::GitError
 - name: GithubApiUsageRollup
 - name: GithubAuthenticatedGit
 - name: GithubClient
@@ -276,12 +274,6 @@ constants:
 - name: Repository
 - name: RepositoryBareClone
 - name: RepositoryContent
-- name: RepositoryContent::Error
-- name: RepositoryContent::NotFound
-- name: RepositoryContent::Truncated
-- name: RepositoryContent::Unavailable
-- name: RepositoryContent::UnknownRevision
-- name: RepositoryContent::Unsupported
 - name: RepositoryMembership
 - name: RepositoryPolicy
 - name: RepositorySummarySerialization
@@ -337,42 +329,28 @@ constants:
 - name: Syrus::Plugin::AdminPage
 - name: Syrus::Plugin::AgentProvider::ModelInfo
 - name: Syrus::Plugin::Callbacks
-- name: Syrus::Plugin::ChatIdentityProvider
 - name: Syrus::Plugin::ChatJobStatusExtension
 - name: Syrus::Plugin::ChatMcpToolSet
 - name: Syrus::Plugin::ChatMediaSource
 - name: Syrus::Plugin::ChatPayloadContributor
 - name: Syrus::Plugin::ChatPromptInjector
 - name: Syrus::Plugin::ChatProvider
-- name: Syrus::Plugin::ChatTurnFinalizer
-- name: Syrus::Plugin::ChatTurnLifecycle
 - name: Syrus::Plugin::ChatTurnOrientation
-- name: Syrus::Plugin::ChatWorkspaceLifecycle
 - name: Syrus::Plugin::CliCommandHandler
-- name: Syrus::Plugin::DiffReviewAnnotationProvider
 - name: Syrus::Plugin::DomainSubscriber
 - name: Syrus::Plugin::ExecutionBackend
 - name: Syrus::Plugin::GraderFailureSummarizer
 - name: Syrus::Plugin::InputSource
 - name: Syrus::Plugin::JobOrigin
-- name: Syrus::Plugin::JobVisibilityRestriction
-- name: Syrus::Plugin::McpRunContextContributor
 - name: Syrus::Plugin::McpToolSet
 - name: Syrus::Plugin::MemoryStore
 - name: Syrus::Plugin::PermissionProvider
 - name: Syrus::Plugin::PlatformDelivery
-- name: Syrus::Plugin::PostImplementationReviewProvider
 - name: Syrus::Plugin::PreviewPanelRetention
 - name: Syrus::Plugin::PurgeContributor
 - name: Syrus::Plugin::RepoPageTab
-- name: Syrus::Plugin::RepositoryConfiguration
-- name: Syrus::Plugin::RepositoryFilter
 - name: Syrus::Plugin::RepositoryRecommendation
 - name: Syrus::Plugin::RetentionPolicy
-- name: Syrus::Plugin::ReviewContextContributor
-- name: Syrus::Plugin::ReviewGate
-- name: Syrus::Plugin::ReviewPresentationContributor
-- name: Syrus::Plugin::ReviewerTargetProvider
 - name: Syrus::Plugin::RuntimeSessionProvider
 - name: Syrus::Plugin::SidebarPage
 - name: Syrus::Plugin::SourceControlProvider

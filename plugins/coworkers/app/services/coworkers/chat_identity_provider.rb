@@ -1,6 +1,6 @@
 module Coworkers
   class ChatIdentityProvider
-    include Syrus::Plugin::ChatIdentityProvider
+    include Syrus::Host::ChatIdentityProvider
 
     class << self
       def chat_identities(chat_session:, user:)

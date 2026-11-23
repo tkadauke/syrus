@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(93)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(93)
+    expect(Syrus::Host.apis.size).to eq(114)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(114)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -33,6 +33,19 @@ RSpec.describe Syrus::Host::PublicApis do
       CoverageParseResult: CoverageAnalysis::Parsers::Base::ParseResult, WorkflowWorkspace: WorkflowWorkspace,
       GitRunner: GitRunner, CapabilityDescriptor: Permissions::CapabilityDescriptorAdapter
     }.each { |name, core| expect(Syrus::Host.const_get(name)).to equal(core), name.to_s }
+  end
+
+  it "aliases the plugin-point interfaces onto their core modules with written contracts" do
+    %w[McpToolSet SidebarPage UiSlot ChatMcpToolSet ChatPayloadContributor ChatTurnFinalizer ChatTurnLifecycle
+       ChatTurnOrientation ChatWorkspaceLifecycle ChatIdentityProvider DiffReviewAnnotationProvider
+       JobVisibilityRestriction McpRunContextContributor PostImplementationReviewProvider RepositoryConfiguration
+       RepositoryFilter RetentionPolicy ReviewContextContributor ReviewGate ReviewPresentationContributor
+       ReviewerTargetProvider].each do |name|
+      expect(Syrus::Host.const_get(name)).to equal("Syrus::Plugin::#{name}".constantize), name
+      api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
+      expect(api.summary).to include("not promised"), name
+      expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true)
+    end
   end
 
   it "exposes the shared grader defaults without the SyrusYml constants" do

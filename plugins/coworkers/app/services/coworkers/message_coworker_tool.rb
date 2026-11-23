@@ -20,28 +20,28 @@ module Coworkers
       def call(handle:, text:, server_context:)
         chat = server_context.fetch(:chat_session)
         sender = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat.id)&.coworker
-        return Mcp::Tools.invalid("message_coworker is only available from a coworker's chat") unless sender
+        return Syrus::Host::McpTools.invalid("message_coworker is only available from a coworker's chat") unless sender
 
         normalized_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@"))
         body = text.to_s.strip
-        return Mcp::Tools.invalid("handle is required") if normalized_handle.blank?
-        return Mcp::Tools.invalid("text is required") if body.blank?
-        return Mcp::Tools.invalid("Syrus cannot receive coworker messages") if normalized_handle == "syrus"
-        return Mcp::Tools.invalid("a coworker cannot message itself") if normalized_handle == sender.handle
+        return Syrus::Host::McpTools.invalid("handle is required") if normalized_handle.blank?
+        return Syrus::Host::McpTools.invalid("text is required") if body.blank?
+        return Syrus::Host::McpTools.invalid("Syrus cannot receive coworker messages") if normalized_handle == "syrus"
+        return Syrus::Host::McpTools.invalid("a coworker cannot message itself") if normalized_handle == sender.handle
 
         receiver = Coworkers::Coworker.find_by(owner_user_id: sender.owner_user_id, handle: normalized_handle)
-        return Mcp::Tools.invalid("@#{normalized_handle} is not one of this owner's coworkers") unless receiver
-        return Mcp::Tools.invalid("@#{receiver.handle} is #{receiver.state} and cannot receive messages") unless receiver.state == "active"
+        return Syrus::Host::McpTools.invalid("@#{normalized_handle} is not one of this owner's coworkers") unless receiver
+        return Syrus::Host::McpTools.invalid("@#{receiver.handle} is #{receiver.state} and cannot receive messages") unless receiver.state == "active"
 
         current_message = server_context[:current_message]
         current_message_id = current_message.id if current_message.respond_to?(:id)
-        return Mcp::Tools.invalid("coworker messages require a persisted current turn") unless current_message_id.present?
+        return Syrus::Host::McpTools.invalid("coworker messages require a persisted current turn") unless current_message_id.present?
 
         message_context = delivery_context(current_message)
         result = Coworkers::MessageDispatcher.call(sender: sender, receiver: receiver, text: body, delivery_context: message_context)
-        return Mcp::Tools.invalid(result.error) unless result.delivered?
+        return Syrus::Host::McpTools.invalid(result.error) unless result.delivered?
 
-        Mcp::Tools.success(queued: true, from_handle: sender.handle, to_handle: receiver.handle)
+        Syrus::Host::McpTools.success(queued: true, from_handle: sender.handle, to_handle: receiver.handle)
       end
 
       private

@@ -1,5 +1,5 @@
 class Coworkers::HomeBranchPersistence
-  include Syrus::Plugin::ChatTurnFinalizer
+  include Syrus::Host::ChatTurnFinalizer
 
   Conflict = Class.new(StandardError)
 
@@ -11,7 +11,7 @@ class Coworkers::HomeBranchPersistence
     new(chat_session, link.coworker).persist!
   end
 
-  def initialize(chat_session, coworker, git: GitRunner.new)
+  def initialize(chat_session, coworker, git: Syrus::Host::GitRunner.new)
     @chat_session = chat_session
     @coworker = coworker
     @git = git
@@ -33,7 +33,7 @@ class Coworkers::HomeBranchPersistence
     return unless unpublished_commits?(path, branch)
 
     save(repository, path, branch, schedule_background:)
-  rescue GitRunner::GitError => e
+  rescue Syrus::Host::GitRunner::GitError => e
     raise unless non_fast_forward?(e)
 
     Coworkers::UnsavedWorkspace.new(@chat_session).attempt(branch:, path:, operation: "home_branch", schedule_background:) do
@@ -47,7 +47,7 @@ class Coworkers::HomeBranchPersistence
     Coworkers::UnsavedWorkspace.new(@chat_session).attempt(branch:, path:, operation: "home_branch", schedule_background:) do
       begin
         push!(repository, path, branch)
-      rescue GitRunner::GitError => error
+      rescue Syrus::Host::GitRunner::GitError => error
         raise unless non_fast_forward?(error)
         reconcile_and_push!(repository, path, branch)
       end
@@ -81,7 +81,7 @@ class Coworkers::HomeBranchPersistence
     begin
       GitMergeDrivers.register!(git: @git, path:)
       @git.run("rebase", "origin/#{branch}", chdir: path.to_s)
-    rescue GitRunner::GitError => e
+    rescue Syrus::Host::GitRunner::GitError => e
       raise Conflict,
         "the coworker home branch changed remotely and conflicts remain in #{conflict_paths(path)}; " \
         "edit those files on the next turn, then Syrus will continue and push the preserved local commits (#{e.message})"
@@ -103,7 +103,7 @@ class Coworkers::HomeBranchPersistence
 
     @git.run("add", "--all", chdir: path.to_s)
     @git.run("rebase", "--continue", chdir: path.to_s, env: { "GIT_EDITOR" => "true" })
-  rescue GitRunner::GitError => e
+  rescue Syrus::Host::GitRunner::GitError => e
     raise Conflict,
       "workspace conflict recovery still needs edits in #{conflict_paths(path)}; " \
       "the rebase and local commits remain available for the next turn (#{e.message})"
@@ -111,7 +111,7 @@ class Coworkers::HomeBranchPersistence
 
   def conflict_paths(path)
     @git.run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?).join(", ").presence || "the workspace"
-  rescue GitRunner::GitError
+  rescue Syrus::Host::GitRunner::GitError
     "the workspace"
   end
 

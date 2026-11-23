@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class CognitiveReviewNotesController < BaseController
+      class CognitiveReviewNotesController < Syrus::Host::AppController
         include ChatLockErrors
         include ChatSessionLifecycle
 
@@ -16,7 +16,7 @@ module Api
           return unless authorize_job_mutation!(job)
 
           note = find_note(job)
-          note.acknowledge!(user: Current.user)
+          note.acknowledge!(user: Syrus::Host::Current.user)
           render json: { note: note_json(note) }
         end
 
@@ -26,7 +26,7 @@ module Api
 
           note = find_note(job)
           note.add_discussion_entry!(
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             body: params.require(:body),
             metadata: plain_json(params[:metadata] || {})
           )
@@ -44,14 +44,14 @@ module Api
           user_message = nil
           previous_state = note.state
 
-          ApplicationRecord.transaction do
-            started_discussion = note.start_discussion!(user: Current.user)
+          Syrus::Host::Record.transaction do
+            started_discussion = note.start_discussion!(user: Syrus::Host::Current.user)
             chat_session = discussion_chat_for(job)
             if started_discussion
               user_message = chat_session.messages.create!(
                 role: "user",
                 content: { "text" => discussion_message(job, note, previous_state: previous_state) },
-                sender_user_id: Current.user.id
+                sender_user_id: Syrus::Host::Current.user.id
               )
             end
           end
@@ -105,7 +105,7 @@ module Api
         end
 
         def discussion_chat_for(job)
-          chat_session = job.discussion_chat || ChatSession.create!(user: Current.user, repository: job.repository)
+          chat_session = job.discussion_chat || ChatSession.create!(user: Syrus::Host::Current.user, repository: job.repository)
           chat_session.chat_attachments.find_or_create_by!(attachable: job)
           chat_session.pin_chat_provider!
           chat_session

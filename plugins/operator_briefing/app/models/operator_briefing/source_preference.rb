@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class SourcePreference < ApplicationRecord
+  class SourcePreference < Syrus::Host::Record
     self.table_name = "operator_briefing_source_preferences"
 
     SOURCES = [

@@ -28,7 +28,7 @@ class Coworkers::ConflictResolver
     attr_accessor :agent
   end
 
-  def initialize(coworker:, user:, git: GitRunner.new, env: {}, timeout: nil)
+  def initialize(coworker:, user:, git: Syrus::Host::GitRunner.new, env: {}, timeout: nil)
     @coworker = coworker
     @user = user
     @git = git

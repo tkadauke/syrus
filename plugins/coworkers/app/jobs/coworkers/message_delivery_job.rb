@@ -14,7 +14,7 @@ module Coworkers
       sender_chat = main_chat(sender)
       receiver_chat = main_chat(receiver)
 
-      ApplicationRecord.transaction do
+      Syrus::Host::Record.transaction do
         sender_chat.messages.create!(
           role: "system",
           content: message_content(direction: "outgoing", sender: sender, receiver: receiver, text: text, delivery_context: delivery_context),

@@ -7,9 +7,9 @@ module Mcp::Tools
     end
 
     def self.resolve_for_capability(server_context:, capability:, repository_id: nil, slug: nil)
-      context = McpToolContext.from_server_context(server_context)
+      context = Syrus::Host::ToolContext.from_server_context(server_context)
       repository = find_repository(context, repository_id:, slug:)
-      return Mcp::Tools.invalid("repository not found or is not accessible") unless repository
+      return Syrus::Host::McpTools.invalid("repository not found or is not accessible") unless repository
       return repository unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
       scope = context.capability_scopes[capability]

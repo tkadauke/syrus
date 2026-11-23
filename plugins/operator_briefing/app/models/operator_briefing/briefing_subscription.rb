@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingSubscription < ApplicationRecord
+  class BriefingSubscription < Syrus::Host::Record
     self.table_name = "operator_briefing_subscriptions"
 
     belongs_to :user
