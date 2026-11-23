@@ -41,6 +41,5 @@ module GlobalSearch
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/global_search.json" ]
-
   end
 end
