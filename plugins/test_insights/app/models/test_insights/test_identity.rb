@@ -9,7 +9,6 @@ module TestInsights
     HISTORY_LIMIT = 100
     LIST_LOOKBACK = 20
     INTERESTING_LIMIT = 10
-    REFRESH_BATCH_SIZE = 1_000
     LATEST_CASE_QUERY_BATCH_SIZE = 100
 
     belongs_to :repository
