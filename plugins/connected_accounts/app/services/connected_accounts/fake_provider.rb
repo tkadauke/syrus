@@ -38,6 +38,10 @@ module ConnectedAccounts
         payload = JSON.parse(context.body)
         { event_id: payload.fetch("id"), event_type: payload.fetch("type"), data: payload.fetch("data", {}) }
       end
+
+      def system_invoke(context)
+        { authorization: context.access.authorization_header, input: context.input }
+      end
     end
   end
 end
