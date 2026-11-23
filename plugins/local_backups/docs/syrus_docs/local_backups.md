@@ -98,6 +98,16 @@ artifact checksum. Missing live database information is reported as unknown,
 not healthy. A changed artifact or installation therefore requires a new
 preflight token.
 
+Restore replaces the database, so preflight blocks when it cannot establish
+compatibility, not only when it finds a mismatch. Each unknown names a flag
+that accepts exactly that unknown: `--allow-unknown-database-adapter`,
+`--allow-unknown-database-version`, `--allow-unknown-application-version`,
+`--allow-unknown-application-compatibility` (the bundle declares no range, or
+the versions do not parse), and `--allow-unknown-encryption-fingerprints`. An
+accepted unknown stays in the report as a warning. In-flight work that cannot
+be counted because the database is unavailable, the usual disaster-recovery
+case, is reported but does not block.
+
 `restore` requires the token from the exact successful preflight plus explicit
 maintenance-entry, worker-drain, drain-verification, derived-index rebuild,
 restored-work reconciliation, health-check, and resume commands. It creates a

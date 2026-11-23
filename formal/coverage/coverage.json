@@ -3177,6 +3177,23 @@
       "producer": "LocalBackups::AbandonedReplicationSweep; Syrus::Plugin::BackupDestination#identity/#configured?",
       "done_by": "F111 (NY21)",
       "notes": "AbandonedReplication.lean: safe (never releases a live upload) and complete once every destination is identified."
+    },
+    {
+      "id": "recovery-preflight-unknowns-block",
+      "area": "backups",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A restore token is issued only when every compatibility unknown was accepted by its own flag",
+      "producer": "LocalBackups::Recovery::Preflight; bin/disaster-recovery --allow-unknown-<code>",
+      "done_by": "F112 (NY22)",
+      "notes": "RecoveryPreflight.lean: a ready preflight has no unaccepted unknown, and one flag excuses only its own unknown."
     }
   ],
   "needs_you": [
@@ -3464,7 +3481,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A, in line with NY13: an unknown is not a pass, and restore is destructive. The break-glass flag keeps the empty-instance and development cases possible on purpose.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown. Implemented as F112."
     },
     {
       "id": "NY23",

@@ -4156,6 +4156,40 @@ and the architecture specs (1,059 examples), and `bin/check-plugin-boundaries`.
 
 ---
 
+## F112. Recovery preflight was ready when compatibility was unknown — fixed (NY22)
+
+**Decision (NY22, A).** Treat every unknown as a failure, and allow it only
+with an explicit operator flag named after what is unknown.
+
+**Before.** `LocalBackups::Recovery::Preflight` issues the restore token only
+when no check fails, and `restore` requires that token. A known mismatch
+failed, but a missing fact only warned: the destination's database adapter,
+database version or application version not supplied; no compatibility range
+in the bundle, or versions that do not parse; no encryption-key fingerprints in
+the bundle. Warnings needed no acknowledgement, so preflight was ready and a
+restore could replace the database of a destination whose compatibility was
+never established (`RecoveryPreflight.before_ready_with_unknowns`).
+
+**Fix.** Each unknown carries a code (`UNKNOWN_CODES`) and fails unless the
+operator passes `--allow-unknown-<code>` to `bin/disaster-recovery`, which turns
+it into a warning that names the flag. An unrecognised code is refused. The
+uncountable in-flight work warning is left as a warning: it means the database
+is unavailable, which is the usual disaster-recovery case, and it is not a
+compatibility fact. Docs: Local Backups and the Docker Compose deployment page.
+
+**Proof.** `RecoveryPreflight.lean`: `ready_implies_accepted` (a ready
+preflight has no unaccepted unknown) and `one_flag_excuses_one`.
+
+**Specs.** `recovery_spec.rb` "unknown compatibility" (red before: the
+argument did not exist): ready when everything is known, each of the five
+unknowns blocked and then accepted by its own flag, and one flag not excusing
+another. The token spec now accepts its bundle's three unknowns explicitly.
+`spec/bin/disaster_recovery_spec.rb` drives the CLI: blocked, still blocked
+with only one of two flags, ready with both. Local Backups specs: 94 examples,
+0 failures.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

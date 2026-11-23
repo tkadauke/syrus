@@ -54,6 +54,9 @@ parser = OptionParser.new do |opts|
   opts.on("--object-promote-command COMMAND") { |value| options[:object_promote_command] = value }
   opts.on("--object-rollback-command COMMAND") { |value| options[:object_rollback_command] = value }
   opts.on("--break-glass-no-safety-backup") { options[:break_glass] = true }
+  LocalBackups::Recovery::Preflight::UNKNOWN_CODES.each do |code|
+    opts.on("--allow-unknown-#{code}") { (options[:accepted_unknowns] ||= []) << code }
+  end
   opts.on("--max-bytes BYTES", Integer) { |value| options[:max_bytes] = value }
   opts.on("--max-files COUNT", Integer) { |value| options[:max_files] = value }
   opts.on("--stdin") { options[:stdin] = true }
@@ -105,7 +108,8 @@ when "preflight"
   report = LocalBackups::Recovery::Preflight.new(
     bundle:, destination:, installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"],
     token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"], process: recovery_process,
-    current: options.slice(:database_adapter, :database_version, :application_version, :plugins, :encryption_fingerprints, :in_flight)
+    current: options.slice(:database_adapter, :database_version, :application_version, :plugins, :encryption_fingerprints, :in_flight),
+    accepted_unknowns: options.fetch(:accepted_unknowns, [])
   ).call
   puts JSON.pretty_generate(report)
   exit 2 if report[:status] == "blocked"
