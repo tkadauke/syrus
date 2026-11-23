@@ -27,5 +27,10 @@ module ConnectedAccounts
         account
       end
     end
+
+    def self.needs_reauth!(account)
+      account.update!(status: "needs_reauth") unless account.needs_reauth?
+      account
+    end
   end
 end

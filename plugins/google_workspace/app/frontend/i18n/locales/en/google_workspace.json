@@ -1,0 +1,10 @@
+{
+  "plugin": {
+    "display_name": "Google Workspace",
+    "description": "Read Gmail and Google Calendar through a connected Google account.",
+    "long_description": "Connect an instance-supplied Google OAuth client and expose read-only Gmail and Google Calendar data through provider-neutral tools."
+  },
+  "settings": {
+    "provider_notice": "Register your own Google OAuth client and check Google's current verification policy. Only the client id and secret are configurable; Syrus pins Google's endpoints and separate read-only Gmail and Calendar scopes."
+  }
+}

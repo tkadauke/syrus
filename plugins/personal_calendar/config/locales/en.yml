@@ -1,0 +1,6 @@
+en:
+  permissions:
+    capabilities:
+      personal_calendar.read@v1: { label: Read calendar, description: List and read events in a connected account. }
+      personal_calendar.events/list@v1: { label: List calendar events }
+      personal_calendar.event/read@v1: { label: Read a calendar event }

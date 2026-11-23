@@ -1,7 +1,8 @@
 {
   "settings": {
     "title": "Rationes conexae",
-    "description": "Praebitorem OAuth 2 generalem totius instantiae configura. Ambitus, ambitus solos legendi, et origines API commatibus separa.",
+    "description": "Praebitores rationum coniunctarum totius instantiae configura. Ambitus et origines API mutabiles commatibus separa.",
+    "provider": "Praebitor",
     "authorize_url": "URL auctoritatis",
     "token_url": "URL tesserae",
     "revoke_url": "URL revocationis",
@@ -9,6 +10,7 @@
     "validate_url": "URL probationis",
     "client_id": "ID clientis",
     "client_secret": "Secretum clientis",
+    "client_secret_configured": "Secretum clientis configuratum est. Novum valorem tantum ad illud substituendum insere.",
     "scope_catalog": "Catalogus ambituum",
     "read_only_scopes": "Ambitus soli legendi",
     "api_origins": "Origines API",
