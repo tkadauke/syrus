@@ -100,5 +100,6 @@
   "link_job": "{{slug}} öffnen",
   "link_epic": "{{number}} öffnen",
   "link_pr": "PR #{{number}} (öffnet GitHub)",
-  "link_full_diff": "Vollständiger Diff und Details"
+  "link_full_diff": "Vollständiger Diff und Details",
+  "brief_reviews_unconfirmed": "Für den aktuellen Commit nicht bestätigt"
 }
