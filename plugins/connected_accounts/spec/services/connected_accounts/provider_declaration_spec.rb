@@ -33,11 +33,19 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
 
   it "declares token entry and explicit system service identities" do
     declaration = described_class.build(plugin_name: "example_plugin", attributes: valid_attributes.merge(
-      authorization_kind: "token", system_service_identities: [ "platform.telegram_delivery" ]
+      authorization_kind: "token", system_service_identities: [ "platform.telegram_delivery" ],
+      capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES + [ "system_invoke" ]
     ))
 
     expect(declaration).to be_token_authorization
     expect(declaration.system_service_identities).to eq([ "platform.telegram_delivery" ])
+  end
+
+  it "requires a broker-invoked implementation for declared system identities" do
+    expect {
+      described_class.build(plugin_name: "example_plugin", attributes: valid_attributes.merge(
+        system_service_identities: [ "platform.telegram_delivery" ]))
+    }.to raise_error(ArgumentError, /require the system_invoke capability/)
   end
 
   it "rejects missing capabilities and malformed manifest fields" do

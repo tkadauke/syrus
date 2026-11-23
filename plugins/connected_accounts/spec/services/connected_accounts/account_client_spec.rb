@@ -253,31 +253,57 @@ RSpec.describe ConnectedAccounts::AccountClient do
     account
     credential.update!(scope_type: "instance", scope_id: nil, owner_user: nil, allowed_surfaces: [ "api" ])
     account.update!(owner_kind: "instance", owner_user: nil, acting_modes: [ "as_service" ])
-    declaration = instance_double(ConnectedAccounts::ProviderDeclaration,
-      system_service_identities: [ "platform.delivery" ])
+    observed_header = nil
+    service = Class.new
+    service.define_singleton_method(:system_invoke) do |invocation|
+      observed_header = invocation.access.authorization_header
+      { purpose: invocation.purpose, input: invocation.input }
+    end
+    declaration = instance_double(ConnectedAccounts::ProviderDeclaration, system_service_for: nil)
     allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
-    stub_const("ConnectedAccounts::SystemInvocation::CORE_SERVICE_IDENTITIES", [ "platform.delivery" ].freeze)
-    capability = ConnectedAccounts::SystemInvocation.send(:issue_capability, "platform.delivery")
+    stub_const("ConnectedAccounts::SystemInvocation::CORE_SERVICES", { "platform.delivery" => service }.freeze)
 
-    result = described_class.with_system_access(account:, service_capability: capability, scopes: [ "mail.read" ],
-      purpose: "deliver a platform notification", target: { url: "https://api.example.com/messages" }) { :ok }
-    expect(result).to eq(:ok)
+    result = described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+      purpose: "deliver a platform notification", target: { url: "https://api.example.com/messages" }, input: { message_id: 7 })
+    expect(result).to eq(purpose: "deliver a platform notification", input: { message_id: 7 })
+    expect(observed_header).to eq("Bearer #{access_token}")
     expect(credential.access_events.where(action: "lease").last.metadata).to include(
       "system_service_identity" => "platform.delivery", "acting_mode" => "as_service",
       "purpose" => "deliver a platform notification")
 
     expect {
-      described_class.with_system_access(account:, service_capability: "platform.delivery", scopes: [ "mail.read" ],
-        purpose: "bypass", target: { url: "https://api.example.com/messages" }) { :unused }
+      described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+        purpose: "bypass", target: { url: "https://api.example.com/messages" }) { |access| access.authorization_header }
+    }.to raise_error(described_class::Denied, "system access does not accept caller code")
+
+    expect {
+      described_class.with_system_access(account:, service_identity: "other_plugin", scopes: [ "mail.read" ],
+        purpose: "bypass", target: { url: "https://api.example.com/messages" })
     }.to raise_error(described_class::Denied, "connected account not found")
+  end
+
+
+  it "allows a provider-declared system service without a core registration" do
+    account
+    credential.update!(scope_type: "instance", scope_id: nil, owner_user: nil, allowed_surfaces: [ "api" ])
+    account.update!(owner_kind: "instance", owner_user: nil, acting_modes: [ "as_service" ])
+    service = Class.new do
+      def self.system_invoke(context) = context.identity
+    end
+    declaration = instance_double(ConnectedAccounts::ProviderDeclaration,
+      system_service_for: service)
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
+
+    expect(described_class.with_system_access(account:, service_identity: "provider.delivery", scopes: [ "mail.read" ],
+      purpose: "deliver", target: { url: "https://api.example.com/messages" })).to eq("provider.delivery")
   end
 
   it "refuses the system path for user-owned accounts" do
     allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch)
 
     expect {
-      described_class.with_system_access(account:, service_capability: Object.new, scopes: [ "mail.read" ],
-        purpose: "bypass") { :unused }
+      described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+        purpose: "bypass")
     }.to raise_error(described_class::Denied, "connected account not found")
   end
 end
