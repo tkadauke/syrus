@@ -11,6 +11,7 @@ type ProviderConfig = Config & {
   plugin_name: string
   display_name: string
   managed_settings: boolean
+  client_secret_configured?: boolean
   settings_notice?: string | null
   settings_notice_i18n_key?: string | null
 }
@@ -39,6 +40,7 @@ export function ProviderSettingsNotice({ notice, i18nKey, pluginName }: { notice
 export default function ConnectedAccountsAdmin() {
   const { t } = useT("connected_accounts")
   const [draft, setDraft] = useState<Record<string, string | boolean>>({})
+  const [configuredSecretProviders, setConfiguredSecretProviders] = useState<Set<string>>(() => new Set())
   const [provider, setProvider] = useState("")
   const query = useQuery({
     queryKey: ["connected_accounts", "provider_configs"],
@@ -51,12 +53,23 @@ export default function ConnectedAccountsAdmin() {
       const saved = current || ({} as ProviderConfig)
       const commaList = (field: string) => String(draft[field] || saved[field] || "").split(",").map((value) => value.trim()).filter(Boolean)
       const body = { provider_config: { ...draft, scope_catalog: commaList("scope_catalog"), read_only_scopes: commaList("read_only_scopes"), api_origins: commaList("api_origins") } }
-      await patchJson<ConfigPayload>(`/api/v1/app/admin/connected_accounts/provider_configs/${encodeURIComponent(selectedProvider)}`, body)
+      return patchJson<ConfigPayload>(`/api/v1/app/admin/connected_accounts/provider_configs/${encodeURIComponent(selectedProvider)}`, body)
+    },
+    onSuccess: ({ provider_config: saved }) => {
+      if (saved.client_secret_configured) {
+        setConfiguredSecretProviders((providers) => new Set(providers).add(saved.provider_key))
+      }
+      setDraft((value) => {
+        const next = { ...value }
+        delete next.client_secret
+        return next
+      })
     }
   })
   function submit(event: FormEvent) { event.preventDefault(); save.mutate() }
   const fields = [ "authorize_url", "token_url", "revoke_url", "identity_url", "validate_url", "client_id", "client_secret", "scope_catalog", "read_only_scopes", "api_origins" ]
   const visibleFields = fields.filter((field) => !current?.managed_settings || [ "client_id", "client_secret" ].includes(field))
+  const clientSecretConfigured = Boolean(current?.client_secret_configured || configuredSecretProviders.has(selectedProvider))
   const changeProvider = (value: string) => {
     setProvider(value)
     setDraft({})
@@ -82,8 +95,9 @@ export default function ConnectedAccountsAdmin() {
         {visibleFields.map((field) => (
           <label key={field} className="block space-y-1">
             <span>{t(`settings.${field}`)}</span>
-            <Input type={field === "client_secret" ? "password" : "text"} value={String(draft[field] ?? current?.[field] ?? "")}
+            <Input aria-label={t(`settings.${field}`)} type={field === "client_secret" ? "password" : "text"} value={String(draft[field] ?? current?.[field] ?? "")}
               onChange={(event) => setDraft((value) => ({ ...value, [field]: event.target.value }))} />
+            {field === "client_secret" && clientSecretConfigured && <Text variant="caption" tone="muted">{t("settings.client_secret_configured")}</Text>}
           </label>
         ))}
         <Checkbox checked={Boolean(draft.allow_as_owner ?? current?.allow_as_owner ?? false)} label={t("settings.allow_as_owner")}

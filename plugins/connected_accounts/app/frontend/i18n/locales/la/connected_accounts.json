@@ -10,6 +10,7 @@
     "validate_url": "URL probationis",
     "client_id": "ID clientis",
     "client_secret": "Secretum clientis",
+    "client_secret_configured": "Secretum clientis configuratum est. Novum valorem tantum ad illud substituendum insere.",
     "scope_catalog": "Catalogus ambituum",
     "read_only_scopes": "Ambitus soli legendi",
     "api_origins": "Origines API",
