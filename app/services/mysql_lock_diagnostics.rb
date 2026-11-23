@@ -6,7 +6,12 @@
 # long-open transactions with their connection, age and current statement.
 # Diagnostics only -- returns [] on any other database and never raises.
 module MysqlLockDiagnostics
-  LONG_OPEN_TRANSACTION_SECONDS = 15
+  # Must stay below the configured innodb_lock_wait_timeout (10s, see
+  # config/database.yml): the holder has been open at least that long when
+  # the waiter gives up, but often not much longer. At 15s this filtered out
+  # the very holders it exists to name, and lock-wait timeouts were recorded
+  # with no holder at all.
+  LONG_OPEN_TRANSACTION_SECONDS = 5
   MAX_TRANSACTIONS = 10
   MAX_STATEMENT_BYTES = 1_000
 
