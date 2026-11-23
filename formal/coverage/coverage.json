@@ -3245,6 +3245,27 @@
       "producer": "desktop/electron/installer/imageRetention.ts; backendLifecycle.updateBackend/ensureRunning; imageCleanup",
       "done_by": "F114 (NY24)",
       "notes": "RollbackImage.lean: at most one previous image is kept, it survives its update's cleanup, and an expired one is retired at launch."
+    },
+    {
+      "id": "reopened-workflow-stranded-by-cleanup",
+      "area": "workflow",
+      "title": "A reopened Workflow whose earlier failure cleanup left a started Step cancelled",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "reopened_workflow_stranded_by_cleanup"
+      ],
+      "classifiers": [
+        "classify_reopened_workflows_stranded_by_cleanup"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "Workflow failure cleanup cancels unfinished Steps; RetryFailedStepEnqueuer reopens the Workflow for the failed Step but leaves a cleanup-cancelled Step that had started a Run cancelled",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "",
+      "notes": "Repaired by revive_cleanup_cancelled_step once the Workflow is idle (main's ade7f9049f, from a production case). Prevention not yet examined: the step retry that reopens the Workflow could revive those Steps in the same transaction, which would make this state unreachable. Found by the inventory completeness spec (layer 5)."
     }
   ],
   "needs_you": [
