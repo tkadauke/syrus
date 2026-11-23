@@ -57,7 +57,7 @@ module CognitiveReview
 
           normalized = normalize_notes(notes)
           return Mcp::Tools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
-          version = DiffReviewVersions::FinalReviewVersion.resolve(job: run.job, workflow: run.workflow, run: run)
+          version = Syrus::Host::DiffReviews.final_review_version(job: run.job, workflow: run.workflow, run: run)
           return Mcp::Tools.invalid("No diff review version is available for this run/workflow.") unless version
 
           if normalized.empty?

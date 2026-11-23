@@ -24,13 +24,13 @@ module Permissions
     end
 
     def call
-      unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) && coworker &&
+      unless context.role.in?([ Syrus::Host::AgentRoles::COWORKER_CHAT, Syrus::Host::AgentRoles::COWORKER ]) && coworker &&
           coworker.owner_user_id == context.user.id
         raise CoworkerPermissionRequest::Rejected.new(:not_a_coworker, "only a coworker can request revocation for itself")
       end
       raise CoworkerPermissionRequest::Rejected.new(:chat_required, "a chat session is required to ask the owner") unless context.chat_session
 
-      rule = Management.new(context.user).rules.find_by(id: @permission_rule_id)
+      rule = Syrus::Host::PermissionManagement.new(context.user).rules.find_by(id: @permission_rule_id)
       unless rule && self.class.targets?(rule, coworker)
         raise CoworkerPermissionRequest::Rejected.new(:rule_not_found, "no active permission rule applies to this coworker with that id")
       end
@@ -59,7 +59,7 @@ module Permissions
     def coworker = context.agent_actor
 
     def open_requests
-      @open_requests ||= ChatPendingAction.where(user: context.user, action: ACTION, state: "pending",
+      @open_requests ||= Syrus::Host::ChatPendingActions.where(user: context.user, action: ACTION, state: "pending",
         subject_type: coworker.class.name, subject_id: coworker.id).to_a
     end
   end

@@ -6,7 +6,7 @@ module CognitiveReview
 
     def append!(run:, notes:, diff_review_version: nil)
       workflow = run.workflow
-      version = diff_review_version || DiffReviewVersion.best_match_for(job_id: run.job_id, run_id: run.id, workflow_id: workflow.id)
+      version = diff_review_version || Syrus::Host::DiffReviews.best_match_version(job_id: run.job_id, run_id: run.id, workflow_id: workflow.id)
       entries = Array(workflow.artifact(KEY))
       entries << {
         "run_id" => run.id,

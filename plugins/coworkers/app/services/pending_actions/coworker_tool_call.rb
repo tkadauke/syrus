@@ -1,7 +1,7 @@
 module PendingActions
   # Compatibility action key for coworker approval requests created before the
   # shared authorization executor became actor-neutral.
-  class CoworkerToolCall < AuthorizedToolCall
+  class CoworkerToolCall < Syrus::Host::PendingActionAuthorizedToolCall
     action_key "coworker_tool_call"
 
     # This card and the ones coworker tools register under their own names.
