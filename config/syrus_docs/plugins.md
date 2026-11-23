@@ -458,6 +458,7 @@ instance. The standard distribution includes:
 - `syrus-rails` — default-disabled Rails previews and tools; depends on Ruby.
 - `tailscale` — default-disabled connectivity; depends on Plugin Runtime.
 - `team_directory` — default-disabled operator directory and profiles.
+- `telegram` — Telegram delivery; default-disabled, but enabled automatically on upgrade for instances that already had a Telegram bot token.
 - `terminal` — default-disabled interactive worker shells.
 - `test_insights` — enabled test history, timing, and flakiness intelligence.
 - `theming_tools` — default-disabled theme inspection tools.

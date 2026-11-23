@@ -1,6 +1,8 @@
 # External Platform Integrations
 
-Syrus can receive messages from and deliver replies to external messaging platforms (Telegram, Discord, and future platforms). All integrations share a common inbound routing layer and an outbound delivery adapter registry. Core platforms (web, Telegram) are built into `PlatformDelivery::Registry`; additional platforms can be added by a plugin gem through the `:platform_delivery` extension point without a core code change -- `plugins/discord/` is the first such plugin.
+Syrus can receive messages from and deliver replies to external messaging platforms (Telegram, Discord, and future platforms). All integrations share a common inbound routing layer and an outbound delivery adapter registry. Only the web platform is built into `PlatformDelivery::Registry`; Telegram and Discord are bundled plugins (`plugins/telegram/`, `plugins/discord/`) registered through the `:platform_delivery` extension point, and further platforms can be added the same way without a core code change.
+
+`plugins/telegram/` provides `Telegram::PlatformAdapter` (outbound delivery, 4096-character cap), `Telegram::PollUpdatesJob` (the long-polling inbound connector, on the `plugin_telegram` queue), `Telegram::Client`, and `Telegram::PlatformConfig` (linking instructions). It is default-disabled; migration `EnableTelegramPluginForConfiguredInstances` enables it on instances that already hold a `telegram_bot_token`. Its settings (`telegram_bot_token`, `telegram_bot_handle`, `telegram_update_offset`) still live on `AppSetting`, the same as Discord's token; moving tokens onto connected accounts is a separate change. `spec/architecture/no_telegram_in_core_spec.rb` keeps core free of Telegram references outside those settings files.
 
 ## Discord (plugin platform)
 
@@ -20,7 +22,7 @@ Users link external accounts in **Settings → Connected Platforms**. The link f
 
 ## Starting the poller
 
-Platform polling jobs start automatically on application boot when their bot token is configured (`config/initializers/platform_polling.rb`). Core connectors (Telegram) start via `PlatformPollingJob.start_all!`, which walks its own inheritance-based registry of `PlatformPollingJob` subclasses. Plugin-provided connectors start via `PlatformDelivery::Registry.start_connectors!` instead, which iterates enabled `:platform_delivery` providers and starts each one's `.connector_job_class` -- so a disabled plugin's connector does not start. (`PlatformPollingJob.start_all!` excludes any subclass that is registered as a plugin's `connector_job_class`, so a plugin's job is never started twice and never started while its plugin is disabled.)
+Platform polling jobs start automatically on application boot when their bot token is configured (`config/initializers/platform_polling.rb`). Core connectors (none today) would start via `PlatformPollingJob.start_all!`, which walks its own inheritance-based registry of `PlatformPollingJob` subclasses. Plugin-provided connectors start via `PlatformDelivery::Registry.start_connectors!` instead, which iterates enabled `:platform_delivery` providers and starts each one's `.connector_job_class` -- so a disabled plugin's connector does not start. (`PlatformPollingJob.start_all!` excludes any subclass that is registered as a plugin's `connector_job_class`, so a plugin's job is never started twice and never started while its plugin is disabled.)
 
 Each connector is meant to be self-healing: `PlatformPollingJob#perform` re-enqueues itself in an `ensure` block after every poll/Gateway cycle. That only works when the SolidQueue process actually reaches `ensure` -- a pruned process (`SolidQueue::Processes::ProcessPrunedError`), an OOMKilled worker, or a deploy's SIGKILL can drop the job before it re-enqueues, leaving a configured connector silently dead with nothing in the queue. Two independent mechanisms guard against that: the on-demand admin restart endpoint below, and `PlatformConnectorWatchdogJob` (`config/recurring.yml`'s `watch_platform_connectors`, every 5 minutes), which re-primes every configured connector (core + plugin) the same way boot does. Both rely on `PlatformPollingJob.start_one_with_status`'s own "already running" dedup check (an unfinished `SolidQueue::Job` row for that class), so a healthy connector is never double-started or given a second Gateway session; only a connector that was actually missing gets re-enqueued and logged (`Rails.logger.warn`, tagged `[PlatformConnectorWatchdogJob]`) as a recovery event.
 
@@ -34,15 +36,15 @@ Starts both core `PlatformPollingJob` subclasses and plugin-provided `:platform_
 
 ```json
 {
-  "started": ["PollTelegramUpdatesJob"],
+  "started": ["Telegram::PollUpdatesJob"],
   "connectors": [
-    { "name": "PollTelegramUpdatesJob", "status": "started", "platform": "telegram" },
+    { "name": "Telegram::PollUpdatesJob", "status": "started", "platform": "telegram" },
     { "name": "Discord::GatewayConnectionJob", "status": "already_running", "platform": "discord" }
   ]
 }
 ```
 
-`started` is the names of jobs newly enqueued by this call (backward compatible with the pre-plugin-aware response shape). `connectors` lists every connector this call considered and its outcome -- `started`, `already_running`, `not_configured` (bot token/handle missing), or `error` (SolidQueue unreachable) -- so an operator can see whether a specific connector like `Discord::GatewayConnectionJob` actually started or was already running, not just that *something* did. `platform` is included whenever the connector's owning class declares one -- a core `PlatformPollingJob` subclass can implement `.platform_key` itself (see `PollTelegramUpdatesJob`), while a plugin connector gets it from its `:platform_delivery` provider's `.platform_key` instead -- so the admin Settings UI's per-platform Telegram/Discord sections can each read their own connector's status out of this one shared array without guessing at Ruby class names. A disabled plugin's connector is not a `:platform_delivery` provider while disabled, so it does not appear in `connectors` at all (same exclusion boot start already relies on). Requires admin authentication.
+`started` is the names of jobs newly enqueued by this call (backward compatible with the pre-plugin-aware response shape). `connectors` lists every connector this call considered and its outcome -- `started`, `already_running`, `not_configured` (bot token/handle missing), or `error` (SolidQueue unreachable) -- so an operator can see whether a specific connector like `Discord::GatewayConnectionJob` actually started or was already running, not just that *something* did. `platform` is included whenever the connector's owning class declares one -- a core `PlatformPollingJob` subclass can implement `.platform_key` itself, while a plugin connector such as `Telegram::PollUpdatesJob` gets it from its `:platform_delivery` provider's `.platform_key` instead -- so the admin Settings UI's per-platform Telegram/Discord sections can each read their own connector's status out of this one shared array without guessing at Ruby class names. A disabled plugin's connector is not a `:platform_delivery` provider while disabled, so it does not appear in `connectors` at all (same exclusion boot start already relies on). Requires admin authentication.
 
 ## Trigger policy
 

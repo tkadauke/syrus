@@ -16,8 +16,8 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
     it "returns the current user's linked identities" do
       sign_in_as(user)
-      pi = Factories.platform_identity(user: user, platform: "telegram", external_handle: "@alice")
-      Factories.platform_identity(user: other, platform: "telegram", external_handle: "@bob")
+      pi = Factories.platform_identity(user: user, platform: "slack", external_handle: "@alice")
+      Factories.platform_identity(user: other, platform: "slack", external_handle: "@bob")
 
       get "/api/v1/app/platform_identities"
 
@@ -26,7 +26,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       expect(body["platform_identities"].length).to eq(1)
       expect(body["platform_identities"].first).to include(
         "id" => pi.id,
-        "platform" => "telegram",
+        "platform" => "slack",
         "external_handle" => "@alice"
       )
       expect(body["platform_identities"].first["linked_at"]).to be_present
@@ -41,7 +41,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       body = parse_body
       expect(body["available_platforms"]).to be_an(Array)
       platforms = body["available_platforms"].map { |p| p["platform"] }
-      expect(platforms).to include("telegram", "slack")
+      expect(platforms).to include("slack")
     end
 
     it "returns empty list when user has no linked identities" do
@@ -132,6 +132,8 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
   end
 
   describe "POST /api/v1/app/platform_identities/linking_token" do
+    before { PluginRecord.find_by!(name: "telegram").update!(enabled: true) }
+
     it "401s when signed out" do
       post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
       expect(response).to have_http_status(:unauthorized)

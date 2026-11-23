@@ -16,7 +16,7 @@ The account settings UI calls:
 - `DELETE /api/v1/app/platform_identities/:id` to unlink an identity scoped to
   the current user.
 
-Telegram is available only when `AppSetting.telegram_bot_handle` is present.
+Telegram (via the `telegram` plugin, once enabled) is available only when `AppSetting.telegram_bot_handle` is present.
 Slack is listed as a supported platform but disabled until its integration is
 configured. Discord is provided by the `discord` plugin (`plugins/discord/`)
 through the `:platform_delivery` extension point; it appears in the list once

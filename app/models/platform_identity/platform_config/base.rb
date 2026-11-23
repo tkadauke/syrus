@@ -1,10 +1,9 @@
 class PlatformIdentity::PlatformConfig::Base
   CORE_CONFIGS = {
-    "telegram" => -> { PlatformIdentity::PlatformConfig::Telegram },
     "slack" => -> { PlatformIdentity::PlatformConfig::Slack }
   }.freeze
 
-  # Core platforms (telegram, slack) resolve to a hardcoded config class.
+  # Core platforms (slack) resolve to a hardcoded config class.
   # Platforms registered via the :platform_delivery plugin extension point
   # (see PlatformIdentity.available_platforms) resolve to their provider's
   # .platform_config_class when supplied; otherwise they fall back to

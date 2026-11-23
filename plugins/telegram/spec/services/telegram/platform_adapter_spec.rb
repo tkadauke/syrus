@@ -1,6 +1,8 @@
 require "rails_helper"
 
-RSpec.describe PlatformDelivery::TelegramAdapter do
+RSpec.describe Telegram::PlatformAdapter do
+  before { PluginRecord.find_by!(name: "telegram").update!(enabled: true) }
+
   let(:identity) { Factories.platform_identity(platform: "telegram", external_id: "42") }
   let(:session) { ChatSession.create!(user: identity.user) }
 
@@ -9,8 +11,8 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => "Hello from Syrus" }) }
 
       it "sends the message text to the identity's external_id" do
-        client = instance_double(TelegramClient, send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(client)
+        client = instance_double(Telegram::Client, send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -32,8 +34,8 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       end
 
       it "delivers joined text blocks" do
-        client = instance_double(TelegramClient, send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(client)
+        client = instance_double(Telegram::Client, send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -45,8 +47,8 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: "plain text content") }
 
       it "delivers the string directly" do
-        client = instance_double(TelegramClient, send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(client)
+        client = instance_double(Telegram::Client, send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -68,8 +70,8 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       end
 
       it "delivers joined text blocks and skips thinking blocks" do
-        client = instance_double(TelegramClient, send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(client)
+        client = instance_double(Telegram::Client, send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -81,11 +83,11 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => "" }) }
 
       it "does not call send_message" do
-        allow(TelegramClient).to receive(:new)
+        allow(Telegram::Client).to receive(:new)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
-        expect(TelegramClient).not_to have_received(:new)
+        expect(Telegram::Client).not_to have_received(:new)
       end
     end
 
@@ -94,8 +96,8 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => long_text }) }
 
       it "splits the message into chunks and sends each" do
-        client = instance_double(TelegramClient, send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(client)
+        client = instance_double(Telegram::Client, send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -107,9 +109,9 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
 
       it "ensures no chunk exceeds 4096 characters" do
         chunks_sent = []
-        client = instance_double(TelegramClient)
+        client = instance_double(Telegram::Client)
         allow(client).to receive(:send_message) { |args| chunks_sent << args[:text] }
-        allow(TelegramClient).to receive(:new).and_return(client)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -123,9 +125,9 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
 
       it "does not send an empty chunk" do
         chunks_sent = []
-        client = instance_double(TelegramClient)
+        client = instance_double(Telegram::Client)
         allow(client).to receive(:send_message) { |args| chunks_sent << args[:text] }
-        allow(TelegramClient).to receive(:new).and_return(client)
+        allow(Telegram::Client).to receive(:new).and_return(client)
 
         described_class.new.deliver(message: message, platform_identity: identity)
 
@@ -134,13 +136,13 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       end
     end
 
-    context "when TelegramClient raises an error" do
+    context "when Telegram::Client raises an error" do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => "Hello" }) }
 
       it "logs the error and does not re-raise" do
-        allow(TelegramClient).to receive(:new).and_raise(RuntimeError, "network failure")
+        allow(Telegram::Client).to receive(:new).and_raise(RuntimeError, "network failure")
 
-        expect(Rails.logger).to receive(:error).with(include("TelegramAdapter"))
+        expect(Rails.logger).to receive(:error).with(include("Telegram::PlatformAdapter"))
         expect { described_class.new.deliver(message: message, platform_identity: identity) }.not_to raise_error
       end
     end
@@ -148,7 +150,7 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
 
   describe PlatformDelivery::Registry do
     it "returns a TelegramAdapter for the telegram platform" do
-      expect(described_class.for("telegram")).to be_a(PlatformDelivery::TelegramAdapter)
+      expect(described_class.for("telegram")).to be_a(Telegram::PlatformAdapter)
     end
   end
 end

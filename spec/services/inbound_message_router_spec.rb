@@ -4,7 +4,7 @@ RSpec.describe InboundMessageRouter do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
-  let(:identity) { Factories.platform_identity(user: user, platform: "telegram", external_id: "42", external_handle: "@alice") }
+  let(:identity) { Factories.platform_identity(user: user, platform: "slack", external_id: "42", external_handle: "@alice") }
 
   before { clear_enqueued_jobs }
 
@@ -12,7 +12,7 @@ RSpec.describe InboundMessageRouter do
     context "when the external_id is not linked to any Syrus account" do
       it "returns :not_linked without creating a session or message" do
         result = described_class.new(
-          platform: "telegram",
+          platform: "slack",
           external_id: "99999",
           external_handle: "@stranger",
           message_text: "Hello"
@@ -30,7 +30,7 @@ RSpec.describe InboundMessageRouter do
 
       it "returns :ok with the session" do
         result = described_class.new(
-          platform: "telegram",
+          platform: "slack",
           external_id: "42",
           external_handle: "@alice",
           message_text: "Hi Syrus"
@@ -38,13 +38,13 @@ RSpec.describe InboundMessageRouter do
 
         expect(result.status).to eq(:ok)
         expect(result.session).to be_a(ChatSession)
-        expect(result.session.origin_platform).to eq("telegram")
+        expect(result.session.origin_platform).to eq("slack")
         expect(result.session.user).to eq(user)
       end
 
       it "creates a user-role message with the message text and sender" do
         described_class.new(
-          platform: "telegram",
+          platform: "slack",
           external_id: "42",
           external_handle: "@alice",
           message_text: "Hi Syrus"
@@ -59,7 +59,7 @@ RSpec.describe InboundMessageRouter do
 
       it "resolves a replay with a stable provider ID to the original message and turn" do
         delivery = {
-          platform: "telegram", external_id: "42", external_handle: "@alice",
+          platform: "slack", external_id: "42", external_handle: "@alice",
           message_text: "Hi Syrus", native_message_id: "update-7", conversation_id: "dm-42"
         }
 
@@ -71,6 +71,8 @@ RSpec.describe InboundMessageRouter do
       end
 
       it "namespaces native IDs across providers, conversations, and senders" do
+        PluginRecord.find_by!(name: "telegram").update!(enabled: true)
+        Factories.platform_identity(user: user, platform: "telegram", external_id: "42", external_handle: "@alice")
         telegram_message = described_class.new(
           platform: "telegram", external_id: "42", external_handle: "@alice",
           message_text: "First", native_message_id: "7", conversation_id: "one"
@@ -99,7 +101,7 @@ RSpec.describe InboundMessageRouter do
 
       it "rejects reuse of a stable provider ID with different canonical content" do
         delivery = {
-          platform: "telegram", external_id: "42", external_handle: "@alice",
+          platform: "slack", external_id: "42", external_handle: "@alice",
           native_message_id: "update-8", conversation_id: "dm-42"
         }
         described_class.new(**delivery, message_text: "Original").call
@@ -113,7 +115,7 @@ RSpec.describe InboundMessageRouter do
 
       it "creates separate messages when the connector has no stable provider ID" do
         delivery = {
-          platform: "telegram", external_id: "42", external_handle: "@alice",
+          platform: "slack", external_id: "42", external_handle: "@alice",
           message_text: "Same text", conversation_id: "dm-42"
         }
 
@@ -124,7 +126,7 @@ RSpec.describe InboundMessageRouter do
       it "enqueues ChatTurnJob for speak_when_spoken_to sessions" do
         expect {
           described_class.new(
-            platform: "telegram",
+            platform: "slack",
             external_id: "42",
             external_handle: "@alice",
             message_text: "Run the tests"
@@ -133,20 +135,20 @@ RSpec.describe InboundMessageRouter do
       end
 
       it "reuses the same ChatSession on subsequent calls from the same user/platform" do
-        described_class.new(platform: "telegram", external_id: "42", external_handle: "@alice", message_text: "First").call
-        described_class.new(platform: "telegram", external_id: "42", external_handle: "@alice", message_text: "Second").call
+        described_class.new(platform: "slack", external_id: "42", external_handle: "@alice", message_text: "First").call
+        described_class.new(platform: "slack", external_id: "42", external_handle: "@alice", message_text: "Second").call
 
-        expect(ChatSession.where(origin_platform: "telegram", user: user).count).to eq(1)
+        expect(ChatSession.where(origin_platform: "slack", user: user).count).to eq(1)
         expect(ChatMessage.where(role: "user").count).to eq(2)
       end
 
       it "does not enqueue ChatTurnJob when trigger_policy is not speak_when_spoken_to" do
-        session = ChatSession.for_platform(user: user, platform: "telegram")
+        session = ChatSession.for_platform(user: user, platform: "slack")
         session.update_column(:trigger_policy, "proactive")
 
         expect {
           described_class.new(
-            platform: "telegram",
+            platform: "slack",
             external_id: "42",
             external_handle: "@alice",
             message_text: "Hello"
@@ -158,7 +160,7 @@ RSpec.describe InboundMessageRouter do
 
       context "when the session has more than one human participant" do
         before do
-          session = ChatSession.for_platform(user: user, platform: "telegram")
+          session = ChatSession.for_platform(user: user, platform: "slack")
           session.chat_participants.create!(user: Factories.user, role: "member")
         end
 
@@ -166,7 +168,7 @@ RSpec.describe InboundMessageRouter do
           result = nil
           expect {
             result = described_class.new(
-              platform: "telegram",
+              platform: "slack",
               external_id: "42",
               external_handle: "@alice",
               message_text: "Hello everyone"
@@ -180,7 +182,7 @@ RSpec.describe InboundMessageRouter do
           result = nil
           expect {
             result = described_class.new(
-              platform: "telegram",
+              platform: "slack",
               external_id: "42",
               external_handle: "@alice",
               message_text: "hey @syrus can you help?"
@@ -194,7 +196,7 @@ RSpec.describe InboundMessageRouter do
       it "enqueues ChatTurnJob for an unmentioned message when 0-1 human participants" do
         expect {
           described_class.new(
-            platform: "telegram",
+            platform: "slack",
             external_id: "42",
             external_handle: "@alice",
             message_text: "Hello, no mention here"

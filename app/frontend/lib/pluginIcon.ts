@@ -19,6 +19,7 @@ const KNOWN_PLUGIN_ICONS: Record<string, string> = {
   go: "/plugin-icons/go.svg",
   github_source: "/plugin-icons/github_source.svg",
   discord: "/plugin-icons/discord.svg",
+  telegram: "/plugin-icons/telegram.svg",
   linear_source: "/plugin-icons/linear_source.svg",
   claude_agent: "/plugin-icons/claude_agent.svg"
 }

@@ -1,8 +1,7 @@
 module PlatformDelivery
   class Registry
     ADAPTERS = {
-      "web" => WebAdapter,
-      "telegram" => TelegramAdapter
+      "web" => WebAdapter
     }.freeze
 
     @runtime_adapters = {}
@@ -23,8 +22,7 @@ module PlatformDelivery
 
       # Starts every plugin-registered platform's inbound connector job
       # (Gateway/long-poll) at boot, when the plugin is enabled and exposes
-      # one. Core adapters (web, telegram) are not plugins and keep starting
-      # via PlatformPollingJob's own inheritance-based registry.
+      # one. The core web adapter has no inbound connector.
       def start_connectors!
         start_connectors_with_status!.select { |result| result[:status] == :started }.map { |result| result[:name] }
       end

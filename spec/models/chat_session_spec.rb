@@ -1047,26 +1047,26 @@ RSpec.describe ChatSession do
     it "creates a new session for a user on an unknown platform" do
       user = repo.user
 
-      session = described_class.for_platform(user: user, platform: "telegram")
+      session = described_class.for_platform(user: user, platform: "slack")
 
       expect(session).to be_persisted
-      expect(session.origin_platform).to eq("telegram")
+      expect(session.origin_platform).to eq("slack")
       expect(session.trigger_policy).to eq("speak_when_spoken_to")
       expect(session.participants).to include(user)
     end
 
     it "finds the existing session on repeated calls for the same user and platform" do
       user = repo.user
-      first = described_class.for_platform(user: user, platform: "telegram")
+      first = described_class.for_platform(user: user, platform: "slack")
 
-      second = described_class.for_platform(user: user, platform: "telegram")
+      second = described_class.for_platform(user: user, platform: "slack")
 
       expect(second.id).to eq(first.id)
     end
 
     it "creates separate sessions for different platforms" do
       user = repo.user
-      telegram = described_class.for_platform(user: user, platform: "telegram")
+      telegram = described_class.for_platform(user: user, platform: "discord")
       slack = described_class.for_platform(user: user, platform: "slack")
 
       expect(telegram.id).not_to eq(slack.id)
@@ -1074,8 +1074,8 @@ RSpec.describe ChatSession do
 
     it "creates separate sessions for different users on the same platform" do
       other_user = Factories.user
-      session1 = described_class.for_platform(user: repo.user, platform: "telegram")
-      session2 = described_class.for_platform(user: other_user, platform: "telegram")
+      session1 = described_class.for_platform(user: repo.user, platform: "slack")
+      session2 = described_class.for_platform(user: other_user, platform: "slack")
 
       expect(session1.id).not_to eq(session2.id)
     end

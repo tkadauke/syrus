@@ -1010,11 +1010,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "filters recent sidebar chats by derived chat type" do
     sign_in_as(user)
     Factories.user
-    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
-    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-1", external_handle: "user", linked_at: Time.current)
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Slack).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: user, platform: "slack", external_id: "tg-1", external_handle: "user", linked_at: Time.current)
     agent_chat = ChatSession.create!(user: user, title: "Agent chat", conversation_kind: "direct", last_message_at: 1.minute.ago)
     group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 2.minutes.ago)
-    external_chat = ChatSession.create!(user: user, title: "External chat", origin_platform: "telegram", last_message_at: 3.minutes.ago)
+    external_chat = ChatSession.create!(user: user, title: "External chat", origin_platform: "slack", last_message_at: 3.minutes.ago)
 
     get "/api/v1/app/chats", params: { chat_types: "agent,external", group_by: "chat_type" }
 
@@ -1035,10 +1035,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "groups recent sidebar chats by chat type in stable order with optional empty groups" do
     sign_in_as(user)
     Factories.user
-    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
-    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-2", linked_at: Time.current)
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Slack).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: user, platform: "slack", external_id: "tg-2", linked_at: Time.current)
     group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 1.minute.ago)
-    external_chat = ChatSession.create!(user: user, title: "External chat", origin_platform: "telegram", last_message_at: 2.minutes.ago)
+    external_chat = ChatSession.create!(user: user, title: "External chat", origin_platform: "slack", last_message_at: 2.minutes.ago)
 
     get "/api/v1/app/chats", params: { group_by: "chat_type", chat_types: "agent,group,external", show_empty_groups: "1" }
 
@@ -1085,9 +1085,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "classifies external chats as external even when their conversation kind is group" do
     sign_in_as(user)
     Factories.user
-    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
-    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-3", linked_at: Time.current)
-    external_group_chat = ChatSession.create!(user: user, title: "External group", conversation_kind: "group", origin_platform: "telegram", last_message_at: 1.minute.ago)
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Slack).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: user, platform: "slack", external_id: "tg-3", linked_at: Time.current)
+    external_group_chat = ChatSession.create!(user: user, title: "External group", conversation_kind: "group", origin_platform: "slack", last_message_at: 1.minute.ago)
 
     get "/api/v1/app/chats", params: { chat_types: "external" }
 
@@ -1096,7 +1096,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat).to include(
       "id" => external_group_chat.id,
       "conversation_kind" => "group",
-      "origin_platform" => "telegram",
+      "origin_platform" => "slack",
       "chat_type" => "external"
     )
   end
@@ -1124,21 +1124,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "requires both configured platform and current-user identity before exposing external chat type" do
     sign_in_as(user)
-    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(false)
-    ChatSession.create!(user: user, title: "External chat", origin_platform: "telegram", last_message_at: 1.minute.ago)
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Slack).to receive(:configured?).and_return(false)
+    ChatSession.create!(user: user, title: "External chat", origin_platform: "slack", last_message_at: 1.minute.ago)
 
     get "/api/v1/app/chats"
 
     expect(parse_body["available_chat_types"]).not_to include("external")
 
-    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
-    PlatformIdentity.create!(user: Factories.user, platform: "telegram", external_id: "tg-foreign", linked_at: Time.current)
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Slack).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: Factories.user, platform: "slack", external_id: "tg-foreign", linked_at: Time.current)
 
     get "/api/v1/app/chats"
 
     expect(parse_body["available_chat_types"]).not_to include("external")
 
-    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-current", linked_at: Time.current)
+    PlatformIdentity.create!(user: user, platform: "slack", external_id: "tg-current", linked_at: Time.current)
 
     get "/api/v1/app/chats"
 

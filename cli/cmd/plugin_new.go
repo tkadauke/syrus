@@ -25,7 +25,7 @@ var pluginScaffoldFS embed.FS
 
 var pluginNamePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`)
 
-var bundledPluginNames = strings.Fields(`admin_mysql agent_activity agent_insights agent_memory agy_agent alertmanager_investigations attention_report browser build_cache calendar claude_agent codex_agent cognitive_review container_execution coworkers credential_store design_docs discord django git_history git_mirror github_host github_source global_search go ios java javascript k8s_cluster kotlin linear_source metrics_dashboard mockups muse_agent mysql_db_browser operator_briefing plugin_runtime python rails ruby runtime_terminal scheduled_tasks sdlc_pipeline spending_insights syrus_dev tailscale team_directory terminal test_insights theming_tools throughput video_walkthroughs whisper_stt whiteboard worker_timeline`)
+var bundledPluginNames = strings.Fields(`admin_mysql agent_activity agent_insights agent_memory agy_agent alertmanager_investigations attention_report browser build_cache calendar claude_agent codex_agent cognitive_review container_execution coworkers credential_store design_docs discord django git_history git_mirror github_host github_source global_search go ios java javascript k8s_cluster kotlin linear_source metrics_dashboard mockups muse_agent mysql_db_browser operator_briefing plugin_runtime python rails ruby runtime_terminal scheduled_tasks sdlc_pipeline spending_insights syrus_dev tailscale telegram team_directory terminal test_insights theming_tools throughput video_walkthroughs whisper_stt whiteboard worker_timeline`)
 
 type pluginScaffoldOptions struct {
 	Name, Destination, Version string

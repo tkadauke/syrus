@@ -501,7 +501,7 @@ RSpec.describe ChatMessage do
 
   describe "after_create_commit :deliver_to_platform" do
     let(:platform_session) do
-      ChatSession.create!(user: repo.user, origin_platform: "telegram", trigger_policy: "speak_when_spoken_to")
+      ChatSession.create!(user: repo.user, origin_platform: "slack", trigger_policy: "speak_when_spoken_to")
     end
 
     it "is a no-op for non-platform sessions" do
@@ -519,7 +519,7 @@ RSpec.describe ChatMessage do
     end
 
     it "does not raise or deliver when no adapter is registered for the platform" do
-      Factories.platform_identity(user: repo.user, platform: "telegram")
+      Factories.platform_identity(user: repo.user, platform: "slack")
       allow(AppEvents).to receive(:broadcast)
 
       expect {
@@ -531,10 +531,10 @@ RSpec.describe ChatMessage do
       other_user = Factories.user
       platform_session.chat_participants.create!(user: other_user, role: "member")
 
-      identity = Factories.platform_identity(user: repo.user, platform: "telegram")
+      identity = Factories.platform_identity(user: repo.user, platform: "slack")
       adapter = instance_double(PlatformDelivery::WebAdapter, deliver: nil)
-      allow(PlatformDelivery::Registry).to receive(:registered?).with("telegram").and_return(true)
-      allow(PlatformDelivery::Registry).to receive(:for).with("telegram").and_return(adapter)
+      allow(PlatformDelivery::Registry).to receive(:registered?).with("slack").and_return(true)
+      allow(PlatformDelivery::Registry).to receive(:for).with("slack").and_return(adapter)
       allow(AppEvents).to receive(:broadcast)
 
       msg = described_class.create!(chat_session: platform_session, role: "assistant", content: { "text" => "Hello" })
@@ -547,8 +547,8 @@ RSpec.describe ChatMessage do
       platform_session.chat_participants.create!(user: participant_without_identity, role: "member")
 
       adapter = instance_double(PlatformDelivery::BaseAdapter, deliver: nil)
-      allow(PlatformDelivery::Registry).to receive(:registered?).with("telegram").and_return(true)
-      allow(PlatformDelivery::Registry).to receive(:for).with("telegram").and_return(adapter)
+      allow(PlatformDelivery::Registry).to receive(:registered?).with("slack").and_return(true)
+      allow(PlatformDelivery::Registry).to receive(:for).with("slack").and_return(adapter)
       allow(AppEvents).to receive(:broadcast)
 
       described_class.create!(chat_session: platform_session, role: "assistant", content: { "text" => "Hello" })

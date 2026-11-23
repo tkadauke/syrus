@@ -475,7 +475,7 @@ finishes.
 Links a `User` to an account on an external chat platform so they can talk to
 their Syrus chat from that platform. `PLATFORMS = %w[telegram slack]` are
 core; `PlatformIdentity.available_platforms` extends that with every
-enabled `:platform_delivery` plugin's `platform_key` (currently `discord`).
+enabled `:platform_delivery` plugin's `platform_key` (currently `discord` and `telegram`).
 Slack is reserved in `PLATFORMS` but has no working adapter yet
 (`configured? == false`). See [External platform chat](#external-platform-chat)
 for the linking and message-routing flow.
@@ -1560,7 +1560,7 @@ points declared by plugin hosts (for example `global_search:source` and
 | `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
 | `:focused_test_command` | Suggest focused rerun commands for touched tests |
 | `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect, drained most-recently-registered-first on disable — the `tailscale` plugin's `Callbacks` uses this to clear its `config.hosts` allowlist additions instead of a hand-written teardown method |
-| `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
+| `:platform_delivery` | Send/receive chat messages over an external platform (Discord, Telegram, …); see [External platform chat](#external-platform-chat) |
 | `:domain_subscriber` | Subscribe to internal domain events while the plugin is enabled |
 | `:step_environment` | Add plugin-owned environment variables to step subprocesses |
 | `:workflow_kinds` | Contribute Job kinds, Workflow trigger kinds, Step kinds, and WorkDefinitions |
@@ -1636,6 +1636,7 @@ called out only where they explain an architectural dependency.
 | `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | disabled by default |
 | `throughput` | `plugins/throughput` | `:repo_page_tab` | enabled |
 | `video_walkthroughs` | `plugins/video_walkthroughs` | `:chat_mcp_tool_set`, `:chat_media_source`, `:chat_turn_orientation` | disabled by default |
+| `telegram` | `plugins/telegram` | `:platform_delivery` | disabled by default (enabled by migration when a bot token exists) |
 | `whisper_stt` | `plugins/whisper_stt` | `:speech_to_text_provider`, `"plugin_runtime:service"` | disabled by default |
 | `whiteboard` | `plugins/whiteboard` | `:chat_mcp_tool_set`, `:workspace_tab`, `:chat_payload_contributor`, `:chat_media_source`, `:chat_prompt_injector` | enabled |
 | `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |

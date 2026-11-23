@@ -1,6 +1,8 @@
 require "rails_helper"
 
-RSpec.describe PollTelegramUpdatesJob do
+RSpec.describe Telegram::PollUpdatesJob do
+  before { PluginRecord.find_by!(name: "telegram").update!(enabled: true) }
+
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
@@ -8,16 +10,24 @@ RSpec.describe PollTelegramUpdatesJob do
 
   before do
     AppSetting.current.update!(telegram_bot_token: token, telegram_update_offset: 0)
-    allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([])
-    allow_any_instance_of(TelegramClient).to receive(:send_message)
+    allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([])
+    allow_any_instance_of(Telegram::Client).to receive(:send_message)
     allow_any_instance_of(described_class).to receive(:duplicate_running?).and_return(false)
   end
 
   after { clear_enqueued_jobs }
 
-  describe ".platform_key" do
-    it "identifies this connector as telegram for PlatformPollingJob.start_one_with_status" do
-      expect(described_class.platform_key).to eq("telegram")
+  describe "connector registration" do
+    it "is reported as the telegram connector by PlatformDelivery::Registry" do
+      results = PlatformDelivery::Registry.start_connectors_with_status!
+
+      expect(results).to include(hash_including(name: described_class.name, platform: "telegram"))
+    end
+
+    it "is not started by core's PlatformPollingJob registry (the plugin owns it)" do
+      names = PlatformPollingJob.start_all_with_status!.map { |result| result[:name] }
+
+      expect(names).not_to include(described_class.name)
     end
   end
 
@@ -45,7 +55,7 @@ RSpec.describe PollTelegramUpdatesJob do
     end
 
     it "re-enqueues with backoff when fetching updates fails" do
-      allow_any_instance_of(TelegramClient).to receive(:get_updates).and_raise(Net::OpenTimeout)
+      allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_raise(Net::OpenTimeout)
       allow(Rails.logger).to receive(:error)
 
       expect { described_class.new.perform }
@@ -65,7 +75,7 @@ RSpec.describe PollTelegramUpdatesJob do
         "update_id" => 31,
         "message" => { "from" => { "id" => 99 }, "text" => "next" }
       }
-      allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([failed_update, later_update])
+      allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([failed_update, later_update])
 
       failed_router = instance_double(InboundMessageRouter)
       later_router = instance_double(
@@ -95,7 +105,7 @@ RSpec.describe PollTelegramUpdatesJob do
             "text" => "Hello Syrus"
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
 
         router = instance_double(InboundMessageRouter, call: InboundMessageRouter::Result.new(status: :ok, session: nil))
         allow(InboundMessageRouter).to receive(:new).and_return(router)
@@ -121,7 +131,7 @@ RSpec.describe PollTelegramUpdatesJob do
             "text" => "ping"
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
         allow(InboundMessageRouter).to receive(:new).and_return(
           instance_double(InboundMessageRouter, call: InboundMessageRouter::Result.new(status: :ok, session: nil))
         )
@@ -141,13 +151,13 @@ RSpec.describe PollTelegramUpdatesJob do
             "text" => "hello"
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
         allow(InboundMessageRouter).to receive(:new).and_return(
           instance_double(InboundMessageRouter, call: InboundMessageRouter::Result.new(status: :not_linked, session: nil))
         )
 
-        telegram = instance_double(TelegramClient, send_message: nil, get_updates: [update])
-        allow(TelegramClient).to receive(:new).and_return(telegram)
+        telegram = instance_double(Telegram::Client, send_message: nil, get_updates: [update])
+        allow(Telegram::Client).to receive(:new).and_return(telegram)
 
         described_class.new.perform
 
@@ -170,7 +180,7 @@ RSpec.describe PollTelegramUpdatesJob do
             "text" => "/start #{link_token}"
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
 
         expect(AppEvents).to receive(:broadcast).with(
           hash_including(user: user, type: "platform_identity_linked")
@@ -191,11 +201,11 @@ RSpec.describe PollTelegramUpdatesJob do
             "text" => "/start #{link_token}"
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
         allow(AppEvents).to receive(:broadcast)
 
-        telegram = instance_double(TelegramClient, get_updates: [update], send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(telegram)
+        telegram = instance_double(Telegram::Client, get_updates: [update], send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(telegram)
 
         described_class.new.perform
 
@@ -213,10 +223,10 @@ RSpec.describe PollTelegramUpdatesJob do
             "text" => "/start bad-token"
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
 
-        telegram = instance_double(TelegramClient, get_updates: [update], send_message: nil)
-        allow(TelegramClient).to receive(:new).and_return(telegram)
+        telegram = instance_double(Telegram::Client, get_updates: [update], send_message: nil)
+        allow(Telegram::Client).to receive(:new).and_return(telegram)
 
         described_class.new.perform
 
@@ -230,7 +240,7 @@ RSpec.describe PollTelegramUpdatesJob do
     context "with non-text updates" do
       it "ignores updates without a message field" do
         update = { "update_id" => 20, "channel_post" => { "text" => "irrelevant" } }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
 
         expect(InboundMessageRouter).not_to receive(:new)
 
@@ -245,7 +255,7 @@ RSpec.describe PollTelegramUpdatesJob do
             "photo" => [{ "file_id" => "abc" }]
           }
         }
-        allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
+        allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([update])
 
         expect(InboundMessageRouter).not_to receive(:new)
 
