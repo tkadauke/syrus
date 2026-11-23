@@ -163,7 +163,9 @@ module ProviderRouting
           next
         end
 
-        selected_candidate = candidate.with(account_id: account.public_id)
+        # No enabled provider account rows (legacy per-user credentials) is
+        # still "available"; there is simply no account to pin.
+        selected_candidate = account ? candidate.with(account_id: account.public_id) : candidate
         return decision(selected_candidate, candidate_availability: candidate_availability, exhausted: false, provider_account: account)
       end
 
