@@ -728,6 +728,14 @@ personal-calendar adapters implement keyed, provisional `list_events` and
 `get_event` capabilities. The personal-calendar name deliberately distinguishes
 account calendars from Syrus's operations Calendar plugin.
 
+The bundled, experimental `google_workspace` adapter depends on Connected
+Accounts and Personal Calendar. It supplies authorization-code OAuth with PKCE,
+offline refresh, identity and health checks, revocation, and read-only Google
+Calendar `list_events` and `get_event` operations. Instances supply their own
+Google OAuth client credentials; endpoint and scope settings remain pinned.
+Operators should check Google's current verification policy rather than rely on
+policy details embedded in Syrus documentation.
+
 Both concept plugins select a connected account explicitly, request only their
 read scope through the account broker, and require an authorized invocation.
 Adapters receive short-lived access rather than stored token material. The
