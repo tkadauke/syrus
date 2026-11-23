@@ -648,7 +648,6 @@ RSpec.describe WorkflowAdmissionBudget do
       raw_metrics: {}
     )
     workflow = workflow_for
-    expected_duration = 60 + ((workflow.steps.count - 1) * 10)
 
     decision = described_class.call(workflow: workflow)
 
@@ -793,6 +792,7 @@ RSpec.describe WorkflowAdmissionBudget do
       attributed_memory: 25.0
     )
     workflow = workflow_for
+    expected_duration = 60 + ((workflow.steps.count - 1) * 10)
 
     decision = described_class.call(workflow: workflow)
 
