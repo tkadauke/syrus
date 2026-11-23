@@ -19,15 +19,13 @@ module DesignDocs
     events "design_doc.upserted" => :async,
            "design_doc.deleted" => :async
     provides sidebar_page: "DesignDocs::SidebarPages",
-             permission_provider: "DesignDocs::PermissionProvider",
              repo_page_tab: "DesignDocs::RepoPageTabs",
              workspace_tab: "DesignDocs::WorkspaceTabs",
-             chat_mcp_tool_set: "DesignDocs::ChatToolSet",
-             mcp_tool_set: "DesignDocs::WorkflowToolSet",
              callbacks: "DesignDocs::Callbacks",
              domain_subscriber: "DesignDocs::Subscribers",
              slug_type: "DesignDocs::SlugType",
              "global_search:source" => "DesignDocs::SearchSource"
+    toolkit workflow_tools: "DesignDocs::WorkflowToolSet", chat_tools: "DesignDocs::ChatToolSet", permissions: "DesignDocs::PermissionProvider"
     cli_commands [
       {
         path: %w[docs list], summary: "List design docs", handler: "DesignDocs::Cli::List",

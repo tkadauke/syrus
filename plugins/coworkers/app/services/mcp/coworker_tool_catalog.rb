@@ -110,7 +110,7 @@ module Mcp
           else
             :available
           end
-          providers = manifest.provides[:chat_mcp_tool_set] || manifest.provides["chat_mcp_tool_set"]
+          providers = Syrus::Host::Toolkit.chat_tool_set_for(manifest)
           Array(providers).select { |provider| Mcp::CoworkerToolExposure.plugin_provider?(provider) }
             .map { |provider| [ provider, state ] }
         end

@@ -69,8 +69,8 @@ module ConnectedAccounts
     end
     provides admin_page: "ConnectedAccounts::AdminPages",
              sidebar_page: "ConnectedAccounts::SidebarPages",
-             permission_provider: "ConnectedAccounts::PermissionProvider",
              retention_policy: "ConnectedAccounts::RetentionPolicy"
+    toolkit permissions: "ConnectedAccounts::PermissionProvider"
     route :get, "/api/v1/app/connected_accounts/accounts", to: "api/v1/app/connected_accounts/accounts#index"
     route :patch, "/api/v1/app/connected_accounts/accounts/:id", to: "api/v1/app/connected_accounts/accounts#update"
     route :get, "/api/v1/app/connected_accounts/connect/:provider", to: "api/v1/app/connected_accounts/oauth#start"

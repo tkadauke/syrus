@@ -386,6 +386,37 @@ RSpec.describe Syrus::PluginLoader do
       directory.join("lib/#{gem_name}.rb").write(source)
     end
 
+    it "turns an obsolete external Toolkit declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        healthy = write_plugin(external_root, directory_name: "healthy_toolkit", gem_name: "healthy_toolkit_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_toolkit", gem_name: "obsolete_toolkit_fixture")
+        overwrite_entry(obsolete, "obsolete_toolkit_fixture", <<~RUBY)
+          module ObsoleteToolkitFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_toolkit_fixture" do
+              provides toolkit: "ObsoleteToolkitFixture::Provider", implements: %i[removed_toolkit_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_toolkit_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_toolkit_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_toolkit_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteToolkitFixture) if defined?(ObsoleteToolkitFixture)
+      end
+    end
+
     it "isolates StandardError, LoadError, and syntax failures while loading healthy plugins" do
       Dir.mktmpdir do |temporary|
         snapshot = Syrus::PluginRegistry.snapshot

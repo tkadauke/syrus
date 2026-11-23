@@ -43,6 +43,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
 - `tick_interval` — Optional control-plane tick interval.
+- `toolkit` — Toolkit-family tools, permission declarations, run context, credential probes, and secret extractors.
 - `version` — Plugin version; normally read from the gem.
 - `while_enabled` — Reversible installation effects active only while enabled.
 
@@ -122,6 +123,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
 - `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
+- `toolkit` (facet; required core: `key`, `display_name`) — `chat_tools` (stable, collect, Module or nil), `credential_probes` (stable, collect, Array<ProbeRegistration>), `permissions` (stable, collect, Module or nil), `run_context` (provisional, collect, Hash), `secret_extractors` (stable, collect, Array<secret extractor>), `workflow_tools` (stable, collect, Module or nil)
 
 ## Public host surface
 
@@ -166,6 +168,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::SystemAlert` (since 0.1.16) — Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised. Supported members: `build`.
 - `Syrus::Host::SystemAlertProvider` (since 0.1.16) — Defines the system-alert contribution plugins may provide; alert aggregation and delivery are not promised. Only the listed members are supported. Supported members: `system_alerts`.
 - `Syrus::Host::ToolContext` (since 0.1.16) — Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised. Only the listed members are supported. Supported members: `chat?`, `chat_session`, `interactive`, `job`, `repository`, `role`, `run`, `run?`, `surface`, `user`, `workflow`.
+- `Syrus::Host::Toolkit` (since 0.1.16) — Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition. Only the listed members are supported. Supported members: `chat_tool_set_for`, `chat_tool_sets`.
 - `Syrus::Host::User` (since 0.1.16) — Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised. Supported members: `admin?`, `display_name`, `find`, `handle`, `id`, `jobs`, `repositories`.
 - `Syrus::Host::Workflow` (since 0.1.16) — Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `runs`, `state`.
 
@@ -183,4 +186,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32879 bytes (UTF-8, including this line).
+Size: 33602 bytes (UTF-8, including this line).

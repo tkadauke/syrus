@@ -14,8 +14,8 @@ module SdlcPipeline
     long_description "SDLC Pipeline turns the existing Job, Epic, landing, and deployment-stage records into an ordered repository view. It is a read-only projection: disabling or removing the plugin does not change delivery state."
 
     provides repo_page_tab: "SdlcPipeline::RepoPageTabs",
-             chat_mcp_tool_set: "SdlcPipeline::ChatToolSet",
              chat_job_status_extension: "SdlcPipeline::ChatJobStatusExtension"
+    toolkit chat_tools: "SdlcPipeline::ChatToolSet"
     route :get, "/api/v1/app/repositories/:repository_id/sdlc_pipeline",
           to: "api/v1/app/repository_sdlc_pipeline#show"
 

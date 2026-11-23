@@ -15,7 +15,7 @@ module Permissions
     end
 
     def self.adapters
-      Syrus::PluginRegistry.providers_for(:permission_provider).flat_map do |provider|
+      Syrus::Plugin::Toolkit.permission_providers.flat_map do |provider|
         next [] unless provider.respond_to?(:permission_authorization_adapters)
 
         result = Syrus::PluginInvocation.call(

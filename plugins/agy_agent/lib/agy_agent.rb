@@ -17,13 +17,10 @@ module SyrusAgyAgent
     disableable true
     provides agent_provider: "AgentProviders::Agy",
              chat_provider: "ChatProviders::Agy"
+    toolkit credential_probes: { "agy" => "AgyCredentialProbe" },
+            secret_extractors: [ "AgyCredentialProbe::SECRET_EXTRACTOR" ]
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("agy", ChatSessionRehydrator::Agy) }
     end
   end
-end
-
-Syrus::Installer.define("agy_agent:credential probe") do |scope|
-  scope.effect("credential probe") { CredentialProbe.register_probe("agy", AgyCredentialProbe) }
-  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(AgyCredentialProbe::SECRET_EXTRACTOR) }
 end
