@@ -27,10 +27,16 @@ export function ProviderSettingsNotice({ notice, i18nKey, pluginName }: { notice
 
     let current = true
     void loadPluginLocales(pluginName).then(
-      () => { if (current) setLocaleState("loaded") },
-      () => { if (current) setLocaleState("failed") }
+      () => {
+        if (current) setLocaleState("loaded")
+      },
+      () => {
+        if (current) setLocaleState("failed")
+      }
     )
-    return () => { current = false }
+    return () => {
+      current = false
+    }
   }, [i18nKey, pluginName])
 
   if (localeState === "loading") return null
@@ -46,13 +52,24 @@ export default function ConnectedAccountsAdmin() {
     queryKey: ["connected_accounts", "provider_configs"],
     queryFn: async () => (await getJson<ConfigsPayload>("/api/v1/app/admin/connected_accounts/provider_configs")).providers
   })
-  const selectedProvider = query.data?.some((item) => item.provider_key === provider) ? provider : (query.data?.[0]?.provider_key || provider)
+  const selectedProvider = query.data?.some((item) => item.provider_key === provider) ? provider : query.data?.[0]?.provider_key || provider
   const current = query.data?.find((item) => item.provider_key === selectedProvider)
   const save = useMutation({
     mutationFn: async () => {
       const saved = current || ({} as ProviderConfig)
-      const commaList = (field: string) => String(draft[field] || saved[field] || "").split(",").map((value) => value.trim()).filter(Boolean)
-      const body = { provider_config: { ...draft, scope_catalog: commaList("scope_catalog"), read_only_scopes: commaList("read_only_scopes"), api_origins: commaList("api_origins") } }
+      const commaList = (field: string) =>
+        String(draft[field] || saved[field] || "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      const body = {
+        provider_config: {
+          ...draft,
+          scope_catalog: commaList("scope_catalog"),
+          read_only_scopes: commaList("read_only_scopes"),
+          api_origins: commaList("api_origins")
+        }
+      }
       return patchJson<ConfigPayload>(`/api/v1/app/admin/connected_accounts/provider_configs/${encodeURIComponent(selectedProvider)}`, body)
     },
     onSuccess: ({ provider_config: saved }) => {
@@ -66,9 +83,23 @@ export default function ConnectedAccountsAdmin() {
       })
     }
   })
-  function submit(event: FormEvent) { event.preventDefault(); save.mutate() }
-  const fields = [ "authorize_url", "token_url", "revoke_url", "identity_url", "validate_url", "client_id", "client_secret", "scope_catalog", "read_only_scopes", "api_origins" ]
-  const visibleFields = fields.filter((field) => !current?.managed_settings || [ "client_id", "client_secret" ].includes(field))
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    save.mutate()
+  }
+  const fields = [
+    "authorize_url",
+    "token_url",
+    "revoke_url",
+    "identity_url",
+    "validate_url",
+    "client_id",
+    "client_secret",
+    "scope_catalog",
+    "read_only_scopes",
+    "api_origins"
+  ]
+  const visibleFields = fields.filter((field) => !current?.managed_settings || ["client_id", "client_secret"].includes(field))
   const clientSecretConfigured = Boolean(current?.client_secret_configured || configuredSecretProviders.has(selectedProvider))
   const changeProvider = (value: string) => {
     setProvider(value)
@@ -77,32 +108,55 @@ export default function ConnectedAccountsAdmin() {
 
   return (
     <Page.Root gutter="responsive" size="narrow">
-      <Page.Header><Page.Title>{t("settings.title")}</Page.Title></Page.Header>
+      <Page.Header>
+        <Page.Title>{t("settings.title")}</Page.Title>
+      </Page.Header>
       <form className="max-w-3xl space-y-4" onSubmit={submit}>
         <Text>{t("settings.description")}</Text>
         <label className="block space-y-1">
           <span>{t("settings.provider")}</span>
           <Select value={selectedProvider} onChange={(event) => changeProvider(event.currentTarget.value)}>
-            {query.data?.map((item) => <option key={item.provider_key} value={item.provider_key}>{item.display_name}</option>)}
+            {query.data?.map((item) => (
+              <option key={item.provider_key} value={item.provider_key}>
+                {item.display_name}
+              </option>
+            ))}
           </Select>
         </label>
         {current?.settings_notice && (
-          <ProviderSettingsNotice key={`${current.plugin_name}:${current.settings_notice_i18n_key || "fallback"}`}
-            notice={current.settings_notice} i18nKey={current.settings_notice_i18n_key} pluginName={current.plugin_name} />
+          <ProviderSettingsNotice
+            key={`${current.plugin_name}:${current.settings_notice_i18n_key || "fallback"}`}
+            notice={current.settings_notice}
+            i18nKey={current.settings_notice_i18n_key}
+            pluginName={current.plugin_name}
+          />
         )}
         {save.isSuccess && <Notice tone="success">{t("settings.saved")}</Notice>}
         {save.isError && <Notice tone="danger">{save.error.message || t("settings.save_failed")}</Notice>}
         {visibleFields.map((field) => (
           <label key={field} className="block space-y-1">
             <span>{t(`settings.${field}`)}</span>
-            <Input aria-label={t(`settings.${field}`)} type={field === "client_secret" ? "password" : "text"} value={String(draft[field] ?? current?.[field] ?? "")}
-              onChange={(event) => setDraft((value) => ({ ...value, [field]: event.target.value }))} />
-            {field === "client_secret" && clientSecretConfigured && <Text variant="caption" tone="muted">{t("settings.client_secret_configured")}</Text>}
+            <Input
+              aria-label={t(`settings.${field}`)}
+              type={field === "client_secret" ? "password" : "text"}
+              value={String(draft[field] ?? current?.[field] ?? "")}
+              onChange={(event) => setDraft((value) => ({ ...value, [field]: event.target.value }))}
+            />
+            {field === "client_secret" && clientSecretConfigured && (
+              <Text variant="caption" tone="muted">
+                {t("settings.client_secret_configured")}
+              </Text>
+            )}
           </label>
         ))}
-        <Checkbox checked={Boolean(draft.allow_as_owner ?? current?.allow_as_owner ?? false)} label={t("settings.allow_as_owner")}
-          onChange={(event) => setDraft((value) => ({ ...value, allow_as_owner: event.target.checked }))} />
-        <Button type="submit" disabled={save.isPending}>{t("settings.save")}</Button>
+        <Checkbox
+          checked={Boolean(draft.allow_as_owner ?? current?.allow_as_owner ?? false)}
+          label={t("settings.allow_as_owner")}
+          onChange={(event) => setDraft((value) => ({ ...value, allow_as_owner: event.target.checked }))}
+        />
+        <Button type="submit" disabled={save.isPending}>
+          {t("settings.save")}
+        </Button>
       </form>
     </Page.Root>
   )

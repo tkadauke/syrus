@@ -46,8 +46,10 @@ describe("ConnectedAccountsSettings", () => {
     expect(screen.getByText("accounts.last_used")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "accounts.reauthorize" })).toHaveAttribute("href", "/reauthorize")
     expect(screen.getByRole("button", { name: "accounts.disconnect" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Connect Mail" })).toHaveAttribute("href",
-      "/api/v1/app/connected_accounts/connect/mail?scopes=mail.read&read_only=true")
+    expect(screen.getByRole("link", { name: "Connect Mail" })).toHaveAttribute(
+      "href",
+      "/api/v1/app/connected_accounts/connect/mail?scopes=mail.read&read_only=true"
+    )
   })
 
   it("persists the read-only toggle", async () => {
