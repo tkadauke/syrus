@@ -18,7 +18,10 @@ export function fetchReviewWorkspace() {
   return getJson<ReviewWorkspacePayload>("/api/v1/app/review_workspace")
 }
 
-export type ReviewWorkspaceSummary = { change_scope: { files_changed: number; additions: number; deletions: number; truncated?: boolean } | null }
+export type ReviewWorkspaceSummary = {
+  current_head_sha?: string | null
+  change_scope: { files_changed: number; additions: number; deletions: number; truncated?: boolean } | null
+}
 
 export function fetchReviewWorkspaceSummary(jobId: number) {
   return getJson<ReviewWorkspaceSummary>(`/api/v1/app/review_workspace/${jobId}/summary`)

@@ -100,5 +100,6 @@
   "link_job": "Aperi {{slug}}",
   "link_epic": "Aperi {{number}}",
   "link_pr": "PR #{{number}} (GitHub aperit)",
-  "link_full_diff": "Diff plenum et singula"
+  "link_full_diff": "Diff plenum et singula",
+  "brief_reviews_unconfirmed": "Pro commisso praesenti non confirmata"
 }
