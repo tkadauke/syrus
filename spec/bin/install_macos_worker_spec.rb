@@ -15,8 +15,8 @@ RSpec.describe "macOS worker installer" do
     expect(source).to include("BREW_FORMULAE=(node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)")
     # Ruby comes from the release's .ruby-version via mise, never Homebrew.
     expect(source).not_to match(/ruby@\d/)
-    expect(source).to include('CLAUDE_CODE_VERSION="2.1.325"')
-    expect(source).to include('CODEX_CLI_VERSION="0.169.0"')
+    expect(source).to include('CLAUDE_CODE_VERSION="2.1.330"')
+    expect(source).to include('CODEX_CLI_VERSION="0.171.0"')
     expect(source).to include('git config --global credential.helper ""')
   end
 
