@@ -144,10 +144,12 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByRole("heading", { name: "Review 2" })
     let card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 31, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 31, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 31, pointerType: "touch" })
     await screen.findByRole("heading", { name: "Review 3" })
     card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 32, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 32, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 32, pointerType: "touch" })
     await screen.findByRole("heading", { name: "Review 4" })
 
@@ -405,6 +407,68 @@ describe("ReviewWorkspaceRoute", () => {
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
   })
 
+  it("keeps ambiguous touch motion pending, then locks and arms one horizontal action", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+    const scroller = screen.getByTestId("review-workspace-scroll-container")
+    scroller.scrollTop = 40
+
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 501, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 104, clientY: 208, pointerId: 501, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 125, clientY: 223, pointerId: 501, pointerType: "touch" })
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    expect(scroller.scrollTop).toBe(40)
+
+    fireEvent.pointerMove(card, { clientX: 135, clientY: 220, pointerId: 501, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "right")
+    fireEvent.pointerMove(card, { clientX: 140, clientY: 320, pointerId: 501, pointerType: "touch" })
+    expect(card.style.transform).toContain("translate3d(40px, 0px, 0)")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Approve")
+    expect(scroller.scrollTop).toBe(40)
+
+    fireEvent.pointerMove(card, { clientX: 190, clientY: 320, pointerId: 501, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 120, clientY: 100, pointerId: 501, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "right")
+    fireEvent.pointerUp(card, { clientX: 120, clientY: 100, pointerId: 501, pointerType: "touch" })
+
+    expect(await screen.findByRole("dialog", { name: "Approve JOB-42 for landing?" })).toBeInTheDocument()
+    expect(screen.getAllByRole("dialog", { name: "Approve JOB-42 for landing?" })).toHaveLength(1)
+  })
+
+  it("cancels unarmed, cancelled, and lost-capture gestures without replaying intent", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 502, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 100, clientY: 190, pointerId: 502, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "left")
+    fireEvent.pointerUp(card, { clientX: 100, clientY: 190, pointerId: 502, pointerType: "touch" })
+    expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
+
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 503, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 55, clientY: 210, pointerId: 503, pointerType: "touch" })
+    fireEvent.pointerCancel(card, { pointerId: 503, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 55, clientY: 210, pointerId: 503, pointerType: "touch" })
+
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 504, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 245, clientY: 190, pointerId: 504, pointerType: "touch" })
+    fireEvent.lostPointerCapture(card, { pointerId: 504, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 245, clientY: 190, pointerId: 504, pointerType: "touch" })
+
+    expect(card.style.transform).toBe("")
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
+  })
+
   it.each([320, 430])("keeps horizontal action cues stable across drag progress at a %ipx viewport", async (viewport) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -555,6 +619,7 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 11, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 170, clientY: 200, pointerId: 11, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 11, pointerType: "touch" })
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
     fireEvent.keyDown(window, { key: "j" })
@@ -585,7 +650,10 @@ describe("ReviewWorkspaceRoute", () => {
     expect(card).toHaveClass("touch-pan-x", "touch-pan-y")
     expect(card).not.toHaveClass("touch-none")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 12, pointerType: "touch" })
-    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 158, clientY: 244, pointerId: 12, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 172, clientY: 228, pointerId: 12, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(200)
+    fireEvent.pointerMove(card, { clientX: 170, clientY: 150, pointerId: 12, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
     expect(scroller.scrollTop).toBe(300)
     expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page")
@@ -598,6 +666,7 @@ describe("ReviewWorkspaceRoute", () => {
 
     card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 14, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 14, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 14, pointerType: "touch" })
     await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
   })
@@ -614,10 +683,12 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerUp(card, { button: 0, clientX: 153, clientY: 260, pointerId: 2, pointerType: "mouse" })
     expect(screen.getAllByText("1 of 2 ready now")).toHaveLength(2)
     fireEvent.pointerDown(card, { button: 0, clientX: 150, clientY: 300, pointerId: 3, pointerType: "mouse" })
+    fireEvent.pointerMove(card, { button: 0, clientX: 150, clientY: 210, pointerId: 3, pointerType: "mouse" })
     fireEvent.pointerUp(card, { button: 0, clientX: 150, clientY: 210, pointerId: 3, pointerType: "mouse" })
     await waitFor(() => expect(screen.getAllByText("2 of 2 ready now")).toHaveLength(2))
     card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { button: 0, clientX: 150, clientY: 200, pointerId: 4, pointerType: "mouse" })
+    fireEvent.pointerMove(card, { button: 0, clientX: 150, clientY: 290, pointerId: 4, pointerType: "mouse" })
     fireEvent.pointerUp(card, { button: 0, clientX: 150, clientY: 290, pointerId: 4, pointerType: "mouse" })
     await waitFor(() => expect(screen.getAllByText("1 of 2 ready now")).toHaveLength(2))
   })
@@ -700,9 +771,11 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 5, clientY: 200, pointerId: 7, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 100, clientY: 200, pointerId: 7, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 100, clientY: 200, pointerId: 7, pointerType: "touch" })
     expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
     fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 8, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 60, clientY: 200, pointerId: 8, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 60, clientY: 200, pointerId: 8, pointerType: "touch" })
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
