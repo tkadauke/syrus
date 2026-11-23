@@ -241,6 +241,65 @@ RSpec.describe WorkspaceGitTransportPreference do
     end
   end
 
+  describe "#clone_via_transport! hosting-platform retries" do
+    let(:dest) { Pathname.new(Dir.mktmpdir("workspace-git-transport-retry")) }
+    let(:http2_reset) do
+      GitRunner::GitError.new(
+        %w[clone --branch main https://github.com/acme/app.git /tmp/ws], 128,
+        "error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: CANCEL (err 8)\n" \
+        "fetch-pack: unexpected disconnect while reading sideband packet\nfatal: early EOF"
+      )
+    end
+
+    before { allow(includer).to receive(:transport_retry_sleep) }
+    after { FileUtils.rm_rf(dest.to_s) }
+
+    # A landing's push step had to re-clone a lost workspace from GitHub, and
+    # three HTTP/2 resets in a row failed a fully graded landing.
+    it "retries a transient GitHub clone failure over HTTP/1.1, clearing the partial clone first" do
+      envs = []
+      dest_seen = []
+
+      includer.clone_via_transport!(repository: repository, user: user, dest: dest, clone_args: [ "--branch", "main" ]) do |retry_env|
+        envs << retry_env
+        dest_seen << dest.exist?
+        if envs.size == 1
+          FileUtils.mkdir_p(dest.join("partial").to_s)
+          raise http2_reset
+        end
+      end
+
+      expect(envs).to eq([ {}, WorkspaceGitTransportPreference::HTTP1_GIT_ENV ])
+      expect(dest_seen).to eq([ false, false ])
+      expect(includer).to have_received(:transport_retry_sleep).with(5)
+    end
+
+    it "gives up after the bounded retries and raises the last failure" do
+      calls = 0
+
+      expect {
+        includer.clone_via_transport!(repository: repository, user: user, dest: dest, clone_args: [ "--branch", "main" ]) do
+          calls += 1
+          raise http2_reset
+        end
+      }.to raise_error(GitRunner::GitError, /early EOF/)
+      expect(calls).to eq(3)
+    end
+
+    it "does not retry a failure that is about the repository, not the network" do
+      calls = 0
+
+      expect {
+        includer.clone_via_transport!(repository: repository, user: user, dest: dest, clone_args: [ "--branch", "main" ]) do
+          calls += 1
+          raise GitRunner::GitError.new(%w[clone], 128, "remote: Repository not found.\nfatal: repository not found")
+        end
+      }.to raise_error(GitRunner::GitError)
+      expect(calls).to eq(1)
+      expect(includer).not_to have_received(:transport_retry_sleep)
+    end
+  end
+
   describe "#fetch_via_transport!" do
     let(:refspec) { "refs/heads/main:refs/heads/main" }
 
