@@ -71,6 +71,21 @@ async function stubLargeReviewDiff(page: Page) {
   })
 }
 
+// WebKit can abort a goto to the page's own URL when the SPA is still finishing
+// a same-URL navigation ("interrupted by another navigation"); retry once the
+// in-flight navigation has settled.
+async function gotoSettled(page: Page, url: string) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(url)
+      return
+    } catch (error) {
+      if (attempt >= 2 || !/interrupted by another navigation/.test(String(error))) throw error
+      await page.waitForLoadState("load")
+    }
+  }
+}
+
 async function openLargeReview(page: Page, viewport: { width: number; height: number }) {
   await page.addInitScript(() => window.localStorage.setItem("syrus.debug.screenshotCapture", "1"))
   await stubLargeReviewDiff(page)
@@ -84,7 +99,7 @@ async function openLargeReview(page: Page, viewport: { width: number; height: nu
   await page.waitForURL(/\/jobs\/[^/?#]+/)
   const jobUrl = page.url()
   await page.setViewportSize(viewport)
-  await page.goto(jobUrl)
+  await gotoSettled(page, jobUrl)
   await page.getByRole("button", { name: "Review", exact: true }).click()
   await expect(page.getByText("app/frontend/generated/module_0.ts").first()).toBeVisible()
   // Large file diffs start collapsed; expand them all so the page is as heavy
