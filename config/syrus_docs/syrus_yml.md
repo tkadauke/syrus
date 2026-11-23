@@ -1198,17 +1198,9 @@ review behavior.
 
 ## review_plan
 
-Retired compatibility key. Older repositories may still contain this bare
-boolean:
-
-```yaml
-review_plan: true
-```
-
-Syrus still parses the key so old `.syrus.yml` files remain harmless, but it
-does not materialize a `review_plan` workflow step or expose a
-`submit_review_plan` MCP tool. New review-note behavior is supplied by plugins
-through the post-implementation review extension point.
+Owned by the Review plan plugin. Retired compatibility key: older repositories
+may still contain the bare boolean `review_plan: true`. It is parsed and ignored
+and does not change any workflow. See `review_planning.md`.
 
 ## coverage
 

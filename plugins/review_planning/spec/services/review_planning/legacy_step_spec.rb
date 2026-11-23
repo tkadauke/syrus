@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Steps::ReviewPlan do
+RSpec.describe ReviewPlanning::LegacyStep do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
   let(:step) { Step.create!(workflow: workflow, kind: "review_plan", position: 100) }
@@ -13,10 +13,11 @@ RSpec.describe Steps::ReviewPlan do
 
     handler.call
 
-    expect(step.reload.details).to include(
-      "skipped" => true,
-      "skip_reason" => "review_plan_retired"
-    )
+    expect(step.reload.details).to include("skipped" => true, "skip_reason" => "review_plan_retired")
     expect(job.job_logs.last.chunk).to include("retired legacy PR-comment step")
+  end
+
+  it "never fails the workflow, even when the step update itself raises" do
+    expect(Step::Kind.fetch("review_plan").fail_policy).to eq(:advance)
   end
 end

@@ -95,14 +95,6 @@ RSpec.describe Step::Kind do
         [ [ "implement", nil ], [ "respond", nil ], [ "coding_handoff_fix", nil ] ]
       )
     end
-
-    it "keeps retired review_plan executable for persisted legacy workflows without MCP tools" do
-      entry = described_class.fetch("review_plan")
-
-      expect(entry.handler_class).to eq(Steps::ReviewPlan)
-      expect(entry.agentic).to be(false)
-      expect(entry.required_mcp_tools).to eq([])
-    end
   end
 
   describe "fail_policy" do

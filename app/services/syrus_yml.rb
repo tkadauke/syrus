@@ -75,7 +75,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :formatters, :generated, :deployment_stages, :preview, :visual_review, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
     def initialize(security_review: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
       super(security_review: security_review, plugin_configurations: plugin_configurations, **rest)
     end
@@ -307,7 +307,6 @@ class SyrusYml
       deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
       preview: parse_preview(raw["preview"]),
       visual_review: parse_visual_review(raw["visual_review"]),
-      review_plan: ActiveModel::Type::Boolean.new.cast(raw["review_plan"]) || false,
       deploy: parse_deploy(raw["deploy"]),
       delivery: normalize_delivery(raw_delivery),
       raw_delivery: raw_delivery,
