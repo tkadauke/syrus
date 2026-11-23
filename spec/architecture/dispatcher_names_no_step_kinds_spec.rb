@@ -9,7 +9,11 @@ require "rails_helper"
 # Both are declarations on Step::Kind now.
 RSpec.describe "StepDispatcher names no specific step kind" do
   it "declares a review gate on every reviewer step kind" do
-    expect(Step::Kind.review_gate_kinds).to contain_exactly("adversarial_review", "security_review", "visual_review")
+    core_review_gate_kinds = Step::Kind.review_gate_kinds - Workflows::CompositionAnchors.judges(
+      job: Factories.job, trigger_kind: "initial", agent_step: "implement"
+    ).flat_map(&:steps)
+
+    expect(core_review_gate_kinds).to contain_exactly("adversarial_review", "security_review")
   end
 
   it "declares the artifact, exit verdicts and cancellation reason for each" do
@@ -26,7 +30,6 @@ RSpec.describe "StepDispatcher names no specific step kind" do
   # exits the loop the same way "approved" does -- there is nothing for another
   # iteration to address.
   it "lets reviewer steps exit on skipped as well as approved" do
-    expect(Step::Kind.review_gate_for("visual_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
     expect(Step::Kind.review_gate_for("adversarial_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
     expect(Step::Kind.review_gate_for("security_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
   end

@@ -34,7 +34,7 @@ repository-specific guidance with `security_review.criteria`.
 
 Visual review is on by default instance-wide with no `AppSetting` or Feature
 flag controlling it — only a repository's `.syrus.yml` can override it — see
-[`visual_review.md`](visual_review.md) and [`feature_flags.md`](feature_flags.md).
+the Browser plugin's visual-review documentation and [`feature_flags.md`](feature_flags.md).
 
 ### max_job_failures
 
