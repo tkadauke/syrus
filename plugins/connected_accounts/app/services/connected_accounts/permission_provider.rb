@@ -7,7 +7,7 @@ module ConnectedAccounts
     class << self
       def lookup_account(identifier, context:)
         user = context[:user] || context[:mcp_context]&.user
-        Account.find_by(id: identifier, owner_user_id: user&.id)
+        Account.find_by(id: identifier, owner_kind: "user", owner_user_id: user&.id)
       end
 
       def normalize_scope(scope, context:)
@@ -52,7 +52,7 @@ module ConnectedAccounts
 
       def authoring_options(context:)
         user = context[:user]
-        accounts = Account.where(owner_user_id: user&.id).order(:provider, :display_label, :id)
+        accounts = Account.where(owner_kind: "user", owner_user_id: user&.id).order(:provider, :display_label, :id)
         {
           fields: [
             { name: "account_id", label: "Connected account", type: "select",

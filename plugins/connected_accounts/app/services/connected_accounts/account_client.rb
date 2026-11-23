@@ -13,6 +13,11 @@ module ConnectedAccounts
       def with_access(account:, acting_mode:, scopes:, purpose:, context: nil, target: {})
         new(account:, acting_mode:, scopes:, purpose:, context:, target:).with_access { |access| yield access }
       end
+
+
+      def with_system_access(account:, service_identity:, scopes:, purpose:, target: {}, &block)
+        SystemInvocation.call(account:, service_identity:, scopes:, purpose:, target:, &block)
+      end
     end
 
     def initialize(account:, acting_mode:, scopes:, purpose:, context:, target:)
@@ -83,10 +88,11 @@ module ConnectedAccounts
     end
 
     def validate_owner!(account)
-      raise Denied, "connected account not found" unless context.user && account.owner_user_id == context.user.id
+      account.owner_policy.validate_access!(account, context)
     end
 
     def validate_invocation!
+      return if context.permission_authorization["system_service_identity"].present?
       raise Denied, "authorized invocation reference is required" if context.permission_authorization.blank?
       if coworker_context? && !Feature.coworker_connected_accounts_enabled?
         raise Denied, "coworker connected account access is disabled"
@@ -116,6 +122,7 @@ module ConnectedAccounts
     end
 
     def token_expired?(tokens)
+      return false if tokens["expires_at"].blank?
       expires_at = Time.iso8601(tokens.fetch("expires_at"))
       expires_at <= EXPIRY_SKEW.from_now
     rescue KeyError, ArgumentError
@@ -150,7 +157,9 @@ module ConnectedAccounts
     end
 
     def redacted_purpose
-      purpose.present? ? PURPOSE_REDACTION : nil
+      return nil if purpose.blank?
+      return purpose.truncate(255) if context.permission_authorization["system_service_identity"].present?
+      PURPOSE_REDACTION
     end
 
     def audit_metadata(account)
@@ -161,7 +170,7 @@ module ConnectedAccounts
         scopes: scopes,
         purpose: redacted_purpose,
         authorized_invocation: true
-      }
+      }.merge(context.permission_authorization.slice("system_service_identity"))
     end
   end
 end

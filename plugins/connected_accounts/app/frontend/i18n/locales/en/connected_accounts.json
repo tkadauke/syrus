@@ -20,6 +20,16 @@
     "allow_as_owner": "Allow connected-account operations to act as the account owner"
   },
   "nav_accounts": "Connected accounts",
+  "instance": {
+    "title": "Instance accounts",
+    "description": "Connect a provider token for named platform services. The token is stored securely and is never displayed again.",
+    "label": "Safe account label",
+    "token": "Provider token",
+    "connect": "Connect token",
+    "rotate": "Rotate token",
+    "disconnect": "Disconnect",
+    "status": "Status: {{status}}"
+  },
   "accounts": {
     "title": "Connected accounts",
     "description": "Connect and manage the external accounts Syrus may use with your permission.",

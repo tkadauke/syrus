@@ -6,7 +6,7 @@ module ConnectedAccounts
       credential = account.credential_store_credential
       tokens = JSON.parse(credential.payload)
       declaration = ProviderRegistry.fetch(account.provider)
-      if Time.iso8601(tokens.fetch("expires_at")) <= REFRESH_WINDOW.from_now
+      if tokens["expires_at"].present? && Time.iso8601(tokens.fetch("expires_at")) <= REFRESH_WINDOW.from_now
         CredentialStore::Broker.refresh_credential!(credential: credential, plugin_name: "connected_accounts", purpose: "[purpose redacted]",
           user: account.owner_user, metadata: { connected_account_id: account.id, provider: account.provider }) do |payload|
           current = JSON.parse(payload)
