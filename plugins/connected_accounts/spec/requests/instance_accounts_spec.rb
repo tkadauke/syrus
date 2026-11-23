@@ -46,6 +46,25 @@ RSpec.describe "Connected account instance tokens", type: :request do
     expect(account.reload).to be_revoked
   end
 
+  it "pins a manifest-declared API origin and derives the label from the provider's identity" do
+    declared = ConnectedAccounts::ProviderDeclaration.build(plugin_name: "example_plugin", attributes: {
+      provider: "ConnectedAccounts::FakeProvider", key: "declared_origin", display_name: "Declared origin",
+      authorization_kind: "token", capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
+      callback_route: "/unused", supports_read_only: false,
+      configuration: { api_origins: [ "https://api.declared.test/v1/" ] },
+      scopes: [ { key: "messages.send", label: "Send messages", risk: "high", syrus_capabilities: [ "messages.send@v1" ] } ]
+    })
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:all).and_return([ declared ])
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("declared_origin").and_return(declared)
+    allow(ConnectedAccounts::FakeProvider).to receive(:identity).and_return(label: "the-bot")
+
+    account = ConnectedAccounts::TokenBroker.connect!(provider: "declared_origin", token: "declared-secret-token", label: nil, admin: admin)
+
+    expect(account.display_label).to eq("the-bot")
+    expect(account.credential_store_credential.target_constraints).to eq("allowed_url_prefixes" => [ "https://api.declared.test/v1/" ])
+    expect(ConnectedAccounts::TokenBroker.instance_account("declared_origin")).to eq(account)
+  end
+
   it "rejects validation failures without leaking the submitted token" do
     allow(ConnectedAccounts::FakeProvider).to receive(:validate).and_return(healthy: false, message: "bad token-secret-value")
     post "/api/v1/app/admin/connected_accounts/instance_accounts", params: {

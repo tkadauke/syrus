@@ -278,4 +278,63 @@ RSpec.describe Discord::GatewayConnectionJob do
       end
     end
   end
+
+  describe "token rotation and revocation" do
+    def capture_gateway_clients
+      sessions = []
+      Discord::Provider.gateway_client_factory = lambda do |token:, stale_check:|
+        client = instance_double(Discord::GatewayClient, fatal_close_code: nil, fatal_close_reason: nil,
+          reset_reconnect_backoff?: false, run_outcome: nil)
+        allow(client).to receive(:run) { sessions << { token: token, stale_check: stale_check } }
+        client
+      end
+      sessions
+    end
+
+    it "gives each Gateway session the token that is current when it starts" do
+      sessions = capture_gateway_clients
+      described_class.new.perform
+      ConnectedAccounts::TokenBroker.connect!(provider: "discord_bot", token: "rotated-token-0002", label: "Syrus bot",
+        admin: User.where(global_role: "admin").first)
+      described_class.new.perform
+
+      expect(sessions.map { |session| session[:token] }).to eq([ token, "rotated-token-0002" ])
+    end
+
+    it "reports the session stale as soon as the credential is rotated, and not before" do
+      sessions = capture_gateway_clients
+      described_class.new.perform
+      stale_check = sessions.first[:stale_check]
+
+      expect(stale_check.call).to be(false)
+      ConnectedAccounts::TokenBroker.connect!(provider: "discord_bot", token: "rotated-token-0002", label: "Syrus bot",
+        admin: User.where(global_role: "admin").first)
+      expect(stale_check.call).to be(true)
+    end
+
+    it "reports the session stale when the account is disconnected" do
+      sessions = capture_gateway_clients
+      described_class.new.perform
+      ConnectedAccounts::Account.update_all(status: "revoked")
+
+      expect(sessions.first[:stale_check].call).to be(true)
+    end
+
+    it "reconnects immediately, without backoff, after the Gateway ends a session because of a rotation" do
+      client = stub_gateway_client(events: [])
+      allow(client).to receive(:run_outcome).and_return(:credential_changed)
+      Rails.cache.write(described_class::RECONNECT_ATTEMPT_CACHE_KEY, 3)
+
+      expect { described_class.new.perform }.to have_enqueued_job(described_class).at(nil)
+      expect(Rails.cache.read(described_class::RECONNECT_ATTEMPT_CACHE_KEY)).to be_nil
+    end
+
+    it "stops reconnecting when the account was revoked mid-session" do
+      client = stub_gateway_client(events: [])
+      allow(client).to receive(:run_outcome).and_return(:credential_changed)
+      allow(client).to receive(:run) { ConnectedAccounts::Account.update_all(status: "revoked") }
+
+      expect { described_class.new.perform }.not_to have_enqueued_job(described_class)
+    end
+  end
 end

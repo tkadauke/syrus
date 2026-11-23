@@ -22,6 +22,7 @@ import { useConfirm } from "../hooks/useConfirm"
 import { Page } from "../components/ui"
 
 const queryKey = ["admin", "settings"] as const
+const CONNECTED_ACCOUNTS_ADMIN_PATH = "/admin/connected_accounts"
 
 function optionalNumber(value: string): number | undefined {
   return value.trim() === "" ? undefined : Number(value)
@@ -53,11 +54,12 @@ export function AdminSettings() {
 }
 
 function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
-  const otherSecrets = payload.settings.clearable_secrets.filter((s) => s.key !== "telegram_bot_token" && s.key !== "discord_bot_token")
+  const { t } = useT("admin")
+  const otherSecrets = payload.settings.clearable_secrets
   return (
     <>
-      <TelegramSection onNotice={onNotice} payload={payload} />
-      <DiscordSection onNotice={onNotice} payload={payload} />
+      <PlatformTokenSection heading={t("settings.telegram_heading")} platform="telegram" />
+      <PlatformTokenSection heading={t("settings.discord_heading")} platform="discord" />
 
       {otherSecrets.length > 0 && (
         <section className="divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -131,7 +133,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [reportIssueRepoSlug, setReportIssueRepoSlug] = useState(payload.settings.report_issue_repo_slug)
   const [videoRetentionDays, setVideoRetentionDays] = useState(String(payload.settings.video_retention_days))
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
-  const [telegramBotHandle, setTelegramBotHandle] = useState(payload.settings.telegram_bot_handle ?? "")
   const [maxConcurrentAgentRuns, setMaxConcurrentAgentRuns] = useState(String(payload.settings.max_concurrent_agent_runs))
   const [maxInFlightWorkflows, setMaxInFlightWorkflows] = useState(String(payload.settings.max_in_flight_workflows))
   const [preparedLayerCacheGb, setPreparedLayerCacheGb] = useState(String(payload.settings.prepared_layer_cache_gb))
@@ -157,7 +158,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         report_issue_repo_slug: reportIssueRepoSlug,
         video_retention_days: optionalNumber(videoRetentionDays),
         video_storage_budget_mb: optionalNumber(videoBudgetMb),
-        telegram_bot_handle: telegramBotHandle,
         max_concurrent_agent_runs: optionalNumber(maxConcurrentAgentRuns),
         max_in_flight_workflows: optionalNumber(maxInFlightWorkflows),
         prepared_layer_cache_gb: optionalNumber(preparedLayerCacheGb),
@@ -189,7 +189,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setReportIssueRepoSlug(payload.settings.report_issue_repo_slug)
     setVideoRetentionDays(String(payload.settings.video_retention_days))
     setVideoBudgetMb(String(payload.settings.video_storage_budget_mb))
-    setTelegramBotHandle(payload.settings.telegram_bot_handle ?? "")
     setMaxConcurrentAgentRuns(String(payload.settings.max_concurrent_agent_runs))
     setMaxInFlightWorkflows(String(payload.settings.max_in_flight_workflows))
     setPreparedLayerCacheGb(String(payload.settings.prepared_layer_cache_gb))
@@ -213,7 +212,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     payload.settings.report_issue_repo_slug,
     payload.settings.video_retention_days,
     payload.settings.video_storage_budget_mb,
-    payload.settings.telegram_bot_handle,
     payload.settings.max_concurrent_agent_runs,
     payload.settings.max_in_flight_workflows,
     payload.settings.prepared_layer_cache_gb,
@@ -269,19 +267,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           id="admin-settings-report-issue-repo"
           onChange={(event) => setReportIssueRepoSlug(event.target.value)}
           value={reportIssueRepoSlug}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-telegram-handle">
-          {t("settings.telegram_bot_handle_label")}
-        </label>
-        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.telegram_bot_handle_help")}</span>
-        <Input
-          className="mt-1 max-w-sm"
-          id="admin-settings-telegram-handle"
-          onChange={(event) => setTelegramBotHandle(event.target.value)}
-          value={telegramBotHandle}
         />
       </div>
 
@@ -619,170 +604,22 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   )
 }
 
-function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
+// Bot tokens for the platform plugins are instance-owned connected accounts,
+// stored and rotated on the Connected Accounts admin page -- not application
+// settings. This section only points there and keeps the connector control.
+function PlatformTokenSection({ platform, heading }: { platform: "telegram" | "discord"; heading: string }) {
   const { t } = useT("admin")
-  const { confirm, dialog } = useConfirm()
-  const queryClient = useQueryClient()
-  const [tokenInput, setTokenInput] = useState("")
-
-  const telegramSecret = payload.settings.clearable_secrets.find((s) => s.key === "telegram_bot_token")
-  const tokenSet = telegramSecret?.set ?? false
-
-  const saveToken = useMutation({
-    mutationFn: () => updateAdminSettings({ telegram_bot_token: tokenInput }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-      setTokenInput("")
-      onNotice(t("settings.settings_updated"))
-    }
-  })
-
-  const clearToken = useMutation({
-    mutationFn: () => clearAdminSettingSecret("telegram_bot_token"),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-      onNotice(t("settings.settings_updated"))
-    }
-  })
 
   return (
     <section className="space-y-4 rounded border border-border bg-surface p-6">
-      <SectionHeading>{t("settings.telegram_heading")}</SectionHeading>
+      <SectionHeading>{heading}</SectionHeading>
 
-      <div className="text-xs text-text-muted">{tokenSet ? t("settings.currently_set") : t("settings.not_set")}</div>
+      <p className="text-xs text-text-muted">{t(`settings.${platform}_token_managed_in_accounts`)}</p>
+      <a className="inline-block text-sm font-medium text-link underline" href={CONNECTED_ACCOUNTS_ADMIN_PATH}>
+        {t("settings.manage_bot_token_link")}
+      </a>
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          aria-label={t("settings.telegram_token_label")}
-          autoComplete="off"
-          className="flex-1 min-w-48"
-          onChange={(e) => setTokenInput(e.target.value)}
-          placeholder={t("settings.telegram_token_placeholder")}
-          type="password"
-          value={tokenInput}
-        />
-        <Button
-          disabled={saveToken.isPending || !tokenInput.trim()}
-          onClick={() => {
-            onNotice(null)
-            saveToken.mutate()
-          }}
-        >
-          {saveToken.isPending ? t("settings.saving") : t("settings.telegram_save_token")}
-        </Button>
-        {tokenSet && (
-          <Button
-            disabled={clearToken.isPending}
-            onClick={async () => {
-              if (await confirm({ message: t("settings.telegram_token_clear_confirm"), destructive: true })) {
-                onNotice(null)
-                clearToken.mutate()
-              }
-            }}
-            variant="danger"
-          >
-            {clearToken.isPending ? t("settings.clearing") : t("settings.clear")}
-          </Button>
-        )}
-      </div>
-
-      <PlatformPollingControl disabled={!tokenSet} label={t("settings.telegram_heading")} platform="telegram" />
-
-      {saveToken.isError ? (
-        <p className="text-xs text-danger" role="alert">
-          {errorMessage(saveToken.error, t("settings.error_update"))}
-        </p>
-      ) : null}
-      {clearToken.isError ? (
-        <p className="text-xs text-danger" role="alert">
-          {errorMessage(clearToken.error, t("settings.error_clear"))}
-        </p>
-      ) : null}
-      {dialog}
-    </section>
-  )
-}
-
-function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
-  const { t } = useT("admin")
-  const { confirm, dialog } = useConfirm()
-  const queryClient = useQueryClient()
-  const [tokenInput, setTokenInput] = useState("")
-
-  const discordSecret = payload.settings.clearable_secrets.find((s) => s.key === "discord_bot_token")
-  const tokenSet = discordSecret?.set ?? false
-
-  const saveToken = useMutation({
-    mutationFn: () => updateAdminSettings({ discord_bot_token: tokenInput }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-      setTokenInput("")
-      onNotice(t("settings.settings_updated"))
-    }
-  })
-
-  const clearToken = useMutation({
-    mutationFn: () => clearAdminSettingSecret("discord_bot_token"),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-      onNotice(t("settings.settings_updated"))
-    }
-  })
-
-  return (
-    <section className="space-y-4 rounded border border-border bg-surface p-6">
-      <SectionHeading>{t("settings.discord_heading")}</SectionHeading>
-
-      <div className="text-xs text-text-muted">{tokenSet ? t("settings.currently_set") : t("settings.not_set")}</div>
-
-      <div className="flex flex-wrap gap-2">
-        <Input
-          aria-label={t("settings.discord_token_label")}
-          autoComplete="off"
-          className="flex-1 min-w-48"
-          onChange={(e) => setTokenInput(e.target.value)}
-          placeholder={t("settings.discord_token_placeholder")}
-          type="password"
-          value={tokenInput}
-        />
-        <Button
-          disabled={saveToken.isPending || !tokenInput.trim()}
-          onClick={() => {
-            onNotice(null)
-            saveToken.mutate()
-          }}
-        >
-          {saveToken.isPending ? t("settings.saving") : t("settings.discord_save_token")}
-        </Button>
-        {tokenSet && (
-          <Button
-            disabled={clearToken.isPending}
-            onClick={async () => {
-              if (await confirm({ message: t("settings.discord_token_clear_confirm"), destructive: true })) {
-                onNotice(null)
-                clearToken.mutate()
-              }
-            }}
-            variant="danger"
-          >
-            {clearToken.isPending ? t("settings.clearing") : t("settings.clear")}
-          </Button>
-        )}
-      </div>
-
-      <PlatformPollingControl disabled={!tokenSet} label={t("settings.discord_heading")} platform="discord" />
-
-      {saveToken.isError ? (
-        <p className="text-xs text-danger" role="alert">
-          {errorMessage(saveToken.error, t("settings.error_update"))}
-        </p>
-      ) : null}
-      {clearToken.isError ? (
-        <p className="text-xs text-danger" role="alert">
-          {errorMessage(clearToken.error, t("settings.error_clear"))}
-        </p>
-      ) : null}
-      {dialog}
+      <PlatformPollingControl label={heading} platform={platform} />
     </section>
   )
 }
@@ -801,7 +638,7 @@ const POLLING_STATUS_MESSAGE_KEYS: Record<PlatformPollingConnectorStatus, string
   error: "polling_error"
 }
 
-function PlatformPollingControl({ platform, label, disabled }: { platform: string; label: string; disabled: boolean }) {
+function PlatformPollingControl({ platform, label }: { platform: string; label: string }) {
   const { t } = useT("admin")
   const startPolling = useMutation({ mutationFn: startPlatformPolling })
 
@@ -810,7 +647,7 @@ function PlatformPollingControl({ platform, label, disabled }: { platform: strin
 
   return (
     <div className="space-y-1">
-      <Button disabled={startPolling.isPending || disabled} onClick={() => startPolling.mutate()} variant="secondary">
+      <Button disabled={startPolling.isPending} onClick={() => startPolling.mutate()} variant="secondary">
         {startPolling.isPending ? t("settings.polling_starting") : t("settings.polling_start")}
       </Button>
 

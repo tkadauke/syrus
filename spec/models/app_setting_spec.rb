@@ -365,14 +365,10 @@ RSpec.describe AppSetting, :reset_plugin_registry do
       expect(AppSetting.telegram_update_offset).to eq(99)
     end
 
-    it "telegram_bot_token is a clearable secret" do
-      expect(AppSetting.clearable_secrets).to include("telegram_bot_token")
-    end
-
-    it "clears telegram_bot_token via clear_secret!" do
-      AppSetting.current.update!(telegram_bot_token: "some-token")
-      AppSetting.current.clear_secret!("telegram_bot_token")
-      expect(AppSetting.telegram_bot_token).to be_nil
+    it "no longer treats the bot tokens as clearable secrets (they are connected accounts)" do
+      expect(AppSetting.clearable_secrets).not_to include("telegram_bot_token", "discord_bot_token")
+      expect { AppSetting.current.clear_secret!("telegram_bot_token") }
+        .to raise_error(ArgumentError, "Unknown secret: telegram_bot_token")
     end
   end
 end

@@ -19,7 +19,6 @@ export type AdminSettingsPayload = {
     report_issue_repo_slug: string
     video_retention_days: number
     video_storage_budget_mb: number
-    telegram_bot_handle: string | null
     max_concurrent_agent_runs: number
     max_in_flight_workflows: number
     prepared_layer_cache_gb: number
@@ -54,7 +53,6 @@ export type AdminSettingsUpdate = {
   report_issue_repo_slug?: string
   video_retention_days?: number
   video_storage_budget_mb?: number
-  telegram_bot_handle?: string
   max_concurrent_agent_runs?: number
   max_in_flight_workflows?: number
   prepared_layer_cache_gb?: number
@@ -66,8 +64,6 @@ export type AdminSettingsUpdate = {
   workflow_admission_policy?: "whole_workflow" | "phase_aware"
   host_admission_policy?: "prediction" | "usage"
   chat_coding_workspace_budget_mb?: number
-  telegram_bot_token?: string
-  discord_bot_token?: string
 }
 
 export type PlatformPollingConnectorStatus = "started" | "already_running" | "not_configured" | "error"
