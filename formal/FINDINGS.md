@@ -5051,6 +5051,20 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M69. Main through `3561d3536a`
+
+Two commits. `3561d3536a` installs WebKit dependencies for E2E CI. The other:
+
+- **"Fix permission catalog snapshot classification on main"** (`3502624b0f`).
+  `Permissions::Catalog.essential_for?` and `essential_everywhere?` take a
+  `cache:` hash so classifying every descriptor reuses one registry and plugin
+  snapshot. *Relied-on invariant:* the cached answer equals the uncached one.
+  Holds: the cache is a local hash for one classification pass, registry
+  entries are cached per surface (the only input the uncached lookup varied),
+  and the plugin descriptors do not change within the pass.
+
+---
+
 ## Lead L12. The review-barrier model has one way to pass; the code has three (closed: F116)
 
 Found while preparing its conformance fixture (formal/INTEGRATION.md, layer 3).
@@ -6749,7 +6763,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `1aa74a2a4d`. Each loop iteration continues from there:
+Checked through main `3561d3536a`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
