@@ -97,6 +97,29 @@ module WorkDefinitions
     (1..landing_lane_count(job.repository)).map { |lane| landing_lock_key_for(job, policy: policy, lane: lane) }
   end
 
+  # Every lane key that could hold a unit for the Job's branch, including lanes
+  # above the configured count: lowering `landing_concurrency` while higher
+  # lanes are active leaves those units running until they drain, and they
+  # still count against capacity and show in lane reporting.
+  def landing_all_lane_keys_for(job, policy: nil)
+    return [] unless job&.repository_id
+
+    Repository::LANDING_CONCURRENCY_RANGE.map { |lane| landing_lock_key_for(job, policy: policy, lane: lane) }
+  end
+
+  # True once the units occupying lanes (configured or draining) reach the
+  # configured count. `occupied_keys` lets a caller pass a precomputed set.
+  def landing_capacity_full?(job, policy: nil, occupied_keys: nil)
+    limit = landing_lane_count(job&.repository)
+    keys = landing_all_lane_keys_for(job, policy: policy)
+    return false if keys.empty?
+
+    occupied = keys.count do |key|
+      occupied_keys ? occupied_keys.include?(key) : WorkUnits::Ownership.active_for_lock_key?(key, kinds: landing_lock_kinds)
+    end
+    occupied >= limit
+  end
+
   # The lane a lock key belongs to (1 for the unsuffixed original key).
   def landing_lane_for_key(lock_key)
     lock_key.to_s[/\Alanding:repository:\d+:lane:(\d+)/, 1]&.to_i || 1
@@ -110,6 +133,8 @@ module WorkDefinitions
   # The lowest-numbered lane whose lock no active landing unit holds, or nil
   # when every lane is occupied.
   def free_landing_lane_for(job, policy: nil)
+    return nil if landing_capacity_full?(job, policy: policy)
+
     keys = landing_lane_keys_for(job, policy: policy)
     keys.each_with_index do |key, index|
       return index + 1 unless WorkUnits::Ownership.active_for_lock_key?(key, kinds: landing_lock_kinds)
@@ -119,7 +144,7 @@ module WorkDefinitions
 
   # Active landing units on the Job's branch, one per occupied lane.
   def active_landing_units_for(job, policy: nil)
-    landing_lane_keys_for(job, policy: policy).filter_map do |key|
+    landing_all_lane_keys_for(job, policy: policy).filter_map do |key|
       WorkUnits::Ownership.active_unit_for_lock_key(key, kinds: landing_lock_kinds)
     end
   end
@@ -127,10 +152,14 @@ module WorkDefinitions
   # Occupancy of every lane on the Job's landing branch, for the reconciler,
   # stuck-Job explainer and admin views: which lanes are held and by which unit.
   def landing_lane_status_for(job, policy: nil)
-    landing_lane_keys_for(job, policy: policy).each_with_index.map do |key, index|
+    configured = landing_lane_count(job&.repository)
+    landing_all_lane_keys_for(job, policy: policy).each_with_index.filter_map do |key, index|
       unit = WorkUnits::Ownership.active_unit_for_lock_key(key, kinds: landing_lock_kinds)
+      next if unit.nil? && index >= configured
+
       {
         lane: index + 1,
+        draining: index >= configured,
         lock_key: key,
         occupied: unit.present?,
         work_unit_id: unit&.id,
@@ -147,8 +176,9 @@ module WorkDefinitions
   # that no unit accounts for (so a single-lane repository behaves exactly as
   # it always has).
   def landing_blocker_job_for(job, policy: nil)
-    lane_count = landing_lane_keys_for(job, policy: policy).size
-    return nil if lane_count.zero?
+    return nil if landing_lane_keys_for(job, policy: policy).empty?
+
+    lane_count = landing_lane_count(job.repository)
 
     units = active_landing_units_for(job, policy: policy)
     unit_job = ->(unit) { unit.member_jobs.order(:id).first || unit.workflow&.job }
