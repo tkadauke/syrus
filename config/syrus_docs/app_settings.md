@@ -376,7 +376,7 @@ Instance-wide storage budget for walkthrough video blobs, measured in megabytes.
 
 **Type:** string · **Default:** nil
 
-The `@handle` of the Syrus Telegram bot (e.g. `syrus_bot`). Setting this marks Telegram as configured; `AppSetting.telegram_configured?` returns true and the Connected Platforms UI shows Telegram as available. Saving a blank handle clears the setting and disables Telegram configuration. The Telegram integration itself (long-poll adapter) is a separate job that registers via `PlatformPollingJob.registry`; this setting is what that job checks in its `configured?` guard.
+The `@handle` of the Syrus Telegram bot (e.g. `syrus_bot`). Setting this marks Telegram as configured; `AppSetting.telegram_configured?` returns true and the Connected Platforms UI shows Telegram as available. Saving a blank handle clears the setting and disables Telegram configuration. The Telegram integration itself (long-poll adapter) lives in the bundled `telegram` plugin, which must be enabled for Telegram to work.
 
 ### discord_bot_token
 

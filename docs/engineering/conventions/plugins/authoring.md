@@ -3764,7 +3764,7 @@ plugin-owned review invocation while preserving the already-recorded repair.
 
 ## Adding a new external messaging platform
 
-**Core platform** (built directly into `app/`, like Telegram):
+**Core platform** (built directly into `app/`; Slack is the only one left, and prefer a plugin for anything new):
 
 1. Create a `PlatformPollingJob` subclass (e.g. `SlackPollingJob`) that implements `configured?` and `poll_once`.
 2. In `poll_once`, call `InboundMessageRouter.new(...).call` for each inbound message.
@@ -3772,7 +3772,7 @@ plugin-owned review invocation while preserving the already-recorded repair.
 4. Add the platform slug to `PlatformIdentity::PLATFORMS`.
 5. Add any required `AppSetting` columns for the bot token/handle.
 
-**Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/`):
+**Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/` or `plugins/telegram/`):
 
 1. Create an adapter class that includes `Syrus::Plugin::PlatformDelivery` and implements `.platform_key` (e.g. `"discord"`), `#deliver(message:, platform_identity:)`, and optionally `.connector_job_class` (a `PlatformPollingJob` subclass for the plugin's inbound listener, if it has one).
 2. Register it from the plugin gem's engine initializer with explicit release posture: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, provides: { platform_delivery: Discord::PlatformAdapter })`.

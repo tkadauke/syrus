@@ -202,7 +202,7 @@ module Factories
   def platform_identity(**attrs)
     PlatformIdentity.create!({
       user: attrs[:user] || user,
-      platform: "telegram",
+      platform: "slack",
       external_id: SecureRandom.random_number(1_000_000_000).to_s,
       external_handle: "@testuser",
       linked_at: Time.current

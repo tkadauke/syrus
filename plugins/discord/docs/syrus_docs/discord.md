@@ -49,8 +49,7 @@ job after the connector's reconnect backoff, which opens a new connection
 -- the same self-healing pattern used for reconnection across worker
 restarts/deploys.
 `PlatformDelivery::Registry.start_connectors!` starts/stops this job in step
-with the plugin's enabled state (unlike core's Telegram adapter, which
-starts unconditionally via `PlatformPollingJob.registry`).
+with the plugin's enabled state (like the Telegram plugin's poller).
 
 For each `MESSAGE_CREATE` dispatch, the job:
 
@@ -72,7 +71,7 @@ via `POST /users/@me/channels` and posts through `POST
 /channels/:id/messages` using bot-token (`Authorization: Bot <token>`) REST
 calls. Long replies are split on the last newline before Discord's 2000
 character message cap (`DISCORD_MAX_CHARS`) rather than truncated, mirroring
-the same chunking `PlatformDelivery::TelegramAdapter` does for Telegram's
+the same chunking `Telegram::PlatformAdapter` does for Telegram's
 4096-character cap. Delivery errors are logged and swallowed — a failed
 Discord DM never fails the chat turn that produced the reply.
 
