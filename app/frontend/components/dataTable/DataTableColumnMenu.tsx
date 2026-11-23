@@ -10,9 +10,8 @@ import { useDragReorder } from "./useDragReorder"
 
 const MOVE_BUTTON_CLASS = "rounded px-1 text-[length:var(--text-caption)] text-text-secondary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
 
-// The reusable column picker: checkbox visibility toggles plus reordering,
-// generalized from ColumnVisibilityMenu to the shared DataTableColumnDef
-// model (sort metadata, responsive classes, required/pinned columns) so new
+// Built on the shared DataTableColumnDef model (sort metadata, responsive classes,
+// required/pinned columns) so new
 // DataTable surfaces don't need a bespoke picker. Required columns never
 // appear here -- they're always visible (see columnOrder#visibleColumns).
 //
