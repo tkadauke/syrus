@@ -48,6 +48,32 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
     expect(orientation).to eq("recovered")
   end
 
+  it "continues the turn when a family provider fails during dispatch", :reset_plugin_registry do
+    Syrus::Plugin::ChatIntegration.restore_definition!
+    bad = Class.new do
+      def self.key = "bad_orientation_family"
+      def self.display_name = "Bad orientation family"
+      def self.turn_orientations(_context) = raise("broken family dispatch")
+    end
+    recovered = provider { "recovered" }
+    good = Class.new do
+      define_singleton_method(:key) { "good_orientation_family" }
+      define_singleton_method(:display_name) { "Good orientation family" }
+      define_singleton_method(:turn_orientations) { |_context| recovered }
+    end
+    stub_const("BadOrientationFamily", bad)
+    stub_const("GoodOrientationFamily", good)
+    [ [ "bad_orientation_family", "BadOrientationFamily" ], [ "good_orientation_family", "GoodOrientationFamily" ] ].each do |name, provider_name|
+      Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+        Syrus::Plugin::FamilyDeclaration.build(
+          family: :chat_integration, provider: provider_name, provisional: %i[turn_orientations]
+        )
+      ])
+    end
+
+    expect(orientation).to eq("recovered")
+  end
+
   it "treats a blank answer as no claim" do
     stub_orientation_providers([ provider { "  " }, provider { "claimed" } ])
 
