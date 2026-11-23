@@ -33,7 +33,7 @@ module ReviewPresentationContributions
     end
   end
 
-  def providers = Syrus::PluginRegistry.providers_for(:review_presentation_contributor)
+  def providers = Syrus::Plugin::ReviewContributions.contributions(:review_presentation_contributors)
 
   def invoke(provider, operation, decline, &block)
     result = Syrus::PluginInvocation.call(

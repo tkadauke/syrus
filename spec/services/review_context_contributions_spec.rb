@@ -11,7 +11,7 @@ RSpec.describe ReviewContextContributions do
     end
   end
 
-  before { allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_context_contributor).and_return([ provider ]) }
+  before { allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_context_contributors).and_return([ provider ]) }
 
   it "separates the safe manifest from restricted exact text and returns an opaque receipt" do
     context = described_class.prepare(target: { type: "synthetic", reference: "7" }, run: nil, evidence: nil, criteria: [])
@@ -22,7 +22,8 @@ RSpec.describe ReviewContextContributions do
   end
 
   it "fails closed when a disabled or unhealthy provider is withheld" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_context_contributor).and_return([])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_context_contributors).and_return([])
     expect { described_class.prepare(target: { type: "synthetic" }, run: nil, evidence: nil, criteria: []) }
       .to raise_error(described_class::Unavailable)
   end

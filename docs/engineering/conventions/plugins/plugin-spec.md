@@ -37,8 +37,10 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `metrics` — Plugin-owned metric declarations.
 - `on_boot` — Idempotent process-level boot callback.
 - `optionally_depends_on` — Optional plugin names.
+- `policy` — Policy-family Job visibility restrictions and repository filters (fail-closed composition).
 - `prepare_priority` — Ordering priority for prepare contributions.
 - `provides` — Extension-point classes, or one family provider with implements/provisional capabilities and an optional key.
+- `review_contributions` — Review-family gates, reviewer targets, review context and presentation, post-implementation review, diff annotation, and adjudicator contributions.
 - `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
@@ -122,7 +124,8 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 
 - `chat_integration` (facet; required core: `key`, `display_name`) — `identity_providers` (provisional, collect, Module, Array<Module>, or nil), `job_status_extensions` (provisional, collect, Module, Array<Module>, or nil), `media_sources` (provisional, collect, Module, Array<Module>, or nil), `mentionables` (provisional, collect, Module, Array<Module>, or nil), `payload_contributors` (provisional, collect, Module, Array<Module>, or nil), `prompt_injectors` (provisional, collect, Module, Array<Module>, or nil), `turn_finalizers` (provisional, collect, Module, Array<Module>, or nil), `turn_lifecycles` (provisional, collect, Module, Array<Module>, or nil), `turn_orientations` (provisional, collect, Module, Array<Module>, or nil), `workspace_lifecycles` (provisional, collect, Module, Array<Module>, or nil)
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
-- `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
+- `policy` (facet; required core: `key`, `display_name`) — `job_visibility_restrictions` (provisional, collect, Module, Array<Module>, or nil), `repository_filters` (provisional, collect, Module, Array<Module>, or nil)
+- `review` (facet; required core: `key`, `display_name`) — `adjudicators` (provisional, collect, Module, Array<Module>, or nil), `diff_review_annotation_providers` (provisional, collect, Module, Array<Module>, or nil), `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer), `post_implementation_review_providers` (provisional, collect, Module, Array<Module>, or nil), `review_context_contributors` (provisional, collect, Module, Array<Module>, or nil), `review_gates` (provisional, collect, Module, Array<Module>, or nil), `review_presentation_contributors` (provisional, collect, Module, Array<Module>, or nil), `reviewer_target_providers` (provisional, collect, Module, Array<Module>, or nil)
 - `surface` (facet; required core: `key`, `display_name`) — `admin_pages` (stable, collect, Module, Array<Module>, or nil), `artifact_renderers` (stable, collect, Module, Array<Module>, or nil), `filter_chips` (stable, collect, Array<FilterChips>), `filter_subjects` (stable, collect, Array<FilterSubject>), `preview_panel_viewers` (provisional, collect, Module, Array<Module>, or nil), `repo_page_tabs` (stable, collect, Module, Array<Module>, or nil), `sidebar_pages` (stable, collect, Module, Array<Module>, or nil), `ui_slots` (stable, collect, Module, Array<Module>, or nil), `workspace_tabs` (stable, collect, Module, Array<Module>, or nil)
 - `toolkit` (facet; required core: `key`, `display_name`) — `chat_tools` (stable, collect, Module or nil), `credential_probes` (stable, collect, Array<ProbeRegistration>), `permissions` (stable, collect, Module or nil), `run_context` (provisional, collect, Hash), `secret_extractors` (stable, collect, Array<secret extractor>), `workflow_tools` (stable, collect, Module or nil)
 
@@ -187,4 +190,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 34833 bytes (UTF-8, including this line).
+Size: 35920 bytes (UTF-8, including this line).

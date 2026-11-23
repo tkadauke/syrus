@@ -27,6 +27,8 @@ module Syrus
       toolkit: "Toolkit-family tools, permission declarations, run context, credential probes, and secret extractors.",
       surface: "Surface-family pages, tabs, slots, artifact and preview renderers, and filter registrations.",
       chat_integration: "ChatIntegration-family payload, prompt, media, lifecycle, identity, status, and mention contributions.",
+      review_contributions: "Review-family gates, reviewer targets, review context and presentation, post-implementation review, diff annotation, and adjudicator contributions.",
+      policy: "Policy-family Job visibility restrictions and repository filters (fail-closed composition).",
       while_enabled: "Reversible installation effects active only while enabled.", metrics: "Plugin-owned metric declarations.",
       always: "Reversible effects retained after a previously enabled plugin is disabled.",
       suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback."
@@ -143,16 +145,21 @@ module Syrus
 
       def family_reference(family)
         capabilities = family.capabilities.values.sort_by(&:name).map do |capability|
-          <<~MD
-            ### `#{capability.name}`
-
-            - Composition: `#{capability.composition}`
-            - Absent result: `#{capability.absent.inspect}`
-            - Provider decline: `#{capability.decline.inspect}`
-            - Tier: `#{capability.tier}`
-            - Context: `#{capability.context.respond_to?(:name) ? capability.context.name : capability.context}`
-            - Return shape: `#{capability.return_contract.description}`
-          MD
+          lines = [
+            "- Composition: `#{capability.composition}`",
+            "- Absent result: `#{capability.absent.inspect}`",
+            "- Provider decline: `#{capability.decline.inspect}`"
+          ]
+          unless capability.failure == capability.decline
+            failure = capability.failure.respond_to?(:call) ? capability.failure.call : capability.failure
+            lines << "- Provider failure (fail-closed): `#{failure.inspect}`"
+          end
+          lines += [
+            "- Tier: `#{capability.tier}`",
+            "- Context: `#{capability.context.respond_to?(:name) ? capability.context.name : capability.context}`",
+            "- Return shape: `#{capability.return_contract.description}`"
+          ]
+          "### `#{capability.name}`\n\n#{lines.join("\n")}\n"
         end.join("\n")
         compatibility_notes = if family.name == :ecosystem
           <<~MD
@@ -269,6 +276,75 @@ module Syrus
             multi-operation interfaces are decomposed. Lifecycle, status, identity,
             and mention capabilities each have only one independent implementation.
             Generated contract examples still cover every bundled declaration.
+          MD
+        elsif family.name == :review
+          <<~MD
+            ## Migration from legacy extension points
+
+            The Review family keeps the `external_reviewer` service capability and
+            also absorbs the review-step extension points: `review_gate`,
+            `reviewer_target_provider`, `review_context_contributor`,
+            `review_presentation_contributor`, `post_implementation_review_provider`,
+            `diff_review_annotation_provider`, and `adjudicator`.
+
+            Before:
+
+            ```ruby
+            provides review_gate: "Acme::ReviewGate",
+                     review_context_contributor: "Acme::ReviewContext"
+            ```
+
+            After:
+
+            ```ruby
+            review_contributions review_gates: "Acme::ReviewGate",
+                                 review_context_contributors: "Acme::ReviewContext"
+            ```
+
+            Review gates are evidence about one exact implementation HEAD and fail
+            closed. Migrating the provider list changed no gate semantics: core
+            still invokes each gate operation through `PluginInvocation`, a
+            provider whose operation fails declines with the same value as before,
+            and the immutable-HEAD barrier, ordering validation, and unique-key
+            validation are untouched.
+
+            Every contribution capability is provisional: the family currently
+            returns the established multi-operation behavior modules while their
+            interfaces are decomposed. No capability has two independent in-tree
+            implementations, and `adjudicators` has no bundled plugin
+            implementation at all.
+          MD
+        elsif family.name == :policy
+          <<~MD
+            ## Migration from legacy extension points
+
+            The Policy family holds authorization-adjacent restrictions:
+            `job_visibility_restriction` and `repository_filter`.
+
+            Before:
+
+            ```ruby
+            provides job_visibility_restriction: "Acme::JobVisibility",
+                     repository_filter: "Acme::RepositoryFilter"
+            ```
+
+            After:
+
+            ```ruby
+            policy job_visibility_restrictions: "Acme::JobVisibility",
+                   repository_filters: "Acme::RepositoryFilter"
+            ```
+
+            Composition is explicit: every restriction applies. Policy is
+            fail-closed, which differs from the usual decline-on-error rule. A
+            provider that raises, times out, trips its circuit breaker, or returns
+            an invalid value contributes `Syrus::Plugin::Policy::FAIL_CLOSED`
+            instead of dropping out, and core callers then show a non-admin user no
+            Jobs or repositories rather than an unrestricted list. An unavailable
+            restriction can never widen visibility.
+
+            Both capabilities are provisional: neither has two independent in-tree
+            implementations.
           MD
         end
         (<<~MD).sub(/\n+\z/, "\n")
