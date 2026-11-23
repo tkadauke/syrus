@@ -22,7 +22,10 @@ module ConnectedAccounts
         settings_notice_i18n_key: values["settings_notice_i18n_key"].presence,
         authorization_kind: values.fetch("authorization_kind", "oauth").to_s,
         system_service_identities: Array(values["system_service_identities"]).map(&:to_s).freeze
-      ).tap(&:validate!)
+      ).tap do |declaration|
+        declaration.validate!
+        SystemInvocation.send(:register_provider!, declaration)
+      end
     end
 
     def validate!
@@ -39,13 +42,13 @@ module ConnectedAccounts
       errors << "authorization_kind must be oauth or token" unless %w[oauth token].include?(authorization_kind)
       invalid_services = system_service_identities.reject { |identity| identity.match?(/\A[a-z][a-z0-9_.:-]*\z/) }
       errors << "system service identities are invalid: #{invalid_services.join(', ')}" if invalid_services.any?
-      if system_service_identities.any? && !capabilities.include?("system_invoke")
-        errors << "system service identities require the system_invoke capability"
-      end
       errors.concat(scope_errors)
       raise ArgumentError, errors.join("; ") if errors.any?
 
       klass = provider.constantize
+      if system_service_identities.any? && !klass.respond_to?(:register_system_access)
+        errors << "#{provider} must implement .register_system_access(identity, binding)"
+      end
       capabilities.each do |capability|
         errors << "#{provider} must implement .#{capability}(context)" unless accepts_context?(klass, capability)
       end
@@ -57,12 +60,6 @@ module ConnectedAccounts
     end
 
     def token_authorization? = authorization_kind == "token"
-
-    def system_service_for(identity)
-      return unless system_service_identities.include?(identity.to_s)
-
-      provider.constantize
-    end
 
     def call(capability, context)
       capability = capability.to_s
