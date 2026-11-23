@@ -66,6 +66,16 @@ module Syrus
       system_alert_provider
     ].freeze
 
+    # Qualified points hosted by the workflow kernel rather than by an
+    # installable plugin. They use the same federated lookup and contribution
+    # lifetime rules as plugin-hosted points without manufacturing a "core"
+    # plugin record in the operator inventory.
+    CORE_HOSTED_EXTENSION_POINTS = Set.new(%w[
+      workflow:judge
+      workflow:post_implementation
+      workflow:post_pr
+    ]).freeze
+
     # Kept with EXTENSION_POINTS so adding a capability also requires explaining
     # when a plugin author should use it. Generated authoring documentation
     # consumes these descriptions directly.
@@ -375,14 +385,15 @@ module Syrus
         health = health_for(plugins, enabled_names: enabled.map(&:name))
         live = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
 
+        core_hosted = CORE_HOSTED_EXTENSION_POINTS.include?(key)
         host = live.find { |manifest| manifest.name == host_name }
-        return [] if host.nil?
+        return [] if host.nil? && !core_hosted
 
         # The host must actually declare the point. Without this any
         # "<plugin>:<anything>" would silently resolve, and the declared
         # surface the boundary audit reasons about would stop meaning
         # anything.
-        return [] unless host.hosted_extension_points.include?(key)
+        return [] unless core_hosted || host.hosted_extension_points.include?(key)
 
         live.flat_map do |manifest|
           Array(manifest.provides[key] || manifest.provides[key.to_sym]).compact.map { |provider| [ manifest.name, provider ] }
@@ -390,7 +401,8 @@ module Syrus
       end
 
       def hosted_extension_points
-        @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
+        CORE_HOSTED_EXTENSION_POINTS |
+          @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
       end
 
       # Plugin-hosted extension points own their contracts. They use this seam

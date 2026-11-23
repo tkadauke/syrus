@@ -55,7 +55,7 @@ host a point other plugins contribute to (`global_search:source`), which is what
 "search should be a plugin" requires. This lands before further extractions,
 because it changes how every plugin registers. Principles 8 and 9, G13.
 
-**Phase 6 designed, not started.** Workflow composition is written up as G12:
+**Phase 6 in progress.** The G12 workflow-composition anchors are built:
 four anchors (`judge`, `post_implementation`, `post_pr`, plus the existing
 fixed tail), with the `judge` contract carrying the weight because a judge is
 half a loop rather than a step. It unblocks `visual_review`, `coverage`, and a
@@ -711,7 +711,7 @@ One mechanism, one badge, one place to look.
 Deferred: version constraints (`depends_on: { "agent_memory" => ">= 2.0" }`).
 Manifests already carry `version`, so this is additive whenever it is wanted.
 
-### G12. Workflow composition — designed, not built
+### G12. Workflow composition — built
 
 Tier 3's shared blocker: a plugin cannot insert a step into a core workflow
 chain. `Workflows::Base.steps_for(job)` builds them, and every optional piece
@@ -792,8 +792,12 @@ attached. G13 supplies the mechanism (disable disposes what was installed); the
 policy on top of it is still a choice — refuse the disable while the plugin
 owns step kinds in a non-terminal workflow is the safest.
 
-Build order: the anchors plus `judge`, with `visual_review` as the proof, then
-`coverage` on `post_implementation` and `review_plan` on `post_pr`.
+Built: the three workflow-hosted anchors, the core-built `judge` loop,
+chain-template round trips, in-flight disable protection, and graceful
+plugin-health failure when a persisted step handler is unavailable. A fixture
+plugin proves all three positions. Follow-on moves remain: `visual_review` as
+the first production judge, then `coverage` on `post_implementation` and
+`review_plan` on `post_pr`.
 `adversarial_review` as a second judge is what shows the anchor is not shaped
 around one caller.
 
