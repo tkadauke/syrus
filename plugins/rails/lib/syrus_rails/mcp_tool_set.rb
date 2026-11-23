@@ -23,7 +23,7 @@ module SyrusRails
           # is research. Essential: evaluated and audited, never deniable.
           essential: true
         }
-        definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
+        definition.merge(capability_descriptor: Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition))
       end
     end
 
@@ -37,8 +37,8 @@ module SyrusRails
     end
 
     def self.workspace_for(server_context)
-      run = SyrusMcp.run_from_context(server_context)
-      WorkflowWorkspace.path_for(run.workflow)
+      run = Syrus::Host::McpTools.run_from_context(server_context)
+      Syrus::Host::WorkflowWorkspace.path_for(run.workflow)
     end
 
     def self.symbolize(params)
