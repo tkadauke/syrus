@@ -13,9 +13,9 @@ module BuildCache
       # times out, or returns anything other than a clean JSON success.
       def capture(env:, chdir:)
         current_run = Thread.current[:syrus_current_run]
-        result = ProcessRunner.new(
+        result = Syrus::Host::ProcessRunner.new(
           env: env, command: [ "sccache", "--show-stats", "--stats-format=json" ],
-          mounts: ProcessRunner.mounts(chdir), network: "grader", timeout: TIMEOUT_SECONDS,
+          mounts: Syrus::Host::ProcessRunner.mounts(chdir), network: "grader", timeout: TIMEOUT_SECONDS,
           kind: "runtime_probe", run: current_run, workflow: current_run&.workflow
         ).capture
         if result.result.timed_out?

@@ -15,8 +15,8 @@ module MysqlDbBrowser
 
     class << self
       def call(server_context:)
-        Mcp::Tools.with_database_connection do
-          context = McpToolContext.from_server_context(server_context)
+        Syrus::Host::McpTools.with_database_connection do
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
           payload = {
             mysql_connections: AgenticAccess.safe_connection_metadata(context: context)
           }

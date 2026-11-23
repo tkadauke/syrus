@@ -4,7 +4,7 @@ module MysqlDbBrowser
 
     def self.sidebar_pages
       return [] unless MysqlDbBrowser.enabled?
-      return [] unless Current.user&.admin?
+      return [] unless Syrus::Host::Current.user&.admin?
 
       [
         {

@@ -22,7 +22,7 @@ module Api
               raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
 
               cluster.save!
-              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user, **requested_scope) if cluster.persisted? && pending_kubeconfig.present?
+              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Syrus::Host::Current.user, **requested_scope) if cluster.persisted? && pending_kubeconfig.present?
               cluster.save!
             end
             render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
@@ -44,7 +44,7 @@ module Api
               credential = K8sCluster::ClusterCredential.credential_for(cluster)
               scope = requested_scope(default_type: credential&.scope_type || "instance", default_id: credential&.scope_id)
               if pending_kubeconfig.present?
-                K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user, **scope)
+                K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Syrus::Host::Current.user, **scope)
               elsif credential && (credential.scope_type != scope[:scope_type] || credential.scope_id != scope[:scope_id])
                 credential.update!(scope)
               end
@@ -181,7 +181,7 @@ module Api
             elsif scope_type == default_type
               default_id
             elsif scope_type == "user"
-              Current.user.id
+              Syrus::Host::Current.user.id
             end
             raise ArgumentError, "credential scope is not manageable by the current user" unless management_authorization.can_manage_scope?(scope_type, scope_id)
 
@@ -189,11 +189,11 @@ module Api
           end
 
           def management_authorization
-            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
+            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Syrus::Host::Current.user)
           end
 
           def admin_context
-            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+            Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: Syrus::Host::Current.user)
           end
 
           def require_k8s_cluster_enabled

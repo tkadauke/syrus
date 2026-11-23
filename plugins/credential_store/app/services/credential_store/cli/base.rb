@@ -2,7 +2,7 @@
 
 module CredentialStore
   module Cli
-    class Base < Syrus::Plugin::CliCommandHandler
+    class Base < Syrus::Host::CliCommandHandler
       private
 
       def payload(user)

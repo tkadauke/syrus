@@ -1,5 +1,5 @@
 module ConnectedAccounts
-  class OauthState < ApplicationRecord
+  class OauthState < Syrus::Host::Record
     self.table_name = "connected_accounts_oauth_states"
     TTL = 10.minutes
     belongs_to :user, class_name: "::User"

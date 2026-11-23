@@ -8,7 +8,7 @@
 # see basedirs_safe_for? for the read side most callers should use instead
 # of finding a row directly.
 module BuildCache
-  class RepositorySettings < ApplicationRecord
+  class RepositorySettings < Syrus::Host::Record
     self.table_name = "build_cache_repository_settings"
 
     belongs_to :repository

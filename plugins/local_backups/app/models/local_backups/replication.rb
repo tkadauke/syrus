@@ -1,5 +1,5 @@
 module LocalBackups
-  class Replication < ApplicationRecord
+  class Replication < Syrus::Host::Record
     self.table_name = "local_backups_replications"
 
     belongs_to :backup, class_name: "LocalBackups::Backup", inverse_of: :replications
