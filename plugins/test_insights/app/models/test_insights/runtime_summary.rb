@@ -118,8 +118,14 @@ module TestInsights
 
       def load_named_grader_duration_rows(result, identity_ids, grader_names)
         identity_ids.product(grader_names).each_slice(RUNTIME_QUERY_BATCH_SIZE).flat_map do |pairs|
+          fast_pairs, legacy_pairs = pairs.partition do |identity_id, grader_name|
+            denormalized_window_eligible?(identity_id, grader_name)
+          end
           select_bounded_duration_rows(
-            pairs.map { |identity_id, grader_name| named_grader_duration_sql(identity_id, grader_name) }.join(" UNION ALL ")
+            [
+              *fast_pairs.map { |identity_id, grader_name| named_grader_duration_sql(identity_id, grader_name) },
+              *legacy_pairs.map { |identity_id, grader_name| legacy_named_grader_duration_sql(identity_id, grader_name) }
+            ].join(" UNION ALL ")
           )
         end
           .each do |identity_id, grader_name, duration_ms, created_at|
@@ -145,6 +151,19 @@ module TestInsights
       end
 
       def named_grader_duration_sql(identity_id, grader_name)
+        scope = bounded_duration_scope(identity_id, named_grader: true)
+          .where(grader_name: grader_name)
+          .select(
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:test_identity_id)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:grader_name)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:duration_ms)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:created_at)}"
+          )
+
+        "SELECT * FROM (#{scope.to_sql}) syrus_runtime_cases"
+      end
+
+      def legacy_named_grader_duration_sql(identity_id, grader_name)
         scope = bounded_duration_scope(identity_id)
           .joins(:test_run)
           .where(test_insight_runs: { grader_name: grader_name })
@@ -158,19 +177,33 @@ module TestInsights
         "SELECT * FROM (#{scope.to_sql}) syrus_runtime_cases"
       end
 
-      def bounded_duration_scope(identity_id)
+      # A partial backfill is safe once the latest possible 100 samples contain
+      # no unfilled rows. Older NULL rows cannot displace that complete window.
+      def denormalized_window_eligible?(identity_id, grader_name)
         TestCase
-          .from("#{TestCase.quoted_table_name}#{test_cases_runtime_index_hint}")
+          .where(test_identity_id: identity_id)
+          .where(grader_name: [ grader_name, nil ])
+          .where.not(duration_ms: nil)
+          .order(created_at: :desc, id: :desc)
+          .limit(WINDOW_SIZE)
+          .pluck(:grader_name)
+          .none?(&:nil?)
+      end
+
+      def bounded_duration_scope(identity_id, named_grader: false)
+        TestCase
+          .from("#{TestCase.quoted_table_name}#{test_cases_runtime_index_hint(named_grader: named_grader)}")
           .where(test_identity_id: identity_id)
           .where.not(duration_ms: nil)
           .order(created_at: :desc, id: :desc)
           .limit(WINDOW_SIZE)
       end
 
-      def test_cases_runtime_index_hint
+      def test_cases_runtime_index_hint(named_grader: false)
         return "" unless connection.adapter_name.match?(/mysql/i)
 
-        " FORCE INDEX (idx_test_cases_identity_created_id)"
+        index = named_grader ? "idx_test_cases_identity_grader_created_id" : "idx_test_cases_identity_created_id"
+        " FORCE INDEX (#{index})"
       end
 
       def percentile(sorted_values, percentile)
