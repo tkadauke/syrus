@@ -140,7 +140,7 @@ RSpec.describe Workflows::CodingHandoff do
           end
         end
 
-        Syrus::PluginRegistry.register(name: "coding_handoff_review_notes", version: "1.0.0", provides: { post_implementation_review_provider: provider })
+        register_contributions(name: "coding_handoff_review_notes", version: "1.0.0", contributes: { post_implementation_review_provider: provider })
 
         workflow = described_class.instantiate(job: job)
 

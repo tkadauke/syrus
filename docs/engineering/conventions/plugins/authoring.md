@@ -195,7 +195,7 @@ generated [`surface` family reference](families/surface.md) for exact contracts.
 ## Per-origin Job visibility
 
 A plugin whose Jobs contain data for only a subset of repository members can
-register a `job_visibility_restriction`. Repository membership remains the
+contribute a `job_visibility_restrictions` capability through the Policy family. Repository membership remains the
 outer access boundary; this provider narrows only Jobs whose `origin` matches
 its `origin_key`.
 
@@ -210,11 +210,8 @@ class PrivateTasks::JobVisibility
   end
 end
 
-Syrus::PluginRegistry.register(
-  name: "private_tasks",
-  version: "1.0.0",
-  provides: { job_visibility_restriction: PrivateTasks::JobVisibility }
-)
+# In the plugin's manifest definition:
+policy job_visibility_restrictions: "PrivateTasks::JobVisibility"
 ```
 
 `visible_origin_ids` may return an array or a one-column relation. Core applies

@@ -108,10 +108,10 @@ RSpec.describe AgentEnvironmentSnapshot do
         def self.review_needed?(job:, trigger_kind:) = trigger_kind == "initial"
         def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
       end
-      Syrus::PluginRegistry.register(
+      register_contributions(
         name: "agent_environment_snapshot_review_notes_provider",
         version: "1.0.0",
-        provides: { post_implementation_review_provider: provider }
+        contributes: { post_implementation_review_provider: provider }
       )
 
       repo = repository(owner: "rome", name: "aqueduct", default_branch: "main")

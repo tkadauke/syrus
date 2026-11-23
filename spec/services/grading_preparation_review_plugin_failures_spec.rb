@@ -62,8 +62,8 @@ RSpec.describe "grading, preparation, and review provider failures" do
       def self.translation_namespaces = raise("provider exploded")
       def self.to_s = "FailureFixtureProvider"
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for)
-      .with(:review_presentation_contributor).and_return([ provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions)
+      .with(:review_presentation_contributors).and_return([ provider ])
 
     result = ReviewPresentationContributions.payload
 

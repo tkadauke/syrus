@@ -49,6 +49,30 @@ RSpec.describe "Plugin family migration architecture" do
     data_policy: DATA_POLICY_POINTS
   }.merge(SERVICE_FAMILIES).freeze
 
+  # The design audit left these standalone; family-migration.md records why each
+  # stays that way. They must stay registered, unmapped, and documented.
+  STANDALONE_POINTS = %i[
+    preview_provider memory_store platform_delivery repository_recommendation
+    workflow_artifact_contributor grader_failure_summarizer grader_input_materializer
+    test_evidence approval_provider
+  ].freeze
+
+  it "keeps every audited standalone point registered and outside every family" do
+    expect(Syrus::PluginRegistry::EXTENSION_POINTS & STANDALONE_POINTS).to match_array(STANDALONE_POINTS)
+    mapped = Syrus::Plugin::Family.all.flat_map { |definition| definition.legacy_mappings.keys }
+    expect(mapped & STANDALONE_POINTS).to be_empty
+  end
+
+  it "records a permanent reason for every standalone point in the migration playbook" do
+    playbook = File.read("docs/engineering/conventions/plugins/family-migration.md")
+    section = playbook[/## Permanently standalone points.*?(?=\n## )/m]
+
+    expect(section).to be_present
+    STANDALONE_POINTS.each do |point|
+      expect(section).to match(/^- \*\*`#{point}`\*\*/), "#{point} has no recorded decision"
+    end
+  end
+
   it "keeps Toolkit's compatibility allowlist explicit" do
     definition = Syrus::Plugin::Family.fetch(:toolkit)
 
@@ -90,7 +114,36 @@ RSpec.describe "Plugin family migration architecture" do
     expect(actual).to eq(CHAT_INTEGRATION_POINTS.index_with { [] })
   end
 
-  { review: REVIEW_POINTS, policy: POLICY_POINTS, lifecycle: LIFECYCLE_POINTS, data_policy: DATA_POLICY_POINTS }.each do |family, points|
+  # Review and Policy finished their migration: the bridge, adapters and legacy
+  # points are gone, so a plugin can only contribute through a family declaration.
+  { review: REVIEW_POINTS, policy: POLICY_POINTS }.each do |family, points|
+    it "marks #{family} as migrated without a legacy bridge" do
+      definition = Syrus::Plugin::Family.fetch(family)
+
+      expect(definition).to be_migrated
+      expect(definition.legacy_mappings).to be_empty
+      expect(Syrus::PluginRegistry::EXTENSION_POINTS & points).to be_empty
+      expect(Syrus::PluginRegistry::EXTENSION_POINT_DESCRIPTIONS.keys & points).to be_empty
+      expect(Syrus::PluginRegistry::INTERFACE_FOR.keys & points).to be_empty
+    end
+
+    it "keeps core off every manifest-scoped read of points removed from #{family}" do
+      pattern = /(?:provides\[\s*[:"]?|providers_for\(\s*:|manifest_providers_for\([^)]*:)(?:#{points.map { |point| Regexp.escape(point.to_s) }.join('|')})\b/
+      violations = Dir["{app,lib}/**/*.rb"].select { |path| File.read(path).match?(pattern) }
+
+      expect(violations).to be_empty
+    end
+
+    it "allows no bundled plugin to register a legacy point removed from #{family}" do
+      registered = Syrus::PluginRegistry.all_plugins.select { |manifest| manifest.plugin_root && !manifest.external }.flat_map do |manifest|
+        (manifest.provides.keys.map(&:to_sym) & points).map { |point| "#{manifest.name}: #{point}" }
+      end
+
+      expect(registered).to be_empty
+    end
+  end
+
+  { lifecycle: LIFECYCLE_POINTS, data_policy: DATA_POLICY_POINTS }.each do |family, points|
     it "keeps #{family}'s compatibility allowlist explicit" do
       definition = Syrus::Plugin::Family.fetch(family)
       expect(definition.legacy_mappings.keys).to contain_exactly(*points)

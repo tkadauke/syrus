@@ -13,15 +13,11 @@ module Syrus
     # provider whose selector fails contributes nothing, exactly as a provider
     # whose `review_gates` operation fails did before.
     module ReviewContributions
-      CAPABILITY_FOR_LEGACY = {
-        review_gate: :review_gates,
-        reviewer_target_provider: :reviewer_target_providers,
-        review_context_contributor: :review_context_contributors,
-        review_presentation_contributor: :review_presentation_contributors,
-        post_implementation_review_provider: :post_implementation_review_providers,
-        diff_review_annotation_provider: :diff_review_annotation_providers,
-        adjudicator: :adjudicators
-      }.freeze
+      CAPABILITIES = %i[
+        review_gates reviewer_target_providers review_context_contributors
+        review_presentation_contributors post_implementation_review_providers
+        diff_review_annotation_providers adjudicators
+      ].freeze
 
       def self.provider(key:, display_name:, **contributions) =
         ContributionProvider.build(key:, display_name:, **contributions)

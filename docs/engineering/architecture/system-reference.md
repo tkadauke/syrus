@@ -1535,7 +1535,6 @@ points declared by plugin hosts (for example `global_search:source` and
 | `:prompt_injector` | Inject repository-specific context into agent prompts |
 | `:chat_prompt_injector` | Inject context into chat session prompts |
 | `:chat_turn_orientation` | Rewrite/orient a specific incoming chat message before provider invocation |
-| `:adjudicator` | Plugin-owned judgment adapters |
 | `:preview_provider` | Configure preview-app startup for the agent preview MCP tools |
 | `:artifact_renderer` | Map typed artifact types to UI renderer kinds |
 | `:coverage_analyzer` | Parse coverage artifacts (lcov, SimpleCov, Cobertura, …) |
@@ -1552,8 +1551,7 @@ points declared by plugin hosts (for example `global_search:source` and
 | `:grade_detector` | Detect framework/language grader commands |
 | `:grader_type` | Register typed grader execution behavior |
 | `:review_criteria_provider` | Add repository-aware review checklist items to adversarial/visual review prompts |
-| `:post_implementation_review_provider` | Request and supply prompt/tool contracts for advisory review-note Steps after implementation or feedback |
-| `:diff_review_annotation_provider` | Add plugin-owned annotations and side-panel content to the Job review diff |
+| Review family (`review_contributions`) | Gates, reviewer targets, review context and presentation, post-implementation review steps, diff-review annotations, and adjudicators; the former per-point extension points are removed |
 | `credential_types` manifest metadata | Declare safe credential type names and descriptions for the bundled credential store |
 | `:autofix_command` | Provide handler-level default formatting commands for a materialized `format` Step when `.syrus.yml` has `formatters: []` |
 | `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |

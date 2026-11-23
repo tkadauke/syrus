@@ -69,7 +69,6 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 
 ## Extension points
 
-- `adjudicator` — Evaluates competing implementation or review evidence and returns a normalized adjudication decision. Implement `Syrus::Plugin::Adjudicator`; interface contract: `lib/syrus/plugin/adjudicator.rb`.
 - `admin_page` — Registers a plugin-owned page in the administrative SPA and its navigation metadata. Implement `Syrus::Plugin::AdminPage`; interface contract: `lib/syrus/plugin/admin_page.rb`.
 - `agent_provider` — Runs implementation and review agents and publishes the models and configuration options the host may offer. Implement `Syrus::Plugin::AgentProvider`; interface contract: `lib/syrus/plugin/agent_provider.rb`.
 - `approval_provider` — Supplies an external approval source that can satisfy host authorization decisions. Implement `Syrus::Plugin::ApprovalProvider`; interface contract: `lib/syrus/plugin/approval_provider.rb`.
@@ -88,21 +87,18 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `chat_turn_lifecycle` — Observes or augments documented lifecycle stages around each interactive chat turn. Implement `Syrus::Plugin::ChatTurnLifecycle`; interface contract: `lib/syrus/plugin/chat_turn_lifecycle.rb`.
 - `chat_turn_orientation` — Supplies the initial orientation material used to frame an interactive chat turn. Implement `Syrus::Plugin::ChatTurnOrientation`; interface contract: `lib/syrus/plugin/chat_turn_orientation.rb`.
 - `chat_workspace_lifecycle` — Prepares and cleans up plugin-owned resources attached to a chat workspace. Implement `Syrus::Plugin::ChatWorkspaceLifecycle`; interface contract: `lib/syrus/plugin/chat_workspace_lifecycle.rb`.
-- `diff_review_annotation_provider` — Produces structured annotations attached to files or lines in a reviewed diff. Implement `Syrus::Plugin::DiffReviewAnnotationProvider`; interface contract: `lib/syrus/plugin/diff_review_annotation_provider.rb`.
 - `domain_subscriber` — Subscribes plugin handlers to documented domain events emitted by the host. Implement `Syrus::Plugin::DomainSubscriber`; interface contract: `lib/syrus/plugin/domain_subscriber.rb`.
 - `execution_backend` — Claims eligible command executions and runs them with provider-specific isolation or remote infrastructure. Implement `Syrus::Plugin::ExecutionBackend`; interface contract: `lib/syrus/plugin/execution_backend.rb`.
 - `grader_failure_summarizer` — Converts provider-specific grader failures into concise normalized explanations. Implement `Syrus::Plugin::GraderFailureSummarizer`; interface contract: `lib/syrus/plugin/grader_failure_summarizer.rb`.
 - `grader_input_materializer` — Materializes additional immutable inputs required by distributed grader execution. Implement `Syrus::Plugin::GraderInputMaterializer`; interface contract: `lib/syrus/plugin/grader_input_materializer.rb`.
 - `input_source` — Polls an external system for new work and converts stable source records into Syrus inputs. Implement `Syrus::Plugin::InputSource`; interface contract: `lib/syrus/plugin/input_source.rb`.
 - `job_origin` — Describes and renders a plugin-owned source from which Jobs may originate. Implement `Syrus::Plugin::JobOrigin`; interface contract: `lib/syrus/plugin/job_origin.rb`.
-- `job_visibility_restriction` — Applies an additional plugin-owned visibility restriction when users query Jobs. Implement `Syrus::Plugin::JobVisibilityRestriction`; interface contract: `lib/syrus/plugin/job_visibility_restriction.rb`.
 - `mcp_run_context_contributor` — Adds bounded plugin-owned context to the MCP sidecar environment for a workflow run. Implement `Syrus::Plugin::McpRunContextContributor`; interface contract: `lib/syrus/plugin/mcp_run_context_contributor.rb`.
 - `mcp_tool_set` — Adds MCP tools available to workflow agents, subject to the host's run context and authorization checks. Implement `Syrus::Plugin::McpToolSet`; interface contract: `lib/syrus/plugin/mcp_tool_set.rb`.
 - `memory_store` — Stores and retrieves durable agent memory through a plugin-owned backend. Implement `Syrus::Plugin::MemoryStore`; interface contract: `lib/syrus/plugin/memory_store.rb`.
 - `mentionable` — Adds a plugin-owned entity that users and agents can address through mentions. Implement `Syrus::Plugin::Mentionable`; interface contract: `lib/syrus/plugin/mentionable.rb`.
 - `permission_provider` — Declares plugin capabilities, resource scopes, presets, authorization adapters, and permission migrations. Implement `Syrus::Plugin::PermissionProvider`; interface contract: `lib/syrus/plugin/permission_provider.rb`.
 - `platform_delivery` — Publishes or deploys built artifacts through a plugin-owned delivery platform. Implement `Syrus::Plugin::PlatformDelivery`; interface contract: `lib/syrus/plugin/platform_delivery.rb`.
-- `post_implementation_review_provider` — Adds a post-implementation review step and its provider-specific invocation policy. Implement `Syrus::Plugin::PostImplementationReviewProvider`; interface contract: `lib/syrus/plugin/post_implementation_review_provider.rb`.
 - `preview_panel_retention` — Decides which plugin-owned preview resources remain available and when they expire. Implement `Syrus::Plugin::PreviewPanelRetention`; interface contract: `lib/syrus/plugin/preview_panel_retention.rb`.
 - `preview_panel_viewer` — Renders a supported content type inside the repository preview panel. Implement `Syrus::Plugin::PreviewPanelViewer`; interface contract: `lib/syrus/plugin/preview_panel_viewer.rb`.
 - `preview_provider` — Starts, inspects, and stops a repository preview using the provider's supported runtime. Implement `Syrus::Plugin::PreviewProvider`; interface contract: `lib/syrus/plugin/preview_provider.rb`.
@@ -111,13 +107,8 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `repo_page_tab` — Registers a plugin-owned tab on repository detail pages, scoped to the current repository and user. Implement `Syrus::Plugin::RepoPageTab`; interface contract: `lib/syrus/plugin/repo_page_tab.rb`.
 - `repository_configuration` — Declares and validates plugin-owned repository configuration read from the supported configuration file. Implement `Syrus::Plugin::RepositoryConfiguration`; interface contract: `lib/syrus/plugin/repository_configuration.rb`.
 - `repository_content_provider` — Resolves immutable repository revisions and reads trees, files, changes, refs, and history from one backend. Implement `Syrus::Plugin::RepositoryContentProvider`; interface contract: `lib/syrus/plugin/repository_content_provider.rb`.
-- `repository_filter` — Applies a plugin-owned repository filter while preserving the host's authorization scope. Implement `Syrus::Plugin::RepositoryFilter`; interface contract: `lib/syrus/plugin/repository_filter.rb`.
 - `repository_recommendation` — Produces evidence-backed plugin recommendations for a repository. Implement `Syrus::Plugin::RepositoryRecommendation`; interface contract: `lib/syrus/plugin/repository_recommendation.rb`.
 - `retention_policy` — Contributes expiry and cleanup policy for a plugin-owned or extensible host record type. Implement `Syrus::Plugin::RetentionPolicy`; interface contract: `lib/syrus/plugin/retention_policy.rb`.
-- `review_context_contributor` — Adds bounded plugin-owned evidence to the context supplied to review agents. Implement `Syrus::Plugin::ReviewContextContributor`; interface contract: `lib/syrus/plugin/review_context_contributor.rb`.
-- `review_gate` — Evaluates plugin-owned evidence to decide whether downstream work may pass a named review gate. Implement `Syrus::Plugin::ReviewGate`; interface contract: `lib/syrus/plugin/review_gate.rb`.
-- `review_presentation_contributor` — Adds plugin-owned sections or metadata to the presentation of review results. Implement `Syrus::Plugin::ReviewPresentationContributor`; interface contract: `lib/syrus/plugin/review_presentation_contributor.rb`.
-- `reviewer_target_provider` — Selects and describes plugin-owned targets that a review provider can evaluate. Implement `Syrus::Plugin::ReviewerTargetProvider`; interface contract: `lib/syrus/plugin/reviewer_target_provider.rb`.
 - `runtime_session_provider` — Creates and manages a long-lived plugin-owned runtime session used by agent work. Implement `Syrus::Plugin::RuntimeSessionProvider`; interface contract: `lib/syrus/plugin/runtime_session_provider.rb`.
 - `sidebar_page` — Registers a plugin-owned application page and its sidebar navigation entry. Implement `Syrus::Plugin::SidebarPage`; interface contract: `lib/syrus/plugin/sidebar_page.rb`.
 - `slug_type` — Defines parsing, lookup, and presentation for a plugin-owned canonical identifier type. Implement `Syrus::Plugin::SlugType`; interface contract: `lib/syrus/plugin/slug_type.rb`.
@@ -212,4 +203,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 39501 bytes (UTF-8, including this line).
+Size: 37376 bytes (UTF-8, including this line).

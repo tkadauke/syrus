@@ -10,14 +10,10 @@ module Syrus
         tier: :provisional,
         context: ExternalReviewContext,
         returns: ExternalReviewer
-      absorbs(*ReviewContributions::CAPABILITY_FOR_LEGACY.keys)
-      ReviewContributions::CAPABILITY_FOR_LEGACY.each_value do |capability_name|
+      migrated
+      ReviewContributions::CAPABILITIES.each do |capability_name|
         capability capability_name, composition: :collect, absent: [], decline: nil, tier: :provisional,
           context: Context::ReviewContributionContext, returns: ContributionProvider::OPTIONAL_PROVIDER
-      end
-      ReviewContributions::CAPABILITY_FOR_LEGACY.each do |legacy_point, capability_name|
-        legacy legacy_point, capability: capability_name,
-          adapter: ContributionProvider::LegacyAdapter.new(capability_name, Context::ReviewContributionContext)
       end
     end
 
@@ -29,17 +25,13 @@ module Syrus
 
     policy_definition = Family.define(:policy, built_in: true) do
       shape :facet
-      absorbs(*Policy::CAPABILITY_FOR_LEGACY.keys)
-      Policy::CAPABILITY_FOR_LEGACY.each_value do |capability_name|
+      migrated
+      Policy::CAPABILITIES.each do |capability_name|
         # A failed restriction must never silently disappear: the failure value
         # is the FAIL_CLOSED marker, so callers deny rather than widen access.
         capability capability_name, composition: :collect, absent: [], decline: nil,
           failure: -> { [ Policy::FAIL_CLOSED ] }, tier: :provisional,
           context: Context::PolicyContext, returns: ContributionProvider::OPTIONAL_PROVIDER
-      end
-      Policy::CAPABILITY_FOR_LEGACY.each do |legacy_point, capability_name|
-        legacy legacy_point, capability: capability_name,
-          adapter: ContributionProvider::LegacyAdapter.new(capability_name, Context::PolicyContext)
       end
     end
     Families.const_set(:Policy, policy_definition)
