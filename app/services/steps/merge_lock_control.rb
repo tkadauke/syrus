@@ -31,8 +31,9 @@ module Steps
     def acquire_merge_lock(context)
       deadline = Time.current + MergeLockControl.merge_lock_wait
       logged = false
+      key = WorkDefinitions.merge_lock_key_for(job)
       loop do
-        lease = MergeLock.try_acquire(workflow: workflow, job: job)
+        lease = MergeLock.try_acquire(workflow: workflow, job: job, step: step, key: key)
         return lease if lease
 
         return nil if Time.current >= deadline

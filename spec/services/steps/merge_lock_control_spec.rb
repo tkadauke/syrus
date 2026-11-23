@@ -19,6 +19,8 @@ RSpec.describe Steps::MergeLockControl do
         @logs = []
       end
 
+      def step = workflow.steps.last
+
       def log(message, **) = @logs << message
 
       def run_locked(on_timeout: -> { :timed_out }, &block)

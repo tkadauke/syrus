@@ -26,15 +26,19 @@ class MergeLock
     end
   end
 
+  DETAIL_KEY = "merge_lock_key".freeze
+
   class << self
     # Returns a Lease when the lock was taken (or none is needed because the
     # workflow has no WorkUnit), or nil when it is held or an earlier waiter is
-    # ahead.
-    def try_acquire(workflow:, job:)
-      key = WorkDefinitions.merge_lock_key_for(job)
+    # ahead. `key` is resolved once by the caller (resolving it reads the
+    # delivery policy) and is recorded on the step so other waiters compare
+    # keys without resolving anything.
+    def try_acquire(workflow:, job:, step: nil, key: WorkDefinitions.merge_lock_key_for(job))
       unit = workflow.work_unit
       return Lease.new(nil, key) if key.nil? || unit.nil?
 
+      register_waiter(step, key)
       existing = unit.work_unit_locks.active.find_by(lock_key: key)
       return Lease.new(existing, key) if existing
       return nil if WorkUnitLock.active.exists?(lock_key: key)
@@ -47,15 +51,22 @@ class MergeLock
 
     private
 
+    def register_waiter(step, key)
+      return if step.nil? || step.inline_details[DETAIL_KEY] == key
+
+      step.update_details_columns!(step.inline_details.merge(DETAIL_KEY => key))
+    end
+
     # Another landing unit on the same branch that is also in a merge step,
     # and started landing before this one.
     def earlier_waiter?(workflow, unit, key)
       mine = order_key(unit)
       Step.where(kind: STEP_KINDS, state: "running").where.not(workflow_id: workflow.id)
-        .includes(workflow: [ :job, :work_unit ]).any? do |other|
+        .includes(workflow: :work_unit).any? do |other|
+          next false unless other.inline_details[DETAIL_KEY] == key
+
           other_unit = other.workflow.work_unit
           next false unless other_unit&.active?
-          next false unless WorkDefinitions.merge_lock_key_for(other.workflow.job) == key
 
           (order_key(other_unit) <=> mine) == -1
         end
