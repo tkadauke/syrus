@@ -16,7 +16,7 @@ module GoogleWorkspace
     default_enabled false
     disableable true
     depends_on [ "connected_accounts", "personal_calendar" ]
-    provides "connected_accounts:provider" => {
+    provides "connected_accounts:provider" => [ {
       provider: "GoogleWorkspace::Provider",
       key: "google_workspace",
       display_name: "Google",
@@ -45,7 +45,7 @@ module GoogleWorkspace
           syrus_capabilities: [ "calendar.read@v1" ]
         }
       ]
-    }
+    } ]
     provides personal_calendar: "GoogleWorkspace::CalendarAdapter", key: :google_workspace,
       provisional: %i[list_events get_event]
     frontend i18n: [ "app/frontend/i18n/locales/*/google_workspace.json" ]
