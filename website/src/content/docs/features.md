@@ -2202,9 +2202,9 @@ own external platform through the `:platform_delivery` plugin extension
 point — once registered and enabled, its platform automatically appears as a
 Connected Platforms option, with no core code change required. Telegram
 (`plugins/telegram/`, enabled automatically for instances that already had a
-bot token) and Discord are such plugins. Discord (`plugins/discord/`, disabled by default): instead of
-long-polling, it holds a persistent, bot-initiated outbound WebSocket
-connection to Discord's Gateway, so linking (a DM `/link <token>` command) and
+bot token) and Discord (`plugins/discord/`, disabled by default) are such plugins.
+Instead of long-polling, Discord holds a persistent, bot-initiated outbound
+WebSocket connection to Discord's Gateway, so linking (a DM `/link <token>` command) and
 message delivery work the same no-inbound-webhook way as Telegram once an
 administrator sets a Discord bot token and enables the plugin.
 
