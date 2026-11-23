@@ -46,6 +46,20 @@ RSpec.describe MoveMainBranchHealthStorageToPlugin, :ci_only do
     reset_columns
   end
 
+  it "refuses to drop the core setting when its value was not copied" do
+    AppSetting.current.update!(main_concern_report_threshold: 7)
+    migration.migrate(:down)
+    reset_columns
+    allow(migration).to receive(:copy_instance_data)
+
+    expect { migration.migrate(:up) }
+      .to raise_error(ActiveRecord::MigrationError, /instance setting copy did not verify/)
+    expect(connection.column_exists?(:app_settings, :main_concern_report_threshold)).to be(true)
+  ensure
+    described_class.new.migrate(:up) if connection.column_exists?(:app_settings, :main_concern_report_threshold)
+    reset_columns
+  end
+
   def reset_columns
     connection.schema_cache.clear!
     Repository.reset_column_information

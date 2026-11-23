@@ -19,6 +19,7 @@ module MainBranchHealth
     disableable false
 
     provides callbacks: "MainBranchHealth::Callbacks",
+             retention_policy: "MainBranchHealth::RetentionPolicy",
              ui_slot: "MainBranchHealth::UiSlots"
 
     frontend bundle: "dist/frontend/plugin.js",

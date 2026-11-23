@@ -11,8 +11,16 @@ module MainBranchHealth
 
     def self.included(base)
       FIELDS.each { |name, (type, default)| base.attribute(name, type, default: default) }
+      base.enum :ci_health, base::CI_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
+      base.enum :grader_health, base::GRADER_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
       base.scope :with_main_branch_health_enabled, -> {
         where(id: MainBranchHealth::RepositoryState.where(main_branch_health_enabled: true).select(:repository_id))
+      }
+      base.scope :with_broken_main_branch, -> {
+        states = MainBranchHealth::RepositoryState
+          .where(main_branch_health_enabled: true)
+          .where("ci_health = :broken OR grader_health = :broken", broken: "broken")
+        where(id: states.select(:repository_id))
       }
       base.scope :with_broken_main_branch_repair, -> {
         states = MainBranchHealth::RepositoryState

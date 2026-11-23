@@ -28,6 +28,14 @@ RSpec.describe MainBranchHealth::RepositoryAccessors do
     expect(repository.reload).to have_attributes(ci_health: "healthy", main_health_poll_error_streak: 2)
   end
 
+  it "finds broken enabled repositories through plugin-owned state" do
+    broken = Factories.repository(main_branch_health_enabled: true, ci_health: "broken")
+    Factories.repository(main_branch_health_enabled: false, ci_health: "broken")
+    Factories.repository(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "healthy")
+
+    expect(Repository.with_broken_main_branch).to contain_exactly(broken)
+  end
+
   it "persists the instance concern threshold outside app_settings" do
     AppSetting.current.update!(main_concern_report_threshold: 4)
 
