@@ -686,6 +686,23 @@ reply from a Review Note creates a regular diff review comment anchored to the
 note range with Review Note provenance attached, so submitting review feedback
 preserves both the human comment and the note that prompted it.
 
+## Review Plan
+
+Repositories can opt in to a lightweight self-review pass with a single
+`.syrus.yml` line:
+
+```yaml
+review_plan: true
+```
+
+Once the PR is open, the same agent that implemented the change looks back
+over its own diff and posts a PR comment pointing reviewers at the specific
+spots most worth a closer look, each anchored at a file and line with a short
+note on why it matters. If nothing stands out, no comment is posted.
+
+Review plan is best-effort: it never blocks or fails a Job. It is provided by
+the Review plan plugin, which can be disabled.
+
 ## Deploy
 
 Repositories can configure a shell command Syrus runs to actually deploy the
