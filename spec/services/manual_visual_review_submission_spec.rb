@@ -9,8 +9,8 @@ RSpec.describe ManualVisualReviewSubmission do
   before { clear_enqueued_jobs }
 
   def stub_visual_review_plan(enabled:)
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
     )
   end
 

@@ -8,8 +8,8 @@ RSpec.describe VisualDiffSubmission do
 
   before do
     clear_enqueued_jobs
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
     )
   end
 
@@ -52,7 +52,7 @@ RSpec.describe VisualDiffSubmission do
     run = step.runs.first ||
       step.runs.create!(job: job, trigger_kind: "visual_diff")
 
-    Steps::VisualDiff.new(run).call
+    SyrusBrowser::VisualDiffStep.new(run).call
   end
 
   def run_for_workflow(workflow)

@@ -282,8 +282,8 @@ module Workflows
     #
     # For those autofix call sites, format/generate/grader Steps are only
     # materialized when the repository's `.syrus.yml` actually configures
-    # them (RepoGradeLoopPlan, read pre-clone the same way
-    # RepoAdversarialReviewPlan/RepoVisualReviewPlan are) — none of the
+    # them (RepoGradeLoopPlan, read pre-clone the same way as the other
+    # repository plans) — none of the
     # three is configured by default, so a freshly onboarded repo with no
     # `.syrus.yml` yet gets a bare agent step with no grade loop at all. As
     # soon as any one of them is configured, the whole grade loop (the agent

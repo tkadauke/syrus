@@ -1,9 +1,9 @@
-import type { TypedArtifact } from "../../../api/artifacts"
-import { ArtifactBody } from "../../../components/artifacts/TypedArtifactPanel"
+import type { TypedArtifact } from "@app/api/artifacts"
+import { ArtifactBody } from "@app/components/artifacts/TypedArtifactPanel"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
-import i18n from "../../../i18n"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
-import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
+import i18n from "@app/i18n"
+import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "@app/routes/chat/pendingActionToolCard"
+import { displayValue, EmptyState, EntityReference, Row } from "@app/routes/chat/toolCardUi"
 
 function comparisonArtifact(context: ToolCardContext): TypedArtifact | null {
   const live = context.livePendingAction as unknown as { outcome?: { comparison?: unknown } } | undefined

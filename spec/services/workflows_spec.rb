@@ -9,9 +9,9 @@ RSpec.describe Workflows do
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_loop_plan)
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_loop_plan)
 
-    visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
-    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+    visual_review_plan = SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
 
     coworker_review_plan = Coworkers::ReviewPlan::Result.new(
       enabled: false, rounds: 0, source: "none", note: "disabled", criteria: [], required: false
@@ -261,8 +261,8 @@ RSpec.describe Workflows do
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_call_original
       allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_call_original
       allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_call_original
-      visual = RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
-      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual)
+      visual = SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(visual)
 
       wf = Workflows::Initial.instantiate(job: job)
 
