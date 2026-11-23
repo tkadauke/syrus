@@ -293,7 +293,6 @@ RSpec.describe McpToolRegistry do
         ]
       )
     end
-
   end
 
   it "has one metadata entry for every chat MCP tool file" do
