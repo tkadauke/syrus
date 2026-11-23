@@ -147,6 +147,16 @@ RSpec.describe Workflows::CompositionAnchors, :reset_plugin_registry do
       .to contain_exactly(/key not found: :fail_policy/)
   end
 
+  it "records an invalid explicit post-PR fail policy without aborting composition" do
+    allow(WorkflowCompositionFixture::PostPr).to receive(:post_pr).and_return(
+      [ { step_kind: "fixture_post_pr", order: 30, enabled_for: ->(_job) { true }, fail_policy: nil } ]
+    )
+
+    expect(described_class.post_pr(job: enabled_job)).to be_empty
+    expect(Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "workflow_composition_fixture" }.validation_errors)
+      .to contain_exactly(/invalid post_pr workflow contribution/)
+  end
+
   it "records callable validation errors without wrapping them as unknown step kinds" do
     allow(WorkflowCompositionFixture::Judge).to receive(:judges).and_return(
       [ { step_kind: "fixture_judge", trigger_kinds: %w[initial], rounds_for: 2 } ]
