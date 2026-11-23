@@ -169,12 +169,12 @@ module Mcp
     end
 
     def self.filter_by_policy(definitions, policy, user: nil, provider: nil)
-      case policy
-      when :evaluator then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
-      else
-        return definitions unless Mcp::ChatToolParity.extension_context?(policy)
+      return definitions.select { |defn| defn[:evaluator] || defn["evaluator"] } if policy == :evaluator
+      return definitions unless Mcp::ChatToolParity.extension_context?(policy)
 
-        definitions.select { |defn| Mcp::ChatToolParity.plugin_definition_in_context?(defn, policy, user: user, provider: provider, participants: Mcp::ChatToolParity.participants(enabled_only: true)) }
+      participants = Mcp::ChatToolParity.participants(enabled_only: true)
+      definitions.select do |defn|
+        Mcp::ChatToolParity.plugin_definition_in_context?(defn, policy, user: user, provider: provider, participants: participants)
       end
     end
 
