@@ -1,6 +1,7 @@
 module Steps
   class AutoMerge < Base
     include AutoMergeControl
+    include MergeLockControl
 
     TRANSIENT_MERGE_ERRORS = [
       Octokit::Conflict,
@@ -40,6 +41,17 @@ module Steps
 
       gate = settle_transient_mergeability(client)
 
+      # Only the final sequence -- base check, merge, record -- is serialized;
+      # waiting for a verdict on mergeability happens outside the lock.
+      with_merge_lock(
+        context: "auto_merge",
+        on_timeout: -> { defer_landing_for_retry!(context: "auto_merge", reason: "merge lock busy") }
+      ) { land(client, gate) }
+    end
+
+    private
+
+    def land(client, gate)
       return if gate.merge_ready? && defer_if_base_moved_since_validation!(client, gate.pr, context: "auto_merge")
 
       persist_github_mergeability(gate.pr)
@@ -95,8 +107,6 @@ module Steps
       end
       log("auto_merge: merged PR ##{job.pr_number}")
     end
-
-    private
 
     # The PR head about to be merged must be backed by a SHA-bound validation
     # manifest with conclusive required results (LandingValidationManifest).

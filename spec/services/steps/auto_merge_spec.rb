@@ -77,6 +77,58 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     expect(job.closure_reason).to eq("pr_merged")
   end
 
+  describe "merge lock" do
+    let(:unit) { attach_work_unit(workflow, state: "running") }
+    let(:key) { "merge:repository:#{repository.id}" }
+
+    before do
+      Steps::MergeLockControl.merge_lock_wait = 0
+      Steps::MergeLockControl.merge_lock_poll = 0
+      job.approve!(via: "github_review")
+      job.start_landing!
+      job.save!
+      unit
+    end
+
+    after do
+      Steps::MergeLockControl.merge_lock_wait = nil
+      Steps::MergeLockControl.merge_lock_poll = nil
+    end
+
+    it "releases the lock after a successful merge" do
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+      allow(client).to receive(:add_issue_comment)
+
+      described_class.new(run).call
+
+      expect(unit.work_unit_locks.where(lock_key: key).count).to eq(1)
+      expect(unit.work_unit_locks.active.where(lock_key: key)).to be_empty
+    end
+
+    it "releases the lock after a failed merge" do
+      allow(client).to receive(:merge_pull_request)
+        .and_raise(octokit_error(Octokit::UnprocessableEntity, status: 422, message: "Validation Failed"))
+
+      expect { described_class.new(run).call }.to raise_error(Steps::Base::StepFailed)
+
+      expect(unit.work_unit_locks.active.where(lock_key: key)).to be_empty
+    end
+
+    it "defers without merging while another landing holds the lock" do
+      other_job = Factories.job(user: user, repository: repository, pr_number: 8, branch_name: "syrus/issue-43-1")
+      other_workflow = Workflows::AutoMerge.instantiate(job: other_job)
+      other_unit = attach_work_unit(other_workflow, state: "running")
+      other_unit.work_unit_locks.create!(lock_key: key)
+      allow(client).to receive(:merge_pull_request)
+
+      described_class.new(run).call
+
+      expect(client).not_to have_received(:merge_pull_request)
+      expect(job.reload).to be_approved
+      expect(unit.work_unit_locks.active.where(lock_key: key)).to be_empty
+    end
+  end
+
   # The gate passed, then several seconds of settling/mirroring/parity work
   # followed before the irreversible merge call, and nothing looked again.
   # Stop Landing (or a Job closure) cancelling the Run in that window still
