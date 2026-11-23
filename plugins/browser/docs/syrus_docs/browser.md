@@ -8,6 +8,13 @@ panel. Navigation is hard-restricted to loopback URLs (see
 `LoopbackGuard`) -- the browser can only drive a session's own in-step
 preview, never an arbitrary network destination. On by default.
 
+Browser owns the visual-review judge, including its workflow step, prompt,
+repository plan, evidence artifacts, and on-demand chat tools. It contributes
+the judge at `workflow:judge`; disabling Browser omits visual-review loops from
+new workflows without making composition fail. Browser remains disableable,
+while the standard plugin guard refuses a disable if a non-terminal workflow
+still contains a Browser-owned step.
+
 ## Service boundary
 
 `@playwright/mcp` is Microsoft's own MCP server for Playwright, and it is

@@ -26,6 +26,8 @@ module SyrusBrowser
     optionally_depends_on [ "plugin_runtime" ]
     frontend i18n: [ "app/frontend/i18n/locales/*/browser.json" ]
     provides artifact_renderers: "SyrusBrowser::ImageDiffRenderer",
+             workflow_kinds: "SyrusBrowser::WorkflowKinds",
+             "workflow:judge" => "SyrusBrowser::WorkflowJudge",
              "plugin_runtime:service" => "SyrusBrowser::RuntimeService"
     runtime_session runtime_session_provider: "SyrusBrowser::RuntimeSessionProvider"
     toolkit workflow_tools: "SyrusBrowser::McpToolSet", chat_tools: "SyrusBrowser::ChatToolSet", permissions: "SyrusBrowser::PermissionProvider"

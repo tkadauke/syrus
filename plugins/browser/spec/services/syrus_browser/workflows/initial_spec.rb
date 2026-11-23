@@ -12,11 +12,11 @@ RSpec.describe Workflows::Initial do
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
       RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
-    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
@@ -106,11 +106,11 @@ RSpec.describe Workflows::Initial do
 
   context "when visual review is enabled" do
     before do
-      allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
-      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
     end
 
@@ -155,11 +155,9 @@ RSpec.describe Workflows::Initial do
     end
   end
 
-  it "uses RepoVisualReviewPlan.for_job with the shared root config so nested project opt-ins can materialize the loop" do
-    loaded = RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "stubbed")
-    allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(loaded)
-    expect(RepoVisualReviewPlan).to receive(:for_job).with(job, loaded: loaded).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: "project .syrus.yml", note: nil)
+  it "lets the browser judge resolve its repository plan so nested project opt-ins can materialize the loop" do
+    expect(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).with(job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: "project .syrus.yml", note: nil)
     )
 
     workflow = described_class.instantiate(job: job)

@@ -4,7 +4,7 @@ import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer 
 import { normalizedToolCardParsedResult } from "../toolRendering"
 import retryJobCard, { examples as retryJobExamples } from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
-import runVisualReviewCard from "./run_visual_review"
+import runVisualReviewCard from "../../../../../plugins/browser/app/frontend/tool_cards/run_visual_review"
 import runVisualDiffCard from "./run_visual_diff"
 import delegateIssueCard from "./delegate_issue"
 import checkJobMergeabilityCard from "./check_job_mergeability"

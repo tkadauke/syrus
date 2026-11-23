@@ -16,6 +16,11 @@ module SyrusBrowser
   # through its own daemon (a third, materially different backend --
   # explicitly out of scope here; see SessionContext).
   class ChatToolSet
+    VISUAL_REVIEW_TOOLS = [
+      Tools::RunVisualReviewTool,
+      Tools::RunVisualDiffTool
+    ].freeze
+
     def self.coworker_excluded? = true
 
     def self.available_for?(chat_session, tier:)
@@ -23,10 +28,19 @@ module SyrusBrowser
     end
 
     def self.tool_definitions(tier:)
-      McpToolSet.tool_definitions
+      definitions = McpToolSet.tool_definitions
+      return definitions if tier && tier.to_sym != :deferred
+
+      definitions + VISUAL_REVIEW_TOOLS.map do |klass|
+        { name: klass.tool_name, description: klass.description_value, input_schema: klass.input_schema_value.to_h }
+      end
     end
 
     def handle(tool_name, params, server_context)
+      if (klass = VISUAL_REVIEW_TOOLS.find { |candidate| candidate.tool_name == tool_name.to_s })
+        return klass.call(**McpToolSet.symbolize(params), server_context: server_context)
+      end
+
       McpToolSet.new.handle(tool_name, params, server_context)
     end
   end

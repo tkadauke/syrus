@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Prompts::VisualReview do
+RSpec.describe SyrusBrowser::Prompts::VisualReview do
   let(:issue) { Struct.new(:title, :body).new("Add a dashboard banner", "Show a banner on the dashboard.") }
   let(:diff) { "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n" }
 

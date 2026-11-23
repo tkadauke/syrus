@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe RepoVisualReviewPlan do
+RSpec.describe SyrusBrowser::RepoVisualReviewPlan do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let(:job) { Factories.job_record(user: user, repository: repository, branch_name: "feature") }

@@ -1,7 +1,7 @@
-module Prompts
+module SyrusBrowser::Prompts
   # GitHub-sourced content trust boundary
   class VisualReview
-    include GithubContentTrust
+    include Syrus::Host::GithubContentTrust
 
     FEEDBACK_KIND_LABELS = {
       chat_feedback: { context: "chat feedback",       history: "Chat feedback being addressed" },
@@ -200,20 +200,20 @@ module Prompts
 
     DiffFileSection = Data.define(:path, :lines) do
       def ui_relevant?
-        path.to_s.match?(Prompts::VisualReview::UI_RELEVANT_PATH) ||
-          path.to_s.match?(Prompts::VisualReview::UI_RELEVANT_EXTENSION)
+        path.to_s.match?(VisualReview::UI_RELEVANT_PATH) ||
+          path.to_s.match?(VisualReview::UI_RELEVANT_EXTENSION)
       end
 
       def excerpt
         kept = lines.select do |line|
           line.start_with?("diff --git ", "@@ ", "+++ ", "--- ") ||
             ui_relevant? ||
-            (line.start_with?("+", "-") && !path.to_s.match?(Prompts::VisualReview::LOW_SIGNAL_EXTENSION))
+            (line.start_with?("+", "-") && !path.to_s.match?(VisualReview::LOW_SIGNAL_EXTENSION))
         end
         return nil if kept.empty?
 
         text = kept.join("\n")
-        text = "#{text.first(Prompts::VisualReview::PER_FILE_EXCERPT_LIMIT)}\n... file excerpt omitted for prompt budget" if text.length > Prompts::VisualReview::PER_FILE_EXCERPT_LIMIT
+        text = "#{text.first(VisualReview::PER_FILE_EXCERPT_LIMIT)}\n... file excerpt omitted for prompt budget" if text.length > VisualReview::PER_FILE_EXCERPT_LIMIT
         text
       end
     end

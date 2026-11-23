@@ -10,7 +10,7 @@
 # workflow instantiation instead of each plan fetching it independently).
 require "tmpdir"
 
-class RepoVisualReviewPlan
+class SyrusBrowser::RepoVisualReviewPlan
   Result = Data.define(:enabled, :rounds, :source, :note) do
     def enabled?
       enabled
@@ -36,12 +36,12 @@ class RepoVisualReviewPlan
   end
 
   def self.instance_default(source:, note:)
-    Result.new(enabled: true, rounds: SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS, source: source, note: note)
+    Result.new(enabled: true, rounds: 1, source: source, note: note)
   end
 
   def self.merge(root_plan, project_plan)
     enabled = root_plan.enabled? || project_plan.enabled?
-    rounds = [ root_plan, project_plan ].select(&:enabled?).map(&:rounds).max || SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS
+    rounds = [ root_plan, project_plan ].select(&:enabled?).map(&:rounds).max || 1
     source = [ root_plan.source, project_plan.source ].compact_blank.uniq.join(", ")
     note = enabled ? nil : root_plan.note || project_plan.note
 
@@ -62,7 +62,7 @@ class RepoVisualReviewPlan
         "checkout", "-f", repository.default_branch, "--", ".",
         chdir: dir
       )
-      graph = TargetGraph::Compiler.compile(Pathname.new(dir))
+      graph = Syrus::Host::TargetGraphCompiler.compile(Pathname.new(dir))
       enabled_project_rounds = graph.projects.values
         .reject(&:root?)
         .select(&:preview)
@@ -81,6 +81,6 @@ class RepoVisualReviewPlan
     enabled = config&.enabled.nil? ? true : config.enabled
     return nil unless enabled
 
-    config&.rounds || SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS
+    config&.rounds || 1
   end
 end

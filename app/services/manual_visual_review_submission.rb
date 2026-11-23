@@ -22,7 +22,7 @@ class ManualVisualReviewSubmission
       return Result.new(workflow: nil, run: nil, error: "Visual review can only be run on implemented or approved Jobs with no active run.")
     end
 
-    unless RepoVisualReviewPlan.for_job(job).enabled?
+    unless visual_review_configured?(job)
       return Result.new(workflow: nil, run: nil, error: "Visual review is not configured for this repository.")
     end
 
@@ -30,5 +30,10 @@ class ManualVisualReviewSubmission
     result = WorkUnits::Launcher.create_and_start!(kind: "manual_visual_review", job: job, artifacts: artifacts)
 
     Result.new(workflow: result.workflow, run: result.run, error: nil)
+  end
+
+  def self.visual_review_configured?(job)
+    Workflows::CompositionAnchors.judges(job:, trigger_kind: "initial", agent_step: "implement")
+      .any? { |loop| loop.steps.last == "visual_review" }
   end
 end
