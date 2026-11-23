@@ -1730,6 +1730,111 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("skipped rspec")
   end
 
+  describe "after an agentic rebase during landing" do
+    let(:agentic_config) do
+      <<~YAML
+        grade:
+          - name: docs-lint
+            run: bin/lint-docs
+            when_files_changed: ["docs/**"]
+          - name: ruby-specs
+            run: bin/rspec
+            when_files_changed: ["app/**"]
+          - name: repo-wide
+            run: bin/smoke
+      YAML
+    end
+
+    def prior_manifest_entry(name)
+      graph = TargetGraph::Compiler.compile(@ws_path)
+      fingerprints = TargetGraph::Fingerprints.for_target(workspace_path: @ws_path, graph: graph, label: TargetGraph::Label.parse("//:grade/#{name}"))
+      {
+        "name" => name,
+        "target_label" => "//:grade/#{name}",
+        "required" => true,
+        "outcome" => GraderOutcome::PASSED,
+        "source" => "ran",
+        "command_fingerprint" => fingerprints.command_fingerprint,
+        "environment_fingerprint" => fingerprints.environment_fingerprint,
+        "has_evidence" => true
+      }
+    end
+
+    # The landing validation the rebase would otherwise discard: green for the
+    # pre-rebase head, recorded by the same fanout fingerprint.
+    def arrange_agentic_rebase(touched_files:, trust: true)
+      write_config(agentic_config)
+      workflow.update!(trigger_kind: "merge_train")
+      job.repository.update!(trust_clean_rebase_grade: trust)
+      stub_changed_files("app/a.rb", "docs/a.md")
+      LandingValidationCache.record!(
+        workflow: workflow, head_sha: "pre123", base_sha: "oldbase", base_ref: "main",
+        grader_fingerprint: current_fingerprint, validation_source: "graders"
+      )
+      workflow.set_artifact!(
+        LandingValidationManifest::ARTIFACT_KEY,
+        { "head_sha" => "pre123", "targets" => %w[docs-lint ruby-specs repo-wide].map { |name| prior_manifest_entry(name) } }
+      )
+      LandingAgenticRebase.record!(
+        workflow: workflow, head_sha: "abc123", base_sha: "base123", base_ref: "main",
+        pre_head_sha: "pre123", touched_files: touched_files
+      )
+    end
+
+    def grader_names = workflow.steps.where(kind: "grader").map { |grader| grader.details["name"] }
+
+    it "carries graders no touched file reaches and re-runs the ones that cover a touched file" do
+      arrange_agentic_rebase(touched_files: [ "docs/a.md" ])
+
+      handler.call
+
+      expect(grader_names).to contain_exactly("docs-lint", "repo-wide")
+      carried = workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)
+      expect(carried).to contain_exactly(
+        include("name" => "ruby-specs", "target_label" => "//:grade/ruby-specs", "reason" => a_string_including("none inside"))
+      )
+      decisions = workflow.artifact(LandingAgenticRebase::DECISIONS_ARTIFACT_KEY)
+      expect(decisions["touched_files"]).to eq([ "docs/a.md" ])
+      expect(decisions["rerun"].map { |entry| entry["name"] }).to contain_exactly("docs-lint", "repo-wide")
+    end
+
+    it "re-runs a repo-wide grader when a touched file falls under no narrower scope" do
+      arrange_agentic_rebase(touched_files: [ "README.md" ])
+
+      handler.call
+
+      expect(grader_names).to eq([ "repo-wide" ])
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY).map { |entry| entry["name"] }).to contain_exactly("docs-lint", "ruby-specs")
+    end
+
+    it "re-validates in full when the repository does not trust clean rebases" do
+      arrange_agentic_rebase(touched_files: [ "docs/a.md" ], trust: false)
+
+      handler.call
+
+      expect(grader_names).to contain_exactly("docs-lint", "ruby-specs", "repo-wide")
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to eq([])
+    end
+
+    it "re-validates in full when the record is for a different head" do
+      arrange_agentic_rebase(touched_files: [ "docs/a.md" ])
+      workflow.set_artifact!(LandingAgenticRebase::ARTIFACT_KEY, workflow.artifact(LandingAgenticRebase::ARTIFACT_KEY).merge("head_sha" => "other"))
+
+      handler.call
+
+      expect(grader_names).to contain_exactly("docs-lint", "ruby-specs", "repo-wide")
+    end
+
+    it "re-validates in full when the prior validation was for a different head than the rebase started from" do
+      arrange_agentic_rebase(touched_files: [ "docs/a.md" ])
+      workflow.set_artifact!(LandingValidationManifest::ARTIFACT_KEY, workflow.artifact(LandingValidationManifest::ARTIFACT_KEY).merge("head_sha" => "stale"))
+
+      handler.call
+
+      expect(grader_names).to contain_exactly("docs-lint", "ruby-specs", "repo-wide")
+    end
+  end
+
   it "reruns everything after a code-changing repair for an ordinary workflow" do
     write_config(<<~YAML)
       grade:

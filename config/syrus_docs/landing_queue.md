@@ -217,6 +217,20 @@ Epic integration branch.
 Carried validation retires the skipped grade loop so later landing steps do not
 wait on work that will never run.
 
+A rebase the agent had to resolve is narrower than a clean one but still cheaper
+than a full re-validation. With `trust_clean_rebase_grade` enabled, Syrus records
+which files the agent's resolution changed compared with the mechanical result of
+the same rebase (solo landings, job bundles and merge trains). The landing grade
+that follows re-runs only the required graders whose scope covers one of those
+files, using the target graph's file-scope selection (`when_files_changed` and
+target dependencies); a grader with no declared scope covers every file, so it
+re-runs. Every other required grader's passing result is carried forward from the
+prior landing validation, and the carry-forward records why each grader was
+carried or re-run. A grader is carried only when the prior validation was for the
+head the rebase started from and recorded a conclusive pass with unchanged command
+and environment fingerprints; anything unproven re-runs. Without
+`trust_clean_rebase_grade`, an agent-resolved rebase re-validates in full.
+
 Grade carry-forward records fresh validation evidence for the post-rebase head,
 tree, base, grader plan, and changed files. It only carries forward from a real
 successful required-grader validation, not another carried result. With
