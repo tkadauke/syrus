@@ -17,12 +17,12 @@ module Mockups
     category "agent_capability"
     default_enabled true
     disableable true
-    provides chat_mcp_tool_set: "Mockups::ChatToolSet",
-             chat_media_source: "Mockups::MediaSource",
+    provides chat_media_source: "Mockups::MediaSource",
              chat_payload_contributor: "Mockups::PayloadContributor",
              chat_prompt_injector: "Mockups::PromptSection",
              preview_panel_retention: "Mockups::PreviewPanelRetention",
              sidebar_page: "Mockups::SidebarPages"
+    toolkit chat_tools: "Mockups::ChatToolSet"
 
     # Mockups index core panels, so an entry outlives the plugin being disabled
     # but not the panel or chat it points at.

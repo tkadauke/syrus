@@ -508,8 +508,13 @@ module Syrus
         mapping = definition.legacy_mappings.values.find { |entry| entry.capability == capability }
         return family_providers unless mapping
 
-        legacy_providers = providers_for(mapping.extension_point).filter_map do |provider|
-          next if provider.is_a?(Syrus::Plugin::LegacyBridge::Provider)
+        # Reuse the already enablement/health-filtered snapshot. Calling
+        # providers_for here would repeat the database and health reads on
+        # every hot-path family dispatch and would also hand family providers
+        # back through the reverse bridge.
+        legacy = plugins.flat_map { |manifest| Array(manifest.provides[mapping.extension_point]) }
+        legacy.concat(direct_providers_for(mapping.extension_point))
+        legacy_providers = legacy.map do |provider|
           key = mapping.adapter.key(provider) if mapping.adapter.respond_to?(:key)
           Syrus::Plugin::LegacyBridge::LegacyCapabilityProvider.new(
             provider:, adapter: mapping.adapter, capability:, key:

@@ -23,13 +23,11 @@ module AgentInsights
     end
 
     provides workflow_kinds: "AgentInsights::WorkflowKinds",
-             permission_provider: "AgentInsights::PermissionProvider",
              domain_subscriber: "AgentInsights::Subscribers",
              repo_page_tab: "AgentInsights::RepoPageTabs",
              admin_page: "AgentInsights::AdminPages",
-             mcp_tool_set: "AgentInsights::McpToolSet",
-             chat_mcp_tool_set: "AgentInsights::ChatToolSet",
              slug_type: "AgentInsights::SlugType"
+    toolkit workflow_tools: "AgentInsights::McpToolSet", chat_tools: "AgentInsights::ChatToolSet", permissions: "AgentInsights::PermissionProvider"
     route :get, "/api/v1/app/repositories/:repository_id/insight_suggestions", to: "api/v1/app/insight_suggestions#index"
     route :get, "/api/v1/app/insight_suggestions/:id/preview", to: "api/v1/app/insight_suggestions#preview"
     route :get, "/api/v1/app/insight_suggestions/:id", to: "api/v1/app/insight_suggestions#show"

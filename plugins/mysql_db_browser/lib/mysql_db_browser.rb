@@ -25,10 +25,8 @@ module MysqlDbBrowser
     credential_types [
       { name: "mysql_db_browser.connection", label: "MySQL DB Browser connection", description: "Password or DSN secret material for an external MySQL DB Browser connection." }
     ]
-    provides sidebar_page: "MysqlDbBrowser::SidebarPages",
-             mcp_tool_set: "MysqlDbBrowser::WorkflowToolSet",
-             chat_mcp_tool_set: "MysqlDbBrowser::ChatToolSet",
-             permission_provider: "MysqlDbBrowser::PermissionProvider"
+    provides sidebar_page: "MysqlDbBrowser::SidebarPages"
+    toolkit workflow_tools: "MysqlDbBrowser::WorkflowToolSet", chat_tools: "MysqlDbBrowser::ChatToolSet", permissions: "MysqlDbBrowser::PermissionProvider"
     route :get, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#index"
     route :get, "/api/v1/app/admin/mysql_connections/credential_scope_options", to: "api/v1/app/admin/mysql_connections#credential_scope_options"
     route :post, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#create"

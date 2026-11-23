@@ -21,7 +21,7 @@ module Permissions
     end
 
     def self.resource_scopes
-      Syrus::PluginRegistry.providers_for(:permission_provider).each_with_object({}) do |provider, schemas|
+      Syrus::Plugin::Toolkit.permission_providers.each_with_object({}) do |provider, schemas|
         invoke(provider, :permission_resource_scopes, {}) { provider.permission_resource_scopes }.each do |type, schema|
           existing = schemas[type]
           if existing && !existing.equal?(schema)
@@ -33,7 +33,7 @@ module Permissions
     end
 
     def self.presets
-      Syrus::PluginRegistry.providers_for(:permission_provider).each_with_object({}) do |provider, presets|
+      Syrus::Plugin::Toolkit.permission_providers.each_with_object({}) do |provider, presets|
         invoke(provider, :permission_presets, {}) { provider.permission_presets }.each do |name, preset|
           raise ArgumentError, "permission preset #{name.inspect} is registered by more than one provider" if presets.key?(name)
 
@@ -93,7 +93,7 @@ module Permissions
     end
 
     def self.permission_provider_descriptors
-      Syrus::PluginRegistry.providers_for(:permission_provider)
+      Syrus::Plugin::Toolkit.permission_providers
         .flat_map do |provider|
           invoke(provider, :permission_capability_descriptors, []) { provider.permission_capability_descriptors }
         end
@@ -102,7 +102,7 @@ module Permissions
 
     def self.plugin_tool_descriptors
       %i[mcp_tool_set chat_mcp_tool_set].flat_map do |extension_point|
-        Syrus::PluginRegistry.providers_for(extension_point).flat_map do |provider|
+        (extension_point == :mcp_tool_set ? Syrus::Plugin::Toolkit.workflow_tool_sets : Syrus::Plugin::Toolkit.chat_tool_sets).flat_map do |provider|
           invoke(provider, :tool_definitions, [], extension_point:) { Syrus::PluginRegistry.all_tool_definitions(provider) }.filter_map do |definition|
             definition = definition.symbolize_keys
             next unless definition[:capability_descriptor]

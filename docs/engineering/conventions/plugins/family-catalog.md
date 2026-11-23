@@ -96,3 +96,47 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
 | - | - | - | - | - |
+
+## `toolkit`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `chat_tools` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ToolkitDiscoveryContext` | `Module or nil` |
+| `credential_probes` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::ToolkitCredentialContext` | `Array<ProbeRegistration>` |
+| `permissions` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ToolkitDiscoveryContext` | `Module or nil` |
+| `run_context` | `collect` | `[]` | `{}` | `provisional` | `Syrus::Plugin::Context::ToolkitRunContext` | `Hash` |
+| `secret_extractors` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::ToolkitCredentialContext` | `Array<secret extractor>` |
+| `workflow_tools` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ToolkitDiscoveryContext` | `Module or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `admin_mysql` | `AdminMysql::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `agent_insights` | `AgentInsights::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `agent_memory` | `AgentMemory::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `agy_agent` | `SyrusAgyAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `browser` | `SyrusBrowser::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `claude_agent` | `SyrusClaudeAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `codex_agent` | `SyrusCodexAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `cognitive_review` | `CognitiveReview::Toolkit` | - | `workflow_tools`, `permissions` | - |
+| `connected_accounts` | `ConnectedAccounts::Toolkit` | - | `permissions` | - |
+| `coworkers` | `Coworkers::Toolkit` | - | `workflow_tools`, `chat_tools` | `run_context` |
+| `credential_store` | `CredentialStore::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `design_docs` | `DesignDocs::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `k8s_cluster` | `K8sCluster::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `mockups` | `Mockups::Toolkit` | - | `chat_tools` | - |
+| `muse_agent` | `SyrusMuseAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `mysql_db_browser` | `MysqlDbBrowser::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `operator_briefing` | `OperatorBriefing::Toolkit` | - | `workflow_tools`, `permissions` | - |
+| `scheduled_tasks` | `ScheduledTasks::Toolkit` | - | `chat_tools`, `permissions` | - |
+| `sdlc_pipeline` | `SdlcPipeline::Toolkit` | - | `chat_tools` | - |
+| `spending_insights` | `SpendingInsights::Toolkit` | - | `chat_tools` | - |
+| `syrus-rails` | `SyrusRails::Toolkit` | - | `workflow_tools` | - |
+| `syrus_dev` | `SyrusDev::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `test_insights` | `TestInsights::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `theming_tools` | `ThemingTools::Toolkit` | - | `chat_tools` | - |
+| `video_walkthroughs` | `VideoWalkthroughs::Toolkit` | - | `chat_tools`, `credential_probes` | - |
+| `whiteboard` | `Whiteboard::Toolkit` | - | `chat_tools` | - |
