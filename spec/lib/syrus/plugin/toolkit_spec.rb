@@ -136,4 +136,38 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
   ensure
     Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new
   end
+
+  it "isolates broken family ownership probes from unrelated plugin invocations" do
+    broken_family_provider = Class.new do
+      def self.key = "broken"
+      def self.display_name = "Broken"
+      def self.permissions(_context) = nil
+      def self.owns_implementation?(_candidate) = raise(LoadError, "broken ownership probe")
+    end
+    healthy_provider = Class.new do
+      include Syrus::Plugin::Callbacks
+    end
+    stub_const("ToolkitBrokenOwnershipProvider", broken_family_provider)
+    stub_const("ToolkitHealthyCallbackProvider", healthy_provider)
+    Syrus::PluginRegistry.register(
+      name: "broken_ownership", version: "1", provides: {},
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :toolkit, provider: "ToolkitBrokenOwnershipProvider", implements: %i[permissions]
+      ) ]
+    )
+    Syrus::PluginRegistry.register(
+      name: "healthy_callbacks", version: "1", provides: { callbacks: healthy_provider }
+    )
+    health = Syrus::PluginRuntimeHealth.new
+    Syrus::PluginInvocation.runtime_health = health
+
+    result = Syrus::PluginInvocation.call(
+      extension_point: :callbacks, provider: healthy_provider, operation: :healthy, on_decline: nil
+    ) { :invoked }
+
+    expect(result).to eq(:invoked)
+    expect(health.failures).to be_empty
+  ensure
+    Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new
+  end
 end
