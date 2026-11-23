@@ -570,13 +570,19 @@ module Syrus
 
       def plugin_name_for(provider)
         provider_class = provider.is_a?(Class) ? provider : provider.class
-        @mutex.synchronize do
-          @plugins.find do |manifest|
-            manifest.provides.values.any? do |providers|
-              Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider_class }
-            end || manifest.family_provides.any? { |declaration| declaration.provider == provider_class.name }
-          end&.name
-        end
+        plugins = @mutex.synchronize { @plugins.dup }
+        plugins.find do |manifest|
+          manifest.provides.values.any? do |providers|
+            Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider_class }
+          end || manifest.family_provides.any? do |declaration|
+            next true if declaration.provider == provider_class.name
+
+            family_provider = Object.const_get(declaration.provider)
+            family_provider.respond_to?(:owns_implementation?) && family_provider.owns_implementation?(provider)
+          rescue NameError
+            false
+          end
+        end&.name
       end
 
       # Returns every definition a tool set can advertise, independent of a
