@@ -6,7 +6,7 @@ module AgentInsights
       private
 
       def mutation_context(server_context)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         chat_session = server_context[:chat_session]
         owner = context.user
         audit_actor = context.run || context.user
@@ -22,14 +22,14 @@ module AgentInsights
 
       def execute_or_confirm(mutation:, ids:, chat_session:, server_context:, action:, payload:, message:)
         validation = mutation.validate
-        return Mcp::Tools.invalid(validation.message) unless validation.ok?
+        return Syrus::Host::McpTools.invalid(validation.message) unless validation.ok?
 
         if ids.size == 1
           result = mutation.apply!
           return mutation_response(result)
         end
 
-        return Mcp::Tools.invalid("bulk insight mutations require a chat session") unless chat_session
+        return Syrus::Host::McpTools.invalid("bulk insight mutations require a chat session") unless chat_session
 
         group = create_pending_action_group!(
           server_context: server_context,
@@ -46,11 +46,11 @@ module AgentInsights
           extra: { insight_ids: ids, proposal_types: validation.suggestions.to_h { |item| [ item.id, item.effective_proposal_type ] }, intended_transition: action }
         )
       rescue ArgumentError => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
 
       def mutation_response(result)
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           message: result.message,
           insight_ids: result.suggestions.map(&:id),
           states: result.suggestions.to_h { |item| [ item.id, item.state ] },

@@ -4,8 +4,8 @@ class ClaudeInvocation
   def initialize(workspace_path, prompt:, oauth_token:,
                  log_sink: ->(_) { },
                  runner: nil,
-                 timeout: AgentInvocation::DEFAULT_TIMEOUT_SECONDS,
-                 max_turns: AgentInvocation::DEFAULT_MAX_TURNS,
+                 timeout: Syrus::Host::AgentRuntime.default_timeout_seconds,
+                 max_turns: Syrus::Host::AgentRuntime.default_max_turns,
                  mcp_config: nil,
                  image_paths: nil,
                  file_paths: nil,
@@ -107,7 +107,7 @@ class ClaudeInvocation
              "--verbose",
              "--dangerously-skip-permissions" ]
     # 0 (or nil) means "no cap" — omit --max-turns entirely. The
-    # process timeout (AgentInvocation::DEFAULT_TIMEOUT_SECONDS) still bounds runaway
+    # process timeout (Syrus::Host::AgentRuntime.default_timeout_seconds) still bounds runaway
     # loops, so we're not unbounded on wall time even uncapped.
     cmd += [ "--max-turns", max_turns.to_s ] if max_turns && max_turns.positive?
     cmd += [ "--effort", effort_level ] if effort_level.present? && effort_level != "none"
@@ -123,14 +123,14 @@ class ClaudeInvocation
     current_agent =
       Thread.current[:syrus_current_agent] ||
       (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
-    runner_result = ProcessRunner.new(
+    runner_result = Syrus::Host::ProcessRunner.new(
       env: env,
       command: cmd,
       stdin_data: prompt,
-      mounts: ProcessRunner.agent_mounts(workspace_path, env.fetch("HOME")),
+      mounts: Syrus::Host::ProcessRunner.agent_mounts(workspace_path, env.fetch("HOME")),
       network: "agent",
       timeout: timeout,
-      silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+      silent_timeout: Syrus::Host::AgentRuntime.silent_timeout_seconds,
       kind: "agent",
       run: current_run,
       workflow: current_run&.workflow,
@@ -139,8 +139,8 @@ class ClaudeInvocation
       stop_requested: -> { mcp_server_failed || stop_requested.call },
       on_spawned_process: process_started,
       workload_policy: workload_policy,
-      max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
-      on_output_line_too_long: AgentInvocation.oversized_event_handler("Claude"),
+      max_output_line_bytes: Syrus::Host::AgentRuntime.max_event_bytes,
+      on_output_line_too_long: Syrus::Host::AgentRuntime.oversized_event_handler("Claude"),
       on_output_line: ->(line) do
         update = process_event(line, log_sink)
         if update
@@ -174,7 +174,7 @@ class ClaudeInvocation
     provider_succeeded = metadata[:outcome].present? && !metadata[:is_error]
     cleanup_timeout    = provider_succeeded && (runner_result.timed_out || runner_result.silent_timed_out)
 
-    AgentInvocation::Result.new(
+    Syrus::Host::InvocationResult.new(
       turns: metadata[:turns],
       exit_status: cleanup_timeout ? 0 : runner_result.exit_status,
       timed_out: !cleanup_timeout && (runner_result.timed_out || runner_result.silent_timed_out),
@@ -253,8 +253,8 @@ class ClaudeInvocation
   end
 
   def agent_env(oauth_token:, workspace_path:)
-    forwarded = ProcessRunner.forwarded_env(
-      AgentInvocation::ENV_FORWARD,
+    forwarded = Syrus::Host::ProcessRunner.forwarded_env(
+      Syrus::Host::AgentRuntime.forwarded_env_keys,
       extra: WorkspaceDependencyEnv.for(workspace_path).merge("CLAUDE_CODE_OAUTH_TOKEN" => oauth_token)
     )
     # If the worktree itself is a Bundler project (its own Gemfile),

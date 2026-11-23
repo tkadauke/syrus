@@ -1,5 +1,5 @@
 module AgentInsights
-  class AuditEvent < ApplicationRecord
+  class AuditEvent < Syrus::Host::Record
     self.table_name = "agent_insight_audit_events"
 
     EVENT_TYPES = %w[ updated dismissed retired ].freeze

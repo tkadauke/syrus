@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(55)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(55)
+    expect(Syrus::Host.apis.size).to eq(56)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(56)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -46,6 +46,31 @@ RSpec.describe Syrus::Host::PublicApis do
     names.each { |name| expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name }
     expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::GraderResourceRequest" }.members).to include("ALL")
     expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::McpTools" }.members).to include("run_from_context")
+  end
+
+  it "reads agent-runtime defaults from core without exposing the invocation engine" do
+    runtime = Syrus::Host::AgentRuntime
+
+    expect(runtime.default_timeout_seconds).to eq(AgentInvocation::DEFAULT_TIMEOUT_SECONDS)
+    expect(runtime.silent_timeout_seconds).to eq(AgentInvocation::SILENT_TIMEOUT_SECONDS)
+    expect(runtime.default_max_turns).to eq(AgentInvocation::DEFAULT_MAX_TURNS)
+    expect(runtime.max_event_bytes).to eq(AgentInvocation::MAX_EVENT_BYTES)
+    expect(runtime.forwarded_env_keys).to equal(AgentInvocation::ENV_FORWARD)
+    expect { runtime.oversized_event_handler("Test").call(10) }.not_to raise_error
+    expect(Syrus::Host::InvocationResult).to equal(AgentInvocation::Result)
+    expect(Syrus::Host.public?("Syrus::Host::AgentRuntime")).to be(true)
+  end
+
+  it "backs every member of the agent-provider facades the agent plugins use" do
+    {
+      AgentRuntime: Syrus::Host::AgentRuntime, ProcessRunner: ProcessRunner, PerformanceLogging: PerformanceLogging,
+      WorkflowWorkspace: WorkflowWorkspace, McpTools: Mcp::Tools, ToolContext: McpToolContext, Record: ApplicationRecord
+    }.each do |name, target|
+      api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
+      members = api.members.reject { |member| member.match?(/\A[A-Z]/) }
+      singleton_members = members.select { |member| target.respond_to?(member) }
+      expect(singleton_members).to include(*(%w[agent_mounts report_duration data_root agent_home_for utf8 write_log from_server_context transaction default_timeout_seconds] & members)), name.to_s
+    end
   end
 
   it "queues chat title generation without exposing the job to plugins" do

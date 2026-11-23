@@ -3,6 +3,7 @@ require "syrus/host/backup_artifact_source"
 require "syrus/host/backup_destination"
 require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
+require "syrus/host/agent_runtime"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
 require "syrus/host/external_reviewer"
@@ -80,17 +81,17 @@ module Syrus
         ExternalReviewResult: [ "Normalizes external-review outcomes and provider response data; persistence, retry scheduling, and publication policy are not promised.", %w[new accepted completed declined retryable_failure terminal_failure outcome external_id idempotency_key retry_after artifacts feedback verdict publication metadata retryable? terminal?] ],
         ExternalReviewArtifact: [ "Describes a typed external-review artifact without transferring artifact-storage ownership to providers.", %w[new kind name content_type location metadata] ],
         InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
-        ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive] ],
+        ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive from_server_context] ],
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],
-        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many] ],
+        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many transaction] ],
         BackgroundJob: [ "Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised.", %w[queue_as operational_log_context] ],
-        McpTools: [ "Provides database-connection and MCP response helpers; core tool implementations are not promised.", %w[with_database_connection success invalid run_from_context] ],
+        McpTools: [ "Provides database-connection and MCP response helpers; core tool implementations are not promised.", %w[with_database_connection success invalid run_from_context utf8 write_log] ],
         AdminController: [ "Bases admin-token plugin API controllers; core filters and implementation details are not promised.", %w[params render] ],
         AppController: [ "Bases authenticated plugin application API controllers; core filters are not promised.", %w[params render] ],
         AppAdminController: [ "Bases authenticated plugin admin API controllers; core filters are not promised.", %w[params render] ],
-        ProcessRunner: [ "Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised.", %w[new run capture start mounts forwarded_env] ],
+        ProcessRunner: [ "Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised.", %w[new run capture start mounts agent_mounts forwarded_env] ],
         OperationalLogging: [ "Emits structured plugin diagnostic events; subscribers and storage are not promised.", %w[ingest] ],
-        PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
+        PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase report_duration] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram] ],
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for capability_providers providers_with_owner_for extension_point?] ],
         PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
@@ -107,7 +108,7 @@ module Syrus
         TestRunResult: [ "Carries one parsed test-suite run returned by a test-result parser; the XML parser that produces it is not promised.", %w[new] ],
         TestCaseResult: [ "Carries one parsed test case inside a TestRunResult; the XML parser that produces it is not promised.", %w[new] ],
         CoverageParseResult: [ "Carries a parsed coverage report (raw data and line percentage) returned by a coverage analyzer; the report parsers are not promised.", %w[new raw lines_pct] ],
-        WorkflowWorkspace: [ "Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised.", %w[new path_for base_ref] ],
+        WorkflowWorkspace: [ "Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised.", %w[new path_for base_ref data_root agent_home_for] ],
         GitRunner: [ "Runs git inside a workflow workspace and reports failures as GitError; command construction and logging are not promised.", %w[new run GitError] ],
         CapabilityDescriptor: [ "Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised.", %w[for_plugin_definition] ]
       }.freeze
@@ -124,6 +125,7 @@ module Syrus
       SERVICE_CONTRACTS = {
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
+        AgentRuntime: [ "Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler] ],
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 

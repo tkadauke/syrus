@@ -1,10 +1,10 @@
 module AgentActivity
   class AdminPages
-    include Syrus::Plugin::AdminPage
+    include Syrus::Host::AdminPage
 
     def self.admin_pages
       return [] unless AgentActivity.enabled?
-      return [] unless Current.user&.admin?
+      return [] unless Syrus::Host::Current.user&.admin?
 
       [
         {
