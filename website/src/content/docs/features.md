@@ -2191,8 +2191,18 @@ any time.
 
 Platform buttons show as **Not yet available** when the instance administrator
 has not yet configured that platform integration. Administrators set each
-platform's bot token in the admin settings page (Telegram and Discord each
-have their own section there). Every configured platform's connector job
+platform's bot token as an instance-owned connected account on **Admin →
+Connected accounts** (provider "Telegram bot" or "Discord bot"; the Telegram
+and Discord sections of the admin settings page link there). The token is
+validated with the platform before it is stored, kept encrypted, never shown
+again, and used only while a call is in flight (Discord's Gateway connection
+holds it in memory for the life of the connection). To rotate a token, paste
+the new one on the same page; the Discord Gateway reconnects with it and
+Telegram's next poll uses it. Disconnecting the account stops that platform's
+connector. Bot tokens are not OAuth, so Syrus cannot revoke them at the
+platform: reset the token in the Discord developer portal or with @BotFather
+when it should stop working. Instances that had a token configured as an
+application setting have it carried over automatically on upgrade. Every configured platform's connector job
 (`Telegram::PollUpdatesJob`, `Discord::GatewayConnectionJob`, etc.) can be
 started from its own section's **Start polling** button, or it starts
 automatically on application boot when `SYRUS_ROLE` is set. Under the hood
@@ -2223,7 +2233,7 @@ bot token) and Discord (`plugins/discord/`, disabled by default) are such plugin
 Instead of long-polling, Discord holds a persistent, bot-initiated outbound
 WebSocket connection to Discord's Gateway, so linking (a DM `/link <token>` command) and
 message delivery work the same no-inbound-webhook way as Telegram once an
-administrator sets a Discord bot token and enables the plugin.
+administrator connects a Discord bot token and enables the plugin.
 
 **Starting the polling worker** — Platform polling workers self-reschedule
 after each poll cycle. On application boot, registered workers are started

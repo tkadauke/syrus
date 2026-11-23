@@ -847,6 +847,21 @@ is a separate administrator opt-in and defaults off. Coworker access also
 requires the default-off **Coworker connected accounts** feature after the
 listed coworker isolation and permission prerequisites are satisfied.
 
+Administrators also keep instance-level credentials as instance-owned accounts.
+The Telegram and Discord plugins use this for their bot tokens: connect a
+"Telegram bot" or "Discord bot" account under **Admin > Connected accounts** by
+pasting the token. Syrus checks it with the platform, stores it encrypted, and
+never shows it again. Instance-owned accounts are visible only to
+administrators and are used only by those plugins' delivery and polling
+services, never by agents or users. To rotate a token, paste the new one for the
+same provider; the Discord Gateway reconnects with it and Telegram's next poll
+uses it. Disconnecting stops the connector. These bot tokens are not OAuth
+credentials, so reset them at the platform (Discord developer portal,
+@BotFather) when they should stop working everywhere. Tokens previously stored
+in the Telegram or Discord admin settings are carried over automatically after
+upgrade, verified, and then erased from the old setting; if the copy fails,
+the old value keeps working until it succeeds.
+
 The bundled, experimental Google Workspace provider is disabled by default.
 Each instance registers its own Google OAuth web client, then saves its client
 id and encrypted secret under **Admin > Connected accounts**. Syrus pins the

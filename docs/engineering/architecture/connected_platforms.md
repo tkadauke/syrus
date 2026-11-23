@@ -18,14 +18,18 @@ The account settings UI calls:
 
 Telegram is provided by the `telegram` plugin (`plugins/telegram/`) through
 the `:platform_delivery` extension point; it appears once the plugin is
-enabled and is linkable only when `AppSetting.telegram_bot_handle` is present.
-Instances that had a Telegram bot token configured before the extraction have
-the plugin enabled automatically by migration.
+enabled and is linkable only when its instance-owned `telegram_bot` connected
+account is connected (`Telegram::BotAccess.configured?`); the handle in the
+linking instructions is resolved from Telegram (`getMe`). Instances that had a
+Telegram bot token configured before the extraction have the plugin enabled
+automatically by migration, and a later migration enables its dependencies
+(`connected_accounts`, `credential_store`) for any instance running either
+platform plugin.
 Slack is listed as a supported platform but disabled until its integration is
 configured. Discord is provided by the `discord` plugin (`plugins/discord/`)
 through the `:platform_delivery` extension point; it appears in the list once
-the plugin is enabled, and becomes configured (linkable) once
-`AppSetting.discord_bot_token` is also set (see
+the plugin is enabled, and becomes configured (linkable) once its
+instance-owned `discord_bot` connected account is connected (see
 `config/syrus_docs/external_platforms.md`). When a platform poller creates a
 `PlatformIdentity`, Syrus broadcasts `platform_identity_linked` on
 `AppUserChannel` with the refreshed settings payload so the browser updates
