@@ -215,7 +215,7 @@ class RunQueueResolver
   end
 
   def legacy_instance_worker_payloads
-    InstanceVersion.fresh.where(role: "worker").map do |instance|
+    fresh_worker_instances_by_hostname.each_value.map do |instance|
       capabilities = WorkerCapabilities.normalize(instance.capabilities)
       {
         hostname: instance.hostname,
@@ -232,7 +232,14 @@ class RunQueueResolver
     hostname = process.metadata&.dig("hostname").presence || process.hostname
     return nil if hostname.blank?
 
-    InstanceVersion.fresh.where(hostname: hostname, role: "worker").first
+    fresh_worker_instances_by_hostname[hostname]
+  end
+
+  def fresh_worker_instances_by_hostname
+    @fresh_worker_instances_by_hostname ||= InstanceVersion.fresh
+      .where(role: "worker")
+      .order(:id)
+      .each_with_object({}) { |instance, instances| instances[instance.hostname] ||= instance }
   end
 
   def latest_sample_for(process)
