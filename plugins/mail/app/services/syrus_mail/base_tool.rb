@@ -1,6 +1,6 @@
 require "mcp"
 
-module Mail
+module SyrusMail
   class BaseTool < MCP::Tool
     class << self
       def invoke(capability, server_context:, arguments:)

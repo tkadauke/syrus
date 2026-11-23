@@ -1,6 +1,6 @@
 require "cgi"
 
-module Mail
+module SyrusMail
   class ResultShaper
     MAX_INLINE_BODY_BYTES = 16.kilobytes
 

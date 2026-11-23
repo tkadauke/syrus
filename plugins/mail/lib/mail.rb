@@ -1,4 +1,4 @@
-module Mail
+module SyrusMail
   extend Syrus::PluginApi
 
   Context = Data.define(:account, :access, :arguments)
@@ -6,9 +6,9 @@ module Mail
   DEFINITION = Syrus::Host::CapabilityFamily.define(:mail) do
     shape :service
     capability :search, composition: :keyed, absent: :configuration_error, decline: nil,
-      tier: :provisional, context: Mail::Context, returns: Hash
+      tier: :provisional, context: SyrusMail::Context, returns: Hash
     capability :read_message, composition: :keyed, absent: :configuration_error, decline: nil,
-      tier: :provisional, context: Mail::Context, returns: Hash
+      tier: :provisional, context: SyrusMail::Context, returns: Hash
   end
 
   syrus_plugin "mail" do
@@ -20,9 +20,9 @@ module Mail
     default_enabled false
     disableable true
     depends_on [ "connected_accounts" ]
-    provides mail: "Mail::FakeAdapter", key: :fake, provisional: %i[search read_message]
-    provides chat_mcp_tool_set: "Mail::ChatToolSet",
-             mcp_tool_set: "Mail::WorkflowToolSet",
-             permission_provider: "Mail::PermissionProvider"
+    provides mail: "SyrusMail::FakeAdapter", key: :fake, provisional: %i[search read_message]
+    provides chat_mcp_tool_set: "SyrusMail::ChatToolSet",
+             mcp_tool_set: "SyrusMail::WorkflowToolSet",
+             permission_provider: "SyrusMail::PermissionProvider"
   end
 end
