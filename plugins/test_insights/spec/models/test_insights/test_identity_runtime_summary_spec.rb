@@ -100,14 +100,23 @@ RSpec.describe TestInsights::RuntimeSummary do
 
   it "uses bounded indexed probes when refreshing touched identities for one grader" do
     rspec = create_test_run!(grader_name: "rspec")
-    other_identity = TestInsights::TestIdentity.create!(
-      repository: repository,
-      fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: "Suite", name: "other example"),
-      suite_name: "Suite",
-      name: "other example"
-    )
-    3.times { |index| create_case!(test_run: rspec, duration_ms: 100 + index, created_at: index.minutes.ago) }
-    3.times { |index| create_case!(test_run: rspec, duration_ms: 200 + index, created_at: index.minutes.ago, test_identity: other_identity) }
+    identities = 5.times.map do |identity_index|
+      test_identity = TestInsights::TestIdentity.create!(
+        repository: repository,
+        fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: "Suite", name: "example #{identity_index}"),
+        suite_name: "Suite",
+        name: "example #{identity_index}"
+      )
+      3.times do |case_index|
+        create_case!(
+          test_run: rspec,
+          duration_ms: 100 + case_index,
+          created_at: case_index.minutes.ago,
+          test_identity: test_identity
+        )
+      end
+      test_identity
+    end
 
     selects = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
@@ -115,13 +124,13 @@ RSpec.describe TestInsights::RuntimeSummary do
       selects << sql if sql.match?(/FROM "?test_insight_cases"?/i)
     end
 
-    described_class.refresh_many!([ identity.id, other_identity.id ], grader_names: [ "rspec" ])
+    described_class.refresh_many!(identities.map(&:id), grader_names: [ "rspec" ])
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
-    # Two bounded eligibility probes plus the all-grader and named-grader
-    # windows; no query scans unbounded history.
-    expect(selects.size).to be <= 4
+    # One batched eligibility query plus the all-grader and named-grader
+    # window queries, independent of the number of pairs in the slice.
+    expect(selects.size).to eq(3)
     expect(selects.join("\n")).to include("UNION ALL")
     expect(selects.join("\n")).to include("ORDER BY")
     expect(selects.join("\n")).to include("LIMIT")
