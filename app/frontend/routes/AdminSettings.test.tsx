@@ -39,9 +39,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       report_issue_repo_slug: "tkadauke/syrus",
       chat_coding_workspace_budget_mb: 0,
       merge_train_max_size: 10,
-      clearable_secrets: [
-        { key: "gemini_api_key", label: "Gemini API key", set: true }
-      ]
+      clearable_secrets: [{ key: "gemini_api_key", label: "Gemini API key", set: true }]
     },
     ...overrides
   }
