@@ -10,9 +10,10 @@ module Coworkers
 
     Config = Data.define(:enabled, :rounds, :criteria, :required)
 
-    def self.key = "coworkers.review"
+    # The key and legacy keys are declared in coworkers.rb (the
+    # `repository_configuration` manifest declaration); the schema version is
+    # pinned to the declared one by a spec.
     def self.schema_version = 1
-    def self.legacy_keys = [ "coworker_review" ]
 
     def self.parse(value:, version:, scope:)
       raise ArgumentError, "unsupported schema version #{version}" unless version == schema_version

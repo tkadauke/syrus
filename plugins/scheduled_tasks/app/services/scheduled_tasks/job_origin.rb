@@ -1,13 +1,8 @@
 module ScheduledTasks
-  # The origin for Jobs a ScheduledTask fired.
-  #
-  # Lives in core only until scheduled_tasks becomes a plugin -- it is written
-  # against the plugin contract so the move is a file relocation plus dropping
-  # it from Job::Origin::BUILT_IN_PROVIDERS, with no change to any caller.
+  # Behavior for the `job_origin` manifest declaration in scheduled_tasks.rb,
+  # which owns the origin key. Loaded only when a Job's origin is rendered.
   class JobOrigin
     include Syrus::Plugin::JobOrigin
-
-    def self.origin_key = "scheduled_tasks"
 
     def self.label(origin_id:, repository: nil)
       task(origin_id)&.name.presence || "task ##{origin_id}"

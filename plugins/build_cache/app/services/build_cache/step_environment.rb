@@ -1,28 +1,22 @@
 module BuildCache
   class StepEnvironment
-    include Syrus::Plugin::StepEnvironment
-
-    # sccache is masqueraded onto PATH as cc/gcc/g++/clang in the worker image
-    # (Dockerfile, worker-deps stage); these are the env vars its S3 backend
-    # reads to reach the shared bucket instead of falling back to a useless
-    # per-invocation local cache. An unset SCCACHE_BUCKET is a supported no-op.
+    # The forwarded ENV names live in the `step_environment` declaration in
+    # build_cache.rb. sccache is masqueraded onto PATH as cc/gcc/g++/clang in the
+    # worker image (Dockerfile, worker-deps stage); those vars are what its S3
+    # backend reads to reach the shared bucket instead of falling back to a
+    # useless per-invocation local cache. An unset SCCACHE_BUCKET is a supported
+    # no-op.
     #
-    # SCCACHE_BASEDIRS is deliberately absent. sccache's default -- require an
-    # exact absolute-path match to hit cache -- is what keeps gcov/--coverage
-    # builds correct: every Workflow clones to a unique, never-reused path, so
-    # a gcov-instrumented compile's .gcno notes file (which sccache restores
-    # byte-for-byte, embedded absolute source paths and all) can only hit
-    # against the same workflow's still-live workspace. Forwarding
-    # SCCACHE_BASEDIRS would normalize those paths before hashing and let a
-    # coverage build hit across workflows, silently corrupting gcovr output
+    # SCCACHE_BASEDIRS is deliberately absent from that list. sccache's default
+    # -- require an exact absolute-path match to hit cache -- is what keeps
+    # gcov/--coverage builds correct: every Workflow clones to a unique,
+    # never-reused path, so a gcov-instrumented compile's .gcno notes file
+    # (which sccache restores byte-for-byte, embedded absolute source paths and
+    # all) can only hit against the same workflow's still-live workspace.
+    # Forwarding SCCACHE_BASEDIRS would normalize those paths before hashing and
+    # let a coverage build hit across workflows, silently corrupting gcovr output
     # with a .gcno pointing at a different, likely-deleted workspace.
     # See plugins/build_cache/docs/syrus_docs/sccache_build_cache.md.
-    KEYS = %w[
-      SCCACHE_BUCKET SCCACHE_ENDPOINT SCCACHE_REGION SCCACHE_S3_KEY_PREFIX
-      AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    ].freeze
-
-    def self.forwarded_env_keys = KEYS
 
     # Values computed per scope rather than merely forwarded from the
     # worker pod's own ENV -- see RuntimeEnv. `scope` is a PrepareScope
@@ -30,7 +24,7 @@ module BuildCache
     # for ChatWorkspacePrepareJob's Coding Mode prepare) so the same daemon
     # isolation and basedirs opt-in apply to both. Consumed by
     # Steps::Prepare.prep_extra_env (the optional companion to
-    # #forwarded_env_keys on Syrus::Plugin::StepEnvironment).
+    # forwarded_env_keys on the declaration).
     def self.extra_env(scope:, workspace_path:)
       RuntimeEnv.for(scope: scope, workspace_path: workspace_path)
     end

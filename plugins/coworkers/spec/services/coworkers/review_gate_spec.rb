@@ -13,7 +13,7 @@ RSpec.describe Coworkers::ReviewGate do
   end
 
   it "declares the coworker_review step kind from the plugin" do
-    expect(Coworkers::WorkflowKinds.step_kinds.map { |kind| kind[:kind] }).to include("coworker_review")
+    expect(Step::Kind.values).to include("coworker_review")
     expect(Step::Kind.fetch("coworker_review")).to have_attributes(
       reviewer_target_required: true, panel_capable: true, required_mcp_tools: %w[submit_coworker_review]
     )

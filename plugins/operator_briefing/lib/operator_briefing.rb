@@ -20,8 +20,46 @@ module OperatorBriefing
     depends_on [ "agent_memory", "design_docs" ]
 
     lifecycle callback_providers: "OperatorBriefing::Callbacks"
-    provides workflow_kinds: "OperatorBriefing::WorkflowKinds",
-             sidebar_pages: "OperatorBriefing::SidebarPages"
+    provides sidebar_pages: "OperatorBriefing::SidebarPages"
+    workflow_kinds(
+      trigger_kinds: [
+        {
+          kind: "briefing_generate", template: "OperatorBriefing::Workflow",
+          label: "Briefing generation", style: "bg-sky-100 text-sky-700",
+          retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure",
+          owns_job_lifecycle: true
+        },
+        {
+          kind: "briefing_dive", template: "OperatorBriefing::DiveWorkflow",
+          label: "Briefing dive", style: "bg-cyan-100 text-cyan-700",
+          retry_label: nil, feedback_kind: nil, runtime_role: "child"
+        }
+      ],
+      step_kinds: [
+        {
+          kind: "briefing_generate_run", handler: "OperatorBriefing::GenerateRunStep",
+          label: "Generate briefing", style: "bg-sky-100 text-sky-700", agentic: true,
+          agent_role: "workflow:summary_test_plan",
+          required_mcp_tools: %w[submit_briefing_block],
+          placement_policy: "control_plane"
+        },
+        {
+          kind: "briefing_dive_investigate", handler: "OperatorBriefing::DiveInvestigateStep",
+          label: "Investigate dive", style: "bg-cyan-100 text-cyan-700", agentic: true,
+          agent_role: "workflow:summary_test_plan",
+          required_mcp_tools: %w[read_briefing]
+        },
+        {
+          kind: "submit_dive_report", handler: "OperatorBriefing::SubmitDiveReportStep",
+          label: "Submit dive report", style: "bg-cyan-200 text-cyan-800", agentic: true,
+          agent_role: "workflow:summary_test_plan",
+          required_mcp_tools: %w[read_briefing list_briefing_topics read_briefing_topic submit_dive_report],
+          skip_if_artifact: "briefing_dive_report"
+        }
+      ],
+      job_kinds: [ { kind: "briefing_generate", infrastructure: true, issueless: true, investigable: true } ],
+      work_definitions: [ "OperatorBriefing::WorkDefinition", "OperatorBriefing::DiveWorkDefinition" ]
+    )
     toolkit workflow_tools: "OperatorBriefing::McpToolSet", permissions: "OperatorBriefing::PermissionProvider"
     tick_interval 1.minute
     route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
