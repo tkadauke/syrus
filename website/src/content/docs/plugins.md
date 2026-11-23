@@ -704,10 +704,11 @@ with a trivial `authorization` implementation. Declare `authorization_kind:
 "token"` to expose the administrator-only token-entry UI. The broker validates
 the submitted token before storing it, never returns it to the UI, and creates
 an instance-owned account restricted to `as_service`. A provider may also
-declare exact `system_service_identities` and the `system_invoke` capability,
-or core may register the identity and implementation. The broker invokes that
-registered implementation with short-lived access and never yields credentials
-to caller-supplied code; each use is audited. The system path cannot use
+declare exact `system_service_identities` and implement
+`register_system_access(identity, binding)`, or core may register the identity
+and implementation. The broker injects an opaque binding into the registered
+service; only that binding can open a block-scoped lease, and each use is
+audited. An identity string alone grants nothing. The system path cannot use
 user-owned accounts or act as a general plugin credential bypass. Installed
 in-process plugin code remains trusted and is not a sandbox boundary. Providers
 that declare

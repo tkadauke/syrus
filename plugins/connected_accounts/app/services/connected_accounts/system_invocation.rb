@@ -1,29 +1,67 @@
 module ConnectedAccounts
   class SystemInvocation
     CORE_SERVICES = {}.freeze
+    Binding = Data.define(:identity, :proof)
+    Registration = Data.define(:identity, :service, :declaration)
+    private_constant :Binding, :Registration
 
     class << self
-      def call(account:, service_identity:, scopes:, purpose:, target: {}, input: {})
+      def call(account:, service_binding:, scopes:, purpose:, target: {})
         account = Account.find_by(id: account) unless account.is_a?(Account)
         deny! unless account&.owner_policy&.system_access?
-        identity = service_identity.to_s
+        registration = registration_for(service_binding)
+        deny! unless registration
         declaration = ProviderRegistry.fetch(account.provider)
-        service = CORE_SERVICES[identity] || declaration.system_service_for(identity)
-        deny! unless service&.respond_to?(:system_invoke)
+        deny! unless authorized_registration?(registration, declaration)
         deny! if purpose.to_s.blank?
 
         context = McpToolContext.new(surface: :api, role: "system_service", user: account.credential_store_credential.created_by,
-          permission_authorization: { system_service_identity: identity })
-        AccountClient.with_access(account:, acting_mode: :as_service, scopes:, purpose:, context:, target:) do |access|
-          invocation = Provider::SystemInvocationContext.new(access:, identity:, purpose: purpose.to_s,
-            target: target.to_h.freeze, input: input.to_h.freeze)
-          Invoker.call(provider: service, capability: "system_invoke", context: invocation)
-        end
+          permission_authorization: { system_service_identity: registration.identity })
+        AccountClient.with_access(account:, acting_mode: :as_service, scopes:, purpose:, context:, target:) { |access| yield access }
       end
 
       private
 
+      def register_provider!(declaration)
+        service = declaration.provider.constantize
+        declaration.system_service_identities.each do |identity|
+          inject_binding(service, Registration.new(identity:, service:, declaration:))
+        end
+        nil
+      end
+
+      def register_core_services!
+        CORE_SERVICES.each do |identity, service|
+          inject_binding(service, Registration.new(identity: identity.to_s, service:, declaration: nil))
+        end
+        nil
+      end
+
+      def inject_binding(service, registration)
+        binding = Binding.new(identity: registration.identity, proof: binding_proof).freeze
+        registrations_mutex.synchronize { registrations[binding] = registration }
+        service.register_system_access(registration.identity, binding)
+      end
+
+      def registration_for(binding)
+        return unless binding.is_a?(Binding) && binding.proof.equal?(binding_proof)
+
+        registrations_mutex.synchronize { registrations[binding] }
+      end
+
+      def authorized_registration?(registration, declaration)
+        return true if registration.declaration.equal?(declaration)
+
+        registration.declaration.nil? && CORE_SERVICES[registration.identity].equal?(registration.service)
+      end
+
+      def registrations = (@registrations ||= ObjectSpace::WeakMap.new)
+      def registrations_mutex = (@registrations_mutex ||= Mutex.new)
+      def binding_proof = (@binding_proof ||= Object.new.freeze)
+
       def deny! = raise(AccountClient::Denied, "connected account not found")
     end
+
+    send(:register_core_services!)
   end
 end
