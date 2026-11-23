@@ -1456,7 +1456,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       state: "running",
       started_at: 45.minutes.ago
     )
-    visual_step = Step.create!(workflow: visual_diff, kind: "visual_diff", position: 0, state: "running", started_at: 45.minutes.ago)
+    visual_step = Step.create!(workflow: visual_diff, kind: "implement", position: 0, state: "running", started_at: 45.minutes.ago)
     visual_run = Run.create!(
       job: job,
       step: visual_step,
@@ -1960,7 +1960,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       state: "queued",
       created_at: 5.minutes.ago
     )
-    Step.create!(workflow: visual_diff, kind: "visual_diff", position: 0, state: "queued")
+    Step.create!(workflow: visual_diff, kind: "implement", position: 0, state: "queued")
     job.update_columns(state: "running")
     primary.update_columns(state: "running", started_at: 20.minutes.ago, created_at: 20.minutes.ago)
     primary_step.update_columns(state: "running", started_at: 20.minutes.ago)

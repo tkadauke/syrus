@@ -34,7 +34,7 @@ jobs:
           loop_id: review-loop
           run:
             state: succeeded
-        - kind: visual_review
+        - kind: security_review
           state: queued
           created_at: "2026-09-18T16:05:24Z"
         - kind: format

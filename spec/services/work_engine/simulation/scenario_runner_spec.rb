@@ -430,7 +430,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result).to be_success
     job = Job.find(result.job_ids.first)
     failed_workflow = job.workflows.find_by!(state: "failed")
-    failed_run = failed_workflow.steps.find_by!(kind: "visual_review").runs.find_by!(state: "failed")
+    failed_run = failed_workflow.steps.find_by!(kind: "adversarial_review").runs.find_by!(state: "failed")
 
     expect(job).to be_implemented
     expect(failed_run.run_failure_classification).to have_attributes(
