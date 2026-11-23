@@ -22,7 +22,7 @@ module Mentionables
         core = find_core(kind: kind, id: id)
         return core if core
 
-        ::Syrus::PluginRegistry.providers_for(:mentionable).filter_map do |provider|
+        providers.filter_map do |provider|
           invoke(provider, :find_mentionable, nil) { provider.find_mentionable(kind: kind, id: id) }
         end.first
       end
@@ -34,14 +34,14 @@ module Mentionables
         human = User.joins(:handle_record).find_by("LOWER(handles.handle) = ?", normalized)
         return human if human
 
-        ::Syrus::PluginRegistry.providers_for(:mentionable).filter_map do |provider|
+        providers.filter_map do |provider|
           invoke(provider, :find_mentionable_by_handle, nil) { provider.find_mentionable_by_handle(handle: normalized) } if provider.respond_to?(:find_mentionable_by_handle)
         end.first
       end
 
       def filter_candidates(user:)
         humans = User.joins(:handle_record).includes(:handle_record)
-        plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
+        plugin = providers.flat_map do |provider|
           provider.respond_to?(:share_candidates) ? invoke(provider, :share_candidates, []) { Array(provider.share_candidates(user: user)) } : []
         end
 
@@ -59,7 +59,7 @@ module Mentionables
           chat.participants.to_a
         end
         core = [ Mentionables::Syrus.new, *humans ]
-        plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
+        plugin = providers.flat_map do |provider|
           invoke(provider, :mentionables, []) { Array(provider.mentionables(chat: chat)) }
         end
         (core + plugin).index_by { |mentionable| mentionable.handle.to_s.downcase }
@@ -68,6 +68,8 @@ module Mentionables
       def find_core(kind:, id:)
         CORE_FINDERS[kind.to_s]&.call(id)
       end
+
+      def providers = ::Syrus::Plugin::ChatIntegration.contributions(:mentionables)
 
       def invoke(provider, operation, decline, &block)
         ::Syrus::PluginInvocation.value(::Syrus::PluginInvocation.call(

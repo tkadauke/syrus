@@ -28,6 +28,7 @@ module Syrus
       credential_type_names: "Credential type names declared for discovery.", credential_types: "Credential type metadata declarations.",
       toolkit: "Toolkit-family tools, permission declarations, run context, credential probes, and secret extractors.",
       surface: "Surface-family pages, tabs, slots, artifact and preview renderers, and filter registrations.",
+      chat_integration: "ChatIntegration-family payload, prompt, media, lifecycle, identity, status, and mention contributions.",
       while_enabled: "Reversible installation effects active only while enabled.", metrics: "Plugin-owned metric declarations.",
       always: "Reversible effects retained after a previously enabled plugin is disabled.",
       suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback."
@@ -243,6 +244,35 @@ module Syrus
             `preview_panel_viewers` is provisional because no bundled plugin
             implements it yet. Every other Surface capability has at least two
             independent bundled implementations and generated contract coverage.
+          MD
+        elsif family.name == :chat_integration
+          <<~MD
+            ## Migration from legacy extension points
+
+            ChatIntegration groups the contributions consulted while building or
+            executing an interactive chat turn. The manifest helper keeps provider
+            constants lazy and dispatcher failures isolated from the rest of the turn.
+
+            Before:
+
+            ```ruby
+            provides chat_payload_contributor: "Acme::Payload",
+                     chat_prompt_injector: "Acme::Prompt"
+            ```
+
+            After:
+
+            ```ruby
+            chat_integration payload_contributors: "Acme::Payload",
+                             prompt_injectors: "Acme::Prompt"
+            ```
+
+            All capabilities remain provisional. Payload, prompt, media, and turn
+            orientation have multiple in-tree implementations, but the family
+            currently returns the established behavior providers while their
+            multi-operation interfaces are decomposed. Lifecycle, status, identity,
+            and mention capabilities each have only one independent implementation.
+            Generated contract examples still cover every bundled declaration.
           MD
         end
         (<<~MD).sub(/\n+\z/, "\n")

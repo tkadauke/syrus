@@ -10,6 +10,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `always` — Reversible effects retained after a previously enabled plugin is disabled.
 - `author` — Plugin author.
 - `category` — Catalog category.
+- `chat_integration` — ChatIntegration-family payload, prompt, media, lifecycle, identity, status, and mention contributions.
 - `cli_commands` — Non-interactive server-backed CLI commands: path, summary, handler, arguments, and flags.
 - `config_schema` — Operator setting declarations.
 - `conflicts_with` — Mutually exclusive plugin names.
@@ -122,6 +123,7 @@ Every manifest must explicitly declare `default_enabled`, `disableable`, `experi
 
 Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing literal plugin and provider strings plus call and decline contexts. The kit derives the full capability list from that exact manifest declaration, and the literal identifiers let isolated and sharded suite runs verify coverage from source.
 
+- `chat_integration` (facet; required core: `key`, `display_name`) — `identity_providers` (provisional, collect, Module, Array<Module>, or nil), `job_status_extensions` (provisional, collect, Module, Array<Module>, or nil), `media_sources` (provisional, collect, Module, Array<Module>, or nil), `mentionables` (provisional, collect, Module, Array<Module>, or nil), `payload_contributors` (provisional, collect, Module, Array<Module>, or nil), `prompt_injectors` (provisional, collect, Module, Array<Module>, or nil), `turn_finalizers` (provisional, collect, Module, Array<Module>, or nil), `turn_lifecycles` (provisional, collect, Module, Array<Module>, or nil), `turn_orientations` (provisional, collect, Module, Array<Module>, or nil), `workspace_lifecycles` (provisional, collect, Module, Array<Module>, or nil)
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
 - `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
 - `surface` (facet; required core: `key`, `display_name`) — `admin_pages` (stable, collect, Module, Array<Module>, or nil), `artifact_renderers` (stable, collect, Module, Array<Module>, or nil), `filter_chips` (stable, collect, Array<FilterChips>), `filter_subjects` (stable, collect, Array<FilterSubject>), `preview_panel_viewers` (provisional, collect, Module, Array<Module>, or nil), `repo_page_tabs` (stable, collect, Module, Array<Module>, or nil), `sidebar_pages` (stable, collect, Module, Array<Module>, or nil), `ui_slots` (stable, collect, Module, Array<Module>, or nil), `workspace_tabs` (stable, collect, Module, Array<Module>, or nil)
@@ -188,4 +190,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 34360 bytes (UTF-8, including this line).
+Size: 35305 bytes (UTF-8, including this line).

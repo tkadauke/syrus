@@ -32,8 +32,7 @@ RSpec.describe Mentionables::Resolver do
       define_singleton_method(:mentionables) { |chat:| [ coworker ] }
       define_singleton_method(:find_mentionable) { |kind:, id:| coworker if kind == "coworker" && id == 41 }
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mentionable).and_return([ provider ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:mentionables).and_return([ provider ])
 
     mention = described_class.resolve(text: "Ask @maya", chat: chat).sole
 
@@ -47,8 +46,7 @@ RSpec.describe Mentionables::Resolver do
     allow(provider).to receive(:find_mentionable_by_handle) do |handle:|
       provider_mentionable if handle == "adrian-bot"
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mentionable).and_return([ provider ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:mentionables).and_return([ provider ])
 
     expect(described_class.find_by_handle("@#{owner.handle}")).to eq(owner)
     expect(described_class.find_by_handle("adrian-bot")).to eq(provider_mentionable)

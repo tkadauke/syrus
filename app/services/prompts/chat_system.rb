@@ -185,7 +185,7 @@ module Prompts
     # preview panels, the whiteboard. They used to be written out here, which
     # meant core's prompt described tools core does not own.
     def plugin_guidance
-      Syrus::PluginRegistry.providers_for(:chat_prompt_injector).filter_map do |provider|
+      Syrus::Plugin::ChatIntegration.contributions(:prompt_injectors).filter_map do |provider|
         Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
           extension_point: :chat_prompt_injector, provider:, operation: :chat_prompt_section, on_decline: nil
         ) do

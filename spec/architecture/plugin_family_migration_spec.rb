@@ -13,6 +13,11 @@ RSpec.describe "Plugin family migration architecture" do
   SURFACE_POINTS = %i[
     sidebar_page admin_page repo_page_tab workspace_tab ui_slot artifact_renderer preview_panel_viewer
   ].freeze
+  CHAT_INTEGRATION_POINTS = %i[
+    chat_payload_contributor chat_prompt_injector chat_media_source chat_turn_orientation
+    chat_turn_finalizer chat_workspace_lifecycle chat_turn_lifecycle chat_job_status_extension
+    chat_identity_provider mentionable
+  ].freeze
 
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
@@ -21,7 +26,8 @@ RSpec.describe "Plugin family migration architecture" do
     # Toolkit keeps an explicit compatibility bridge for external plugins
     # during the family migration; core callers must still use Dispatch.
     toolkit: TOOLKIT_POINTS,
-    surface: SURFACE_POINTS
+    surface: SURFACE_POINTS,
+    chat_integration: CHAT_INTEGRATION_POINTS
   }.freeze
 
   it "keeps Toolkit's compatibility allowlist explicit" do
@@ -47,6 +53,22 @@ RSpec.describe "Plugin family migration architecture" do
     end
 
     expect(actual).to eq(SURFACE_POINTS.index_with { [] })
+  end
+
+  it "keeps ChatIntegration's compatibility allowlist explicit" do
+    definition = Syrus::Plugin::Family.fetch(:chat_integration)
+    expect(definition.legacy_mappings.keys).to contain_exactly(*CHAT_INTEGRATION_POINTS)
+    expect(Syrus::PluginRegistry::EXTENSION_POINTS & CHAT_INTEGRATION_POINTS).to contain_exactly(*CHAT_INTEGRATION_POINTS)
+  end
+
+  it "allows no bundled plugin to register a legacy point absorbed by ChatIntegration" do
+    actual = CHAT_INTEGRATION_POINTS.to_h do |point|
+      plugins = Dir["plugins/*/lib/*.rb"].filter_map do |path|
+        File.basename(File.dirname(File.dirname(path))) if registrations_in(File.read(path), point).positive?
+      end
+      [ point, plugins.sort ]
+    end
+    expect(actual).to eq(CHAT_INTEGRATION_POINTS.index_with { [] })
   end
 
   def registrations_in(source, point)
