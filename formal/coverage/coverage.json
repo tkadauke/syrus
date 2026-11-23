@@ -3677,7 +3677,7 @@
         "C. Keep User last and reserve the provider account before the Run-creating transaction opens, in its own short transaction."
       ],
       "recommendation": "A. The evidence says the User row is now only ever a first-taken mutex, so placing it first matches what the code does; B and C change working reservation code to satisfy an order chosen before this evidence existed.",
-      "decision": "A (2026-11-23, answered on the lean-plan site): Move User to the front of the order (User -> AppSetting -> Epic -> ...). The reservation becomes in-order with no code change; the checker then guards that nothing locks User late again. To implement."
+      "decision": "A (2026-11-23, answered on the lean-plan site): Move User to the front of the order (User -> AppSetting -> Epic -> ...). The reservation becomes in-order with no code change; the checker then guards that nothing locks User late again. Not implemented: the full suite showed its premise was wrong; reopened as NY35."
     },
     {
       "id": "NY32",
@@ -3717,6 +3717,18 @@
       ],
       "recommendation": "A. Two counters on the chat keep every legitimate use (reminders, polling a slow job) free while a runaway loop hits approval within a day; B models chains, which is more precise but more machinery, and C leaves cost unbounded.",
       "decision": "B (2026-11-23, answered on the lean-plan site): Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks. Operator note: N should be large but bounded. Let's make it 100 and let's make it configurable. To implement."
+    },
+    {
+      "id": "NY35",
+      "item": "row-lock-order",
+      "title": "Provider-account reservation locks the User row both before and after other rows. Which fix?",
+      "context": "Implementing NY31 (User first) and running the full suite raised three violations that NY31's evidence had missed. AvailabilitySelector#reserve_least_pressured_account takes user.with_lock inside whatever transaction is open, and holds that lock until the transaction commits. In some paths this happens before the Workflow and Step locks (the 158 hits NY31 was based on). In others it happens after them: StepDispatcher.create_run_and_enqueue already holds the Workflow and Step, and RetryWorkflowEnqueuer already holds the Job. So the User row is locked on both sides of Workflow, Step and Job. That is a two-way cycle, and no position in the order removes it. The NY31 change is set aside, not merged. The order stays as F110 left it, with the reservation inversion still pending.",
+      "options": [
+        "A. Every transaction that can reserve locks the User row first. create_run_and_enqueue and RetryWorkflowEnqueuer lock the owning User before their Workflow/Job lock, which makes the re-lock inside the reservation free. Move User to the front of the order as NY31 decided; the checker then catches any reserving path that was missed.",
+        "B. Drop the reservation mutex. Two reservations for the same user that race may see the same counts and pick the same account, so balancing is occasionally uneven. User stays last and the cycle disappears.",
+        "C. Reserve outside any transaction. Account selection moves ahead of the callers' transactions and runs in its own short transaction. This gives the cleanest lock story, but it is the largest change, and the pin can be stale by the time the Run is created."
+      ],
+      "recommendation": "A. It keeps the balancing guarantee and NY31's order, and needs small changes at only the two outer sites; the suite-wide checker then proves that no other path reserves late. B is a fine fallback if more reserving paths turn up."
     }
   ]
 }
