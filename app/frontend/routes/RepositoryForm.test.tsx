@@ -48,6 +48,13 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       archived_at: null
     },
     user_agent_provider_label: "Claude",
+    ui_settings: [
+      {
+        id: "main_branch_health.repository_settings",
+        component: "main_branch_health/RepositorySettings",
+        order: 10
+      }
+    ],
     app_archive_repository_path: "/api/v1/app/repositories/1/archive",
     app_unarchive_repository_path: "/api/v1/app/repositories/1/unarchive",
     input_source_types: [

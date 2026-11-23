@@ -1,4 +1,5 @@
 class MainBranchHealthCheck < ApplicationRecord
+  self.table_name = "main_branch_health_health_checks"
   include HasConfigurableRetention
 
   SOURCES = %w[ ci_poll grader_workflow concern_quorum ].freeze

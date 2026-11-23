@@ -1,0 +1,4 @@
+{
+  "plugin": { "display_name": "Main branch health", "description": "Syrus-Plugin Main branch health." },
+  "admin": { "title": "Main branch health", "message": "Dein Plugin ist bereit." }
+}
