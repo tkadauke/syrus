@@ -57,6 +57,10 @@ module Workflows
 
       def build(type, plugin, provider, attributes, anchor)
         attrs = attributes.to_h.symbolize_keys
+        fail_policy = attrs.fetch(:fail_policy) if type == PostPrStep
+        if type == PostPrStep && !fail_policy.is_a?(String) && !fail_policy.is_a?(Symbol)
+          raise TypeError, "fail_policy must be a String or Symbol"
+        end
         contribution = if type == Judge
           Judge.new(
             plugin:, provider:, step_kind: attrs.fetch(:step_kind).to_s,
@@ -69,7 +73,7 @@ module Workflows
             plugin:, provider:, step_kind: attrs.fetch(:step_kind).to_s,
             order: Integer(attrs.fetch(:order, 100)),
             enabled_for: attrs.fetch(:enabled_for),
-            fail_policy: attrs.fetch(:fail_policy).to_sym
+            fail_policy: fail_policy.to_sym
           )
         else
           PositionedStep.new(
