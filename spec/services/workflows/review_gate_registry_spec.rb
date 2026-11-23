@@ -15,7 +15,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
       def self.review_gates
         [ {
           key: "synthetic", step_kind: "synthetic_review", slot: "after_agent",
-          after: %w[security], before: %w[visual],
+          after: %w[security], before: [],
           enabled_resolver: ->(job:, trigger_kind:, syrus_yml:, **) {
             gate_enabled != false && job.present? && trigger_kind.present? && [ nil, :project_overlay ].include?(syrus_yml)
           },
@@ -37,7 +37,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
+    stub_no_workflow_judges
     grade_plan = double(any_configured?: false, format_configured?: false, generate_configured?: false, graders_configured?: false)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_plan)
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_plan)
@@ -46,15 +46,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
   it "orders a synthetic plugin gate through stable before/after constraints" do
     keys = described_class.ordered(:after_agent).map(&:key)
 
-    expect(keys).to eq(%w[adversarial security synthetic visual])
-  end
-
-  it "keeps visual review outside the required immutable-HEAD barrier" do
-    definitions = described_class.definitions.index_by(&:key)
-
-    expect(definitions.fetch("adversarial").required).to be(true)
-    expect(definitions.fetch("security").required).to be(true)
-    expect(definitions.fetch("visual").required).to be(false)
+    expect(keys).to eq(%w[adversarial security synthetic])
   end
 
   it "resolves project-overlay enablement, loop budget, repair, and evidence metadata" do
@@ -127,20 +119,6 @@ RSpec.describe Workflows::ReviewGateRegistry do
     expect { described_class.ordered(:after_agent) }.to raise_error(
       described_class::InvalidContribution, /ordering cycle/
     )
-  end
-
-  it "preserves the visual-review exclusion for external PR feedback" do
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: true, rounds: 1))
-
-    gates = described_class.for(
-      slot: :after_agent,
-      job: job,
-      agent_step: :respond,
-      trigger_kind: :external_pr_feedback
-    )
-
-    expect(gates.map(&:key)).to include("synthetic")
-    expect(gates.map(&:key)).not_to include("visual")
   end
 
   it "lets every host workflow builder iterate the same contribution contract" do

@@ -321,9 +321,7 @@ RSpec.describe "App API job run commands", type: :request do
   end
 
   def stub_visual_review_plan(enabled:)
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
-      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
-    )
+    enabled ? stub_workflow_judge(step_kind: "visual_review") : stub_no_workflow_judges
   end
 
   def finish_work_units_for(job)

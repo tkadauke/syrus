@@ -8,9 +8,7 @@ RSpec.describe PendingActions::RunVisualReview do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   def stub_visual_review_plan(enabled:)
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
-      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
-    )
+    enabled ? stub_workflow_judge(step_kind: "visual_review") : stub_no_workflow_judges
   end
 
   def pending_action(job)
