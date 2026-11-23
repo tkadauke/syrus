@@ -7,7 +7,9 @@ require "json"
 # This runs the real WorkEngine::Reconciler#orphaned_queue_job? on the same
 # flags. A job is orphaned, and safe to delete and re-enqueue, exactly when it
 # carries no execution row at all. The test database has no SolidQueue tables,
-# so the snapshot that produces the flags is not part of this check.
+# so the snapshot that produces the flags is not part of this check. The
+# classifier additionally waits out a grace period before calling a job
+# orphaned, so the snapshot here is old enough for the flags to decide.
 RSpec.describe "QueueExecution model conformance" do
   fixture = JSON.parse(Rails.root.join("formal/fixtures/orphaned_queue_job.json").read)
   flags = %w[ready claimed scheduled blocked failed]
@@ -21,7 +23,8 @@ RSpec.describe "QueueExecution model conformance" do
     set = flags.select { |flag| example.fetch(flag) }
 
     it "calls a job with #{set.empty? ? 'no execution row' : set.join(' and ')} #{example.fetch('orphaned') ? 'orphaned' : 'not orphaned'}" do
-      snapshot = flags.to_h { |flag| [ flag.to_sym, example.fetch(flag) ] }
+      settled = 1.hour.ago
+      snapshot = flags.to_h { |flag| [ flag.to_sym, example.fetch(flag) ] }.merge(created_at: settled, updated_at: settled)
 
       expect(reconciler.send(:orphaned_queue_job?, snapshot)).to eq(example.fetch("orphaned"))
     end
