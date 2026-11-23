@@ -1,18 +1,21 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { useT } from "../hooks/useT"
-import { fetchRepositoryCoverageTrend, type CoverageTrendPoint } from "../api/repositories"
+import { useT } from "@app/hooks/useT"
+import { fetchRepositoryCoverageTrend, type CoverageTrendPoint } from "../api/coverageTrend"
 
+// Rendered by the host's `repository.detail` slot, which passes the page's
+// repository as a prop.
 type CoverageSparklineProps = {
-  repositoryId: number
+  repository: { id: number }
 }
 
 const SPARKLINE_W = 200
 const SPARKLINE_H = 40
 const SPARKLINE_PADDING = 2
 
-export function CoverageSparkline({ repositoryId }: CoverageSparklineProps) {
-  const { t } = useT("settings")
+export default function CoverageSparkline({ repository }: CoverageSparklineProps) {
+  const repositoryId = repository.id
+  const { t } = useT("syrus_coverage")
   const trend = useQuery({
     queryKey: ["repositories", String(repositoryId), "coverage_trend"],
     queryFn: () => fetchRepositoryCoverageTrend(repositoryId),
@@ -26,14 +29,14 @@ export function CoverageSparkline({ repositoryId }: CoverageSparklineProps) {
 
   return (
     <div data-testid="coverage-sparkline">
-      <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("repository.coverage_trend_label")}</h3>
+      <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("coverage_trend_label")}</h3>
       <SparklineChart points={points} />
     </div>
   )
 }
 
 function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
-  const { t } = useT("settings")
+  const { t } = useT("syrus_coverage")
   const [tooltip, setTooltip] = useState<{ point: CoverageTrendPoint; x: number; y: number } | null>(null)
 
   const values = points.map((p) => p.lines_pct as number)
@@ -62,7 +65,7 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
     <div className="relative">
       <div className="flex items-center gap-2">
         <svg
-          aria-label={t("repository.coverage_trend_aria")}
+          aria-label={t("coverage_trend_aria")}
           className="overflow-visible"
           height={SPARKLINE_H}
           role="img"
@@ -104,11 +107,11 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
         >
           <div className="font-medium text-gray-900 dark:text-gray-100">{tooltip.point.date}</div>
           <div className="text-gray-600 dark:text-gray-300">
-            {t("repository.coverage_trend_lines")}: {tooltip.point.lines_pct != null ? `${tooltip.point.lines_pct.toFixed(1)}%` : "—"}
+            {t("coverage_trend_lines")}: {tooltip.point.lines_pct != null ? `${tooltip.point.lines_pct.toFixed(1)}%` : "—"}
           </div>
           {tooltip.point.branches_pct != null ? (
             <div className="text-gray-600 dark:text-gray-300">
-              {t("repository.coverage_trend_branches")}: {tooltip.point.branches_pct.toFixed(1)}%
+              {t("coverage_trend_branches")}: {tooltip.point.branches_pct.toFixed(1)}%
             </div>
           ) : null}
         </div>

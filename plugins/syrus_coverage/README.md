@@ -17,6 +17,7 @@ snapshots, and posts one summary comment on the pull request.
   a daily hit-map TTL sweep, and removal of hit maps when a Job closes.
 - The read-only `get_coverage_report` workflow tool and the `coverage-gap-report`
   skill.
+- The coverage card on the Job detail page and the trend sparkline on the repository page (the plugin's `job.detail` and `repository.detail` UI slots, with their translations under `app/frontend`).
 - Review-diff coverage gutter data, the "Test coverage" section of the agent
   environment snapshot, and the repository coverage trend and hit-map endpoints.
 
@@ -33,3 +34,5 @@ The plugin is named `syrus_coverage` because `lib/coverage.rb` would shadow Ruby
 `coverage` library on the load path.
 
 See `docs/syrus_docs/coverage.md` for the user-facing reference.
+
+The Source browser's line-hit view and the diff coverage gutter still render inside core's source and diff components, fed by the plugin's endpoints and `line_coverage_provider`; moving those needs the diff/source views to accept plugin-contributed line decorations.

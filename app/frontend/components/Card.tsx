@@ -11,8 +11,8 @@ const BASE_CLASSES = "rounded border border-border bg-surface p-4"
 const PREVIEW_CLASSES = "w-80 rounded-lg border border-border bg-surface p-4 shadow-lg"
 const PREVIEW_COMPACT_CLASSES = "w-40 min-h-14 rounded-lg border border-border bg-surface p-3 shadow-lg"
 
-// Shared card primitive: the plain "base" look used by CoverageCard/
-// SccacheCard-style sections, and the "preview" hover/popover look used
+// Shared card primitive: the plain "base" look used by SccacheCard-style
+// sections, and the "preview" hover/popover look used
 // by JobPreviewCard/EpicPreviewCard/PrPreviewCard, both token-styled so
 // light/dark stay in sync without each caller hand-rolling the same
 // border/rounded/padding/shadow class string.

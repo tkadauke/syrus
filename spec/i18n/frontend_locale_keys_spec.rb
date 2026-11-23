@@ -248,7 +248,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
         jobs.artifact_image_alt jobs.artifact_provenance_viewport jobs.detail_provider jobs.detail_branch
         jobs.approval_status jobs.workflow_divergence_branch jobs.grader_status_label jobs.run_diff
         jobs.prepare_failure_status_label jobs.source_diff jobs.review_version_label
-        jobs.coverage_project_col_status jobs.transcript_kind_system jobs.skill_job_section_pick
+        jobs.transcript_kind_system jobs.skill_job_section_pick
         jobs.delivery.status_label
       ],
       "token, abbreviation, placeholder, or interpolated identifier" => %w[
@@ -267,7 +267,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "valid Latin or established UI term" => %w[
         jobs.detail_provider jobs.provider_setting_default jobs.approval_status jobs.grader_status_label
         jobs.prepare_failure_status_label jobs.review_settings_off jobs.review_metric_gutter_off
-        jobs.review_resolve_comment jobs.coverage_project_col_status jobs.delivery.status_label
+        jobs.review_resolve_comment jobs.delivery.status_label
       ],
       "token, abbreviation, placeholder, or interpolated identifier" => %w[
         jobs.navigation_jump_option jobs.classification_duration jobs.artifact_erd_primary_key

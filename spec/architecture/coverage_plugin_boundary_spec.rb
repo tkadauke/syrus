@@ -55,4 +55,14 @@ RSpec.describe "Coverage plugin boundary" do
     expect(defined?(CoverageAnalysis::Parsers::Base::ParseResult)).to be_truthy
     expect(Syrus::Plugin::Ecosystem::GraderCoverage.instance_methods).to include(:coverage_for_phases?)
   end
+
+  it "keeps the coverage card, trend sparkline and their translations in the plugin" do
+    expect(Rails.root.join("app/frontend/components/CoverageCard.tsx")).not_to exist
+    expect(Rails.root.join("app/frontend/components/CoverageSparkline.tsx")).not_to exist
+    %w[en de la].each do |locale|
+      expect(Rails.root.join("plugins/syrus_coverage/app/frontend/i18n/locales/#{locale}/syrus_coverage.json")).to exist
+      jobs = JSON.parse(Rails.root.join("app/frontend/i18n/locales/#{locale}/jobs.json").read)
+      expect(jobs.keys).not_to include("coverage_title", "coverage_lines", "coverage_files_show")
+    end
+  end
 end

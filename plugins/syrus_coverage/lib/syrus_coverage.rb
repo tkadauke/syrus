@@ -39,8 +39,14 @@ module SyrusCoverage
              permission_provider: "SyrusCoverage::PermissionProvider",
              domain_subscriber: "SyrusCoverage::Subscribers",
              callbacks: "SyrusCoverage::Callbacks",
+             ui_slot: "SyrusCoverage::UiSlots",
              line_coverage_provider: "SyrusCoverage::LineCoverageProvider",
              skill: "SyrusCoverage::SkillProvider"
+    frontend ui_slots: {
+               "syrus_coverage/CoverageCard" => "app/frontend/ui_slots/CoverageCard.tsx",
+               "syrus_coverage/CoverageSparkline" => "app/frontend/ui_slots/CoverageSparkline.tsx"
+             },
+             i18n: [ "app/frontend/i18n/locales/*/syrus_coverage.json" ]
     route :get, "/api/v1/app/repositories/:repository_id/coverage_trend", to: "api/v1/app/coverage#trend"
     route :get, "/api/v1/app/workflows/:workflow_id/coverage_hit_map", to: "api/v1/app/coverage#hit_map"
 

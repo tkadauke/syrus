@@ -1403,9 +1403,9 @@ agent environment snapshot, cognitive debt) read it through the new
 point. Disableable: coverage is advisory, so disabling omits the steps from new
 workflows without an error and keeps recorded data. What stays in core: the
 ecosystem `analyze_coverage` contract and `CoverageAnalysis::Parsers`, the
-grader-side capture of declared coverage outputs, and the web UI's coverage
-components, which still render the artifact and are a follow-up to move behind a
-UI slot.
+grader-side capture of declared coverage outputs, and the Source browser's
+line-hit view and the diff coverage gutter. The coverage card and trend sparkline
+moved to the plugin as `job.detail` / `repository.detail` UI slots.
 
 **`review_plan`** — a new candidate this design surfaces. It is already the
 only step after `pr_open`, is opt-in per repository, and must never fail the
