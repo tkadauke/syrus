@@ -177,7 +177,7 @@ module Ruby
       raw = config["phases"]
       phases =
         case raw
-        when nil then SyrusYml::DEFAULT_GRADE_PHASES
+        when nil then Syrus::Host::GraderDefaults.default_phases
         when String then [ raw ]
         else Array(raw)
         end
@@ -197,7 +197,7 @@ module Ruby
       minutes = Integer(raw)
       raise ArgumentError, "timeout_minutes must be positive" unless minutes.positive?
 
-      [ minutes, SyrusYml::MAX_GRADE_TIMEOUT_MINUTES ].min
+      [ minutes, Syrus::Host::GraderDefaults.max_timeout_minutes ].min
     rescue ArgumentError
       raise ArgumentError, "timeout_minutes must be a positive integer"
     end
@@ -275,7 +275,7 @@ module Ruby
     end
 
     def base_retry
-      SyrusYml::BaseRetry.new(strategy: "plugin", command: nil)
+      Syrus::Host::GraderBaseRetry.new(strategy: "plugin", command: nil)
     end
 
     # A parallel rspec run scales with whatever cores it is granted, so it asks
@@ -287,11 +287,11 @@ module Ruby
     # `cpu_min: 2` records that parallelism below two processes buys nothing
     # beyond the serial path -- advisory today, an admission input later.
     def resource_request_for(mode)
-      explicit = GraderResourceRequest.parse(config["resources"])
+      explicit = Syrus::Host::GraderResourceRequest.parse(config["resources"])
       return explicit if explicit
       return nil unless parallel_rspec_enabled_for?(mode)
 
-      GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2)
+      Syrus::Host::GraderResourceRequest.new(cpu: Syrus::Host::GraderResourceRequest::ALL, cpu_min: 2)
     end
 
     def coverage?
@@ -1103,7 +1103,7 @@ module Ruby
 
     def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil, shard: nil, label_suffix: nil)
       suffix = label_suffix || (shard && "#{shard['index']}/#{shard['count']}")
-      SyrusYml::GradeStep.new(
+      Syrus::Host::GraderStep.new(
         name: name,
         display_name: [ display_name_for(mode), suffix ].compact.join(" "),
         run: run,

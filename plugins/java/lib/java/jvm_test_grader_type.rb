@@ -56,7 +56,7 @@ module Java
 
     def grade_steps
       [
-        SyrusYml::GradeStep.new(
+        Syrus::Host::GraderStep.new(
           name: name,
           display_name: display_name,
           run: command,
@@ -137,7 +137,7 @@ module Java
       raw = config["phases"]
       values =
         case raw
-        when nil then SyrusYml::DEFAULT_GRADE_PHASES
+        when nil then Syrus::Host::GraderDefaults.default_phases
         when String then [ raw ]
         else Array(raw)
         end
