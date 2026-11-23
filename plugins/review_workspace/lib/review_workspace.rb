@@ -20,6 +20,8 @@ module ReviewWorkspacePlugin
     route :get, "/api/v1/app/review_workspace", to: "api/v1/app/review_workspace#index"
     route :get, "/api/v1/app/review_workspace/count", to: "api/v1/app/review_workspace#count"
 
+    route :get, "/api/v1/app/review_workspace/:id/summary", to: "api/v1/app/review_workspace#summary"
+
     frontend routes: { "review_workspace/ReviewWorkspace" => "app/frontend/routes/ReviewWorkspace.tsx" },
              ui_slots: { "review_workspace/ReviewDashboardNotice" => "app/frontend/ui_slots/ReviewDashboardNotice.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/review_workspace.json" ]
