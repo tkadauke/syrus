@@ -54,6 +54,8 @@ module Syrus
       repository_configuration
       backup_artifact_source
       backup_destination
+      work_gate
+      repair_classifier
       system_alert_provider
       line_coverage_provider
       skill
@@ -128,6 +130,8 @@ module Syrus
       repository_configuration: "Declares and validates plugin-owned repository configuration read from the supported configuration file.",
       backup_artifact_source: "Provides sealed backup artifacts for validation, pinning, streaming, and replication tracking.",
       backup_destination: "Replicates sealed backup artifacts to a plugin-owned offsite destination and reports their remote state.",
+      work_gate: "May veto workflow or WorkUnit starts, and declares whether that veto also applies to landing.",
+      repair_classifier: "Classifies failed Run or Workflow evidence for generic repair machinery.",
       system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery."
     }.freeze
 
@@ -188,6 +192,8 @@ module Syrus
       repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
       backup_artifact_source:  -> { Syrus::Plugin::BackupArtifactSource },
       backup_destination:      -> { Syrus::Plugin::BackupDestination },
+      work_gate:               -> { Syrus::Plugin::WorkGate },
+      repair_classifier:       -> { Syrus::Plugin::RepairClassifier },
       system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider }
     }.freeze
 

@@ -108,6 +108,7 @@ Every manifest must explicitly declare `default_enabled`, `disableable`, `experi
 - `preview_provider` — Starts, inspects, and stops a repository preview using the provider's supported runtime. Implement `Syrus::Plugin::PreviewProvider`; interface contract: `lib/syrus/plugin/preview_provider.rb`.
 - `problem_provider` — Detects and describes a plugin-owned class of actionable repository or workflow problems. Implement `Syrus::Plugin::ProblemProvider`; interface contract: `lib/syrus/plugin/problem_provider.rb`.
 - `purge_contributor` — Enumerates and removes plugin-owned resources during repository or account purges. Implement `Syrus::Plugin::PurgeContributor`; interface contract: `lib/syrus/plugin/purge_contributor.rb`.
+- `repair_classifier` — Classifies failed Run or Workflow evidence for generic repair machinery. Implement `Syrus::Plugin::RepairClassifier`; interface contract: `lib/syrus/plugin/repair_classifier.rb`.
 - `repo_page_tab` — Registers a plugin-owned tab on repository detail pages, scoped to the current repository and user. Implement `Syrus::Plugin::RepoPageTab`; interface contract: `lib/syrus/plugin/repo_page_tab.rb`.
 - `repository_configuration` — Declares and validates plugin-owned repository configuration read from the supported configuration file. Implement `Syrus::Plugin::RepositoryConfiguration`; interface contract: `lib/syrus/plugin/repository_configuration.rb`.
 - `repository_content_provider` — Resolves immutable repository revisions and reads trees, files, changes, refs, and history from one backend. Implement `Syrus::Plugin::RepositoryContentProvider`; interface contract: `lib/syrus/plugin/repository_content_provider.rb`.
@@ -123,6 +124,7 @@ Every manifest must explicitly declare `default_enabled`, `disableable`, `experi
 - `system_alert_provider` — Contributes redacted operational alerts for administrators and configured outbound delivery. Implement `Syrus::Plugin::SystemAlertProvider`; interface contract: `lib/syrus/plugin/system_alert_provider.rb`.
 - `test_evidence` — Extracts normalized test results and evidence from a supported test runner or artifact. Implement `Syrus::Plugin::TestEvidence`; interface contract: `lib/syrus/plugin/test_evidence.rb`.
 - `ui_slot` — Registers a plugin-owned component for one of the host's named UI insertion slots. Implement `Syrus::Plugin::UiSlot`; interface contract: `lib/syrus/plugin/ui_slot.rb`.
+- `work_gate` — May veto workflow or WorkUnit starts, and declares whether that veto also applies to landing. Implement `Syrus::Plugin::WorkGate`; interface contract: `lib/syrus/plugin/work_gate.rb`.
 - `worker_capability_probe` — Detects a worker capability and reports normalized values used for placement decisions. Implement `Syrus::Plugin::WorkerCapabilityProbe`; interface contract: `lib/syrus/plugin/worker_capability_probe.rb`.
 - `workflow_artifact_contributor` — Collects additional plugin-owned artifacts from a completed workflow run. Implement `Syrus::Plugin::WorkflowArtifactContributor`; interface contract: `lib/syrus/plugin/workflow_artifact_contributor.rb`.
 - `workflow_kinds` — Registers plugin-owned Job, Workflow trigger, Step, and WorkDefinition kinds with their handlers. Implement `Syrus::Plugin::WorkflowKinds`; interface contract: `lib/syrus/plugin/workflow_kinds.rb`.
@@ -148,6 +150,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `speech_to_text` (service; required core: `key`, `display_name`, `available_for?`) — `speech_to_text_provider` (provisional, collect, Service class or instance, Array of them, or nil)
 - `surface` (facet; required core: `key`, `display_name`) — `admin_pages` (stable, collect, Module, Array<Module>, or nil), `artifact_renderers` (stable, collect, Module, Array<Module>, or nil), `filter_chips` (stable, collect, Array<FilterChips>), `filter_subjects` (stable, collect, Array<FilterSubject>), `preview_panel_viewers` (provisional, collect, Module, Array<Module>, or nil), `repo_page_tabs` (stable, collect, Module, Array<Module>, or nil), `sidebar_pages` (stable, collect, Module, Array<Module>, or nil), `ui_slots` (stable, collect, Module, Array<Module>, or nil), `workspace_tabs` (stable, collect, Module, Array<Module>, or nil)
 - `toolkit` (facet; required core: `key`, `display_name`) — `chat_tools` (stable, collect, Module or nil), `credential_probes` (stable, collect, Array<ProbeRegistration>), `permissions` (stable, collect, Module or nil), `run_context` (provisional, collect, Hash), `secret_extractors` (stable, collect, Array<secret extractor>), `workflow_tools` (stable, collect, Module or nil)
+- `work_policy` (facet; required core: `key`, `display_name`) — `repair_classifier` (provisional, first_claim, Object), `system_alerts` (provisional, collect, Array), `work_gate` (provisional, collect, Array<Veto> or nil)
 
 ## Workflow composition anchors
 
@@ -236,4 +239,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 43762 bytes (UTF-8, including this line).
+Size: 44393 bytes (UTF-8, including this line).

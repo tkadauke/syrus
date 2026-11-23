@@ -390,7 +390,7 @@ module Steps
       verdict_evidence = verdict_evidence.to_h
       classified = nil
       unless verdict_evidence.key?(:classifications) || verdict_evidence.key?("classifications")
-        classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)
+        classified = RepairClassifiers.classify(workflow: workflow, failed_steps: failed_required)
       end
       inherited_names = verdict_evidence[:inherited_names] || verdict_evidence["inherited_names"] || classified&.inherited_names || []
       main_branch_evidence = verdict_evidence[:main_branch_evidence] || verdict_evidence["main_branch_evidence"] || classified&.evidence

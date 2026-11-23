@@ -88,11 +88,19 @@ the current user through `apply(scope:, user:)`. They may narrow
 general-purpose repository discovery surfaces without changing direct access
 or repository authorization.
 
-`system_alert_provider` providers return an array of `SystemAlerts::Alert`
-objects from `.system_alerts`. Core asks enabled, healthy providers only when
-building administrator and outbound alerts. Providers must keep messages
-redacted, use stable IDs and evidence-specific dismissal keys, and avoid
-expensive unbounded queries.
+The `work_policy` capability family hosts three related operational policy
+contracts. `work_gate` receives an immutable `WorkContext` containing a
+Workflow or WorkUnit and returns zero or more typed `Veto` values. A veto has a
+stable reason, human message, details, and a `landing?` flag; no providers means
+pass, any veto wins, and provider failures fail open while appearing in plugin
+health. `system_alerts` contributes arrays of `SystemAlerts::Alert` values;
+providers must keep messages redacted, use stable IDs and evidence-specific
+dismissal keys, and avoid expensive unbounded queries. `repair_classifier`
+receives a failed Run or Workflow plus failed Steps and returns the first
+applicable provider-owned classification; no provider or no claim returns
+`nil`. Core invokes all three through the family dispatcher. The legacy
+`system_alert_provider`, `work_gate`, and `repair_classifier` registrations are
+bridges for providers migrating to a `work_policy` family declaration.
 
 ## Ecosystem capability family
 
