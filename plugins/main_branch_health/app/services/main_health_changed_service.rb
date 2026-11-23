@@ -61,12 +61,7 @@ class MainHealthChangedService
   def self.supersede_unneeded_preflight_repairs!(repository)
     return unless repository.main_health == "healthy"
 
-    each_preflight_repair(repository) do |job, workflow|
-      # The repair whose passing preflight just made main healthy is not
-      # unneeded: MainBranchRepair.after_success closes it as preflight_passed
-      # right after this runs, from inside its own health change.
-      next if workflow.class.find(workflow.id).artifact("preflight_passed").present?
-
+    each_preflight_repair(repository) do |job, _workflow|
       Rails.logger.info("[MainHealthChangedService] #{repository.slug} superseding #{job.slug}: main is healthy")
       job.cancel_active_runs_and_close!(SUPERSEDED_PREFLIGHT_CLOSURE)
     end

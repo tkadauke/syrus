@@ -4427,7 +4427,7 @@ failed with a lock-order error. That path only reserves since main's
 `c7b2166fe8` let user-level availability through. It is in `PENDING_DECISION`
 with the NY35 group, and NY35's context names it.
 
-## F120. The repair that made main healthy was closed as superseded — fixed
+## F120. The repair that made main healthy was closed as superseded — fixed (superseded by main's f4caf4f261)
 
 **Before.** Main's `3788b1a9b9` added `supersede_unneeded_preflight_repairs!`: once
 main is healthy, any main-branch repair that has not started implementing is
@@ -4443,7 +4443,10 @@ for the same case. So a repair that confirmed main healthy read as one that was
 merely overtaken.
 
 **Fix.** The sweep skips a repair whose Workflow recorded `preflight_passed`.
-That repair closes itself right after, with the right reason.
+That repair closes itself right after, with the right reason. Main fixed the
+same bug independently in `f4caf4f261`, in the shared iterator and for
+`preflight_inconclusive` too. After the rebase, this branch's narrower skip was
+removed in favour of main's.
 
 **Specs.** The three existing `main_branch_repair_spec.rb` examples, red on main
 and green with the fix; `main_health_changed_service_spec.rb` unchanged and green.
@@ -5251,6 +5254,36 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M71. Main through `16254d1666`
+
+Four commits.
+
+- **"Update the Lean models my provider-backoff and orphan-grace changes
+  touched"** (`16254d1666`). Main updated `QueueExecution.lean` and
+  `CascadeReplay.lean` for the same two drifted mirrors this branch updated in
+  F118. Main's `transit_never_flagged` relies on this invariant: a job in
+  transit was just changed, so it is not `settled`. That fails for one job. The
+  code's age check reads the job row, and a promotion moves only execution rows,
+  so a long-scheduled job promoted mid-snapshot is old and still flagged. The
+  rebase keeps both halves of the model: main's torn-read section, and F118's
+  read order, now with `promoted_old_job_flagged` naming the case the grace
+  misses. The fixture's `orphaned` is defined as main's `orphanedSettled`.
+- **"Let a main repair that proved main healthy close itself"** (`f4caf4f261`).
+  The same bug as F120, fixed in the shared iterator and for
+  `preflight_inconclusive` too. *Relied-on invariant:* a repair whose preflight
+  reached a verdict closes itself. Holds: `MainBranchRepair.after_success`
+  closes it right after the health change. The branch's narrower skip is
+  removed.
+- **"Note a missing attachment file instead of crashing the agent step"**
+  (`aca5bebc58`). *Relied-on invariant:* an attachment without a file is
+  reported, never dereferenced. Holds: `JobAttachmentContext` checks for the
+  file before reading its name.
+- **"Let the WebKit e2e project reach its own assertions"** (`dd738c20df`).
+  `signIn` returned before the SPA's first commit, and a later navigation
+  raced the router's `replaceState`. That race may also explain Lead L10's
+  CI-only signup and onboarding failures, which never reproduced locally.
+  Recorded on L10, not closed.
+
 ## M70. Main through `3788b1a9b9`
 
 Sixteen commits after this branch's last push to main (`deb8208602`). Two of
@@ -5462,6 +5495,11 @@ swipe reveals). No engine invariant.
 ---
 
 ## Lead L10. E2E on main: one new failure fixed, two that only fail in the full CI run
+
+*Update (M71):* main's `dd738c20df` found that `signIn` returned before the
+SPA's first commit, so the next navigation could race the router's
+`history.replaceState`. That is CI-timing dependent, as these failures are, and
+is a likely cause. Re-check the two after the next E2E run on main.
 
 Main's E2E workflow has been red for at least fifteen runs. On `46989b055f`
 it fails three tests:
@@ -7037,7 +7075,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `3788b1a9b9`. Each loop iteration continues from there:
+Checked through main `16254d1666`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
