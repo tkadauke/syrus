@@ -132,6 +132,7 @@ RSpec.describe WorkflowAdmissionBudget do
 
   it "admits a workflow when projected pressure is within budget" do
     workflow = workflow_for
+    expected_duration = 60 + ((workflow.steps.count - 1) * 10)
 
     decision = described_class.call(workflow: workflow)
 
@@ -797,12 +798,13 @@ RSpec.describe WorkflowAdmissionBudget do
 
     expect(decision.action).to eq("admit_now")
     expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("command_attributed")
-    # Duration still sums across steps -- 60 for prepare plus 11 low-cost steps
-    # at 10s -- because that genuinely is how long the workflow will take.
+    # Duration still sums across the composed steps -- 60 for prepare plus
+    # each low-cost step at 10s -- because that genuinely is how long the
+    # workflow will take. Plugin-contributed steps deliberately affect this.
     # Pressure is the peak step, not the sum: the steps run one after another,
     # so 5.0 is the most this workflow contributes at any instant, not 15.0.
     expect(decision.pressure.dig("candidate", "predicted_command_cost")).to include(
-      "duration_seconds" => 170,
+      "duration_seconds" => expected_duration,
       "cpu_pressure" => 5.0,
       "io_pressure" => 3.0,
       "memory_used_percent" => 25.0,
@@ -810,7 +812,7 @@ RSpec.describe WorkflowAdmissionBudget do
       "confidence" => "process_attributed"
     )
     expect(decision.pressure.dig("candidate", "process_attributed_cost")).to include(
-      "duration_seconds" => 170,
+      "duration_seconds" => expected_duration,
       "cpu_percent" => 16.0,
       "memory_bytes" => 25,
       "io_bytes" => 14
