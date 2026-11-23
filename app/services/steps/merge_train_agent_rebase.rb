@@ -36,6 +36,7 @@ module Steps
         context: "merge_train_agent_rebase",
         operation_type: "git_merge_train_agent_rebase_push"
       )
+      record_agentic_rebase_touched_files!(git, train, chdir, new_base_sha, new_integration_sha)
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
       run.update!(head_sha: new_integration_sha)
@@ -45,6 +46,33 @@ module Steps
     end
 
     private
+
+    # Same contract as Steps::ForcePush for a solo landing: with
+    # trust_clean_rebase_grade on, remember which files the agent's resolution
+    # changed so the grade loop that follows re-runs only the graders those
+    # files reach. Best-effort; nothing recorded means a full re-validation.
+    def record_agentic_rebase_touched_files!(git, train, chdir, new_base_sha, new_integration_sha)
+      return unless repository.trust_clean_rebase_grade?
+
+      pre_head_sha = workflow.artifact("merge_train_rebase_pre_head_sha").to_s.presence
+      touched = LandingAgenticRebase.touched_files(git: git, chdir: chdir, base_sha: new_base_sha, pre_head_sha: pre_head_sha)
+      if touched.nil?
+        log("merge_train_agent_rebase: could not determine which files the agent's resolution touched; landing will re-validate in full", kind: "system")
+        return
+      end
+
+      LandingAgenticRebase.record!(
+        workflow: workflow,
+        head_sha: new_integration_sha,
+        base_sha: new_base_sha,
+        base_ref: train.base_branch,
+        pre_head_sha: pre_head_sha,
+        touched_files: touched
+      )
+      log("merge_train_agent_rebase: agent resolution touched #{touched.size} file(s) beyond the mechanical rebase")
+    rescue StandardError => e
+      log("merge_train_agent_rebase: could not record agentic rebase touched files: #{e.class}: #{e.message}", kind: "system")
+    end
 
     def compose_prompt(train, new_base_sha)
       Prompts::MergeTrainRebaseConflict.new(

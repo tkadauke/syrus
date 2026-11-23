@@ -2537,6 +2537,80 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       )
     end
 
+    context "recording what the agent's resolution touched" do
+      let(:member) { member_job(issue_number: 1) }
+      let(:train) do
+        build_train([ member ]).tap do |t|
+          t.update!(integration_branch: "syrus/merge-train-epic-#{epic.id}-x", integration_sha: "intsha111")
+        end
+      end
+      let(:workflow) do
+        Workflow.create!(
+          job: member,
+          trigger_kind: "merge_train",
+          artifacts: {
+            "merge_train_id" => train.id,
+            "merge_train_rebase_new_base_sha" => "newbase222",
+            "merge_train_rebase_pre_head_sha" => "prehead111"
+          }
+        )
+      end
+      let(:handler) do
+        step = Step.create!(workflow: workflow, kind: "merge_train_agent_rebase", position: 0)
+        described_class.new(Run.create!(job: member, step: step, trigger_kind: "merge_train"))
+      end
+
+      before do
+        workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
+        git = instance_double(GitRunner)
+        allow(handler).to receive(:workspace).and_return(workspace)
+        allow(handler).to receive(:streaming_git).and_return(git)
+        allow(handler).to receive(:run_agent)
+        allow(git).to receive(:run)
+        allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-merge\n")
+        allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-apply\n")
+        allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/ws").and_return("")
+        allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+        allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws").and_return("newintsha999\n")
+        allow(LandingAgenticRebase).to receive(:touched_files).and_return([ "app/models/job.rb" ])
+      end
+
+      it "records the touched files for the grade loop when the repository trusts clean rebases" do
+        member.repository.update!(trust_clean_rebase_grade: true)
+
+        handler.call
+
+        expect(LandingAgenticRebase).to have_received(:touched_files).with(
+          hash_including(base_sha: "newbase222", pre_head_sha: "prehead111", chdir: "/tmp/ws")
+        )
+        expect(workflow.reload.artifact(LandingAgenticRebase::ARTIFACT_KEY)).to include(
+          "head_sha" => "newintsha999",
+          "base_sha" => "newbase222",
+          "base_ref" => train.base_branch,
+          "pre_head_sha" => "prehead111",
+          "touched_files" => [ "app/models/job.rb" ]
+        )
+      end
+
+      it "records nothing when the repository does not trust clean rebases" do
+        member.repository.update!(trust_clean_rebase_grade: false)
+
+        handler.call
+
+        expect(LandingAgenticRebase).not_to have_received(:touched_files)
+        expect(workflow.reload.artifact(LandingAgenticRebase::ARTIFACT_KEY)).to be_nil
+      end
+
+      it "records nothing, so landing re-validates in full, when the touched files cannot be determined" do
+        member.repository.update!(trust_clean_rebase_grade: true)
+        allow(LandingAgenticRebase).to receive(:touched_files).and_return(nil)
+
+        handler.call
+
+        expect(workflow.reload.artifact(LandingAgenticRebase::ARTIFACT_KEY)).to be_nil
+      end
+    end
+
     it "fails before invoking the agent when the integration branch cannot be restored" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

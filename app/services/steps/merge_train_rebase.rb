@@ -32,6 +32,10 @@ module Steps
       log("merge_train_rebase: rebasing integration branch #{train.integration_branch} " \
           "onto #{train.base_branch}@#{new_base_sha.first(9)} (was #{old_base_sha.first(9)})")
 
+      # What the agent's resolution is later measured against when the
+      # mechanical rebase conflicts (Steps::MergeTrainAgentRebase).
+      workflow.set_artifact!("merge_train_rebase_pre_head_sha", git.run("rev-parse", "HEAD", chdir: chdir).to_s.strip.presence)
+
       begin
         GitMergeDrivers.register!(git: git, path: chdir)
         git.run("rebase", "FETCH_HEAD", chdir: chdir)

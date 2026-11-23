@@ -446,6 +446,54 @@ RSpec.describe Steps::ForcePush do
       expect(workflow.reload.artifact("landing_validation")).to be_nil
     end
 
+    context "when the agent resolved the rebase conflicts" do
+      before do
+        workflow.set_artifact!("auto_rebase_result", { "reason" => "conflict", "succeeded" => false, "pre_sha" => "prehead111", "base_sha" => "basesha" })
+        allow(LandingAgenticRebase).to receive(:touched_files).and_return([ "app/models/job.rb" ])
+      end
+
+      it "records the files the resolution touched when the repo trusts clean rebases" do
+        job.repository.update!(trust_clean_rebase_grade: true)
+        job.update!(mergeability_base_ref: "master")
+        handler = described_class.new(run)
+        stub_git(handler)
+
+        handler.call
+
+        expect(LandingAgenticRebase).to have_received(:touched_files).with(hash_including(base_sha: "basesha", pre_head_sha: "prehead111"))
+        expect(workflow.reload.artifact(LandingAgenticRebase::ARTIFACT_KEY)).to include(
+          "head_sha" => "newhead789",
+          "base_sha" => "basesha",
+          "base_ref" => "master",
+          "pre_head_sha" => "prehead111",
+          "touched_files" => [ "app/models/job.rb" ]
+        )
+        expect(workflow.artifact("landing_validation")).to be_nil
+      end
+
+      it "records nothing when the repository does not trust clean rebases" do
+        job.repository.update!(trust_clean_rebase_grade: false)
+        handler = described_class.new(run)
+        stub_git(handler)
+
+        handler.call
+
+        expect(LandingAgenticRebase).not_to have_received(:touched_files)
+        expect(workflow.reload.artifact(LandingAgenticRebase::ARTIFACT_KEY)).to be_nil
+      end
+
+      it "records nothing when the touched files cannot be determined" do
+        job.repository.update!(trust_clean_rebase_grade: true)
+        allow(LandingAgenticRebase).to receive(:touched_files).and_return(nil)
+        handler = described_class.new(run)
+        stub_git(handler)
+
+        handler.call
+
+        expect(workflow.reload.artifact(LandingAgenticRebase::ARTIFACT_KEY)).to be_nil
+      end
+    end
+
     it "does not re-stamp when the current .syrus.yml changes the landing grader fingerprint" do
       job.repository.update!(trust_clean_rebase_grade: true)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("new-fp")

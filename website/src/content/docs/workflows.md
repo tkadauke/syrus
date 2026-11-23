@@ -171,7 +171,9 @@ fingerprint. Repositories can also opt into **Trust clean rebases**
 conflict-free rebase, trading a small logical-conflict risk for landing
 throughput. Landing logs name the reuse path (`exact_head`,
 `same_tree`, or `clean_rebase_carry_forward`) or explain why graders ran
-again.
+again. With the same setting on, a rebase the agent had to resolve re-runs only
+the graders whose scope covers a file the agent's resolution changed; every other
+grader's passing result is carried forward, and the log says why.
 
 When a pull request's CI checks are red, Syrus distinguishes a failure the Job
 introduced from one it inherited from a base branch that was already broken. It
