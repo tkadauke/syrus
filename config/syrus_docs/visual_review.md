@@ -166,6 +166,13 @@ surface are reported as unavailable comparisons. Unlike `run_visual_review`,
 this tool captures the base revision and returns a before/after comparison
 artifact; it does not launch a fresh manual visual-review pass.
 
+Coworkers can discover both tools through the shared coworker tool surface.
+They remain governed by the canonical permission policy: the coworker must be
+eligible for the capability, receive explicit authority, stay within the
+owner's visible Jobs, and pass the normal pending-action confirmation.
+Failure to start a selected browser or other visual-review runtime fails the
+review coverage; it is not recorded as a successful `skipped` verdict.
+
 ## Which workflows include visual review
 
 The automatic visual_review loop runs in `initial`, `retry`, `pr_comment`,
