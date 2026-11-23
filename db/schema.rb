@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_033349) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -4375,10 +4375,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.datetime "updated_at", null: false
     t.integer "test_identity_id"
     t.boolean "wip_repair_failure", default: false, null: false
+    t.string "grader_name"
     t.index ["created_at", "id"], name: "idx_cases_retention"
     t.index ["repository_id", "test_identity_id", "id"], name: "idx_test_cases_repo_identity_id"
     t.index ["test_identity_id", "created_at", "id"], name: "idx_test_cases_identity_created_id"
     t.index ["test_identity_id", "duration_ms", "created_at", "id"], name: "idx_test_cases_identity_duration_created_id"
+    t.index ["test_identity_id", "grader_name", "created_at", "id"], name: "idx_test_cases_identity_grader_created_id"
     t.index ["test_identity_id", "id"], name: "idx_test_cases_identity_id_latest"
     t.index ["test_identity_id", "status", "created_at"], name: "idx_test_cases_identity_status_created"
     t.index ["test_identity_id", "wip_repair_failure", "created_at", "id"], name: "idx_test_cases_identity_scored_created_id"
