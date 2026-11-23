@@ -12,10 +12,10 @@ RSpec.describe GoogleWorkspace::MailAdapter do
     Base64.urlsafe_encode64(value.encode(encoding), padding: false)
   end
 
-  def message_payload(parts:, id: "message-1")
+  def message_payload(parts:, id: "message-1", headers: nil)
     {
       id:, threadId: "thread-1", labelIds: %w[INBOX IMPORTANT], snippet: "A short snippet",
-      payload: { headers: [
+      payload: { headers: headers || [
         { name: "From", value: "Sender <sender@example.test>" }, { name: "To", value: "one@example.test" },
         { name: "Cc", value: "two@example.test" }, { name: "Subject", value: "Subject" },
         { name: "Date", value: "Sun, 22 Nov 2026 10:00:00 +0000" }
@@ -37,6 +37,25 @@ RSpec.describe GoogleWorkspace::MailAdapter do
     expect(message).to include("id" => "message-1", "thread_id" => "thread-1", "sender" => "Sender <sender@example.test>",
       "recipients" => "one@example.test, two@example.test", "subject" => "Subject", "labels" => %w[INBOX IMPORTANT])
     expect(WebMock::RequestRegistry.instance.requested_signatures.to_s).not_to include("secret-access-token")
+  end
+
+  it "normalizes header names case-insensitively and preserves repeated recipients" do
+    headers = [
+      { name: "from", value: "Sender <sender@example.test>" }, { name: "TO", value: "one@example.test" },
+      { name: "to", value: "two@example.test" }, { name: "Cc", value: "three@example.test" },
+      { name: "subject", value: "Lowercase subject" }, { name: "DATE", value: "Sun, 22 Nov 2026 10:00:00 +0000" }
+    ]
+    stub_request(:get, %r{/gmail/v1/users/me/messages/message%2F1\?})
+      .to_return(status: 200, body: message_payload(parts: [], headers:))
+
+    result = described_class.read_message(context)
+
+    expect(result).to include(
+      "sender" => "Sender <sender@example.test>",
+      "recipients" => "one@example.test, two@example.test, three@example.test",
+      "subject" => "Lowercase subject",
+      "date" => "Sun, 22 Nov 2026 10:00:00 +0000"
+    )
   end
 
   it "prefers multipart plain text, converts charsets, and lists attachments without fetching them" do
