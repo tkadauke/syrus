@@ -39,12 +39,11 @@ RSpec.describe TestInsights::GraderNameBackfill do
     historical = create_case!
     upper_bound = described_class.max_test_case_id
     live = create_case!
-    live.update!(grader_name: "rspec")
 
     result = described_class.new.call(up_to_id: upper_bound, limit: 10)
 
     expect(result.processed).to eq(1)
     expect(historical.reload.grader_name).to eq("rspec")
-    expect(live.reload.grader_name).to eq("rspec")
+    expect(live.reload.grader_name).to be_nil
   end
 end
