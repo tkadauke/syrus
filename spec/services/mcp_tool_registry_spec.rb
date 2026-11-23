@@ -151,22 +151,6 @@ RSpec.describe McpToolRegistry do
       )
     end
 
-    it "makes visual-review requests explicitly eligible for interactive and background coworkers" do
-      %w[run_visual_review run_visual_diff].each do |tool_name|
-        chat_entry = described_class.entries(surface: :chat).find { |entry| entry.tool_name == tool_name }
-        coworker_entry = described_class.entries(surface: :coworker).find { |entry| entry.tool_name == tool_name }
-
-        expect(chat_entry.descriptor.requestable_roles).to include(
-          AgentRole::COWORKER_CHAT, AgentRole::COWORKER
-        )
-        expect(coworker_entry).to have_attributes(tier: :deferred, mutation: true, approval_effect: true)
-        expect(coworker_entry.descriptor).to have_attributes(
-          capability: "syrus.visual_review@v1",
-          defaults: include(AgentRole::COWORKER_CHAT => :ask, AgentRole::COWORKER => :ask)
-        )
-      end
-    end
-
     it "derives the coworker surface from ordinary chat registration with centralized exclusions" do
       chat_entries = described_class.entries(surface: :chat)
       coworker_names = described_class.entries(surface: :coworker).map(&:tool_name)

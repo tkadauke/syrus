@@ -6,7 +6,7 @@ RSpec.describe "Review plan plugin boundary" do
   OWNED_REVIEW_PLAN_NAMES = /\breview_plan\b|(?<![A-Za-z])ReviewPlan\b/
 
   # Unrelated core names that merely contain the words.
-  ALLOWED = %w[
+  ALLOWED_REVIEW_PLAN_PATHS = %w[
     app/services/repo_adversarial_review_plan.rb
     app/services/repo_security_review_plan.rb
   ].freeze
@@ -17,7 +17,7 @@ RSpec.describe "Review plan plugin boundary" do
                  .reject { |path| path.include?("/app/frontend/") || path.include?("/config/syrus_docs/") }
                  .map { |path| Pathname.new(path).relative_path_from(Rails.root).to_s }
     offenders = files.filter_map do |path|
-      next if ALLOWED.include?(path)
+      next if ALLOWED_REVIEW_PLAN_PATHS.include?(path)
 
       Rails.root.join(path).read.lines.each_with_index.filter_map { |line, i| "#{path}:#{i + 1}" if line.match?(OWNED_REVIEW_PLAN_NAMES) }.first
     end

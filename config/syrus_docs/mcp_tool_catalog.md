@@ -81,9 +81,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `resume_landing_queue` | chat | deferred | write | no | - | - | - | - | gated (operational) |
 | `revoke_permission` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
 | `revoke_permission_lease` | chat | deferred | write | no | - | - | - | - | essential |
-| `run_visual_diff` | chat | deferred | write | no | - | - | - | - | gated (operational) |
-| `run_visual_review` | chat | deferred | write | no | - | - | - | - | gated (operational) |
-| `schedule_wakeup` | chat | deferred | write | no | - | - | - | - | gated (persistent_autonomy) |
+| `schedule_wakeup` | chat | deferred | write | no | - | - | - | - | essential |
 | `search_chats` | chat | deferred | read | no | - | - | - | - | essential |
 | `search_syrus_docs` | chat | deferred | read | no | - | - | - | - | essential |
 | `select_job_delivery_track` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
@@ -263,9 +261,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `request_permission_revocation` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `resolve_delivery_policy` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
 | `resume_landing_queue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.landing_queue` | - | gated (operational) |
-| `run_visual_diff` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
-| `run_visual_review` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
-| `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | gated (persistent_autonomy) |
+| `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | essential |
 | `search_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
 | `search_syrus_docs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
 | `select_job_delivery_track` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.delivery` | - | deniable (material control) |

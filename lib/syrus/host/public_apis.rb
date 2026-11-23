@@ -124,7 +124,7 @@ module Syrus
         VisualDiffSubmission: [ "Coordinates deferred before/after visual comparisons.", %w[enqueue_deferred_for_visual_review] ],
         VisualReviewEvidenceGuard: [ "Validates visual review evidence.", %w[blocked_evidence_reason validate_visual_diff_after_artifacts] ],
         VisualReviewRuntimeSession: [ "Manages a visual review runtime session.", %w[new start! stop!] ],
-        FeedbackKind: [ "Resolves feedback text for a workflow.", %w[for review_text] ],
+        FeedbackKind: [ "Resolves the feedback object for a workflow; its review_text feeds review prompts.", %w[for] ],
         TargetGraphCompiler: [ "Compiles repository target configuration.", %w[compile] ],
         BotIdentity: [ "Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments.", %w[for authored_github_comment?] ],
         CodePathNormalizer: [ "Normalizes tool-reported source paths to repository-relative paths.", %w[normalize] ],

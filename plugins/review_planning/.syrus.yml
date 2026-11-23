@@ -1,0 +1,9 @@
+project:
+  id: review_planning
+  label: "review_planning plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

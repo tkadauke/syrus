@@ -161,6 +161,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `plugin_runtime` | `PluginRuntime::Lifecycle` | - | - | `callback_providers` |
 | `s3_backup_destination` | `S3BackupDestination::Lifecycle` | - | - | `domain_subscribers` |
 | `scheduled_tasks` | `ScheduledTasks::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `syrus_coverage` | `SyrusCoverage::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
 | `tailscale` | `Tailscale::Lifecycle` | - | - | `callback_providers` |
 | `terminal` | `Terminal::Lifecycle` | - | - | `callback_providers` |
 | `test_insights` | `TestInsights::Lifecycle` | - | - | `domain_subscribers` |
@@ -337,6 +338,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `sdlc_pipeline` | `SdlcPipeline::Surface` | - | `repo_page_tabs`, `filter_subjects` | - |
 | `spending_insights` | `SpendingInsights::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
 | `syrus-rails` | `SyrusRails::Surface` | - | `artifact_renderers` | - |
+| `syrus_coverage` | `SyrusCoverage::Surface` | - | `ui_slots` | - |
 | `syrus_dev` | `SyrusDev::Surface` | - | `admin_pages` | - |
 | `tailscale` | `Tailscale::Surface` | - | `admin_pages` | - |
 | `team_directory` | `TeamDirectory::Surface` | - | `sidebar_pages` | - |

@@ -58,8 +58,6 @@ module Permissions
       "create_tag" => operation("tags", "create"),
       "add_job_tag" => operation("tags", "add_to_job"),
       "remove_job_tag" => operation("tags", "remove_from_job"),
-      "run_visual_review" => operation("visual_review", "run", WORK_CONTROL),
-      "run_visual_diff" => operation("visual_review", "run_diff", WORK_CONTROL),
       "delegate_issue" => operation("github_issues", "delegate", %i[credential_use external_write operational], :high),
       "remove_job_from_epic" => operation("jobs", "remove_from_epic"),
       "update_epic" => operation("epics", "update"),

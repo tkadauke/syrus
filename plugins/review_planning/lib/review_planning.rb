@@ -10,6 +10,7 @@ module ReviewPlanning
 
 The step runs once after `pr_open` through the `workflow:post_pr` anchor and is best-effort: it never fails the workflow. Disabling the plugin removes the step from new workflows without an error and the `review_plan:` key is ignored; recorded review-plan artifacts are left in place."
     homepage "https://github.com/tkadauke/syrus"
+    icon_url "/plugin-icons/review_planning.svg"
     author "Thomas Kadauke"
     category "tooling"
     default_enabled true
@@ -33,8 +34,9 @@ The step runs once after `pr_open` through the `workflow:post_pr` anchor and is 
       ]
     )
     provides "workflow:post_pr" => "ReviewPlanning::WorkflowPostPr",
-             repository_configuration: "ReviewPlanning::RepositoryConfiguration",
              mcp_tool_set: "ReviewPlanning::McpToolSet",
              permission_provider: "ReviewPlanning::PermissionProvider"
+    repository_configuration key: "review_planning.config", schema_version: 1, legacy_keys: [ "review_plan" ],
+                             provider: "ReviewPlanning::RepositoryConfiguration"
   end
 end

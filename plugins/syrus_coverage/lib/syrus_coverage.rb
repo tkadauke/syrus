@@ -50,14 +50,15 @@ module SyrusCoverage
     )
     provides "workflow:post_implementation" => "SyrusCoverage::WorkflowPostImplementation",
              "workflow:post_pr" => "SyrusCoverage::WorkflowPostPr",
-             repository_configuration: "SyrusCoverage::RepositoryConfiguration",
              mcp_tool_set: "SyrusCoverage::McpToolSet",
              permission_provider: "SyrusCoverage::PermissionProvider",
-             domain_subscriber: "SyrusCoverage::Subscribers",
-             callbacks: "SyrusCoverage::Callbacks",
              line_coverage_provider: "SyrusCoverage::LineCoverageProvider",
-             skill: "SyrusCoverage::SkillProvider",
-             ui_slot: "SyrusCoverage::UiSlots"
+             skill: "SyrusCoverage::SkillProvider"
+    repository_configuration key: "syrus_coverage.config", schema_version: 1, legacy_keys: [ "coverage" ],
+                             provider: "SyrusCoverage::RepositoryConfiguration"
+    lifecycle callback_providers: "SyrusCoverage::Callbacks",
+              domain_subscribers: "SyrusCoverage::Subscribers"
+    surface ui_slots: "SyrusCoverage::UiSlots"
     frontend ui_slots: { "syrus_coverage/CoverageCard" => "app/frontend/ui_slots/CoverageCard.tsx",
                          "syrus_coverage/CoverageSparkline" => "app/frontend/ui_slots/CoverageSparkline.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/syrus_coverage.json" ]

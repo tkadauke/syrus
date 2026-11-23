@@ -22,10 +22,10 @@ RSpec.describe SyrusCoverage::Engine do
   end
 
   it "owns the .syrus.yml coverage block, its tool, its data hooks and its skill" do
-    expect(Syrus::PluginRegistry.providers_for(:repository_configuration)).to include(SyrusCoverage::RepositoryConfiguration)
+    expect(SyrusYml.new("coverage:\n  sources:\n    - { artifact: a, format: lcov }\n").parse.plugin_configurations["syrus_coverage.config"]).to be_present
     expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(SyrusCoverage::McpToolSet)
     expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(SyrusCoverage::PermissionProvider)
-    expect(Syrus::PluginRegistry.providers_for(:domain_subscriber)).to include(SyrusCoverage::Subscribers)
+    expect(Syrus::Plugin::Surface.contributions(:ui_slots).map(&:name)).to include("SyrusCoverage::UiSlots")
     expect(Syrus::PluginRegistry.providers_for(:line_coverage_provider)).to include(SyrusCoverage::LineCoverageProvider)
     expect(Syrus::PluginRegistry.providers_for(:skill)).to include(SyrusCoverage::SkillProvider)
   end

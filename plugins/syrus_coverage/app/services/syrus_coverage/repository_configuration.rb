@@ -11,9 +11,7 @@ module SyrusCoverage
 
     KEY = "syrus_coverage.config".freeze
 
-    def self.key = KEY
     def self.schema_version = 1
-    def self.legacy_keys = [ "coverage" ]
 
     def self.parse(value:, version:, scope:)
       raise ArgumentError, "unsupported schema version #{version}" unless version == schema_version

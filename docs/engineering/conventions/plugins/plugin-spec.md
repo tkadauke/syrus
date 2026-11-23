@@ -153,10 +153,6 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 
 The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
 
-## Workflow composition anchors
-
-The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
-
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
@@ -187,7 +183,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::ExternalReviewContext` (since 0.1.16) — Carries immutable public review inputs and host-supplied account/client facades; records, credentials, and GitHub internals are not exposed. Only the listed members are supported. Supported members: `base_sha`, `client`, `connected_account`, `diff_review_version`, `evidence`, `external_id`, `head_sha`, `idempotency_key`, `job`, `links`, `new`, `pull_request`, `repository`, `rule`, `summary`, `trigger`.
 - `Syrus::Host::ExternalReviewResult` (since 0.1.16) — Normalizes external-review outcomes and provider response data; persistence, retry scheduling, and publication policy are not promised. Only the listed members are supported. Supported members: `accepted`, `artifacts`, `completed`, `declined`, `external_id`, `feedback`, `idempotency_key`, `metadata`, `new`, `outcome`, `publication`, `retry_after`, `retryable?`, `retryable_failure`, `terminal?`, `terminal_failure`, `verdict`.
 - `Syrus::Host::ExternalReviewer` (since 0.1.16) — Defines provisional external-review dispatch, refresh, and cancellation operations; lifecycle orchestration and storage are not promised. Only the listed members are supported. Supported members: `available_for?`, `cancel`, `capabilities`, `display_name`, `provider_key`, `refresh`, `submit`.
-- `Syrus::Host::FeedbackKind` (since 0.1.16) — Resolves feedback text for a workflow. Only the listed members are supported. Supported members: `for`, `review_text`.
+- `Syrus::Host::FeedbackKind` (since 0.1.16) — Resolves the feedback object for a workflow; its review_text feeds review prompts. Only the listed members are supported. Supported members: `for`.
 - `Syrus::Host::GithubContentTrust` (since 0.1.16) — Shares the GitHub-content prompt trust boundary. Only the listed members are supported.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
 - `Syrus::Host::Job` (since 0.1.16) — Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised. Supported members: `accessible_to`, `find`, `id`, `repository`, `state`, `title`, `user`, `visible_to`, `workflows`.
@@ -239,4 +235,5 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Shipping source-only frontend code instead of the declared prebuilt bundle and locales.
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
-Size: 43732 bytes (UTF-8, including this line).
+
+Size: 43762 bytes (UTF-8, including this line).

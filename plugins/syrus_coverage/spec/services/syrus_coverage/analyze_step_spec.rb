@@ -218,7 +218,7 @@ RSpec.describe SyrusCoverage::AnalyzeStep, :ci_only do
 
     it "attaches the hit map to the workflow" do
       handler.call
-      expect(workflow.reload.coverage_hit_map).to be_attached
+      expect(SyrusCoverage::HitMap.attached_for?(workflow)).to be true
     end
 
     it "sets hit_map_attached: true in the artifact" do

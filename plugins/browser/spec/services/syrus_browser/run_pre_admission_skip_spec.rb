@@ -25,7 +25,7 @@ RSpec.describe RunPreAdmissionSkip do
     allow(SyrusYml).to receive(:load_repo).with(workspace_path).and_return(
       SyrusYml::Config.new(
         prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-        formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, merge_train: nil, project: nil, targets: [], target_graph: nil, scripts: {},
         visual_review: SyrusYml::VisualReviewConfig.new(
           enabled: true, rounds: 1,
@@ -102,15 +102,5 @@ RSpec.describe RunPreAdmissionSkip do
     allow(git).to receive(:run).and_return("docs/readme.md\n")
 
     expect(described_class.call(run: run)).to be_skip
-  end
-
-  it "skips retired review_plan steps before host admission" do
-    review_step.update!(kind: "review_plan")
-
-    result = described_class.call(run: run)
-
-    expect(result).to be_skip
-    expect(result.reason).to eq("review_plan_retired")
-    expect(result.message).to eq("[review_plan] retired legacy PR-comment step - skipping")
   end
 end

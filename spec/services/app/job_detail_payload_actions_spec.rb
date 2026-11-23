@@ -122,7 +122,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.dig(:actions, :can_manage_tags)).to be(false)
       expect(payload.dig(:actions, :can_start_preview)).to be(false)
       expect(payload.dig(:actions, :can_deploy)).to be(false)
-      expect(payload.dig(:actions, :can_run_adversarial_review)).to be(false)
+      expect(payload.dig(:actions, :can_run_visual_review)).to be(false)
       expect(payload.dig(:actions, :can_run_visual_diff)).to be(false)
       expect(payload.dig(:actions, :can_send_job_upstream)).to be(false)
       expect(payload.dig(:job, :creator_user)).to include(id: user.id, email_address: user.email_address)

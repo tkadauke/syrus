@@ -340,7 +340,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
     allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
       SyrusYml::Config.new(
         prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-        formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, merge_train: nil, project: nil, targets: [], target_graph: nil, scripts: {},
         visual_review: SyrusYml::VisualReviewConfig.new(
           enabled: true, rounds: 1, when_files_changed: nil,
@@ -489,7 +489,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-          formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: nil,
@@ -624,7 +624,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-          formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: [ "app/frontend/**/*" ],
@@ -673,7 +673,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-          formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: [ "app/views/**/*.erb" ],
@@ -703,7 +703,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-          formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
@@ -748,7 +748,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-          formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
@@ -838,7 +838,7 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
-          formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          formatters: [], generated: [], deployment_stages: [], preview: nil, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,

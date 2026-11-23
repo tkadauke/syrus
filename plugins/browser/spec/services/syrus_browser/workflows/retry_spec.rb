@@ -135,20 +135,4 @@ RSpec.describe Workflows::Retry do
 
     expect(workflow.steps.where(kind: "review_plan")).to be_empty
   end
-
-  context "when legacy review_plan is enabled in .syrus.yml" do
-    before do
-      config = SyrusYml.new("review_plan: true\n").parse
-      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
-        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
-      )
-    end
-
-    it "ignores the retired key and does not materialize review_plan" do
-      workflow = described_class.instantiate(job: job)
-
-      expect(workflow.steps.order(:position).pluck(:kind)).to end_with("summarize", "test_plan", "pr_open")
-      expect(workflow.steps.where(kind: "review_plan")).to be_empty
-    end
-  end
 end

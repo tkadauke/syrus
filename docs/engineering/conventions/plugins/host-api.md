@@ -393,12 +393,11 @@ Supported members:
 
 Since: `0.1.16`
 
-Resolves feedback text for a workflow. Only the listed members are supported.
+Resolves the feedback object for a workflow; its review_text feeds review prompts. Only the listed members are supported.
 
 Supported members:
 
 - `for`
-- `review_text`
 
 ### `Syrus::Host::GithubContentTrust`
 

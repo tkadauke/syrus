@@ -4,6 +4,14 @@ RSpec.describe App::UiSlotsPayload do
   let(:repository) { Factories.repository }
   let(:user) { repository.user }
 
+  # Bundled plugins (the coverage trend sparkline, for one) contribute real
+  # panels to these slots; this spec exercises the resolver in isolation.
+  before do
+    allow(Syrus::Plugin::Surface).to receive(:contributions).and_wrap_original do |original, *args|
+      original.call(*args).reject { |contribution| contribution.name.to_s.start_with?("SyrusCoverage::") }
+    end
+  end
+
   def provider(panels)
     Class.new do
       include Syrus::Plugin::UiSlot
