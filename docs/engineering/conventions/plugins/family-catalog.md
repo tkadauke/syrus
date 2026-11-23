@@ -391,3 +391,19 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `theming_tools` | `ThemingTools::Toolkit` | - | `chat_tools` | - |
 | `video_walkthroughs` | `VideoWalkthroughs::Toolkit` | - | `chat_tools`, `credential_probes` | - |
 | `whiteboard` | `Whiteboard::Toolkit` | - | `chat_tools` | - |
+
+## `work_policy`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `repair_classifier` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::Context::RepairContext` | `Object` |
+| `system_alerts` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::JobContext` | `Array` |
+| `work_gate` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::WorkContext` | `Array<Veto> or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| - | - | - | - | - |
