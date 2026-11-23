@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 459
+legacy_baseline: 451
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -9,13 +9,6 @@ constants:
 - name: AdminAction
 - name: Agent
 - name: AgentEventAbbreviator
-- name: AgentInvocation
-- name: AgentInvocation::DEFAULT_MAX_TURNS
-- name: AgentInvocation::DEFAULT_TIMEOUT_SECONDS
-- name: AgentInvocation::ENV_FORWARD
-- name: AgentInvocation::MAX_EVENT_BYTES
-- name: AgentInvocation::Result
-- name: AgentInvocation::SILENT_TIMEOUT_SECONDS
 - name: AgentProviderCatalogOptions
 - name: AgentProviders
 - name: AgentProviders::Base
@@ -362,7 +355,6 @@ constants:
 - name: Syrus::PathJail
 - name: Syrus::PathJail::PathEscape
 - name: Syrus::Plugin::AdminPage
-- name: Syrus::Plugin::AgentProvider
 - name: Syrus::Plugin::AgentProvider::ModelInfo
 - name: Syrus::Plugin::AgenticConnection
 - name: Syrus::Plugin::Callbacks

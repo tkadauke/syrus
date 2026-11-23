@@ -1,6 +1,6 @@
 module AgentProviders
   class Codex < Base
-    include Syrus::Plugin::AgentProvider
+    include Syrus::Host::AgentProvider
 
     def self.provider_key = "codex"
     def self.display_name = "Codex"
@@ -128,7 +128,7 @@ module AgentProviders
     end
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
-      codex_home = File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
+      codex_home = File.join(Syrus::Host::WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
       codex_auth = CodexAuth.new(user: user, codex_home: codex_home)
       auth = CodexAuth.with_refresh_lock(user: user) { codex_auth.prepare! }
       begin
@@ -168,7 +168,7 @@ module AgentProviders
 
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
                          model: nil, effort_level: nil, workload_policy: nil)
-      codex_home = WorkflowWorkspace.agent_home_for(workflow, provider)
+      codex_home = Syrus::Host::WorkflowWorkspace.agent_home_for(workflow, provider)
       codex_auth = CodexAuth.new(user: job.user, provider_account: provider_account, codex_home: codex_home)
       auth = if provider_account
         CodexAuth.with_refresh_lock(user: job.user, provider_account: provider_account) { codex_auth.prepare! }

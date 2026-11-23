@@ -52,9 +52,9 @@ class CodexCredentialProbe
         File.write(File.join(codex_home, "config.toml"), codex_config)
 
         output = +""
-        result = ProcessRunner.new(
-          env: ProcessRunner.forwarded_env(
-            AgentInvocation::ENV_FORWARD,
+        result = Syrus::Host::ProcessRunner.new(
+          env: Syrus::Host::ProcessRunner.forwarded_env(
+            Syrus::Host::AgentRuntime.forwarded_env_keys,
             extra: {
               "CODEX_HOME" => codex_home,
               "CODEX_API_KEY" => auth.api_key.presence
@@ -67,7 +67,7 @@ class CodexCredentialProbe
             "--json",
             "Reply with OK."
           ],
-          mounts: ProcessRunner.mounts(workspace),
+          mounts: Syrus::Host::ProcessRunner.mounts(workspace),
           network: "agent",
           timeout: CredentialProbe::TIMEOUT_SECONDS,
           silent_timeout: 15,

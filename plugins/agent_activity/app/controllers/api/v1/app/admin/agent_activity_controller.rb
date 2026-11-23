@@ -11,7 +11,7 @@ module Api
         # that route so the two payload shapes (feeding the same
         # RunTranscriptLogs component) can't silently drift apart -- only the
         # authorization/lookup path differs, not the JSON shape.
-        class AgentActivityController < BaseController
+        class AgentActivityController < Syrus::Host::AppAdminController
           def sessions
             filter = current_filter
             if params[:section] == "chrome"
@@ -20,7 +20,7 @@ module Api
             end
             result = ::AgentActivity::SessionsQuery.call(
               scope: :admin,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               filter: filter,
               page: params[:page],
               per: params[:per]
@@ -77,7 +77,7 @@ module Api
           def current_filter
             @current_filter ||= ::Filters::SmartFolderResolution.call(
               filter_class: ::AgentActivity::Filter, subject: ::AgentActivity::SmartFolders::SUBJECT,
-              params: params, active_smart_folder: active_smart_folder, user: Current.user
+              params: params, active_smart_folder: active_smart_folder, user: Syrus::Host::Current.user
             ).filter
           end
 
@@ -85,7 +85,7 @@ module Api
             @active_smart_folder ||= begin
               explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
                 subject: ::AgentActivity::SmartFolders::SUBJECT,
-                user: Current.user,
+                user: Syrus::Host::Current.user,
                 params: params
               )
               explicit_folder || default_smart_folder
@@ -94,10 +94,10 @@ module Api
 
           def smart_folders(scope)
             ::SmartFolder.ensure_builtins_for_subject!(::AgentActivity::SmartFolders::SUBJECT)
-            base_scope = ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Current.user)
+            base_scope = ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Syrus::Host::Current.user)
             ::Admin::SmartFolderNavigation.new(
               subject: ::AgentActivity::SmartFolders::SUBJECT,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               active_folder: active_smart_folder,
               base_scope: base_scope,
               filter_class: ::AgentActivity::Filter,

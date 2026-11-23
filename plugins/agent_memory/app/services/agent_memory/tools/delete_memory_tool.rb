@@ -20,7 +20,7 @@ module AgentMemory
 
       class << self
         def call(id:, server_context:)
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
 
           memory = find_deletable_memory(context, id)
 

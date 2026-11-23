@@ -51,6 +51,21 @@ Supported members:
 - `usage_status`
 - `usage_windows`
 
+### `Syrus::Host::AgentRuntime`
+
+Since: `0.1.16`
+
+Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.
+
+Supported members:
+
+- `default_max_turns`
+- `default_timeout_seconds`
+- `forwarded_env_keys`
+- `max_event_bytes`
+- `oversized_event_handler`
+- `silent_timeout_seconds`
+
 ### `Syrus::Host::AppAdminController`
 
 Since: `0.1.16`
@@ -497,7 +512,9 @@ Supported members:
 - `invalid`
 - `run_from_context`
 - `success`
+- `utf8`
 - `with_database_connection`
+- `write_log`
 
 ### `Syrus::Host::Metrics`
 
@@ -530,6 +547,7 @@ Times named plugin phases; event storage and thresholds are not promised. Only t
 Supported members:
 
 - `phase`
+- `report_duration`
 
 ### `Syrus::Host::PermissionProvider`
 
@@ -591,6 +609,7 @@ Runs managed plugin subprocesses with host cancellation and confinement; backend
 
 Supported members:
 
+- `agent_mounts`
 - `capture`
 - `forwarded_env`
 - `mounts`
@@ -608,6 +627,7 @@ Supported members:
 
 - `belongs_to`
 - `has_many`
+- `transaction`
 
 ### `Syrus::Host::Repository`
 
@@ -716,6 +736,7 @@ Supported members:
 
 - `chat?`
 - `chat_session`
+- `from_server_context`
 - `interactive`
 - `job`
 - `repository`
@@ -775,7 +796,9 @@ Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup 
 
 Supported members:
 
+- `agent_home_for`
 - `base_ref`
+- `data_root`
 - `new`
 - `path_for`
 
@@ -791,13 +814,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AdminAction`
 - `Agent`
 - `AgentEventAbbreviator`
-- `AgentInvocation`
-- `AgentInvocation::DEFAULT_MAX_TURNS`
-- `AgentInvocation::DEFAULT_TIMEOUT_SECONDS`
-- `AgentInvocation::ENV_FORWARD`
-- `AgentInvocation::MAX_EVENT_BYTES`
-- `AgentInvocation::Result`
-- `AgentInvocation::SILENT_TIMEOUT_SECONDS`
 - `AgentProviderCatalogOptions`
 - `AgentProviders`
 - `AgentProviders::Base`
@@ -1144,7 +1160,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::PathJail`
 - `Syrus::PathJail::PathEscape`
 - `Syrus::Plugin::AdminPage`
-- `Syrus::Plugin::AgentProvider`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
 - `Syrus::Plugin::AgenticConnection`
 - `Syrus::Plugin::Callbacks`
