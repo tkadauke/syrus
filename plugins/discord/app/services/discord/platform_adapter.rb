@@ -18,7 +18,7 @@ module Discord
       return if text.blank?
 
       split_for_discord(text).each do |chunk|
-        Discord::Client.new.send_dm(user_id: platform_identity.external_id, text: chunk)
+        Discord::BotAccess.send_dm(user_id: platform_identity.external_id, text: chunk)
       end
     rescue => e
       Rails.logger.error("Discord::PlatformAdapter#deliver: #{e}")

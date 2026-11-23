@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/telegram_bot_account"
 
 RSpec.describe Telegram::PollUpdatesJob do
   include ActiveJob::TestHelper
@@ -6,10 +7,11 @@ RSpec.describe Telegram::PollUpdatesJob do
   let(:user) { Factories.user }
   let(:token) { "bot-token-xyz" }
 
-  before { PluginRecord.find_by!(name: "telegram").update!(enabled: true) }
+  before { enable_telegram_plugin! }
 
   before do
-    AppSetting.current.update!(telegram_bot_token: token, telegram_update_offset: 0)
+    connect_telegram_bot!(token: token)
+    AppSetting.current.update!(telegram_update_offset: 0)
     allow_any_instance_of(Telegram::Client).to receive(:get_updates).and_return([])
     allow_any_instance_of(Telegram::Client).to receive(:send_message)
     allow_any_instance_of(described_class).to receive(:duplicate_running?).and_return(false)
@@ -26,13 +28,13 @@ RSpec.describe Telegram::PollUpdatesJob do
   end
 
   describe "#configured?" do
-    it "returns true when telegram_bot_token is set" do
+    it "returns true when the bot account is connected" do
       job = described_class.new
       expect(job.send(:configured?)).to be true
     end
 
-    it "returns false when telegram_bot_token is blank" do
-      AppSetting.current.update_column(:telegram_bot_token, nil)
+    it "returns false when the bot account is disconnected" do
+      ConnectedAccounts::Account.update_all(status: "revoked")
       job = described_class.new
       expect(job.send(:configured?)).to be false
     end
@@ -44,7 +46,7 @@ RSpec.describe Telegram::PollUpdatesJob do
     end
 
     it "does not re-enqueue when token is absent" do
-      AppSetting.current.update_column(:telegram_bot_token, nil)
+      ConnectedAccounts::Account.update_all(status: "revoked")
       expect { described_class.new.perform }.not_to have_enqueued_job(described_class)
     end
 

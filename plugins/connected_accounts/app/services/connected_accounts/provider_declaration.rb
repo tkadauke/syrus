@@ -61,6 +61,10 @@ module ConnectedAccounts
 
     def token_authorization? = authorization_kind == "token"
 
+    # Manifest-pinned API origins. A provider that declares them owns the
+    # credential's target constraint; instance configuration cannot widen it.
+    def api_origins = Array(configuration["api_origins"]).map(&:to_s)
+
     def call(capability, context)
       capability = capability.to_s
       raise ArgumentError, "provider does not declare #{capability}" unless capabilities.include?(capability)

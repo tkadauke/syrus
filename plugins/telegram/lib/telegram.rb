@@ -12,6 +12,27 @@ module SyrusTelegram
     category "platform_delivery"
     default_enabled false
     disableable true
+    depends_on [ "connected_accounts" ]
+    provides "connected_accounts:provider" => [ {
+      provider: "Telegram::Provider",
+      key: "telegram_bot",
+      display_name: "Telegram bot",
+      authorization_kind: "token",
+      system_service_identities: [ "telegram.platform" ],
+      capabilities: %w[authorization exchange_code refresh revoke identity validate],
+      callback_route: "/api/v1/app/connected_accounts/callback/telegram_bot",
+      supports_read_only: false,
+      configuration: { api_origins: [ "https://api.telegram.org/" ] },
+      scopes: [
+        {
+          key: "telegram.bot",
+          label: "Operate the Telegram bot",
+          risk: "high",
+          read_only: false,
+          syrus_capabilities: [ "platform.deliver@v1" ]
+        }
+      ]
+    } ]
     provides platform_delivery: "Telegram::PlatformAdapter"
   end
 end

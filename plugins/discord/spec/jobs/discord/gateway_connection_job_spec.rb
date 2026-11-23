@@ -1,29 +1,30 @@
 require "rails_helper"
+require_relative "../../support/discord_bot_account"
 
 RSpec.describe Discord::GatewayConnectionJob do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
   let(:token) { "bot-token-xyz" }
-  let(:default_factory) { described_class.gateway_client_factory }
+  let(:default_factory) { Discord::Provider.gateway_client_factory }
 
   around do |ex|
     original_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
-    PluginRecord.find_by!(name: "discord").update!(enabled: true)
+    enable_discord_plugin!
     ex.run
   ensure
     Rails.cache = original_cache
   end
 
   before do
-    AppSetting.current.update!(discord_bot_token: token)
+    connect_discord_bot!(token: token)
     allow_any_instance_of(described_class).to receive(:duplicate_running?).and_return(false)
   end
 
   after do
     clear_enqueued_jobs
-    described_class.gateway_client_factory = default_factory
+    Discord::Provider.gateway_client_factory = default_factory
   end
 
   def stub_gateway_client(events: [], error: nil)
@@ -33,15 +34,20 @@ RSpec.describe Discord::GatewayConnectionJob do
       fatal_close_code: nil,
       fatal_close_reason: nil,
       reset_reconnect_backoff?: false,
-      session_established?: false
+      session_established?: false,
+      run_outcome: nil
     )
     allow(client).to receive(:run) do |&block|
       raise error if error
 
       events.each { |event| block.call(event) }
     end
-    described_class.gateway_client_factory = ->(token:) { client }
+    Discord::Provider.gateway_client_factory = ->(token:, stale_check:) { client }
     client
+  end
+
+  def disconnect_bot!
+    ConnectedAccounts::Account.update_all(status: "revoked")
   end
 
   def message_create(content:, author_id: 99, username: "alice", bot: false, guild_id: nil, message_id: 123, channel_id: 456)
@@ -58,12 +64,12 @@ RSpec.describe Discord::GatewayConnectionJob do
   end
 
   describe "#configured?" do
-    it "returns true when discord_bot_token is set" do
+    it "returns true when the bot account is connected" do
       expect(described_class.new.send(:configured?)).to be true
     end
 
-    it "returns false when discord_bot_token is blank" do
-      AppSetting.current.update_column(:discord_bot_token, nil)
+    it "returns false when the bot account is disconnected" do
+      disconnect_bot!
       expect(described_class.new.send(:configured?)).to be false
     end
   end
@@ -77,12 +83,12 @@ RSpec.describe Discord::GatewayConnectionJob do
     end
 
     it "does not re-enqueue when the bot token is absent" do
-      AppSetting.current.update_column(:discord_bot_token, nil)
+      disconnect_bot!
       expect { described_class.new.perform }.not_to have_enqueued_job(described_class)
     end
 
     it "does not connect to the Gateway when the bot token is absent" do
-      AppSetting.current.update_column(:discord_bot_token, nil)
+      disconnect_bot!
       client = stub_gateway_client(events: [])
 
       described_class.new.perform

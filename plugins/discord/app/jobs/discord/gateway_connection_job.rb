@@ -16,37 +16,32 @@ module Discord
     MAX_RECONNECT_BACKOFF_SECONDS = 5.minutes
     RECONNECT_ATTEMPT_CACHE_KEY = "discord:gateway_connection_job:reconnect_attempts"
 
-    class << self
-      attr_accessor :gateway_client_factory
-    end
-    self.gateway_client_factory = ->(token:) { Discord::GatewayClient.new(token: token) }
-
     private
 
     def configured?
-      AppSetting.discord_bot_token.present?
+      Discord::BotAccess.configured?
     end
 
+    # The bot token is held only inside Discord::Provider for the lifetime of
+    # one Gateway session, obtained through the Connected Accounts broker.
+    # When the account's credential is rotated or revoked the session ends
+    # with :credential_changed; the re-enqueued job then reconnects with the
+    # new token, or stops if the account is gone (configured? turns false).
     def poll_once
-      gateway_client.run { |event| process_dispatch(event) }
+      @session = Discord::BotAccess.gateway_session(on_event: ->(event) { process_dispatch(event) })
 
-      if gateway_client.fatal_close?
+      if @session[:fatal_close_code].present?
         stop_polling_after_fatal_close
       else
         schedule_reconnect
       end
     rescue => e
       Rails.logger.error("Discord::GatewayConnectionJob: #{e}")
+      @session = nil
       schedule_reconnect
     end
 
-    def gateway_client
-      @gateway_client ||= self.class.gateway_client_factory.call(token: AppSetting.discord_bot_token)
-    end
-
-    def discord_client
-      @discord_client ||= Discord::Client.new
-    end
+    def discord_client = Discord::BotAccess
 
     def continue_polling?
       @continue_polling != false
@@ -61,7 +56,7 @@ module Discord
       @continue_polling = false
       Rails.logger.error(
         "Discord::GatewayConnectionJob: Gateway closed with fatal code " \
-        "#{gateway_client.fatal_close_code}#{": #{gateway_client.fatal_close_reason}" if gateway_client.fatal_close_reason.present?}; " \
+        "#{@session[:fatal_close_code]}#{": #{@session[:fatal_close_reason]}" if @session[:fatal_close_reason].present?}; " \
         "not re-enqueuing until the connector is re-primed"
       )
     end
@@ -71,7 +66,12 @@ module Discord
     end
 
     def next_reconnect_delay
-      if gateway_client.reset_reconnect_backoff?
+      if @session&.dig(:run_outcome) == :credential_changed
+        Rails.cache.delete(RECONNECT_ATTEMPT_CACHE_KEY)
+        return 0
+      end
+
+      if @session&.dig(:reset_reconnect_backoff)
         Rails.cache.delete(RECONNECT_ATTEMPT_CACHE_KEY)
         return RECONNECT_BACKOFF_SECONDS
       end

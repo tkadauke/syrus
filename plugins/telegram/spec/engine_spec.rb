@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "support/telegram_bot_account"
 
 RSpec.describe SyrusTelegram::Engine do
   it "registers the Telegram platform_delivery plugin disabled by default" do
@@ -10,7 +11,7 @@ RSpec.describe SyrusTelegram::Engine do
   end
 
   it "exposes the Telegram platform_delivery provider and platform when enabled" do
-    PluginRecord.find_by!(name: "telegram").update!(enabled: true)
+    enable_telegram_plugin!
 
     expect(Syrus::PluginRegistry.providers_for(:platform_delivery)).to include(Telegram::PlatformAdapter)
     expect(PlatformIdentity.available_platforms).to include("telegram")
@@ -22,7 +23,7 @@ RSpec.describe SyrusTelegram::Engine do
   end
 
   it "resolves its platform config once enabled" do
-    PluginRecord.find_by!(name: "telegram").update!(enabled: true)
+    enable_telegram_plugin!
 
     expect(PlatformIdentity::PlatformConfig::Base.for("telegram")).to be_a(Telegram::PlatformConfig)
   end

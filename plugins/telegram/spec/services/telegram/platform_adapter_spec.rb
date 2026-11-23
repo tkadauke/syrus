@@ -1,7 +1,8 @@
 require "rails_helper"
+require_relative "../../support/telegram_bot_account"
 
 RSpec.describe Telegram::PlatformAdapter do
-  before { PluginRecord.find_by!(name: "telegram").update!(enabled: true) }
+  before { connect_telegram_bot! }
 
   let(:identity) { Factories.platform_identity(platform: "telegram", external_id: "42") }
   let(:session) { ChatSession.create!(user: identity.user) }

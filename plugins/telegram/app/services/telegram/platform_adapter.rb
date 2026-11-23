@@ -16,7 +16,7 @@ module Telegram
       return if text.blank?
 
       split_for_telegram(text).each do |chunk|
-        Telegram::Client.new.send_message(
+        Telegram::BotAccess.send_message(
           chat_id: platform_identity.external_id,
           text: chunk
         )
