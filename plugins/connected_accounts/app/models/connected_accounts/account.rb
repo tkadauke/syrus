@@ -4,15 +4,18 @@ module ConnectedAccounts
 
     STATUSES = %w[connected needs_reauth revoked error].freeze
     ACTING_MODES = %w[as_owner as_self as_service].freeze
+    OWNER_KINDS = %w[user instance].freeze
 
-    belongs_to :owner_user, class_name: "::User"
+    belongs_to :owner_user, class_name: "::User", optional: true
     belongs_to :credential_store_credential, class_name: "CredentialStore::Credential"
 
     attribute :granted_scopes, :json, default: -> { [] }
     attribute :scope_ceiling, :json
     attribute :acting_modes, :json, default: -> { [] }
+    attribute :owner_kind, :string, default: "user"
 
     enum :status, STATUSES.index_with(&:itself), validate: true
+    enum :owner_kind, OWNER_KINDS.index_with(&:itself), validate: true
 
     scope :retention_candidates, -> { where(status: %w[revoked error]) }
 
@@ -21,6 +24,7 @@ module ConnectedAccounts
     validate :validate_string_arrays
     validate :validate_acting_modes
     validate :validate_credential_contract
+    validate :validate_owner_contract
 
     before_validation :normalize_values
 
@@ -36,6 +40,12 @@ module ConnectedAccounts
 
       acting_modes.include?(mode)
     end
+
+    def visible_to?(user)
+      owner_policy.visible_to?(self, user)
+    end
+
+    def owner_policy = AccountOwnerKind::Base.for(owner_kind)
 
     def effective_scope_ceiling
       return scope_ceiling if scope_ceiling.present?
@@ -71,15 +81,18 @@ module ConnectedAccounts
       if credential_store_credential.credential_type != AccountClient::CREDENTIAL_TYPE
         errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.oauth_material"))
       end
-      if credential_store_credential.owner_user_id != owner_user_id
-        errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.same_owner"))
-      end
+      owner_policy.validate_credential(self, credential_store_credential)
       unless credential_store_credential.allowed_tools == [ AccountClient::BROKER_TOOL_NAME ]
         errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.broker_pinned"))
       end
       if Array(credential_store_credential.target_constraints["allowed_url_prefixes"]).empty?
         errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.origins_pinned"))
       end
+    end
+
+
+    def validate_owner_contract
+      owner_policy.validate_account(self)
     end
   end
 end

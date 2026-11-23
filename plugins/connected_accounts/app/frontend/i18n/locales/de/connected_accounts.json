@@ -20,6 +20,16 @@
     "allow_as_owner": "Aktionen mit verbundenen Konten dürfen als Kontoinhaber ausgeführt werden"
   },
   "nav_accounts": "Verbundene Konten",
+  "instance": {
+    "title": "Instanzkonten",
+    "description": "Verbinde ein Anbieter-Token für benannte Plattformdienste. Das Token wird sicher gespeichert und nie wieder angezeigt.",
+    "label": "Sichere Kontobezeichnung",
+    "token": "Anbieter-Token",
+    "connect": "Token verbinden",
+    "rotate": "Token rotieren",
+    "disconnect": "Trennen",
+    "status": "Status: {{status}}"
+  },
   "accounts": {
     "title": "Verbundene Konten",
     "description": "Verbinde und verwalte externe Konten, die Syrus mit deiner Erlaubnis verwenden darf.",

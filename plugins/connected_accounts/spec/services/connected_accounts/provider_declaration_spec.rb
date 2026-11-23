@@ -31,6 +31,15 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
     expect(declaration.read_only_scope_keys).to eq([ "records.read" ])
   end
 
+  it "declares token entry and explicit system service identities" do
+    declaration = described_class.build(plugin_name: "example_plugin", attributes: valid_attributes.merge(
+      authorization_kind: "token", system_service_identities: [ "platform.telegram_delivery" ]
+    ))
+
+    expect(declaration).to be_token_authorization
+    expect(declaration.system_service_identities).to eq([ "platform.telegram_delivery" ])
+  end
+
   it "rejects missing capabilities and malformed manifest fields" do
     attributes = valid_attributes.merge(
       key: "Not Stable", display_name: "", capabilities: %w[authorization],

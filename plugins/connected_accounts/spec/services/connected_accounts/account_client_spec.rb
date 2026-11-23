@@ -247,4 +247,35 @@ RSpec.describe ConnectedAccounts::AccountClient do
       ) { :unused }
     }.to raise_error(CredentialStore::Broker::Denied, /tool not allowed/)
   end
+
+
+  it "allows only declared system services to use instance-owned service accounts and audits their identity" do
+    account
+    credential.update!(scope_type: "instance", scope_id: nil, owner_user: nil, allowed_surfaces: [ "api" ])
+    account.update!(owner_kind: "instance", owner_user: nil, acting_modes: [ "as_service" ])
+    declaration = instance_double(ConnectedAccounts::ProviderDeclaration,
+      system_service_identities: [ "platform.delivery" ])
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
+
+    result = described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+      purpose: "deliver a platform notification", target: { url: "https://api.example.com/messages" }) { :ok }
+    expect(result).to eq(:ok)
+    expect(credential.access_events.where(action: "lease").last.metadata).to include(
+      "system_service_identity" => "platform.delivery", "acting_mode" => "as_service",
+      "purpose" => "deliver a platform notification")
+
+    expect {
+      described_class.with_system_access(account:, service_identity: "other_plugin", scopes: [ "mail.read" ],
+        purpose: "bypass", target: { url: "https://api.example.com/messages" }) { :unused }
+    }.to raise_error(described_class::Denied, "connected account not found")
+  end
+
+  it "refuses the system path for user-owned accounts" do
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch)
+
+    expect {
+      described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+        purpose: "bypass") { :unused }
+    }.to raise_error(described_class::Denied, "connected account not found")
+  end
 end
