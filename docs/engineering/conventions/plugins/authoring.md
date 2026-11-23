@@ -1123,6 +1123,17 @@ and implement:
 | `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
 | `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
 
+#### `approval_effect`
+
+A definition may set `approval_effect: true` when the tool's only mutation
+before approval is creating the owner's confirmation card, so the gates skip
+the generic tool-call request instead of asking twice. Policy is still
+evaluated and a deny still refuses the call. Core honours the flag only when
+the plugin registers that card as a pending action named after the tool (a
+`PendingActions::<ToolName>` class whose `action_key` is the tool name) and
+the tool creates its card under that key; a bare flag is ignored. The
+Coworkers spawn tools are the reference (`PendingActions::SpawnCoworkerChat`).
+
 #### Consequence classification (required)
 
 Every operation must be classified on purpose, and

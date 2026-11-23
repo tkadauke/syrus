@@ -398,9 +398,11 @@ RSpec.describe RunJob, :ci_only do
     end
 
     it "workspace stays on disk when the Workflow fails (retry-from-failed-step needs it)" do
+      # A failure that is not transient, so the Workflow fails outright; a
+      # transient provider error now waits out a backoff before its rerun.
       RunJob.agent_runner = ->(**_) {
         AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
-                                    is_error: true, outcome: "error_during_execution", final_text: nil, session_id: nil)
+                                    is_error: true, outcome: "error_max_turns", final_text: nil, session_id: nil)
       }
       job; drain_workflow!(job)
       wf = job.workflows.last

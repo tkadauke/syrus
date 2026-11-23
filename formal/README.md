@@ -1,8 +1,8 @@
 # Formal models (Lean 4)
 
 An experiment in proving properties of the workflow engine and reconciler.
-It is **fully independent of Syrus**: nothing here is loaded by Rails, run by a
-grader, or required by CI. Breaking it blocks nothing.
+It is **independent of the Rails app**: nothing here is loaded by Rails or run by a
+grader. `spec/architecture/formal_mirrors_spec.rb` ties it to the Ruby it mirrors.
 
 ## Running
 
@@ -19,6 +19,43 @@ Ruby and plug into Syrus is planned in [INTEGRATION.md](INTEGRATION.md).
 A green build means every theorem is proved and every `example ... := by decide`
 counterexample was evaluated and holds. There are no `sorry`s; the headline
 theorems depend only on Lean's standard axioms (`#print axioms`).
+
+## Keeping a model in sync with the Ruby
+
+Each model mirrors specific Ruby methods, and `formal/mirrors.yml` records which
+ones, with a hash of each method's source. `spec/architecture/formal_mirrors_spec.rb`
+fails with "`<Model>.lean` may be stale" when a mirrored method changes:
+
+1. Read the changed method next to the model it names.
+2. If the behaviour the model describes changed, update the model and
+   `lake build`.
+3. Run `bin/formal-mirrors --update` to record the new hashes, and commit the
+   model, `mirrors.yml` and the Ruby change together.
+
+`bin/formal-mirrors` (no flag) lists the stale mirrors without changing
+anything. A method is named by its file, the innermost class or module that
+defines it, and its name (`self.` for a singleton method). When you add a model
+that mirrors Ruby, add its methods to `mirrors.yml`. Models of Go or TypeScript
+code (the CLI's checkout hooks, the desktop's rollback image) are not covered:
+the hashing reads Ruby only.
+
+## Checking a model against the code
+
+For a pure decision function, `formal/Fixtures.lean` writes the model's answer
+over every small input to `formal/fixtures/<name>.json`, and a spec under
+`spec/formal/` runs the real Ruby on the same inputs and compares. That is the
+check a proof cannot make: that the model is the code.
+
+```sh
+lake build syrus_fixtures
+lake exe syrus_fixtures                 # lists the fixtures
+lake exe syrus_fixtures auto_approval > fixtures/auto_approval.json
+```
+
+Formal CI regenerates every fixture and fails if a committed one differs, so a
+model change regenerates its fixture in the same change. To add one, write a
+function in `Fixtures.lean` that prints the cases, add it to `Fixtures.all`,
+generate the file, and add the spec.
 
 ## What is modelled
 

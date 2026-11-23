@@ -105,7 +105,10 @@ RSpec.describe LocalBackups::Recovery do
       build = lambda do |installation|
         described_class::Preflight.new(
           bundle:, destination: directory, installation_id: installation, token_secret: "secret",
-          current: { database_adapter: "sqlite3", plugins: [] }
+          current: { database_adapter: "sqlite3", plugins: [] },
+          # This bundle declares no version range or key fingerprints, and no
+          # application version is supplied: unknowns an operator must accept.
+          accepted_unknowns: %w[application-version application-compatibility encryption-fingerprints]
         ).call
       end
       first = build.call("install-a")
@@ -119,6 +122,71 @@ RSpec.describe LocalBackups::Recovery do
       )).to be(false)
       expect(first[:checks]).to include(include(name: "in_flight_work", status: "warn", detail: /database unavailable/))
       expect(first[:expected_rebuilds]).to include("chat_search", "workflow_workspaces")
+    end
+  end
+
+  # NY22 (decided A): a restore replaces the database, so preflight blocks
+  # when it cannot establish compatibility, and only an operator flag named
+  # after what is unknown lets it through.
+  describe "unknown compatibility" do
+    let(:known) do
+      { database_adapter: "sqlite3", database_version: "3.45.0", application_version: "2.0.0", plugins: [],
+        encryption_fingerprints: { "primary" => "sha256:k" } }
+    end
+    let(:compatible_manifest) do
+      { database: { sqlite_version: "3.44.0" }, source_application_version: "1.9.0",
+        encryption: { key_fingerprints: { primary: "sha256:k" } } }
+    end
+
+    def preflight(directory, manifest:, current:, accept: [])
+      described_class::Preflight.new(
+        bundle: described_class::Bundle.new(create_bundle(directory, manifest:)), destination: directory,
+        installation_id: "install-a", token_secret: "secret", current:, accepted_unknowns: accept
+      ).call
+    end
+
+    it "is ready when every compatibility fact is known and matches" do
+      Dir.mktmpdir do |directory|
+        report = preflight(directory, manifest: compatible_manifest, current: known)
+
+        expect(report[:status]).to eq("ready")
+        expect(report[:token]).to be_present
+      end
+    end
+
+    {
+      "database-adapter" => [ { database_adapter: nil }, {}, "database" ],
+      "database-version" => [ { database_version: nil }, {}, "database" ],
+      "application-version" => [ { application_version: nil }, {}, "application" ],
+      "application-compatibility" => [ {}, { source_application_version: nil }, "application" ],
+      "encryption-fingerprints" => [ {}, { encryption: nil }, "encryption" ]
+    }.each do |code, (current_change, manifest_change, check)|
+      it "blocks when #{code} is unknown, and accepts it only with --allow-unknown-#{code}" do
+        Dir.mktmpdir do |directory|
+          manifest = compatible_manifest.merge(manifest_change).compact
+          current = known.merge(current_change).compact
+
+          blocked = preflight(directory, manifest:, current:)
+          expect(blocked).to include(status: "blocked", token: nil)
+          expect(blocked[:checks]).to include(include(name: check, status: "fail", unknown: code))
+
+          FileUtils.rm_rf(Pathname.new(directory).join("bundle"))
+          accepted = preflight(directory, manifest:, current:, accept: [ code ])
+          expect(accepted[:status]).to eq("ready")
+          expect(accepted[:checks]).to include(include(name: check, status: "warn", unknown: code,
+            detail: /accepted with --allow-unknown-#{code}/))
+        end
+      end
+    end
+
+    it "does not let one accepted unknown excuse another" do
+      Dir.mktmpdir do |directory|
+        report = preflight(directory, manifest: compatible_manifest, current: known.except(:application_version, :database_version),
+          accept: [ "application-version" ])
+
+        expect(report[:status]).to eq("blocked")
+        expect(report[:checks]).to include(include(name: "database", status: "fail", unknown: "database-version"))
+      end
     end
   end
 

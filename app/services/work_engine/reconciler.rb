@@ -945,6 +945,7 @@ module WorkEngine
         projection = Steps::StateProjection.for(step, runs: step_runs)
         terminal_run = projection.latest_terminal_run
         next unless terminal_run
+        next if step.queued? && reopened_since?(step, terminal_run.finished_at)
 
         issue(
           kind: :running_step_with_terminal_runs,
@@ -963,6 +964,24 @@ module WorkEngine
           explanation: "Step ##{step.id} is #{step.state} but all of its Runs are terminal, so no worker can advance it."
         )
       end
+    end
+
+    # A retry reopens the failed Workflow and requeues the Steps it will run
+    # again; until their turn comes they are queued with only the previous
+    # attempt's terminal Runs. That is a Step waiting, not a Step stuck.
+    # Reconciling one to its old Run's outcome cancelled a retried Job's
+    # summarize Step -- and its publication tail -- a minute after an
+    # operator's retry, and the Workflow failed again once grading passed.
+    def reopened_since?(step, finished_at)
+      return false if finished_at.blank?
+
+      StateTransition
+        .where(event_name: "reopen", created_at: finished_at..)
+        .where(
+          "(subject_type = 'Workflow' AND subject_id = ?) OR (subject_type = 'Step' AND subject_id = ?)",
+          step.workflow_id, step.id
+        )
+        .exists?
     end
 
     def classify_succeeded_review_steps_without_required_repair
@@ -1071,6 +1090,8 @@ module WorkEngine
         # phase on purpose; resuming it can only be refused (classifier/executor
         # agreement, formal/SyrusModel/Agreement.lean `Actionable`).
         next if workflow.work_unit&.deliberate_wait?
+        next if grader_admission_holding?(workflow, step)
+        next if retry_backoff_pending?(step)
 
         previous = step.previous_step
         dependencies = step.depends_on_steps
@@ -1095,6 +1116,39 @@ module WorkEngine
           explanation: "Step ##{step.id} is ready after its upstream handoff settled, but no Run was created for it."
         )
       end
+    end
+
+    # Grader fan-out admission releases ready graders only as fleet capacity
+    # frees up, re-deciding every RECHECK_DELAY, so a large fan-out
+    # legitimately leaves graders queued without Runs for many minutes. That
+    # hold is deliberate while the admission keeps deciding: flagging it
+    # produced dozens of "no Run was created" errors per pass for workflows
+    # that were progressing. A deferral whose last decision has gone stale
+    # means the recheck chain stopped, and the reconciler is the net again.
+    GRADER_ADMISSION_STALE_AFTER = 5.minutes
+
+    # A Step reopened after a transient provider error waits out a backoff
+    # before its rerun (StepDispatcher#retry_step_after_provider_backoff!);
+    # resuming it early would only rerun into the same outage.
+    def retry_backoff_pending?(step)
+      value = step.details.to_h[StepDispatcher::RETRY_NOT_BEFORE_DETAIL]
+      return false if value.blank?
+
+      Time.zone.parse(value.to_s)&.future? || false
+    rescue ArgumentError
+      false
+    end
+
+    def grader_admission_holding?(workflow, step)
+      return false unless step.kind.in?(%w[grader preflight_grader])
+
+      admission = workflow.artifact("grader_fanout_admission").to_h
+      return false if admission["deferred_at"].blank?
+
+      decided_at = Time.zone.parse(admission["decided_at"].to_s)
+      decided_at.present? && decided_at > GRADER_ADMISSION_STALE_AFTER.ago
+    rescue ArgumentError
+      false
     end
 
     def cancelled_retry_until_barrier_blocking(step)
@@ -1271,6 +1325,7 @@ module WorkEngine
               start_blocked_reason: start_block_reason(workflow),
               start_blocked_details: start_block_details(workflow),
               ci_repair_base_sha: ci_repair_start_block_base_sha(workflow),
+              ci_repair_block_kind: ci_repair_start_block_kind(workflow),
               ci_repair_current_base_sha: workflow.job && WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
             ),
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
@@ -3557,8 +3612,20 @@ module WorkEngine
     # a stalled claim it is not slow, it is unreachable, and the Run behind it
     # waits forever. Seen in production on two Runs whose jobs had lost their
     # ready rows, one of them queued for twelve and a half hours.
+    #
+    # The snapshot reads each execution table in its own query, so a job
+    # moving between states during the scan -- a delayed job promoted from
+    # scheduled to ready, a claim landing between the ready and claimed reads
+    # -- can look execution-less for one pass. Production flagged and
+    # re-enqueued jobs created the same second, one of which then started on
+    # its own. A real orphan is old; require the job to have sat a while.
+    ORPHANED_QUEUE_JOB_GRACE = 2.minutes
+
     def orphaned_queue_job?(sq)
-      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]
+      return false unless !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]
+
+      changed_at = [ sq[:created_at], sq[:updated_at] ].compact.max
+      older_than?(changed_at, ORPHANED_QUEUE_JOB_GRACE)
     end
 
     def host_admission_deferral_budget_exhausted?(run)
@@ -3859,7 +3926,7 @@ module WorkEngine
     def superseded_ci_repair_start_block?(workflow)
       return false unless workflow.work_unit&.kind == "ci_failure" || workflow.trigger_kind == "ci_failure"
       return false unless start_block_reason(workflow).to_s == WorkUnits::Gates::CiRepairSafety::REASON
-      return false unless ci_repair_start_block_kind(workflow) == "base_not_known_healthy"
+      return false unless WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(ci_repair_start_block_kind(workflow))
 
       WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, ci_repair_start_block_base_sha(workflow), since: workflow.created_at)
     end

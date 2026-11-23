@@ -32,7 +32,7 @@ RSpec.describe Coworkers::SpawnSyrusChatTool do
     response = sidecar_tool.call(repository_id: repository.id, prompt: "Plan the release", title: "Release", server_context: context)
     action = chat.pending_actions.find(payload(response).fetch("pending_action_id"))
 
-    expect(chat.pending_actions.where(action: "coworker_tool_call")).to contain_exactly(action)
+    expect(chat.pending_actions.where(action: "spawn_syrus_chat")).to contain_exactly(action)
     expect(Coworkers::ChatToolSet.tool_definitions(tier: :essential).find { |tool| tool[:name] == "spawn_syrus_chat" })
       .to include(capability: "syrus.spawn_chat", approval_effect: true)
 

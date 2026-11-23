@@ -825,6 +825,22 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
   end
 
+  # Production: the snapshot's separate execution-table reads caught jobs in
+  # transit and re-enqueued RunJobs created the same second.
+  it "does not call a just-enqueued SolidQueue job orphaned" do
+    run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
+    queue_job = solid_queue_run_job(run, queue_name: "resume-storage-orphan", created_at: 10.seconds.ago)
+    SolidQueue::ReadyExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ClaimedExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::FailedExecution.where(job_id: queue_job.id).delete_all
+
+    result = reconcile(run_id: run.id)
+
+    expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
+  end
+
   it "classifies a queued Run whose SolidQueue job has no execution row" do
     run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
     workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
@@ -2395,6 +2411,52 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     gated.work_unit.update_columns(blocked_until: 1.minute.ago)
 
     expect(reconcile(job_id: gated_job.id).issues.map(&:kind)).to include("queued_step_without_run")
+  end
+
+  # Grader fan-out admission holds ready graders back until fleet capacity
+  # frees up. Production: a 100-grader fan-out drew 44 "no Run was created"
+  # errors in one pass while its graders were being released steadily.
+  it "does not flag a grader held by fan-out admission until the admission goes stale" do
+    held_job = Factories.job_record(state: "running")
+    held = WorkUnits::Launcher.instantiate(kind: "initial", job: held_job)
+    held.update_columns(state: "running", started_at: 2.hours.ago)
+    first, second = held.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(kind: "grader", state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    admission = ->(decided_at) do
+      held.update!(artifacts: held.artifacts.merge(
+        "grader_fanout_admission" => {
+          "reason" => "grader_capacity_saturated",
+          "ready_count" => 2,
+          "released_count" => 0,
+          "decided_at" => decided_at.iso8601,
+          "deferred_at" => 30.minutes.ago.iso8601
+        }
+      ))
+    end
+
+    admission.call(30.seconds.ago)
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).not_to include("queued_step_without_run")
+
+    admission.call(10.minutes.ago)
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).to include("queued_step_without_run")
+  end
+
+  # A Step reopened after a transient provider error waits out its backoff;
+  # resuming it early would rerun it into the same outage.
+  it "does not flag a step waiting out a provider retry backoff until the backoff passes" do
+    held_job = Factories.job_record(state: "running")
+    held = WorkUnits::Launcher.instantiate(kind: "initial", job: held_job)
+    held.update_columns(state: "running", started_at: 2.hours.ago)
+    first, second = held.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago,
+                          details: second.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => 2.minutes.from_now.iso8601))
+
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).not_to include("queued_step_without_run")
+
+    second.update_columns(details: second.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => 1.minute.ago.iso8601))
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).to include("queued_step_without_run")
   end
 
   # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
@@ -4974,6 +5036,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:status)).not_to include("failed")
     expect(workflow.reload).to be_running
     expect(step.reload).to be_running
+  end
+
+  # Production: an operator retried a failed Job; the retry reopened the
+  # Workflow and requeued summarize behind a fresh grade round. The reconciler
+  # saw summarize queued with only the old attempt's cancelled Run, cancelled
+  # it and the publication tail, and the Workflow failed again.
+  it "leaves a queued Step alone when its Workflow was reopened after its last Run ended" do
+    next_step = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
+    step.update!(kind: "summarize", next_step: next_step)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(state: "cancelled", started_at: 3.hours.ago, finished_at: 3.hours.ago)
+    StateTransition.create!(
+      subject: workflow, from_state: "failed", to_state: "running", event_name: "reopen",
+      source: "operator", created_at: 2.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+    expect(step.reload).to be_queued
+    expect(next_step.reload).to be_queued
   end
 
   it "retries a queued Step whose Run failed retryably before the Step could start" do

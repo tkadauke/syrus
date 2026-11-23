@@ -963,8 +963,8 @@ class ChatWorkspace
   def clone!(repository, path)
     FileUtils.mkdir_p(path.dirname.to_s)
     clone_args = [ "--depth", CLONE_DEPTH.to_s, "--branch", repository.default_branch, "--no-tags" ]
-    clone_via_transport!(repository: repository, user: repository.user, dest: path, clone_args: clone_args, env: @env) do
-      @git.run("clone", *clone_args, authenticated_url(repository), path.to_s, env: @env)
+    clone_via_transport!(repository: repository, user: repository.user, dest: path, clone_args: clone_args, env: @env) do |retry_env|
+      @git.run("clone", *clone_args, authenticated_url(repository), path.to_s, env: @env.merge(retry_env.to_h))
     end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
@@ -977,8 +977,8 @@ class ChatWorkspace
   def full_clone_at_branch!(repository, path, branch)
     FileUtils.mkdir_p(path.dirname.to_s)
     clone_args = [ "--branch", branch, "--no-tags" ]
-    clone_via_transport!(repository: repository, user: repository.user, dest: path, clone_args: clone_args, env: @env) do
-      @git.run("clone", *clone_args, authenticated_url(repository), path.to_s, env: @env)
+    clone_via_transport!(repository: repository, user: repository.user, dest: path, clone_args: clone_args, env: @env) do |retry_env|
+      @git.run("clone", *clone_args, authenticated_url(repository), path.to_s, env: @env.merge(retry_env.to_h))
     end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)

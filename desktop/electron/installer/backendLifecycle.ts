@@ -16,6 +16,7 @@ import {
   volumeExists
 } from "./dockerRuntime.js"
 import { removeSupersededSyrusImages } from "./imageCleanup.js"
+import { activeRetention, readImageRetention, retentionAfterUpdate, writeImageRetention } from "./imageRetention.js"
 import { installerCommand, installerScriptPath } from "./installPaths.js"
 import { BackendUpdateProgressTracker, type BackendUpdateProgress } from "./updateProgress.js"
 import { ChildTerminationController } from "./childTermination.js"
@@ -301,6 +302,8 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
     delete env.SYRUS_PULL_RETRY_DELAY
 
     await fs.mkdir(stateDir(), { recursive: true })
+    // The pin this update replaces, kept for rollback once it succeeds.
+    const previousPin = await currentImagePin()
     const log = createWriteStream(path.join(stateDir(), "install.log"), { flags: "a" })
     log.on("error", (error) => {
       console.error("[backend-update] unable to write install.log", error)
@@ -379,8 +382,14 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
       // disk until it fills. Best-effort by contract: cleanup can never fail
       // the update that triggered it.
       if (ok && (await backendHealthy())) {
+        // Keep the image this update replaced (NY24): a rollback must not
+        // need a multi-GB re-pull. This record replaces the last one, so the
+        // image an earlier update kept is retired now.
+        const retention = retentionAfterUpdate(previousPin, image)
+        await writeImageRetention(stateDir(), retention)
         await removeSupersededSyrusImages({
           pinnedRef: image,
+          retainedRef: retention?.ref ?? null,
           log: (line) => log.write(`${line}\n`)
         })
       }
@@ -415,10 +424,28 @@ export const ensureRunning = async () => {
   }
 
   if (await backendHealthy()) {
+    await retireExpiredRetainedImage()
     return
   }
 
   await startBackend()
+}
+
+// A kept previous image whose seven days have passed is retired at launch,
+// on a healthy stack only (a broken stack keeps every image it has).
+// Best-effort, like every image cleanup.
+const retireExpiredRetainedImage = async () => {
+  try {
+    const retention = await readImageRetention(stateDir())
+    if (!retention || activeRetention(retention)) {
+      return
+    }
+
+    await writeImageRetention(stateDir(), null)
+    await removeSupersededSyrusImages({ pinnedRef: await currentImagePin(), retainedRef: null })
+  } catch {
+    // Never let cleanup affect launch.
+  }
 }
 
 type WatchdogDeps = {

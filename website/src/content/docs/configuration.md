@@ -445,12 +445,25 @@ syrus checkout --no-hooks JOB-<id>
 syrus checkout --no-hooks EPIC-<number>
 ```
 
-The CLI does not run hooks for external-PR Jobs or plain branch-name
-checkouts. Those branches may be controlled by outside contributors, so their
-working-tree `.syrus.yml` is not treated as trusted local automation. A
-completed Epic checkout also skips hooks when any child Job is an external PR,
-including when the checked-out branch is a merge train or a trusted descendant
-of that PR.
+A hook runs without asking only when the same command is already in the same
+`.syrus.yml` on the Job's base branch. A Job's branch is written by an agent
+working from issue text, so a hook the branch itself added or changed could
+have been steered by whoever wrote the issue. The CLI shows such a hook and
+asks before running it; without a terminal it skips the hook and says so. Pass
+`--hooks` to run new and changed hooks without asking, once you have read
+them:
+
+```bash
+syrus checkout --hooks JOB-<id>
+```
+
+Hooks run only for issue, direct, and scheduled (cron) Jobs. The CLI does not
+run them for external-PR Jobs, for Job kinds it does not recognize, or for
+plain branch-name checkouts: those branches may be controlled by outside
+contributors, so their working-tree `.syrus.yml` is not treated as trusted
+local automation. A completed Epic checkout also skips hooks when any child Job
+is not one of those kinds, including when the checked-out branch is a merge
+train or a trusted descendant of that Job.
 
 When a post-checkout hook fails, the CLI prints the failed command and
 exit code, then exits non-zero. The checkout itself is not rolled back:

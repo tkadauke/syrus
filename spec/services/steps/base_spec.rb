@@ -241,6 +241,29 @@ RSpec.describe Steps::Base, :ci_only do
       run.update!(agent_provider: "codex")
       expect(handler.agent_adapter).to be_a(AgentProviders::Codex)
     end
+
+    # Production: provider routing moved a workflow from codex to claude
+    # between implement iterations, and Claude was asked to resume the Codex
+    # thread ("No conversation found"), failing the Run at turn 0.
+    it "does not resume a session that belongs to a different provider" do
+      upstream_run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded")
+      ProviderSession.create!(resumable: upstream_run, provider: "codex", session_id: "01a206e4-thread", transcript_jsonl: "x")
+      current = Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude",
+                            parent_session_id: "01a206e4-thread")
+
+      adapter = handler_class.new(current).agent_adapter
+
+      expect(adapter.send(:parent_session_id)).to be_nil
+    end
+
+    it "resumes a session from the same provider" do
+      upstream_run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded")
+      ProviderSession.create!(resumable: upstream_run, provider: "claude", session_id: "S-same", transcript_jsonl: "x")
+      current = Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude",
+                            parent_session_id: "S-same")
+
+      expect(handler_class.new(current).agent_adapter.send(:parent_session_id)).to eq("S-same")
+    end
   end
 
   describe "#run_agent" do

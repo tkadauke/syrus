@@ -30,4 +30,17 @@ RSpec.describe MysqlLockDiagnostics do
 
     expect(described_class.snapshot).to eq([])
   end
+
+  # A holder is only guaranteed to be as old as the waiter's timeout. A
+  # threshold above it missed the holder of a production lock-wait timeout
+  # whose request took 13s end to end.
+  it "looks for holders younger than the configured lock wait timeout" do
+    configured = YAML.safe_load(
+      ERB.new(Rails.root.join("config/database.yml").read).result, aliases: true
+    ).dig("production", "primary", "variables", "innodb_lock_wait_timeout")
+
+    expect(configured).to be_a(Integer)
+    expect(described_class::LONG_OPEN_TRANSACTION_SECONDS).to be < configured
+    expect(described_class::QUERY).to include("INTERVAL #{described_class::LONG_OPEN_TRANSACTION_SECONDS} SECOND")
+  end
 end

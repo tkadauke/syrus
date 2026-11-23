@@ -13,7 +13,7 @@ module Coworkers
       sections = []
       sections << "### Daily memory\n\n#{daily_memory}" if daily_memory.present?
       if messages.exists?
-        lines = messages.order(:created_at).limit(500).map do |message|
+        lines = ordered_messages.map do |message|
           "- CHAT-#{message.chat_session_id} #{message.created_at.iso8601} #{message.role}: #{text(message.extract_text_from_content).truncate(1_000)}"
         end
         sections << "### Messages\n\n#{lines.join("\n")}"
@@ -60,6 +60,17 @@ module Coworkers
     end
 
     def messages = ChatMessage.where(chat_session_id: chat_ids, created_at: range)
+
+    # Ordering full message rows made MySQL file-sort their large content
+    # columns, and a busy day failed the journaling run with "Out of sort
+    # memory". Sort only the narrow columns, then load the rows by id.
+    MESSAGE_LIMIT = 500
+
+    def ordered_messages
+      ids = messages.order(:created_at, :id).limit(MESSAGE_LIMIT).pluck(:id)
+      by_id = ChatMessage.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| by_id[id] }
+    end
 
     def background_jobs
       Job.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)

@@ -3987,6 +3987,342 @@ landing order and Job specs (533 examples), and the dependency request specs
 
 ---
 
+## F108. A plugin tool could skip the generic approval with a bare approval_effect claim — fixed (NY12)
+
+**Decision (NY12, A; follow-up A).** Honour `approval_effect` only for core
+tools and for tools whose confirmation card is a registered pending action.
+Give the Coworkers spawn tools pending-action classes.
+
+**Before.** `approval_effect` skips the generic "ask" request because the
+tool's only mutation is creating the owner's confirmation card; policy still
+runs and a deny still refuses it. A plugin tool-set definition could set the
+flag (`Mcp::CoworkerToolCatalog`), and nothing checked that the tool creates a
+card, so a plugin tool could declare it and run on "ask" with no confirmation
+(`ApprovalEffectBacking.before_bare_claim_skips`). Only the Coworkers spawn
+tools used it, and they created a generic `coworker_tool_call` card.
+
+**Fix.**
+
+- `AuthorizationSupport.approval_effect_backed?`: a core tool's flag stands;
+  a plugin descriptor's flag counts only when `PendingActions.registered?`
+  finds a pending action under the tool's name.
+- `PendingActions::SpawnCoworkerChat` and `PendingActions::SpawnSyrusChat`
+  (subclasses of `CoworkerToolCall`) are registered under the tool names, and
+  both spawn tools create their cards under those keys. The card's approved
+  re-run is unchanged, so there is still exactly one card.
+- Everything that keyed on `coworker_tool_call` now takes the family: the
+  pending-action whitelist, smart decisions, the outcome notification, the
+  admin capability inventory (core, `ChatPendingAction::COWORKER_TOOL_CALL_ACTIONS`),
+  and the approval inbox and spawn caps (plugin,
+  `PendingActions::CoworkerToolCall.family_action_keys`). The caps still count
+  cards created before the change.
+- Docs: the Coworkers docs and the plugin authoring guide.
+
+**Proof.** `ApprovalEffectBacking.lean`: `after_skip_implies_backed` (the ask
+is skipped only for a backed effect) and `after_backed_claim_skips` (the
+spawn tools keep one card).
+
+**Specs.** Red before: `authorization_support_spec.rb` "still asks through the
+generic request when no pending action is registered for the tool" and "leaves
+the card to the tool when the plugin registers its pending action";
+`spawn_chat_tool_spec.rb` "creates its card as its own registered pending
+action" and the reservation pin; `spawn_syrus_chat_tool_spec.rb`'s one-card
+pin. New: the outcome notification for each card kind. Run and green, CI-only
+included: the Coworkers plugin, pending actions, permissions, MCP registry,
+chat MCP, admin, chats request and architecture specs (3,147 examples), and
+`bin/check-plugin-boundaries`.
+
+---
+
+## F109. A queued CI repair held behind a main repair of a superseded base waited forever — fixed
+
+Found checking main's `39f7f9c254` (M65).
+
+**Before.** The CI repair gate parks a repair on `base_not_known_healthy` or
+`base_repair_active` while its own base is unproven. Once main has moved past
+that base, neither can clear, and the repair is moot. Main taught the running
+path (`RepairExecutor#cancel_superseded_ci_repair`) the second kind, but the
+queued path (`CancelSupersededCiRepair`), the reconciler's detection
+(`superseded_ci_repair_start_block?`) and the planner's precondition still
+accepted only the first. A repair still queued behind a stale main repair, and
+the approved Job's landing behind it, waited forever
+(`SupersededCiRepair.queued_before_parks`).
+
+**Fix.** `CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS` is the one list; the
+running and queued paths, the reconciler's detection and the planner's
+precondition read it. The issue evidence records the block kind.
+
+**Proof.** `SupersededCiRepair.lean`: `after_cancels_exactly_moot` and
+`after_phases_agree` (the queued and running paths agree on every block kind).
+
+**Spec.** The simulation `superseded_ci_repair_behind_main_repair_resolves`
+and `scenario_runner_spec.rb` "cancels a queued CI repair held behind a main
+repair once its base is superseded", red before. `spec/services/work_engine`
+and `spec/services/work_units`, CI-only included: 815 examples, 0 failures.
+
+---
+
+## F110. One global row-lock order, enforced by the suite (NY25)
+
+**Decision (NY25, A).** Adopt the order AppSetting → Epic → Run → Job →
+WorkIntent → Workflow → Step → WorkUnit → User, fix the inverted sites, and add
+a test-mode checker that fails a transaction taking locks out of order.
+
+**The checker.** `Syrus::LockOrder::Checker` (`lib/syrus/lock_order.rb`,
+installed by `spec/support/lock_order.rb`) hooks locking relation queries,
+which `lock!` and `with_lock` go through. Inside the application's outermost
+transaction (the first joinable one, so a transactional test's wrapper does
+not count) it tracks the highest-ranked model and the rows locked so far, and
+fails on a lock of a lower-ranked model unless every row it returns is already
+held. The failure names both lock sites. `PENDING_DECISION` lists the
+inversions waiting on NY31-NY33; those are recorded, not raised.
+
+**What the suite found.** Two record-mode runs over the whole suite, CI-only
+included, found 13 inversion kinds. The audit's four:
+
+- `TerminalWorkflowSync` held the Workflow and drove it through
+  `Workflow#start`, which locks the Job (30 hits): now Job, then Workflow.
+- `LandingQueueProcessor#release_blocked_landing_slots!` locked the Workflow,
+  then the Job: now Job first.
+- `PlannedExecutionOverrides::Operation` locked the Job and Workflows, then
+  Runs (14 hits): now Runs, then the Job, then Workflows.
+- `RetryFailedStepEnqueuer` held the Job when the merge-train rebuild locked
+  the Epic: it now locks the train's Epic first.
+
+Two more the audit had missed, also fixed:
+
+- `LandingValidationPrefetcher` locked the source Workflow, then the target's
+  Jobs (9 hits): now the Jobs (in id order), then the Workflow.
+- `RepairExecutor#audit!` locked a Run inside whatever transaction the repair
+  ran in (under a held Job or WorkUnit): the audit line is now appended after
+  the outermost commit, so a rolled-back repair is not audited as applied.
+
+Three need a decision, filed as NY31 (the User row as provider-reservation
+mutex, 158 hits), NY32 (a terminal WorkUnit cancelling its Workflow inside the
+unit's transaction, which F97 introduced; 4 hits) and NY33 (the cancellation
+cascade locking a descendant Workflow after its parent's Steps; 4 hits).
+
+**Proof.** `LockOrder.lean` already proves the decided order acyclic and that
+it inverts exactly the four audited edge kinds; the suite now checks the code
+against it.
+
+**Specs.** `spec/lib/syrus/lock_order_spec.rb` (10 examples: in-order locks,
+an inversion, locking relations, nested transactions, separate transactions,
+same-model locks, re-locking a held row, another row after a higher rank, the
+pending list, record mode). Switching the checker to raise turned 23 existing
+specs red (terminal workflow sync, landing prefetcher, planned-execution
+overrides, the merge-train retry); all green after the fixes. Full suite with
+the checker raising, CI-only included: 24,726 and 5,316 examples, 0 failures.
+Contributor guidance: `docs/engineering/conventions/database-and-migrations.md`.
+
+---
+
+## F111. An abandoned backup upload protected its backup forever — fixed (NY21)
+
+**Decision (NY21, A).** Keep deletion conservative, and add a sweep that marks
+a replication failed once its lease has expired and its destination is no
+longer configured.
+
+**Before.** `LocalBackups::Retention` never deletes a backup with an
+`uploading` replication. Leases last six hours and are never renewed, and
+nothing expired them, so a replication whose worker died stayed `uploading`
+until the same destination pinned again. A destination removed mid-upload never
+does, so its backup was protected from retention and capacity reclamation
+forever (`AbandonedReplication.before_pins_forever`).
+
+**Fix.**
+
+- `Syrus::Plugin::BackupDestination` gains two optional methods (1.x, additive):
+  `identity`, the destination identity it pins under (default nil), and
+  `configured?` (default true). The S3 destination answers both.
+- `LocalBackups::AbandonedReplicationSweep` marks failed an `uploading`
+  replication whose lease has expired when no enabled destination that is
+  configured claims its identity. It releases nothing while any enabled
+  destination does not declare an identity, and it locks the Backup before the
+  replication (as `ArtifactSource.pin` does), rechecking the lease under the
+  lock.
+- `LocalBackups::MaintenanceJob` runs it before retention, so the released
+  backup is reclaimable in the same pass. Docs: Local Backups.
+
+**Proof.** `AbandonedReplication.lean`: `never_releases_live`,
+`releases_abandoned`, `anonymous_destination_releases_nothing`.
+
+**Specs.** `abandoned_replication_sweep_spec.rb` (new, red before: the sweep
+did not exist): a gone destination, an unconfigured one, a live one kept, an
+active lease kept, an anonymous destination releasing nothing, and the
+maintenance job order. `destination_spec.rb`: the S3 identity and
+configuration. Run and green, CI-only included: both plugins, `spec/lib/syrus`
+and the architecture specs (1,059 examples), and `bin/check-plugin-boundaries`.
+
+---
+
+## F112. Recovery preflight was ready when compatibility was unknown — fixed (NY22)
+
+**Decision (NY22, A).** Treat every unknown as a failure, and allow it only
+with an explicit operator flag named after what is unknown.
+
+**Before.** `LocalBackups::Recovery::Preflight` issues the restore token only
+when no check fails, and `restore` requires that token. A known mismatch
+failed, but a missing fact only warned: the destination's database adapter,
+database version or application version not supplied; no compatibility range
+in the bundle, or versions that do not parse; no encryption-key fingerprints in
+the bundle. Warnings needed no acknowledgement, so preflight was ready and a
+restore could replace the database of a destination whose compatibility was
+never established (`RecoveryPreflight.before_ready_with_unknowns`).
+
+**Fix.** Each unknown carries a code (`UNKNOWN_CODES`) and fails unless the
+operator passes `--allow-unknown-<code>` to `bin/disaster-recovery`, which turns
+it into a warning that names the flag. An unrecognised code is refused. The
+uncountable in-flight work warning is left as a warning: it means the database
+is unavailable, which is the usual disaster-recovery case, and it is not a
+compatibility fact. Docs: Local Backups and the Docker Compose deployment page.
+
+**Proof.** `RecoveryPreflight.lean`: `ready_implies_accepted` (a ready
+preflight has no unaccepted unknown) and `one_flag_excuses_one`.
+
+**Specs.** `recovery_spec.rb` "unknown compatibility" (red before: the
+argument did not exist): ready when everything is known, each of the five
+unknowns blocked and then accepted by its own flag, and one flag not excusing
+another. The token spec now accepts its bundle's three unknowns explicitly.
+`spec/bin/disaster_recovery_spec.rb` drives the CLI: blocked, still blocked
+with only one of two flags, ready with both. Local Backups specs: 94 examples,
+0 failures.
+
+---
+
+## F113. A hook the Job's branch added ran on the reviewer's machine — fixed (NY23)
+
+**Decision (NY23, A).** Run a hook without asking only if the same command is
+already in the `.syrus.yml` on the Job's base branch; show any new or changed
+hook and ask, refusing without a terminal unless `--hooks` is passed; and gate
+on an allow-list of kinds (issue, direct, cron).
+
+**Before.** `syrus checkout` ran every `hooks.post_checkout` command from the
+checked-out branch's `.syrus.yml` files, unless `--no-hooks` was passed or the
+Job was an `external_pr` (a deny-list). Every other branch is written by an
+agent working from issue text, so on a repository that accepts outside issues
+the issue author could steer the agent into adding a hook that ran on the
+reviewer's machine before the diff was read. An unknown or missing kind ran
+hooks too (`CheckoutHooks.before_runs_agent_hook`, `before_runs_unknown_kind`).
+
+**Fix (Go CLI).**
+
+- `postCheckoutHooksAllowed` is an allow-list of `issue`, `direct` and `cron`.
+- `runPostCheckoutHooks` resolves and fetches the base branch once
+  (`postCheckoutBaseRef`), and for each `.syrus.yml` reads the same file on it
+  (`git show`) to get the trusted commands. A command not among them is asked
+  about on a terminal and skipped without one, with a message naming `--hooks`.
+  When the base branch cannot be read, every hook counts as new.
+- `--hooks` on `syrus checkout` and `syrus job checkout` runs new and changed
+  hooks without asking and skips the lookup. The Epic paths get the same policy.
+- Docs: the website's configuration page, `config/syrus_docs/syrus_yml.md`, and
+  the regenerated CLI catalog.
+
+**Proof.** `CheckoutHooks.lean`: `after_unasked_only_if_on_base` and
+`after_unknown_kind_never_runs`.
+
+**Tests.** `cli/cmd/checkout_hook_trust_test.go` (new, red before: the options
+did not exist): a hook already on the base runs unasked, a new one is refused
+without a terminal, a changed one counts as new, the prompt decides on a
+terminal, `--hooks` runs it, an unreadable base trusts nothing, the kind
+allow-list, and the command-level default. Thirty-five existing fixtures sent a
+Job with no `kind`, which the allow-list now refuses; they declare
+`"kind":"issue"`, as the API does. Four tests that exist to run hooks now pass
+`--hooks` (or `allowUntrusted`). All CLI packages pass, and `go vet` is clean.
+
+---
+
+## F114. A backend update deleted the image it had just replaced — fixed (NY24)
+
+**Decision (NY24, B).** Keep the previous image only until the next successful
+update, or for a fixed period such as 7 days.
+
+**Before.** After a backend update passed its health gate, the desktop removed
+every same-channel backend image except the new pin
+(`removeSupersededSyrusImages`), including the image that had been running a
+minute earlier. A version that misbehaved after the health gate (a migration or
+runtime problem) could only be rolled back by re-pulling about 7.6 GB, which
+may be impossible offline.
+
+**Fix (desktop).**
+
+- `updateBackend` captures the pin it is replacing before the installer runs.
+  After a healthy update it writes `image-retention.json` in the state
+  directory (`retentionAfterUpdate`: the replaced ref, kept 7 days) and passes
+  that ref to the cleanup, which keeps it. The record replaces the last one, so
+  the image an earlier update kept is retired by the next update.
+- `ensureRunning`, the launch check, retires the kept image once its deadline
+  has passed, on a healthy stack only; a broken stack keeps every image.
+- Retention is best-effort like the cleanup it feeds: a lost or corrupt record
+  only means the image is not kept.
+- Docs: the website's Desktop and Troubleshooting pages.
+
+**Proof.** `RollbackImage.lean`: `at_most_one_kept`, `update_keeps_replaced`,
+`second_update_retires_first`, `expired_retired_at_launch`.
+
+**Tests.** `desktop/src/imageRetention.test.ts` (red before: the module did not
+exist): the seven-day record, no record without a changed pin, expiry
+(including an unreadable deadline), the filter keeping the retained image and
+removing older ones, and the record's round trip. `imageRetentionLaunch.test.ts`
+drives `ensureRunning`: an expired record is retired, an active one is kept, no
+record does nothing; removing the launch call turns it red. Desktop suite as CI
+runs it (`npx vitest run desktop/src`): 46 files, 318 tests, 0 failures; the
+desktop typecheck is clean.
+
+---
+
+## F115. The merge-train evidence model had drifted from the code — model fixed
+
+Found by the first conformance fixtures (formal/INTEGRATION.md, layer 3).
+
+**Before.** `TrainEvidence.lean` mirrors `Steps::MergeTrainLand#member_landed?`.
+When a member's last recorded commit is not an ancestor of the integration SHA,
+the model accepted only patch equivalence to the base. The Ruby had since
+gained a second piece of evidence there, `rebased_into_integration?`: a
+rebased train gives every integrated commit a new SHA, so a commit with the
+same patch-id in what the train integrated counts as landed. The model's
+theorem, "marked merged implies evidence", was about a function the code no
+longer was. The code was right; the model was stale.
+
+**Fix.** The model gains `rebasedIntoIntegration` in its `notAncestor` case and
+in `evidence`; `after_merged_has_evidence` still holds over every member.
+
+**Conformance.** `formal/fixtures/train_evidence.json` holds the model's verdict
+for all 48 combinations of the evidence inputs, and
+`spec/formal/train_evidence_conformance_spec.rb` runs the real `member_landed?`
+on each (the git-backed leaves stubbed) and agrees on all 48. Run against the
+old model's answers, it fails on exactly the two cases the old model missed.
+`spec/formal/auto_approval_conformance_spec.rb` does the same for
+`AutoApproval.approveNew` and `AutoApprovalRule#approve_after_grader_success!`
+(8 cases, all agree). Both methods are now in `formal/mirrors.yml`.
+
+---
+
+## F116. The review-barrier model had one way to pass where the code has three — model fixed (Lead L12)
+
+**Before.** `ReviewBarrier.lean` passed the required-review barrier only when
+the tracked HEAD was approved. `Workflows::ImmutableReviewHeadBarrier.satisfied_for?`
+also passes a required review that reacted without changing HEAD, and one whose
+budget exhaustion was recorded for that HEAD, with a high-severity warning. So
+the model's headline, "whatever is pushed was approved by every required
+review", described a barrier the code is not: under exhaustion it is false by
+design. The code was right; the model was stale.
+
+**Fix.** An `Evidence` section models `satisfied_for?` for one required review
+with all three paths. `pass_is_approval_reaction_or_exception` restates the
+promise exactly, `pass_without_exception_is_reviewed` keeps the strong form
+when no exhaustion was recorded, and `exhaustion_passes_unreviewed` names the
+exception. The step-sequence counterexamples are unchanged.
+
+**Conformance.** `formal/fixtures/review_barrier.json` holds the verdict for all
+32 combinations of one review's evidence, and
+`spec/formal/review_barrier_conformance_spec.rb` runs the real `satisfied_for?`
+on each (the record lookups stubbed): all 32 agree. Run against the old model's
+answers it fails on exactly the 9 cases where they differ. `satisfied_for?` is
+now in `formal/mirrors.yml`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -4712,6 +5048,135 @@ reused test database.
 
 **To confirm:** list `db/*.sqlite3` in a grader's immutable checkout before
 the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
+
+---
+
+## M69. Main through `3561d3536a`
+
+Two commits. `3561d3536a` installs WebKit dependencies for E2E CI. The other:
+
+- **"Fix permission catalog snapshot classification on main"** (`3502624b0f`).
+  `Permissions::Catalog.essential_for?` and `essential_everywhere?` take a
+  `cache:` hash so classifying every descriptor reuses one registry and plugin
+  snapshot. *Relied-on invariant:* the cached answer equals the uncached one.
+  Holds: the cache is a local hash for one classification pass, registry
+  entries are cached per surface (the only input the uncached lookup varied),
+  and the plugin descriptors do not change within the pass.
+
+---
+
+## Lead L12. The review-barrier model has one way to pass; the code has three (closed: F116)
+
+Found while preparing its conformance fixture (formal/INTEGRATION.md, layer 3).
+
+`ReviewBarrier.lean` passes the barrier when the tracked HEAD was approved.
+`Workflows::ImmutableReviewHeadBarrier.satisfied_for?` accepts, for each
+required review: succeeded approved evidence for that HEAD; a review that
+reacted without changing HEAD (`reacted_without_head_change?`); or a recorded
+budget exhaustion for that HEAD (`exhausted_for_head?`). The exhaustion is a
+deliberate exception, recorded with a high-severity workflow warning, that lets
+a HEAD through which was never re-reviewed. So the model's headline property,
+"whatever is pushed was approved by every required review", is about a barrier
+the code no longer is: under exhaustion it is false by design. No fixture until
+the model has all three paths, and its theorem is restated as "approved, or
+reacted without a HEAD change, or a recorded and warned exhaustion".
+
+---
+
+## M68. Main through `1aa74a2a4d`
+
+Ten commits. Nine are chat and mobile UI (sidebar scrolling and stickiness,
+coworker thread collapse state, a chat index N+1, a missing-recent-chats
+crash, visual-review docs) with no engine invariant. One is not:
+
+- **"Make self-scheduled chat wakeups essential by default"** (`11d8bc436c`).
+  `schedule_wakeup`, `list_wakeups` and `cancel_wakeup`, scoped to wakeups the
+  current chat owns, become essential operations: evaluated and audited, but
+  never asking. *Relied-on invariants:* an essential descriptor declares no
+  barrier effect, and a chat can only touch its own wakeups. Both hold, and the
+  commit's specs pin them. *What the change removes:* the
+  `persistent_autonomy` effect was the brake on self-perpetuating work, and
+  nothing replaces it. `ChatWakeup` has no per-chat limit, and the tool only
+  bounds each wakeup's delay (1 minute to 24 hours, or a time within a year),
+  so a chat can hold any number of pending wakeups, and a woken turn can
+  schedule the next one, once a minute, indefinitely, each a paid agent turn,
+  with no approval anywhere. Filed as NY34: it is a policy choice, so no code
+  is changed.
+
+---
+
+## M67. Main through `a469015745`
+
+Ten commits. Startup diagnostics (`b7abea2d8d`, `92e7d08f7a`, `3d3121d34f`), a
+mobile coworker sidebar alignment (`eac45e6e55`) and formatting carry no engine
+invariant. The rest:
+
+- **"Harden core Job persistence against MySQL lock waits"** (`836d0ad0eb`).
+  Adds attempt and exhaustion telemetry to RunJob's lifecycle-write retry and a
+  retryable conflict response for bulk Job actions. *Relied-on invariants:* a
+  retried block is idempotent, and the telemetry cannot fail a write. Both
+  hold. Each retried block is one transaction (or a reload and one
+  transaction), so a lock wait rolls it back whole; `Workflow#record_run_failure!`
+  documents the same. The counter is declared `run_lifecycle_lock_retries_total`
+  and fetched as `syrus_run_lifecycle_lock_retries_total`, which matches,
+  because every core declaration is prefixed `syrus_`. One residue: a lock wait
+  inside a Step's after-commit cascade, after the success committed, is retried
+  into a reload that finds the Step terminal and returns, so the cascade is
+  dropped. That is the lost-cascade shape the reconciler already repairs, and
+  F102 makes the repair replay it.
+- **"Enable QA coworkers to perform visual acceptance reviews"** (`4918d4d863`).
+  Opens `run_visual_review` and `run_visual_diff` to coworker roles. *Relied-on
+  invariant:* a coworker tool skips the generic approval only when its card is
+  backed (F108). Holds: both are core tools whose `approval_effect` is derived
+  from their registered pending actions.
+- **"Require explicit plugin release metadata"** (`07eb776139`, `bf8a33a67c`)
+  and **"Fix merge-readiness integration regressions"** (`a469015745`). Plugin
+  manifest metadata and plugin-health reporting. They rewrite part of
+  `lib/syrus/plugin_registry.rb`, which F93 changed; the rebase merged cleanly,
+  and F93's specs, the plugin enablement guard, the Coworkers and Local Backups
+  plugins, `spec/lib/syrus`, the architecture specs and both RunJob lock-wait
+  specs pass on the result with the lock-order checker raising (1,859
+  examples).
+
+---
+
+## M66. Main through `29c22a4edd`
+
+One commit: macOS workers run the release's pinned Ruby through mise. Worker
+provisioning only; no engine invariant.
+
+---
+
+## M65. Main through `ebbcb88009`
+
+Five commits. `25b268d453` (previous-failures gate JUnit), `ff64d942f9` (enable
+Design Docs for E2E) and `ebbcb88009` (keep macOS credential helpers out of
+git calls) carry no engine invariant. The rest:
+
+- **"Cancel a superseded CI repair held behind a main repair"**
+  (`39f7f9c254`). *Relied-on invariant:* a CI repair whose base main has moved
+  past is cancelled whatever block holds it. Counterexample on the queued
+  path: F109.
+- **"Write GitHub rate-limit snapshots after the transaction commits"**
+  (`9aadb46309`). *Relied-on invariant:* a GitHub call inside a transaction
+  takes no lock on the calling user's row. Holds: both writes (the snapshot
+  and the API-blocked mark) now go through `after_all_transactions_commit`,
+  and the client's only other write (`mark_installation_removed!`) is on the
+  installation row. One gap that predates the change: Lead L11.
+
+---
+
+## Lead L11. The rate-limit block mark is lost when the exhausting call's transaction rolls back
+
+A GitHub response with `remaining: 0` sets the user's API-blocked mark. Since
+`9aadb46309` the mark is written after the outermost transaction commits, and
+before it the UPDATE ran inside that transaction; either way, a rollback drops
+it. The exhausting call is often the one that raises (a 403), and an exception
+that leaves a transaction rolls it back, so the call most likely to exhaust the
+limit is the one whose mark is most likely lost. Later calls outside a
+transaction re-observe the headers, so this delays the mark rather than losing
+it for good. No production evidence yet; check `gh_rate_limit_*` against
+403s with remaining 0 before fixing.
 
 ---
 
@@ -6298,7 +6763,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `d381b27bd3`. Each loop iteration continues from there:
+Checked through main `3561d3536a`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

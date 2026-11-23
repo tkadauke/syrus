@@ -41,13 +41,7 @@ class MainHealthChangedService
   def self.supersede_stale_preflight_repairs!(repository, head_sha:)
     return if head_sha.blank?
 
-    repository.jobs.where.not(state: "closed").find_each do |job|
-      next unless job.main_branch_repair?
-
-      workflow = job.latest_workflow
-      next unless workflow&.trigger_kind == "main_branch_repair" && workflow.running?
-      next if repair_implementation_started?(workflow)
-
+    each_preflight_repair(repository) do |job, workflow|
       snapshot_sha = WorkflowSourceSnapshots.current_for(workflow)&.source_sha
       next if snapshot_sha.blank? || snapshot_sha == head_sha
 
@@ -58,6 +52,33 @@ class MainHealthChangedService
       job.cancel_active_runs_and_close!(SUPERSEDED_PREFLIGHT_CLOSURE)
     end
   end
+
+  # Once main is healthy, a repair that has not started implementing has
+  # nothing left to fix. A failed repair retried after another repair had
+  # already been approved kept grading about 140 preflight graders against a
+  # main that turned healthy a few minutes later; nothing closed it, because
+  # the commit-based rule above can see the new head in its own snapshot.
+  def self.supersede_unneeded_preflight_repairs!(repository)
+    return unless repository.main_health == "healthy"
+
+    each_preflight_repair(repository) do |job, _workflow|
+      Rails.logger.info("[MainHealthChangedService] #{repository.slug} superseding #{job.slug}: main is healthy")
+      job.cancel_active_runs_and_close!(SUPERSEDED_PREFLIGHT_CLOSURE)
+    end
+  end
+
+  def self.each_preflight_repair(repository)
+    repository.jobs.where.not(state: "closed").find_each do |job|
+      next unless job.main_branch_repair?
+
+      workflow = job.latest_workflow
+      next unless workflow&.trigger_kind == "main_branch_repair" && (workflow.running? || workflow.queued?)
+      next if repair_implementation_started?(workflow)
+
+      yield job, workflow
+    end
+  end
+  private_class_method :each_preflight_repair
 
   def self.repair_implementation_started?(workflow)
     workflow.steps.where(kind: "implement").joins(:runs).exists?
@@ -108,8 +129,9 @@ class MainHealthChangedService
       resume_landing!
       start_blocked_queued_workflows!
       emit_inconclusive_notification!
-    elsif @repository.main_health == "healthy" && @repository.landing_paused?
-      self.class.recovered!(@repository)
+    elsif @repository.main_health == "healthy"
+      self.class.supersede_unneeded_preflight_repairs!(@repository)
+      self.class.recovered!(@repository) if @repository.landing_paused?
     end
   end
 

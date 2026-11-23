@@ -46,6 +46,11 @@ Backup Destination plugin can replicate those streams to an S3-compatible
 bucket and record remotely verified state. Set
 `SYRUS_BACKUP_REQUIRE_VERIFIED_REPLICATION=1` to prevent retention from
 deleting a local bundle until at least one destination has verified it.
+Retention never deletes a bundle while a destination is uploading it. An
+upload whose lease has expired, for a destination that is no longer enabled or
+configured, is marked failed by the maintenance pass so its bundle becomes
+reclaimable; while any enabled destination does not say which uploads it owns,
+nothing is released.
 On Docker Compose, `SYRUS_BACKUP_HOST_PATH` selects a host-visible directory
 that is separate from the installer's upgrade safety archives. The worker
 mounts it read-write and web mounts it read-only. Daily scheduled creation is
@@ -92,6 +97,16 @@ stable token is cryptographically bound to that installation identity and the
 artifact checksum. Missing live database information is reported as unknown,
 not healthy. A changed artifact or installation therefore requires a new
 preflight token.
+
+Restore replaces the database, so preflight blocks when it cannot establish
+compatibility, not only when it finds a mismatch. Each unknown names a flag
+that accepts exactly that unknown: `--allow-unknown-database-adapter`,
+`--allow-unknown-database-version`, `--allow-unknown-application-version`,
+`--allow-unknown-application-compatibility` (the bundle declares no range, or
+the versions do not parse), and `--allow-unknown-encryption-fingerprints`. An
+accepted unknown stays in the report as a warning. In-flight work that cannot
+be counted because the database is unavailable, the usual disaster-recovery
+case, is reported but does not block.
 
 `restore` requires the token from the exact successful preflight plus explicit
 maintenance-entry, worker-drain, drain-verification, derived-index rebuild,

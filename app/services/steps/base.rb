@@ -532,8 +532,24 @@ module Steps
       AgentProviders.for(agent_provider).new(
         run: run,
         workspace: workspace,
-        parent_session_id: resume_session_id
+        parent_session_id: resumable_session_id(resume_session_id)
       )
+    end
+
+    # A session can only be resumed by the provider that created it. When
+    # provider routing moves a workflow from one provider to another between
+    # Steps, the upstream Step's session still belongs to the old provider:
+    # Claude handed a Codex thread id answered "No conversation found" and the
+    # implement Run failed at turn 0. Start a fresh session instead.
+    def resumable_session_id(session_id)
+      return session_id if session_id.blank?
+
+      session_provider = ProviderSession.where(session_id: session_id).order(:id).last&.provider
+      return session_id if session_provider.blank? || session_provider.to_s == agent_provider.to_s
+
+      log("[session] not resuming #{session_provider} session #{session_id} with #{agent_provider}; " \
+          "starting a fresh session", kind: "system")
+      nil
     end
 
     def capture_mcp_sidecar_stderr

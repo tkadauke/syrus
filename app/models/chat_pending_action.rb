@@ -83,6 +83,8 @@ class ChatPendingAction < ApplicationRecord
     override_job_planned_execution
     local_tool_call
     coworker_tool_call
+    spawn_coworker_chat
+    spawn_syrus_chat
     authorized_tool_call
     coworker_permission_request
     coworker_permission_revocation
@@ -92,6 +94,10 @@ class ChatPendingAction < ApplicationRecord
     retire_insights
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
+  # A coworker's approval card that runs the tool on approval: the generic
+  # one, and the ones a coworker tool registers under its own name so its
+  # approval_effect is honoured (Mcp::Tools::AuthorizationSupport).
+  COWORKER_TOOL_CALL_ACTIONS = %w[ coworker_tool_call spawn_coworker_chat spawn_syrus_chat ].freeze
   # Actions whose payload["job_id"] should resolve to a target Job resource
   # link on pending-action cards. Single source of truth for both
   # App::ChatMessagePayload (message-anchored pending actions) and

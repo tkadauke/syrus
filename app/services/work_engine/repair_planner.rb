@@ -1036,7 +1036,7 @@ module WorkEngine
                 workflow_state: "queued",
                 work_unit_kind: "ci_failure",
                 start_blocked_reason: WorkUnits::Gates::CiRepairSafety::REASON,
-                start_blocked_kind: "base_not_known_healthy",
+                start_blocked_kind: issue.evidence["ci_repair_block_kind"] || "base_not_known_healthy",
                 base_sha: issue.evidence["ci_repair_base_sha"],
                 current_base_sha: issue.evidence["ci_repair_current_base_sha"]
               }

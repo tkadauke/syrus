@@ -192,7 +192,8 @@
       ],
       "status": "done",
       "done_by": "by construction · work_unit_workflow_ownership_spec",
-      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved. Prevention holds by construction: Launcher#instantiate creates the unit, its locks and its Workflow in one WorkIntent.transaction (a raising template rolls the unit back), nothing in the app destroys a Workflow or nils a unit's workflow, and the architecture spec confines WorkUnit creation to the launcher."
+      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved. Prevention holds by construction: Launcher#instantiate creates the unit, its locks and its Workflow in one WorkIntent.transaction (a raising template rolls the unit back), nothing in the app destroys a Workflow or nils a unit's workflow, and the architecture spec confines WorkUnit creation to the launcher.",
+      "expected": "never"
     },
     {
       "id": "unit-intent-outcome-agreement",
@@ -264,7 +265,8 @@
       ],
       "status": "done",
       "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks) · M39",
-      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered. M39: no production writer bypasses mark_terminal!/preempt!; pinned by an architecture spec."
+      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered. M39: no production writer bypasses mark_terminal!/preempt!; pinned by an architecture spec.",
+      "expected": "never"
     },
     {
       "id": "active-unit-terminal-workflow-locks",
@@ -288,7 +290,8 @@
       ],
       "status": "done",
       "done_by": "by construction · work_unit_workflow_ownership_spec",
-      "notes": "Every terminal Workflow transition is an AASM event whose after-callback (Workflows::LifecyclePropagation succeeded!/failed!/cancelled!/blocked!) runs sync_work_unit_terminal! inside the event's transaction, so the unit ends and releases its locks with the Workflow, or neither commits. The only column write of a Workflow's state, RunCompletionReconciler#force_state!, calls Workflows::LifecyclePropagation.succeeded! explicitly afterwards. The architecture spec now fails on any other Workflow state column write. Residual producers are outside the app: TerminalWorkflowSync and retire_terminal_work_unit remain the repairs for legacy rows."
+      "notes": "Every terminal Workflow transition is an AASM event whose after-callback (Workflows::LifecyclePropagation succeeded!/failed!/cancelled!/blocked!) runs sync_work_unit_terminal! inside the event's transaction, so the unit ends and releases its locks with the Workflow, or neither commits. The only column write of a Workflow's state, RunCompletionReconciler#force_state!, calls Workflows::LifecyclePropagation.succeeded! explicitly afterwards. The architecture spec now fails on any other Workflow state column write. Residual producers are outside the app: TerminalWorkflowSync and retire_terminal_work_unit remain the repairs for legacy rows.",
+      "expected": "never"
     },
     {
       "id": "terminal-parent-active-children",
@@ -311,7 +314,8 @@
       ],
       "status": "done",
       "done_by": "F29 (NY5: A)",
-      "notes": "Decided NY5: A. A succeeded parent's LandingValidationChild prefetches keep running for the next landing to reuse (6 of 7 production cancellations were these); children of failed or cancelled parents are still cancelled. Agreement.prefetch_of_landed_parent_kept / other_children_of_terminal_parents_stale."
+      "notes": "Decided NY5: A. A succeeded parent's LandingValidationChild prefetches keep running for the next landing to reuse (6 of 7 production cancellations were these); children of failed or cancelled parents are still cancelled. Agreement.prefetch_of_landed_parent_kept / other_children_of_terminal_parents_stale.",
+      "expected": "never"
     },
     {
       "id": "one-unit-per-workflow",
@@ -1162,7 +1166,8 @@
       "simulator": [],
       "status": "done",
       "done_by": "F42 · F95 (ClosedIntent.lean)",
-      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close. F95: an intent whose unit was still active at close is now cancelled when that unit is cancelled for any reason after the close (production had one, cancelled 50 s after close for epic_wide_workflow_active); ClosedIntent.lean proves a closed Job's open intent always has an active unit. Member-scoped intents remain covered by F42's reason list."
+      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close. F95: an intent whose unit was still active at close is now cancelled when that unit is cancelled for any reason after the close (production had one, cancelled 50 s after close for epic_wide_workflow_active); ClosedIntent.lean proves a closed Job's open intent always has an active unit. Member-scoped intents remain covered by F42's reason list.",
+      "expected": "never"
     },
     {
       "id": "queued-job-after-cancelled-workflow",
@@ -1589,7 +1594,8 @@
       ],
       "status": "done",
       "done_by": "NY7 (A) · PrestartSlot.option_a_never_starves",
-      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7. Decided NY7 (A) and implemented: WorkUnit#block! releases the landing slot whenever the Workflow is a queued landing before its first Run (prestart_landing_block?), replacing the urgent-only case; WorkflowLifecycle.started! (mark_running!) and resume_for_workflow! re-acquire every key before the first Run, so mutual exclusion is unchanged."
+      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7. Decided NY7 (A) and implemented: WorkUnit#block! releases the landing slot whenever the Workflow is a queued landing before its first Run (prestart_landing_block?), replacing the urgent-only case; WorkflowLifecycle.started! (mark_running!) and resume_for_workflow! re-acquire every key before the first Run, so mutual exclusion is unchanged.",
+      "expected": "never"
     },
     {
       "id": "stranded-landing-job",
@@ -3106,6 +3112,166 @@
       "producer": "Steps::PrOpen#ensure_stack_base_fresh!; Workflows::Base.stack_aware_pr_open; Steps::StackBaseAgentRebase",
       "done_by": "F106 (NY29)",
       "notes": "StackConflictRecovery.lean: a resolved conflict publishes; every path ends within two pr_open attempts, never as an exhausted retry budget."
+    },
+    {
+      "id": "approval-effect-backed",
+      "area": "permissions",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A tool skips the generic approval only when its effect is backed by a core registration or a registered confirmation card",
+      "producer": "Mcp::Tools::AuthorizationSupport.approval_effect_backed?; PendingActions.registered?; Coworkers spawn tools",
+      "done_by": "F108 (NY12)",
+      "notes": "ApprovalEffectBacking.lean: a skipped ask implies a backed effect; backed claims still skip, so the spawn tools keep one card."
+    },
+    {
+      "id": "superseded-ci-repair-cancelled",
+      "area": "workflow",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "superseded_ci_repair_base_resolves",
+        "superseded_ci_repair_behind_main_repair_resolves"
+      ],
+      "status": "done",
+      "title": "A CI repair whose base main has moved past is cancelled whatever block holds it, queued or running",
+      "producer": "WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS; RepairExecutor (running and queued paths); Reconciler",
+      "done_by": "F109 (M65)",
+      "notes": "SupersededCiRepair.lean: both paths cancel exactly the blocks that wait on the repair's own base."
+    },
+    {
+      "id": "row-lock-order-enforced",
+      "area": "concurrency",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "title": "Every transaction takes row locks in the global order, so lock cycles cannot deadlock",
+      "producer": "Syrus::LockOrder; spec/support/lock_order.rb (suite-wide checker)",
+      "done_by": "F110 (NY25); NY31-NY33 open",
+      "notes": "LockOrder.lean proves the order acyclic; the suite fails any inversion except the three awaiting NY31-NY33."
+    },
+    {
+      "id": "abandoned-replication-released",
+      "area": "backups",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "An abandoned backup upload stops protecting its backup, and a live one never does",
+      "producer": "LocalBackups::AbandonedReplicationSweep; Syrus::Plugin::BackupDestination#identity/#configured?",
+      "done_by": "F111 (NY21)",
+      "notes": "AbandonedReplication.lean: safe (never releases a live upload) and complete once every destination is identified."
+    },
+    {
+      "id": "recovery-preflight-unknowns-block",
+      "area": "backups",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A restore token is issued only when every compatibility unknown was accepted by its own flag",
+      "producer": "LocalBackups::Recovery::Preflight; bin/disaster-recovery --allow-unknown-<code>",
+      "done_by": "F112 (NY22)",
+      "notes": "RecoveryPreflight.lean: a ready preflight has no unaccepted unknown, and one flag excuses only its own unknown."
+    },
+    {
+      "id": "essential-wakeups-bounded",
+      "area": "permissions",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "design",
+      "title": "Approval-free self-scheduled work is bounded",
+      "producer": "Mcp::Tools::ScheduleWakeupTool; ChatWakeup; Permissions::EffectActions",
+      "done_by": "M68 (NY34 open)",
+      "notes": "Since main's 11d8bc436c, schedule_wakeup is essential and nothing bounds the number or rate of self-scheduled wakeups per chat."
+    },
+    {
+      "id": "checkout-hooks-trusted",
+      "area": "cli",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A post-checkout hook runs unasked only for a known Job kind and a command already on the base branch",
+      "producer": "cli/cmd/checkout.go (postCheckoutHooksAllowed, runPostCheckoutHooks, withPostCheckoutHookPolicy)",
+      "done_by": "F113 (NY23)",
+      "notes": "CheckoutHooks.lean: an agent-added hook needs consent, and unknown kinds never run hooks."
+    },
+    {
+      "id": "rollback-image-kept",
+      "area": "desktop",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "The image a backend update replaced is kept for rollback until the next update or seven days",
+      "producer": "desktop/electron/installer/imageRetention.ts; backendLifecycle.updateBackend/ensureRunning; imageCleanup",
+      "done_by": "F114 (NY24)",
+      "notes": "RollbackImage.lean: at most one previous image is kept, it survives its update's cleanup, and an expired one is retired at launch."
+    },
+    {
+      "id": "reopened-workflow-stranded-by-cleanup",
+      "area": "workflow",
+      "title": "A reopened Workflow whose earlier failure cleanup left a started Step cancelled",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "reopened_workflow_stranded_by_cleanup"
+      ],
+      "classifiers": [
+        "classify_reopened_workflows_stranded_by_cleanup"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "Workflow failure cleanup cancels unfinished Steps; RetryFailedStepEnqueuer reopens the Workflow for the failed Step but leaves a cleanup-cancelled Step that had started a Run cancelled",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "",
+      "notes": "Repaired by revive_cleanup_cancelled_step once the Workflow is idle (main's ade7f9049f, from a production case). Prevention not yet examined: the step retry that reopens the Workflow could revive those Steps in the same transaction, which would make this state unreachable. Found by the inventory completeness spec (layer 5)."
     }
   ],
   "needs_you": [
@@ -3263,7 +3429,7 @@
         "C. Keep as is: plugins are trusted code reviewed like core."
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
-      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two. Follow-up answered A (2026-11-22, answered on the lean-plan site): give the Coworkers spawn tools pending-action classes, so approval_effect is derived from a registered pending action. To implement."
+      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two. Follow-up answered A (2026-11-22, answered on the lean-plan site): give the Coworkers spawn tools pending-action classes, so approval_effect is derived from a registered pending action. Implemented as F108."
     },
     {
       "id": "NY13",
@@ -3380,7 +3546,7 @@
         "C. Keep as is: an abandoned upload pins its backup until an operator deletes it."
       ],
       "recommendation": "A. It never deletes under a live or recoverable upload, and it releases exactly the case that cannot recover on its own.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Keep deletion conservative, and add a sweep that marks a replication 'failed' once its lease has expired and its destination is no longer configured, so only an abandoned upload is released. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Keep deletion conservative, and add a sweep that marks a replication 'failed' once its lease has expired and its destination is no longer configured, so only an abandoned upload is released. Implemented as F111."
     },
     {
       "id": "NY22",
@@ -3393,7 +3559,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A, in line with NY13: an unknown is not a pass, and restore is destructive. The break-glass flag keeps the empty-instance and development cases possible on purpose.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown. Implemented as F112."
     },
     {
       "id": "NY23",
@@ -3406,7 +3572,7 @@
         "C. Keep as is: hooks are a convenience for trusted repositories, and --no-hooks is the escape hatch."
       ],
       "recommendation": "A. It keeps the convenience for hooks the repository already trusts on its base branch, and stops the one path where text from outside becomes code running on the operator's machine without anyone reading it.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed. Implemented as F113."
     },
     {
       "id": "NY24",
@@ -3419,7 +3585,7 @@
         "C. Keep as is: reclaim all space immediately, and rely on re-pulling for rollback."
       ],
       "recommendation": "A. It bounds disk use at two images, and it keeps the one image that makes a local rollback possible.",
-      "decision": "B (2026-11-22, answered on the lean-plan site): Keep the previous image only until the next successful update or for a fixed period, such as 7 days. To implement."
+      "decision": "B (2026-11-22, answered on the lean-plan site): Keep the previous image only until the next successful update or for a fixed period, such as 7 days. Implemented as F114."
     },
     {
       "id": "NY25",
@@ -3432,7 +3598,7 @@
         "C. Keep as is: InnoDB detects deadlocks and aborts one side; the callers already tolerate failures."
       ],
       "recommendation": "A. The order matches what the hot paths already do, so the changes are confined to four rarer paths. The checker stops new sites from reintroducing a cycle, which an audit alone cannot.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order. Implemented as F110; three inversions the suite found are filed as NY31-NY33."
     },
     {
       "id": "NY26",
@@ -3499,6 +3665,58 @@
       ],
       "recommendation": "A plus B. The reproducible failure is evidence enough to start a repair, and its own grade loop re-runs every grader before landing, so 'partial evidence' cannot ship anything; retrying a single timeout removes most inconclusive verdicts. For today: main needs pluginUiSlots.test.tsx updated for the loading status (or a manual repair Job).",
       "decision": "A, implemented on main in 5b86f0d8b7 (2026-11-22): a reproducible failure is repaired even when another required grader is unproven; unproven graders are recorded as preflight_unproven and re-run by the repair's grade loop."
+    },
+    {
+      "id": "NY31",
+      "item": "row-lock-order",
+      "title": "Where should the User row sit in the lock order, given provider-account reservation uses it as a mutex?",
+      "context": "NY25's checker, run over the whole suite, found the largest inversion group (158 hits) in provider routing: AvailabilitySelector#reserve_least_pressured_account locks the User row to stop two reservations racing, inside the transaction that then creates the Run and locks its Workflow and Step. The decided order puts User last. Nothing else locks User after other rows: the only other User lock (ChatAttachments::InlineBackfill) takes no other lock, and broadcasts bump the user's sequence only after commit (main's 9aadb46309 moved the rate-limit snapshot after commit too). No deadlocks seen in production.",
+      "options": [
+        "A. Move User to the front of the order (User -> AppSetting -> Epic -> ...). The reservation becomes in-order with no code change; the checker then guards that nothing locks User late again.",
+        "B. Keep User last and replace the User-row mutex with locks on the candidate ProviderAccount rows (in id order), adding ProviderAccount to the order before Epic.",
+        "C. Keep User last and reserve the provider account before the Run-creating transaction opens, in its own short transaction."
+      ],
+      "recommendation": "A. The evidence says the User row is now only ever a first-taken mutex, so placing it first matches what the code does; B and C change working reservation code to satisfy an order chosen before this evidence existed.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): Move User to the front of the order (User -> AppSetting -> Epic -> ...). The reservation becomes in-order with no code change; the checker then guards that nothing locks User late again. To implement."
+    },
+    {
+      "id": "NY32",
+      "item": "row-lock-order",
+      "title": "How should a WorkUnit that goes terminal cancel its Workflow without inverting the lock order?",
+      "context": "WorkUnit#mark_terminal! and #preempt! hold the WorkUnit's row while TerminalUnitSync cancels its Workflow and Steps. That is F97 (this branch): it moved the sync inside the unit's transaction so a crash cannot leave the unit terminal with its Workflow still active. Elsewhere TerminalWorkflowSync holds the Workflow and marks its unit terminal, so the two take Workflow and WorkUnit in opposite orders: a real cycle, latent in production.",
+      "options": [
+        "A. In mark_terminal!/preempt!, lock the Workflow (and its active Steps) before the unit, keeping the order Workflow -> Step -> WorkUnit and F97's atomicity.",
+        "B. Move WorkUnit before Workflow in the order (... WorkIntent -> WorkUnit -> Workflow -> Step ...) and change the Workflow-then-unit sites (TerminalWorkflowSync and the launch paths) to lock the unit first.",
+        "C. Undo F97's atomicity: run TerminalUnitSync after the unit's transaction commits, and rely on the reconciler to repair a crash between the two."
+      ],
+      "recommendation": "A. It changes only the two entry points that cause the inversion and keeps the crash-safety F97 added; B reorders many more sites, and C reopens the window F97 closed.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): In mark_terminal!/preempt!, lock the Workflow (and its active Steps) before the unit, keeping the order Workflow -> Step -> WorkUnit and F97's atomicity. To implement."
+    },
+    {
+      "id": "NY33",
+      "item": "row-lock-order",
+      "title": "Should cancelling a Workflow lock its descendants before its own Steps?",
+      "context": "The lock order ranks models, not rows. WorkflowCancellation locks a Workflow's Steps and then cascades to its descendant Workflows, so one transaction takes Workflow A, A's Steps, then Workflow B (4 hits in the suite, Step -> Workflow). Two transactions only deadlock here if they reach the same two Workflows in opposite orders; the cascade always goes parent before descendant, so the tree order already prevents that between cascades. What is unproven is a cascade racing a transaction that locks the child first.",
+      "options": [
+        "A. Lock the whole subtree's Workflows (parent first, then descendants by id) before any of their Steps, so the cascade is in model order.",
+        "B. Keep the cascade as is, and make the order a row order along the Workflow tree: the checker accepts a descendant Workflow after its ancestor's Steps, and a spec proves no path locks a child before its parent in the same transaction.",
+        "C. Accept it: rows of one model stay unordered, and InnoDB deadlock detection plus the callers' retries handle the rare collision."
+      ],
+      "recommendation": "A. It is local to WorkflowCancellation, keeps the checker's rule simple (model order), and costs only the extra up-front locks on rows the cascade will lock anyway.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): Lock the whole subtree's Workflows (parent first, then descendants by id) before any of their Steps, so the cascade is in model order. To implement."
+    },
+    {
+      "id": "NY34",
+      "item": "essential-operations",
+      "title": "Should approval-free chat wakeups be bounded, now that they no longer ask?",
+      "context": "Main's 11d8bc436c made schedule_wakeup, list_wakeups and cancel_wakeup essential for the chat's own wakeups, so they never ask. Before, schedule_wakeup carried the persistent_autonomy effect, which made each self-scheduled wakeup subject to approval: the brake on work that perpetuates itself. Nothing replaces it. ChatWakeup has no per-chat limit, and the tool only bounds each wakeup's delay (1 minute to 24 hours, or a time within a year). So a chat can hold any number of pending wakeups, and a woken turn can schedule the next one, once a minute, indefinitely; each wakeup is a full, paid agent turn, with no approval anywhere. Nothing like this has been seen in production.",
+      "options": [
+        "A. Keep wakeups essential within a budget: at most a few pending wakeups per chat (for example 5) and a daily cap on wakeups that fire per chat (for example 48). Scheduling past either asks, as persistent autonomy did.",
+        "B. Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks.",
+        "C. Keep as is: self-scheduling is owned, scoped and audited, and an operator can cancel a runaway chat."
+      ],
+      "recommendation": "A. Two counters on the chat keep every legitimate use (reminders, polling a slow job) free while a runaway loop hits approval within a day; B models chains, which is more precise but more machinery, and C leaves cost unbounded.",
+      "decision": "B (2026-11-23, answered on the lean-plan site): Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks. Operator note: N should be large but bounded. Let's make it 100 and let's make it configurable. To implement."
     }
   ]
 }

@@ -35,6 +35,7 @@ class WorkerHostHealthSampler
         raw_metrics[:"#{kind}_pressure_source"] = reading.source if reading.source
         raw_metrics[:"#{kind}_pressure_path"] = reading.path if reading.path
       end
+      record_memory_pressure!(raw_metrics)
 
       {
         cpu_used_percent: cpu,
@@ -203,6 +204,18 @@ class WorkerHostHealthSampler
 
     def pressure_sources
       @pressure_sources || {}
+    end
+
+    # Host admission's usage policy decides on memory PSI, read live at
+    # admission time, but the stored samples carried only cpu and io. When a
+    # worker climbed to 89% host memory and died, nothing showed whether the
+    # signal admission relies on had moved at all. Keep it with the sample.
+    def record_memory_pressure!(raw_metrics)
+      reading = read_pressure_with_source("memory")
+      raw_metrics[:memory_pressure_some] = reading.values[:some]
+      raw_metrics[:memory_pressure_full] = reading.values[:full]
+      raw_metrics[:memory_pressure_source] = reading.source if reading.source
+      raw_metrics[:memory_pressure_path] = reading.path if reading.path
     end
 
     def read_pressure_with_source(kind)

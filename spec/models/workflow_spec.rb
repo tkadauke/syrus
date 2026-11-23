@@ -361,6 +361,38 @@ RSpec.describe Workflow, :ci_only do
     end
   end
 
+  describe "workspace cleanup on failure" do
+    def failing_workflow(trigger_kind)
+      described_class.create!(job: job, trigger_kind: trigger_kind, state: "running", started_at: 5.minutes.ago).tap do |wf|
+        Step.create!(workflow: wf, kind: "implement", position: 0, state: "failed")
+      end
+    end
+
+    # Production: a main-branch repair's implement step failed on a provider
+    # outage, its workspace was deleted at once, and the automatic resume had
+    # to start a fresh workflow that re-ran the whole preflight.
+    it "keeps the workspace of an infrastructure workflow that resumes failed steps" do
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+      wf = failing_workflow("main_branch_repair")
+
+      wf.fail!
+      wf.save!
+
+      expect(WorkflowWorkspace).not_to have_received(:cleanup_for)
+      expect(wf).to be_resumes_failed_steps
+    end
+
+    it "still frees the workspace of an infrastructure workflow nobody resumes" do
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+      wf = failing_workflow("main_grader")
+
+      wf.fail!
+      wf.save!
+
+      expect(WorkflowWorkspace).to have_received(:cleanup_for).with(wf)
+    end
+  end
+
   describe "AASM state machine" do
     let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
 

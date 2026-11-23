@@ -160,6 +160,8 @@ Read the reference file that matches the work in front of you:
   routing, ownership, and precedence for current engineering knowledge.
 - [Architecture](docs/engineering/architecture/README.md) — domain model,
   workflow execution, repository content, chat, plugins, and frontend.
+- [Formal models](docs/engineering/architecture/formal-models.md) — the Lean
+  models in `formal/`; read before changing a method `formal/mirrors.yml` lists.
 - [Conventions](docs/engineering/conventions/README.md) — focused implementation,
   frontend, plugin, migration, deployment, and testing guides.
 - [Operations](docs/engineering/operations/README.md) — deployment, production

@@ -120,8 +120,10 @@ Defines offsite backup destination operations plugins may provide; credential st
 
 Supported members:
 
+- `configured?`
 - `delete`
 - `health`
+- `identity`
 - `materialize_local`
 - `upload`
 - `verify`
