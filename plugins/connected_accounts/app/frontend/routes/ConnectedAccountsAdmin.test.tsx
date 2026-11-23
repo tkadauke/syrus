@@ -6,25 +6,31 @@ import ConnectedAccountsAdmin from "./ConnectedAccountsAdmin"
 
 vi.mock("@app/hooks/useT", () => ({
   useT: () => ({
-    t: (key: string, options?: { defaultValue?: string }) =>
-      (
-        ({
-          "settings.title": "Connected accounts",
-          "settings.description": "Configure OAuth.",
-          "settings.provider": "Provider",
-          "example_workspace:settings.provider_notice": "Register your own provider client and check current verification policy.",
-          "settings.client_id": "Client ID",
-          "settings.client_secret": "Client secret",
-          "settings.save": "Save configuration",
-          "settings.saved": "Provider configuration saved.",
-          "settings.save_failed": "Could not save provider configuration.",
-          "settings.scope_catalog": "Scope catalog",
-          "settings.read_only_scopes": "Read-only scopes",
-          "settings.api_origins": "API origins"
-        }) satisfies Record<string, string>
-      )[key] ?? options?.defaultValue ?? key
+    t: translate,
+    i18n: { t: translate }
   })
 }))
+
+function translate(key: string, options?: { defaultValue?: string }) {
+  return (
+    (
+      ({
+        "settings.title": "Connected accounts",
+        "settings.description": "Configure OAuth.",
+        "settings.provider": "Provider",
+        "example_workspace:settings.provider_notice": "Register your own provider client and check current verification policy.",
+        "settings.client_id": "Client ID",
+        "settings.client_secret": "Client secret",
+        "settings.save": "Save configuration",
+        "settings.saved": "Provider configuration saved.",
+        "settings.save_failed": "Could not save provider configuration.",
+        "settings.scope_catalog": "Scope catalog",
+        "settings.read_only_scopes": "Read-only scopes",
+        "settings.api_origins": "API origins"
+      }) satisfies Record<string, string>
+    )[key] ?? options?.defaultValue ?? key
+  )
+}
 
 function renderPage() {
   render(
@@ -86,7 +92,7 @@ describe("ConnectedAccountsAdmin", () => {
 
   it("shows only instance credentials and provider-owned policy copy for a managed provider", async () => {
     vi.spyOn(window, "fetch").mockResolvedValueOnce(jsonResponse({ providers: [
-      { provider_key: "example_workspace", display_name: "Example", managed_settings: true, client_secret_configured: true,
+      { provider_key: "example_workspace", plugin_name: "example_workspace", display_name: "Example", managed_settings: true, client_secret_configured: true,
         settings_notice: "Fallback provider notice.", settings_notice_i18n_key: "example_workspace:settings.provider_notice" }
     ] }))
 
