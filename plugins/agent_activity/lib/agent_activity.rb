@@ -11,7 +11,6 @@ module AgentActivity
   }.freeze
 
   syrus_plugin "agent_activity" do
-
     default_enabled true
 
     disableable true

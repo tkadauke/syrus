@@ -7,7 +7,6 @@ module Ios
   extend Syrus::PluginApi
 
   syrus_plugin "ios" do
-
     default_enabled true
 
     disableable true

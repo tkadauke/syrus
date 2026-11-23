@@ -17,7 +17,6 @@ module Ruby
   extend Syrus::PluginApi
 
   syrus_plugin "ruby" do
-
     default_enabled true
 
     disableable true
