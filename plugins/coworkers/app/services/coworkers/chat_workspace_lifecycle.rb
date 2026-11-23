@@ -36,7 +36,7 @@ class Coworkers::ChatWorkspaceLifecycle
 
   def prepare!
     ensure_chat_branch!
-    ChatWorkspace.ensure_root!(@chat)
+    Syrus::Host::ChatWorkspaces.ensure_root!(@chat)
     path = checkout_path
     unless path.join(".git").directory?
       FileUtils.rm_rf(path.to_s)
@@ -129,7 +129,7 @@ class Coworkers::ChatWorkspaceLifecycle
   def chat_branch = "coworkers/chat/#{@coworker.id}-#{@chat.id}"
   def identity = Coworkers::GitIdentity.new(name: @coworker.name, handle: @coworker.handle)
   def push_guard = (@push_guard ||= Coworkers::PushGuard.new(coworker: @coworker))
-  def checkout_path = ChatWorkspace.repo_path_for(@chat, @repository)
+  def checkout_path = Syrus::Host::ChatWorkspaces.repo_path_for(@chat, @repository)
 
   def delete_merged_run_ref(branch, expected_sha)
     remote_workspace.guarded_delete_if_matches!(branch, expected_sha:, guard: push_guard)

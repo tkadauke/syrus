@@ -1,4 +1,4 @@
-class Coworkers::MentionDeliveryJob < PluginJob
+class Coworkers::MentionDeliveryJob < Syrus::Host::PluginJob
   plugin :coworkers
   queue_as :chat
 
@@ -6,7 +6,7 @@ class Coworkers::MentionDeliveryJob < PluginJob
 
   def perform(source_message_id, coworker_id)
     source_message = nil
-    source_message = ChatMessage.find(source_message_id)
+    source_message = Syrus::Host::ChatMessages.find(source_message_id)
     coworker = Coworkers::Coworker.find(coworker_id)
     source_chat = source_message.chat_session
     return unless Coworkers::ChatAgent.exists?(chat_session: source_chat, coworker: coworker)
@@ -14,7 +14,7 @@ class Coworkers::MentionDeliveryJob < PluginJob
 
     link = Coworkers::MentionSession.find_or_create!(coworker:, source_chat:)
     message = Coworkers::MentionSession.deliver!(link:, source_message:)
-    ChatTurnJob.perform_later(link.chat_session_id, message.id)
+    Syrus::Host::ChatTurns.enqueue(link.chat_session_id, message.id)
     source_chat.broadcast_controls
   rescue StandardError => error
     Coworkers::MentionSession.fail!(source_message:, coworker:, error:)

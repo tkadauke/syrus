@@ -34,7 +34,7 @@ class Coworkers::SpawnChatLimiter
   end
 
   def daily_actions
-    @daily_actions ||= ChatPendingAction.where(chat_session_id: @coworker.coworker_chats.select(:chat_session_id),
+    @daily_actions ||= Syrus::Host::ChatPendingActions.where(chat_session_id: @coworker.coworker_chats.select(:chat_session_id),
       action: PendingActions::CoworkerToolCall.family_action_keys, state: ACTIVE_STATES, created_at: @now.beginning_of_day..@now.end_of_day)
       .select do |action|
         action.id != @server_context[:pending_action_id] && action.payload["tool_name"] == @tool_name

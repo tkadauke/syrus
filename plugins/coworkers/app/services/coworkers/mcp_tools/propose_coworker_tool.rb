@@ -22,7 +22,7 @@ module Coworkers::McpTools
       def call(name:, handle:, workspace_repo:, grants:, server_context:, about: nil, accent_hex: nil,
                avatar_key: nil, chat_provider: nil, chat_model: nil, chat_effort: nil, test_push: true)
         chat = server_context.fetch(:chat_session)
-        fields = { "name" => name.to_s.strip, "handle" => HandleRegistry.normalize(handle),
+        fields = { "name" => name.to_s.strip, "handle" => Syrus::Host::Handles.normalize(handle),
           "workspace_repo" => workspace_repo.to_s.strip, "about" => about.to_s.strip.presence,
           "accent_hex" => accent_hex, "avatar_key" => avatar_key, "chat_provider" => chat_provider,
           "chat_model" => chat_model, "chat_effort" => chat_effort,

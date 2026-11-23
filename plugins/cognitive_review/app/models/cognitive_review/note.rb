@@ -61,9 +61,9 @@ module CognitiveReview
     def self.review_comments_for(notes, diff_review_version_ids: [])
       note_records = Array(notes)
       version_ids = (note_records.filter_map(&:diff_review_version_id) + Array(diff_review_version_ids)).compact.uniq
-      return DiffReviewComment.none if note_records.empty? || version_ids.empty?
+      return Syrus::Host::DiffReviews.comments.none if note_records.empty? || version_ids.empty?
 
-      DiffReviewComment
+      Syrus::Host::DiffReviews.comments
         .where(job_id: note_records.map(&:job_id).uniq, diff_review_version_id: version_ids, anchor_kind: "line")
         .where.not(state: "superseded")
     end
