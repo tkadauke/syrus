@@ -1,5 +1,5 @@
 module ContainerExecution
-  class Backend < Execution::Backend
+  class Backend < Syrus::Host::ExecutionBackendBase
     include Syrus::Plugin::ExecutionBackend
 
     MCP_SOCKET_CONTAINER_PATH = "/run/syrus/mcp.sock".freeze
