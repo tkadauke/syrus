@@ -25,7 +25,6 @@ class RunPreAdmissionSkip
   private
 
   POLICIES = {
-    "review_plan" => "RunPreAdmissionSkip::ReviewPlan",
     "visual_review" => "RunPreAdmissionSkip::VisualReview"
   }.freeze
 
@@ -76,15 +75,6 @@ class RunPreAdmissionSkip
 
     def pass
       Result.new(skip: false, reason: nil, message: nil, artifacts: {})
-    end
-  end
-
-  class ReviewPlan < Base
-    def call
-      skip(
-        "review_plan_retired",
-        "[review_plan] retired legacy PR-comment step - skipping"
-      )
     end
   end
 

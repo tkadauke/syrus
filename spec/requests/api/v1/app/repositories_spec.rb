@@ -906,7 +906,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         rounds: 2
         criteria:
           - Check authorization boundaries
-      review_plan: true
       coverage:
         sources:
           - artifact: coverage/lcov.info
