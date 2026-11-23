@@ -72,7 +72,7 @@ via `POST /users/@me/channels` and posts through `POST
 /channels/:id/messages` using bot-token (`Authorization: Bot <token>`) REST
 calls. Long replies are split on the last newline before Discord's 2000
 character message cap (`DISCORD_MAX_CHARS`) rather than truncated, mirroring
-the same chunking `PlatformDelivery::TelegramAdapter` does for Telegram's
+the same chunking `Telegram::PlatformAdapter` does for Telegram's
 4096-character cap. Delivery errors are logged and swallowed — a failed
 Discord DM never fails the chat turn that produced the reply.
 
