@@ -5038,6 +5038,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(step.reload).to be_running
   end
 
+  # Production: an operator retried a failed Job; the retry reopened the
+  # Workflow and requeued summarize behind a fresh grade round. The reconciler
+  # saw summarize queued with only the old attempt's cancelled Run, cancelled
+  # it and the publication tail, and the Workflow failed again.
+  it "leaves a queued Step alone when its Workflow was reopened after its last Run ended" do
+    next_step = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
+    step.update!(kind: "summarize", next_step: next_step)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(state: "cancelled", started_at: 3.hours.ago, finished_at: 3.hours.ago)
+    StateTransition.create!(
+      subject: workflow, from_state: "failed", to_state: "running", event_name: "reopen",
+      source: "operator", created_at: 2.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+    expect(step.reload).to be_queued
+    expect(next_step.reload).to be_queued
+  end
+
   it "retries a queued Step whose Run failed retryably before the Step could start" do
     next_step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 1)
     step.update!(kind: "auto_rebase", next_step: next_step)

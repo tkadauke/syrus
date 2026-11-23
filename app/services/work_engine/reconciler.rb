@@ -945,6 +945,7 @@ module WorkEngine
         projection = Steps::StateProjection.for(step, runs: step_runs)
         terminal_run = projection.latest_terminal_run
         next unless terminal_run
+        next if step.queued? && reopened_since?(step, terminal_run.finished_at)
 
         issue(
           kind: :running_step_with_terminal_runs,
@@ -963,6 +964,24 @@ module WorkEngine
           explanation: "Step ##{step.id} is #{step.state} but all of its Runs are terminal, so no worker can advance it."
         )
       end
+    end
+
+    # A retry reopens the failed Workflow and requeues the Steps it will run
+    # again; until their turn comes they are queued with only the previous
+    # attempt's terminal Runs. That is a Step waiting, not a Step stuck.
+    # Reconciling one to its old Run's outcome cancelled a retried Job's
+    # summarize Step -- and its publication tail -- a minute after an
+    # operator's retry, and the Workflow failed again once grading passed.
+    def reopened_since?(step, finished_at)
+      return false if finished_at.blank?
+
+      StateTransition
+        .where(event_name: "reopen", created_at: finished_at..)
+        .where(
+          "(subject_type = 'Workflow' AND subject_id = ?) OR (subject_type = 'Step' AND subject_id = ?)",
+          step.workflow_id, step.id
+        )
+        .exists?
     end
 
     def classify_succeeded_review_steps_without_required_repair
