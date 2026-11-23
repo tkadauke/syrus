@@ -116,7 +116,7 @@ RSpec.describe App::AgentConversationPayload do
     expect(node(payload, "agent_session-#{codex_run.id}")[:detail]).to include("verdict" => "needs_work", "panel_verdict" => "approved")
   end
 
-  describe "a plain initial workflow with adversarial/visual review loops and a grader fanout" do
+  describe "a plain initial workflow with adversarial/security review loops and a grader fanout" do
     it "builds agent_session and deterministic_check nodes wired through the loop and fan-out/fan-in" do
       workflow = create_workflow(trigger_kind: "initial")
 
@@ -125,7 +125,7 @@ RSpec.describe App::AgentConversationPayload do
       adv1 = create_step(workflow: workflow, kind: "adversarial_review", position: 2, iteration: 1)
       implement2 = create_step(workflow: workflow, kind: "implement", position: 3, iteration: 2)
       adv2 = create_step(workflow: workflow, kind: "adversarial_review", position: 4, iteration: 2)
-      visual1 = create_step(workflow: workflow, kind: "visual_review", position: 5, iteration: 1)
+      security1 = create_step(workflow: workflow, kind: "security_review", position: 5, iteration: 1)
       fanout = create_step(workflow: workflow, kind: "grader_fanout", position: 6)
       rspec = create_step(
         workflow: workflow, kind: "grader", position: 7,
@@ -141,14 +141,14 @@ RSpec.describe App::AgentConversationPayload do
       summarize = create_step(workflow: workflow, kind: "summarize", position: 10)
 
       [ [ prepare, implement1 ], [ implement1, adv1 ], [ adv1, implement2 ], [ implement2, adv2 ],
-        [ adv2, visual1 ], [ visual1, fanout ], [ fanout, rspec ], [ rspec, eslint ], [ eslint, collect ],
+        [ adv2, security1 ], [ security1, fanout ], [ fanout, rspec ], [ rspec, eslint ], [ eslint, collect ],
         [ collect, summarize ] ].each { |a, b| a.update!(next_step_id: b.id) }
 
       workflow.set_artifact!("adversarial_review_iterations", [
         { "iteration" => 1, "verdict" => "needs_work", "critique" => "missing tests" },
         { "iteration" => 2, "verdict" => "approved", "critique" => "Looks good" }
       ])
-      workflow.set_artifact!("visual_review_iterations", [
+      workflow.set_artifact!("security_review_iterations", [
         { "iteration" => 1, "verdict" => "approved", "critique" => "Renders fine" }
       ])
 
@@ -156,7 +156,7 @@ RSpec.describe App::AgentConversationPayload do
       run_adv1 = create_run(step: adv1)
       run_implement2 = create_run(step: implement2, agent_summary: "Added tests")
       run_adv2 = create_run(step: adv2)
-      run_visual1 = create_run(step: visual1)
+      run_security1 = create_run(step: security1)
       run_summarize = create_run(step: summarize, agent_summary: "Implemented the feature end to end")
 
       payload = described_class.build(job: job)
@@ -165,7 +165,7 @@ RSpec.describe App::AgentConversationPayload do
       adv1_id = "agent_session-#{run_adv1.id}"
       implement2_id = "agent_session-#{run_implement2.id}"
       adv2_id = "agent_session-#{run_adv2.id}"
-      visual1_id = "agent_session-#{run_visual1.id}"
+      security1_id = "agent_session-#{run_security1.id}"
       rspec_id = "deterministic_check-#{rspec.id}"
       eslint_id = "deterministic_check-#{eslint.id}"
       summarize_id = "agent_session-#{run_summarize.id}"
@@ -173,19 +173,19 @@ RSpec.describe App::AgentConversationPayload do
       # prepare/grader_fanout/grader_collect never become nodes.
       node_ids = payload[:nodes].map { |n| n[:id] }
       expect(node_ids).to contain_exactly(
-        implement1_id, adv1_id, implement2_id, adv2_id, visual1_id, rspec_id, eslint_id, summarize_id
+        implement1_id, adv1_id, implement2_id, adv2_id, security1_id, rspec_id, eslint_id, summarize_id
       )
 
       # Loop chain, including the repair round.
       expect(edge?(payload, implement1_id, adv1_id)).to be true
       expect(edge?(payload, adv1_id, implement2_id)).to be true
       expect(edge?(payload, implement2_id, adv2_id)).to be true
-      expect(edge?(payload, adv2_id, visual1_id)).to be true
+      expect(edge?(payload, adv2_id, security1_id)).to be true
 
-      # Fan-out from visual review into both parallel graders (through the
+      # Fan-out from security review into both parallel graders (through the
       # non-node grader_fanout step).
-      expect(edge?(payload, visual1_id, rspec_id)).to be true
-      expect(edge?(payload, visual1_id, eslint_id)).to be true
+      expect(edge?(payload, security1_id, rspec_id)).to be true
+      expect(edge?(payload, security1_id, eslint_id)).to be true
 
       # Fan-in: both graders converge on summarize (through the non-node
       # grader_collect step) instead of grader_collect being its own node.
@@ -196,7 +196,7 @@ RSpec.describe App::AgentConversationPayload do
       expect(node(payload, adv1_id)[:detail]).to include("verdict" => "needs_work")
       expect(node(payload, adv2_id)).to include(summary: "Looks good")
       expect(node(payload, adv2_id)[:detail]).to include("verdict" => "approved")
-      expect(node(payload, visual1_id)).to include(role: AgentRole::WORKFLOW_VISUAL_REVIEWER, summary: "Renders fine")
+      expect(node(payload, security1_id)).to include(role: AgentRole::WORKFLOW_SECURITY_REVIEWER, summary: "Renders fine")
       expect(node(payload, implement1_id)).to include(role: AgentRole::WORKFLOW_IMPLEMENT, summary: "Added feature", agentic: true)
       expect(node(payload, summarize_id)).to include(summary: "Implemented the feature end to end")
 
