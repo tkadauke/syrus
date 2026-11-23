@@ -11,11 +11,35 @@ automation engine — there is no Discord-specific Job/Workflow/Epic model.
 
 ## Configuration
 
-No `config_schema` — the only requirement is a single instance-wide
-credential, `AppSetting.discord_bot_token` (encrypted `app_settings` column,
-set from Admin Settings). `Discord::PlatformConfig#configured?` gates the
-account-linking instructions shown under **Settings → Connected Platforms**
-on whether that token is present.
+No `config_schema`. The bot token is an instance-owned **connected account**
+(provider "Discord bot"), managed by administrators on **Admin → Connected
+accounts**; **Admin → Settings → Discord** links there. To set or rotate it,
+paste the token from the Discord developer portal: Syrus checks it with a
+harmless authenticated call (`GET /users/@me`) before storing it, encrypted, and
+never shows it again. The account's label defaults to the bot's username.
+
+The plugin reaches the token only through the Connected accounts broker, as a
+named platform service with the instance-owned account in service mode, and
+every use is audited with its purpose. REST calls take the token for the
+duration of one call. The **Gateway connection is long-lived**: it holds the
+token in memory for the lifetime of the connection only (it is sent in the
+Gateway's IDENTIFY/RESUME frames and dropped when the connection ends) and never
+writes it to logs, the environment, command lines or files. Each Gateway
+heartbeat (about every 40 seconds) checks that the account is still connected
+with the same credential. **On rotation** the session is closed and the
+connector reconnects immediately with the new token; **on disconnect** the
+session is closed and the connector stops. Discord has no token revocation call,
+so disconnecting does not invalidate the token at Discord: reset it in the
+developer portal when needed.
+
+**Upgrading:** an existing token from the old application setting is copied into
+a connected account on first use, verified with a live call, and only then
+erased from the old setting. If the copy or verification fails, the old value
+stays in place and keeps working, and the copy is retried every ten minutes. Once
+a connected account exists the old setting is never read again.
+
+`Discord::PlatformConfig#configured?` gates the account-linking instructions
+shown under **Settings → Connected Platforms** on the account being connected.
 
 ## Account linking
 
@@ -101,9 +125,9 @@ pod, not an external daemon: `Discord::GatewayConnectionJob` holds the live
 Gateway WebSocket for as long as one `#poll_once` call lasts, and there is no
 separate bot process to restart. This plugin depends on external Discord
 connectivity, a live Gateway session, and a valid bot token — monitor it like
-any other long-lived platform integration. A revoked or invalid
-`discord_bot_token` shows up as `Discord::PlatformConfig#configured?`
-returning false (linking instructions disappear). Startup connection
+any other long-lived platform integration. A disconnected bot
+account shows up as `Discord::PlatformConfig#configured?` returning false
+(linking instructions disappear and the connector stops). Startup connection
 failures and exhausted reconnect runs are logged on each reconnect attempt
 and re-enqueued with a growing backoff. Discord Gateway fatal closes such
 as bad authentication or invalid/disallowed intents are logged once and

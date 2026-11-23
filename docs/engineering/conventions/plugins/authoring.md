@@ -3290,8 +3290,8 @@ Bundled plugins:
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
 - `linear_source` — installed but disabled by default until configured.
-- `discord` — installed but disabled by default until an operator sets
-  `AppSetting.discord_bot_token`. Provides the `:platform_delivery`
+- `discord` — installed but disabled by default until an operator connects the
+  instance-owned `discord_bot` connected account (the bot token). Provides the `:platform_delivery`
   extension point (`Discord::PlatformAdapter`); see
   `config/syrus_docs/external_platforms.md` for the Gateway connector
   details.
@@ -3781,7 +3781,7 @@ plugin-owned review invocation while preserving the already-recorded repair.
 2. In `poll_once`, call `InboundMessageRouter.new(...).call` for each inbound message.
 3. Create a `PlatformDelivery` adapter subclass and register it: `PlatformDelivery::Registry.register("slack", SlackAdapter)`.
 4. Add the platform slug to `PlatformIdentity::PLATFORMS`.
-5. Add any required `AppSetting` columns for the bot token/handle.
+5. Keep the bot token in an instance-owned connected account, not an `AppSetting` column: declare a `connected_accounts:provider` with `authorization_kind: "token"`, a manifest-pinned `configuration.api_origins`, and a `system_service_identities` entry, `depend_on` `connected_accounts`, extend `ConnectedAccounts::SystemServiceProvider`, and reach the token only through a fixed `system_invoke` operation via `access.with_token` (see `plugins/discord/` and `plugins/telegram/`).
 
 **Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/` or `plugins/telegram/`):
 

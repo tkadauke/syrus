@@ -703,7 +703,13 @@ required methods and their result contracts are:
 with a trivial `authorization` implementation. Declare `authorization_kind:
 "token"` to expose the administrator-only token-entry UI. The broker validates
 the submitted token before storing it, never returns it to the UI, and creates
-an instance-owned account restricted to `as_service`. A provider may also
+an instance-owned account restricted to `as_service`. A token provider pins
+its API origin in the manifest (`configuration: { api_origins: [ "https://api.example.com/v1/" ] }`),
+which becomes the credential's target constraint, and its `identity` result
+becomes the account's default label. Providers extend
+`ConnectedAccounts::SystemServiceProvider` for the binding plumbing, and read
+the token inside `system_invoke` only through the block-scoped
+`access.with_token`. A provider may also
 declare exact `system_service_identities` and implement
 `register_system_access(identity, binding)`, or core may register the identity
 and implementation. The broker injects an opaque binding into the registered

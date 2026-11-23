@@ -2,7 +2,7 @@
 
 Telegram adds a platform-delivery channel for Syrus chat. It links Telegram users to Syrus accounts, long-polls the Telegram Bot API for direct messages, and delivers chat replies back to Telegram.
 
-The plugin is disabled by default on new instances because it requires a Telegram bot token. Instances that already had a bot token when Telegram was extracted from core have it enabled automatically on upgrade.
+The plugin is disabled by default on new instances because it requires a Telegram bot token. Instances that already had a bot token when Telegram was extracted from core have it enabled automatically on upgrade, along with the Connected accounts plugin it depends on.
 
 ## What It Adds
 
@@ -12,4 +12,4 @@ The plugin is disabled by default on new instances because it requires a Telegra
 
 ## Operational Notes
 
-The bot token and handle are instance settings on Admin → Settings. Monitor the long-lived poller like any other platform integration.
+The bot token is an instance-owned connected account (provider "Telegram bot") managed on Admin → Connected accounts; the bot handle is read from Telegram itself. Monitor the long-lived poller like any other platform integration.

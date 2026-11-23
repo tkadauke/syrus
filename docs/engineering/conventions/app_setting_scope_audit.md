@@ -25,10 +25,10 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `merge_train_max_size` | instance | Admin Settings | setting | instance default with repo override later | Correct for now as a global safety cap; large monorepos may want an override later. |
 | `signups_open` | instance | Admin Settings | setting | instance | Correct: deployment access policy. |
 | `polling_paused` | instance | Admin Console | setting | instance | Correct: emergency instance kill switch. |
-| `telegram_bot_handle` | instance | Admin Settings | setting | instance | Correct: deployment integration identity. |
-| `telegram_bot_token` | instance | Admin Settings | setting | instance | Correct: encrypted deployment credential. |
+| `telegram_bot_handle` | instance | none (legacy) | internal state | instance | Legacy: the handle is resolved from Telegram through the bot's connected account; read only while an unmigrated legacy token is in use. |
+| `telegram_bot_token` | instance | none (legacy) | internal state | instance | Legacy: the token moved to an instance-owned connected account; the column is read only by the one-time migration, then erased. |
 | `telegram_update_offset` | instance | Rails console | internal state | instance | Correct hidden state: platform polling cursor, not operator policy. |
-| `discord_bot_token` | instance | Admin Settings | setting | instance | Correct: encrypted deployment credential. |
+| `discord_bot_token` | instance | none (legacy) | internal state | instance | Legacy: the token moved to an instance-owned connected account; the column is read only by the one-time migration, then erased. |
 | `runs_paused` | instance | Admin Console | setting | instance | Correct: emergency instance kill switch. |
 | `permissions_enforced` | instance | Admin Console | setting | instance | Correct: instance-wide master switch for policy enforcement. Deliberately not per-user or per-repository -- it exists for the case where the classification itself is wrong, which is not a property of one actor. |
 | `report_issue_repo_slug` | instance | Admin Settings | setting | instance | Correct: deployment support route. |
