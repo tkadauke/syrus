@@ -30,7 +30,6 @@ module SyrusRails
   end
 
   syrus_plugin "syrus-rails" do
-
     default_enabled true
 
     disableable true

@@ -36,7 +36,7 @@ module Syrus
     #
     # Register an implementation at boot time:
     #   Syrus::PluginRegistry.register(
-#     default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
+    #     default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
     #     name: "my-plugin",
     #     version: "1.0.0",
     #     provides: { grader_failure_summarizer: MySummarizer }

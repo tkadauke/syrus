@@ -9,7 +9,6 @@ module Java
   extend Syrus::PluginApi
 
   syrus_plugin "java" do
-
     disableable true
     requires_syrus nil
     experimental true
