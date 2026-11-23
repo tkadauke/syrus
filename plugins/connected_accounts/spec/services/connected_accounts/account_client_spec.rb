@@ -256,8 +256,10 @@ RSpec.describe ConnectedAccounts::AccountClient do
     declaration = instance_double(ConnectedAccounts::ProviderDeclaration,
       system_service_identities: [ "platform.delivery" ])
     allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
+    stub_const("ConnectedAccounts::SystemInvocation::CORE_SERVICE_IDENTITIES", [ "platform.delivery" ].freeze)
+    capability = ConnectedAccounts::SystemInvocation.send(:issue_capability, "platform.delivery")
 
-    result = described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+    result = described_class.with_system_access(account:, service_capability: capability, scopes: [ "mail.read" ],
       purpose: "deliver a platform notification", target: { url: "https://api.example.com/messages" }) { :ok }
     expect(result).to eq(:ok)
     expect(credential.access_events.where(action: "lease").last.metadata).to include(
@@ -265,7 +267,7 @@ RSpec.describe ConnectedAccounts::AccountClient do
       "purpose" => "deliver a platform notification")
 
     expect {
-      described_class.with_system_access(account:, service_identity: "other_plugin", scopes: [ "mail.read" ],
+      described_class.with_system_access(account:, service_capability: "platform.delivery", scopes: [ "mail.read" ],
         purpose: "bypass", target: { url: "https://api.example.com/messages" }) { :unused }
     }.to raise_error(described_class::Denied, "connected account not found")
   end
@@ -274,7 +276,7 @@ RSpec.describe ConnectedAccounts::AccountClient do
     allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch)
 
     expect {
-      described_class.with_system_access(account:, service_identity: "platform.delivery", scopes: [ "mail.read" ],
+      described_class.with_system_access(account:, service_capability: Object.new, scopes: [ "mail.read" ],
         purpose: "bypass") { :unused }
     }.to raise_error(described_class::Denied, "connected account not found")
   end

@@ -177,4 +177,37 @@ describe("ConnectedAccountsAdmin", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({ account: { provider: "delivery", token: "one-time-secret" } })
     expect(token).toHaveValue("")
   })
+
+  it("rotates the provider belonging to the account instead of the selected connect provider", async () => {
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({
+          providers: [
+            { provider_key: "delivery", display_name: "Delivery", managed_settings: true, authorization_kind: "token" },
+            { provider_key: "warehouse", display_name: "Warehouse", managed_settings: true, authorization_kind: "token" }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          accounts: [{ id: 2, provider: "warehouse", display_label: "Warehouse bot", status: "connected" }],
+          providers: [
+            { key: "delivery", display_name: "Delivery" },
+            { key: "warehouse", display_name: "Warehouse" }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ account: { id: 2, provider: "warehouse", display_label: "Warehouse bot", status: "connected" } }))
+      .mockResolvedValueOnce(jsonResponse({ accounts: [], providers: [] }))
+
+    renderPage()
+    fireEvent.change(await screen.findByLabelText("Provider token"), { target: { value: "replacement-secret" } })
+    fireEvent.click(screen.getByRole("button", { name: "Rotate token" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({
+      account: { provider: "warehouse", token: "replacement-secret" }
+    })
+  })
 })

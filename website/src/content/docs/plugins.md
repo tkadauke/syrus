@@ -704,10 +704,12 @@ with a trivial `authorization` implementation. Declare `authorization_kind:
 "token"` to expose the administrator-only token-entry UI. The broker validates
 the submitted token before storing it, never returns it to the UI, and creates
 an instance-owned account restricted to `as_service`. A provider may also
-declare exact `system_service_identities`; only those named platform services
-can use that instance account without an agent invocation, and each use is
-audited. The system path cannot use user-owned accounts or act as a general
-plugin credential bypass. Providers that declare
+declare exact `system_service_identities`; core must separately register each
+platform service and issue it an opaque broker capability before it can use an
+instance account without an agent invocation, and each use is audited. The
+broker never accepts a caller-supplied identity string. The system path cannot
+use user-owned accounts or act as a general plugin credential bypass. Providers
+that declare
 `events` must verify authenticity and fail closed before normalizing a push.
 Token-bearing `exchange_code` and `refresh` results are returned only to the
 Connected Accounts broker. Providers must not log token material or include it

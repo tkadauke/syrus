@@ -15,8 +15,8 @@ module ConnectedAccounts
       end
 
 
-      def with_system_access(account:, service_identity:, scopes:, purpose:, target: {}, &block)
-        SystemInvocation.call(account:, service_identity:, scopes:, purpose:, target:, &block)
+      def with_system_access(account:, service_capability:, scopes:, purpose:, target: {}, &block)
+        SystemInvocation.call(account:, service_capability:, scopes:, purpose:, target:, &block)
       end
     end
 
