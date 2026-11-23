@@ -91,6 +91,7 @@ Every manifest must explicitly declare `default_enabled`, `disableable`, `experi
 - `preview_provider` — Starts, inspects, and stops a repository preview using the provider's supported runtime. Implement `Syrus::Plugin::PreviewProvider`; interface contract: `lib/syrus/plugin/preview_provider.rb`.
 - `problem_provider` — Detects and describes a plugin-owned class of actionable repository or workflow problems. Implement `Syrus::Plugin::ProblemProvider`; interface contract: `lib/syrus/plugin/problem_provider.rb`.
 - `purge_contributor` — Enumerates and removes plugin-owned resources during repository or account purges. Implement `Syrus::Plugin::PurgeContributor`; interface contract: `lib/syrus/plugin/purge_contributor.rb`.
+- `repair_classifier` — Classifies failed Run or Workflow evidence for generic repair machinery. Implement `Syrus::Plugin::RepairClassifier`; interface contract: `lib/syrus/plugin/repair_classifier.rb`.
 - `repo_page_tab` — Registers a plugin-owned tab on repository detail pages, scoped to the current repository and user. Implement `Syrus::Plugin::RepoPageTab`; interface contract: `lib/syrus/plugin/repo_page_tab.rb`.
 - `repository_configuration` — Declares and validates plugin-owned repository configuration read from the supported configuration file. Implement `Syrus::Plugin::RepositoryConfiguration`; interface contract: `lib/syrus/plugin/repository_configuration.rb`.
 - `repository_content_provider` — Resolves immutable repository revisions and reads trees, files, changes, refs, and history from one backend. Implement `Syrus::Plugin::RepositoryContentProvider`; interface contract: `lib/syrus/plugin/repository_content_provider.rb`.
@@ -110,6 +111,7 @@ Every manifest must explicitly declare `default_enabled`, `disableable`, `experi
 - `system_alert_provider` — Contributes redacted operational alerts for administrators and configured outbound delivery. Implement `Syrus::Plugin::SystemAlertProvider`; interface contract: `lib/syrus/plugin/system_alert_provider.rb`.
 - `test_evidence` — Extracts normalized test results and evidence from a supported test runner or artifact. Implement `Syrus::Plugin::TestEvidence`; interface contract: `lib/syrus/plugin/test_evidence.rb`.
 - `ui_slot` — Registers a plugin-owned component for one of the host's named UI insertion slots. Implement `Syrus::Plugin::UiSlot`; interface contract: `lib/syrus/plugin/ui_slot.rb`.
+- `work_gate` — May veto workflow or WorkUnit starts, and declares whether that veto also applies to landing. Implement `Syrus::Plugin::WorkGate`; interface contract: `lib/syrus/plugin/work_gate.rb`.
 - `worker_capability_probe` — Detects a worker capability and reports normalized values used for placement decisions. Implement `Syrus::Plugin::WorkerCapabilityProbe`; interface contract: `lib/syrus/plugin/worker_capability_probe.rb`.
 - `workflow_artifact_contributor` — Collects additional plugin-owned artifacts from a completed workflow run. Implement `Syrus::Plugin::WorkflowArtifactContributor`; interface contract: `lib/syrus/plugin/workflow_artifact_contributor.rb`.
 - `workflow_kinds` — Registers plugin-owned Job, Workflow trigger, Step, and WorkDefinition kinds with their handlers. Implement `Syrus::Plugin::WorkflowKinds`; interface contract: `lib/syrus/plugin/workflow_kinds.rb`.
@@ -122,6 +124,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
 - `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
+- `work_policy` (facet; required core: `key`, `display_name`) — `repair_classifier` (provisional, first_claim, Object), `system_alerts` (provisional, collect, Array), `work_gate` (provisional, collect, Array<Veto> or nil)
 
 ## Public host surface
 
@@ -183,4 +186,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32852 bytes (UTF-8, including this line).
+Size: 33483 bytes (UTF-8, including this line).

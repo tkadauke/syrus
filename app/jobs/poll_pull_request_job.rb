@@ -599,16 +599,10 @@ class PollPullRequestJob < ApplicationJob
     value.to_s == "ci_infrastructure"
   end
 
-  # Mirrors StepDispatcher.main_health_blocking?: don't blame the Job's own
-  # diff for a red check when the repository's base revision is already
-  # known-broken. Repair jobs must keep absorbing CI feedback until main is
-  # fixed, same exemption ci_failure_cap_reached? already grants them.
+  # Do not blame the Job's own diff when a work-policy provider says the base
+  # is unavailable. Repair work remains exempt through the provider itself.
   def main_health_broken?
-    return false if @job.main_branch_repair?
-
-    repository = @job.repository
-    return false unless repository.main_branch_repair_blocks_work?
-    return false unless repository.landing_paused? && repository.main_health_broken?
+    return false unless WorkGates.evaluate(job: @job).veto?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while main branch is broken")
     true
