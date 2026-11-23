@@ -21,6 +21,7 @@ function translate(key: string, options?: { defaultValue?: string }) {
         "example_workspace:settings.provider_notice": "Register your own provider client and check current verification policy.",
         "settings.client_id": "Client ID",
         "settings.client_secret": "Client secret",
+        "settings.client_secret_configured": "A client secret is configured. Enter a new value only to replace it.",
         "settings.save": "Save configuration",
         "settings.saved": "Provider configuration saved.",
         "settings.save_failed": "Could not save provider configuration.",
@@ -101,5 +102,24 @@ describe("ConnectedAccountsAdmin", () => {
     expect(screen.getByRole("textbox", { name: "Client ID" })).toBeInTheDocument()
     expect(screen.getByLabelText("Client secret")).toHaveAttribute("type", "password")
     expect(screen.queryByRole("textbox", { name: "Authorization URL" })).not.toBeInTheDocument()
+  })
+
+  it("clears a submitted client secret after saving it", async () => {
+    const provider = { provider_key: "example_workspace", plugin_name: "example_workspace", display_name: "Example",
+      managed_settings: true, client_secret_configured: false }
+    vi.spyOn(window, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(jsonResponse({ provider_config: { ...provider, client_secret_configured: true } }))
+
+    renderPage()
+    const secret = await screen.findByLabelText("Client secret")
+    fireEvent.change(secret, { target: { value: "submitted-secret" } })
+    expect(secret).toHaveValue("submitted-secret")
+
+    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }))
+
+    expect(await screen.findByText("Provider configuration saved.")).toBeInTheDocument()
+    expect(secret).toHaveValue("")
+    expect(screen.getByText(/client secret is configured/)).toBeInTheDocument()
   })
 })

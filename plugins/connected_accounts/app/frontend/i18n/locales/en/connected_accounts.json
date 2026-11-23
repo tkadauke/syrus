@@ -10,6 +10,7 @@
     "validate_url": "Validation URL",
     "client_id": "Client ID",
     "client_secret": "Client secret",
+    "client_secret_configured": "A client secret is configured. Enter a new value only to replace it.",
     "scope_catalog": "Scope catalog",
     "read_only_scopes": "Read-only scopes",
     "api_origins": "API origins",
