@@ -105,3 +105,30 @@ Use these rules for persistence, ownership invariants, migrations, and backfills
   one-off migration-time backfill that touches only a handful of rows, or one
   that must run synchronously inside the migration itself, doesn't need this —
   use judgment on "nontrivial."
+
+## Row-lock order
+
+A transaction that locks rows of several models takes them in one global
+order, `Syrus::LockOrder::MODELS` (`lib/syrus/lock_order.rb`):
+AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit →
+User. Two transactions that each hold a lock the other wants deadlock under
+InnoDB; one order makes that impossible
+(`formal/SyrusModel/LockOrder.lean`).
+
+- Lock the higher-level record first: the Job before its Workflows, a Run
+  before its Job, an Epic before its member Jobs. `with_lock` on a
+  lower-ranked record cannot be followed by a lock on a higher-ranked one;
+  open `Model.transaction` and lock the earlier model first instead.
+- Re-locking a row the transaction already holds is fine in any order, which
+  is why `Workflow#start`'s `job.lock!` is safe under a caller that locked the
+  Job first.
+- Work that only records what happened (an audit line, a snapshot) and needs a
+  lock of its own belongs after the outermost commit
+  (`ActiveRecord.after_all_transactions_commit`), not inside the transaction.
+
+The suite enforces it: `spec/support/lock_order.rb` installs
+`Syrus::LockOrder::Checker`, which fails an example that takes a lock out of
+order and names both lock sites. `Syrus::LockOrder::PENDING_DECISION` lists the
+few inversions waiting on an operator decision; they are recorded in
+`tmp/lock_order_violations*.json` instead of failing. `SYRUS_LOCK_ORDER=record`
+records every violation instead, to survey a change.

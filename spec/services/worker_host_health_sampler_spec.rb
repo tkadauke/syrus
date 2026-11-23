@@ -121,6 +121,30 @@ RSpec.describe WorkerHostHealthSampler do
       )
     end
 
+    # Usage admission refuses on memory PSI, so the samples must show it: a
+    # worker died at 89% host memory with no record of whether PSI had moved.
+    it "records memory pressure with the sample" do
+      allow(File).to receive(:read) do |path|
+        case path
+        when "/proc/self/cgroup"
+          "0::/kubepods.slice/pod-a/container-a\n"
+        when "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/memory.pressure"
+          "some avg10=12.50 avg60=4.0 avg300=1.0 total=9\nfull avg10=3.00 avg60=1.0 avg300=0.2 total=2\n"
+        else
+          raise Errno::ENOENT
+        end
+      end
+
+      metrics = described_class.sample(observed_at: Time.zone.parse("2026-07-31 12:00:00 UTC"))
+
+      expect(metrics[:raw_metrics]).to include(
+        memory_pressure_some: 12.5,
+        memory_pressure_full: 3.0,
+        memory_pressure_source: "cgroup",
+        memory_pressure_path: "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/memory.pressure"
+      )
+    end
+
     it "falls back to proc pressure files when cgroup pressure files are absent" do
       allow(File).to receive(:read) do |path|
         case path

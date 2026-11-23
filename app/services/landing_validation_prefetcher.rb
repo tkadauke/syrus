@@ -27,8 +27,9 @@ class LandingValidationPrefetcher
 
     workflow_to_start = nil
     Workflow.transaction do
+      # Jobs before the Workflow (Syrus::LockOrder).
+      target.jobs.sort_by(&:id).each(&:lock!)
       workflow.lock!
-      target.jobs.each(&:lock!)
       if workflow.artifact(ARTIFACT_WORKFLOW_ID).blank? && target.still_eligible?
         workflow_to_start = target.instantiate(artifacts)
         snapshot = LandingValidationPrefetchSource.publish!(

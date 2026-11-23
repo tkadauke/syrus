@@ -270,6 +270,39 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       }.not_to change(ChatPendingAction, :count)
     end
 
+    # NY12 (decided A): a plugin definition's approval_effect is a claim that
+    # the tool's only mutation is creating the owner's confirmation card.
+    # Nothing checks a bare claim, so it is honoured only when the plugin
+    # registers the pending action the tool creates.
+    describe "a plugin tool that declares approval_effect" do
+      def plugin_descriptor(name)
+        Mcp::CoworkerToolCatalog::Descriptor.new(
+          tool_name: name, capability: "plugin.write", ungated: false, approval_effect: true,
+          tier: :essential, tool: nil, provider: Class.new,
+          definition: { name: name, capability: "plugin.write", mutation: true, requestable_roles: [ AgentRole::COWORKER_CHAT ] }
+        )
+      end
+
+      it "still asks through the generic request when no pending action is registered for the tool" do
+        allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(plugin_descriptor("plugin_claims_a_card"))
+
+        expect {
+          response = described_class.pending_coworker_approval("plugin_claims_a_card", { chat_session: }, { value: 1 })
+          expect(JSON.parse(response.content.first[:text])).to have_key("pending_action_id")
+        }.to change(ChatPendingAction, :count).by(1)
+      end
+
+      it "leaves the card to the tool when the plugin registers its pending action" do
+        allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(plugin_descriptor("plugin_with_a_card"))
+        allow(PendingActions).to receive(:registered?).and_call_original
+        allow(PendingActions).to receive(:registered?).with("plugin_with_a_card").and_return(true)
+
+        expect {
+          expect(described_class.pending_coworker_approval("plugin_with_a_card", { chat_session: }, { value: 1 })).to be_nil
+        }.not_to change(ChatPendingAction, :count)
+      end
+    end
+
     it "fails closed when a core registry entry has no permission descriptor" do
       allow(McpToolRegistry).to receive(:entries).with(surface: :coworker)
         .and_return([ Struct.new(:tool, :descriptor).new(coworker_tool, nil) ])

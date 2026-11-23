@@ -2108,6 +2108,21 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(wf.reload.state).not_to eq("failed")
     end
 
+    # Production: a four-minute provider outage failed a main-branch repair's
+    # implement step three times in a row, because each rerun started at once.
+    it "waits out a backoff before rerunning a step that hit a transient provider error" do
+      wf, fanout = failed_fanout_with(classification: "provider_transient", retryable: true)
+
+      freeze_time do
+        expect { described_class.fail_from(fanout) }.not_to change { fanout.reload.runs.count }
+
+        expect(fanout.reload.state).to eq("queued")
+        expect(fanout.details[StepDispatcher::RETRY_NOT_BEFORE_DETAIL]).to eq(1.minute.from_now.iso8601)
+        expect(wf.reload.state).not_to eq("failed")
+        expect(WorkflowPhaseAdmissionJob).to have_been_enqueued.with(wf.id, fanout.id).at(1.minute.from_now)
+      end
+    end
+
     it "still hard-fails when the run was not retryable" do
       wf, fanout = failed_fanout_with(classification: "grader_failure", retryable: false)
 

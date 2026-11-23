@@ -50,3 +50,14 @@ jobs:
             echo "Unfinished proof found" >&2
             exit 1
           fi
+
+      - name: Conformance fixtures match the models
+        # formal/fixtures/*.json are the models' answers that spec/formal/
+        # compares with the Ruby (formal/INTEGRATION.md, layer 3). A model
+        # change must regenerate them: `lake exe syrus_fixtures <name>`.
+        run: |
+          lake build syrus_fixtures
+          for name in $(lake exe syrus_fixtures); do
+            lake exe syrus_fixtures "$name" > "fixtures/$name.json"
+          done
+          git diff --exit-code -- fixtures

@@ -113,6 +113,23 @@ RSpec.describe WorkflowWorkspaceRecovery do
     expect(stranded.reload).to be_queued
   end
 
+  # Production: a main-branch repair's worker died mid-preflight, and
+  # recovery called the running preflight grader unsafe, failing the whole
+  # attempt and discarding about an hour of preflight.
+  it "reconstructs and resumes a main repair's stranded preflight graders" do
+    preflight = workflow.steps.create!(kind: "preflight_grader", position: 97, state: "running", started_at: 40.minutes.ago)
+    run = preflight.runs.create!(
+      job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+      state: "running", started_at: 40.minutes.ago, last_heartbeat_at: 30.minutes.ago
+    )
+    recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+    allow(recovery).to receive(:durable_candidates).and_return([ candidate ])
+
+    expect(recovery.call).to have_attributes(status: "recovered")
+    expect(run.reload).to be_queued
+    expect(preflight.reload).to be_queued
+  end
+
   it "refuses to replay an already-running mutable step" do
     step = workflow.steps.create!(kind: "implement", position: 99, state: "running", started_at: 2.minutes.ago)
     run = step.runs.create!(

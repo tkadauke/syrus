@@ -26,7 +26,7 @@ func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {
 			t.Fatalf("Authorization = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 	repoRoot := t.TempDir()
@@ -86,7 +86,7 @@ func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {
 func TestCheckoutCommandRunsPostCheckoutHooks(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 	repoRoot := t.TempDir()
@@ -122,7 +122,7 @@ func TestCheckoutCommandRunsPostCheckoutHooks(t *testing.T) {
 	command := NewRootCommand()
 	command.SetOut(&bytes.Buffer{})
 	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"checkout", "JOB-456"})
+	command.SetArgs([]string{"checkout", "JOB-456", "--hooks"})
 
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
@@ -143,7 +143,7 @@ func TestCheckoutCommandRunsPostCheckoutHooks(t *testing.T) {
 func TestCheckoutCommandSkipsPostCheckoutHooksWithNoHooksFlag(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -216,7 +216,7 @@ func TestPostCheckoutHooksReportFailingCommandExitStatus(t *testing.T) {
 	}
 
 	stdout := &bytes.Buffer{}
-	err := runPostCheckoutHooks(context.Background(), runner, runHookCommand, stdout, &bytes.Buffer{})
+	err := runPostCheckoutHooks(context.Background(), runner, runHookCommand, stdout, &bytes.Buffer{}, postCheckoutHookOptions{allowUntrusted: true})
 	if err == nil {
 		t.Fatal("expected hook failure")
 	}
@@ -263,7 +263,7 @@ func TestPostCheckoutHooksRunAffectedNestedProjectHooks(t *testing.T) {
 	}
 
 	stderr := &bytes.Buffer{}
-	err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{baseBranch: "release/4.2", defaultBranch: "main", headRef: "HEAD"})
+	err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{baseBranch: "release/4.2", defaultBranch: "main", headRef: "HEAD", allowUntrusted: true})
 	if err != nil {
 		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestPostCheckoutHooksRunMultipleAffectedProjectHooks(t *testing.T) {
 		return nil
 	}
 
-	err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, &bytes.Buffer{}, postCheckoutHookOptions{defaultBranch: "main"})
+	err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, &bytes.Buffer{}, postCheckoutHookOptions{defaultBranch: "main", allowUntrusted: true})
 	if err != nil {
 		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestPostCheckoutHooksRunAllProjectHooksWhenDiffUnknown(t *testing.T) {
 	}
 
 	stderr := &bytes.Buffer{}
-	err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{defaultBranch: "main"})
+	err := runPostCheckoutHooks(context.Background(), runner, hookRunner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{defaultBranch: "main", allowUntrusted: true})
 	if err != nil {
 		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestPostCheckoutHooksRunAllProjectHooksWhenDiffUnknown(t *testing.T) {
 func TestCheckoutCommandHandlesAlreadyCheckedOutBranch(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 	repoRoot := t.TempDir()
@@ -428,7 +428,7 @@ func TestCheckoutCommandHandlesAlreadyCheckedOutBranch(t *testing.T) {
 func TestCheckoutCommandUpdatesExistingBranchAfterForcePush(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 	repoRoot := t.TempDir()
@@ -502,7 +502,7 @@ func TestCheckoutCommandUpdatesExistingBranchAfterForcePush(t *testing.T) {
 func TestCheckoutCommandRejectsDirtyCheckedOutBranch(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -558,7 +558,7 @@ func TestCheckoutCommandRejectsDirtyCheckedOutBranch(t *testing.T) {
 func TestCheckoutCommandReportsMissingBranch(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"queued","branch_name":""},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"queued","branch_name":""},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -585,7 +585,7 @@ func TestCheckoutCommandReportsMissingBranch(t *testing.T) {
 func TestCheckoutCommandReportsMissingBranchForSlug(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"queued","branch_name":""},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"queued","branch_name":""},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -612,7 +612,7 @@ func TestCheckoutCommandReportsMissingBranchForSlug(t *testing.T) {
 func TestCheckoutCommandRejectsWrongRepository(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -809,7 +809,7 @@ func TestCheckoutCommandFoundJobAndEpicDoNotFallBackToBranch(t *testing.T) {
 		server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 			apiCalls++
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+			fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 		})
 		writeTestCredentials(t, server.URL)
 
@@ -839,7 +839,7 @@ func TestCheckoutCommandFoundJobAndEpicDoNotFallBackToBranch(t *testing.T) {
 		server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 			apiCalls++
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
+			fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"open","title":"Add OAuth","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
 		})
 		writeTestCredentials(t, server.URL)
 
@@ -1305,7 +1305,7 @@ func TestCheckoutCommandChecksOutSingleSinkEpicJob(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":40,"state":"closed","title":"Add user model","branch_name":"syrus/issue-40","depends_on_job_ids":[]},{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[40]}]}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":40,"state":"closed","title":"Add user model","branch_name":"syrus/issue-40","depends_on_job_ids":[]},{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[40]}]}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1375,7 +1375,7 @@ func TestCheckoutCommandSkipsPostCheckoutHooksForExternalPREpicJob(t *testing.T)
 func TestCheckoutCommandChecksOutSelectedEpicJob(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":42,"state":"closed","title":"Add user model","branch_name":"syrus/issue-42","depends_on_job_ids":[]},{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[42]},{"id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[42]}]}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":42,"state":"closed","title":"Add user model","branch_name":"syrus/issue-42","depends_on_job_ids":[]},{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[42]},{"kind":"issue","id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[42]}]}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1420,7 +1420,7 @@ func TestCheckoutCommandChecksOutSelectedEpicJob(t *testing.T) {
 func TestCheckoutCommandCancelsEpicPicker(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[]}]}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"kind":"issue","id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[]}]}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1480,7 +1480,7 @@ func TestCheckoutCommandRejectsEpicWithNoJobs(t *testing.T) {
 func TestCheckoutCommandRejectsEpicWithNoSinkBranches(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":40,"state":"closed","title":"Add user model","branch_name":"syrus/issue-40","depends_on_job_ids":[]},{"id":45,"state":"queued","title":"Add OAuth login endpoint","branch_name":"","depends_on_job_ids":[40]}]}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":40,"state":"closed","title":"Add user model","branch_name":"syrus/issue-40","depends_on_job_ids":[]},{"kind":"issue","id":45,"state":"queued","title":"Add OAuth login endpoint","branch_name":"","depends_on_job_ids":[40]}]}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1510,7 +1510,7 @@ func TestCheckoutCommandRoutesJobRefsToJobCheckout(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":42,"state":"running","branch_name":"syrus/issue-42"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":42,"state":"running","branch_name":"syrus/issue-42"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1534,7 +1534,7 @@ func TestCheckoutCompleteChecksOutMergeTrainBranch(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":"syrus/merge-train-epic-42-7"}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"kind":"issue","id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":"syrus/merge-train-epic-42-7"}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1593,7 +1593,7 @@ func TestCheckoutCompleteSkipsHooksWhenMergeTrainContainsExternalPR(t *testing.T
 func TestCheckoutCompleteChecksOutLinearStackTip(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"closed","title":"Add user model","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add OAuth login","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":""}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"closed","title":"Add user model","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"kind":"issue","id":47,"state":"implemented","title":"Add OAuth login","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":""}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1715,7 +1715,7 @@ func TestCheckoutCompleteSkipsHooksWhenLinearStackContainsExternalPR(t *testing.
 func TestCheckoutCompleteRejectsUnstackedBranches(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"implemented","title":"Branch A","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Branch B","branch_name":"syrus/issue-47","depends_on_job_ids":[]}],"merge_train_branch":""}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"implemented","title":"Branch A","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"kind":"issue","id":47,"state":"implemented","title":"Branch B","branch_name":"syrus/issue-47","depends_on_job_ids":[]}],"merge_train_branch":""}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1752,7 +1752,7 @@ func TestCheckoutCompleteRejectsUnstackedBranches(t *testing.T) {
 func TestCheckoutCompleteRejectsEpicWithNoImplementedBranches(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"queued","title":"Add user model","branch_name":"","depends_on_job_ids":[]},{"id":47,"state":"queued","title":"Add OAuth login","branch_name":"","depends_on_job_ids":[]}],"merge_train_branch":""}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"queued","title":"Add user model","branch_name":"","depends_on_job_ids":[]},{"kind":"issue","id":47,"state":"queued","title":"Add OAuth login","branch_name":"","depends_on_job_ids":[]}],"merge_train_branch":""}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1779,7 +1779,7 @@ func TestCheckoutCompleteRejectsEpicWithNoImplementedBranches(t *testing.T) {
 func TestCheckoutWithoutCompleteIgnoresCompleteFlag(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[]}],"merge_train_branch":""}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]},{"kind":"issue","id":47,"state":"implemented","title":"Add role-based access control","branch_name":"syrus/issue-47","depends_on_job_ids":[]}],"merge_train_branch":""}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1878,7 +1878,7 @@ func TestCheckoutCommandAcceptsJobSlug(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		requestedPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		fmt.Fprint(w, `{"job":{"kind":"issue","id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1909,7 +1909,7 @@ func TestCheckoutCommandAcceptsEpicSlugWithPrefix(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		requestedPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
 	})
 	writeTestCredentials(t, server.URL)
 
@@ -1942,7 +1942,7 @@ func TestCheckoutCommandForwardsEpicDisplayRef(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		requestedPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"epic":{"id":5,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
+		fmt.Fprint(w, `{"epic":{"id":5,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"kind":"issue","id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
 	})
 	writeTestCredentials(t, server.URL)
 

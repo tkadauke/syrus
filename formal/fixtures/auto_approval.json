@@ -1,0 +1,13 @@
+{
+  "model": "AutoApproval.approveNew",
+  "cases": [
+    {"job_state": "running", "pull_request": true, "job_state_after": "approved"},
+    {"job_state": "running", "pull_request": false, "job_state_after": "running"},
+    {"job_state": "implemented", "pull_request": true, "job_state_after": "approved"},
+    {"job_state": "implemented", "pull_request": false, "job_state_after": "implemented"},
+    {"job_state": "approved", "pull_request": true, "job_state_after": "approved"},
+    {"job_state": "approved", "pull_request": false, "job_state_after": "approved"},
+    {"job_state": "failed", "pull_request": true, "job_state_after": "failed"},
+    {"job_state": "failed", "pull_request": false, "job_state_after": "failed"}
+  ]
+}

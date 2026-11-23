@@ -178,13 +178,24 @@ module LocalBackups
     end
 
     class Preflight
-      def initialize(bundle:, installation_id:, destination:, token_secret:, current: {}, process: ManagedProcess.new)
+      # What preflight may not know. A restore replaces the database, so an
+      # unknown blocks it like a known mismatch, unless the operator accepts
+      # that specific unknown with --allow-unknown-<code> (NY22).
+      UNKNOWN_CODES = %w[
+        database-adapter database-version application-version application-compatibility encryption-fingerprints
+      ].freeze
+
+      def initialize(bundle:, installation_id:, destination:, token_secret:, current: {}, process: ManagedProcess.new,
+        accepted_unknowns: [])
         @bundle = bundle
         @installation_id = installation_id.to_s
         @destination = Pathname.new(destination)
         @token_secret = token_secret.to_s
         @current = current
         @process = process
+        @accepted_unknowns = Array(accepted_unknowns).map(&:to_s)
+        unexpected = @accepted_unknowns - UNKNOWN_CODES
+        raise Error, "unknown --allow-unknown code: #{unexpected.join(', ')}" if unexpected.any?
       end
 
       def call
@@ -221,13 +232,13 @@ module LocalBackups
       def database_check
         expected = @bundle.manifest.dig("database", "adapter")
         actual = @current[:database_adapter]
-        return result("database", "warn", "current database adapter was not supplied") if actual.to_s.empty?
+        return unknown("database", "database-adapter", "current database adapter was not supplied") if actual.to_s.empty?
         return result("database", "fail", "bundle=#{expected}; destination=#{actual}") unless expected.to_s == actual.to_s
 
         source_version = @bundle.manifest.dig("database", "server_version") || @bundle.manifest.dig("database", "sqlite_version")
         destination_version = @current[:database_version]
         if source_version && destination_version.to_s.empty?
-          return result("database", "warn", "adapters match; destination database version was not supplied")
+          return unknown("database", "database-version", "adapters match; destination database version was not supplied")
         end
         if source_version && source_version.to_s.split(".").first != destination_version.to_s.split(".").first
           return result("database", "fail", "database major versions differ: bundle=#{source_version}; destination=#{destination_version}")
@@ -238,18 +249,18 @@ module LocalBackups
       def version_check
         supported = @bundle.manifest.dig("restore_compatibility", "application_versions")
         actual = @current[:application_version]
-        return result("application", "warn", "current application version was not supplied") if actual.to_s.empty?
+        return unknown("application", "application-version", "current application version was not supplied") if actual.to_s.empty?
         if supported
           return result("application", Array(supported).include?(actual) ? "pass" : "fail", "destination version #{actual}")
         end
 
         source = @bundle.manifest["source_application_version"]
-        return result("application", "warn", "bundle does not declare an application compatibility range") if source.to_s.empty?
+        return unknown("application", "application-compatibility", "bundle does not declare an application compatibility range") if source.to_s.empty?
         source_version = Gem::Version.new(source.to_s.delete_prefix("v"))
         destination_version = Gem::Version.new(actual.to_s.delete_prefix("v"))
         result("application", destination_version >= source_version ? "pass" : "fail", "bundle=#{source_version}; destination=#{destination_version}")
       rescue ArgumentError
-        result("application", "warn", "application versions are not comparable; no compatibility range was declared")
+        unknown("application", "application-compatibility", "application versions are not comparable; no compatibility range was declared")
       end
 
       def plugins_check
@@ -270,7 +281,7 @@ module LocalBackups
 
       def encryption_check
         expected = @bundle.manifest.dig("encryption", "key_fingerprints") || @bundle.manifest.dig("encryption", "key_fingerprint")
-        return result("encryption", "warn", "bundle has no encryption-key fingerprints") if expected.nil?
+        return unknown("encryption", "encryption-fingerprints", "bundle has no encryption-key fingerprints") if expected.nil?
         actual = @current[:encryption_fingerprints]
         return result("encryption", "fail", "current encryption-key fingerprints were not supplied") if actual.nil?
         result("encryption", expected == actual ? "pass" : "fail", expected == actual ? "fingerprints match" : "fingerprints do not match")
@@ -283,6 +294,12 @@ module LocalBackups
       end
 
       def result(name, status, detail) = { name:, status:, detail: }
+
+      def unknown(name, code, detail)
+        return { name:, status: "fail", unknown: code, detail: "#{detail}; pass --allow-unknown-#{code} to accept" } unless @accepted_unknowns.include?(code)
+
+        { name:, status: "warn", unknown: code, detail: "#{detail} (accepted with --allow-unknown-#{code})" }
+      end
 
       def token(payload)
         raise Error, "installation identity is required for a preflight token" if @installation_id.empty?

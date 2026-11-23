@@ -78,7 +78,9 @@ instances.)
   backend, so the app asks first instead of doing it behind your back.
   Once the updated backend is confirmed healthy, the app removes the
   superseded Syrus backend images it left behind, so repeated updates
-  don't slowly fill Docker's disk.
+  don't slowly fill Docker's disk. It keeps the one image the update
+  replaced, so you can roll back without downloading it again, until the
+  next successful update or for seven days, whichever comes first.
 
 ## Requirements
 

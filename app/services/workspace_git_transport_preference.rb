@@ -63,8 +63,43 @@ module WorkspaceGitTransportPreference
     end
     return if cloned
 
-    FileUtils.rm_rf(dest.to_s) if dest.exist?
-    fallback.call
+    clone_from_hosting_platform!(dest, &fallback)
+  end
+
+  # The hosting-platform clone is the last resort, so a dropped connection
+  # here used to fail the whole step. Under a flaky uplink GitHub resets large
+  # HTTP/2 clones mid-pack ("HTTP/2 stream was not closed cleanly", "early
+  # EOF"); a landing's push step that had to re-clone a lost workspace failed
+  # that way three times in a row and threw away a fully graded landing.
+  # Retry transient transport failures in place, and from the second attempt
+  # on ask git for HTTP/1.1, which does not multiplex the pack onto a stream
+  # the server can cancel. The fallback receives env to merge into its git
+  # call; a fallback that ignores it still gets the plain retries.
+  HOSTING_PLATFORM_CLONE_RETRY_DELAYS = [ 5, 20 ].freeze
+  HTTP1_GIT_ENV = {
+    "GIT_CONFIG_COUNT" => "1",
+    "GIT_CONFIG_KEY_0" => "http.version",
+    "GIT_CONFIG_VALUE_0" => "HTTP/1.1"
+  }.freeze
+
+  def clone_from_hosting_platform!(dest, &fallback)
+    attempt = 0
+    begin
+      FileUtils.rm_rf(dest.to_s) if dest.exist?
+      fallback.call(attempt.zero? ? {} : HTTP1_GIT_ENV)
+    rescue GitRunner::GitError => e
+      delay = HOSTING_PLATFORM_CLONE_RETRY_DELAYS[attempt]
+      raise unless delay && GitTransportErrors.transient?(e.message)
+
+      attempt += 1
+      Rails.logger.warn("[WorkspaceGitTransportPreference] transient clone failure, retrying (#{attempt}/#{HOSTING_PLATFORM_CLONE_RETRY_DELAYS.size}) over HTTP/1.1: #{e.message.lines.last.to_s.strip}")
+      transport_retry_sleep(delay)
+      retry
+    end
+  end
+
+  def transport_retry_sleep(seconds)
+    sleep(seconds)
   end
 
   # Fetches `refspec` through the repository's preferred git transport,

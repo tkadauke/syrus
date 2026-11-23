@@ -79,7 +79,7 @@ module Mcp::Tools
           audit_essential!(context, coworker_capability_descriptor(descriptor), arguments)
           return
         end
-        if descriptor.approval_effect
+        if approval_effect_backed?(descriptor)
           enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
           return
         end
@@ -213,7 +213,20 @@ module Mcp::Tools
         nil
       end
 
-      def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false)
+      # approval_effect skips the generic ask because the tool's only mutation
+      # is creating the owner's confirmation card. A core tool's flag comes
+      # from McpToolRegistry. A plugin definition's flag is a bare claim, so it
+      # is honoured only when the plugin registers the pending action the tool
+      # creates, under the tool's name ("Plugin-contributed capabilities cannot
+      # bypass the evaluator").
+      def approval_effect_backed?(descriptor)
+        return false unless descriptor.approval_effect
+        return true if descriptor.tool
+
+        PendingActions.registered?(descriptor.tool_name)
+      end
+
+      def pending_coworker_plugin_approval(tool_name, capability, server_context, arguments, always_pending: false, action: "coworker_tool_call")
         context = McpToolContext.from_server_context(server_context)
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
@@ -221,10 +234,10 @@ module Mcp::Tools
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor&.capability.to_s == capability.to_s
         return if claimed_invocation_authorizes?(descriptor, context, server_context, arguments)
 
-        create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending:)
+        create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending:, action:)
       end
 
-      def create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: false)
+      def create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: false, action: "coworker_tool_call")
         capability_descriptor = if descriptor.tool
           McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
         else
@@ -236,7 +249,7 @@ module Mcp::Tools
           context:, descriptor: capability_descriptor, arguments:,
           purpose: "Invoke #{descriptor.tool_name}",
           force_request: always_pending,
-          action: "coworker_tool_call",
+          action: action,
           payload: {
             "tool_name" => descriptor.tool_name,
             "arguments" => arguments.stringify_keys,

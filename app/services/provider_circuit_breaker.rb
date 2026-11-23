@@ -12,10 +12,15 @@ class ProviderCircuitBreaker
   @read_cache_mutex = Mutex.new
   @read_cache = {}
 
+  # `server_error` is what the agent reports when its provider answers 5xx --
+  # an outage. Missing here, a burst of them across jobs never opened the
+  # circuit, so every retry during the outage was charged to the Jobs' retry
+  # budgets and two Jobs ran out and failed.
   RETRYABLE_OUTCOMES = %w[
     provider_transient
     rate_limited
     rate_limit
+    server_error
   ].freeze
 
   TRANSIENT_PATTERNS = [

@@ -415,7 +415,10 @@ Backups**. Downloads are audited and support resumable HTTP byte ranges. These r
 pre-upgrade safety archives under `backups/`.
 
 When the web application is unavailable, run `bin/disaster-recovery preflight`
-and then `bin/disaster-recovery restore` from the matching Syrus image. Restore
+and then `bin/disaster-recovery restore` from the matching Syrus image.
+Preflight blocks when it cannot establish compatibility, for example when the
+destination's application or database version is not supplied; pass the
+`--allow-unknown-<what>` flag it names only after checking that fact yourself. Restore
 is a maintenance operation: stop ingress writes, drain every worker, and supply
 commands that verify no mutating process remains. The restore command stages
 and validates the SQLite database and Disk objects, creates a pinned safety

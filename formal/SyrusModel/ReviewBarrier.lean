@@ -17,6 +17,10 @@ Step kinds, by how they move HEAD:
 * `agentUntracked` — `landing_fix`, agent rebases (`agent_rebase`,
   `merge_train_agent_rebase`, `merge_train_agent`): agent-authored, not tracked.
 * `review` — approves the current tracked SHA.
+
+The step-sequence model below has one way to pass (approval of the tracked
+HEAD). The code has three; the `Evidence` section at the end models them, and
+`formal/fixtures/review_barrier.json` checks that section against the Ruby.
 -/
 
 namespace SyrusModel
@@ -122,6 +126,52 @@ theorem tracked_only_push_reviewed (xs : List Step) (h : OnlyTracked xs)
     have hk := h1 k ht
     simp [barrier, ht] at hb
     simp [pushedReviewed, ← hk, hb]
+
+/-! ## The three ways a required review passes (Lead L12)
+
+`satisfied_for?` accepts, for each required review of the tracked HEAD, any of:
+succeeded evidence that approved that HEAD; a review that reacted without
+changing HEAD (`reacted_without_head_change?`); or a recorded budget exhaustion
+for that HEAD (`exhausted_for_head?`), which `record_budget_exhaustion!` writes
+together with a high-severity workflow warning. Without a tracked HEAD the
+barrier is vacuous (legacy and imported Workflows).
+
+So "whatever is pushed was approved by every required review" holds only up to
+the exhaustion exception: a pass is approval, a no-change reaction, or an
+exhaustion that was recorded and warned for exactly that HEAD.
+-/
+
+/-- One required review's evidence about the tracked HEAD. -/
+structure Evidence where
+  tracked : Bool
+  succeeded : Bool
+  approved : Bool
+  reactedWithoutHeadChange : Bool
+  exhaustedForHead : Bool
+  deriving DecidableEq, Repr
+
+/-- `ImmutableReviewHeadBarrier.satisfied_for?` for one required review. -/
+def satisfied (e : Evidence) : Bool :=
+  !e.tracked || (e.succeeded && e.approved) || e.reactedWithoutHeadChange || e.exhaustedForHead
+
+def allEvidence : List Evidence :=
+  [true, false].flatMap fun t => [true, false].flatMap fun s => [true, false].flatMap fun a =>
+    [true, false].flatMap fun r => [true, false].map fun x => ⟨t, s, a, r, x⟩
+
+/-- A pass on a tracked HEAD is an approval, a no-change reaction, or the
+recorded and warned exhaustion exception, and nothing else. -/
+theorem pass_is_approval_reaction_or_exception :
+    allEvidence.all (fun e => !(e.tracked && satisfied e) ||
+      (e.succeeded && e.approved) || e.reactedWithoutHeadChange || e.exhaustedForHead) = true := by decide
+
+/-- Without the exception, a pass on a tracked HEAD means it was approved or a
+review reacted without changing it. -/
+theorem pass_without_exception_is_reviewed :
+    allEvidence.all (fun e => !(e.tracked && !e.exhaustedForHead && satisfied e) ||
+      (e.succeeded && e.approved) || e.reactedWithoutHeadChange) = true := by decide
+
+/-- The exception is what lets an unreviewed HEAD through. -/
+theorem exhaustion_passes_unreviewed : satisfied ⟨true, false, false, false, true⟩ = true := by decide
 
 end ReviewBarrier
 end SyrusModel

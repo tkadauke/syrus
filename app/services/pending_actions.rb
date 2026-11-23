@@ -11,6 +11,13 @@ module PendingActions
     REGISTRY.fetch(key) { raise UnknownAction, "unknown pending action: #{action_key}" }
   end
 
+  def self.registered?(action_key)
+    self.for(action_key)
+    true
+  rescue UnknownAction
+    false
+  end
+
   def self.register(klass)
     REGISTRY[klass.action_key] = klass
   end

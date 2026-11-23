@@ -178,6 +178,8 @@ module Admin
       run_visual_diff
       schedule_recurring
       spawn_chat
+      spawn_coworker_chat
+      spawn_syrus_chat
       submit_chat_feedback
       submit_coding_changes
       unapprove_job

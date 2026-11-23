@@ -192,6 +192,7 @@ func newJobCheckoutCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noHooks, "no-hooks", false, "skip .syrus.yml hooks.post_checkout commands")
+	cmd.Flags().Bool("hooks", false, "run hooks.post_checkout commands this branch added or changed without asking")
 	return cmd
 }
 
@@ -475,11 +476,11 @@ func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 		return err
 	}
 	if !noHooks && postCheckoutHooksAllowed(job.Job) {
-		hookOptions := postCheckoutHookOptions{
+		hookOptions := withPostCheckoutHookPolicy(cmd, postCheckoutHookOptions{
 			baseBranch:    job.Job.EffectiveBaseBranch,
 			defaultBranch: job.Repository.DefaultBranch,
 			headRef:       "HEAD",
-		}
+		})
 		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), hookOptions); err != nil {
 			return err
 		}

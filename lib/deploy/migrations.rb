@@ -78,7 +78,7 @@ module Deploy
       logs = job_logs(job)
       return handle_lock_contention(job, attempt, logs) if lock_contention?(logs)
 
-      detail = [ kubectl.describe("job", job), logs ].reject(&:empty?).join("\n")
+      detail = [ job_state(job).diagnosis, logs ].reject(&:empty?).join("\n")
       release(job)
       raise Failure.new("#{label}: database migration job failed", detail: detail)
     end
@@ -146,7 +146,7 @@ module Deploy
 
         blocked = state.blocking_reason
         if blocked
-          next Waiter.failed("migration pod cannot start (#{blocked})", detail: kubectl.describe("job", job))
+          next Waiter.failed("migration pod cannot start (#{blocked})", detail: state.diagnosis)
         end
 
         Waiter.pending("#{label}: migration pod #{state.phase_description}")
@@ -345,8 +345,32 @@ module Deploy
       def blocking_reason
         stuck = waiting_reasons.find { |reason| TERMINAL_WAITING_REASONS.include?(reason) }
         return stuck if stuck
+        return nil unless unschedulable?
 
-        "Unschedulable" if unschedulable?
+        message = unschedulable_messages.first
+        message ? "Unschedulable: #{message}" : "Unschedulable"
+      end
+
+      # What went wrong, from pod status alone. `kubectl describe job` was used
+      # here, but the Job's pod template carries the web deployment's literal
+      # env values -- master key and secret key base among them -- so every
+      # failed start printed them into the deploy log, while its only event
+      # ("Created pod") said nothing about why the pod never ran.
+      def diagnosis
+        @pods.flat_map do |pod|
+          name = pod.dig("metadata", "name") || "pod"
+          conditions = Array(pod.dig("status", "conditions")).filter_map do |condition|
+            next if condition["status"] == "True"
+
+            "#{name}: #{condition["type"]}=#{condition["status"]} #{condition["reason"]} #{condition["message"]}".strip
+          end
+          statuses = Array(pod.dig("status", "initContainerStatuses")) + Array(pod.dig("status", "containerStatuses"))
+          waiting = statuses.filter_map do |status|
+            state = status.dig("state", "waiting")
+            "#{name}: #{status["name"]} waiting #{state["reason"]} #{state["message"]}".strip if state
+          end
+          [ "#{name}: phase #{pod.dig("status", "phase") || "unknown"}", *conditions, *waiting ]
+        end.join("\n")
       end
 
       private
@@ -368,8 +392,18 @@ module Deploy
       end
 
       def unschedulable?
-        @pods.any? do |pod|
-          Array(pod.dig("status", "conditions")).any? do |condition|
+        unschedulable_conditions.any?
+      end
+
+      def unschedulable_messages
+        unschedulable_conditions.filter_map { |condition| message = condition["message"].to_s.strip
+          message.empty? ? nil : message
+        }
+      end
+
+      def unschedulable_conditions
+        @pods.flat_map do |pod|
+          Array(pod.dig("status", "conditions")).select do |condition|
             condition["type"] == "PodScheduled" && condition["status"] == "False" &&
               condition["reason"] == "Unschedulable"
           end

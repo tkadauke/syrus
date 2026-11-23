@@ -520,8 +520,8 @@ class WorkflowWorkspace
       clone_via_transport!(
         repository: @repository, user: @job.user, dest: path,
         clone_args: [ "--branch", clone_checkout_branch, "--no-tags" ], env: @env
-      ) do
-        @git.run("clone", "--branch", clone_checkout_branch, "--no-tags", authenticated_url, path.to_s, env: @env)
+      ) do |retry_env|
+        @git.run("clone", "--branch", clone_checkout_branch, "--no-tags", authenticated_url, path.to_s, env: @env.merge(retry_env.to_h))
       end
     rescue GitRunner::GitError => e
       raise e unless remote_repo_empty?

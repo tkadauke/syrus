@@ -536,11 +536,8 @@ class RunFailureClassifier
 
   def git_transport_transient?
     return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError|WorkflowSourceSnapshots::InfrastructureStateError/)
-    return false if text_match?(/authentication failed|could not read username|permission denied|access denied|repository not found|not found|couldn't find remote ref|remote ref does not exist|invalid refspec|non-fast-forward|fetch first|stale info|merge conflict|unmerged files|not a git repository|bad revision|unrelated histories/i)
 
-    text_match?(
-      /failed to connect|could not connect to server|connection (?:refused|reset|timed out)|network is unreachable|no route to host|could not resolve host|temporary failure in name resolution|name or service not known|unexpected disconnect|remote end hung up unexpectedly|(?:network|connect|connection|read|operation) timed? out|TLS connection was non-properly terminated|SSL_ERROR_SYSCALL|gnutls_handshake.*(?:error|failed)|HTTP (?:500|502|503|504)|The requested URL returned error: 5\d\d|\[remote rejected\].*\((?:internal server error|service unavailable|bad gateway|gateway timeout|50\d)\)/i
-    )
+    GitTransportErrors.transient?(searchable_text)
   end
 
   def git_state_corrupt?

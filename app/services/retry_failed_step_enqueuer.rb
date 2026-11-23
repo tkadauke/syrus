@@ -156,7 +156,11 @@ class RetryFailedStepEnqueuer
   end
 
   def call
-    workflow.job.with_lock do
+    Job.transaction do
+      # Epic before Job (Syrus::LockOrder): rebuilding an Epic's merge train
+      # dispatches it, and MergeTrainDispatcher locks the Epic, then members.
+      merge_train_epic&.lock!
+      workflow.job.lock!
       workflow.reload
       @failed_step = Step.find(failed_step.id) if failed_step
 
@@ -640,6 +644,13 @@ class RetryFailedStepEnqueuer
     return failure("Merge-train rebuild did not enqueue a run.") unless run
 
     Result.new(run: run, workflow: rebuilt_workflow, step: run.step, error: nil)
+  end
+
+  def merge_train_epic
+    train_id = workflow.artifact("merge_train_id")
+    return if train_id.blank?
+
+    MergeTrain.find_by(id: train_id)&.epic
   end
 
   def rebuild_train(train)

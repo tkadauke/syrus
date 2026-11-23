@@ -98,8 +98,11 @@ module WorkUnits
       unit = terminal_work_unit
       return false unless unit
 
-      workflow.with_lock do
-        workflow.reload
+      # Job before Workflow (Syrus::LockOrder): driving the Workflow can start
+      # it, and Workflow#start locks the Job.
+      Workflow.transaction do
+        workflow.job&.lock!
+        workflow.lock!
         return false unless ACTIVE_WORKFLOW_STATES.include?(workflow.state)
         return false if self.class.active_replacement_owns?(workflow, stale_unit: unit)
 

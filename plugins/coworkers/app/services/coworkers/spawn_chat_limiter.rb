@@ -35,7 +35,7 @@ class Coworkers::SpawnChatLimiter
 
   def daily_actions
     @daily_actions ||= ChatPendingAction.where(chat_session_id: @coworker.coworker_chats.select(:chat_session_id),
-      action: "coworker_tool_call", state: ACTIVE_STATES, created_at: @now.beginning_of_day..@now.end_of_day)
+      action: PendingActions::CoworkerToolCall.family_action_keys, state: ACTIVE_STATES, created_at: @now.beginning_of_day..@now.end_of_day)
       .select do |action|
         action.id != @server_context[:pending_action_id] && action.payload["tool_name"] == @tool_name
       end

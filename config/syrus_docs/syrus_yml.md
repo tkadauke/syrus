@@ -369,6 +369,8 @@ that mutate tracked source.
 
 Commands run by the `syrus checkout` CLI on the operator's local machine after checking out a branch. These do **not** run in the agent sandbox. Root hooks always run; nested `.syrus.yml` hooks run when the checked-out Job or branch diff touches that project directory, falling back to all discovered project hooks when the CLI cannot compute the diff.
 
+A hook runs without asking only if the same command is in the same `.syrus.yml` on the Job's base branch. A hook the Job's branch added or changed is shown and asked about, and skipped without a terminal unless `--hooks` is passed. Hooks run only for issue, direct and cron Jobs, so an agent cannot get new code run on a reviewer's machine by adding a hook to the branch it writes.
+
 ```yaml
 hooks:
   post_checkout:

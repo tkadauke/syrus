@@ -264,6 +264,10 @@ explicit deny, but they do not create a generic tool-call approval when their
 only mutation is creating the owner's real confirmation card. Job/Epic
 proposal tools and both chat-spawn tools use this marker, preventing a second
 approval without weakening deny rules.
+A plugin tool's marker counts only when the plugin registers the confirmation
+card the tool creates as a pending action under the tool's name, as both
+chat-spawn tools do; otherwise the tool asks through the generic approval like
+any other.
 
 `spawn_coworker_chat(prompt, handle?, title?)` creates only a side chat of the
 calling coworker. It cannot create a Syrus chat or select another coworker.
