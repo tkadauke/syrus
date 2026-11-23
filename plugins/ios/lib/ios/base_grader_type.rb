@@ -42,7 +42,7 @@ module Ios
 
     def grade_steps
       [
-        SyrusYml::GradeStep.new(
+        Syrus::Host::GraderStep.new(
           name: name,
           display_name: display_name,
           run: command,
@@ -98,7 +98,7 @@ module Ios
       raw = config["phases"]
       values =
         case raw
-        when nil then SyrusYml::DEFAULT_GRADE_PHASES
+        when nil then Syrus::Host::GraderDefaults.default_phases
         when String then [ raw ]
         else Array(raw)
         end
@@ -118,7 +118,7 @@ module Ios
       minutes = Integer(raw)
       raise ArgumentError, "timeout_minutes must be positive" unless minutes.positive?
 
-      [ minutes, SyrusYml::MAX_GRADE_TIMEOUT_MINUTES ].min
+      [ minutes, Syrus::Host::GraderDefaults.max_timeout_minutes ].min
     rescue ArgumentError
       raise ArgumentError, "timeout_minutes must be a positive integer"
     end
@@ -201,7 +201,7 @@ module Ios
       raw = config["capabilities"].presence || DEFAULT_CAPABILITIES
       raise ArgumentError, "capabilities must be a mapping" unless raw.is_a?(Hash)
 
-      normalized = TargetGraph::ExecutionCapabilities.new(**raw.deep_symbolize_keys).to_h
+      normalized = Syrus::Host::GraderExecutionCapabilities.new(**raw.deep_symbolize_keys).to_h
       normalized.presence
     rescue ArgumentError => e
       raise ArgumentError, "capabilities.#{e.message}"

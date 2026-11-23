@@ -28,7 +28,7 @@ module SyrusRails
         migration_path = workspace.join(file_path)
         return McpToolSet.error_response("Migration file not found: #{file_path}") unless migration_path.exist?
 
-        run = SyrusMcp.run_from_context(server_context)
+        run = Syrus::Host::McpTools.run_from_context(server_context)
         result = MigrationArtifactGenerator.new(workspace: workspace, workflow: run.workflow).generate(file_path)
         McpToolSet.ok_response(result)
       rescue StandardError => e
