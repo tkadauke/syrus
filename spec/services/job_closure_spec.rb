@@ -41,6 +41,32 @@ RSpec.describe JobClosure do
     end
   end
 
+  # NY33: a cancelled Workflow locks its own Steps, then applies its pending
+  # closure, which cancels the Job's other Workflows. Locking those after the
+  # Steps inverted the row-lock order; they are now locked first. Asserted on
+  # the checker's record so the pending-decision entry for hook-driven nested
+  # cancellations cannot hide a regression here.
+  describe "cancelling a Workflow whose pending closure cancels a sibling" do
+    it "locks the sibling Workflow before any Step" do
+      other = job.reload.workflows.order(:id).last
+      workflow, _steps = chain_workflow
+      workflow.request_job_closure!(job, "pr_closed")
+      checker = Syrus::LockOrder::Checker
+      previous_mode = checker.mode
+      checker.mode = :record
+      before = checker.violations.size
+
+      WorkUnits::WorkflowCancellation.cancel!(workflow.reload, reason: "operator_cancelled")
+
+      expect(checker.violations.drop(before)).to be_empty
+      expect(other.reload).to be_cancelled
+      expect(job.reload).to have_attributes(state: "closed", closure_reason: "pr_closed")
+    ensure
+      checker.violations.slice!(before..) if before
+      checker.mode = previous_mode
+    end
+  end
+
   describe "a Job closed by someone else while its Workflow is between steps" do
     it "does not start the next step and cancels the Workflow" do
       workflow, (first, second, _third) = chain_workflow

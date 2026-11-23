@@ -4448,6 +4448,44 @@ That repair closes itself right after, with the right reason.
 **Specs.** The three existing `main_branch_repair_spec.rb` examples, red on main
 and green with the fix; `main_health_changed_service_spec.rb` unchanged and green.
 
+## F121. A pending Job closure locked a sibling Workflow after the Steps (NY33: A)
+
+**Before.** NY33 described the inversion as "cancelling a Workflow cascades to
+its descendants: A, A's Steps, then B". With its pending entry removed, the CI-only
+suite in raise mode names the real path in two `auto_merge_spec.rb` examples:
+
+1. Cancelling Workflow A's Run commits.
+2. `Workflows::LifecyclePropagation#cancelled!` cancels A's Steps and locks each
+   one (`cancel_active_descendants!`).
+3. It then calls `JobClosure.apply_pending!`. The closure's `close_now!` cancels
+   the Job's other active Workflows, locking sibling Workflow B after A's Steps.
+
+The same shape exists on the succeeded, failed and blocked paths, which lock the
+WorkUnit before applying the closure.
+
+**Fix.** `JobClosure.lock_pending_workflows!(workflow)` locks every Workflow the
+pending closures will cancel, in id order, and every lifecycle path calls it
+first. The cancellations then re-lock rows already held. Siblings are not a
+tree, so the operator's "parent first, then descendants by id" becomes "the
+cancelling Workflow, then the closure's Workflows by id", the order that is
+consistent between any two such transactions.
+
+**What is left.** `cancellation_attribution_spec.rb`'s stacked cascade stubs an
+`after_cancel` hook to cancel another Workflow from inside the root's cancel,
+after its Steps are locked. No real hook cancels a Workflow directly, and no
+other example in the suite reaches this. The pending entry stays, narrowed in
+its comment to hook-driven nested cancellation, so a real one would be recorded,
+not missed.
+
+**Proof.** `LockOrder.lean`: `closure_cascade_before_inverts` and
+`closure_cascade_after_in_order`. `JobClosure.lock_pending_workflows!` and
+`LifecyclePropagation#cancelled!` are in `formal/mirrors.yml`.
+
+**Specs.** `spec/services/job_closure_spec.rb` "locks the sibling Workflow before
+any Step" asserts that the checker records no violation, so the pending entry
+cannot mask a regression. It was red without the pre-lock. The `auto_merge_spec.rb`
+examples pass.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)

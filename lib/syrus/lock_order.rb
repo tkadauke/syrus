@@ -21,7 +21,11 @@ module Syrus
       # The same reservation, then a base-refresh retry records itself on its
       # source Workflow (set_artifact!). Part of NY35.
       { held_site: "app/services/provider_routing/availability_selector.rb", site: "app/models/workflow.rb" },
-      # Cancelling a Workflow cascades to its descendants: A, A's Steps, then B.
+      # A Workflow cancelled from inside another Workflow's cancel (an
+      # after_cancel hook, after the outer Workflow locked its Steps). The Job
+      # closure path is pre-locked (NY33, JobClosure.lock_pending_workflows!);
+      # only a hook-driven nested cancellation is left, and in the suite only a
+      # spec stub does that.
       { held_site: "app/models/workflow.rb", site: "app/services/work_units/workflow_cancellation.rb" }
     ].freeze
 

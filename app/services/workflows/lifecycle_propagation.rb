@@ -22,6 +22,7 @@ module Workflows
     end
 
     def succeeded!
+      JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("succeeded")
       JobClosure.apply_pending!(workflow)
@@ -33,6 +34,7 @@ module Workflows
     end
 
     def failed!
+      JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("failed")
       workflow.cancel_orphan_active_runs!
@@ -50,6 +52,7 @@ module Workflows
     end
 
     def cancelled!
+      JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       # Invariant: a root event exists before any cleanup runs. Direct
       # `workflow.cancel!` callers that supplied none surface as unattributed.
@@ -65,6 +68,7 @@ module Workflows
     end
 
     def blocked!
+      JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       if Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
         # Auxiliary work must give back its locks when it cannot proceed. A

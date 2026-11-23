@@ -161,5 +161,28 @@ theorem waits_only_on_committed_rows (t : Tx) (origin : RowOrigin) :
 
 end SelfCreated
 
+/-! ## A pending Job closure inside a cancellation (NY33)
+
+Cancelling Workflow A locks A's Steps (`cancel_active_descendants!`), then
+applies A's pending Job closure, which cancels the Job's other Workflows. The
+first `rank`-decreasing step in a transaction's lock sequence is an inversion.
+`JobClosure.lock_pending_workflows!` takes those Workflows first. -/
+
+/-- No lock in the sequence ranks below one taken before it. -/
+def monotone : List Model → Bool
+  | a :: b :: rest => rank a ≤ rank b && monotone (b :: rest)
+  | _ => true
+
+/-- Before: A, A's Steps, then sibling B (and B's Steps). -/
+def closureCascadeBefore : List Model := [ workflow, step, workflow, step ]
+
+/-- After: A, the closure's Workflows, then every Step. Same-model locks are
+in id order among themselves. -/
+def closureCascadeAfter : List Model := [ workflow, workflow, step, step ]
+
+theorem closure_cascade_before_inverts : monotone closureCascadeBefore = false := by decide
+
+theorem closure_cascade_after_in_order : monotone closureCascadeAfter = true := by decide
+
 end LockOrder
 end SyrusModel

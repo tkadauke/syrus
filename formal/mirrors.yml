@@ -133,6 +133,16 @@ models:
     owner: ResumeQueuedStep
     method: perform
     sha: 176ed25cd8cdcd8b
+- model: LockOrder.lean
+  mirrors:
+  - path: app/services/job_closure.rb
+    owner: JobClosure
+    method: self.lock_pending_workflows!
+    sha: 7b7dff9c93b83678
+  - path: app/services/workflows/lifecycle_propagation.rb
+    owner: LifecyclePropagation
+    method: cancelled!
+    sha: fa9aba46c06f4a57
 - model: QueueExecution.lean
   mirrors:
   - path: app/services/work_engine/reconciler.rb

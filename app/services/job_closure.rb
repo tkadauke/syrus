@@ -23,6 +23,22 @@ class JobClosure
     new(job).request!(reason)
   end
 
+  # NY33: a finishing Workflow applies its pending closures after it has
+  # locked its own Steps and WorkUnit, and each closure cancels the Job's
+  # other Workflows. Lock every Workflow those closures will cancel first, in
+  # id order, so the cancellations re-lock rows already held instead of
+  # locking a Workflow after a Step (Syrus::LockOrder).
+  def self.lock_pending_workflows!(workflow)
+    job_ids = workflow.pending_job_closures_by_id.keys
+    return if job_ids.empty?
+
+    ids = WorkUnits::Ownership.active_workflow_ids(job_ids, kinds: WorkDefinitions.first_class_work_unit_kinds).to_a
+    ids -= [ workflow.id ]
+    return if ids.empty?
+
+    Workflow.where(id: ids, state: %w[queued running]).order(:id).lock.to_a
+  end
+
   def self.apply_pending!(workflow)
     closures = workflow.pending_job_closures_by_id
     closures.each do |job_id, reason|

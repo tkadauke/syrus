@@ -3720,7 +3720,7 @@
         "C. Accept it: rows of one model stay unordered, and InnoDB deadlock detection plus the callers' retries handle the rare collision."
       ],
       "recommendation": "A. It is local to WorkflowCancellation, keeps the checker's rule simple (model order), and costs only the extra up-front locks on rows the cascade will lock anyway.",
-      "decision": "A (2026-11-23, answered on the lean-plan site): Lock the whole subtree's Workflows (parent first, then descendants by id) before any of their Steps, so the cascade is in model order. To implement."
+      "decision": "A (2026-11-23, answered on the lean-plan site): Lock the whole subtree's Workflows (parent first, then descendants by id) before any of their Steps, so the cascade is in model order. Implemented as F121: the real path was a pending Job closure cancelling sibling Workflows, now locked first in id order. A hook-driven nested cancellation, which only a spec stub exercises, stays recorded."
     },
     {
       "id": "NY34",
