@@ -4,7 +4,7 @@ module ChatPayloadContributions
   class KeyConflict < StandardError; end
 
   def self.providers
-    Syrus::PluginRegistry.providers_for(:chat_payload_contributor)
+    Syrus::Plugin::ChatIntegration.contributions(:payload_contributors)
   end
 
   def self.payload(chat_session:, context:, existing_keys:)

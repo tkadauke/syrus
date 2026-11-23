@@ -113,7 +113,7 @@ module Api
         end
 
         def plugin_share_candidates
-          @plugin_share_candidates ||= Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
+          @plugin_share_candidates ||= Syrus::Plugin::ChatIntegration.contributions(:mentionables).flat_map do |provider|
             provider.respond_to?(:share_candidates) ? Array(provider.share_candidates(user: Current.user)) : []
           end
         end

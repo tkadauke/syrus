@@ -18,8 +18,8 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
   # Only this extension point is stubbed; everything else the job reaches for
   # keeps its real providers.
   def stub_orientation_providers(providers = [])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_orientation).and_return(providers)
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:turn_orientations).and_return(providers)
   end
 
   def provider(&block)

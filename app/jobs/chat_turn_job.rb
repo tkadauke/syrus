@@ -220,7 +220,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def finalize_plugin_turns!
-    Syrus::PluginRegistry.providers_for(:chat_turn_finalizer).each do |provider|
+    Syrus::Plugin::ChatIntegration.contributions(:turn_finalizers).each do |provider|
       result = Syrus::PluginInvocation.call(
         extension_point: :chat_turn_finalizer, provider:, operation: :after_chat_turn, on_decline: nil
       ) do
@@ -261,7 +261,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def plugin_workspace_lifecycle
-    @plugin_workspace_lifecycle ||= Syrus::PluginRegistry.providers_for(:chat_workspace_lifecycle).find do |provider|
+    @plugin_workspace_lifecycle ||= Syrus::Plugin::ChatIntegration.contributions(:workspace_lifecycles).find do |provider|
       Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
         extension_point: :chat_workspace_lifecycle, provider:, operation: :applies_to, on_decline: false
       ) { provider.applies_to?(chat_session: @chat) })
@@ -407,7 +407,7 @@ class ChatTurnJob < ApplicationJob
   # First non-nil wins and replaces the user's text for this turn. Nearly every
   # message is claimed by nobody, which is the fast path.
   def plugin_turn_orientation(user_note:)
-    Syrus::PluginRegistry.providers_for(:chat_turn_orientation).each do |provider|
+    Syrus::Plugin::ChatIntegration.contributions(:turn_orientations).each do |provider|
       text = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
         extension_point: :chat_turn_orientation, provider:, operation: :chat_turn_orientation, on_decline: nil
       ) do

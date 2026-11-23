@@ -732,8 +732,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       issue_job = Factories.job(user: admin, repository: repo_a, issue_number: 126, proposer: nil)
       job_124.update!(proposer: human)
       job_125.update!(proposer: coworker)
-      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mentionable).and_return([ Coworkers::MentionableProvider ])
+      allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:mentionables).and_return([ Coworkers::MentionableProvider ])
 
       get "/api/v1/admin/jobs", params: { repo: "acme/widgets" }, headers: auth(admin_token)
       rows = parse_body.fetch("jobs").index_by { |row| row.fetch("id") }

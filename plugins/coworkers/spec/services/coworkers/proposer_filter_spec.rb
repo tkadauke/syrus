@@ -14,8 +14,7 @@ RSpec.describe "Coworker proposer dashboard filtering" do
     Factories.job_record(user: owner, repository: repository)
     proposed_epic = Factories.epic(user: owner, repository: repository, proposer: coworker)
     Factories.epic(user: owner, repository: repository)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mentionable).and_return([ Coworkers::MentionableProvider ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:mentionables).and_return([ Coworkers::MentionableProvider ])
     tree = Filters::Ast.parse("field" => "proposer", "op" => "is", "value" => coworker.handle)
 
     jobs = Filters::Compiler.call(tree, scope: Job.where(repository: repository), user: owner, subject: :job)
