@@ -5254,6 +5254,21 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M74. Main through `65e908a8c0`
+
+A merge train for the plugin capability-family Epic. Toolkit extensions and
+APIs, chat integrations, UI surfaces, surface contributions, Review and Policy
+facets, service families, and Lifecycle and DataPolicy hooks all move onto
+the family machinery, and the legacy Review and Policy bridge is removed.
+*Relied-on invariant:* every contribution a plugin made before is still
+registered and dispatched after, and a failing family dispatch stays isolated
+to its plugin. Checked: `formal/mirrors.yml` still matches every mirrored
+method, `bin/check-plugin-boundaries` is clean, and the specs that read the
+registry through this branch's models pass. That covers formal, architecture,
+chat MCP tools, coworkers (F108's registered pending actions), pending
+actions, simulations and the lock order: 2,963 examples, 0 failures. Main's
+`e785d9e7cd` tests the isolation itself.
+
 ## M73. Main through `0cf53b1982`
 
 - **"Find Claude sessions under the cwd Claude Code actually reports"**
@@ -7147,7 +7162,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `0cf53b1982`. Each loop iteration continues from there:
+Checked through main `65e908a8c0`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
