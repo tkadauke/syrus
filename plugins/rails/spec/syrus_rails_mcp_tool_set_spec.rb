@@ -39,7 +39,7 @@ RSpec.describe SyrusRails::McpToolSet do
       ws = Pathname.new(dir)
       run_dbl = instance_double(Run, workflow: instance_double(Workflow))
       allow(WorkflowWorkspace).to receive(:path_for).and_return(ws)
-      allow(SyrusMcp).to receive(:run_from_context).and_return(run_dbl)
+      allow(Syrus::Host::McpTools).to receive(:run_from_context).and_return(run_dbl)
       yield({ run_id: 1 }, ws, run_dbl)
     end
   end
