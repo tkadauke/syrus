@@ -1,4 +1,4 @@
-module Mail
+module SyrusMail
   class PermissionProvider
     include Syrus::Plugin::PermissionProvider
     ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT, AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].freeze
@@ -23,7 +23,11 @@ module Mail
         authority_durations: %i[invocation chat_session job permanent], resource_scope: :connected_account,
         classifier: ->(_arguments) { { operation:, effects: %i[network_read confidential_read credential_use], risk: :medium, confidence: :certain } },
         fingerprint_normalizer: ->(arguments) { arguments.to_h.stringify_keys.slice("account_id", "acting_mode", "query", "message_id", "limit") },
-        redactor: ->(arguments) { arguments.to_h.stringify_keys.merge("query" => "[REDACTED]", "provenance" => "external_untrusted") }
+        redactor: ->(arguments) do
+          redacted = arguments.to_h.stringify_keys
+          redacted["query"] = "[REDACTED]" if redacted.key?("query")
+          redacted.merge("provenance" => "external_untrusted")
+        end
     end
   end
 end
