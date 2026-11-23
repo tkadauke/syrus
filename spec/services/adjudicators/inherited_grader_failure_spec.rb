@@ -21,7 +21,7 @@ RSpec.describe Adjudicators::InheritedGraderFailure do
   end
 
   it "dismisses a grader that was already failing on the base" do
-    allow(MainBranchFailureClassifier).to receive(:call)
+    allow(RepairClassifiers).to receive(:classify)
       .and_return(classifier_result(inherited: true, inherited_names: [ "rspec" ]))
 
     verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: step)
@@ -32,7 +32,7 @@ RSpec.describe Adjudicators::InheritedGraderFailure do
   end
 
   it "declines when the failure is new on this branch" do
-    allow(MainBranchFailureClassifier).to receive(:call)
+    allow(RepairClassifiers).to receive(:classify)
       .and_return(classifier_result(inherited: false, new_names: [ "rspec" ]))
 
     expect(described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: step))
