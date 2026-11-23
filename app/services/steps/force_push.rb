@@ -96,7 +96,7 @@ module Steps
     # SHA is merely a cache miss (re-grade), never an unsafe merge.
     def carry_forward_landing_validation!
       return unless repository.trust_clean_rebase_grade?
-      return unless clean_auto_rebase?
+      return record_agentic_rebase_touched_files! unless clean_auto_rebase?
 
       grader_fingerprint = current_landing_grader_fingerprint
       changed_files_fingerprint = current_changed_files_fingerprint
@@ -134,6 +134,41 @@ module Steps
       log("force_push: carried green grade across clean rebase (#{repository.slug}: trust_clean_rebase_grade, #{source.reason}); next landing will skip re-grading head #{head_sha.first(7)}")
     rescue StandardError => e
       Rails.logger.warn("[ForcePush] carry-forward landing validation failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
+      nil
+    end
+
+    # The rebase needed the agent. Record which files its resolution changed
+    # compared with the mechanical rebase so the landing grade that follows can
+    # re-run only the graders those files reach (LandingAgenticRebase) instead
+    # of everything. Best-effort: with nothing recorded, landing re-validates
+    # in full, exactly as it does without trust_clean_rebase_grade.
+    def record_agentic_rebase_touched_files!
+      result = workflow.artifact("auto_rebase_result")
+      return unless result.is_a?(Hash) && result["succeeded"] == false && result["reason"] == "conflict"
+
+      pre_head_sha = result["pre_sha"].to_s.presence
+      base_sha = result["base_sha"].to_s.presence
+      return if pre_head_sha.blank? || base_sha.blank?
+
+      chdir = workspace.path.to_s
+      touched = LandingAgenticRebase.touched_files(git: streaming_git, chdir: chdir, base_sha: base_sha, pre_head_sha: pre_head_sha)
+      if touched.nil?
+        log("force_push: could not determine which files the agent's rebase resolution touched; landing will re-validate in full", kind: "system")
+        return
+      end
+
+      head_sha = streaming_git.run("rev-parse", "HEAD", chdir: chdir).strip
+      LandingAgenticRebase.record!(
+        workflow: workflow,
+        head_sha: head_sha,
+        base_sha: base_sha,
+        base_ref: job.mergeability_base_ref.presence,
+        pre_head_sha: pre_head_sha,
+        touched_files: touched
+      )
+      log("force_push: agentic rebase touched #{touched.size} file(s) beyond the mechanical rebase; landing will re-run only graders covering them")
+    rescue StandardError => e
+      Rails.logger.warn("[ForcePush] recording agentic rebase touched files failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
       nil
     end
 
