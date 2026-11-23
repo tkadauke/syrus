@@ -1,6 +1,6 @@
 module ConnectedAccounts
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ACTING_MODES = %w[as_self as_service as_owner].freeze
 

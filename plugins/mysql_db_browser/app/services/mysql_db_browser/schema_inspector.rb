@@ -119,7 +119,7 @@ module MysqlDbBrowser
     end
 
     def credential_context
-      context || McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
+      context || Syrus::Host::ToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user)
     end
 
     def query(client, sql)
@@ -136,7 +136,7 @@ module MysqlDbBrowser
     end
 
     def audit_user
-      context&.user || Current.user
+      context&.user || Syrus::Host::Current.user
     end
 
     def elapsed_ms(started_at)

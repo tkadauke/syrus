@@ -1,7 +1,7 @@
 module K8sCluster
   # Per-cluster authorization for agent-issued (workflow/chat MCP tool)
   # access, mirroring MysqlDbBrowser::AgenticAccess - both delegate their
-  # gating logic to the shared Syrus::Plugin::AgenticConnection concern. Every
+  # gating logic to the shared Syrus::Host::AgenticConnection concern. Every
   # agentic tool call names a KubernetesCluster id in its params, and this is
   # the single place that resolves it and enforces that cluster's own
   # `agentic_access_enabled` flag before any tool touches the external
@@ -11,7 +11,7 @@ module K8sCluster
   # this from inside its own #call, mirroring
   # Mcp::Tools::AuthorizationSupport's find_*! pattern for first-party tools.
   class AgenticAccess
-    extend Syrus::Plugin::AgenticConnection
+    extend Syrus::Host::AgenticConnection
 
     class ClusterNotFound < StandardError; end
     class AccessDisabled < StandardError; end

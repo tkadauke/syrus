@@ -66,6 +66,19 @@ Supported members:
 - `oversized_event_handler`
 - `silent_timeout_seconds`
 
+### `Syrus::Host::AgenticConnection`
+
+Since: `0.1.16`
+
+Shared agentic-access gating for plugin-owned connection records; connection storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `agentic_credential_usable_by?`
+- `find_agentic!`
+- `find_agentic_with_write_access!`
+- `require_write_access!`
+
 ### `Syrus::Host::AppAdminController`
 
 Since: `0.1.16`
@@ -218,6 +231,208 @@ Supported members:
 - `table`
 - `text`
 
+### `Syrus::Host::ContentBlob`
+
+Since: `0.1.16`
+
+File-content value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `bytes`
+- `content_id`
+- `new`
+- `path`
+- `size`
+- `truncated`
+
+### `Syrus::Host::ContentChange`
+
+Since: `0.1.16`
+
+Changed-file value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `additions`
+- `deletions`
+- `new`
+- `patch`
+- `patch_bytes`
+- `patch_status`
+- `path`
+- `previous_path`
+- `status`
+
+### `Syrus::Host::ContentCommit`
+
+Since: `0.1.16`
+
+Commit value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `authored_at`
+- `message`
+- `new`
+- `sha`
+
+### `Syrus::Host::ContentCommitHistory`
+
+Since: `0.1.16`
+
+Commit-range value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `commits`
+- `merge_base_id`
+- `new`
+
+### `Syrus::Host::ContentDivergence`
+
+Since: `0.1.16`
+
+Ahead/behind counts returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `ahead`
+- `behind`
+- `new`
+
+### `Syrus::Host::ContentEntry`
+
+Since: `0.1.16`
+
+Tree-entry value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `content_id`
+- `new`
+- `path`
+- `size`
+- `type`
+
+### `Syrus::Host::ContentError`
+
+Since: `0.1.16`
+
+Base error for repository-content failures; providers raise its subclasses. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentNotFound`
+
+Since: `0.1.16`
+
+A final answer that the requested path does not exist at the revision. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentRef`
+
+Since: `0.1.16`
+
+Named ref (tag or branch) value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `name`
+- `new`
+- `observed_at`
+- `revision_id`
+
+### `Syrus::Host::ContentRevision`
+
+Since: `0.1.16`
+
+Immutable repository revision value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `id`
+- `new`
+- `observed_at`
+- `ref`
+
+### `Syrus::Host::ContentSource`
+
+Since: `0.1.16`
+
+Describes where a repository-content provider answered from; cache internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `expires_at`
+- `new`
+- `password`
+- `url`
+- `username`
+- `vcs`
+
+### `Syrus::Host::ContentTooLarge`
+
+Since: `0.1.16`
+
+The requested content exceeds what the provider will return. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentTruncated`
+
+Since: `0.1.16`
+
+Carries a partial answer that only display code may use. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentUnavailable`
+
+Since: `0.1.16`
+
+The provider cannot answer right now; callers fall through to the next provider and must not treat it as missing. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentUnknownRevision`
+
+Since: `0.1.16`
+
+The provider does not know the requested revision; callers fall through to the next provider. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentUnsupported`
+
+Since: `0.1.16`
+
+The provider does not support the requested operation; callers fall through to the next provider. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
 ### `Syrus::Host::CoverageParseResult`
 
 Since: `0.1.16`
@@ -289,6 +504,26 @@ Supported members:
 - `new`
 - `span_labels`
 - `version_file`
+
+### `Syrus::Host::ExecutionBackend`
+
+Since: `0.1.16`
+
+Marks a class as an alternate execution backend plugins may provide; request routing and fail-closed policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+
+### `Syrus::Host::ExecutionBackendBase`
+
+Since: `0.1.16`
+
+Bases an alternate execution backend; request routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `run`
 
 ### `Syrus::Host::ExternalReviewArtifact`
 
@@ -371,6 +606,26 @@ Supported members:
 - `provider_key`
 - `refresh`
 - `submit`
+
+### `Syrus::Host::GatedToolSet`
+
+Since: `0.1.16`
+
+Bases tool sets exposed only when agentic access is enabled; gating internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `available_for_context?`
+- `available_for_coworker?`
+- `coworker_discovery_state`
+- `coworker_grant`
+- `coworker_grants`
+- `find_tool_class`
+- `gated?`
+- `gated_by`
+- `tool_classes`
+- `tool_definitions`
 
 ### `Syrus::Host::GitRunner`
 
@@ -460,6 +715,12 @@ Supported members:
 - `timeout_minutes`
 - `when_files_changed`
 
+### `Syrus::Host::InputSource`
+
+Since: `0.1.16`
+
+Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -501,6 +762,17 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::LocalExecution`
+
+Since: `0.1.16`
+
+The default local execution backend an alternate backend may delegate to. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `run`
+
 ### `Syrus::Host::McpTools`
 
 Since: `0.1.16`
@@ -512,6 +784,8 @@ Supported members:
 - `invalid`
 - `run_from_context`
 - `success`
+- `truncate_text`
+- `unauthorized`
 - `utf8`
 - `with_database_connection`
 - `write_log`
@@ -564,6 +838,19 @@ Supported members:
 - `register_resource_scope`
 - `retire_permission_identifier`
 
+### `Syrus::Host::PlatformDelivery`
+
+Since: `0.1.16`
+
+Defines outbound chat-platform delivery plugins may provide; routing and retry policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `connector_job_class`
+- `deliver`
+- `platform_config_class`
+- `platform_key`
+
 ### `Syrus::Host::PluginApi`
 
 Since: `0.1.16`
@@ -614,8 +901,20 @@ Supported members:
 - `forwarded_env`
 - `mounts`
 - `new`
+- `probe_mounts`
 - `run`
 - `start`
+
+### `Syrus::Host::PurgeContributor`
+
+Since: `0.1.16`
+
+Lets a plugin remove its own external resources when it is purged; purge ordering is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `purge!`
+- `purge_report`
 
 ### `Syrus::Host::Record`
 
@@ -685,6 +984,121 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::SourceControlProvider`
+
+Since: `0.1.16`
+
+Defines the source-control operations a git-host plugin supplies; callers and orchestration are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `client_for`
+- `display_name`
+- `provider_key`
+
+### `Syrus::Host::SpeechToTextBase`
+
+Since: `0.1.16`
+
+Bases speech-to-text providers; provider selection is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::SpeechToTextError`
+
+Since: `0.1.16`
+
+Base error for transcription failures. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::SpeechToTextInvalidAudio`
+
+Since: `0.1.16`
+
+Raised when audio cannot be transcribed because it is invalid. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::SpeechToTextProvider`
+
+Since: `0.1.16`
+
+Marks a class as a speech-to-text provider plugins may contribute; provider selection is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available?`
+- `build`
+- `display_name`
+- `provider_key`
+
+### `Syrus::Host::SpeechToTextResult`
+
+Since: `0.1.16`
+
+A completed transcription result. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::SpeechToTextStreamingDelta`
+
+Since: `0.1.16`
+
+One incremental streaming transcription update. Only the listed members are supported.
+
+Supported members:
+
+- `final`
+- `new`
+- `text`
+
+### `Syrus::Host::SpeechToTextTelemetry`
+
+Since: `0.1.16`
+
+Shared transcription telemetry helpers; log fields may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `duration_ms`
+- `log`
+- `monotonic_time`
+- `safe_error`
+
+### `Syrus::Host::SpeechToTextTimeout`
+
+Since: `0.1.16`
+
+Raised when transcription times out. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::SpeechToTextUnavailable`
+
+Since: `0.1.16`
+
+Raised when a transcription backend is unavailable. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::SystemAlert`
 
@@ -774,6 +1188,16 @@ Supported members:
 - `jobs`
 - `repositories`
 
+### `Syrus::Host::WorkerCapabilityProbe`
+
+Since: `0.1.16`
+
+Lets a plugin advertise worker capabilities; capability routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `capability_probes`
+
 ### `Syrus::Host::Workflow`
 
 Since: `0.1.16`
@@ -788,6 +1212,16 @@ Supported members:
 - `runs`
 - `state`
 
+### `Syrus::Host::WorkflowArtifactContributor`
+
+Since: `0.1.16`
+
+Lets a plugin contribute workflow artifacts; artifact storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_job`
+
 ### `Syrus::Host::WorkflowWorkspace`
 
 Since: `0.1.16`
@@ -801,6 +1235,20 @@ Supported members:
 - `data_root`
 - `new`
 - `path_for`
+
+### `Syrus::Host::WorkspaceGitTransport`
+
+Since: `0.1.16`
+
+Defines how a plugin supplies git transport for a workflow workspace; clone orchestration is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `build`
+- `env`
+- `register!`
+- `url`
 
 ## Legacy compatibility APIs
 
@@ -882,14 +1330,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatSessionLifecycle`
 - `ChatSessionRehydrator`
 - `ChatSessions::Creator`
-- `ChatSpeechToText::Providers::Base`
-- `ChatSpeechToText::Providers::InvalidAudio`
-- `ChatSpeechToText::Providers::StreamingDelta`
-- `ChatSpeechToText::Providers::TranscriptionError`
-- `ChatSpeechToText::Providers::TranscriptionResult`
-- `ChatSpeechToText::Providers::TranscriptionTimeout`
-- `ChatSpeechToText::Providers::TranscriptionUnavailable`
-- `ChatSpeechToText::Telemetry`
 - `ChatSpendEntry`
 - `ChatTurnJob`
 - `ChatWakeup`
@@ -916,9 +1356,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Epic::SUCCESSFUL_JOB_CLOSURE_REASONS`
 - `EpicMarkerParser`
 - `Epics::Filter`
-- `Execution::Backend`
 - `Execution::ChatWorkloadPolicy`
-- `Execution::Local`
 - `Feature`
 - `Filters::Ast`
 - `Filters::Ast::AndNode`
@@ -1091,18 +1529,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Repository`
 - `RepositoryBareClone`
 - `RepositoryContent`
-- `RepositoryContent::Blob`
-- `RepositoryContent::Change`
-- `RepositoryContent::Commit`
-- `RepositoryContent::CommitHistory`
-- `RepositoryContent::Divergence`
-- `RepositoryContent::Entry`
 - `RepositoryContent::Error`
 - `RepositoryContent::NotFound`
-- `RepositoryContent::Ref`
-- `RepositoryContent::Revision`
-- `RepositoryContent::Source`
-- `RepositoryContent::TooLarge`
 - `RepositoryContent::Truncated`
 - `RepositoryContent::Unavailable`
 - `RepositoryContent::UnknownRevision`
@@ -1161,7 +1589,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::PathJail::PathEscape`
 - `Syrus::Plugin::AdminPage`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
-- `Syrus::Plugin::AgenticConnection`
 - `Syrus::Plugin::Callbacks`
 - `Syrus::Plugin::ChatIdentityProvider`
 - `Syrus::Plugin::ChatJobStatusExtension`
@@ -1178,7 +1605,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::DiffReviewAnnotationProvider`
 - `Syrus::Plugin::DomainSubscriber`
 - `Syrus::Plugin::ExecutionBackend`
-- `Syrus::Plugin::GatedToolSet`
 - `Syrus::Plugin::GraderFailureSummarizer`
 - `Syrus::Plugin::InputSource`
 - `Syrus::Plugin::JobOrigin`
@@ -1193,7 +1619,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::PurgeContributor`
 - `Syrus::Plugin::RepoPageTab`
 - `Syrus::Plugin::RepositoryConfiguration`
-- `Syrus::Plugin::RepositoryContentProvider`
 - `Syrus::Plugin::RepositoryFilter`
 - `Syrus::Plugin::RepositoryRecommendation`
 - `Syrus::Plugin::RetentionPolicy`

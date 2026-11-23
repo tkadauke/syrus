@@ -48,7 +48,7 @@ module K8sCluster
 
     class << self
       def call(server_context:, credential: nil, args: nil, kube_context: nil, cluster: nil, namespace: nil, allow_risky_command: false, allow_secret_output: false)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         payload = Kubectl.call(
           context: context,
           credential: credential,
@@ -61,7 +61,7 @@ module K8sCluster
         )
         MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ], error: !payload.fetch(:ok))
       rescue CredentialStore::Broker::Error, Kubectl::Error => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

@@ -24,7 +24,7 @@ module AdminMysql
       requested = Array(sections).map(&:to_s) & SECTIONS
       requested = SECTIONS if requested.empty?
 
-      PerformanceLogging.suppress do
+      Syrus::Host::PerformanceLogging.suppress do
         payload = {
           available: true,
           generated_at: Time.current.iso8601
@@ -47,7 +47,7 @@ module AdminMysql
       require_mysql!
       thread_id = normalize_thread_id(thread_id)
 
-      row = PerformanceLogging.suppress do
+      row = Syrus::Host::PerformanceLogging.suppress do
         select_all("SHOW FULL PROCESSLIST").find { |candidate| candidate["Id"].to_i == thread_id }
       end
       normalize_process(row).merge(statement_verifier: statement_verifier(row["Info"])) if row
@@ -70,7 +70,7 @@ module AdminMysql
         end
       end
 
-      PerformanceLogging.suppress do
+      Syrus::Host::PerformanceLogging.suppress do
         connection.execute("KILL QUERY #{thread_id}")
       end
 

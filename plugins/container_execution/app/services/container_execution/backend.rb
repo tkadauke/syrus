@@ -1,5 +1,5 @@
 module ContainerExecution
-  class Backend < Execution::Backend
+  class Backend < Syrus::Host::ExecutionBackendBase
     include Syrus::Plugin::ExecutionBackend
 
     MCP_SOCKET_CONTAINER_PATH = "/run/syrus/mcp.sock".freeze
@@ -20,7 +20,7 @@ module ContainerExecution
     def run(request)
       validate_request!(request)
       policy = WorkloadPolicy::Base.resolve(request)
-      ProcessRunner.new(
+      Syrus::Host::ProcessRunner.new(
         env: policy.process_env,
         command: docker_command(request),
         mounts: request.mounts,
@@ -47,7 +47,7 @@ module ContainerExecution
         agent: request.agent,
         display_command: request.display_command || request.command.join(" "),
         on_spawned_process: request.on_spawned_process,
-        backend: Execution::Local.new
+        backend: Syrus::Host::LocalExecution.new
       ).run
     end
 

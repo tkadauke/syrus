@@ -66,7 +66,7 @@ module ConnectedAccounts
     def inferred_context(account)
       return account.context if account.respond_to?(:context)
 
-      McpToolContext.new(surface: :api, role: nil, user: Current.user)
+      Syrus::Host::ToolContext.new(surface: :api, role: nil, user: Syrus::Host::Current.user)
     end
 
     def resolve_account!

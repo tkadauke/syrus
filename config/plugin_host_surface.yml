@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 451
+legacy_baseline: 428
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -77,14 +77,6 @@ constants:
 - name: ChatSessionLifecycle
 - name: ChatSessionRehydrator
 - name: ChatSessions::Creator
-- name: ChatSpeechToText::Providers::Base
-- name: ChatSpeechToText::Providers::InvalidAudio
-- name: ChatSpeechToText::Providers::StreamingDelta
-- name: ChatSpeechToText::Providers::TranscriptionError
-- name: ChatSpeechToText::Providers::TranscriptionResult
-- name: ChatSpeechToText::Providers::TranscriptionTimeout
-- name: ChatSpeechToText::Providers::TranscriptionUnavailable
-- name: ChatSpeechToText::Telemetry
 - name: ChatSpendEntry
 - name: ChatTurnJob
 - name: ChatWakeup
@@ -111,9 +103,7 @@ constants:
 - name: Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
 - name: EpicMarkerParser
 - name: Epics::Filter
-- name: Execution::Backend
 - name: Execution::ChatWorkloadPolicy
-- name: Execution::Local
 - name: Feature
 - name: Filters::Ast
 - name: Filters::Ast::AndNode
@@ -286,18 +276,8 @@ constants:
 - name: Repository
 - name: RepositoryBareClone
 - name: RepositoryContent
-- name: RepositoryContent::Blob
-- name: RepositoryContent::Change
-- name: RepositoryContent::Commit
-- name: RepositoryContent::CommitHistory
-- name: RepositoryContent::Divergence
-- name: RepositoryContent::Entry
 - name: RepositoryContent::Error
 - name: RepositoryContent::NotFound
-- name: RepositoryContent::Ref
-- name: RepositoryContent::Revision
-- name: RepositoryContent::Source
-- name: RepositoryContent::TooLarge
 - name: RepositoryContent::Truncated
 - name: RepositoryContent::Unavailable
 - name: RepositoryContent::UnknownRevision
@@ -356,7 +336,6 @@ constants:
 - name: Syrus::PathJail::PathEscape
 - name: Syrus::Plugin::AdminPage
 - name: Syrus::Plugin::AgentProvider::ModelInfo
-- name: Syrus::Plugin::AgenticConnection
 - name: Syrus::Plugin::Callbacks
 - name: Syrus::Plugin::ChatIdentityProvider
 - name: Syrus::Plugin::ChatJobStatusExtension
@@ -373,7 +352,6 @@ constants:
 - name: Syrus::Plugin::DiffReviewAnnotationProvider
 - name: Syrus::Plugin::DomainSubscriber
 - name: Syrus::Plugin::ExecutionBackend
-- name: Syrus::Plugin::GatedToolSet
 - name: Syrus::Plugin::GraderFailureSummarizer
 - name: Syrus::Plugin::InputSource
 - name: Syrus::Plugin::JobOrigin
@@ -388,7 +366,6 @@ constants:
 - name: Syrus::Plugin::PurgeContributor
 - name: Syrus::Plugin::RepoPageTab
 - name: Syrus::Plugin::RepositoryConfiguration
-- name: Syrus::Plugin::RepositoryContentProvider
 - name: Syrus::Plugin::RepositoryFilter
 - name: Syrus::Plugin::RepositoryRecommendation
 - name: Syrus::Plugin::RetentionPolicy

@@ -5,7 +5,7 @@ module MysqlDbBrowser
     if server_context[:chat_session]
       server_context[:chat_session].user
     else
-      Mcp::Tools.run_from_context(server_context).job.user
+      Syrus::Host::McpTools.run_from_context(server_context).job.user
     end
   end
 

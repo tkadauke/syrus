@@ -1,5 +1,5 @@
 module Api::V1::App::ConnectedAccounts
-  class ProviderConfigsController < Api::V1::App::Admin::BaseController
+  class ProviderConfigsController < Syrus::Host::AppAdminController
     def show
       render json: { provider_config: serialized(provider_config) }
     end

@@ -25,7 +25,7 @@ module CredentialStore
       def find(name) = consumers[name.to_s]
 
       def consumers
-        plugin_consumers = Syrus::PluginRegistry.credential_types.filter_map do |declaration|
+        plugin_consumers = Syrus::Host::PluginRegistry.credential_types.filter_map do |declaration|
           consumer = declaration["typed_consumer"]
           next unless consumer
 
@@ -43,7 +43,7 @@ module CredentialStore
       end
 
       def plugin_managed_type?(credential_type)
-        owner = Syrus::PluginRegistry.credential_type_owner(credential_type)
+        owner = Syrus::Host::PluginRegistry.credential_type_owner(credential_type)
         owner.present? && owner != "credential_store"
       end
 
