@@ -22,7 +22,12 @@ revoke them at the platform; reset the token with the platform (Discord
 developer portal, @BotFather) when it should stop working everywhere.
 Instances that already had a token configured as an application setting have
 it carried over automatically, and the plugins (with their dependencies) are
-enabled on upgrade, so existing setups keep working.
+enabled on upgrade, so existing setups keep working. Because they now rely on
+the experimental Connected accounts plugin, both platform plugins are
+experimental and need **beta mode** to be active; the upgrade turns beta mode
+on for instances that already run Telegram or Discord (beta mode enables no
+plugin by itself). New instances must enable beta mode before enabling either
+platform.
 
 Gateway, polling, watchdog, and identity internals live in [external-platform
 architecture](../../docs/engineering/architecture/external-platforms.md).

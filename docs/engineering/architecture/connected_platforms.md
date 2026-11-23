@@ -23,8 +23,11 @@ account is connected (`Telegram::BotAccess.configured?`); the handle in the
 linking instructions is resolved from Telegram (`getMe`). Instances that had a
 Telegram bot token configured before the extraction have the plugin enabled
 automatically by migration, and a later migration enables its dependencies
-(`connected_accounts`, `credential_store`) for any instance running either
-platform plugin.
+(`connected_accounts`, `credential_store`) and beta mode for any instance
+running either platform plugin. Telegram is experimental for that reason: a
+stable plugin may not hard-depend on an experimental one
+(`spec/architecture/stable_plugin_dependencies_spec.rb`), and an experimental
+plugin is only active while beta mode is on.
 Slack is listed as a supported platform but disabled until its integration is
 configured. Discord is provided by the `discord` plugin (`plugins/discord/`)
 through the `:platform_delivery` extension point; it appears in the list once

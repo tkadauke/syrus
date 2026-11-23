@@ -21,6 +21,15 @@ RSpec.describe EnableConnectedAccountsForBotTokenPlugins do
       expect(enabled?("credential_store")).to be(true)
       expect(enabled?("connected_accounts")).to be(true)
     end
+
+    it "turns beta mode on so the experimental #{platform} stack stays active" do
+      PluginRecord.find_by!(name: platform).update!(enabled: true)
+      AppSetting.current.update_column(:beta_mode_enabled, false)
+
+      run_up
+
+      expect(AppSetting.current.reload.beta_mode_enabled).to be(true)
+    end
   end
 
   it "leaves an instance running neither platform alone" do
@@ -28,6 +37,14 @@ RSpec.describe EnableConnectedAccountsForBotTokenPlugins do
 
     expect(enabled?("credential_store")).to be(false)
     expect(enabled?("connected_accounts")).to be(false)
+  end
+
+  it "leaves beta mode alone on an instance running neither platform" do
+    AppSetting.current.update_column(:beta_mode_enabled, false)
+
+    run_up
+
+    expect(AppSetting.current.reload.beta_mode_enabled).to be(false)
   end
 
   it "is idempotent" do

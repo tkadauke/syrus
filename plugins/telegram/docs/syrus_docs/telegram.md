@@ -8,7 +8,10 @@ disabled by default (`default_enabled: false`, `disableable: true`, category
 `platform_delivery`). Instances that already had a Telegram bot token when
 Telegram moved out of core have the plugin (and the Connected accounts plugin it
 now depends on) enabled automatically on upgrade, so existing setups keep
-working with no action.
+working with no action. The plugin is experimental because it relies on the
+experimental Connected accounts plugin: it is only active while **beta mode** is
+on, and the upgrade turns beta mode on for instances that already run Telegram
+or Discord.
 
 ## Configuration
 

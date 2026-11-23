@@ -860,7 +860,9 @@ credentials, so reset them at the platform (Discord developer portal,
 @BotFather) when they should stop working everywhere. Tokens previously stored
 in the Telegram or Discord admin settings are carried over automatically after
 upgrade, verified, and then erased from the old setting; if the copy fails,
-the old value keeps working until it succeeds.
+the old value keeps working until it succeeds. Both platform plugins rely on
+this experimental plugin, so they require beta mode; the upgrade turns it on for
+instances that already run Telegram or Discord.
 
 The bundled, experimental Google Workspace provider is disabled by default.
 Each instance registers its own Google OAuth web client, then saves its client
