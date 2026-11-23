@@ -5,16 +5,17 @@ RSpec.describe "Google Workspace provider configuration", type: :request do
   let(:manifest) { Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "google_workspace" } }
   let(:declaration) do
     ConnectedAccounts::ProviderDeclaration.build(plugin_name: manifest.name,
-      attributes: manifest.provides.fetch("connected_accounts:provider"))
+      attributes: manifest.provides.fetch("connected_accounts:provider").sole)
   end
 
   before do
     PluginRecord.find_by!(name: "connected_accounts").update!(enabled: true)
-    allow(ConnectedAccounts::ProviderRegistry).to receive(:all).and_return([ declaration ])
     sign_in_as(admin)
   end
 
   it "pins Google configuration while accepting an encrypted client secret" do
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:all).and_return([ declaration ])
+
     patch "/api/v1/app/admin/connected_accounts/provider_configs/google_workspace", params: {
       provider_config: { client_id: "google-client", client_secret: "google-secret",
         authorize_url: "https://attacker.example/authorize", scope_catalog: [ "calendar.write" ] }
@@ -27,5 +28,18 @@ RSpec.describe "Google Workspace provider configuration", type: :request do
       authorize_url: "https://accounts.google.com/o/oauth2/v2/auth")
     expect(config.scope_catalog).to eq([ "calendar.read" ])
     expect(response.body).not_to include("google-secret")
+  end
+
+  it "lists Google through the hosted provider registry" do
+    AppSetting.current.update!(beta_mode_enabled: true)
+    PluginRecord.find_by!(name: "personal_calendar").update!(enabled: true)
+    PluginRecord.find_by!(name: "google_workspace").update!(enabled: true)
+
+    get "/api/v1/app/admin/connected_accounts/provider_configs"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("providers")).to include(include(
+      "provider_key" => "google_workspace", "plugin_name" => "google_workspace", "managed_settings" => true
+    ))
   end
 end
