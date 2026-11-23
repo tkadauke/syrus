@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-11-15._
+_Last reviewed: 2026-11-22._
 
 This is the canonical system-wide overview and routing map. It explains how
 Syrus fits together; focused engineering documents own subsystem detail.
@@ -133,6 +133,21 @@ cleanly. Core-facing authorization, chat, identity, review, and UI contracts
 use generic provider interfaces; plugin-specific records and evidence remain
 opaque to core.
 
+Capability families group related extension points behind typed contexts and
+declared composition rules (`collect`, `broadcast`, `first_claim`, or `keyed`).
+Their contracts define provider availability, decline behavior, and return
+shapes; dispatch withholds contributions from disabled or unhealthy plugins.
+Stable capabilities require independent implementations and generated contract
+tests, while provisional capabilities can evolve without pretending to be a
+settled host API.
+
+External plugins cross a separate supply-chain boundary. Registries publish
+versioned, deterministic packages and registry-scoped trust metadata. Syrus
+verifies package identity, digest, publisher signature, namespace ownership,
+compatibility, and revocation before staging an install. The durable lockfile
+and desired state drive convergence and restart rather than loading an
+unverified download directly into the running process.
+
 The React application consumes Rails JSON APIs and live events. Rails owns SPA
 shell routes; React owns client routing and feature surfaces. Shared primitives
 cover filters, tables, Markdown, modals, and chat tool cards. The Go CLI and
@@ -141,6 +156,20 @@ Electron shell are separate clients of the same authenticated API.
 Read [Plugins](docs/engineering/architecture/plugins.md),
 [Frontend surfaces](docs/engineering/architecture/frontend.md), and the
 [frontend and plugin map](docs/engineering/maps/frontend-and-plugins.md).
+
+## Verification boundary
+
+Rails models, services, schema, and tests remain the executable source of
+truth. A separate Lean 4 model under `formal/` specifies selected WorkIntent,
+WorkUnit, Workflow, Step, Run, lock, dependency, review-barrier, and reconciler
+invariants. Lean proofs check preservation and repair properties, while a
+versioned JSON contract corpus and executable oracle are compared with Ruby
+simulation scenarios and generated worlds. This is a verification and drift
+detection layer, not a runtime scheduler or a replacement for the Rails state
+machines.
+
+Read the [formal model guide](formal/README.md) and
+[Domain model and work engine](docs/engineering/architecture/domain-model-and-work-engine.md).
 
 ## Operations and recovery
 
