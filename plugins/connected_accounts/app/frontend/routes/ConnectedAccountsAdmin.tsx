@@ -15,6 +15,13 @@ type ProviderConfig = Config & {
 type ConfigPayload = { provider_config: ProviderConfig }
 type ConfigsPayload = { providers: ProviderConfig[] }
 
+export function ProviderSettingsNotice({ notice, i18nKey }: { notice: string; i18nKey?: string | null }) {
+  const namespace = i18nKey?.split(":", 1)[0] || "connected_accounts"
+  const { t } = useT(namespace)
+
+  return <Notice>{i18nKey ? t(i18nKey, { defaultValue: notice }) : notice}</Notice>
+}
+
 export default function ConnectedAccountsAdmin() {
   const { t } = useT("connected_accounts")
   const [draft, setDraft] = useState<Record<string, string | boolean>>({})
@@ -53,9 +60,7 @@ export default function ConnectedAccountsAdmin() {
           </Select>
         </label>
         {current?.settings_notice && (
-          <Notice>{current.settings_notice_i18n_key
-            ? t(current.settings_notice_i18n_key, { defaultValue: current.settings_notice })
-            : current.settings_notice}</Notice>
+          <ProviderSettingsNotice notice={current.settings_notice} i18nKey={current.settings_notice_i18n_key} />
         )}
         {save.isSuccess && <Notice tone="success">{t("settings.saved")}</Notice>}
         {save.isError && <Notice tone="danger">{save.error.message || t("settings.save_failed")}</Notice>}
