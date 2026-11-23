@@ -40,6 +40,7 @@ RSpec.describe Workflows::CompositionAnchors, :reset_plugin_registry do
 
   before do
     Syrus::PluginRegistry.register(
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "workflow_composition_fixture",
       version: "1.0.0",
       provides: {
@@ -171,6 +172,7 @@ RSpec.describe Workflows::CompositionAnchors, :reset_plugin_registry do
       end
     end
     Syrus::PluginRegistry.register(
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "workflow_composition_later_fixture", version: "1.0.0",
       provides: { "workflow:post_implementation" => later }
     )

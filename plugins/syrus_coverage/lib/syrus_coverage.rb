@@ -12,6 +12,8 @@ module SyrusCoverage
   def self.root_project_id = ROOT_PROJECT_ID
 
   syrus_plugin "syrus_coverage" do
+    experimental false
+    requires_syrus nil
     display_name "Coverage"
     description "Coverage analysis for workflows: merges grader coverage reports, annotates the diff, " \
       "enforces thresholds, records trend snapshots, and comments the result on the pull request."
@@ -31,8 +33,22 @@ module SyrusCoverage
     # than the host's recurring.yml, so removing the plugin removes the schedule.
     tick_interval 1.day
     home_queue :cleanup
-    provides workflow_kinds: "SyrusCoverage::WorkflowKinds",
-             "workflow:post_implementation" => "SyrusCoverage::WorkflowPostImplementation",
+    workflow_kinds(
+      step_kinds: [
+        {
+          kind: "coverage_analyze", handler: "SyrusCoverage::AnalyzeStep",
+          label: "Analyze coverage", style: "bg-yellow-100 text-yellow-700", agentic: false,
+          repair_semantics: :deterministic_idempotent
+        },
+        {
+          kind: "coverage_pr_comment", handler: "SyrusCoverage::PrCommentStep",
+          label: "Post coverage comment", style: "bg-yellow-100 text-yellow-700", agentic: false,
+          fail_policy: :advance,
+          repair_semantics: :publication
+        }
+      ]
+    )
+    provides "workflow:post_implementation" => "SyrusCoverage::WorkflowPostImplementation",
              "workflow:post_pr" => "SyrusCoverage::WorkflowPostPr",
              repository_configuration: "SyrusCoverage::RepositoryConfiguration",
              mcp_tool_set: "SyrusCoverage::McpToolSet",

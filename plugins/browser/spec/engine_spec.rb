@@ -31,21 +31,18 @@ RSpec.describe SyrusBrowser::Engine do
   end
 
   it "owns visual review workflow kinds and the judge contribution" do
-    expect(Syrus::PluginRegistry.providers_for(:workflow_kinds)).to include(SyrusBrowser::WorkflowKinds)
     expect(Syrus::PluginRegistry.providers_with_owner_for("workflow:judge"))
       .to include([ "browser", SyrusBrowser::WorkflowJudge ])
     expect(Step::Kind.fetch("visual_review").handler_class).to eq(SyrusBrowser::VisualReviewStep)
   end
 
   it "owns visual review workflow kinds and the judge contribution" do
-    expect(Syrus::PluginRegistry.providers_for(:workflow_kinds)).to include(SyrusBrowser::WorkflowKinds)
     expect(Syrus::PluginRegistry.providers_with_owner_for("workflow:judge"))
       .to include([ "browser", SyrusBrowser::WorkflowJudge ])
     expect(Step::Kind.fetch("visual_review").handler_class).to eq(SyrusBrowser::VisualReviewStep)
   end
 
   it "owns visual review workflow kinds and the judge contribution" do
-    expect(Syrus::PluginRegistry.providers_for(:workflow_kinds)).to include(SyrusBrowser::WorkflowKinds)
     expect(Syrus::PluginRegistry.providers_with_owner_for("workflow:judge"))
       .to include([ "browser", SyrusBrowser::WorkflowJudge ])
     expect(Step::Kind.fetch("visual_review").handler_class).to eq(SyrusBrowser::VisualReviewStep)

@@ -2,7 +2,7 @@ module ReviewPlanning
   class PermissionProvider
     include Syrus::Plugin::PermissionProvider
 
-    ROLES = [ AgentRole::WORKFLOW_SUMMARY_TEST_PLAN ].freeze
+    ROLES = [ "workflow:summary_test_plan" ].freeze
     CAPABILITY = "review_planning.submit@v1"
     OPERATIONS = { "submit_review_plan" => "review_planning.submit/submit_review_plan@v1" }.freeze
 
