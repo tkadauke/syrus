@@ -19,7 +19,7 @@ RSpec.describe Ruby::MinitestGraderType do
     expect(steps.first.run).to include("RAILS_ENV=test bin/rails db:test:prepare")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.failures).to eq("allow_inherited")
-    expect(steps.first.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "full_command", command: nil))
+    expect(steps.first.base_retry).to eq(Syrus::Host::GraderBaseRetry.new(strategy: "full_command", command: nil))
     expect(steps.first.junit_output).to be_nil
     expect(steps.first.metadata).to include(
       "grader_type" => "minitest",
