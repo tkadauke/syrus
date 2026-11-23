@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::RunVisualDiffTool do
+RSpec.describe SyrusBrowser::Tools::RunVisualDiffTool do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

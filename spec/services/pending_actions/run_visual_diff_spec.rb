@@ -8,8 +8,8 @@ RSpec.describe PendingActions::RunVisualDiff do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   before do
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
     )
   end
 

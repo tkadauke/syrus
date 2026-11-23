@@ -248,7 +248,7 @@ module Steps
     # their chain at all — the diff was produced by a chat coding session
     # before this workflow started, and any repair happens through
     # `coding_handoff_fix`/`local_mode_handoff_fix` instead. Mirror
-    # Steps::VisualReview#latest_agentic_diff: only fall back to a fresh
+    # The visual-review step's latest-agentic-diff lookup only falls back to a fresh
     # `git diff` when the chain has no step of that kind at all; when one
     # exists but hasn't produced a diff yet, keep raising so a broken loop
     # iteration surfaces instead of silently reviewing stale state.
