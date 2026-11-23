@@ -1,0 +1,7 @@
+{
+  "plugin": {
+    "display_name": "Google Workspace",
+    "description": "Read Google Calendar through a connected Google account.",
+    "long_description": "Connect an instance-supplied Google OAuth client and expose read-only Google Calendar data through the Personal Calendar tools."
+  }
+}
