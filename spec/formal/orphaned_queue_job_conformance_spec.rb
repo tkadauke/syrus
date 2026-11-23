@@ -22,6 +22,9 @@ RSpec.describe "QueueExecution model conformance" do
 
     it "calls a job with #{set.empty? ? 'no execution row' : set.join(' and ')} #{example.fetch('orphaned') ? 'orphaned' : 'not orphaned'}" do
       snapshot = flags.to_h { |flag| [ flag.to_sym, example.fetch(flag) ] }
+      # The reconciler also waits out a grace period before calling a job
+      # orphaned; that is timing, not modeled, so present an old job.
+      snapshot[:created_at] = snapshot[:updated_at] = 1.day.ago
 
       expect(reconciler.send(:orphaned_queue_job?, snapshot)).to eq(example.fetch("orphaned"))
     end
