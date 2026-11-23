@@ -6,7 +6,7 @@ RSpec.describe "Connected account instance tokens", type: :request do
     ConnectedAccounts::ProviderDeclaration.build(plugin_name: "example_plugin", attributes: {
       provider: "ConnectedAccounts::FakeProvider", key: "token_example", display_name: "Token example",
       authorization_kind: "token", system_service_identities: [ "platform.delivery" ],
-      capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES + [ "system_invoke" ],
+      capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
       callback_route: "/unused", supports_read_only: false,
       scopes: [ { key: "messages.send", label: "Send messages", risk: "high", syrus_capabilities: [ "messages.send@v1" ] } ]
     })

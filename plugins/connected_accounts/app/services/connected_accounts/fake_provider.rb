@@ -39,9 +39,17 @@ module ConnectedAccounts
         { event_id: payload.fetch("id"), event_type: payload.fetch("type"), data: payload.fetch("data", {}) }
       end
 
-      def system_invoke(context)
-        { authorization: context.access.authorization_header, input: context.input }
+      def register_system_access(identity, binding)
+        system_access_bindings[identity.to_s] = binding
       end
+
+      def with_system_access(identity:, **options, &block)
+        AccountClient.with_system_access(service_binding: system_access_bindings.fetch(identity.to_s), **options, &block)
+      end
+
+      private
+
+      def system_access_bindings = (@system_access_bindings ||= {})
     end
   end
 end
