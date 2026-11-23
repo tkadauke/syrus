@@ -6,7 +6,8 @@ module Workflows
     InvalidContribution = Class.new(ArgumentError)
 
     Judge = Data.define(:plugin, :provider, :step_kind, :order, :trigger_kinds, :rounds_for)
-    PositionedStep = Data.define(:plugin, :provider, :step_kind, :order, :enabled_for, :fail_policy)
+    PositionedStep = Data.define(:plugin, :provider, :step_kind, :order, :enabled_for)
+    PostPrStep = Data.define(:plugin, :provider, :step_kind, :order, :enabled_for, :fail_policy)
 
     class << self
       def judges(job:, trigger_kind:, agent_step:)
@@ -21,17 +22,17 @@ module Workflows
       end
 
       def post_implementation(job:)
-        positioned_steps(:post_implementation, job)
+        positioned_steps(:post_implementation, PositionedStep, job)
       end
 
       def post_pr(job:)
-        positioned_steps(:post_pr, job)
+        positioned_steps(:post_pr, PostPrStep, job)
       end
 
       private
 
-      def positioned_steps(anchor, job)
-        contributions(anchor, anchor, PositionedStep).filter_map do |contribution|
+      def positioned_steps(anchor, type, job)
+        contributions(anchor, anchor, type).filter_map do |contribution|
           next unless invoke(contribution, anchor, :enabled_for, job, default: false) == true
 
           contribution.step_kind
@@ -63,34 +64,45 @@ module Workflows
             trigger_kinds: Array(attrs.fetch(:trigger_kinds)).map(&:to_s).freeze,
             rounds_for: attrs.fetch(:rounds_for)
           )
+        elsif type == PostPrStep
+          PostPrStep.new(
+            plugin:, provider:, step_kind: attrs.fetch(:step_kind).to_s,
+            order: Integer(attrs.fetch(:order, 100)),
+            enabled_for: attrs.fetch(:enabled_for),
+            fail_policy: attrs.fetch(:fail_policy).to_sym
+          )
         else
           PositionedStep.new(
             plugin:, provider:, step_kind: attrs.fetch(:step_kind).to_s,
             order: Integer(attrs.fetch(:order, 100)),
-            enabled_for: attrs.fetch(:enabled_for),
-            fail_policy: attrs.fetch(:fail_policy, :default).to_sym
+            enabled_for: attrs.fetch(:enabled_for)
           )
         end
         validate!(contribution, anchor)
+      rescue InvalidContribution
+        raise
       rescue KeyError, ArgumentError, TypeError => e
         raise InvalidContribution, "#{plugin} has an invalid #{anchor} workflow contribution: #{e.message}"
       end
 
       def validate!(contribution, anchor)
-        entry = Step::Kind.fetch(contribution.step_kind)
+        begin
+          entry = Step::Kind.fetch(contribution.step_kind)
+        rescue ArgumentError => e
+          raise InvalidContribution, "#{contribution.plugin} #{anchor} names #{e.message}"
+        end
+
         if contribution.is_a?(Judge)
           raise InvalidContribution, "#{contribution.plugin} judge rounds_for must be callable" unless contribution.rounds_for.respond_to?(:call)
           raise InvalidContribution, "#{contribution.plugin} judge requires trigger_kinds" if contribution.trigger_kinds.empty?
         else
           raise InvalidContribution, "#{contribution.plugin} #{anchor} enabled_for must be callable" unless contribution.enabled_for.respond_to?(:call)
-          if contribution.fail_policy != entry.fail_policy
+          if contribution.is_a?(PostPrStep) && contribution.fail_policy != entry.fail_policy
             raise InvalidContribution,
               "#{contribution.plugin} #{anchor} fail_policy must match Step::Kind #{contribution.step_kind.inspect}"
           end
         end
         contribution
-      rescue ArgumentError => e
-        raise InvalidContribution, "#{contribution.plugin} #{anchor} names #{e.message}"
       end
 
       def invoke(contribution, anchor, callable, job, default:)
