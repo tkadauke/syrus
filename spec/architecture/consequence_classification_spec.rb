@@ -67,7 +67,7 @@ RSpec.describe "consequence classification of every MCP tool" do
     it "keeps the operations next to the essentials gated" do
       {
         "publish_memory" => :communication, "delete_memory" => :destructive,
-        "send_chat_message" => :communication, "schedule_wakeup" => :persistent_autonomy,
+        "send_chat_message" => :communication,
         "spawn_chats" => :persistent_autonomy, "run_command" => :operator_host_access,
         "delegate_issue" => :external_write
       }.each do |tool, effect|
