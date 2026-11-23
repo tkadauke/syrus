@@ -1,0 +1,110 @@
+# shellcheck shell=bash
+# Pinned Ruby for native macOS workers. Sourced, not executed, by
+# bin/macos-worker, bin/install-macos-worker, and the privileged updater
+# (which runs its own installed copy next to itself rather than code from a
+# release tree).
+#
+# A release runs on the Ruby its .ruby-version names, the same version the
+# Linux image uses, installed by mise as a self-contained prebuilt binary under
+# $SYRUS_MACOS_RUBIES_ROOT/<version>. Homebrew upgrades therefore cannot swap
+# Ruby (or the Bundler it ships) out from under a running worker. Each Ruby
+# version gets its own gem bundle, because native extensions built for one
+# Ruby build must not be loaded by another.
+
+SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-/opt/syrus/rubies}"
+SYRUS_MACOS_MISE="${SYRUS_MACOS_MISE:-/opt/homebrew/bin/mise}"
+
+# The Ruby version a release pins, from its .ruby-version.
+syrus_macos_ruby_version() {
+  local file="$1/.ruby-version" version
+  if [[ ! -f "$file" ]]; then
+    echo "macos-ruby: $file not found" >&2
+    return 1
+  fi
+  version="$(tr -d '[:space:]' < "$file")"
+  if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "macos-ruby: unsupported Ruby version '$version' in $file" >&2
+    return 1
+  fi
+  printf '%s\n' "$version"
+}
+
+syrus_macos_ruby_prefix() {
+  printf '%s/%s\n' "$SYRUS_MACOS_RUBIES_ROOT" "$1"
+}
+
+# Gem bundle for one Ruby version: <shared dir>/bundles/ruby-<version>.
+syrus_macos_bundle_path() {
+  printf '%s/bundles/ruby-%s\n' "$1" "$2"
+}
+
+syrus_macos_ruby_installed() {
+  local prefix
+  prefix="$(syrus_macos_ruby_prefix "$1")"
+  [[ -x "$prefix/bin/ruby" ]] &&
+    [[ "$("$prefix/bin/ruby" -e 'print RUBY_VERSION' 2>/dev/null)" == "$1" ]]
+}
+
+# Installs one Ruby version, root-owned and read-only, if it is not already
+# present. mise runs against throwaway data/config dirs from / so no user or
+# project mise configuration can influence what gets installed, and the
+# finished Ruby is moved into place only after it runs.
+syrus_macos_ruby_install() {
+  local version="$1" prefix work installed
+  syrus_macos_ruby_installed "$version" && return 0
+
+  prefix="$(syrus_macos_ruby_prefix "$version")"
+  if [[ ! -x "$SYRUS_MACOS_MISE" ]]; then
+    echo "macos-ruby: mise not found at $SYRUS_MACOS_MISE" >&2
+    return 1
+  fi
+  work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-ruby.XXXXXX")"
+  if ! (cd / && env \
+      MISE_DATA_DIR="$work/data" MISE_CACHE_DIR="$work/cache" \
+      MISE_CONFIG_DIR="$work/config" MISE_STATE_DIR="$work/state" \
+      MISE_GLOBAL_CONFIG_FILE="$work/config/none.toml" \
+      "$SYRUS_MACOS_MISE" install "ruby@$version"); then
+    rm -rf "$work"
+    echo "macos-ruby: mise could not install Ruby $version" >&2
+    return 1
+  fi
+  installed="$work/data/installs/ruby/$version"
+  if [[ "$("$installed/bin/ruby" -e 'print RUBY_VERSION' 2>/dev/null)" != "$version" ]]; then
+    rm -rf "$work"
+    echo "macos-ruby: installed Ruby does not report version $version" >&2
+    return 1
+  fi
+
+  mkdir -p "$SYRUS_MACOS_RUBIES_ROOT"
+  rm -rf "$prefix.next" "$prefix"
+  mv "$installed" "$prefix.next"
+  if [[ "$EUID" -eq 0 ]]; then
+    chown -R root:wheel "$prefix.next"
+  fi
+  chmod -R go-w "$prefix.next"
+  mv "$prefix.next" "$prefix"
+  rm -rf "$work"
+
+  if ! syrus_macos_ruby_installed "$version"; then
+    echo "macos-ruby: Ruby $version does not run from $prefix" >&2
+    return 1
+  fi
+}
+
+# Puts a release's pinned Ruby first on PATH and points Bundler at that
+# Ruby's bundle. Fails when the Ruby is not installed instead of silently
+# falling back to whatever `ruby` the host has.
+syrus_macos_ruby_activate() {
+  local release_root="$1" shared_dir="$2" version prefix
+  version="$(syrus_macos_ruby_version "$release_root")" || return 1
+  prefix="$(syrus_macos_ruby_prefix "$version")"
+  if ! syrus_macos_ruby_installed "$version"; then
+    echo "macos-ruby: Ruby $version (from $release_root/.ruby-version) is not installed under $SYRUS_MACOS_RUBIES_ROOT; run bin/install-macos-worker" >&2
+    return 1
+  fi
+  export PATH="$prefix/bin:$PATH"
+  export BUNDLE_PATH
+  BUNDLE_PATH="$(syrus_macos_bundle_path "$shared_dir" "$version")"
+  export BUNDLE_APP_CONFIG="$shared_dir/bundle-config"
+  export SYRUS_MACOS_RUBY_VERSION="$version"
+}

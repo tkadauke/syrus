@@ -12,7 +12,9 @@ RSpec.describe "macOS worker installer" do
   it "defines the complete baseline and pinned agent CLIs" do
     source = File.read(script)
 
-    expect(source).to include("ruby@3.4 node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go")
+    expect(source).to include("BREW_FORMULAE=(node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)")
+    # Ruby comes from the release's .ruby-version via mise, never Homebrew.
+    expect(source).not_to match(/ruby@\d/)
     expect(source).to include('CLAUDE_CODE_VERSION="2.1.325"')
     expect(source).to include('CODEX_CLI_VERSION="0.169.0"')
     expect(source).to include('git config --global credential.helper ""')
@@ -120,6 +122,13 @@ RSpec.describe "macOS worker installer" do
         expect(link_offset).to be > remove_offset
         expect(stdout).to include("BUNDLE_FROZEN=true bundle install")
         expect(stdout).to include("mv -h -f #{install_root}/current.next #{install_root}/current")
+        pinned_ruby = File.read(File.join(root, ".ruby-version")).strip
+        install_offset = stdout.index("+ syrus_macos_ruby_install #{pinned_ruby}")
+        expect(install_offset).not_to be_nil
+        expect(install_offset).to be < stdout.index("bundle install")
+        expect(stdout).to include("PATH=#{install_root}/rubies/#{pinned_ruby}/bin:")
+        expect(stdout).to include("BUNDLE_PATH=#{install_root}/shared/bundles/ruby-#{pinned_ruby}")
+        expect(stdout).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-ruby-env /usr/local/libexec/syrus/macos-ruby-env")
       end
     end
   end

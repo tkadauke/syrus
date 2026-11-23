@@ -159,11 +159,23 @@ The expected filesystem layout is:
 | --- | --- |
 | `/opt/syrus/releases/<sha>` | root-owned, immutable release checkout; the worker cannot modify privileged code |
 | `/opt/syrus/current` | symlink to the active release |
-| `/opt/syrus/shared/bundle` | Bundler install path reused by releases |
+| `/opt/syrus/rubies/<version>` | root-owned Ruby a release pins in `.ruby-version`, installed by mise as a self-contained prebuilt binary |
+| `/opt/syrus/shared/bundles/ruby-<version>` | Bundler install path reused by every release on that Ruby version |
 | `/usr/local/libexec/syrus/syrus-macos-updater` | root-owned updater executed by launchd, outside the release tree |
+| `/usr/local/libexec/syrus/macos-ruby-env` | root-owned copy of the pinned-Ruby helper the updater sources |
 | `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces (`workflows/<workflow_id>`), per-workflow grader scratch beside them (`workflow-scratch/<workflow_id>`: grader checkouts, prepare caches, archive staging), version/capability probe scratch (`runtime-probes/`), search SQLite file if configured there, and `.syrus-worker-storage-id` |
 | `/var/log/syrus/worker.log` / `worker.err.log` | launchd stdout/stderr logs |
 | `/etc/syrus/worker.env` | root-owned env file with app, DB, storage, and worker capability credentials |
+
+Mac workers never run Homebrew's Ruby. `bin/macos-worker`, the installer, and
+the updater all source `bin/macos-ruby-env`, which puts the release's pinned
+Ruby first on `PATH` and points Bundler at that Ruby's own bundle, the same
+Ruby version the Linux image uses. The worker refuses to start if that Ruby is
+missing rather than falling back to a host Ruby, and `bin/macos-worker-check`
+fails if the Ruby on `PATH` does not match `.ruby-version`. A Ruby bump is a
+`.ruby-version` change: the installer or updater installs the new version
+before preparing the release, and the previous Ruby and bundle stay in place
+for rollback.
 
 Release cleanup should keep the current release, at least one rollback release,
 and any release that still has a running `bin/jobs` process. Workspace cleanup

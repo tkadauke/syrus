@@ -56,6 +56,8 @@ RSpec.describe "native macOS worker release artifact" do
     expect(entries).to include("#{root_entry}/bin/install-macos-worker")
     expect(entries).to include("#{root_entry}/bin/syrus-macos-updater")
     expect(entries).to include("#{root_entry}/bin/macos-worker-check")
+    expect(entries).to include("#{root_entry}/bin/macos-ruby-env")
+    expect(entries).to include("#{root_entry}/.ruby-version")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.worker.plist")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.updater.plist")
     expect(entries).to include("#{root_entry}/Gemfile")

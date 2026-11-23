@@ -9,11 +9,16 @@ RSpec.describe "native macOS worker scripts" do
   let(:entrypoint) { File.join(root, "bin/macos-worker") }
   let(:check) { File.join(root, "bin/macos-worker-check") }
 
-  it "gives worker and updater services the supported Homebrew runtimes and native build paths" do
+  let(:pinned_ruby) { File.read(File.join(root, ".ruby-version")).strip }
+
+  it "gives worker and updater services Homebrew's node and native build paths, but not its Ruby" do
     %w[com.syrus.worker.plist com.syrus.updater.plist].each do |name|
       plist = File.read(File.join(root, "config/launchd", name))
 
-      expect(plist).to include("/opt/homebrew/opt/ruby@3.4/bin")
+      # Ruby comes from the release's .ruby-version (bin/macos-ruby-env), so a
+      # Homebrew upgrade cannot change it under a running worker.
+      expect(plist).not_to include("ruby@")
+      expect(plist).not_to include("BUNDLE_PATH")
       expect(plist).to include("/opt/homebrew/opt/node@22/bin")
       expect(plist).to include("/opt/homebrew/opt/mysql-client/bin")
       expect(plist).to include("/opt/homebrew/opt/mysql-client/lib/pkgconfig")
@@ -45,12 +50,22 @@ RSpec.describe "native macOS worker scripts" do
     File.write(path, values.map { |key, value| "#{key}=#{value}\n" }.join)
   end
 
-  def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer")
+  # Answers the version probe like a real Ruby of `version` would.
+  def fake_ruby_body(version)
+    <<~BASH
+      #!/usr/bin/env bash
+      if [[ "$1" == "-e" && "$2" == "print RUBY_VERSION" ]]; then printf '%s' "#{version}"; exit 0; fi
+      [[ "$1" == "-ropenssl" ]] && exit 0
+      echo "ruby #{version}"
+    BASH
+  end
+
+  def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer", ruby_version: pinned_ruby)
     bin_dir = File.join(dir, "bin")
     FileUtils.mkdir_p(bin_dir)
 
     write_stub(File.join(bin_dir, "uname"), "#!/usr/bin/env bash\necho Darwin\n")
-    write_stub(File.join(bin_dir, "ruby"), "#!/usr/bin/env bash\necho ruby 3.4.10\n")
+    write_stub(File.join(bin_dir, "ruby"), fake_ruby_body(ruby_version))
     write_stub(File.join(bin_dir, "bundle"), "#!/usr/bin/env bash\necho Bundler version 2.7.2\n")
     write_stub(File.join(bin_dir, "node"), "#!/usr/bin/env bash\necho v24.0.0\n")
     write_stub(File.join(bin_dir, "npm"), "#!/usr/bin/env bash\necho 11.0.0\n")
@@ -172,7 +187,83 @@ RSpec.describe "native macOS worker scripts" do
       expect(stdout).to include("OK   release revision: abc123")
       expect(stdout).not_to include("has no .git directory")
       expect(stdout).to include("OK   SOLID_QUEUE_CONFIG=config/queue.compute.yml")
+      expect(stdout).to include("OK   Ruby matches .ruby-version: #{pinned_ruby}")
       expect(stdout).to include("macos-worker-check: ok")
+    end
+  end
+
+  it "fails validation when the Ruby on PATH is not the release's pinned Ruby" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir, ruby_version: "3.4.99")
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        "bash", check, "--env-file", env_file,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("FAIL Ruby on PATH is 3.4.99, but the release pins #{pinned_ruby}")
+    end
+  end
+
+  it "reports the pinned Ruby and its own gem bundle in a dry run" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => ENV.fetch("PATH"), "HOME" => ENV.fetch("HOME") },
+        "bash", entrypoint, "--env-file", env_file, "--dry-run",
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("RUBY=/opt/syrus/rubies/#{pinned_ruby}/bin/ruby")
+      expect(stdout).to include("BUNDLE_PATH=/opt/syrus/shared/bundles/ruby-#{pinned_ruby}")
+    end
+  end
+
+  it "refuses to start when the pinned Ruby is not installed instead of using the host's Ruby" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir)
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME"),
+          "SYRUS_MACOS_RUBIES_ROOT" => File.join(dir, "rubies") },
+        "bash", entrypoint, "--env-file", env_file, "--check",
+        unsetenv_others: true
+      )
+
+      expect(status).not_to be_success
+      expect(stdout).not_to include("macos-worker-check")
+      expect(stderr).to include("Ruby #{pinned_ruby} (from #{root}/.ruby-version) is not installed under #{dir}/rubies")
+    end
+  end
+
+  it "runs the worker on the pinned Ruby once it is installed" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file, "GIT_SHA" => "abc123")
+      bin_dir = with_stubbed_host_bin(dir, ruby_version: "3.4.99")
+      rubies = File.join(dir, "rubies")
+      FileUtils.mkdir_p(File.join(rubies, pinned_ruby, "bin"))
+      write_stub(File.join(rubies, pinned_ruby, "bin", "ruby"), fake_ruby_body(pinned_ruby))
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME"),
+          "SYRUS_MACOS_RUBIES_ROOT" => rubies },
+        "bash", entrypoint, "--env-file", env_file, "--check",
+        unsetenv_others: true
+      )
+
+      # The host's own ruby (stubbed as 3.4.99) is shadowed by the pinned one.
+      expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("OK   Ruby matches .ruby-version: #{pinned_ruby}")
     end
   end
 

@@ -127,6 +127,24 @@ fi
 
 require_command ruby Ruby
 require_command bundle Bundler
+
+# The worker must run the Ruby its release pins, not whatever the host has;
+# bin/macos-worker activates it, and so do the installer and the updater
+# before they run this check.
+if [[ -f "$ROOT/.ruby-version" ]] && have_command ruby; then
+  pinned_ruby="$(tr -d '[:space:]' < "$ROOT/.ruby-version")"
+  running_ruby="$(ruby -e 'print RUBY_VERSION' 2>/dev/null || true)"
+  if [[ "$running_ruby" == "$pinned_ruby" ]]; then
+    ok "Ruby matches .ruby-version: $pinned_ruby"
+  else
+    fail "Ruby on PATH is ${running_ruby:-unknown}, but the release pins $pinned_ruby (.ruby-version)"
+  fi
+  if ruby -ropenssl -e 'exit 0' >/dev/null 2>&1; then
+    ok "Ruby openssl extension loads"
+  else
+    fail "Ruby openssl extension does not load"
+  fi
+fi
 require_command node Node
 require_command npm NPM
 require_command git Git
