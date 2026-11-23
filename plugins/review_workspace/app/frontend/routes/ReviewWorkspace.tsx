@@ -317,14 +317,14 @@ function MobileGestureSurface({
     if (origin.mode !== "gesture" || !origin.direction) return
     event.preventDefault()
     const horizontal = origin.direction === "left" || origin.direction === "right"
-    const signedDistance = horizontal
-      ? origin.direction === "right" ? x : -x
-      : origin.direction === "down" ? y : -y
+    const signedDistance = horizontal ? (origin.direction === "right" ? x : -x) : origin.direction === "down" ? y : -y
     if (signedDistance >= SWIPE_THRESHOLD) origin.armed = true
     const distance = Math.max(0, signedDistance)
-    setOffset(horizontal
-      ? { x: Math.min(120, distance) * (origin.direction === "right" ? 1 : -1), y: 0 }
-      : { x: 0, y: Math.min(80, distance) * (origin.direction === "down" ? 1 : -1) })
+    setOffset(
+      horizontal
+        ? { x: Math.min(120, distance) * (origin.direction === "right" ? 1 : -1), y: 0 }
+        : { x: 0, y: Math.min(80, distance) * (origin.direction === "down" ? 1 : -1) }
+    )
   }
   function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
