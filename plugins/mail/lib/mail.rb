@@ -12,6 +12,7 @@ module SyrusMail
   end
 
   syrus_plugin "mail" do
+    requires_syrus nil
     experimental true
     requires_syrus nil
     icon_url "/plugin-icons/mail.svg"

@@ -15,6 +15,7 @@
 # snapshot into MySQL.
 
 ActiveRecord::Schema[8.1].define(version: 2026_11_23_120100) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false

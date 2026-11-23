@@ -9,6 +9,7 @@ module PersonalCalendar
       tier: :provisional, context: PersonalCalendar::Context, returns: Hash
   end
   syrus_plugin "personal_calendar" do
+    requires_syrus nil
     experimental true
     requires_syrus nil
     icon_url "/plugin-icons/personal_calendar.svg"
