@@ -77,10 +77,10 @@ jobs:
 
       # bin/test-e2e installs the browser binaries themselves (idempotent,
       # skipped once present), but not the OS-level shared libraries Chromium
-      # needs -- the worker image's Dockerfile gets those via `--with-deps`,
+      # and WebKit need -- the worker image's Dockerfile gets those via `--with-deps`,
       # a plain Ubuntu runner does not.
       - name: Install Playwright OS dependencies
-        run: npx playwright install-deps chromium
+        run: npx playwright install-deps chromium webkit
 
       - name: Run Playwright E2E suite
         run: bin/test-e2e
