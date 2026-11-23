@@ -99,6 +99,37 @@ RSpec.describe SyrusRails::MigrationArtifactGenerator do
     end
   end
 
+  it "parses Rails database.yml containing ERB execution and interpolation tags without evaluating them" do
+    @workspace.join("config/database.yml").write(<<~YAML)
+      default: &default
+        adapter: sqlite3
+        pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
+
+      <% dev_db = ENV.fetch("SYRUS_DEV_DB_PREFIX", "development") %>
+      <%
+        other = `touch #{@workspace.join("erb_evaluated")}`
+      %>
+      development:
+        primary:
+          <<: *default
+          database: storage/<%= dev_db %>.sqlite3
+        cache:
+          <<: *default
+          database: storage/<%= dev_db %>_cache.sqlite3
+          migrations_paths: db/cache_migrate
+    YAML
+
+    expect(generator.send(:configured_adapter)).to eq("sqlite3")
+    expect(generator.send(:database_names)).to eq(%w[primary cache])
+    expect(@workspace.join("erb_evaluated")).not_to exist
+  end
+
+  it "still reports malformed non-ERB database configuration as a generation error" do
+    @workspace.join("config/database.yml").write("development:\n  primary: [unterminated\n")
+
+    expect { generator.send(:database_names) }.to raise_error(described_class::GenerationError, /cannot read database configuration/)
+  end
+
   it "redirects every configured database, including nonstandard secondaries, to distinct sandboxes" do
     @workspace.join("config/database.yml").write(<<~YAML)
       development:
