@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coworkers::WorkflowKinds do
+RSpec.describe "Coworkers workflow kinds declaration" do
   def enable!(enabled)
     PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: enabled, disableable: true)
   end

@@ -23,8 +23,8 @@ module VideoWalkthroughs
     optionally_depends_on [ "metrics_dashboard" ]
 
     lifecycle callback_providers: "VideoWalkthroughs::Callbacks"
-    provides slug_type: "VideoWalkthroughs::SlugType",
-             "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
+    slug_type prefix: "WALKTHROUGH", display_label: "Walkthrough", resolver: "VideoWalkthroughs::SlugType"
+    provides "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
     chat_integration payload_contributors: "VideoWalkthroughs::PayloadContributor",
                      turn_orientations: "VideoWalkthroughs::TurnOrientation"
     toolkit chat_tools: "VideoWalkthroughs::ChatToolSet",

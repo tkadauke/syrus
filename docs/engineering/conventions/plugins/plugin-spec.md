@@ -18,6 +18,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `credential_type_names` — Credential type names declared for discovery.
 - `credential_types` — Credential type metadata declarations.
 - `data_policy` — DataPolicy-family retention policies, purge contributors, and retained preview-panel decisions (every contributor participates; failures are reported).
+- `declare` — Generic form of the data declarations below: `declare :slug_type, prefix: ...`.
 - `default_enabled` — Whether a new installation enables the plugin.
 - `depends_on` — Required plugin names.
 - `description` — Short fallback description.
@@ -33,6 +34,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `homepage` — Plugin homepage URL.
 - `hosts` — Qualified extension points this plugin exposes to other plugins.
 - `icon_url` — Plugin-owned icon path or URL.
+- `job_origin` — Data declaration of a Job origin key, with an optional constant name for label, link and prompt behavior.
 - `lifecycle` — Lifecycle-family plugin callbacks and domain-event subscribers (broadcast; failures are isolated per hook).
 - `link` — One plugin navigation link.
 - `links` — A list of plugin navigation links.
@@ -43,19 +45,25 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `optionally_depends_on` — Optional plugin names.
 - `policy` — Policy-family Job visibility restrictions and repository filters (fail-closed composition).
 - `prepare_priority` — Ordering priority for prepare contributions.
+- `problem_provider` — Data declaration of a problem namespace and its stable problem kinds.
 - `provides` — Extension-point classes, or one family provider with implements/provisional capabilities and an optional key.
+- `repository_configuration` — Data declaration of a namespaced `.syrus.yml` key, schema version and legacy keys, with a parser constant name.
 - `review_contributions` — Review-family gates, reviewer targets, review context and presentation, post-implementation review, diff annotation, and adjudicator contributions.
 - `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `runtime_session` — RuntimeSession service-family long-lived runtime session providers.
+- `slug_type` — Data declaration of a canonical identifier prefix, label and link template, with a resolver constant name for record lookup.
 - `source_host` — SourceHost service-family source-control, input-source, repository-content, and git-transport services.
 - `speech_to_text` — SpeechToText service-family transcription providers.
+- `step_environment` — Data declaration of ENV names forwarded into step subprocesses, with an optional per-scope extra_env constant name.
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
 - `surface` — Surface-family pages, tabs, slots, artifact and preview renderers, and filter registrations.
 - `tick_interval` — Optional control-plane tick interval.
 - `toolkit` — Toolkit-family tools, permission declarations, run context, credential probes, and secret extractors.
 - `version` — Plugin version; normally read from the gem.
 - `while_enabled` — Reversible installation effects active only while enabled.
+- `worker_capability_probe` — Data declaration of the worker capability dimension and token a probe may report, with a probe constant name.
+- `workflow_kinds` — Data declaration of plugin-owned Job, Workflow trigger, Step kinds and WorkDefinition constant names; no provider class.
 
 Every manifest must explicitly declare `default_enabled`, `disableable`, `experimental`, and `requires_syrus`. Use literal booleans for the first three and `requires_syrus nil` only when the plugin is intentionally unbounded. There are no compatibility defaults for older plugin manifests; omitting any release-posture field is an error.
 
@@ -206,4 +214,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 38855 bytes (UTF-8, including this line).
+Size: 39886 bytes (UTF-8, including this line).
