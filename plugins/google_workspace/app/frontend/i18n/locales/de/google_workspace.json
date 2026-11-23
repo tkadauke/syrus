@@ -1,0 +1,10 @@
+{
+  "plugin": {
+    "display_name": "Google Workspace",
+    "description": "Gmail und Google Calendar über ein verbundenes Google-Konto lesen.",
+    "long_description": "Verbinde einen von deiner Instanz bereitgestellten Google-OAuth-Client und stelle schreibgeschützte Gmail- und Google-Calendar-Daten über anbieterneutrale Werkzeuge bereit."
+  },
+  "settings": {
+    "provider_notice": "Registriere deinen eigenen Google-OAuth-Client und prüfe Googles aktuelle Verifizierungsrichtlinien. Nur Client-ID und Geheimnis sind konfigurierbar; Syrus fixiert Googles Endpunkte und getrennte Nur-Lese-Berechtigungen für Gmail und Calendar."
+  }
+}

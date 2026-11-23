@@ -26,6 +26,7 @@ module ConnectedAccounts
 
     def with_access
       account = resolve_account!
+      @target = default_target(account) if target.blank?
       validate_owner!(account)
       validate_invocation!
       access_yielded = false
@@ -62,6 +63,11 @@ module ConnectedAccounts
     private
 
     attr_reader :account_ref, :acting_mode, :scopes, :purpose, :context, :target
+
+    def default_target(account)
+      origin = ProviderConfig.find_by(provider_key: account.provider)&.api_origins&.first
+      origin.present? ? { url: origin } : {}
+    end
 
     def inferred_context(account)
       return account.context if account.respond_to?(:context)

@@ -1,7 +1,8 @@
 {
   "settings": {
     "title": "Verbundene Konten",
-    "description": "Konfiguriere den instanzweiten allgemeinen OAuth-2-Anbieter. Trenne Berechtigungen, Nur-Lese-Berechtigungen und API-Ursprünge mit Kommas.",
+    "description": "Konfiguriere instanzweite Anbieter für verbundene Konten. Trenne bearbeitbare Berechtigungen und API-Ursprünge mit Kommas.",
+    "provider": "Anbieter",
     "authorize_url": "Autorisierungs-URL",
     "token_url": "Token-URL",
     "revoke_url": "Widerrufs-URL",
@@ -9,6 +10,7 @@
     "validate_url": "Prüf-URL",
     "client_id": "Client-ID",
     "client_secret": "Client-Geheimnis",
+    "client_secret_configured": "Ein Client-Geheimnis ist konfiguriert. Gib nur zum Ersetzen einen neuen Wert ein.",
     "scope_catalog": "Berechtigungen",
     "read_only_scopes": "Nur-Lese-Berechtigungen",
     "api_origins": "API-Ursprünge",

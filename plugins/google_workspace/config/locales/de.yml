@@ -1,0 +1,4 @@
+de:
+  google_workspace:
+    settings:
+      operator_notice: "Registriere deinen eigenen Google-OAuth-Client und prüfe Googles aktuelle Verifizierungsrichtlinien, bevor du Verbindungen aktivierst."

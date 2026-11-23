@@ -1,0 +1,10 @@
+la:
+  permissions:
+    capabilities:
+      mail.read@v1:
+        label: Epistulas legere
+        description: Epistulas in ratione coniuncta quaerere et legere.
+      mail/search@v1:
+        label: Epistulas quaerere
+      mail.message/read@v1:
+        label: Epistulam legere

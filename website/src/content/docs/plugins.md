@@ -721,6 +721,35 @@ asking for exact-invocation authority. Service-specific mailboxes, calendars,
 drives, channels, or comparable selectors belong in the scope's typed
 `sub_resources` object rather than in the capability name.
 
+The bundled, experimental **Mail** and **Personal Calendar** concept plugins
+provide the read-only reference pattern. They are disabled by default. Mail
+adapters implement keyed, provisional `search` and `read_message` capabilities;
+personal-calendar adapters implement keyed, provisional `list_events` and
+`get_event` capabilities. The personal-calendar name deliberately distinguishes
+account calendars from Syrus's operations Calendar plugin.
+
+The bundled, experimental `google_workspace` adapter depends on Connected
+Accounts, Mail, and Personal Calendar. It supplies authorization-code OAuth with
+PKCE, offline refresh, identity and health checks, revocation, read-only Gmail
+search/message reading, and Google Calendar `list_events` and `get_event`
+operations. Gmail and Calendar permissions are separate opt-in scopes; a
+Calendar-only connection has no Gmail access, and reauthorization can add a
+scope without disconnecting. Gmail bodies are converted to bounded plain text,
+while attachments are listed by name, type, and size without being downloaded.
+Instances supply their own Google OAuth client credentials; endpoint and scope
+settings remain pinned. Gmail read access is a restricted scope. Operators
+should check Google's current verification and restricted-scope policies rather
+than rely on policy details embedded in Syrus documentation.
+
+Both concept plugins select a connected account explicitly, request only their
+read scope through the account broker, and require an authorized invocation.
+Adapters receive short-lived access rather than stored token material. The
+concept layer labels returned data `external_untrusted`, removes markup, writes
+oversized bodies and fetched attachment content to workspace files, and keeps
+metadata-only attachment listings in context without downloading them. Adapter
+tests can use the bundled fake adapters without network access; their plugin
+docs describe the context and result shapes.
+
 Data removal is a separate, explicit operation after uninstall. Operators can
 preview it with `bin/rails 'plugin:data[name]'` and confirm it with
 `bin/rails 'plugin:purge[name]'`. Purge removes declared plugin tables,

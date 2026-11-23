@@ -1,0 +1,6 @@
+de:
+  permissions:
+    capabilities:
+      personal_calendar.read@v1: { label: Kalender lesen, description: Termine in einem verbundenen Konto auflisten und lesen. }
+      personal_calendar.events/list@v1: { label: Kalendertermine auflisten }
+      personal_calendar.event/read@v1: { label: Kalendertermin lesen }
