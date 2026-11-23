@@ -536,6 +536,9 @@ de:
         cleaned_up_at: "Bereinigt am"
     user_time_zones:
       invalid_mode: "Der Modus muss automatic oder manual sein"
+    admin:
+      plugin_disable:
+        workflow_steps_in_flight: "Ein noch nicht beendeter Workflow enthält Schritte von %{plugin}. Warte, bis er abgeschlossen ist, bevor du das Plugin deaktivierst."
     chat_shell_commands:
       unsupported_chat_mode: "Shell-Befehle sind nur in Chats im Coding Mode oder Local Mode verfügbar."
       feature_disabled: "%{mode} ist auf dieser Instanz nicht aktiviert."

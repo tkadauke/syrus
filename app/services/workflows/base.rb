@@ -258,6 +258,18 @@ module Workflows
       end
     end
 
+    def self.judge_loops(job, agent_step:)
+      Workflows::CompositionAnchors.judges(job:, trigger_kind:, agent_step:)
+    end
+
+    def self.post_implementation_steps(job)
+      Workflows::CompositionAnchors.post_implementation(job:)
+    end
+
+    def self.post_pr_steps(job)
+      Workflows::CompositionAnchors.post_pr(job:)
+    end
+
     # `autofix:` inserts the config-driven format (rubocop -a, eslint --fix,
     # gofmt -w, ... or `.syrus.yml` `formatters:`) and generate (`.syrus.yml`
     # `generated:`) steps between the agent step and the grader check on

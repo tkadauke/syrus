@@ -119,6 +119,7 @@ class RunJob < ApplicationJob
     @job = @run.job
     return if defer_for_macos_worker_drain?
     return if hand_back_unknown_step_kind?
+    return fail_unknown_step_kind! unless step_kind_provided_here?(@step)
 
     @shutdown_requested = false
     prior_trap = Signal.trap("TERM") do
@@ -304,6 +305,40 @@ class RunJob < ApplicationJob
 
   def step_kind_provided_here?(step)
     Step::Kind.values.include?(step.kind.to_s)
+  end
+
+  def fail_unknown_step_kind!
+    plugin = plugin_owning_step_kind(@step.kind) || "unavailable_plugin"
+    error = ArgumentError.new("plugin step handler is unavailable for step kind=#{@step.kind.inspect}")
+    Syrus::PluginInvocation.runtime_health.record_failure(
+      plugin:, extension_point: :workflow_kinds, operation: :dispatch, exception: error,
+      threshold: 1, window: 1.minute, cooldown: 1.minute, circuit: false,
+      provider: @step.kind
+    )
+    @step.update!(details: @step.details.to_h.merge(
+      "plugin_health_finding" => {
+        "plugin" => plugin,
+        "code" => "step_handler_unavailable",
+        "step_kind" => @step.kind,
+        "message" => error.message
+      }
+    ))
+    handle_failure(error)
+    log("plugin-owned step #{@step.kind} failed because its handler is unavailable", kind: "system")
+    true
+  end
+
+  def plugin_owning_step_kind(kind)
+    Syrus::PluginRegistry.all_plugins.find do |manifest|
+      Array(manifest.provides[:workflow_kinds]).any? do |provider|
+        provider = provider.safe_constantize if provider.is_a?(String)
+        next false unless provider&.respond_to?(:step_kinds)
+
+        Array(provider.step_kinds).any? { |attrs| attrs.to_h.with_indifferent_access[:kind].to_s == kind.to_s }
+      rescue StandardError
+        false
+      end
+    end&.name
   end
 
   def defer_for_macos_worker_drain?
