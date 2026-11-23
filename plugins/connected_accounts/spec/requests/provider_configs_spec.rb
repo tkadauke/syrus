@@ -54,7 +54,7 @@ RSpec.describe "Connected accounts provider configuration", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.fetch("providers")).to contain_exactly(include(
-      "provider_key" => "example", "display_name" => "Example",
+      "provider_key" => "example", "plugin_name" => "example_plugin", "display_name" => "Example",
       "settings_notice" => "Configure Example with your own client.",
       "settings_notice_i18n_key" => "example:settings.provider_notice"
     ))
