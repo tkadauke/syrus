@@ -169,7 +169,7 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10)
   })
 
-  it("remembers each coworker main thread's collapsed state in the browser", () => {
+  it("restores each coworker main thread's expanded state and lazy-loads its side chats", async () => {
     const appearance = {
       name: "Maya",
       accent_hex: "#B6492E",
@@ -179,18 +179,22 @@ describe("RecentChatsSidebar active chat highlighting", () => {
       coworker_chat_role: "main" as const,
       side_chat_action_path: "/api/v1/app/coworkers/7/chats"
     }
-    const chats = [
-      chatNav({ id: 1, title: "Maya", agent_appearance: appearance }),
-      chatNav({
-        id: 2,
-        title: "Release research",
-        agent_appearance: { ...appearance, coworker_chat_role: "side" }
+    const chats = [chatNav({ id: 1, title: "Maya", agent_appearance: appearance })]
+    const fetchSpy = vi.fn(async () =>
+      jsonResponse({
+        chats: [
+          { id: 1, role: "main", title: "Maya", path: "/chats/1" },
+          { id: 2, role: "side", title: "Release research", path: "/chats/2" }
+        ]
       })
-    ]
+    )
+    vi.stubGlobal("fetch", fetchSpy)
     window.localStorage.setItem(EXPANDED_COWORKER_THREADS_KEY, JSON.stringify([7]))
 
     const firstView = renderSidebar(chats)
-    expect(screen.getByRole("link", { name: "Release research" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Collapse chats with Maya" })).toHaveAttribute("aria-expanded", "true")
+    await waitFor(() => expect(screen.getByRole("link", { name: "Release research" })).toBeInTheDocument())
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/chats", expect.any(Object))
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse chats with Maya" }))
     expect(screen.queryByRole("link", { name: "Release research" })).not.toBeInTheDocument()
