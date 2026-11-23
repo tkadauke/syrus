@@ -29,7 +29,6 @@ import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEm
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { usePageGutterRestoreClassName } from "../components/ui/Page"
 import { StatusPill as StateStatusPill, TonePill, type PillTone } from "../components/StatusPill"
-import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
@@ -154,7 +153,6 @@ function RepositoryDetail({
                 queryKey={queryKey}
                 repositoryId={payload.repository.id}
               />
-              <CoverageSparkline repositoryId={payload.repository.id} />
               <CredentialNotice payload={payload} />
             </div>
           </div>

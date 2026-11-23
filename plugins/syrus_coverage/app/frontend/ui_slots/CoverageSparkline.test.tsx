@@ -1,14 +1,14 @@
-import { jsonResponse } from "../testSupport"
+import { jsonResponse } from "@app/testSupport"
 import { render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { CoverageSparkline } from "./CoverageSparkline"
+import CoverageSparkline from "./CoverageSparkline"
 
 function renderSparkline(repositoryId = 42) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <CoverageSparkline repositoryId={repositoryId} />
+      <CoverageSparkline repository={{ id: repositoryId }} />
     </QueryClientProvider>
   )
 }

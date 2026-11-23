@@ -12,7 +12,7 @@ RSpec.describe "frontend table conventions" do
   # conventions. Tool cards stay raw only where they render compact,
   # transcript-embedded result summaries instead of reusable application lists.
   RAW_TABLE_EXCEPTIONS = {
-    "app/frontend/components/CoverageCard.tsx" => "nested coverage report details, not a filterable record grid",
+    "plugins/syrus_coverage/app/frontend/ui_slots/CoverageCard.tsx" => "nested coverage report details, not a filterable record grid",
     "app/frontend/components/FilePreviewModal.tsx" => "monospace file preview grid with fixed code-like layout",
     "app/frontend/components/artifacts/coreArtifactRenderers.tsx" => "artifact renderer for externally supplied tabular payloads",
     "app/frontend/components/diff/ReviewableDiff.tsx" => "diff renderer with specialized unified/split layout semantics",
