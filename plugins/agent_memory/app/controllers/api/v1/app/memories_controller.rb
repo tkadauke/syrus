@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class MemoriesController < BaseController
+      class MemoriesController < Syrus::Host::AppController
         include Paginatable
 
         PER_PAGE = 20
@@ -18,7 +18,7 @@ module Api
         def create
           attrs = create_memory_params.to_h.symbolize_keys
           memory = AgentMemory::Entry.new(attrs)
-          memory.user = Current.user
+          memory.user = Syrus::Host::Current.user
           return unless ensure_repository_scope_belongs_to_owner(memory, attrs)
 
           if memory.save
@@ -51,7 +51,7 @@ module Api
           memory = find_memory_for_owner_or_admin
           return unless memory
 
-          memory.soft_delete_by!(Current.user)
+          memory.soft_delete_by!(Syrus::Host::Current.user)
           render json: { message: "Memory deleted." }
         end
 
@@ -119,8 +119,8 @@ module Api
             filter: memory_filter.to_h,
             deleted: deleted_filter?,
             current_user: {
-              id: Current.user.id,
-              admin: Current.user.admin?
+              id: Syrus::Host::Current.user.id,
+              admin: Syrus::Host::Current.user.admin?
             },
             pagination: {
               page: page,
@@ -135,8 +135,8 @@ module Api
           {
             kinds: ::AgentMemory::Entry::KIND,
             scopes: ::AgentMemory::Entry::SCOPE,
-            repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
-            controls: { filter_schema: ::Filters::Schema.for(subject: :memory, user: Current.user) }
+            repositories: Syrus::Host::Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
+            controls: { filter_schema: ::Filters::Schema.for(subject: :memory, user: Syrus::Host::Current.user) }
           }
         end
 
@@ -145,11 +145,11 @@ module Api
         end
 
         def memory_filter
-          @memory_filter ||= ::AgentMemory::Filter.from_params(params, user: Current.user)
+          @memory_filter ||= ::AgentMemory::Filter.from_params(params, user: Syrus::Host::Current.user)
         end
 
         def visible_memories
-          base = Current.user.admin? ? ::AgentMemory::Entry.all : ::AgentMemory::Entry.where(user_id: Current.user.id)
+          base = Syrus::Host::Current.user.admin? ? ::AgentMemory::Entry.all : ::AgentMemory::Entry.where(user_id: Syrus::Host::Current.user.id)
           deleted_filter? ? base.deleted : base.active
         end
 
@@ -159,14 +159,14 @@ module Api
 
         def find_memory_for_owner_or_admin
           memory = ::AgentMemory::Entry.find(params[:id])
-          return memory if Current.user.admin? || memory.user_id == Current.user.id
+          return memory if Syrus::Host::Current.user.admin? || memory.user_id == Syrus::Host::Current.user.id
 
           render_error("forbidden", "You do not have permission to access this memory.", status: :forbidden)
           nil
         end
 
         def memory_json(memory, changed: false)
-          can_manage = Current.user.admin? || memory.user_id == Current.user.id
+          can_manage = Syrus::Host::Current.user.admin? || memory.user_id == Syrus::Host::Current.user.id
           can_publish = can_manage && memory.repository? && repository_scope_belongs_to_owner?(memory)
 
           {

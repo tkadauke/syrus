@@ -1,6 +1,6 @@
 module AgentInsights
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = (AgentRole::CHAT_ROLES + [ AgentRole::AGENT_INSIGHT, AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq.freeze
     CAPABILITY = "agent_insights.investigation@v1"

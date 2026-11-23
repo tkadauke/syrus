@@ -23,7 +23,7 @@ module AgentMemory
 
       class << self
         def call(query:, server_context:, scope: nil, kind: nil, limit: nil)
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
           query   = query.to_s.strip
           return invalid_response("query is required") if query.empty?
 
