@@ -58,27 +58,32 @@ module Permissions
     # Whether +operation+ is an agent essential for agents running as +role+.
     # Core tools are classified per surface; a plugin operation's own flag
     # applies to every role.
-    def self.essential_for?(operation, role:)
+    #
+    # +cache:+ lets a caller classifying every descriptor reuse one registry
+    # and plugin-descriptor snapshot instead of rebuilding them per lookup.
+    def self.essential_for?(operation, role:, cache: nil)
+      cache ||= {}
       role = role.to_s
       surface = if COWORKER_ROLES.include?(role) then :coworker
       elsif role == AgentRole::AGENT_INSIGHT then :agent_insight
       elsif AgentRole::WORKFLOW_ROLES.include?(role) then :workflow
       else :chat
       end
-      core = McpToolRegistry.entries(surface:).select { |entry| entry.descriptor&.operation == operation.to_s }
+      entries_for = ->(name) { cache[[ :entries, name ]] ||= McpToolRegistry.entries(surface: name).select(&:descriptor) }
+      core = entries_for.call(surface).select { |entry| entry.descriptor.operation == operation.to_s }
       # Coworkers share the chat essentials even where their entry carries its
       # own operation identifier.
-      core = McpToolRegistry.entries(surface: :chat).select { |entry| entry.descriptor&.operation == operation.to_s } if core.empty? && surface == :coworker
+      core = entries_for.call(:chat).select { |entry| entry.descriptor.operation == operation.to_s } if core.empty? && surface == :coworker
       return core.any? { |entry| entry.descriptor.essential? } if core.any?
 
-      (plugin_tool_descriptors + permission_provider_descriptors).any? do |descriptor|
+      (cache[:plugin] ||= plugin_tool_descriptors + permission_provider_descriptors).any? do |descriptor|
         descriptor.operation == operation.to_s && descriptor.essential?
       end
     end
 
     # Essential for every role that could ever hold a rule on it.
-    def self.essential_everywhere?(descriptor)
-      descriptor.requestable_roles.all? { |role| essential_for?(descriptor.operation, role:) }
+    def self.essential_everywhere?(descriptor, cache: nil)
+      descriptor.requestable_roles.all? { |role| essential_for?(descriptor.operation, role:, cache:) }
     end
 
     def self.as_json(descriptor)
