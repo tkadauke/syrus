@@ -6,7 +6,12 @@ module Syrus
       module CallerError; end
       class MissingKey < KeyError; end
       module_function
-      def collect(providers, &call) = providers.flat_map { |provider| Array(provider.invoke(&call)) }
+      def collect(providers, &call)
+        providers.flat_map do |provider|
+          value = provider.invoke(&call)
+          value.nil? ? [] : value.is_a?(Array) ? value : [ value ]
+        end
+      end
       def broadcast(providers, &call) = providers.each { |provider| provider.invoke(&call) }.then { nil }
       def first_claim(providers, &call)
         providers.each do |provider|

@@ -96,22 +96,26 @@ module Permissions
     private_class_method :permission_provider_descriptors
 
     def self.plugin_tool_descriptors
-      %i[mcp_tool_set chat_mcp_tool_set].flat_map do |extension_point|
-        (extension_point == :mcp_tool_set ? Syrus::Plugin::Toolkit.workflow_tool_sets : Syrus::Plugin::Toolkit.chat_tool_sets).flat_map do |provider|
-          invoke(provider, :tool_definitions, [], extension_point:) { Syrus::PluginRegistry.all_tool_definitions(provider) }.filter_map do |definition|
-            definition = definition.symbolize_keys
-            next unless definition[:capability_descriptor]
-
-            CapabilityDescriptorAdapter.for_plugin_definition(definition)
-          end
-        end
-      end
+      tool_descriptors(Syrus::Plugin::Toolkit.workflow_tool_sets) +
+        tool_descriptors(Syrus::Plugin::Toolkit.chat_tool_sets)
     end
     private_class_method :plugin_tool_descriptors
 
-    def self.invoke(provider, operation, decline, extension_point: :permission_provider, &block)
+    def self.tool_descriptors(providers)
+      providers.flat_map do |provider|
+        invoke(provider, :tool_definitions, []) { Syrus::PluginRegistry.all_tool_definitions(provider) }.filter_map do |definition|
+          definition = definition.symbolize_keys
+          next unless definition[:capability_descriptor]
+
+          CapabilityDescriptorAdapter.for_plugin_definition(definition)
+        end
+      end
+    end
+    private_class_method :tool_descriptors
+
+    def self.invoke(provider, operation, decline, &block)
       Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
-        extension_point:, provider:, operation:, on_decline: decline, &block
+        extension_point: :toolkit, provider:, operation:, on_decline: decline, &block
       ))
     end
     private_class_method :invoke
