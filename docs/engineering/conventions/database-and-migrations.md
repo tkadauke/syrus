@@ -130,6 +130,10 @@ InnoDB; one order makes that impossible
 - Re-locking a row the transaction already holds is fine in any order, which
   is why `Workflow#start`'s `job.lock!` is safe under a caller that locked the
   Job first.
+- A row the transaction inserted itself may be locked in any order: no other
+  transaction can see it before commit, so the lock never waits and nobody waits
+  on it. Restarting a Job relies on this when it closes the old Job and launches
+  the replacement in one transaction.
 - Work that only records what happened (an audit line, a snapshot) and needs a
   lock of its own belongs after the outermost commit
   (`ActiveRecord.after_all_transactions_commit`), not inside the transaction.

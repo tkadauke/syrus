@@ -115,5 +115,51 @@ queue's slot release (Workflow then Job). -/
 theorem job_workflow_inversion :
     observed.contains (job, workflow) && observed.contains (workflow, job) = true := by native_decide
 
+/-! ## Rows a transaction created itself (NY32)
+
+The checker leaves out a lock on a row the locking transaction inserted. That
+is sound because waiting needs another transaction to be able to see the row:
+an uncommitted insert is visible only to its creator, so no other transaction
+can lock it first, and its creator never waits for it. Such a lock adds no
+edge to the wait-for graph, so it cannot close a cycle whatever the order.
+
+Two transactions, and rows that are either committed or created by one of
+them. -/
+section SelfCreated
+
+inductive Tx | t1 | t2
+  deriving DecidableEq, Repr
+
+def Tx.other : Tx → Tx
+  | .t1 => .t2
+  | .t2 => .t1
+
+inductive RowOrigin | committed | createdBy (t : Tx)
+  deriving DecidableEq, Repr
+
+def visibleTo (origin : RowOrigin) (t : Tx) : Bool :=
+  match origin with
+  | .committed => true
+  | .createdBy c => c == t
+
+/-- `t` waits for a row exactly when it can see the row (it cannot ask for one
+it cannot see) and the other transaction holds it, which needs the other
+transaction to see it too. -/
+def waitsFor (t : Tx) (origin : RowOrigin) (heldByOther : Bool) : Bool :=
+  heldByOther && visibleTo origin t && visibleTo origin t.other
+
+theorem self_created_never_waits (t : Tx) (held : Bool) :
+    waitsFor t (.createdBy t) held = false := by
+  cases t <;> cases held <;> decide
+
+/-- Only committed rows can be waited on, so only they need the order. -/
+theorem waits_only_on_committed_rows (t : Tx) (origin : RowOrigin) :
+    waitsFor t origin true = true ↔ origin = .committed := by
+  cases t <;> cases origin with
+  | committed => decide
+  | createdBy c => cases c <;> decide
+
+end SelfCreated
+
 end LockOrder
 end SyrusModel

@@ -87,6 +87,34 @@ RSpec.describe Syrus::LockOrder::Checker do
     }.to raise_error(Syrus::LockOrder::Error, /took Job/)
   end
 
+  # A row the transaction inserted is invisible to every other transaction
+  # until commit, so locking it never waits and it cannot be part of a wait
+  # cycle. Restarting a Job closes the old one (locking its WorkUnit) and
+  # launches the replacement (locking the Workflow it just created) in one
+  # transaction; that is not an inversion.
+  it "exempts rows the transaction created itself" do
+    unit = WorkUnit.where(scope_type: "job", scope_id: job.id).first!
+
+    expect {
+      ActiveRecord::Base.transaction do
+        unit.lock!
+        created = Workflow.create!(job: job, trigger_kind: "initial")
+        created.lock!
+      end
+    }.not_to raise_error
+  end
+
+  it "still checks a pre-existing row taken after a self-created one" do
+    expect {
+      ActiveRecord::Base.transaction do
+        created = Workflow.create!(job: job, trigger_kind: "initial")
+        created.lock!
+        workflow.lock!
+        job.lock!
+      end
+    }.to raise_error(Syrus::LockOrder::Error, /took Job at .* while holding Workflow/)
+  end
+
   it "records the pending-decision inversions instead of raising" do
     violation = Syrus::LockOrder::Violation.new(
       held: "User", taking: "Workflow",

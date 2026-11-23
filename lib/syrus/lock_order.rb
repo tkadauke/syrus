@@ -18,8 +18,6 @@ module Syrus
     PENDING_DECISION = [
       # Provider-account reservation locks the User row as a mutex mid-transaction.
       { held_site: "app/services/provider_routing/availability_selector.rb", site: "app/services/step_dispatcher.rb" },
-      # WorkUnit#preempt! locks the unit, then cancels its Workflow.
-      { held_site: "app/models/work_unit.rb", site: "app/services/step_dispatcher.rb" },
       # Cancelling a Workflow cascades to its descendants: A, A's Steps, then B.
       { held_site: "app/models/workflow.rb", site: "app/services/work_units/workflow_cancellation.rb" }
     ].freeze
@@ -50,12 +48,33 @@ module Syrus
         def reset!
           @violations = []
           Thread.current[:syrus_lock_order_state] = nil
+          Thread.current[:syrus_lock_order_created] = nil
         end
 
         def install!
           # lock! and with_lock reload through a locking relation query, so
           # this one hook sees every row lock the application takes.
           ActiveRecord::Relation.prepend(RelationLock)
+          ActiveRecord::Base.prepend(CreateTracking)
+        end
+
+        # A row the transaction inserted is invisible to every other
+        # transaction until commit, so locking it never waits and nobody else
+        # can be waiting on it: it is outside the order. Restarting a Job
+        # closes the old one and launches the replacement in one transaction,
+        # locking the old WorkUnit and then the Workflow it just created.
+        def created(record)
+          rank = LockOrder.rank_for(record.class)
+          return unless rank
+
+          root = application_transaction(record.class.connection)
+          return unless root
+
+          state = (Thread.current[:syrus_lock_order_created] ||= {})
+          entry = state[record.class.connection.object_id]
+          entry = nil unless entry && entry[:transaction].equal?(root)
+          entry ||= (state[record.class.connection.object_id] = { transaction: root, rows: Set.new })
+          entry[:rows] << [ record.class.base_class.name, record.id ]
         end
 
         # `ids` are the rows the locking query returned. A row the
@@ -74,6 +93,7 @@ module Syrus
           held = state[connection.object_id]
           held = nil unless held && held[:transaction].equal?(root)
           rows = ids.map { |id| [ model_class.base_class.name, id ] }
+          return if rows.any? && rows.all? { |row| created_in?(connection, root, row) }
           relock = held && rows.any? && rows.all? { |row| held[:rows].include?(row) }
           held[:rows].merge(rows) if held
           if held && held[:rank] > rank && !relock
@@ -86,6 +106,11 @@ module Syrus
         end
 
         private
+
+        def created_in?(connection, root, row)
+          entry = (Thread.current[:syrus_lock_order_created] || {})[connection.object_id]
+          entry && entry[:transaction].equal?(root) && entry[:rows].include?(row)
+        end
 
         # The first joinable transaction: a transactional test wraps each
         # example in a non-joinable one that is not the application's.
@@ -112,6 +137,16 @@ module Syrus
           return "unknown" unless location
 
           "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?app/)}, '\1')}:#{location.lineno}"
+        end
+      end
+
+      module CreateTracking
+        private
+
+        def _create_record(...)
+          result = super
+          Checker.created(self)
+          result
         end
       end
 
