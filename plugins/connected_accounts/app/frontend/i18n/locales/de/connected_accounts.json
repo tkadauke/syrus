@@ -10,6 +10,7 @@
     "validate_url": "Prüf-URL",
     "client_id": "Client-ID",
     "client_secret": "Client-Geheimnis",
+    "client_secret_configured": "Ein Client-Geheimnis ist konfiguriert. Gib nur zum Ersetzen einen neuen Wert ein.",
     "scope_catalog": "Berechtigungen",
     "read_only_scopes": "Nur-Lese-Berechtigungen",
     "api_origins": "API-Ursprünge",
