@@ -11,7 +11,7 @@ module Coworkers
     def find!(id: nil, handle: nil)
       raise ArgumentError, "provide exactly one of coworker_id or handle" if id.present? == handle.present?
 
-      normalized_handle = HandleRegistry.normalize(handle).delete_prefix("@")
+      normalized_handle = Syrus::Host::Handles.normalize(handle).delete_prefix("@")
       id.present? ? scope.find(id) : scope.find_by!("LOWER(handle) = ?", normalized_handle)
     end
 

@@ -5,10 +5,10 @@ module Coworkers
     def self.context_attributes(run:, role:)
       target = run.step.details.to_h["reviewer_target"]
       if target.present?
-        coworker = ReviewerTargets.resolve(target, owner: run.job.owner_user || run.job.user, repository: run.job.repository).fetch(:record)
+        coworker = Syrus::Host::ReviewerTargets.resolve(target, owner: run.job.owner_user || run.job.user, repository: run.job.repository).fetch(:record)
         return reviewer_context(coworker, run)
       end
-      return {} unless role == AgentRole::COWORKER && run.job.origin == "coworkers"
+      return {} unless role == Syrus::Host::AgentRoles::COWORKER && run.job.origin == "coworkers"
 
       coworker = Coworkers::Coworker.find_by(id: run.job.origin_id)
       return {} unless coworker
@@ -27,7 +27,7 @@ module Coworkers
     end
 
     def self.reviewer_context(coworker, run)
-      raise ReviewerTargets::TargetUnavailable, "coworker reviewer is not active" unless coworker.state == "active"
+      raise Syrus::Host::ReviewerTargets::TargetUnavailable, "coworker reviewer is not active" unless coworker.state == "active"
       raise ArgumentError, "coworker reviewer owner does not match the Job owner" unless coworker.owner_user_id == run.job.effective_owner_id
       permission_entries = coworker.permission_rules.entries
       allowed_capabilities = Coworkers::PrivilegedGrantGate.allowed_capabilities_from_entries(permission_entries)

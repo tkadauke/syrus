@@ -130,7 +130,7 @@ module CognitiveReview
     private_class_method :review_note_policy_context
 
     def self.diff_review_version(job:, workflow:, run:)
-      DiffReviewVersions::FinalReviewVersion.resolve(job: job, workflow: workflow, run: run)
+      Syrus::Host::DiffReviews.final_review_version(job: job, workflow: workflow, run: run)
     end
     private_class_method :diff_review_version
 

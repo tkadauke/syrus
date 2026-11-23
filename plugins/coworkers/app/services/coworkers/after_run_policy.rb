@@ -34,7 +34,7 @@ module Coworkers
           ).to_s
           chat.chat_queued_messages.create!(
             content: {
-              ChatQueuedMessage::INTERNAL_ROLE_KEY => "system",
+              Syrus::Host::ChatDelivery.internal_role_key => "system",
               "text" => "Your scheduled run \"#{task.name}\" finished. Follow up with your owner.",
               "source" => SOURCE,
               "background_run_id" => source_run.id,
@@ -43,7 +43,7 @@ module Coworkers
           )
           queued = true
         end
-        ChatQueuedMessagePromoter.deliver_one_if_idle!(chat) if queued
+        Syrus::Host::ChatDelivery.deliver_next_if_idle!(chat) if queued
         queued
       end
     end

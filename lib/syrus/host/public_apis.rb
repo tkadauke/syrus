@@ -74,7 +74,29 @@ module Syrus
         SkillBase: "Skills::Base",
         StepFailed: "Steps::Base::StepFailed",
         WorkspaceContext: "Syrus::Plugin::Context::WorkspaceContext",
-        PluginDispatch: "Syrus::Plugin::Dispatch"
+        PluginDispatch: "Syrus::Plugin::Dispatch",
+        PluginJob: "PluginJob",
+        ReviewerTargets: "ReviewerTargets",
+        AdversarialReviewStep: "Steps::AdversarialReview",
+        RetentionExecutor: "RetentionPolicyExecutors::Default",
+        RetentionResult: "RetentionPolicyExecutors::Result",
+        RetentionDefinition: "RetentionPolicyRegistry::Definition",
+        WorkLauncher: "WorkUnits::Launcher",
+        WorkGateResult: "WorkUnits::GateResult",
+        WorkDefinition: "WorkDefinitions::Base",
+        PermissionCapabilityDescriptor: "Permissions::CapabilityDescriptor",
+        PermissionCapabilityAdapter: "Permissions::CapabilityDescriptorAdapter",
+        PermissionCapabilityPresentation: "Permissions::CapabilityPresentation",
+        PermissionCapabilityRegistryValidator: "Permissions::CapabilityRegistryValidator",
+        PermissionCatalog: "Permissions::Catalog",
+        PermissionCoworkerDefaultPolicy: "Permissions::CoworkerDefaultPolicy",
+        PermissionManagement: "Permissions::Management",
+        PermissionRequest: "Permissions::PermissionRequest",
+        PermissionAuthorizationRequest: "Permissions::AuthorizationRequest",
+        PermissionAuthorizationDecision: "Permissions::AuthorizationDecision",
+        PendingActionBase: "PendingActions::Base",
+        PendingActionAuthorizedToolCall: "PendingActions::AuthorizedToolCall",
+        PendingActionPermissionManagement: "PendingActions::PermissionManagement"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -102,6 +124,28 @@ module Syrus
         AppController: [ "Bases authenticated plugin application API controllers; core filters are not promised.", %w[params render] ],
         AppAdminController: [ "Bases authenticated plugin admin API controllers; core filters are not promised.", %w[params render] ],
         ProcessRunner: [ "Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised.", %w[new run capture start mounts forwarded_env] ],
+        PluginJob: [ "Bases plugin-owned background jobs with a per-plugin queue, concurrency lease, and retry policy; DEFAULT_ATTEMPTS is the retry budget. Queue topology and health bookkeeping are not promised.", %w[plugin_slug plugin_queue_concurrency DEFAULT_ATTEMPTS] ],
+        ReviewerTargets: [ "Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised.", %w[resolve TargetRequired TargetUnavailable] ],
+        AdversarialReviewStep: [ "Bases plugin review steps that reuse the adversarial-review loop and raises MemoryPersistenceFailed; the loop internals and overridable hooks beyond call are not promised.", %w[new call MemoryPersistenceFailed] ],
+        RetentionExecutor: [ "Bases plugin retention executors that prune one declared policy; batching, scheduling, and archival are not promised.", %w[new call] ],
+        RetentionResult: [ "Reports how many records an executor deleted and whether a backlog remains.", %w[new deleted_count backlog] ],
+        RetentionDefinition: [ "Declares one retention policy (key, model, age column, setting, default, executor); registry storage is not promised.", %w[new key retention_window model_class scope_name] ],
+        WorkLauncher: [ "Instantiates and starts a workflow of a registered kind for a job, raising LockConflict when another unit holds the lock; ownership records, locks, and landing policy are not promised.", %w[instantiate start! create_and_start! LockConflict] ],
+        WorkGateResult: [ "Carries a start-gate verdict: pass, or block with a reason and optional retry time.", %w[pass block blocked? pass? reason retry_at details] ],
+        WorkDefinition: [ "Bases plugin work definitions that declare retry, lock, and landing policy for a workflow kind; the scheduling engine is not promised.", %w[new] ],
+        PermissionCapabilityDescriptor: [ "Describes one permission capability's policy defaults and authority durations; descriptor construction and storage are not promised.", %w[POLICIES AUTHORITY_DURATIONS] ],
+        PermissionCapabilityAdapter: [ "Builds capability descriptors from plugin tool definitions, registry entries, and coworker-parity entries; the descriptor schema beyond essential? is not promised.", %w[for_plugin_definition for_registry_entry for_coworker_parity] ],
+        PermissionCapabilityPresentation: [ "Looks up the user-facing presentation of a capability operation; wording is not promised.", %w[for] ],
+        PermissionCapabilityRegistryValidator: [ "Lists the application's registered capabilities; validation rules are not promised.", %w[for_application] ],
+        PermissionCatalog: [ "Looks up a capability and operation in the permission catalog and raises UnknownCapability when absent; catalog contents are not promised.", %w[find! UnknownCapability] ],
+        PermissionCoworkerDefaultPolicy: [ "Applies the default policy for coworker roles to capability descriptors; the rule table is not promised.", %w[ROLES verdict violations requestable? descriptor_auto_allowable?] ],
+        PermissionManagement: [ "Reads and manages one user's durable permissions; storage and authorization checks are not promised.", %w[new] ],
+        PermissionRequest: [ "Bases plugin permission requests carried through pending actions; routing is not promised.", %w[new] ],
+        PermissionAuthorizationRequest: [ "Bases plugin authorization requests evaluated by the permission engine; evaluation is not promised.", %w[new] ],
+        PermissionAuthorizationDecision: [ "Bases plugin authorization decisions returned by the permission engine; persistence is not promised.", %w[new] ],
+        PendingActionBase: [ "Bases plugin pending-action handlers confirmed by an operator; queueing is not promised.", %w[new] ],
+        PendingActionAuthorizedToolCall: [ "Bases pending actions that replay an authorized tool call; replay internals are not promised.", %w[new] ],
+        PendingActionPermissionManagement: [ "Bases pending actions that change durable permissions; permission storage is not promised.", %w[new] ],
         OperationalLogging: [ "Emits structured plugin diagnostic events; subscribers and storage are not promised.", %w[ingest] ],
         PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram] ],
@@ -151,6 +195,21 @@ module Syrus
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 
+      FACADE_CONTRACTS = {
+        AgentRoles: [ "Names the agent role identifiers plugins may compare against or declare; role-to-tool exposure is not promised.", %w[CHAT_PLANNER COWORKER_CHAT COWORKER AGENT_INSIGHT WORKFLOW_SUMMARY_TEST_PLAN WORKFLOW_COWORKER_REVIEWER WORKFLOW_MANUAL WORKFLOW_ROLES] ],
+        ChatMessages: [ "Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised.", %w[find find_by where active none install_after_commit_on_create remove_after_commit_on_create] ],
+        ChatPendingActions: [ "Reads chat pending actions; creation, confirmation, and state transitions are not promised.", %w[where pending] ],
+        ChatDelivery: [ "Delivers the next queued chat message when the chat is idle and names the internal-role metadata key; queue ordering and batching are not promised.", %w[internal_role_key deliver_next_if_idle!] ],
+        ChatTurns: [ "Enqueues an agent turn for a chat message; turn execution is not promised.", %w[enqueue] ],
+        ChatWorkspaces: [ "Resolves a chat's repository checkout path and reports its git state; workspace layout beyond the returned paths is not promised.", %w[repo_path_for ensure_root! rebase_in_progress? uncommitted_changes?] ],
+        Handles: [ "Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised.", %w[normalize claim! rename! release!] ],
+        PermissionRules: [ "Queries durable permission rules and groups changes in a transaction; evaluation and audit behavior are not promised.", %w[where active transaction create!] ],
+        PermissionLeases: [ "Queries permission leases; issuance and expiry are not promised.", %w[where] ],
+        PermissionPolicies: [ "Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.", %w[rank] ],
+        DiffReviews: [ "Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.", %w[comments versions best_match_version final_review_version] ],
+        RetentionLimits: [ "Names the default batch limits for retention executors; scheduling is not promised.", %w[default_batch_size default_max_batches] ]
+      }.freeze
+
       STATIC_CONTRACTS = {
         ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ]
       }.freeze
@@ -162,6 +221,7 @@ module Syrus
           register_contracts(ALIAS_CONTRACTS, qualify: true)
           register_contracts(DOMAIN_CONTRACTS)
           register_contracts(SERVICE_CONTRACTS)
+          register_contracts(FACADE_CONTRACTS)
           register_contracts(STATIC_CONTRACTS)
         end
 
@@ -175,7 +235,7 @@ module Syrus
         end
 
         def replace_contracts!
-          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys + STATIC_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
+          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys + FACADE_CONTRACTS.keys + STATIC_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
           Host.apis.reject! { |api| managed_names.include?(api.name) }
         end
 
