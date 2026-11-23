@@ -183,7 +183,8 @@ export function normalizeChatPayload(payload: ChatPayload, source = "chat_detail
       source
     })
   }
-  payload.recent_chats.forEach((chat) =>
+  const recentChats = Array.isArray(payload.recent_chats) ? payload.recent_chats : []
+  recentChats.forEach((chat) =>
     upsertEntity({ kind: "chat_sessions", id: chat.id, fields: chat as unknown as Record<string, unknown>, completeness: "summary", source })
   )
   payload.messages.forEach((message) => normalizeChatMessage(message, source))
@@ -199,7 +200,7 @@ export function normalizeChatPayload(payload: ChatPayload, source = "chat_detail
       { completeness: "partial", source, extraFields: { app_path: payload.attached_coding_job.app_path } }
     )
   }
-  return payload
+  return recentChats === payload.recent_chats ? payload : { ...payload, recent_chats: recentChats }
 }
 
 export function normalizeJobRecord(

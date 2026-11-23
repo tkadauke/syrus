@@ -157,7 +157,7 @@ export function runtimeTabVisible(payload: ChatPayload): boolean {
 }
 
 export function currentRecentChat(payload: ChatPayload) {
-  return payload.recent_chats.find((chat) => chat.id === payload.chat.id) || payload.chat
+  return (Array.isArray(payload.recent_chats) ? payload.recent_chats : []).find((chat) => chat.id === payload.chat.id) || payload.chat
 }
 
 export function chatDisplayTitle(chat: Pick<ChatNavRecord, "id" | "title" | "title_pending" | "repository">) {

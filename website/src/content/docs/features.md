@@ -1525,7 +1525,10 @@ chat, message, queued follow-up, or agent turn. A matching realtime message
 also clears a stale send-failure notice and restored draft when the HTTP
 response was lost after the message committed.
 
-The chat agent can schedule one-shot wakeups for the current chat. At the
+The chat agent can schedule one-shot wakeups for the current chat without an
+approval prompt. Creating, listing, and cancelling these self-owned wakeups
+are essential capabilities; broader repository, recurring, and cross-chat
+scheduling keeps its normal permission boundaries. At the
 requested time, Syrus starts another visible chat turn with the stored prompt,
 so the wakeup and any follow-up action remain part of the transcript. The
 agent can schedule short relative wakeups with `delay_minutes`, or schedule a

@@ -56,6 +56,7 @@ import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
+const EXPANDED_COWORKER_THREADS_KEY = "syrus.recent_chats_sidebar.expanded_coworker_threads"
 const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
 const GROUP_BY_OPTIONS: Array<{ value: ChatSidebarGroupBy; label: string }> = [
   { value: "date", label: "recent_chats_options.group_by.date" },
@@ -121,6 +122,26 @@ function writeSidebarSettings(settings: ChatSidebarSettings) {
     window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify(settings))
   } catch {
     // Sidebar settings are a convenience preference; the default view still works.
+  }
+}
+
+function readExpandedCoworkerIds(): Set<number> {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(EXPANDED_COWORKER_THREADS_KEY) || "[]")
+    if (!Array.isArray(parsed)) return new Set()
+
+    return new Set(parsed.filter((id): id is number => Number.isSafeInteger(id) && id > 0))
+  } catch {
+    // handled-error-expected: Browser storage may be unavailable or contain an invalid preference.
+    return new Set()
+  }
+}
+
+function writeExpandedCoworkerIds(ids: Set<number>) {
+  try {
+    window.localStorage.setItem(EXPANDED_COWORKER_THREADS_KEY, JSON.stringify([...ids]))
+  } catch {
+    // handled-error-expected: Browser storage may be unavailable; collapsed remains the safe default.
   }
 }
 
@@ -200,7 +221,7 @@ export function RecentChatsSidebar({
   const codingModeEnabled = featureFlags.coding_mode === true
   const localModeEnabled = featureFlags.local_mode === true
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
-  const [expandedCoworkerIds, setExpandedCoworkerIds] = useState<Set<number>>(() => new Set())
+  const [expandedCoworkerIds, setExpandedCoworkerIds] = useState<Set<number>>(readExpandedCoworkerIds)
   const [expandedCoworkerChatIds, setExpandedCoworkerChatIds] = useState<Set<number>>(() => new Set())
   const [loadedCoworkerSideChats, setLoadedCoworkerSideChats] = useState<Record<number, ChatNavRecord[]>>({})
   const [loadingMoreGroups, setLoadingMoreGroups] = useState(false)
@@ -216,6 +237,7 @@ export function RecentChatsSidebar({
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
+  const loadingCoworkerIdsRef = useRef<Set<number>>(new Set())
   const activeChatId = activeChatIdFromPath(location.pathname)
   // The route's chat id is deliberately not part of the query key or the
   // settings key: navigating between chats must not select a new cache entry,
@@ -236,31 +258,53 @@ export function RecentChatsSidebar({
   const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
 
-  function toggleCoworker(coworkerId: number, mainChat: ChatNavRecord) {
-    if (!expandedCoworkerIds.has(coworkerId) && loadedCoworkerSideChats[coworkerId] === undefined) {
+  useEffect(() => {
+    writeExpandedCoworkerIds(expandedCoworkerIds)
+  }, [expandedCoworkerIds])
+
+  const loadCoworkerSideChats = useCallback(
+    (coworkerId: number, mainChat: ChatNavRecord) => {
       const path = mainChat.agent_appearance?.side_chat_action_path
-      if (path) {
-        void fetchCoworkerChatsFromAction(path)
-          .then(({ chats: linkedChats }) => {
-            setLoadedCoworkerSideChats((current) => ({
-              ...current,
-              [coworkerId]: linkedChats
-                .filter((link) => link.role === "side")
-                .map((link) => ({
-                  ...mainChat,
-                  id: link.id,
-                  title: link.title,
-                  title_pending: link.title == null,
-                  pinned: false,
-                  chat_path: link.path,
-                  unread: false,
-                  agent_appearance: mainChat.agent_appearance ? { ...mainChat.agent_appearance, coworker_chat_role: "side" } : undefined
-                }))
-            }))
-          })
-          .catch((error) => onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_load_chats")))
-      }
-    }
+      if (!path || loadedCoworkerSideChats[coworkerId] !== undefined || loadingCoworkerIdsRef.current.has(coworkerId)) return
+
+      loadingCoworkerIdsRef.current.add(coworkerId)
+      void fetchCoworkerChatsFromAction(path)
+        .then(({ chats: linkedChats }) => {
+          setLoadedCoworkerSideChats((current) => ({
+            ...current,
+            [coworkerId]: linkedChats
+              .filter((link) => link.role === "side")
+              .map((link) => ({
+                ...mainChat,
+                id: link.id,
+                title: link.title,
+                title_pending: link.title == null,
+                pinned: false,
+                chat_path: link.path,
+                unread: false,
+                agent_appearance: mainChat.agent_appearance ? { ...mainChat.agent_appearance, coworker_chat_role: "side" } : undefined
+              }))
+          }))
+        })
+        .catch((error) => onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_load_chats")))
+        .finally(() => loadingCoworkerIdsRef.current.delete(coworkerId))
+    },
+    [loadedCoworkerSideChats, onNotice, t]
+  )
+
+  useEffect(() => {
+    sections.forEach((section) => {
+      section.chats.forEach((chat) => {
+        const coworkerId = chat.agent_appearance?.coworker_id
+        if (chat.agent_appearance?.coworker_chat_role === "main" && coworkerId != null && expandedCoworkerIds.has(coworkerId)) {
+          loadCoworkerSideChats(coworkerId, chat)
+        }
+      })
+    })
+  }, [expandedCoworkerIds, loadCoworkerSideChats, sections])
+
+  function toggleCoworker(coworkerId: number, mainChat: ChatNavRecord) {
+    if (!expandedCoworkerIds.has(coworkerId)) loadCoworkerSideChats(coworkerId, mainChat)
     setExpandedCoworkerIds((current) => toggleSetValue(current, coworkerId))
   }
   const canLoadMoreGroups = Boolean(chats.data?.groups_has_more && chats.data.groups_next_offset != null)

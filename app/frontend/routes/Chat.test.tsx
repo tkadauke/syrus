@@ -124,6 +124,60 @@ describe("storedWorkspaceCollapsed", () => {
   })
 })
 
+describe("chat payload recent chats compatibility", () => {
+  it.each([
+    ["absent", undefined],
+    ["malformed", { id: 8 }]
+  ])("renders a directly opened chat when recent_chats is %s", async (_label, recentChats) => {
+    const browserError = vi.fn()
+    window.addEventListener("error", browserError)
+    mockChatRouteFetch(chatPayload({}, { recent_chats: recentChats }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(browserError).not.toHaveBeenCalled()
+    window.removeEventListener("error", browserError)
+  })
+
+  it.each([
+    ["empty", []],
+    ["populated", [{ id: 8, title: "Aqueduct planning", title_pending: false }]]
+  ])("renders with a %s recent_chats collection", async (_label, recentChats) => {
+    mockChatRouteFetch(chatPayload({}, { recent_chats: recentChats }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+  })
+
+  it("survives client-side navigation to a chat whose recent_chats field is absent", async () => {
+    const firstChat = chatPayload()
+    const secondChat = chatPayload({ chat: { id: 9, title: "Canal planning" }, messages: [] }, { recent_chats: undefined })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(jsonResponse(path === "/api/v1/app/chats/9" ? secondChat : firstChat))
+    })
+
+    renderRouteWithChatSwitch()
+    await screen.findByText("Discuss aqueducts.")
+    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
+
+    expect(await screen.findByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+  })
+
+  it("survives a skewed cached payload while refresh initializes", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(chatQueryKey("8", ""), chatPayload({}, { recent_chats: undefined }))
+    mockChatRouteFetch(chatPayload())
+
+    renderRoute("/app-shell/chats/8", queryClient)
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+  })
+})
+
 describe("storedWorkspaceTab", () => {
   beforeEach(() => {
     window.localStorage.clear()

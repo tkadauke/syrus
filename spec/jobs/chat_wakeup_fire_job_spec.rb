@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe ChatWakeupFireJob do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:chat_session) { ChatSession.create!(user: user) }
 
@@ -65,5 +67,21 @@ RSpec.describe ChatWakeupFireJob do
 
     described_class.perform_now(wakeup.id)
     described_class.perform_now(wakeup.id)
+  end
+
+  it "resumes the intended chat exactly once when the fire job is retried" do
+    other_chat = ChatSession.create!(user: user)
+    wakeup = create_wakeup
+
+    expect {
+      described_class.perform_now(wakeup.id)
+      described_class.perform_now(wakeup.id)
+    }.to change { chat_session.messages.count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).exactly(:once)
+
+    message = chat_session.messages.order(:id).last
+    expect(message.content).to include("requested_by" => "wakeup", "wakeup_id" => wakeup.id)
+    expect(other_chat.messages).to be_empty
+    expect(wakeup.reload).to be_fired
   end
 end

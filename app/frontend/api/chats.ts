@@ -1255,6 +1255,10 @@ export function fetchChat(id: string, search = "") {
     }
     return {
       ...payload,
+      // Full chat responses always include this collection, but normalize at
+      // the network boundary so mixed-version deploys and stale cached
+      // responses cannot crash consumers before the next refresh.
+      recent_chats: Array.isArray(payload.recent_chats) ? payload.recent_chats : [],
       chat: {
         ...payload.chat,
         chat_provider_options: capabilities?.chat_provider_options ?? payload.chat.chat_provider_options,
