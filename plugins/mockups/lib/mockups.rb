@@ -15,11 +15,11 @@ module Mockups
     category "agent_capability"
     default_enabled true
     disableable true
-    provides chat_media_source: "Mockups::MediaSource",
-             chat_payload_contributor: "Mockups::PayloadContributor",
-             chat_prompt_injector: "Mockups::PromptSection",
-             preview_panel_retention: "Mockups::PreviewPanelRetention",
+    provides preview_panel_retention: "Mockups::PreviewPanelRetention",
              sidebar_pages: "Mockups::SidebarPages"
+    chat_integration media_sources: "Mockups::MediaSource",
+                     payload_contributors: "Mockups::PayloadContributor",
+                     prompt_injectors: "Mockups::PromptSection"
     toolkit chat_tools: "Mockups::ChatToolSet"
     surface filter_subjects: { mockup: { model: "Mockups::Mockup", chips: "Mockups::FilterSubject::CHIPS" } }
 

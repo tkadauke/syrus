@@ -87,7 +87,7 @@ module Syrus
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types toolkit surface while_enabled metrics always suggests_enabling on_boot
+        credential_types toolkit surface chat_integration while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
       attr_reader :name, :namespace, :lib_dir
@@ -216,6 +216,23 @@ module Syrus
           family: :surface, provider: "#{namespace.name}::Surface",
           implements: capabilities - [ :preview_panel_viewers ],
           provisional: capabilities & [ :preview_panel_viewers ]
+        )
+      end
+
+      # Declares chat-turn integrations without resolving application constants
+      # while plugin manifests and catalogs are loaded.
+      def chat_integration(**contributions)
+        contributions.compact!
+        return if contributions.empty?
+
+        provider = Syrus::Plugin::ChatIntegration.provider(
+          key: name, display_name: @scalars[:display_name] || name.humanize, **contributions
+        )
+        namespace.send(:remove_const, :ChatIntegration) if namespace.const_defined?(:ChatIntegration, false)
+        namespace.const_set(:ChatIntegration, provider)
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family: :chat_integration, provider: "#{namespace.name}::ChatIntegration",
+          provisional: contributions.keys
         )
       end
 

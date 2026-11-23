@@ -20,9 +20,9 @@ RSpec.describe ChatMediaSources do
   let(:second_source) { media_source(kind: "recording", panel: { recordings: [ 2 ], shared: "second" }) }
 
   before do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for)
-      .with(:chat_media_source)
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions)
+      .with(:media_sources)
       .and_return([ first_source, second_source ])
   end
 

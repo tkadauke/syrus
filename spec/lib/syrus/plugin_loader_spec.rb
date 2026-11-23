@@ -444,6 +444,37 @@ RSpec.describe Syrus::PluginLoader do
       end
     end
 
+    it "turns an obsolete external ChatIntegration declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_chat", gem_name: "healthy_chat_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_chat", gem_name: "obsolete_chat_fixture")
+        overwrite_entry(obsolete, "obsolete_chat_fixture", <<~RUBY)
+          module ObsoleteChatFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_chat_fixture" do
+              provides chat_integration: "ObsoleteChatFixture::Provider", provisional: %i[removed_chat_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_chat_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_chat_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_chat_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteChatFixture) if defined?(ObsoleteChatFixture)
+      end
+    end
+
     it "isolates StandardError, LoadError, and syntax failures while loading healthy plugins" do
       Dir.mktmpdir do |temporary|
         snapshot = Syrus::PluginRegistry.snapshot

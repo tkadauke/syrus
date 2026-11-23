@@ -18,19 +18,11 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
-    provides mentionable: "Coworkers::MentionableProvider",
-             chat_identity_provider: "Coworkers::ChatIdentityProvider",
-             callbacks: "Coworkers::Callbacks",
+    provides callbacks: "Coworkers::Callbacks",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              repository_filter: "Coworkers::RepositoryFilter",
-             chat_prompt_injector: "Coworkers::PromptSection",
-             chat_turn_orientation: "Coworkers::MessageReply",
-             chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
-             chat_turn_lifecycle: "Coworkers::ChatTurnLifecycle",
              sidebar_pages: "Coworkers::SidebarPages",
-             chat_payload_contributor: "Coworkers::PayloadContributor",
-             chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
              review_context_contributor: "Coworkers::ReviewContextContributor",
              review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
@@ -39,6 +31,14 @@ module Coworkers
              retention_policy: "Coworkers::ReviewContextRetentionPolicy",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
+    chat_integration mentionables: "Coworkers::MentionableProvider",
+                     identity_providers: "Coworkers::ChatIdentityProvider",
+                     prompt_injectors: "Coworkers::PromptSection",
+                     turn_orientations: "Coworkers::MessageReply",
+                     workspace_lifecycles: "Coworkers::ChatWorkspaceLifecycle",
+                     turn_lifecycles: "Coworkers::ChatTurnLifecycle",
+                     payload_contributors: "Coworkers::PayloadContributor",
+                     turn_finalizers: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ]
     toolkit workflow_tools: "Coworkers::ReviewToolSet", chat_tools: "Coworkers::ChatToolSet", run_context: "Coworkers::RunContextContributor"
     surface filter_chips: { chat_message: { "coworker_id" => "Coworkers::Filters::CoworkerId" } }
     tick_interval 5.minutes

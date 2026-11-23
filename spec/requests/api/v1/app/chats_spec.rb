@@ -793,8 +793,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(groups.find { |group| group.fetch("key") == "shared-with-me" }.fetch("chats").pluck("id")).to eq([ shared.id ])
     expect(groups.reject { |group| %w[test-agents shared-with-me].include?(group.fetch("key")) }.flat_map { |group| group.fetch("chats") }.pluck("id")).to eq([ ordinary.id ])
 
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_identity_provider).and_return([])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:identity_providers).and_return([])
     get "/api/v1/app/chats"
 
     restored_ids = parse_body.fetch("groups").reject { |group| group.fetch("key") == "shared-with-me" }.flat_map { |group| group.fetch("chats") }.pluck("id")

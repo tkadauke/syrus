@@ -14,7 +14,7 @@ class ChatTurnLifecycles
   end
 
   def self.for(chat_session:, user_message:)
-    provider = Syrus::PluginRegistry.providers_for(:chat_turn_lifecycle).find do |candidate|
+    provider = Syrus::Plugin::ChatIntegration.contributions(:turn_lifecycles).find do |candidate|
       Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
         extension_point: :chat_turn_lifecycle, provider: candidate, operation: :applies_to,
         on_decline: false

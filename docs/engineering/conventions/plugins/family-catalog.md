@@ -6,6 +6,33 @@ Families are defined by core and implementations are read from plugin manifests.
 A stable capability requires at least two independent in-tree implementations
 and a generated contract test; all other capabilities are provisional.
 
+## `chat_integration`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `identity_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `job_status_extensions` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `media_sources` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `mentionables` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `payload_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `prompt_injectors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `turn_finalizers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `turn_lifecycles` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `turn_orientations` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `workspace_lifecycles` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `coworkers` | `Coworkers::ChatIntegration` | - | - | `mentionables`, `identity_providers`, `prompt_injectors`, `turn_orientations`, `workspace_lifecycles`, `turn_lifecycles`, `payload_contributors`, `turn_finalizers` |
+| `mockups` | `Mockups::ChatIntegration` | - | - | `media_sources`, `payload_contributors`, `prompt_injectors` |
+| `sdlc_pipeline` | `SdlcPipeline::ChatIntegration` | - | - | `job_status_extensions` |
+| `video_walkthroughs` | `VideoWalkthroughs::ChatIntegration` | - | - | `payload_contributors`, `turn_orientations` |
+| `whiteboard` | `Whiteboard::ChatIntegration` | - | - | `media_sources`, `payload_contributors`, `prompt_injectors` |
+
 ## `ecosystem`
 
 Shape: `facet`. Required core: `key`, `display_name`.

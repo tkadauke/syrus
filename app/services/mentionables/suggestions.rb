@@ -40,7 +40,7 @@ module Mentionables
       end
     end
 
-    def providers = ::Syrus::PluginRegistry.providers_for(:mentionable)
+    def providers = ::Syrus::Plugin::ChatIntegration.contributions(:mentionables)
 
     def matches?(candidate)
       return true if @query.blank?
