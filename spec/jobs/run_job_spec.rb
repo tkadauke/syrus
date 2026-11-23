@@ -1876,14 +1876,7 @@ RSpec.describe RunJob, :ci_only do
   end
 
   def stub_visual_review_plan(enabled:)
-    plan = SyrusBrowser::RepoVisualReviewPlan::Result.new(
-      enabled: enabled,
-      rounds: 1,
-      source: "spec",
-      note: enabled ? nil : "disabled for dispatch-focused spec"
-    )
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(plan)
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(plan)
+    enabled ? stub_workflow_judge(step_kind: "visual_review") : stub_no_workflow_judges
   end
 
   def seed_remote_with_initial_commit(bare_path)

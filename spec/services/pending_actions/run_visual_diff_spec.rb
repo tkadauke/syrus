@@ -8,9 +8,7 @@ RSpec.describe PendingActions::RunVisualDiff do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   before do
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
-      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
-    )
+    stub_workflow_judge(step_kind: "visual_review")
   end
 
   def add_after_screenshot(job, artifact: nil)
