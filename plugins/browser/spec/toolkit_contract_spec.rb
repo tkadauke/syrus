@@ -22,4 +22,3 @@ RSpec.describe SyrusBrowser::Toolkit do
     plugin: "browser", provider: "SyrusBrowser::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

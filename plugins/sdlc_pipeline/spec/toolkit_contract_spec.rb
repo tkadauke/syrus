@@ -22,4 +22,3 @@ RSpec.describe SdlcPipeline::Toolkit do
     plugin: "sdlc_pipeline", provider: "SdlcPipeline::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

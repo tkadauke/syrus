@@ -22,4 +22,3 @@ RSpec.describe MysqlDbBrowser::Toolkit do
     plugin: "mysql_db_browser", provider: "MysqlDbBrowser::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

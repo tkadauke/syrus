@@ -22,4 +22,3 @@ RSpec.describe TestInsights::Toolkit do
     plugin: "test_insights", provider: "TestInsights::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

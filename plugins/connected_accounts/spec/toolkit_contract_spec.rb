@@ -22,4 +22,3 @@ RSpec.describe ConnectedAccounts::Toolkit do
     plugin: "connected_accounts", provider: "ConnectedAccounts::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

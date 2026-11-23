@@ -22,4 +22,3 @@ RSpec.describe Mockups::Toolkit do
     plugin: "mockups", provider: "Mockups::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

@@ -22,4 +22,3 @@ RSpec.describe SyrusClaudeAgent::Toolkit do
     plugin: "claude_agent", provider: "SyrusClaudeAgent::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

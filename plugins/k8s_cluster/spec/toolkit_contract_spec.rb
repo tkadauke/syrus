@@ -22,4 +22,3 @@ RSpec.describe K8sCluster::Toolkit do
     plugin: "k8s_cluster", provider: "K8sCluster::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

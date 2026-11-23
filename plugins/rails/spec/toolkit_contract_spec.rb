@@ -22,4 +22,3 @@ RSpec.describe SyrusRails::Toolkit do
     plugin: "syrus-rails", provider: "SyrusRails::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-
