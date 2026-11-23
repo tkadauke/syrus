@@ -67,6 +67,17 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
     expect(Syrus::PluginRegistry.legacy_bridge_duplicate_registrations.map(&:extension_point)).to include(:mcp_tool_set)
   end
 
+  it "preserves legacy chat tool sets in manifest-level inventory" do
+    tool_set = Class.new do
+      include Syrus::Plugin::ChatMcpToolSet
+    end
+    manifest = Syrus::Plugin::Manifest.new(
+      name: "legacy_chat_tools", version: "1", provides: { chat_mcp_tool_set: tool_set }, metadata: {}
+    )
+
+    expect(described_class.chat_tool_set_for(manifest)).to eq([ tool_set ])
+  end
+
   it "skips a failing tool provider and returns the remaining tool sets" do
     failing = Class.new do
       def self.key = "failing"

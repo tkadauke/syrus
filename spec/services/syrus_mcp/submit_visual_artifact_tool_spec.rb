@@ -107,8 +107,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
       end
     end
 
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ fake_tool_set ])
+    allow(Syrus::Plugin::Toolkit).to receive(:workflow_tool_sets).and_return([ fake_tool_set ])
   end
 
   def subject_evaluate_response(rect:, viewport: { width: 1440, height: 900 }, scroll_position: { x: 0, y: 200 })
