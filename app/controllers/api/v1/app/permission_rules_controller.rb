@@ -18,8 +18,9 @@ module Api
           # Essential operations are always allowed and cannot be the target of a
           # rule, so they are listed for reference but never offered as
           # something to allow, ask about or deny.
+          essential_cache = {}
           essential, authorable = Permissions::Catalog.descriptors.partition do |descriptor|
-            Permissions::Catalog.essential_everywhere?(descriptor)
+            Permissions::Catalog.essential_everywhere?(descriptor, cache: essential_cache)
           end
           payload = {
             inherited: authorable.map { |descriptor| serialize_descriptor(descriptor) },
