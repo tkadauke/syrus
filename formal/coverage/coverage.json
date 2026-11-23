@@ -3676,7 +3676,8 @@
         "B. Keep User last and replace the User-row mutex with locks on the candidate ProviderAccount rows (in id order), adding ProviderAccount to the order before Epic.",
         "C. Keep User last and reserve the provider account before the Run-creating transaction opens, in its own short transaction."
       ],
-      "recommendation": "A. The evidence says the User row is now only ever a first-taken mutex, so placing it first matches what the code does; B and C change working reservation code to satisfy an order chosen before this evidence existed."
+      "recommendation": "A. The evidence says the User row is now only ever a first-taken mutex, so placing it first matches what the code does; B and C change working reservation code to satisfy an order chosen before this evidence existed.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): Move User to the front of the order (User -> AppSetting -> Epic -> ...). The reservation becomes in-order with no code change; the checker then guards that nothing locks User late again. To implement."
     },
     {
       "id": "NY32",
@@ -3688,7 +3689,8 @@
         "B. Move WorkUnit before Workflow in the order (... WorkIntent -> WorkUnit -> Workflow -> Step ...) and change the Workflow-then-unit sites (TerminalWorkflowSync and the launch paths) to lock the unit first.",
         "C. Undo F97's atomicity: run TerminalUnitSync after the unit's transaction commits, and rely on the reconciler to repair a crash between the two."
       ],
-      "recommendation": "A. It changes only the two entry points that cause the inversion and keeps the crash-safety F97 added; B reorders many more sites, and C reopens the window F97 closed."
+      "recommendation": "A. It changes only the two entry points that cause the inversion and keeps the crash-safety F97 added; B reorders many more sites, and C reopens the window F97 closed.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): In mark_terminal!/preempt!, lock the Workflow (and its active Steps) before the unit, keeping the order Workflow -> Step -> WorkUnit and F97's atomicity. To implement."
     },
     {
       "id": "NY33",
@@ -3700,7 +3702,8 @@
         "B. Keep the cascade as is, and make the order a row order along the Workflow tree: the checker accepts a descendant Workflow after its ancestor's Steps, and a spec proves no path locks a child before its parent in the same transaction.",
         "C. Accept it: rows of one model stay unordered, and InnoDB deadlock detection plus the callers' retries handle the rare collision."
       ],
-      "recommendation": "A. It is local to WorkflowCancellation, keeps the checker's rule simple (model order), and costs only the extra up-front locks on rows the cascade will lock anyway."
+      "recommendation": "A. It is local to WorkflowCancellation, keeps the checker's rule simple (model order), and costs only the extra up-front locks on rows the cascade will lock anyway.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): Lock the whole subtree's Workflows (parent first, then descendants by id) before any of their Steps, so the cascade is in model order. To implement."
     },
     {
       "id": "NY34",
@@ -3712,7 +3715,8 @@
         "B. Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks.",
         "C. Keep as is: self-scheduling is owned, scoped and audited, and an operator can cancel a runaway chat."
       ],
-      "recommendation": "A. Two counters on the chat keep every legitimate use (reminders, polling a slow job) free while a runaway loop hits approval within a day; B models chains, which is more precise but more machinery, and C leaves cost unbounded."
+      "recommendation": "A. Two counters on the chat keep every legitimate use (reminders, polling a slow job) free while a runaway loop hits approval within a day; B models chains, which is more precise but more machinery, and C leaves cost unbounded.",
+      "decision": "B (2026-11-23, answered on the lean-plan site): Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks. Operator note: N should be large but bounded. Let's make it 100 and let's make it configurable. To implement."
     }
   ]
 }
