@@ -163,7 +163,9 @@ module ProviderRouting
           next
         end
 
-        selected_candidate = candidate.with(account_id: account.public_id)
+        # select_account reports an available candidate without an account when
+        # the user has no enabled provider accounts (legacy/default credentials).
+        selected_candidate = account ? candidate.with(account_id: account.public_id) : candidate
         return decision(selected_candidate, candidate_availability: candidate_availability, exhausted: false, provider_account: account)
       end
 

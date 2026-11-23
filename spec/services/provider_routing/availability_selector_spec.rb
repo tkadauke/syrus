@@ -325,6 +325,18 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       end
     end
 
+    it "keeps the candidate without raising when it is available but no provider account is enabled" do
+      allow_any_instance_of(User).to receive(:enabled_provider_accounts).and_return(ProviderAccount.none)
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available")
+
+      decision = nil
+      expect { decision = call }.not_to raise_error
+
+      expect(decision.provider_account).to be_nil
+      expect(decision.candidate.account_id).to be_blank
+      expect(decision.exhausted).to be(false)
+    end
+
     it "selects and pins the least-pressured healthy account before the first Run" do
       first = user.default_provider_account("claude")
       second = ProviderAccount.create!(
