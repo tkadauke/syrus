@@ -14,7 +14,7 @@ module Api
 
         def summary
           job = reviewable_job_scope.find(params[:id])
-          render json: { change_scope: ReviewWorkspacePlugin::ChangeScope.call(job) }
+          render json: { change_scope: ReviewWorkspacePlugin::ChangeScope.call(job), current_head_sha: ReviewWorkspacePlugin::CurrentHead.call(job) }
         end
 
         private

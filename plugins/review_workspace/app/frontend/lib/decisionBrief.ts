@@ -9,22 +9,37 @@ export type BriefTone = "success" | "warning" | "danger" | "neutral"
 // actually present in the payload.
 export type BriefRow = { id: string; tone: BriefTone; labelKey: string; valueKey: string; values?: Record<string, string | number> }
 
-type ReviewIteration = { iteration?: number; verdict?: string; non_blocking_findings?: unknown[] }
+type ReviewIteration = {
+  iteration?: number
+  verdict?: string
+  non_blocking_findings?: unknown[]
+  reviewed_head_sha?: string | null
+  review_evidence?: { reviewed_head_sha?: string | null } | null
+}
 
 const REVIEW_KINDS = [
   { id: "adversarial", artifact: "adversarial_review_iterations", labelKey: "brief_adversarial_review" },
   { id: "security", artifact: "security_review_iterations", labelKey: "brief_security_review" }
 ] as const
 
-function latestIteration(workflows: JobWorkflow[], artifact: string): ReviewIteration | null {
+const reviewedHead = (iteration: ReviewIteration) => iteration.reviewed_head_sha ?? iteration.review_evidence?.reviewed_head_sha ?? null
+
+// Review evidence is about one exact implementation commit. Only iterations
+// stamped with the current head count; anything older, unstamped, or judged
+// without a known current head is reported as unconfirmed, never as current.
+function latestIteration(workflows: JobWorkflow[], artifact: string, currentHeadSha: string | null): { current: ReviewIteration | null; recorded: boolean } {
   let best: { workflowId: number; iteration: ReviewIteration } | null = null
+  let recorded = false
   for (const workflow of workflows) {
     const iterations = workflow.artifacts?.[artifact]
     if (!Array.isArray(iterations) || iterations.length === 0) continue
-    const last = (iterations as ReviewIteration[]).reduce((a, b) => ((b.iteration ?? 0) >= (a.iteration ?? 0) ? b : a))
+    recorded = true
+    const matching = (iterations as ReviewIteration[]).filter((iteration) => currentHeadSha && reviewedHead(iteration) === currentHeadSha)
+    if (matching.length === 0) continue
+    const last = matching.reduce((a, b) => ((b.iteration ?? 0) >= (a.iteration ?? 0) ? b : a))
     if (!best || workflow.id >= best.workflowId) best = { workflowId: workflow.id, iteration: last }
   }
-  return best?.iteration ?? null
+  return { current: best?.iteration ?? null, recorded }
 }
 
 function readinessRow(payload: JobDetailPayload, canApprove: boolean, dependencyBlocked: boolean): BriefRow {
@@ -59,11 +74,15 @@ function checksRow(payload: JobDetailPayload): BriefRow | null {
   return { id: "checks", tone: entry.tone, labelKey: "brief_checks", valueKey: entry.valueKey }
 }
 
-function reviewRows(workflows: JobWorkflow[]): BriefRow[] {
+function reviewRows(workflows: JobWorkflow[], currentHeadSha: string | null): BriefRow[] {
   const rows: BriefRow[] = []
+  let unconfirmed = false
   for (const kind of REVIEW_KINDS) {
-    const iteration = latestIteration(workflows, kind.artifact)
-    if (!iteration) continue
+    const { current: iteration, recorded } = latestIteration(workflows, kind.artifact, currentHeadSha)
+    if (!iteration) {
+      if (recorded) unconfirmed = true
+      continue
+    }
     const nonBlocking = iteration.non_blocking_findings?.length ?? 0
     if (iteration.verdict === "needs_work") rows.push({ id: kind.id, tone: "danger", labelKey: kind.labelKey, valueKey: "brief_review_blocking" })
     else if (iteration.verdict === "approved" && nonBlocking > 0)
@@ -71,7 +90,8 @@ function reviewRows(workflows: JobWorkflow[]): BriefRow[] {
     else if (iteration.verdict === "approved") rows.push({ id: kind.id, tone: "success", labelKey: kind.labelKey, valueKey: "brief_review_clear" })
     else if (iteration.verdict === "skipped") rows.push({ id: kind.id, tone: "neutral", labelKey: kind.labelKey, valueKey: "brief_review_skipped" })
   }
-  if (rows.length === 0 && workflows.length > 0)
+  if (unconfirmed) rows.push({ id: "reviews_unconfirmed", tone: "warning", labelKey: "brief_reviews", valueKey: "brief_reviews_unconfirmed" })
+  else if (rows.length === 0 && workflows.length > 0)
     rows.push({ id: "reviews", tone: "neutral", labelKey: "brief_reviews", valueKey: "brief_reviews_none_recorded" })
   return rows
 }
@@ -79,12 +99,14 @@ function reviewRows(workflows: JobWorkflow[]): BriefRow[] {
 export function buildDecisionBrief({
   canApprove,
   changeScope,
+  currentHeadSha,
   dependencyBlocked,
   payload,
   screenshotCount
 }: {
   canApprove: boolean
   changeScope: ChangeScope | null | undefined
+  currentHeadSha: string | null | undefined
   dependencyBlocked: boolean
   payload: JobDetailPayload
   screenshotCount: number
@@ -100,7 +122,7 @@ export function buildDecisionBrief({
     })
   const checks = checksRow(payload)
   if (checks) rows.push(checks)
-  rows.push(...reviewRows(payload.workflows ?? []))
+  rows.push(...reviewRows(payload.workflows ?? [], currentHeadSha ?? null))
   const steps = payload.test_plan?.steps?.length ?? 0
   if (steps > 0) rows.push({ id: "tests", tone: "neutral", labelKey: "brief_tests", valueKey: "brief_tests_value", values: { count: steps } })
   if (screenshotCount > 0)
