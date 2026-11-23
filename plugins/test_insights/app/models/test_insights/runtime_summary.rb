@@ -118,9 +118,8 @@ module TestInsights
 
       def load_named_grader_duration_rows(result, identity_ids, grader_names)
         identity_ids.product(grader_names).each_slice(RUNTIME_QUERY_BATCH_SIZE).flat_map do |pairs|
-          fast_pairs, legacy_pairs = pairs.partition do |identity_id, grader_name|
-            denormalized_window_eligible?(identity_id, grader_name)
-          end
+          eligible_pairs = denormalized_window_eligible_pairs(pairs)
+          fast_pairs, legacy_pairs = pairs.partition { |pair| eligible_pairs.include?(pair) }
           select_bounded_duration_rows(
             [
               *fast_pairs.map { |identity_id, grader_name| named_grader_duration_sql(identity_id, grader_name) },
@@ -179,15 +178,26 @@ module TestInsights
 
       # A partial backfill is safe once the latest possible 100 samples contain
       # no unfilled rows. Older NULL rows cannot displace that complete window.
-      def denormalized_window_eligible?(identity_id, grader_name)
-        TestCase
-          .where(test_identity_id: identity_id)
-          .where(grader_name: [ grader_name, nil ])
-          .where.not(duration_ms: nil)
-          .order(created_at: :desc, id: :desc)
-          .limit(WINDOW_SIZE)
-          .pluck(:grader_name)
-          .none?(&:nil?)
+      def denormalized_window_eligible_pairs(pairs)
+        sql = pairs.map do |identity_id, grader_name|
+          scope = TestCase
+            .where(test_identity_id: identity_id)
+            .where(grader_name: [ grader_name, nil ])
+            .where.not(duration_ms: nil)
+            .order(created_at: :desc, id: :desc)
+            .limit(WINDOW_SIZE)
+            .select(:grader_name)
+
+          <<~SQL.squish
+            SELECT #{identity_id.to_i} AS test_identity_id,
+                   #{connection.quote(grader_name)} AS grader_name,
+                   COUNT(*) AS sample_count
+            FROM (#{scope.to_sql}) syrus_recent_runtime_cases
+            HAVING COUNT(*) = COUNT(syrus_recent_runtime_cases.grader_name)
+          SQL
+        end.join(" UNION ALL ")
+
+        connection.select_rows(sql).map { |identity_id, grader_name,| [ identity_id, grader_name ] }.to_set
       end
 
       def bounded_duration_scope(identity_id, named_grader: false)
