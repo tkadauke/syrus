@@ -131,3 +131,9 @@ models:
     owner: ImmutableReviewHeadBarrier
     method: self.satisfied_for?
     sha: bb1bc62b67670339
+- model: ReadySet.lean
+  mirrors:
+  - path: app/services/step_dispatcher.rb
+    owner: StepDispatcher
+    method: distributed_ready_set
+    sha: 140c4a405d08cbdd

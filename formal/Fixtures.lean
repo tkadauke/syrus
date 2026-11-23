@@ -93,9 +93,31 @@ def reviewBarrier : String :=
       ", \"satisfied\": " ++ jsonBool (ReviewBarrier.satisfied e) ++ "}"
   "{\n  \"model\": \"ReviewBarrier.satisfied\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
+/-- The eight Step variants the scan distinguishes: serial or parallel, and
+queued-ready, queued-not-ready, running or done. -/
+def readyStepVariants : List ReadySet.Step :=
+  [ReadySet.K.serial, .parallel].flatMap fun k =>
+    [⟨k, .queued, true⟩, ⟨k, .queued, false⟩, ⟨k, .running, false⟩, ⟨k, .done, false⟩]
+
+def readyStepJson (s : ReadySet.Step) : String :=
+  let kind := match s.k with | .serial => "serial" | .parallel => "parallel"
+  let state := match s.st with | .queued => "queued" | .running => "running" | .done => "succeeded"
+  "{\"kind\": " ++ jsonString kind ++ ", \"state\": " ++ jsonString state ++ ", \"ready\": " ++ jsonBool s.ready ++ "}"
+
+/-- `StepDispatcher#distributed_ready_set` as `ReadySet.readySet`, for every
+Workflow of three Steps and every cursor (0 scans from the start; a cursor c > 0
+is the position after a Step at position c - 1 that just finished). -/
+def readySetFixture : String :=
+  let workflows := readyStepVariants.flatMap fun a => readyStepVariants.flatMap fun b =>
+    readyStepVariants.map fun c => [a, b, c]
+  let cases := workflows.flatMap fun l => (List.range 4).map fun cur =>
+    "    {\"steps\": [" ++ ", ".intercalate (l.map readyStepJson) ++ "], \"cursor\": " ++ toString cur ++
+      ", \"ready_set\": [" ++ ", ".intercalate ((ReadySet.readySet l cur).map toString) ++ "]}"
+  "{\n  \"model\": \"ReadySet.readySet\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+
 def all : List (String × String) :=
   [("auto_approval", autoApproval), ("train_evidence", trainEvidence), ("epic_turn", epicTurn),
-   ("orphaned_queue_job", orphanedQueueJob), ("review_barrier", reviewBarrier)]
+   ("orphaned_queue_job", orphanedQueueJob), ("review_barrier", reviewBarrier), ("ready_set", readySetFixture)]
 
 end Fixtures
 
