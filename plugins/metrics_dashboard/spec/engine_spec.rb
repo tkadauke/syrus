@@ -16,7 +16,7 @@ RSpec.describe MetricsDashboard::Engine do
   # interval and the callbacks provider are load-bearing, not decoration.
   it "records on the plugin tick, which only fires while enabled" do
     expect(manifest.tick_interval).to eq(1.minute)
-    expect(Array(manifest.provides[:callbacks])).to include(MetricsDashboard::Callbacks)
+    expect(Syrus::Plugin::Lifecycle.callback_providers_for(manifest)).to include(MetricsDashboard::Callbacks)
   end
 
   describe "the sidebar page" do

@@ -95,6 +95,41 @@ family registrations themselves.
   `workspace_git_transport`, and `speech_to_text_provider` are provisional
   because one bundled plugin implements each.
 
+## What the hook-family migration taught us
+
+- Hooks are broadcast or all-must-participate, so write the real composition
+  and failure rule before defining the family, then preserve it:
+  - Lifecycle callbacks are broadcast and manifest-scoped. `on_disable` must
+    reach a plugin that was just disabled, so jobs and `PluginRecord` read one
+    manifest's callbacks through `Lifecycle.callback_providers_for` (the
+    registry's `manifest_providers_for`, which applies the bridge) rather than
+    the enablement-filtered dispatcher. A failing `on_boot` drains only that
+    plugin's effects; `on_shutdown` always drains; enable and disable drain on
+    failure and re-raise.
+  - Domain subscribers already isolated failures: each runs in its own
+    `PluginInvocation`, async delivery is one job per subscriber on the plugin's
+    home queue. The migration kept the `:domain_subscriber` invocation label.
+  - Retention and purge are collect: every contributor participates. The
+    capability `failure` is a `DataPolicy::UNAVAILABLE` marker, so a contributor
+    that cannot be resolved is reported (retention logs an error, a purge report
+    lists it, a purge result records it) while the others still run. Previously
+    a contributor whose `purge!` raised was dropped without any line in the
+    result; it is now reported.
+  - Preview-panel retention is an any-of decision; a declining provider does
+    not retain the panel.
+- Cores that look up an owning plugin by `manifest.provides[...]` miss family
+  declarations. Use `PluginRegistry.plugin_name_for` (and make provider
+  `owns_implementation?` accept modules, not only classes), and pin it with an
+  architecture check on `provides[:point]` reads as well as `providers_for`.
+- `Installer.define` stays the engine. Plugin-facing registration of
+  `while_enabled`/`always` effects goes through `Lifecycle.define_effect`;
+  core registries that install their own contributions (for example kind
+  registries) keep calling the Installer until their own families adopt it.
+- Every capability is provisional. `callback_providers`, `domain_subscribers`,
+  `retention_policies`, and `purge_contributors` still return multi-operation
+  behavior modules whose interfaces have not been decomposed, and
+  `preview_panel_retentions` has a single bundled implementation.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.

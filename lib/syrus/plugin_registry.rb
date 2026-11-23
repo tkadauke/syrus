@@ -494,6 +494,16 @@ module Syrus
         manifest_providers + direct
       end
 
+      # Every provider of one legacy extension point declared by one manifest,
+      # legacy registrations first and family declarations adapted by the
+      # bridge. Not enablement-filtered: lifecycle events such as on_disable
+      # must still reach a plugin that was just turned off.
+      def manifest_providers_for(manifest, extension_point)
+        ep = extension_point.to_sym
+        conformance = conformance_for([ manifest ]) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
+        Array(manifest.provides[ep]) + Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+      end
+
       def legacy_bridge_duplicate_registrations
         Syrus::Plugin::LegacyBridge.duplicates_for(@mutex.synchronize { @plugins.dup })
       end
@@ -813,7 +823,7 @@ module Syrus
       # got registered before the failure (same policy as PluginLifecycleJob
       # applies to on_enable).
       def fire_boot_callbacks!
-        providers_for(:callbacks).each do |provider|
+        Syrus::Plugin::Lifecycle.callback_providers.each do |provider|
           provider.on_boot
         rescue StandardError => e
           drain_effects_for_callback_provider(provider)
@@ -826,7 +836,7 @@ module Syrus
       # process shutdown even though it doesn't route through
       # PluginLifecycleJob like the operator-triggered on_disable does.
       def fire_shutdown_callbacks!
-        providers_for(:callbacks).each do |provider|
+        Syrus::Plugin::Lifecycle.callback_providers.each do |provider|
           provider.on_shutdown
         rescue StandardError => e
           Rails.logger.warn("[PluginRegistry] on_shutdown failed for #{provider}: #{e.class}: #{e.message}")
@@ -896,7 +906,7 @@ module Syrus
       end
 
       def drain_effects_for_callback_provider(provider)
-        plugin_name = all_plugins.find { |m| Array(m.provides[:callbacks]).include?(provider) }&.name
+        plugin_name = plugin_name_for(provider)
         Syrus::Plugin::EffectRegistry.drain!(plugin_name) if plugin_name
       end
 
