@@ -6,7 +6,7 @@ module GoogleWorkspace
   class MailAdapter
     API_ROOT = "https://gmail.googleapis.com/gmail/v1/users/me/".freeze
     MAX_BODY_BYTES = 1.megabyte
-    ADDRESS_HEADERS = %w[From To Cc Bcc Reply-To].freeze
+    RECIPIENT_HEADERS = %w[to cc bcc reply-to].freeze
 
     class << self
       attr_writer :http
@@ -80,8 +80,9 @@ module GoogleWorkspace
       def normalize_message(message, body: false)
         headers = header_map(message.dig("payload", "headers"))
         result = {
-          "id" => message["id"], "thread_id" => message["threadId"], "sender" => headers["From"],
-          "recipients" => recipient_headers(headers), "subject" => headers["Subject"], "date" => headers["Date"],
+          "id" => message["id"], "thread_id" => message["threadId"], "sender" => joined_header(headers, "from"),
+          "recipients" => recipient_headers(headers), "subject" => joined_header(headers, "subject"),
+          "date" => joined_header(headers, "date"),
           "labels" => Array(message["labelIds"]), "snippet" => message["snippet"]
         }.compact
         return result unless body
@@ -92,10 +93,13 @@ module GoogleWorkspace
         result
       end
 
-      def header_map(headers) = Array(headers).to_h { |header| [ header["name"], header["value"] ] }
-      def recipient_headers(headers)
-        ADDRESS_HEADERS.filter_map { |name| headers[name] unless name == "From" }.join(", ").presence
+      def header_map(headers)
+        Array(headers).each_with_object(Hash.new { |values, name| values[name] = [] }) do |header, values|
+          values[header["name"].to_s.downcase] << header["value"]
+        end
       end
+      def joined_header(headers, name) = headers[name].compact.join(", ").presence
+      def recipient_headers(headers) = RECIPIENT_HEADERS.flat_map { |name| headers[name] }.compact.join(", ").presence
 
       def extract_body(part)
         candidates = leaf_parts(part).reject { |leaf| leaf["filename"].present? }
