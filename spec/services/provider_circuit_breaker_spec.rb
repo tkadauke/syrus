@@ -42,6 +42,30 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision.retry_after).to be_within(1.second).of(now + 9.minutes)
   end
 
+  # Production: a provider outage surfaced as agent outcome server_error
+  # across three Jobs, the circuit stayed closed, and the retries spent the
+  # Jobs' budgets.
+  it "opens when an outage reports server_error across unrelated jobs" do
+    jobs = 3.times.map { |index| Factories.job(repository: Factories.repository(user: user), issue_number: index + 10) }
+    [ 0, 0, 1, 1, 2, 0 ].each do |index|
+      failed_agent_run(provider: "claude", job: jobs[index], outcome: "server_error", message: "agent reported server_error")
+    end
+
+    decision = described_class.call("claude", now: now)
+
+    expect(decision).to be_open
+    expect(decision.job_count).to eq(3)
+  end
+
+  it "does not count a session the provider could not find as an outage" do
+    3.times do |index|
+      job = Factories.job(repository: Factories.repository(user: user), issue_number: index + 20)
+      2.times { failed_agent_run(provider: "claude", job: job, outcome: "error_during_execution", message: "agent reported error_during_execution") }
+    end
+
+    expect(described_class.call("claude", now: now)).not_to be_open
+  end
+
   it "caches logless read-side decisions briefly" do
     5.times do |index|
       failed_agent_run(job: Factories.job(repository: Factories.repository(user: user), issue_number: index + 1))
