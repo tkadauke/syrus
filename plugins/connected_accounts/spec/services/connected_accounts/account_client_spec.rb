@@ -305,6 +305,15 @@ RSpec.describe ConnectedAccounts::AccountClient do
       scopes: [ "mail.read" ], purpose: "deliver", target: { url: "https://api.example.com/messages" },
       input: { message_id: 7 })
     expect(result).to eq(authorization: "Bearer [credential redacted]", input: { message_id: 7 })
+
+    stale_binding = ConnectedAccounts::FakeProvider.send(:system_access_bindings).fetch("provider.delivery")
+    attributes[:system_service_identities] = []
+    ConnectedAccounts::ProviderRegistry.all
+
+    expect {
+      described_class.with_system_access(account:, service_binding: stale_binding, scopes: [ "mail.read" ],
+        purpose: "deliver", target: { url: "https://api.example.com/messages" })
+    }.to raise_error(described_class::Denied, "connected account not found")
   end
 
   it "refuses the system path for user-owned accounts" do
