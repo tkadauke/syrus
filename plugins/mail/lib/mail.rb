@@ -13,6 +13,7 @@ module SyrusMail
 
   syrus_plugin "mail" do
     experimental true
+    requires_syrus nil
     display_name "Mail"
     description "Provider-neutral, read-only mail search and message reading through connected accounts."
     category "tooling"

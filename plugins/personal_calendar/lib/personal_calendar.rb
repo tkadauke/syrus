@@ -10,6 +10,7 @@ module PersonalCalendar
   end
   syrus_plugin "personal_calendar" do
     experimental true
+    requires_syrus nil
     display_name "Personal Calendar"
     description "Provider-neutral, read-only calendar access through connected accounts."
     category "tooling"
