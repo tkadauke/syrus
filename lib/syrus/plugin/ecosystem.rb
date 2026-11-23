@@ -34,6 +34,14 @@ module Syrus
         end
       end
 
+      # Shared grader-type defaults, so plugins need not reach into SyrusYml.
+      module GraderDefaults
+        module_function
+
+        def default_phases = SyrusYml::DEFAULT_GRADE_PHASES
+        def max_timeout_minutes = SyrusYml::MAX_GRADE_TIMEOUT_MINUTES
+      end
+
       module GraderCoverage
         COVERAGE_PHASES = %w[review].freeze
 
