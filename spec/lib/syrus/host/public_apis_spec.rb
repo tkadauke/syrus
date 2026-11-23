@@ -44,6 +44,7 @@ RSpec.describe Syrus::Host::PublicApis do
     names = %w[GraderStep GraderBaseRetry GraderDefaults GraderResourceRequest GraderExecutionCapabilities
                TestRunResult TestCaseResult CoverageParseResult WorkflowWorkspace GitRunner CapabilityDescriptor]
     names.each { |name| expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name }
+    expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::GraderResourceRequest" }.members).to include("ALL")
     expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::McpTools" }.members).to include("run_from_context")
   end
 
