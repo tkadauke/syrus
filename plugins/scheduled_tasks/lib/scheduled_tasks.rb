@@ -23,8 +23,8 @@ module ScheduledTasks
 
     lifecycle callback_providers: "ScheduledTasks::Callbacks",
               domain_subscribers: "ScheduledTasks::Subscribers"
-    provides job_origin: "ScheduledTasks::JobOrigin",
-             sidebar_pages: "ScheduledTasks::SidebarPages",
+    job_origin key: "scheduled_tasks", provider: "ScheduledTasks::JobOrigin"
+    provides sidebar_pages: "ScheduledTasks::SidebarPages",
              repo_page_tabs: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",
              "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs",

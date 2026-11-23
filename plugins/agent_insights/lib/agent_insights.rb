@@ -22,10 +22,31 @@ module AgentInsights
     end
 
     lifecycle domain_subscribers: "AgentInsights::Subscribers"
-    provides workflow_kinds: "AgentInsights::WorkflowKinds",
-             repo_page_tabs: "AgentInsights::RepoPageTabs",
-             admin_pages: "AgentInsights::AdminPages",
-             slug_type: "AgentInsights::SlugType"
+    provides repo_page_tabs: "AgentInsights::RepoPageTabs",
+             admin_pages: "AgentInsights::AdminPages"
+    # Insight sweeps run on their own Job kind: repository-scoped, no GitHub
+    # issue behind them, and hidden from the operator's Job lists.
+    workflow_kinds(
+      trigger_kinds: [
+        {
+          kind: "agent_insight", template: "AgentInsights::Workflow",
+          label: "Agent insight", style: "bg-amber-100 text-amber-700",
+          retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure",
+          owns_job_lifecycle: true
+        }
+      ],
+      step_kinds: [
+        {
+          kind: "agent_insight_run", handler: "AgentInsights::RunStep",
+          label: "Agent insight", style: "bg-amber-100 text-amber-700", agentic: true,
+          agent_role: "agent:insight"
+        }
+      ],
+      job_kinds: [ { kind: "agent_insight", infrastructure: true, issueless: true } ],
+      work_definitions: [ "AgentInsights::WorkDefinition" ]
+    )
+    slug_type prefix: "INSIGHT", display_label: "Insight", preview_available: true,
+              resolver: "AgentInsights::SlugType"
     toolkit workflow_tools: "AgentInsights::McpToolSet", chat_tools: "AgentInsights::ChatToolSet", permissions: "AgentInsights::PermissionProvider"
     surface filter_subjects: { agent_insight: { model: "AgentInsights::Suggestion", chips: "AgentInsights::SmartFolders::CHIPS" } }
     route :get, "/api/v1/app/repositories/:repository_id/insight_suggestions", to: "api/v1/app/insight_suggestions#index"

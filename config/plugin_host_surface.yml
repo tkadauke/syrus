@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 475
+legacy_baseline: 470
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -34,7 +34,6 @@ constants:
 - name: AgentRole::WORKFLOW_IMPLEMENT
 - name: AgentRole::WORKFLOW_MANUAL
 - name: AgentRole::WORKFLOW_ROLES
-- name: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
 - name: AgentSidecarEnvironment
 - name: Api::V1::Admin::BaseController
@@ -355,7 +354,6 @@ constants:
 - name: Step
 - name: Step::AGENTIC_KINDS
 - name: Step::Kind
-- name: Step::PlacementPolicy::CONTROL_PLANE
 - name: StepWorkspace
 - name: Steps::AdversarialReview
 - name: Steps::AdversarialReview::MemoryPersistenceFailed
@@ -413,15 +411,12 @@ constants:
 - name: Syrus::Plugin::ReviewerTargetProvider
 - name: Syrus::Plugin::RuntimeSessionProvider
 - name: Syrus::Plugin::SidebarPage
-- name: Syrus::Plugin::SlugType
 - name: Syrus::Plugin::SourceControlProvider
 - name: Syrus::Plugin::SpeechToTextProvider
-- name: Syrus::Plugin::StepEnvironment
 - name: Syrus::Plugin::TestEvidence
 - name: Syrus::Plugin::UiSlot
 - name: Syrus::Plugin::WorkerCapabilityProbe
 - name: Syrus::Plugin::WorkflowArtifactContributor
-- name: Syrus::Plugin::WorkflowKinds
 - name: Syrus::Plugin::WorkspaceGitTransport
 - name: Syrus::Plugin::WorkspaceTab
 - name: Syrus::PluginApi

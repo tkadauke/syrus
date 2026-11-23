@@ -9,6 +9,7 @@ module Syrus
       :version,
       :provides,
       :family_provides,
+      :declarations,
       :metadata,
       :description,
       :description_i18n_key,
@@ -41,7 +42,7 @@ module Syrus
       :roles,
       :validation_errors
     ) do
-      def initialize(display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: false, loaded: true, plugin_root: nil, cli_commands: [], roles: [], validation_errors: [], family_provides: [], **) = super
+      def initialize(display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: false, loaded: true, plugin_root: nil, cli_commands: [], roles: [], validation_errors: [], family_provides: [], declarations: {}, **) = super
 
       # Extension points this plugin hosts for others, qualified with its own
       # name: `hosts: [:parser]` on "test_insights" offers

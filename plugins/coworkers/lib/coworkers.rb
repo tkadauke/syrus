@@ -20,11 +20,46 @@ module Coworkers
     optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
     lifecycle callback_providers: "Coworkers::Callbacks"
     data_policy retention_policies: "Coworkers::ReviewContextRetentionPolicy"
-    provides workflow_kinds: "Coworkers::WorkflowKinds",
-             sidebar_pages: "Coworkers::SidebarPages",
-             repository_configuration: "Coworkers::RepositoryConfiguration",
+    provides sidebar_pages: "Coworkers::SidebarPages",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
+    workflow_kinds(
+      trigger_kinds: [ {
+        kind: "coworker_run", template: "Coworkers::Workflow",
+        label: "Coworker run", style: "bg-violet-100 text-violet-700",
+        retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure",
+        owns_job_lifecycle: true
+      } ],
+      step_kinds: [
+        {
+          kind: "coworker_run", handler: "Coworkers::RunStep",
+          label: "Coworker run", style: "bg-violet-100 text-violet-700",
+          agentic: true, agent_role: "agent:coworker"
+        },
+        {
+          kind: "post_to_chat", handler: "Coworkers::PostToChat",
+          label: "Post to chat", style: "bg-violet-100 text-violet-700",
+          agentic: false
+        },
+        {
+          kind: "coworker_review", handler: "Coworkers::ReviewStep",
+          label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
+          agent_role: "workflow:coworker_reviewer", panel_capable: true,
+          reviewer_target_required: true, required_mcp_tools: %w[submit_coworker_review],
+          resource_profile_fallback_step_kinds: %w[implement],
+          # String key: the step entry's own `review_gate` attribute, not a
+          # registration of the review_gate extension point.
+          "review_gate" => {
+            artifact_key: "coworker_review_iterations", exit_verdicts: %w[approved skipped],
+            cancellation_reason: "coworker_review_approved"
+          }
+        }
+      ],
+      job_kinds: [ { kind: "coworker_task", infrastructure: true, issueless: true } ],
+      work_definitions: [ "Coworkers::WorkDefinition" ]
+    )
+    repository_configuration key: "coworkers.review", schema_version: 1, legacy_keys: [ "coworker_review" ],
+                             provider: "Coworkers::RepositoryConfiguration"
     review_contributions reviewer_target_providers: "Coworkers::ReviewerTargetProvider",
                          review_context_contributors: "Coworkers::ReviewContextContributor",
                          review_presentation_contributors: "Coworkers::ReviewPresentationContributor",

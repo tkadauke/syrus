@@ -1,8 +1,12 @@
 require "rails_helper"
 
 RSpec.describe BuildCache::StepEnvironment do
+  let(:declared_keys) do
+    Syrus::PluginRegistry.providers_for(:step_environment).flat_map(&:forwarded_env_keys)
+  end
+
   it "forwards the sccache S3 credentials into step subprocesses" do
-    expect(described_class.forwarded_env_keys).to include(
+    expect(declared_keys).to include(
       "SCCACHE_BUCKET", "SCCACHE_ENDPOINT", "SCCACHE_REGION",
       "SCCACHE_S3_KEY_PREFIX", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"
     )
@@ -11,7 +15,7 @@ RSpec.describe BuildCache::StepEnvironment do
   it "never forwards SCCACHE_BASEDIRS" do
     # Path normalization would let a gcov build cache-hit across workflows and
     # silently corrupt coverage output. See plugins/build_cache/docs/syrus_docs/sccache_build_cache.md.
-    expect(described_class.forwarded_env_keys).not_to include("SCCACHE_BASEDIRS")
+    expect(declared_keys).not_to include("SCCACHE_BASEDIRS")
   end
 
   it "reaches step subprocesses through the prepare env forward list" do

@@ -130,6 +130,61 @@ family registrations themselves.
   behavior modules whose interfaces have not been decomposed, and
   `preview_panel_retentions` has a single bundled implementation.
 
+## What the manifest-declaration migration taught us
+
+`workflow_kinds`, `job_origin`, `slug_type`, `problem_provider`,
+`repository_configuration`, `step_environment` and `worker_capability_probe`
+are not capability families. Their useful content is static, so they became
+manifest *data* (`Syrus::Plugin::Declarations`) rather than providers dispatched
+through `Syrus::Plugin::Dispatch`. A declaration is a plain hash validated while
+the manifest is parsed; behavior that cannot be data is named by a constant
+string and resolved only when it is used.
+
+- **Introspectable without plugin code.** A manifest lists every kind, origin
+  key, slug prefix and link template, problem code, config key, forwarded ENV
+  name and probe token without constantizing anything. A spec registers
+  declarations naming nonexistent classes and reads all of them. Only the
+  `resolver`, `provider`, `extra_env`, `probe` and `work_definitions` names are
+  loaded, at the call that needs them, and fail there.
+- **Two validation layers.** The DSL call raises `InvalidDeclaration` naming the
+  plugin and field. The loader isolates it, so an external plugin built for a
+  different core is a failed plugin-health finding and the host keeps booting
+  (one boot-isolation regression per declaration plus an unknown point).
+  `PluginRegistry.register` re-checks declarations that bypass the DSL and
+  records `validation_errors` instead of raising, and runs the one check that
+  needs core constants: a worker probe's `dimension`.
+- **The bridge adapts, core does not merge.** `providers_for(point)` returns a
+  plugin's registered provider classes and adapted declarations in plugin
+  priority order, so no core call site changed shape. Core callers that read a
+  manifest directly (`WorkDefinitions`, the disable guard, repository
+  configuration) use `manifest_providers_for`, because a declaration is not in
+  `manifest.provides`. A plugin that declares a point and still registers a
+  class for it shows in `declaration_duplicate_registrations`.
+- **Core kinds stay in core.** `Job::Kind`, `Workflow::TriggerKind` and
+  `Step::Kind` keep their built-in tables; `KindRegistry` still refuses a
+  declaration that shadows a built-in. Declarations carry strings (`agent_role`,
+  `placement_policy`, `feedback_kind`); the adapter restores the few symbol
+  fields. Allowed keys are pinned to the entry classes' members by a spec
+  (`diff_review_labeler` and `dynamic_required_mcp_tools` hold callables and are
+  deliberately not declarable; a plugin that needs them keeps a provider class
+  until core has a data form).
+- **When each is read** (measured at the call sites, not by match count):
+
+  | Point | Read | Notes |
+  | --- | --- | --- |
+  | `workflow_kinds` | `Installer.sync!` on every kind-table read; `WorkDefinitions.registry` on first use and per registry generation | Hot, but reads cached adapters. Constants load only for `work_definitions`. |
+  | `job_origin` | Per Job render, approval, prompt | Origin key is matched from data; the behavior class loads only for the matching origin. |
+  | `slug_type` | Per slug resolution and in the bootstrap payload | Bootstrap metadata is pure data and loads no plugin code. |
+  | `problem_provider` | `Problem::Kind` registry install | Namespace and code ownership are checked at parse time. |
+  | `repository_configuration` | Each `.syrus.yml` parse | Key, version and legacy keys are data; the parser class loads only for a present key. |
+  | `step_environment` | Each prepare, grader step, and chat workspace prepare | Forwarded names are data; `extra_env` loads only when declared. |
+  | `worker_capability_probe` | Worker capability detection, after Rails loads | Queue config renders before Rails and sees no plugin probes, as before. The probe may only report its declared dimension and token. |
+
+- Every bundled plugin was migrated; none registers a provider class for these
+  seven points. No bundled plugin registers `problem_provider` (core's registry
+  accepts it, and a spec covers the declaration path), so the delete-the-bridge
+  step for that point waits for the first user.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.
@@ -165,9 +220,10 @@ interface again when beginning that family.
   SpeechToText owns `speech_to_text_provider`.
 - **Hooks:** Lifecycle owns `callbacks` and `domain_subscriber`; DataPolicy owns
   `retention_policy`, `purge_contributor`, and `preview_panel_retention`.
-- **Manifest declarations:** `workflow_kinds`, `job_origin`, `slug_type`,
-  `problem_provider`, `repository_configuration`, `step_environment`, and
-  `worker_capability_probe` become data rather than provider classes.
+- **Manifest declarations (migrated):** `workflow_kinds`, `job_origin`,
+  `slug_type`, `problem_provider`, `repository_configuration`,
+  `step_environment`, and `worker_capability_probe` are data rather than
+  provider classes; see the manifest-declaration section above.
 - **Standalone pending a verified family contract:** `preview_provider`,
   `memory_store`, `platform_delivery`, `repository_recommendation`,
   `workflow_artifact_contributor`, `grader_failure_summarizer`,

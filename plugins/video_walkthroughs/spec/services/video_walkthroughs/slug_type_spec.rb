@@ -19,7 +19,10 @@ RSpec.describe VideoWalkthroughs::SlugType do
 
   it "resolves an accessible walkthrough to its anchored chat media entry" do
     expect(described_class.record_for(walkthrough.id, user: owner)).to eq(walkthrough)
-    expect(described_class.client_path(walkthrough.id)).to eq("/s/WALKTHROUGH-#{walkthrough.id}")
+    PluginRecord.find_or_create_by!(name: "video_walkthroughs").update!(enabled: true, disableable: true)
+    declared = Syrus::PluginRegistry.providers_for(:slug_type).find { |provider| provider.prefix == "WALKTHROUGH" }
+    expect(declared.client_path(walkthrough.id)).to eq("/s/WALKTHROUGH-#{walkthrough.id}")
+    expect(declared.record_for(walkthrough.id, user: owner)).to eq(walkthrough)
     expect(described_class.web_path(walkthrough)).to eq("/chats/#{chat.id}#walkthrough-#{walkthrough.id}")
   end
 

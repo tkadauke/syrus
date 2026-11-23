@@ -111,7 +111,10 @@ RSpec.describe Job::Origin do
 
   describe "the built-in scheduled-tasks origin" do
     it "is resolved through the same lookup a plugin would use" do
-      expect(described_class.provider_for("scheduled_tasks")).to eq(ScheduledTasks::JobOrigin)
+      provider = described_class.provider_for("scheduled_tasks")
+
+      expect(provider.origin_key).to eq("scheduled_tasks")
+      expect(provider.declaring_plugin).to eq("scheduled_tasks")
     end
   end
 

@@ -21,8 +21,9 @@ module DesignDocs
     provides sidebar_pages: "DesignDocs::SidebarPages",
              repo_page_tabs: "DesignDocs::RepoPageTabs",
              workspace_tabs: "DesignDocs::WorkspaceTabs",
-             slug_type: "DesignDocs::SlugType",
              "global_search:source" => "DesignDocs::SearchSource"
+    slug_type prefix: "DOC", display_label: "Design Doc", preview_available: true,
+              client_path: "/design_docs/:id", resolver: "DesignDocs::SlugType"
     toolkit workflow_tools: "DesignDocs::WorkflowToolSet", chat_tools: "DesignDocs::ChatToolSet", permissions: "DesignDocs::PermissionProvider"
     surface filter_subjects: { design_doc: { model: "DesignDocs::DesignDoc", chips: "DesignDocs::SmartFolders::CHIPS" } }
     cli_commands [

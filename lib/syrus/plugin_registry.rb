@@ -228,7 +228,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :agent_provider) without a full gem manifest:
       #   register(:agent_provider, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, family_provides: [], declarations: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -249,6 +249,9 @@ module Syrus
           credential_type_names: credential_type_names
         )
         validation_errors = []
+        declarations, declaration_errors = Syrus::Plugin::Declarations.sanitize(name, declarations)
+        validation_errors.concat(declaration_errors)
+        validation_errors.concat(Syrus::Plugin::Declarations.semantic_errors(name, declarations))
         begin
           cli_commands = Syrus::Plugin::CliCommand.normalize_all(plugin: name, declarations: cli_commands)
         rescue Syrus::Plugin::CliCommand::ValidationError => e
@@ -282,6 +285,7 @@ module Syrus
             version:         version,
             provides:        provides,
             family_provides: family_provides,
+            declarations:    declarations,
             metadata:        metadata,
             description:     description,
             description_i18n_key: description_i18n_key,
@@ -472,7 +476,8 @@ module Syrus
             conformance = conformance_for(plugins) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
             sort_by_prepare_priority(plugins).flat_map do |manifest|
               Array(manifest.provides[ep]) +
-                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:) +
+                Syrus::Plugin::Declarations.providers_for_manifest(manifest, ep)
             end
           else
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
@@ -486,7 +491,8 @@ module Syrus
                 .then { |ms| sort_by_prepare_priority(ms) }
                 .flat_map do |manifest|
                   Array(manifest.provides[ep]) +
-                    Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+                    Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:) +
+                    Syrus::Plugin::Declarations.providers_for_manifest(manifest, ep)
                 end
             end
           end
@@ -503,7 +509,15 @@ module Syrus
       def manifest_providers_for(manifest, extension_point)
         ep = extension_point.to_sym
         conformance = conformance_for([ manifest ]) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
-        Array(manifest.provides[ep]) + Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+        Array(manifest.provides[ep]) +
+          Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:) +
+          Syrus::Plugin::Declarations.providers_for_manifest(manifest, ep)
+      end
+
+      # Plugins that declare a point as manifest data and also still register a
+      # provider class for it. Migration work, like the family duplicate report.
+      def declaration_duplicate_registrations
+        Syrus::Plugin::Declarations.duplicates_for(@mutex.synchronize { @plugins.dup })
       end
 
       def legacy_bridge_duplicate_registrations
@@ -582,6 +596,8 @@ module Syrus
         provider_class = provider.is_a?(Class) ? provider : provider.class
         plugins = @mutex.synchronize { @plugins.dup }
         plugins.find do |manifest|
+          next manifest.name == provider.declaring_plugin if provider.respond_to?(:declaring_plugin) && provider.respond_to?(:declaration?)
+
           manifest.provides.values.any? do |providers|
             Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider_class }
           end || manifest.family_provides.any? do |declaration|
