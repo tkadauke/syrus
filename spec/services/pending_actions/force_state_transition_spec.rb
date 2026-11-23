@@ -157,8 +157,8 @@ RSpec.describe PendingActions::ForceStateTransition do
   end
 
   it "does not duplicate a succeeded automatic visual comparison when repair returns the Job to implemented" do
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
     )
     job = build_job("implemented")
     source = Workflow.create!(
