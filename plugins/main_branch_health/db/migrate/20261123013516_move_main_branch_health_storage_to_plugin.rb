@@ -121,7 +121,6 @@ class MoveMainBranchHealthStorageToPlugin < ActiveRecord::Migration[8.1]
   end
 
   def verify_repository_copy!
-
     source_count = select_value("SELECT COUNT(*) FROM repositories").to_i
     copied_count = select_value("SELECT COUNT(*) FROM main_branch_health_repository_states").to_i
     raise ActiveRecord::MigrationError, "main-branch health repository copy was incomplete" unless source_count == copied_count
