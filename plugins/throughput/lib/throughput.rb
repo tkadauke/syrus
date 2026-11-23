@@ -3,7 +3,6 @@ module Throughput
   extend Syrus::PluginApi
 
   syrus_plugin "throughput" do
-
     default_enabled true
 
     disableable true

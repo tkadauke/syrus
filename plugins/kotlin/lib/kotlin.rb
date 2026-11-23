@@ -8,7 +8,6 @@ module Kotlin
   extend Syrus::PluginApi
 
   syrus_plugin "kotlin" do
-
     disableable true
     requires_syrus nil
     experimental true

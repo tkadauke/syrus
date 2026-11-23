@@ -10,7 +10,6 @@ module Go
   extend Syrus::PluginApi
 
   syrus_plugin "go" do
-
     default_enabled true
 
     disableable true

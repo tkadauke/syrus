@@ -14,7 +14,6 @@ module JavaScript
   extend Syrus::PluginApi
 
   syrus_plugin "javascript" do
-
     default_enabled true
 
     disableable true

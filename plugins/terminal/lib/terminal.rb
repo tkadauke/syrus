@@ -3,7 +3,6 @@ module Terminal
   extend Syrus::PluginApi
 
   syrus_plugin "terminal" do
-
     disableable true
     requires_syrus nil
     experimental true

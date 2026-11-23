@@ -11,7 +11,6 @@ module Python
   extend Syrus::PluginApi
 
   syrus_plugin "python" do
-
     default_enabled true
 
     disableable true
