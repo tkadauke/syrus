@@ -72,16 +72,20 @@ describe("CoverageCard", () => {
   })
 
   it("shows threshold detail rows when threshold_miss_details is present", () => {
-    render(<CoverageCard coverage={{
-      ...fullCoverage,
-      threshold_miss: true,
-      threshold_miss_details: {
-        lines_pct: 75.0,
-        threshold_lines: 80,
-        pr_delta_pct: null,
-        threshold_pr_lines: null
-      }
-    }} />)
+    render(
+      <CoverageCard
+        coverage={{
+          ...fullCoverage,
+          threshold_miss: true,
+          threshold_miss_details: {
+            lines_pct: 75.0,
+            threshold_lines: 80,
+            pr_delta_pct: null,
+            threshold_pr_lines: null
+          }
+        }}
+      />
+    )
 
     expect(screen.getByTestId("coverage-threshold-status")).toHaveTextContent("75.0%")
     expect(screen.getByTestId("coverage-threshold-status")).toHaveTextContent("threshold: 80%")
@@ -136,23 +140,27 @@ describe("CoverageCard", () => {
   })
 
   it("renders per-project coverage rows when multiple projects are present", () => {
-    render(<CoverageCard coverage={{
-      ...fullCoverage,
-      projects: [
-        {
-          project: { id: "repo", label: "Rails", path: "", owner_config_path: ".syrus.yml", target_label: "//:coverage" },
-          summary: { lines_pct: 85.2, branches_pct: 72.1, functions_pct: null },
-          pr_delta: { covered: 4, total: 5, pct: 80.0, uncovered_files: [] },
-          threshold_miss: false
-        },
-        {
-          project: { id: "desktop", label: "Desktop", path: "desktop", owner_config_path: "desktop/.syrus.yml", target_label: "//desktop:coverage" },
-          summary: { lines_pct: 55.0, branches_pct: null, functions_pct: null },
-          pr_delta: { covered: 1, total: 2, pct: 50.0, uncovered_files: [] },
-          threshold_miss: true
-        }
-      ]
-    }} />)
+    render(
+      <CoverageCard
+        coverage={{
+          ...fullCoverage,
+          projects: [
+            {
+              project: { id: "repo", label: "Rails", path: "", owner_config_path: ".syrus.yml", target_label: "//:coverage" },
+              summary: { lines_pct: 85.2, branches_pct: 72.1, functions_pct: null },
+              pr_delta: { covered: 4, total: 5, pct: 80.0, uncovered_files: [] },
+              threshold_miss: false
+            },
+            {
+              project: { id: "desktop", label: "Desktop", path: "desktop", owner_config_path: "desktop/.syrus.yml", target_label: "//desktop:coverage" },
+              summary: { lines_pct: 55.0, branches_pct: null, functions_pct: null },
+              pr_delta: { covered: 1, total: 2, pct: 50.0, uncovered_files: [] },
+              threshold_miss: true
+            }
+          ]
+        }}
+      />
+    )
 
     const table = screen.getByTestId("coverage-project-table")
     expect(table).toHaveClass("overflow-x-auto")
