@@ -173,6 +173,9 @@ RSpec.describe "admin API prefix ownership" do
     build_cache POST /api/v1/app/admin/build_cache/clear_requests api/v1/app/admin/build_cache#create_clear_request
     build_cache POST /api/v1/app/admin/build_cache/clear_requests/:id/cancel api/v1/app/admin/build_cache#cancel_clear_request
     build_cache POST /api/v1/app/admin/build_cache/clear_requests/:id/confirm api/v1/app/admin/build_cache#confirm_clear_request
+    connected_accounts DELETE /api/v1/app/admin/connected_accounts/instance_accounts/:id api/v1/app/connected_accounts/instance_accounts#destroy
+    connected_accounts GET /api/v1/app/admin/connected_accounts/instance_accounts api/v1/app/connected_accounts/instance_accounts#index
+    connected_accounts POST /api/v1/app/admin/connected_accounts/instance_accounts api/v1/app/connected_accounts/instance_accounts#create
     connected_accounts GET /api/v1/app/admin/connected_accounts/provider_config api/v1/app/connected_accounts/provider_configs#show
     connected_accounts GET /api/v1/app/admin/connected_accounts/provider_configs api/v1/app/connected_accounts/provider_configs#index
     connected_accounts GET /api/v1/app/admin/connected_accounts/provider_configs/:provider api/v1/app/connected_accounts/provider_configs#show
