@@ -5254,6 +5254,45 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M72. Main through `987b8f4389`
+
+A merge train for the Google Workspace Epic: read-only mail and calendar concept
+plugins, a Google Workspace provider with calendar and Gmail read adapters,
+locale and registry loading for provider-owned settings, and connected-account
+secret clearing. They are plugin additions behind provider registration, with no
+change to the work engine. The one engine change:
+
+- **"Fix lock-order and conformance failures surfaced after merging main"**
+  (`3378299a82`).
+  - `BaseRefreshRetryEnqueuer#instantiate_retry!` now locks the source Workflow
+    before the retry reserves a provider account. That is in order and removes
+    the need for this branch's NY35 pending entry for that path, which is gone.
+  - `AvailabilitySelector#pin_account!` writes the pin with `update_columns`
+    instead of `update!`, "without locking the Workflow row". *Relied-on
+    invariant:* a write that is not a `SELECT ... FOR UPDATE` takes no row lock.
+    That is false: InnoDB takes an exclusive lock on every row an `UPDATE`
+    changes, held to commit. The inversion (User, then Workflow) is still
+    there; the suite's checker just does not see it (Lead L14).
+
+## Lead L14. The lock-order checker sees explicit locks only, not write locks
+
+`Syrus::LockOrder::Checker` hooks locking relation queries (`lock!`, `with_lock`,
+`.lock`). An `UPDATE` or `DELETE` also takes an InnoDB exclusive lock on the rows
+it touches, held until commit, so the order F110 proves acyclic covers only part
+of the locks the code takes. The concrete case is main's `pin_account!`:
+
+1. T1 holds the User row (the provider reservation).
+2. T1 updates the Workflow row (`update_columns`), so it waits for that row.
+3. T2 already holds that Workflow row and reserves, so it waits for the User row.
+
+That is a two-way wait. NY36's option D removes this case by construction: a
+NOWAIT User lock never waits, so T2 fails fast instead. The general gap remains.
+Counting write locks in the checker will likely surface many "write a
+lower-ranked row after locking a higher one" patterns, such as
+`workflow.with_lock { job.update! }`. Next: a record-mode survey with write
+tracking (an `after_save`/`after_destroy` hook that records the row as locked),
+then decide per pattern whether the order or the code changes.
+
 ## M71. Main through `16254d1666`
 
 Four commits.
@@ -7075,7 +7114,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `16254d1666`. Each loop iteration continues from there:
+Checked through main `987b8f4389`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
