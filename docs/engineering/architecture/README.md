@@ -6,6 +6,8 @@ system-wide overview and routes here for detail.
 
 - [Domain model and work engine](domain-model-and-work-engine.md) — durable
   records, state machines, access control, and launch ownership.
+- [Formal models](formal-models.md) — the Lean models of the work engine, what
+  they prove, and the checks that keep them in step with the Ruby.
 - [Legacy Epic fan-in execution](epic_dependency_policy.md) — how older
   multi-parent Epic graphs choose or synthesize an execution base.
 - [WorkUnit path ownership](work-unit-path-ownership.md) — current scheduler,
