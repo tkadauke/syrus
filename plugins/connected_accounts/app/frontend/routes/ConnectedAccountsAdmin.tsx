@@ -5,14 +5,20 @@ import { useT } from "@app/hooks/useT"
 import { getJson, patchJson } from "@app/api/client"
 
 type Config = Record<string, string | string[] | boolean>
-type ProviderConfig = Config & { provider_key: string; display_name: string; managed_settings: boolean }
+type ProviderConfig = Config & {
+  provider_key: string
+  display_name: string
+  managed_settings: boolean
+  settings_notice?: string | null
+  settings_notice_i18n_key?: string | null
+}
 type ConfigPayload = { provider_config: ProviderConfig }
 type ConfigsPayload = { providers: ProviderConfig[] }
 
 export default function ConnectedAccountsAdmin() {
   const { t } = useT("connected_accounts")
   const [draft, setDraft] = useState<Record<string, string | boolean>>({})
-  const [provider, setProvider] = useState("google_workspace")
+  const [provider, setProvider] = useState("")
   const query = useQuery({
     queryKey: ["connected_accounts", "provider_configs"],
     queryFn: async () => (await getJson<ConfigsPayload>("/api/v1/app/admin/connected_accounts/provider_configs")).providers
@@ -46,7 +52,11 @@ export default function ConnectedAccountsAdmin() {
             {query.data?.map((item) => <option key={item.provider_key} value={item.provider_key}>{item.display_name}</option>)}
           </Select>
         </label>
-        {selectedProvider === "google_workspace" && <Notice>{t("settings.google_notice")}</Notice>}
+        {current?.settings_notice && (
+          <Notice>{current.settings_notice_i18n_key
+            ? t(current.settings_notice_i18n_key, { defaultValue: current.settings_notice })
+            : current.settings_notice}</Notice>
+        )}
         {save.isSuccess && <Notice tone="success">{t("settings.saved")}</Notice>}
         {save.isError && <Notice tone="danger">{save.error.message || t("settings.save_failed")}</Notice>}
         {visibleFields.map((field) => (

@@ -6,13 +6,13 @@ import ConnectedAccountsAdmin from "./ConnectedAccountsAdmin"
 
 vi.mock("@app/hooks/useT", () => ({
   useT: () => ({
-    t: (key: string) =>
+    t: (key: string, options?: { defaultValue?: string }) =>
       (
         ({
           "settings.title": "Connected accounts",
           "settings.description": "Configure OAuth.",
           "settings.provider": "Provider",
-          "settings.google_notice": "Register your own Google OAuth client and check current verification policy.",
+          "example_workspace:settings.provider_notice": "Register your own provider client and check current verification policy.",
           "settings.client_id": "Client ID",
           "settings.client_secret": "Client secret",
           "settings.save": "Save configuration",
@@ -22,7 +22,7 @@ vi.mock("@app/hooks/useT", () => ({
           "settings.read_only_scopes": "Read-only scopes",
           "settings.api_origins": "API origins"
         }) satisfies Record<string, string>
-      )[key] ?? key
+      )[key] ?? options?.defaultValue ?? key
   })
 }))
 
@@ -84,10 +84,10 @@ describe("ConnectedAccountsAdmin", () => {
     })
   })
 
-  it("shows only instance credentials and the policy notice for Google", async () => {
+  it("shows only instance credentials and provider-owned policy copy for a managed provider", async () => {
     vi.spyOn(window, "fetch").mockResolvedValueOnce(jsonResponse({ providers: [
-      { provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false },
-      { provider_key: "google_workspace", display_name: "Google", managed_settings: true, client_secret_configured: true }
+      { provider_key: "example_workspace", display_name: "Example", managed_settings: true, client_secret_configured: true,
+        settings_notice: "Fallback provider notice.", settings_notice_i18n_key: "example_workspace:settings.provider_notice" }
     ] }))
 
     renderPage()

@@ -3,5 +3,8 @@
     "display_name": "Google Workspace",
     "description": "Calendarium Google per rationem Google coniunctam lege.",
     "long_description": "Clientem Google OAuth ab instantia datum coniunge et data Calendarii Google sola lectione per instrumenta calendarii personalis praebe."
+  },
+  "settings": {
+    "provider_notice": "Clientem Google OAuth proprium registra et rationem verificationis Google hodiernam inspice. Solum ID et secretum clientis configurantur; Syrus fines Google et ambitum Calendarii solae lectionis figit."
   }
 }
