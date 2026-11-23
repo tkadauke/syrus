@@ -67,6 +67,34 @@ family registrations themselves.
   (lazy provider constants plus the legacy adapter); reuse it for facets whose
   interfaces are still multi-operation.
 
+## What the service-family migration taught us
+
+- Services (AgentRuntime, ExecutionBackend, RuntimeSession, SourceHost,
+  SpeechToText) keep their large stateful interface modules as the contract.
+  The family declares shape `service` (required core `key`, `display_name`,
+  `available_for?`) and reuses only declaration, dispatch, bridge and
+  conformance machinery. Each capability returns the plugin's service class;
+  never force a service into the facet capability mold.
+- Capability names equal the legacy point names here, so a `point:` text scan
+  cannot tell a legacy registration from a family declaration. Architecture
+  checks read manifest `provides` keys instead.
+- Selection stays with the service and its facade: provider-key lookup
+  (`AgentProviders.for`), per-repository `available_for?`, replica-before-
+  upstream ordering in `RepositoryContent`, and the `Execution::Router` claim
+  loop (including its fail-closed handling) are unchanged. Core only swaps the
+  list source for `Syrus::Plugin::ServiceProvider.providers(capability)`.
+- Lookup cost was measured before moving callers: 300 `agent_provider` lookups
+  averaged about 2.4 ms through `providers_for` and 2.3 ms through the
+  dispatcher, so the move adds no measurable cost.
+- Code that reads a manifest directly (disable guards, onboarding) must use
+  `ServiceProvider.for_manifest`, because family declarations are not in
+  `manifest.provides`.
+- A capability is stable only with two in-tree implementations: `agent_provider`,
+  `chat_provider`, `runtime_session_provider`, `input_source`, and
+  `repository_content_provider`. `execution_backend`, `source_control_provider`,
+  `workspace_git_transport`, and `speech_to_text_provider` are provisional
+  because one bundled plugin implements each.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.

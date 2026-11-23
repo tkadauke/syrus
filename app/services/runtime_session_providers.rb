@@ -2,7 +2,7 @@ module RuntimeSessionProviders
   class ConfigurationError < StandardError; end
 
   def self.all
-    Syrus::PluginRegistry.providers_for(:runtime_session_provider)
+    Syrus::Plugin::ServiceProvider.providers(:runtime_session_provider)
   end
 
   def self.for(provider_key)

@@ -9,7 +9,7 @@ module ChatSpeechToText
     end
 
     def self.provider_classes
-      Syrus::PluginRegistry.providers_for(:speech_to_text_provider).map do |provider|
+      Syrus::Plugin::ServiceProvider.providers(:speech_to_text_provider).map do |provider|
         provider.is_a?(String) ? provider.constantize : provider
       end
     end

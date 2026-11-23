@@ -91,7 +91,7 @@ module RepositoryContent
       classes = if provider_classes_override
         Array(provider_classes_override)
       else
-        Syrus::PluginRegistry.providers_for(:repository_content_provider).map do |provider|
+        Syrus::Plugin::ServiceProvider.providers(:repository_content_provider).map do |provider|
           provider.is_a?(String) ? provider.constantize : provider
         end
       end

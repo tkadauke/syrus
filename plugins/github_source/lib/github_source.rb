@@ -17,9 +17,9 @@ module SyrusGithubSource
     disableable true
     provides repo_page_tabs: "GithubSource::RepoPageTabs",
              ui_slots: "GithubSource::UiSlots",
-             admin_pages: "GithubSource::AdminPages",
-             input_source: "InputSources::Github",
-             source_control_provider: "SourceControl::GithubOperations"
+             admin_pages: "GithubSource::AdminPages"
+    source_host input_source: "InputSources::Github",
+                source_control_provider: "SourceControl::GithubOperations"
     route :get, "/api/v1/app/admin/github_api_usage", to: "api/v1/app/admin/github_api_usage#show"
     route :get, "/admin/github_api_usage", to: "spa#show"
     route :get, "/api/v1/app/repositories/:repository_id/issues", to: "api/v1/app/repository_issues#issues"

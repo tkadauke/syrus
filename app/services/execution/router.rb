@@ -65,7 +65,7 @@ module Execution
     end
 
     def backend_for(request)
-      provider = Syrus::PluginRegistry.providers_for(:execution_backend).find do |candidate|
+      provider = Syrus::Plugin::ServiceProvider.providers(:execution_backend).find do |candidate|
         candidate.available_for?(request)
       end
       return provider.is_a?(Class) ? provider.new : provider if provider
