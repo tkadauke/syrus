@@ -50,6 +50,26 @@ RSpec.describe "Coworker journaling with mixed encodings" do
     expect(result).not_to include("undecodable")
   end
 
+  # Production: ordering whole message rows by created_at made MySQL
+  # file-sort their content and fail with "Out of sort memory".
+  it "orders messages by sorting ids, never whole message rows" do
+    chat.messages.create!(role: "user", content: [ { "type" => "text", "text" => "second" } ], skip_turn_trigger: true,
+                          created_at: Time.utc(2026, 11, 5, 13))
+    add_message("first")
+    stub_daily_memory("")
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements << payload[:sql]
+    end
+
+    result = material
+
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+    expect(result.index("first")).to be < result.index("second")
+    sorted_full_rows = statements.grep(/chat_messages["`]?\.\*.*ORDER BY/i)
+    expect(sorted_full_rows).to be_empty
+  end
+
   it "replaces invalid UTF-8 and notes that content was undecodable" do
     add_message("ok")
     stub_daily_memory("bad \xFF\xFE bytes".b)
