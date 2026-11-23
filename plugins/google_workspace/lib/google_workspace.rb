@@ -13,6 +13,7 @@ module GoogleWorkspace
     description_i18n_key "google_workspace:plugin.description"
     long_description "Connect an instance-supplied Google OAuth client and expose read-only Gmail and Google Calendar data through provider-neutral tools."
     long_description_i18n_key "google_workspace:plugin.long_description"
+    icon_url "/plugin-icons/google_workspace.svg"
     category "tooling"
     author "Thomas Kadauke"
     default_enabled false

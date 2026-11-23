@@ -16,6 +16,7 @@ module SyrusMail
     experimental true
     display_name "Mail"
     description "Provider-neutral, read-only mail search and message reading through connected accounts."
+    icon_url "/plugin-icons/mail.svg"
     category "tooling"
     author "Thomas Kadauke"
     default_enabled false

@@ -1,1 +1,9 @@
-prepare: []
+project:
+  id: personal_calendar
+  label: "personal_calendar plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
