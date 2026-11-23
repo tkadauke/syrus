@@ -95,6 +95,11 @@ class VisualDiffSubmission
     Result.new(workflow: result.workflow, run: result.run, error: nil)
   end
 
+  def self.visual_review_configured?(job)
+    Workflows::CompositionAnchors.judges(job:, trigger_kind: "initial", agent_step: "implement")
+      .any? { |loop| loop.steps.last == "visual_review" }
+  end
+
   def self.cancel_obsolete_automatic_work!(jobs)
     Workflow
       .where(job_id: Array(jobs).map(&:id), trigger_kind: "visual_diff", state: Workflow::TriggerKind::ACTIVE_STATES)
