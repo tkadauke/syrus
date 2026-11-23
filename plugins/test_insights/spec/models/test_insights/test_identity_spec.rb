@@ -149,6 +149,23 @@ RSpec.describe TestInsights::TestIdentity do
       expect(sql).to include("limit")
     end
 
+    it "uses limited top-one probes for each identity and scored status" do
+      identity = create_identity!("status probes")
+      create_test_case!(identity, status: "failed", created_at: 4.minutes.ago)
+      latest_failure = create_test_case!(identity, status: "error", created_at: 3.minutes.ago)
+      create_test_case!(identity, status: "passed", created_at: 2.minutes.ago)
+      excluded = create_test_case!(identity, status: "failed", created_at: 1.minute.ago)
+      excluded.update!(wip_repair_failure: true)
+
+      sql = described_class.send(:latest_status_time_sql, identity.id, "failed")
+      expect(sql).to include("LIMIT 1")
+      expect(sql).not_to match(/GROUP BY|MAX\(/i)
+
+      times = described_class.latest_status_times_for([ identity.id ])
+      expect(Time.zone.parse(times[:failed][identity.id].to_s).to_i).to eq(latest_failure.created_at.to_i)
+      expect(times[:passed][identity.id]).to be_present
+    end
+
     it "plans latest test case probes through the identity-created index on SQLite" do
       skip "SQLite-specific EXPLAIN output" unless described_class.connection.adapter_name == "SQLite"
 

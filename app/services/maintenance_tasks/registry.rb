@@ -11,6 +11,7 @@ module MaintenanceTasks
           Definitions::PreemptedExternalPrBackfill.new,
           Definitions::SearchDatabaseRebuild.new,
           Definitions::StaleInsightBacklogRetirement.new,
+          Definitions::TestInsightsGraderNameBackfill.new,
           Definitions::TestInsightsWipRepairFailureBackfill.new
         ].index_by(&:key)
       end
