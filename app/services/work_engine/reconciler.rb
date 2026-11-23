@@ -1071,6 +1071,7 @@ module WorkEngine
         # phase on purpose; resuming it can only be refused (classifier/executor
         # agreement, formal/SyrusModel/Agreement.lean `Actionable`).
         next if workflow.work_unit&.deliberate_wait?
+        next if grader_admission_holding?(workflow, step)
 
         previous = step.previous_step
         dependencies = step.depends_on_steps
@@ -1095,6 +1096,27 @@ module WorkEngine
           explanation: "Step ##{step.id} is ready after its upstream handoff settled, but no Run was created for it."
         )
       end
+    end
+
+    # Grader fan-out admission releases ready graders only as fleet capacity
+    # frees up, re-deciding every RECHECK_DELAY, so a large fan-out
+    # legitimately leaves graders queued without Runs for many minutes. That
+    # hold is deliberate while the admission keeps deciding: flagging it
+    # produced dozens of "no Run was created" errors per pass for workflows
+    # that were progressing. A deferral whose last decision has gone stale
+    # means the recheck chain stopped, and the reconciler is the net again.
+    GRADER_ADMISSION_STALE_AFTER = 5.minutes
+
+    def grader_admission_holding?(workflow, step)
+      return false unless step.kind.in?(%w[grader preflight_grader])
+
+      admission = workflow.artifact("grader_fanout_admission").to_h
+      return false if admission["deferred_at"].blank?
+
+      decided_at = Time.zone.parse(admission["decided_at"].to_s)
+      decided_at.present? && decided_at > GRADER_ADMISSION_STALE_AFTER.ago
+    rescue ArgumentError
+      false
     end
 
     def cancelled_retry_until_barrier_blocking(step)
