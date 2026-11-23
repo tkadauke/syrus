@@ -285,10 +285,7 @@ module SystemAlerts
   private_class_method :codex_usage
 
   def self.stuck_main_branch_repairs
-    repositories = Repository
-      .where(main_branch_health_enabled: true, main_branch_repair_enabled: true)
-      .where("ci_health = :broken OR grader_health = :broken", broken: "broken")
-      .to_a
+    repositories = Repository.with_broken_main_branch_repair.to_a
     repositories_by_id = repositories.index_by(&:id)
     blocking_jobs = stuck_repair_candidates(repositories_by_id.keys)
       .each_with_object({}) { |job, memo| memo[job.repository_id] ||= job }
@@ -321,9 +318,8 @@ module SystemAlerts
   def self.no_progress_main_branch_repairs
     Job
       .includes(:repository, :workflows)
-      .joins(:repository)
       .where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR, needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON)
-      .where(repositories: { main_branch_health_enabled: true, main_branch_repair_enabled: true })
+      .where(repository_id: Repository.with_main_branch_repair_enabled.select(:id))
       .where(state: %w[failed closed])
       .order(updated_at: :desc, id: :desc)
       .limit(10)

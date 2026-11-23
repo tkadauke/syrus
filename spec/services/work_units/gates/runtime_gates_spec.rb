@@ -7,7 +7,7 @@ RSpec.describe "WorkUnit runtime gates" do
   let(:workflow) { WorkUnits::Launcher.instantiate(kind: "initial", job: job) }
   let(:unit) { workflow.work_unit }
 
-  describe WorkUnits::Gates::MainBranchHealth do
+  describe WorkUnits::Gates::MainHealth do
     it "blocks when StepDispatcher main-health policy would block the workflow" do
       allow(StepDispatcher).to receive(:main_health_blocking?).with(workflow).and_return(true)
 
