@@ -7,7 +7,8 @@ RSpec.describe GoogleWorkspace::Provider do
       authorize_url: "https://accounts.google.com/o/oauth2/v2/auth", token_url: "https://oauth2.googleapis.com/token",
       revoke_url: "https://oauth2.googleapis.com/revoke", identity_url: "https://www.googleapis.com/calendar/v3/calendars/primary",
       validate_url: "https://www.googleapis.com/calendar/v3/calendars/primary", client_id: "google-client", client_secret: "google-secret",
-      scope_catalog: [ "calendar.read" ], read_only_scopes: [ "calendar.read" ], api_origins: [ "https://www.googleapis.com/calendar/v3/" ])
+      scope_catalog: %w[calendar.read mail.read], read_only_scopes: %w[calendar.read mail.read],
+      api_origins: [ "https://www.googleapis.com/calendar/v3/", "https://gmail.googleapis.com/gmail/v1/" ])
   end
   let(:manifest) { Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "google_workspace" } }
   let(:provider_declaration) do
@@ -28,6 +29,19 @@ RSpec.describe GoogleWorkspace::Provider do
     expect(query).to include("access_type" => "offline", "prompt" => "consent", "code_challenge_method" => "S256",
       "scope" => GoogleWorkspace::Provider::GOOGLE_CALENDAR_SCOPE)
     expect(query["scope"]).not_to include("calendar.events")
+  end
+
+  it "requests Gmail only when its separate read scope is selected" do
+    calendar = described_class.authorization(ConnectedAccounts::Provider::AuthorizationContext.new(
+      redirect_uri: "https://syrus.example/callback", state: "calendar", requested_scopes: [ "calendar.read" ], read_only: true,
+      code_verifier: "verifier"))
+    gmail = described_class.authorization(ConnectedAccounts::Provider::AuthorizationContext.new(
+      redirect_uri: "https://syrus.example/callback", state: "gmail", requested_scopes: %w[calendar.read mail.read], read_only: true,
+      code_verifier: "verifier"))
+
+    expect(Rack::Utils.parse_query(URI(calendar.fetch(:authorize_url)).query).fetch("scope")).not_to include("gmail")
+    expect(Rack::Utils.parse_query(URI(gmail.fetch(:authorize_url)).query).fetch("scope").split)
+      .to contain_exactly(described_class::GOOGLE_CALENDAR_SCOPE, described_class::GOOGLE_MAIL_SCOPE)
   end
 
   it "exchanges a code and normalizes the provider scope without exposing the client secret" do

@@ -26,12 +26,13 @@ RSpec.describe "Google Workspace provider configuration", type: :request do
     config = ConnectedAccounts::ProviderConfig.find_by!(provider_key: "google_workspace")
     expect(config).to have_attributes(client_id: "google-client", client_secret: "google-secret",
       authorize_url: "https://accounts.google.com/o/oauth2/v2/auth")
-    expect(config.scope_catalog).to eq([ "calendar.read" ])
+    expect(config.scope_catalog).to eq(%w[calendar.read mail.read])
     expect(response.body).not_to include("google-secret")
   end
 
   it "lists Google through the hosted provider registry" do
     AppSetting.current.update!(beta_mode_enabled: true)
+    PluginRecord.find_by!(name: "mail").update!(enabled: true)
     PluginRecord.find_by!(name: "personal_calendar").update!(enabled: true)
     PluginRecord.find_by!(name: "google_workspace").update!(enabled: true)
 
