@@ -3143,6 +3143,23 @@
       "producer": "WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS; RepairExecutor (running and queued paths); Reconciler",
       "done_by": "F109 (M65)",
       "notes": "SupersededCiRepair.lean: both paths cancel exactly the blocks that wait on the repair's own base."
+    },
+    {
+      "id": "row-lock-order-enforced",
+      "area": "concurrency",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "title": "Every transaction takes row locks in the global order, so lock cycles cannot deadlock",
+      "producer": "Syrus::LockOrder; spec/support/lock_order.rb (suite-wide checker)",
+      "done_by": "F110 (NY25); NY31-NY33 open",
+      "notes": "LockOrder.lean proves the order acyclic; the suite fails any inversion except the three awaiting NY31-NY33."
     }
   ],
   "needs_you": [
@@ -3469,7 +3486,7 @@
         "C. Keep as is: InnoDB detects deadlocks and aborts one side; the callers already tolerate failures."
       ],
       "recommendation": "A. The order matches what the hot paths already do, so the changes are confined to four rarer paths. The checker stops new sites from reintroducing a cycle, which an audit alone cannot.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order. Implemented as F110; three inversions the suite found are filed as NY31-NY33."
     },
     {
       "id": "NY26",
@@ -3536,6 +3553,42 @@
       ],
       "recommendation": "A plus B. The reproducible failure is evidence enough to start a repair, and its own grade loop re-runs every grader before landing, so 'partial evidence' cannot ship anything; retrying a single timeout removes most inconclusive verdicts. For today: main needs pluginUiSlots.test.tsx updated for the loading status (or a manual repair Job).",
       "decision": "A, implemented on main in 5b86f0d8b7 (2026-11-22): a reproducible failure is repaired even when another required grader is unproven; unproven graders are recorded as preflight_unproven and re-run by the repair's grade loop."
+    },
+    {
+      "id": "NY31",
+      "item": "row-lock-order",
+      "title": "Where should the User row sit in the lock order, given provider-account reservation uses it as a mutex?",
+      "context": "NY25's checker, run over the whole suite, found the largest inversion group (158 hits) in provider routing: AvailabilitySelector#reserve_least_pressured_account locks the User row to stop two reservations racing, inside the transaction that then creates the Run and locks its Workflow and Step. The decided order puts User last. Nothing else locks User after other rows: the only other User lock (ChatAttachments::InlineBackfill) takes no other lock, and broadcasts bump the user's sequence only after commit (main's 9aadb46309 moved the rate-limit snapshot after commit too). No deadlocks seen in production.",
+      "options": [
+        "A. Move User to the front of the order (User -> AppSetting -> Epic -> ...). The reservation becomes in-order with no code change; the checker then guards that nothing locks User late again.",
+        "B. Keep User last and replace the User-row mutex with locks on the candidate ProviderAccount rows (in id order), adding ProviderAccount to the order before Epic.",
+        "C. Keep User last and reserve the provider account before the Run-creating transaction opens, in its own short transaction."
+      ],
+      "recommendation": "A. The evidence says the User row is now only ever a first-taken mutex, so placing it first matches what the code does; B and C change working reservation code to satisfy an order chosen before this evidence existed."
+    },
+    {
+      "id": "NY32",
+      "item": "row-lock-order",
+      "title": "How should a WorkUnit that goes terminal cancel its Workflow without inverting the lock order?",
+      "context": "WorkUnit#mark_terminal! and #preempt! hold the WorkUnit's row while TerminalUnitSync cancels its Workflow and Steps. That is F97 (this branch): it moved the sync inside the unit's transaction so a crash cannot leave the unit terminal with its Workflow still active. Elsewhere TerminalWorkflowSync holds the Workflow and marks its unit terminal, so the two take Workflow and WorkUnit in opposite orders: a real cycle, latent in production.",
+      "options": [
+        "A. In mark_terminal!/preempt!, lock the Workflow (and its active Steps) before the unit, keeping the order Workflow -> Step -> WorkUnit and F97's atomicity.",
+        "B. Move WorkUnit before Workflow in the order (... WorkIntent -> WorkUnit -> Workflow -> Step ...) and change the Workflow-then-unit sites (TerminalWorkflowSync and the launch paths) to lock the unit first.",
+        "C. Undo F97's atomicity: run TerminalUnitSync after the unit's transaction commits, and rely on the reconciler to repair a crash between the two."
+      ],
+      "recommendation": "A. It changes only the two entry points that cause the inversion and keeps the crash-safety F97 added; B reorders many more sites, and C reopens the window F97 closed."
+    },
+    {
+      "id": "NY33",
+      "item": "row-lock-order",
+      "title": "Should cancelling a Workflow lock its descendants before its own Steps?",
+      "context": "The lock order ranks models, not rows. WorkflowCancellation locks a Workflow's Steps and then cascades to its descendant Workflows, so one transaction takes Workflow A, A's Steps, then Workflow B (4 hits in the suite, Step -> Workflow). Two transactions only deadlock here if they reach the same two Workflows in opposite orders; the cascade always goes parent before descendant, so the tree order already prevents that between cascades. What is unproven is a cascade racing a transaction that locks the child first.",
+      "options": [
+        "A. Lock the whole subtree's Workflows (parent first, then descendants by id) before any of their Steps, so the cascade is in model order.",
+        "B. Keep the cascade as is, and make the order a row order along the Workflow tree: the checker accepts a descendant Workflow after its ancestor's Steps, and a spec proves no path locks a child before its parent in the same transaction.",
+        "C. Accept it: rows of one model stay unordered, and InnoDB deadlock detection plus the callers' retries handle the rare collision."
+      ],
+      "recommendation": "A. It is local to WorkflowCancellation, keeps the checker's rule simple (model order), and costs only the extra up-front locks on rows the cascade will lock anyway."
     }
   ]
 }

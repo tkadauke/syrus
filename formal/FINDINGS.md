@@ -4062,6 +4062,61 @@ and `spec/services/work_units`, CI-only included: 815 examples, 0 failures.
 
 ---
 
+## F110. One global row-lock order, enforced by the suite (NY25)
+
+**Decision (NY25, A).** Adopt the order AppSetting → Epic → Run → Job →
+WorkIntent → Workflow → Step → WorkUnit → User, fix the inverted sites, and add
+a test-mode checker that fails a transaction taking locks out of order.
+
+**The checker.** `Syrus::LockOrder::Checker` (`lib/syrus/lock_order.rb`,
+installed by `spec/support/lock_order.rb`) hooks locking relation queries,
+which `lock!` and `with_lock` go through. Inside the application's outermost
+transaction (the first joinable one, so a transactional test's wrapper does
+not count) it tracks the highest-ranked model and the rows locked so far, and
+fails on a lock of a lower-ranked model unless every row it returns is already
+held. The failure names both lock sites. `PENDING_DECISION` lists the
+inversions waiting on NY31-NY33; those are recorded, not raised.
+
+**What the suite found.** Two record-mode runs over the whole suite, CI-only
+included, found 13 inversion kinds. The audit's four:
+
+- `TerminalWorkflowSync` held the Workflow and drove it through
+  `Workflow#start`, which locks the Job (30 hits): now Job, then Workflow.
+- `LandingQueueProcessor#release_blocked_landing_slots!` locked the Workflow,
+  then the Job: now Job first.
+- `PlannedExecutionOverrides::Operation` locked the Job and Workflows, then
+  Runs (14 hits): now Runs, then the Job, then Workflows.
+- `RetryFailedStepEnqueuer` held the Job when the merge-train rebuild locked
+  the Epic: it now locks the train's Epic first.
+
+Two more the audit had missed, also fixed:
+
+- `LandingValidationPrefetcher` locked the source Workflow, then the target's
+  Jobs (9 hits): now the Jobs (in id order), then the Workflow.
+- `RepairExecutor#audit!` locked a Run inside whatever transaction the repair
+  ran in (under a held Job or WorkUnit): the audit line is now appended after
+  the outermost commit, so a rolled-back repair is not audited as applied.
+
+Three need a decision, filed as NY31 (the User row as provider-reservation
+mutex, 158 hits), NY32 (a terminal WorkUnit cancelling its Workflow inside the
+unit's transaction, which F97 introduced; 4 hits) and NY33 (the cancellation
+cascade locking a descendant Workflow after its parent's Steps; 4 hits).
+
+**Proof.** `LockOrder.lean` already proves the decided order acyclic and that
+it inverts exactly the four audited edge kinds; the suite now checks the code
+against it.
+
+**Specs.** `spec/lib/syrus/lock_order_spec.rb` (10 examples: in-order locks,
+an inversion, locking relations, nested transactions, separate transactions,
+same-model locks, re-locking a held row, another row after a higher rank, the
+pending list, record mode). Switching the checker to raise turned 23 existing
+specs red (terminal workflow sync, landing prefetcher, planned-execution
+overrides, the merge-train retry); all green after the fixes. Full suite with
+the checker raising, CI-only included: 24,726 and 5,316 examples, 0 failures.
+Contributor guidance: `docs/engineering/conventions/database-and-migrations.md`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

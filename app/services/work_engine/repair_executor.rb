@@ -282,7 +282,18 @@ module WorkEngine
           text = "#{text}: #{message}" if message.present?
           Rails.logger.info("[WorkEngine::RepairExecutor] #{text} target=#{plan.target_type}##{plan.target_id}")
           run = audit_run
-          append_audit_once!(run, text) if run
+          return unless run
+
+          # After the outermost commit: the append locks the Run, and a repair
+          # can run inside a transaction that already holds its Job or
+          # WorkUnit (Syrus::LockOrder puts Run first). A rolled-back repair is
+          # not audited as applied.
+          action = plan.action
+          ActiveRecord.after_all_transactions_commit do
+            append_audit_once!(run, text)
+          rescue StandardError => e
+            Rails.logger.warn("[WorkEngine::RepairExecutor] audit failed for #{action}: #{e.class}: #{e.message}")
+          end
         rescue StandardError => e
           Rails.logger.warn("[WorkEngine::RepairExecutor] audit failed for #{plan.action}: #{e.class}: #{e.message}")
         end
