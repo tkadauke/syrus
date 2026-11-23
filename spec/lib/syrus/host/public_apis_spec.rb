@@ -92,6 +92,10 @@ RSpec.describe Syrus::Host::PublicApis do
       ExecutionBackendBase: Execution::Backend, LocalExecution: Execution::Local,
       SpeechToTextBase: ChatSpeechToText::Providers::Base, SpeechToTextError: ChatSpeechToText::Providers::TranscriptionError,
       SpeechToTextResult: ChatSpeechToText::Providers::TranscriptionResult,
+      SpeechToTextInvalidAudio: ChatSpeechToText::Providers::InvalidAudio,
+      SpeechToTextStreamingDelta: ChatSpeechToText::Providers::StreamingDelta,
+      SpeechToTextTimeout: ChatSpeechToText::Providers::TranscriptionTimeout,
+      SpeechToTextUnavailable: ChatSpeechToText::Providers::TranscriptionUnavailable,
       SpeechToTextTelemetry: ChatSpeechToText::Telemetry
     }.each do |name, core|
       expect(Syrus::Host.const_get(name)).to equal(core), name.to_s
