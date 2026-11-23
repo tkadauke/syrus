@@ -10,6 +10,7 @@ module MysqlDbBrowser
   end
 
   syrus_plugin "mysql_db_browser" do
+    requires_syrus nil
     experimental true
     display_name "MySQL DB Browser"
     description "Register and manage connections to external MySQL databases with credential-store-backed secret storage."

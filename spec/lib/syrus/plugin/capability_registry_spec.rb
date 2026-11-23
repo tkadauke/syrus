@@ -21,8 +21,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Syrus::Plugin::FamilyDeclaration.build(family: :ecosystem, provider:, implements: %i[detect_prepare])
   end
 
+  def declare_release_posture(definition)
+    definition.default_enabled true
+    definition.disableable true
+    definition.experimental false
+    definition.requires_syrus nil
+  end
+
   it "keeps family class names in the manifest DSL without resolving them" do
     definition = Syrus::PluginApi::Definition.new(name: "kotlin", namespace: Module.new, lib_dir: __dir__)
+    declare_release_posture(definition)
     definition.provides ecosystem: "LazyFamilySpec::Kotlin", implements: %i[detect_prepare]
 
     expect(definition.manifest_arguments.fetch(:family_provides).first).to have_attributes(
@@ -33,6 +41,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   it "records keyed selectors in the manifest DSL without resolving providers" do
     definition = Syrus::PluginApi::Definition.new(name: "resolver", namespace: Module.new, lib_dir: __dir__)
+    declare_release_posture(definition)
     definition.provides ecosystem: "LazyFamilySpec::Resolver", key: :ruby, implements: %i[resolve]
 
     expect(definition.manifest_arguments.fetch(:family_provides).first).to have_attributes(
@@ -57,9 +66,9 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         def self.detect_prepare(context) = context
       end)
     end
-    described_class.register(name: "late", version: "1", prepare_priority: 20,
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "late", version: "1", prepare_priority: 20,
       family_provides: [ declaration("LazyFamilySpec::Late"), declaration("LazyFamilySpec::Second") ])
-    described_class.register(name: "early", version: "1", prepare_priority: 10,
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "early", version: "1", prepare_priority: 10,
       family_provides: [ declaration("LazyFamilySpec::Early") ])
 
     providers = described_class.capability_providers(:ecosystem, :detect_prepare)
@@ -70,7 +79,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   it "resolves plugin availability once when building the whole catalog" do
-    described_class.register(name: "provider", version: "1", family_provides: [ declaration("LazyFamilySpec::Provider") ])
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "provider", version: "1", family_provides: [ declaration("LazyFamilySpec::Provider") ])
     allow(described_class).to receive(:records_for).and_call_original
 
     described_class.capability_catalog
@@ -88,7 +97,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     keyed = Syrus::Plugin::FamilyDeclaration.build(
       family: :ecosystem, provider: "LazyFamilySpec::Resolver", key: :ruby, implements: %i[resolve]
     )
-    described_class.register(name: "resolver", version: "1", family_provides: [ keyed ])
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "resolver", version: "1", family_provides: [ keyed ])
 
     provider = described_class.capability_providers(:ecosystem, :resolve).sole
     expect(provider.key).to eq(:ruby)
@@ -103,8 +112,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       def self.display_name = "Enabled"
       def self.detect_prepare(context) = context
     end)
-    described_class.register(name: "enabled", version: "1", family_provides: [ declaration("LazyFamilySpec::Enabled") ])
-    described_class.register(name: "disabled", version: "1", default_enabled: false,
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "enabled", version: "1", family_provides: [ declaration("LazyFamilySpec::Enabled") ])
+    described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "disabled", version: "1", default_enabled: false,
       family_provides: [ declaration("LazyFamilySpec::Disabled") ])
 
     providers = described_class.capability_providers(:ecosystem, :detect_prepare)
@@ -125,8 +134,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         def self.detect_prepare(context) = context
       end)
     end
-    described_class.register(name: "enabled", version: "1", family_provides: [ declaration("LazyFamilySpec::Enabled") ])
-    described_class.register(name: "disabled", version: "1", default_enabled: false,
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "enabled", version: "1", family_provides: [ declaration("LazyFamilySpec::Enabled") ])
+    described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "disabled", version: "1", default_enabled: false,
       family_provides: [ declaration("LazyFamilySpec::Disabled") ])
     allow(described_class).to receive(:enablement_retry_sleep)
     allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
@@ -148,7 +157,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       def self.display_name = "Attributed"
       def self.detect_prepare(context) = context
     end)
-    described_class.register(name: "attributed", version: "1",
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "attributed", version: "1",
       family_provides: [ declaration("AttributionFamilySpec::Provider") ])
 
     expect(described_class.plugin_name_for(implementation)).to eq("attributed")
@@ -163,7 +172,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       def self.display_name = "Missing"
     end)
     legacy = Class.new { include Syrus::Plugin::Callbacks }
-    described_class.register(name: "missing", version: "1", provides: { callbacks: legacy },
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "missing", version: "1", provides: { callbacks: legacy },
       family_provides: [ declaration("ConformanceFamilySpec::Missing") ])
 
     expect(described_class.health.status("missing")).to have_attributes(
@@ -183,8 +192,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       def self.display_name = "Missing"
     end)
     contribution = Class.new
-    described_class.register(name: "host_plugin", version: "1", hosts: [ :thing ])
-    described_class.register(name: "missing", version: "1", provides: { "host_plugin:thing" => contribution },
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1", hosts: [ :thing ])
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "missing", version: "1", provides: { "host_plugin:thing" => contribution },
       family_provides: [ declaration("ConformanceFamilySpec::Missing") ])
 
     expect(described_class.health.status("missing").state).to eq(:non_conforming)
@@ -212,11 +221,11 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       family: :ecosystem, provider: "ConformanceVariantsSpec::Unknown", key: nil,
       implements: [ :future_capability ], provisional: []
     )
-    described_class.register(name: "wrong-signature", version: "1",
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "wrong-signature", version: "1",
       family_provides: [ declaration("ConformanceVariantsSpec::WrongSignature") ])
-    described_class.register(name: "missing-core", version: "1",
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "missing-core", version: "1",
       family_provides: [ declaration("ConformanceVariantsSpec::MissingCore") ])
-    described_class.register(name: "unknown", version: "1", family_provides: [ unknown ])
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "unknown", version: "1", family_provides: [ unknown ])
 
     expect(described_class.health.status("wrong-signature").reasons.join)
       .to include("1 required and 0 optional positional argument(s), required keywords [], and optional keywords []")
@@ -238,7 +247,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       def self.display_name = "Conforming"
       def self.detect_prepare(context) = context
     end)
-    described_class.register(name: "conforming", version: "1",
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "conforming", version: "1",
       family_provides: [ declaration("ConformingFamilySpec::Provider") ])
 
     expect(described_class.health.status("conforming")).to be_ok
@@ -248,7 +257,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   it "does not load disabled providers while checking health" do
-    described_class.register(name: "disabled", version: "1", default_enabled: false,
+    described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "disabled", version: "1", default_enabled: false,
       family_provides: [ declaration("DisabledConformanceSpec::Provider") ])
 
     expect { described_class.health }.not_to change { Object.const_defined?(:DisabledConformanceSpec) }
@@ -256,7 +265,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   it "reports provider load errors without crashing health resolution" do
-    described_class.register(name: "load-error", version: "1",
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "load-error", version: "1",
       family_provides: [ declaration("MissingConformanceSpec::Provider") ])
 
     expect { described_class.health }.not_to raise_error

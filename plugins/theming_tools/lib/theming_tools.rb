@@ -2,6 +2,7 @@ module ThemingTools
   extend Syrus::PluginApi
 
   syrus_plugin "theming_tools" do
+    requires_syrus nil
     experimental true
     display_name "Theming Tools"
     description "Gives the Syrus Chat agent tools to draft, preview, install, and manage custom color " \

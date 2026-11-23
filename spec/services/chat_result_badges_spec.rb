@@ -16,7 +16,7 @@ RSpec.describe ChatResultBadges, :reset_plugin_registry do
       end
     end
     allow(first).to receive(:chat_status_contributions).and_call_original
-    Syrus::PluginRegistry.register(:chat_identity_provider, first)
+    Syrus::PluginRegistry.register_direct(:chat_identity_provider, first)
 
     expect(described_class.for(chats)).to eq(
       12 => [ { "kind" => "agent", "id" => 7, "name" => "Ada" } ],

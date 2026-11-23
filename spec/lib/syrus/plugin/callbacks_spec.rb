@@ -29,7 +29,7 @@ RSpec.describe Syrus::Plugin::Callbacks do
 
     context "when the including class is registered as a plugin's callbacks provider" do
       before do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "effect_plugin",
           version: "1.0.0",
           provides: { callbacks: callbacks_class }

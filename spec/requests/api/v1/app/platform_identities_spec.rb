@@ -69,7 +69,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       end
 
       it "includes the plugin's platform in available_platforms, marked not configured" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0",
           provides: { platform_delivery: discord_adapter_class }
         )
@@ -84,7 +84,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       end
 
       it "excludes the platform when the plugin is disabled" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0", default_enabled: false,
           provides: { platform_delivery: discord_adapter_class }
         )
@@ -198,7 +198,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       end
 
       it "is no longer a bad_request once the plugin is registered, but is not configured" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0",
           provides: { platform_delivery: discord_adapter_class }
         )

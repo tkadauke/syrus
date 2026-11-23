@@ -31,7 +31,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
   before do
     allow_any_instance_of(described_class).to receive(:card_paths) { @card_paths }
 
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "coverage_plugin",
       version: "1.0.0",
       provides: { chat_mcp_tool_set: plugin_tool_set }
@@ -71,7 +71,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       end
     end
 
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "session_plugin",
       version: "1.0.0",
       provides: { chat_mcp_tool_set: session_tool_set }
@@ -105,7 +105,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       end
     end
 
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "deferred_plugin",
       version: "1.0.0",
       provides: { chat_mcp_tool_set: deferred_tool_set }
@@ -167,12 +167,12 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       end
     end
 
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "deferred_decision_plugin",
       version: "1.0.0",
       provides: { chat_mcp_tool_set: deferred_tool_set }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "unavailable_decision_plugin",
       version: "1.0.0",
       provides: { chat_mcp_tool_set: unavailable_tool_set }

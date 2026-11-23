@@ -63,6 +63,10 @@ RSpec.describe "Plugin metric declaration", :reset_plugin_registry do
       definition = Syrus::PluginApi::Definition.new(
         name: "probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s
       )
+      definition.default_enabled true
+      definition.disableable true
+      definition.experimental false
+      definition.requires_syrus nil
       definition.metrics do
         counter :probe_total, tags: %i[outcome], comment: "Probe"
       end
@@ -169,6 +173,10 @@ RSpec.describe "Plugin metric declaration", :reset_plugin_registry do
       definition = Syrus::PluginApi::Definition.new(
         name: "probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s
       )
+      definition.default_enabled true
+      definition.disableable true
+      definition.experimental false
+      definition.requires_syrus nil
       definition.metrics do
         counter :probe_total, tags: %i[outcome], comment: "Probe"
       end

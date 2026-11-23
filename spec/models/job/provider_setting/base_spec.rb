@@ -17,7 +17,7 @@ RSpec.describe Job::ProviderSetting::Base, :reset_plugin_registry do
   end
 
   before do
-    Syrus::PluginRegistry.register(:agent_provider, oracle_provider)
+    Syrus::PluginRegistry.register_direct(:agent_provider, oracle_provider)
   end
 
   it "exposes default plus registered agent provider keys as settings" do

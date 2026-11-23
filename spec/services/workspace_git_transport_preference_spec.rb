@@ -44,7 +44,7 @@ RSpec.describe WorkspaceGitTransportPreference do
     transport.define_singleton_method(:url) { url }
     transport.define_singleton_method(:env) { env }
     transport.define_singleton_method(:register!) { register_calls&.push(:called) }
-    Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+    Syrus::PluginRegistry.register_direct(:workspace_git_transport, Class.new do
       include Syrus::Plugin::WorkspaceGitTransport
       define_singleton_method(:available_for?) { |_repository| true }
       define_singleton_method(:build) { |repository:, user:| transport }

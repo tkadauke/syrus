@@ -12,6 +12,7 @@ module Syrus
     #   end
     #
     #   Syrus::PluginRegistry.register(
+#     default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
     #     name: "syrus_rails", version: "1.0.0",
     #     provides: { artifact_renderer: [SchemaErdRenderer, MigrationDiffRenderer] }
     #   )

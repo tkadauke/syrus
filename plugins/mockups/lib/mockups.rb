@@ -4,6 +4,8 @@ module Mockups
   extend Syrus::PluginApi
 
   syrus_plugin "mockups" do
+    experimental false
+    requires_syrus nil
     display_name "Mockups"
     description "Scratch-directory-scoped write/edit tools plus show_preview/close_preview " \
       "so planning-mode chat agents can build and show an HTML/CSS/JS mockup " \

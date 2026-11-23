@@ -11,6 +11,7 @@ module MetricsDashboard
   SAMPLE_INTERVAL = 60.seconds
 
   syrus_plugin "metrics_dashboard" do
+    requires_syrus nil
     experimental true
     display_name "Metrics Dashboard"
     description "Charts Syrus's own metrics -- queue health, throughput, feature usage -- without needing Prometheus."

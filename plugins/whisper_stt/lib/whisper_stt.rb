@@ -2,6 +2,7 @@ module WhisperStt
   extend Syrus::PluginApi
 
   syrus_plugin "whisper_stt" do
+    requires_syrus nil
     experimental true
     display_name "Whisper speech-to-text"
     description "Runs a whisper.cpp daemon for opt-in backend speech transcription."

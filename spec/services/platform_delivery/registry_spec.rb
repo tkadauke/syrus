@@ -66,7 +66,7 @@ RSpec.describe PlatformDelivery::Registry do
     end
 
     it ".for resolves a plugin-registered adapter by platform key" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -75,7 +75,7 @@ RSpec.describe PlatformDelivery::Registry do
     end
 
     it ".registered? is true for a plugin-registered platform key" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -84,7 +84,7 @@ RSpec.describe PlatformDelivery::Registry do
     end
 
     it "does not resolve a disabled plugin's platform" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0", default_enabled: false,
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -136,7 +136,7 @@ RSpec.describe PlatformDelivery::Registry do
       after  { clear_solid_queue_test_tables! }
 
       it "starts a connector job class for an enabled plugin" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0",
           provides: { platform_delivery: discord_adapter_class_with_connector }
         )
@@ -145,7 +145,7 @@ RSpec.describe PlatformDelivery::Registry do
       end
 
       it "does not start a connector job class for a disabled plugin" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0", default_enabled: false,
           provides: { platform_delivery: discord_adapter_class_with_connector }
         )
@@ -154,7 +154,7 @@ RSpec.describe PlatformDelivery::Registry do
       end
 
       it "tolerates a StatementInvalid from SolidQueue without raising" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0",
           provides: { platform_delivery: discord_adapter_class_with_connector }
         )
@@ -165,7 +165,7 @@ RSpec.describe PlatformDelivery::Registry do
     end
 
     it "skips providers with no connector_job_class" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class_without_connector }
       )

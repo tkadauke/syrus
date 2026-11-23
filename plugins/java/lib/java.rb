@@ -9,6 +9,9 @@ module Java
   extend Syrus::PluginApi
 
   syrus_plugin "java" do
+
+    disableable true
+    requires_syrus nil
     experimental true
     default_enabled false
     description "Java/JVM-generic intelligence: Gradle/Maven wrapper-aware prepare and grader detection, JDK prompt guidance, and JVM review criteria"

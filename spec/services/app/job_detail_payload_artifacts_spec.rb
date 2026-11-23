@@ -193,7 +193,7 @@ RSpec.describe App::JobDetailPayload do
         def self.renderer_type = :erd_diagram
       end
 
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "test_renderer_plugin", version: "1.0.0",
         provides: { artifact_renderer: renderer_class }
       )

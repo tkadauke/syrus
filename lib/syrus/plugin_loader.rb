@@ -128,7 +128,7 @@ module Syrus
         end
 
         if plugin.external
-          Syrus::PluginRegistry.register(name: plugin.name, version: plugin.version.to_s,
+          Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, name: plugin.name, version: plugin.version.to_s,
             requires_syrus: plugin.requires_syrus, external: true, loaded: compatible?(plugin),
             plugin_root: plugin.directory)
           next unless compatible?(plugin)

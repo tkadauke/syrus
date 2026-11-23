@@ -2,6 +2,7 @@ module ConnectedAccounts
   extend Syrus::PluginApi
 
   syrus_plugin "connected_accounts" do
+    requires_syrus nil
     experimental true
     display_name "Connected accounts"
     display_name_i18n_key "connected_accounts:plugin.display_name"

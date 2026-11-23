@@ -5,6 +5,7 @@ module PluginRuntime
   extend Syrus::PluginApi
 
   syrus_plugin "plugin_runtime" do
+    requires_syrus nil
     experimental true
     display_name "Plugin Runtime"
     description "Runs the containers that container-backed plugins need."

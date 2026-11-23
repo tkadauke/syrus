@@ -4,6 +4,8 @@ module SyrusClaudeAgent
   extend Syrus::PluginApi
 
   syrus_plugin "claude_agent" do
+    experimental false
+    requires_syrus nil
     display_name "Claude Agent"
     description "Runs workflow and chat turns through Claude."
     long_description "Claude Agent connects Syrus workflows and chats to the Claude CLI/provider adapter. It handles agent invocation, transcript capture, provider availability evidence, and the same workflow-side MCP tool surface used by implementation, review, repair, and chat turns.\n\nEnable this plugin when a Syrus instance should offer Claude-backed automation. It can run alongside other agent-provider plugins so jobs and chats choose the appropriate provider per workflow."

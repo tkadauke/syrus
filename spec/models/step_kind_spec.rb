@@ -75,7 +75,7 @@ RSpec.describe Step::Kind do
         def self.review_needed?(job:, trigger_kind:) = trigger_kind == "initial"
         def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
       end
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "step_kind_review_notes_provider",
         version: "1.0.0",
         provides: { post_implementation_review_provider: provider }

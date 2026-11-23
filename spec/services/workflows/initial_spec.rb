@@ -268,7 +268,7 @@ RSpec.describe Workflows::Initial do
         end
       end
 
-      Syrus::PluginRegistry.register(name: "review_notes_enabled", version: "1.0.0", provides: { post_implementation_review_provider: provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "review_notes_enabled", version: "1.0.0", provides: { post_implementation_review_provider: provider })
 
       workflow = described_class.instantiate(job: job)
 
@@ -284,7 +284,7 @@ RSpec.describe Workflows::Initial do
         end
       end
 
-      Syrus::PluginRegistry.register(name: "review_notes_disabled", version: "1.0.0", default_enabled: false, provides: { post_implementation_review_provider: provider })
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "review_notes_disabled", version: "1.0.0", default_enabled: false, provides: { post_implementation_review_provider: provider })
 
       workflow = described_class.instantiate(job: job)
 

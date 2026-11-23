@@ -10,7 +10,7 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
   let(:callbacks_class) { Class.new { include Syrus::Plugin::Callbacks } }
 
   before do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "lifecycle_plugin",
       version: "1.0.0",
       provides: { callbacks: callbacks_class }
@@ -19,14 +19,14 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
 
   describe ".search" do
     before do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "weather-plugin",
         display_name: "Weather Radar",
         version: "1.0.0",
         description: "Watches storms roll in.",
         category: "observability"
       )
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "ticket-plugin",
         display_name: "Ticket Sync",
         version: "1.0.0",
@@ -120,7 +120,7 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
     end
 
     it "does not enqueue PluginLifecycleJob for plugins without a callback provider" do
-      Syrus::PluginRegistry.register(name: "no_callbacks_plugin", version: "1.0.0")
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "no_callbacks_plugin", version: "1.0.0")
       plain_record = PluginRecord.find_by!(name: "no_callbacks_plugin")
 
       expect {
@@ -129,7 +129,7 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
     end
 
     it "uses the manifest home_queue when it is not :default" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "queued_plugin",
         version: "1.0.0",
         home_queue: :control_plane,

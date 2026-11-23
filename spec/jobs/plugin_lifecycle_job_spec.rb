@@ -25,7 +25,7 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
   end
 
   before do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "lifecycle_plugin",
       version: "1.0.0",
       provides: { callbacks: callbacks_class }
@@ -65,7 +65,7 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
   end
 
   it "does nothing when the plugin has no callback provider" do
-    Syrus::PluginRegistry.register(name: "no_callbacks_plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "no_callbacks_plugin", version: "1.0.0")
 
     expect { described_class.perform_now("no_callbacks_plugin", "on_enable") }.not_to raise_error
   end
@@ -117,7 +117,7 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
     end
 
     before do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "effectful_plugin",
         version: "1.0.0",
         provides: { callbacks: effectful_callbacks_class }
@@ -189,7 +189,7 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
         end
       end
 
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "raising_boot_plugin",
         version: "1.0.0",
         provides: { callbacks: raising_boot_class }

@@ -25,7 +25,7 @@ RSpec.describe ConnectedAccounts::ProviderRegistry, :reset_plugin_registry do
   # Enabled is not enough: a contributor sitting on a missing dependency is
   # degraded, and its otherwise valid provider must not be offered (NY18).
   it "withholds a valid provider whose contributing plugin is unhealthy" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "unhealthy_accounts_provider", version: "1.0.0", depends_on: [ "missing_dependency" ],
       provides: { "connected_accounts:provider" => [ { provider: "ConnectedAccounts::FakeProvider", key: "unhealthy",
         display_name: "Unhealthy", capabilities: %w[authorization], callback_route: "/callback", supports_read_only: true,
@@ -38,7 +38,7 @@ RSpec.describe ConnectedAccounts::ProviderRegistry, :reset_plugin_registry do
   end
 
   it "withholds a broken contribution and reports it in plugin health" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "broken_accounts_provider", version: "1.0.0",
       provides: {
         "connected_accounts:provider" => [

@@ -157,7 +157,7 @@ RSpec.describe ProcessRunner, :ci_only do
         raise "should not be called"
       end
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "declining_execution_backend",
       version: "1.0.0",
       provides: { execution_backend: backend }

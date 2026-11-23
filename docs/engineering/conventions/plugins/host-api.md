@@ -471,6 +471,7 @@ Supported members:
 - `providers_for`
 - `providers_with_owner_for`
 - `register`
+- `register_direct`
 
 ### `Syrus::Host::ProcessRunner`
 

@@ -13,6 +13,7 @@ Plugins register source providers at boot:
 
 ```ruby
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "github_source",
   version: SyrusGithubSource::VERSION,
   provides: {

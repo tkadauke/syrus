@@ -404,7 +404,7 @@ RSpec.describe Mcp::Sidecar do
           MCP::Tool::Response.new([ { type: "text", text: "pong" } ])
         end
       end
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "stub_plugin",
         version: "0.1.0",
         provides: { mcp_tool_set: stub_tool_set }
@@ -450,7 +450,7 @@ RSpec.describe Mcp::Sidecar do
         def handle(tool_name, params, context) = nil
       end
 
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "unavailable_plugin",
         version: "0.1.0",
         provides: { mcp_tool_set: unavailable_tool_set }

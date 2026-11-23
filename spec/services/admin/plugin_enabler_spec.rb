@@ -2,9 +2,9 @@ require "rails_helper"
 
 RSpec.describe Admin::PluginEnabler, :reset_plugin_registry do
   it "enables the plugin and its transitive dependencies" do
-    Syrus::PluginRegistry.register(name: "runtime", version: "1.0.0", default_enabled: false)
-    Syrus::PluginRegistry.register(name: "language", version: "1.0.0", default_enabled: false, depends_on: [ "runtime" ])
-    Syrus::PluginRegistry.register(name: "framework", version: "1.0.0", default_enabled: false, depends_on: [ "language" ])
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "runtime", version: "1.0.0", default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "language", version: "1.0.0", default_enabled: false, depends_on: [ "runtime" ])
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "framework", version: "1.0.0", default_enabled: false, depends_on: [ "language" ])
     records = PluginRecord.where(name: %w[framework language runtime]).index_by(&:name)
     records.each_value { |record| record.update!(enabled: false) }
 
@@ -18,8 +18,8 @@ RSpec.describe Admin::PluginEnabler, :reset_plugin_registry do
   end
 
   it "does not partially enable a cascade containing an experimental dependency" do
-    Syrus::PluginRegistry.register(name: "experimental-runtime", version: "1.0.0", experimental: true, default_enabled: false)
-    Syrus::PluginRegistry.register(name: "framework", version: "1.0.0", default_enabled: false, depends_on: [ "experimental-runtime" ])
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental-runtime", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "framework", version: "1.0.0", default_enabled: false, depends_on: [ "experimental-runtime" ])
     framework = PluginRecord.find_by!(name: "framework")
     dependency = PluginRecord.find_by!(name: "experimental-runtime")
 

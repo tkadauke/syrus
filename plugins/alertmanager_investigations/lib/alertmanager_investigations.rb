@@ -2,6 +2,7 @@ module AlertmanagerInvestigations
   extend Syrus::PluginApi
 
   syrus_plugin "alertmanager_investigations" do
+    requires_syrus nil
     display_name "Alertmanager Investigations"
     description "Polls Alertmanager firing alerts and files read-only investigation Jobs for alerts with git-backed runbooks."
     long_description "Alertmanager Investigations polls the Alertmanager API for firing alerts. " \

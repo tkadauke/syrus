@@ -39,8 +39,7 @@ module Syrus
       def effect_plugin_name
         manifest = Syrus::PluginRegistry.all_plugins.find { |m| Array(m.provides[:callbacks]).include?(self) }
         unless manifest
-          raise "Unable to resolve plugin name for #{self} — is it registered via " \
-                "Syrus::PluginRegistry.register(provides: { callbacks: #{self} })?"
+          raise "Unable to resolve plugin name for #{self} — is it registered as a callbacks provider?"
         end
 
         manifest.name

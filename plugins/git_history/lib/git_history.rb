@@ -2,6 +2,7 @@ module GitHistory
   extend Syrus::PluginApi
 
   syrus_plugin "git_history" do
+    requires_syrus nil
     experimental true
     display_name "Git History"
     description "Full commit history for a repository, with attribution back to the Syrus Job/Epic/chat/issue/cron task that landed it."

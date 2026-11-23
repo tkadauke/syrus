@@ -57,7 +57,7 @@ RSpec.describe PlatformIdentity, type: :model do
     end
 
     it "accepts a platform value registered by an enabled plugin" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -67,7 +67,7 @@ RSpec.describe PlatformIdentity, type: :model do
     end
 
     it "rejects a platform value from a disabled plugin" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0", default_enabled: false,
         provides: { platform_delivery: discord_adapter_class }
       )

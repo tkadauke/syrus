@@ -17,7 +17,7 @@ RSpec.describe Syrus::Plugin::ExternalReviewerContractKit do
 
   before do
     Syrus::PluginInvocation.runtime_health = health
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
       name: "external_reviewer_contract_fake", version: "1.0.0", default_enabled: true,
       family_provides: [
         Syrus::Plugin::FamilyDeclaration.build(

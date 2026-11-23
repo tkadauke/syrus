@@ -58,7 +58,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "shows a newly recorded local quarantine before the process restarts" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "weather", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "weather", version: "1.0.0")
     safety = instance_double(
       Syrus::PluginBootSafety,
       mode: nil,
@@ -86,7 +86,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     Syrus::PluginRegistry.reset!
     repository = Factories.repository(user: admin)
     AdminPluginsSpec::CustomInputSource.create!(user: admin, repository: repository)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "visibility-plugin",
       display_name: "Visibility",
       display_name_i18n_key: "visibility:plugin.display_name",
@@ -146,7 +146,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "includes icon_url when the manifest sets one" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "iconed-plugin",
       version: "1.0.0",
       icon_url: "/plugin-icons/iconed-plugin.svg"
@@ -161,7 +161,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "falls back to the SPQR eagle icon when the manifest has no icon_url" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "iconless-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "iconless-plugin", version: "1.0.0")
 
     get "/api/v1/app/admin/plugins"
 
@@ -172,7 +172,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "includes a human-readable category_label alongside the raw category key" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "categorized-plugin",
       version: "1.0.0",
       category: "agent_capability"
@@ -190,7 +190,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "returns a nil category_label when the manifest has no category" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "uncategorized-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "uncategorized-plugin", version: "1.0.0")
 
     get "/api/v1/app/admin/plugins"
 
@@ -201,7 +201,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "filters plugins by a full text search chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "search-target-plugin",
       display_name: "Weather Radar",
       version: "1.0.0",
@@ -209,7 +209,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       category: "observability",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "search-other-plugin",
       display_name: "Ticket Sync",
       version: "1.0.0",
@@ -228,9 +228,9 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "filters plugins by category chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "observability-plugin", version: "1.0.0", category: "observability")
-    Syrus::PluginRegistry.register(name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
-    Syrus::PluginRegistry.register(name: "uncategorized-search-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "observability-plugin", version: "1.0.0", category: "observability")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "uncategorized-search-plugin", version: "1.0.0")
 
     tree = { "and" => [ { "field" => "category", "op" => "is", "value" => "observability" } ] }
     get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
@@ -242,8 +242,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "filters plugins by enabled state chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "enabled-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "disabled-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "enabled-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "disabled-plugin", version: "1.0.0")
     PluginRecord.find_by!(name: "disabled-plugin").update!(enabled: false)
 
     tree = { "and" => [ { "field" => "enabled", "op" => "is", "value" => "disabled" } ] }
@@ -256,8 +256,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "filters plugins by experimental status chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "stable-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
     tree = { "and" => [ { "field" => "experimental", "op" => "is", "value" => "experimental" } ] }
     get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
@@ -269,8 +269,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "filters plugins by author chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "ada-plugin", version: "1.0.0", author: "Ada Lovelace")
-    Syrus::PluginRegistry.register(name: "grace-plugin", version: "1.0.0", author: "Grace Hopper")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "ada-plugin", version: "1.0.0", author: "Ada Lovelace")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "grace-plugin", version: "1.0.0", author: "Grace Hopper")
 
     tree = { "and" => [ { "field" => "author", "op" => "contains", "value" => "Ada" } ] }
     get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
@@ -282,12 +282,12 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "filters plugins by extension point chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "agent-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "input-plugin",
       version: "1.0.0",
       provides: { input_source: AdminPluginsSpec::CustomInputSource }
@@ -303,11 +303,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "combines category and search chips with AND semantics" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "both-match-plugin", version: "1.0.0", category: "observability",
       description: "Watches storms roll in."
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "category-only-plugin", version: "1.0.0", category: "observability",
       description: "Nothing weather related here."
     )
@@ -347,7 +347,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "returns every plugin when no filter is applied" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "unfiltered-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "unfiltered-plugin", version: "1.0.0")
 
     get "/api/v1/app/admin/plugins"
 
@@ -369,8 +369,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "includes depends_on and derived dependents in the plugin payload" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "payload-ruby-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "payload-rails-plugin", version: "1.0.0", depends_on: [ "payload-ruby-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "payload-ruby-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "payload-rails-plugin", version: "1.0.0", depends_on: [ "payload-ruby-plugin" ])
 
     get "/api/v1/app/admin/plugins"
 
@@ -383,7 +383,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "reflects agent provider availability" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "offline-provider",
       version: "0.1.0",
       provides: { agent_provider: AdminPluginsSpec::UnavailableProvider }
@@ -398,7 +398,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "enables and disables an installed disableable plugin live" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "toggle-plugin",
       version: "0.1.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
@@ -420,8 +420,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "cascades enabling a plugin's dependencies" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "ruby-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "rails-plugin", version: "1.0.0", depends_on: [ "ruby-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "ruby-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "rails-plugin", version: "1.0.0", depends_on: [ "ruby-plugin" ])
     PluginRecord.find_by!(name: "ruby-plugin").update!(enabled: false)
     PluginRecord.find_by!(name: "rails-plugin").update!(enabled: false)
 
@@ -435,7 +435,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "blocks enabling an experimental plugin until the instance opts in" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
     post "/api/v1/app/admin/plugins/experimental-plugin/enable"
 
@@ -452,8 +452,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "blocks the whole enable action when a dependency cascade would enable an experimental plugin" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "experimental-dependency", version: "1.0.0", experimental: true, default_enabled: false)
-    Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0", default_enabled: false, depends_on: [ "experimental-dependency" ])
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental-dependency", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "stable-plugin", version: "1.0.0", default_enabled: false, depends_on: [ "experimental-dependency" ])
 
     post "/api/v1/app/admin/plugins/stable-plugin/enable"
 
@@ -469,7 +469,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     sign_in_as(admin)
     AppSetting.current.update!(beta_mode_enabled: true)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
     post "/api/v1/app/admin/plugins/experimental-plugin/enable"
 
@@ -480,8 +480,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "warns instead of disabling when other enabled plugins depend on the target" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "ruby-dep-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "rails-dep-plugin", version: "1.0.0", depends_on: [ "ruby-dep-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "ruby-dep-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "rails-dep-plugin", version: "1.0.0", depends_on: [ "ruby-dep-plugin" ])
 
     post "/api/v1/app/admin/plugins/ruby-dep-plugin/disable"
 
@@ -497,8 +497,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "cascades disabling a plugin's dependents once confirmed" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "ruby-confirm-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "rails-confirm-plugin", version: "1.0.0", depends_on: [ "ruby-confirm-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "ruby-confirm-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "rails-confirm-plugin", version: "1.0.0", depends_on: [ "ruby-confirm-plugin" ])
 
     post "/api/v1/app/admin/plugins/ruby-confirm-plugin/disable", params: { confirm_cascade: true }
 
@@ -511,7 +511,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "does not warn when disabling a plugin with no dependents (unchanged behavior)" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "no-dependents-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
@@ -531,7 +531,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
       Syrus::Metrics.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "detail_plugin",
         version: "1.0.0",
         display_name: "Detail Plugin",
@@ -623,7 +623,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     it "returns disabled state and unavailable declared metrics for disabled plugins" do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "disabled-detail-plugin",
         version: "1.0.0",
         metrics: [
@@ -654,7 +654,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "rejects disabling a non-disableable plugin" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, experimental: false, requires_syrus: nil,
       name: "required-plugin",
       version: "0.1.0",
       disableable: false,
@@ -671,7 +671,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   it "rejects disabling a plugin while configured resources use it" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "used-plugin",
       version: "0.1.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
@@ -693,7 +693,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   describe "GET /api/v1/app/admin/plugins/:name/config" do
     it "403s for non-admin users" do
       sign_in_as(non_admin)
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "config-plugin",
         version: "1.0.0",
         provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -710,7 +710,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     it "returns config_schema and current config values" do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "schema-plugin",
         version: "1.0.0",
         provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -734,7 +734,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     it "returns { present: bool } for secret_env entries and never the raw value" do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "secret-plugin",
         version: "1.0.0",
         provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -766,7 +766,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   describe "PATCH /api/v1/app/admin/plugins/:name/config" do
     it "403s for non-admin users" do
       sign_in_as(non_admin)
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "config-plugin",
         version: "1.0.0",
         provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -783,7 +783,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     it "persists non-secret config values to PluginRecord#config settings" do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "writable-plugin",
         version: "1.0.0",
         provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -808,7 +808,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     it "ignores secret_env keys and does not persist them" do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "secret-write-plugin",
         version: "1.0.0",
         provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -831,7 +831,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   describe "plugin health" do
     it "reports an open runtime circuit" do
       provider = Class.new { include Syrus::Plugin::Callbacks }
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "runtime-failure-plugin", version: "1.0.0", provides: { callbacks: provider }
       )
       Syrus::PluginInvocation.call(
@@ -860,7 +860,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
       scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
-      Syrus::PluginRegistry.register(name: "external_scan", version: "1.0.0", external: true,
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external_scan", version: "1.0.0", external: true,
         plugin_host_surface_scan: scan)
       admin = Factories.user(admin: true)
       sign_in_as(admin)
@@ -879,7 +879,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
       scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [ finding ],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
-      Syrus::PluginRegistry.register(name: "external_dynamic_scan", version: "1.0.0", external: true,
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external_dynamic_scan", version: "1.0.0", external: true,
         plugin_host_surface_scan: scan)
       sign_in_as(Factories.user(admin: true))
 
@@ -897,7 +897,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
       scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
-      Syrus::PluginRegistry.register(name: "external_runtime_failure", version: "1.0.0", external: true,
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external_runtime_failure", version: "1.0.0", external: true,
         provides: { callbacks: provider }, plugin_host_surface_scan: scan)
       Syrus::PluginInvocation.call(
         extension_point: :callbacks, provider: provider, operation: :call,
@@ -932,7 +932,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       declaration = Syrus::Plugin::FamilyDeclaration.build(
         family: :health_payload_spec, provider: "HealthPayloadSpec::Provider", implements: %i[detect]
       )
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "combined-health-plugin", version: "1.0.0", provides: { callbacks: provider },
         family_provides: [ declaration ]
       )
@@ -972,7 +972,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     end
 
     it "reports the unmet dependency for a degraded plugin" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "needs_absent", version: "1.0.0", depends_on: [ "absent_plugin" ]
       )
       admin = Factories.user(admin: true)
@@ -1007,7 +1007,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     after { Syrus::PluginRecommendations.deregister("suggestible") }
 
     def register_suggestible!(enabled:)
-      Syrus::PluginRegistry.register(name: "suggestible", version: "1.0.0", provides: {})
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "suggestible", version: "1.0.0", provides: {})
       PluginRecord.find_by!(name: "suggestible").update!(enabled: enabled)
       Syrus::PluginRecommendations.register(
         plugin: "suggestible", reason: "Two of your repositories look like this.", block: ->(_s) { %w[a/b c/d] }

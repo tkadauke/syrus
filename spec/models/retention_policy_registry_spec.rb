@@ -119,7 +119,7 @@ RSpec.describe RetentionPolicyRegistry do
     end
 
     before do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(experimental: false, requires_syrus: nil,
         name: "fake-retention-plugin",
         version: "1.0.0",
         default_enabled: true,
@@ -153,7 +153,7 @@ RSpec.describe RetentionPolicyRegistry do
         def self.name = "BrokenRetentionPlugin::Policy"
         def self.retention_definitions = raise("broken provider")
       end
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(experimental: false, requires_syrus: nil,
         name: "broken-retention-plugin",
         version: "1.0.0",
         default_enabled: true,

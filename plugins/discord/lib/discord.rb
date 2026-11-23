@@ -2,6 +2,7 @@ module SyrusDiscord
   extend Syrus::PluginApi
 
   syrus_plugin "discord" do
+    requires_syrus nil
     experimental true
     display_name "Discord"
     description "Links Discord accounts and delivers/receives chat messages over a Gateway DM listener."

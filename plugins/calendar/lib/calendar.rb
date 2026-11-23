@@ -2,6 +2,8 @@ module Calendar
   extend Syrus::PluginApi
 
   syrus_plugin "calendar" do
+    experimental false
+    requires_syrus nil
     display_name "Calendar"
     description "A read-only operations calendar for planned work and observed executions."
     long_description "Calendar combines authorization-safe event sources into week and agenda views. Sources retain ownership of their data and actions; Calendar only presents and links to them."

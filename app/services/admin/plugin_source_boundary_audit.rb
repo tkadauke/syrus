@@ -182,7 +182,7 @@ module Admin
       return @manifests if @manifests
 
       bundled_manifests.map do |manifest|
-        Syrus::Plugin::Manifest.new(
+        Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: manifest.name,
           version: "0.0.0",
           provides: {},

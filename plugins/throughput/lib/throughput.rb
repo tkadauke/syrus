@@ -3,6 +3,12 @@ module Throughput
   extend Syrus::PluginApi
 
   syrus_plugin "throughput" do
+
+    default_enabled true
+
+    disableable true
+    experimental false
+    requires_syrus nil
     display_name "Throughput"
     category     "observability"
     author       "Thomas Kadauke"

@@ -19,7 +19,7 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
   end
 
   it "injects renderer_type for rails_schema_erd artifacts using the registered plugin" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name:    "syrus-rails",
       version: "0.1.0",
       provides: {
@@ -48,7 +48,7 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
   end
 
   it "injects renderer_type for rails_migration_diff artifacts" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name:    "syrus-rails",
       version: "0.1.0",
       provides: { artifact_renderer: [ SyrusRails::MigrationDiffRenderer ] }
@@ -72,7 +72,7 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
   end
 
   it "preserves cumulative migration fallback outcome details for the reviewer" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "syrus-rails",
       version: "0.1.0",
       provides: { artifact_renderer: [ SyrusRails::MigrationDiffRenderer ] }

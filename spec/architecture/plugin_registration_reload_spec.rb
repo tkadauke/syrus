@@ -44,7 +44,7 @@ RSpec.describe "Plugin registration survives code reloading" do
 
     begin
       2.times do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "reload_probe", version: "1.0.0", provides: {}
         )
       end

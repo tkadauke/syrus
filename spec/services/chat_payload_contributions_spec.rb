@@ -18,7 +18,7 @@ RSpec.describe ChatPayloadContributions do
   end
 
   def register(klass)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "payload_plugin", version: "1.0.0", provides: { chat_payload_contributor: klass }
     )
   end

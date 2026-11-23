@@ -44,6 +44,10 @@ RSpec.describe Syrus::PluginRoots do
         module RegistryPackage
           extend Syrus::PluginApi
           syrus_plugin "weather-tools" do
+            default_enabled true
+            disableable true
+            experimental false
+            requires_syrus nil
           end
         end
       RUBY
@@ -59,7 +63,14 @@ RSpec.describe Syrus::PluginRoots do
       external = Pathname.new(directory).join("external")
       built_in = make_plugin(app.join("plugins"), "bundled-package")
       built_in.join("lib").mkpath
-      built_in.join("lib/bundled_package.rb").write('syrus_plugin "shared-name" do; end')
+      built_in.join("lib/bundled_package.rb").write(<<~RUBY)
+        syrus_plugin "shared-name" do
+          default_enabled true
+          disableable true
+          experimental false
+          requires_syrus nil
+        end
+      RUBY
       make_plugin(external, "shared-name")
       roots = described_class.new(application_root: app, external_path: external, synced_path: nil)
 

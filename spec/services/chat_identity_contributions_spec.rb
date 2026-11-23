@@ -124,6 +124,6 @@ RSpec.describe ChatIdentityContributions do
   end
 
   def register(provider)
-    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
+    Syrus::PluginRegistry.register_direct(:chat_identity_provider, provider)
   end
 end

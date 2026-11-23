@@ -34,7 +34,7 @@ RSpec.describe MetricsDashboard::PluginTabs do
   end
 
   def register(provider_class, name: "widget_metrics")
-    Syrus::PluginRegistry.register(name: name, version: "1.0.0", provides: { "metrics_dashboard:tab" => provider_class })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: name, version: "1.0.0", provides: { "metrics_dashboard:tab" => provider_class })
   end
 
   it "does not contribute a tab for a plugin that never registered one" do

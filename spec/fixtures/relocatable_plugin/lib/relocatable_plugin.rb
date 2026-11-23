@@ -2,6 +2,10 @@ module RelocatablePlugin
   extend Syrus::PluginApi
 
   syrus_plugin "relocatable_plugin" do
+    default_enabled true
+    disableable true
+    experimental false
+    requires_syrus ">= 0.1.0"
     provides callbacks: "RelocatablePlugin::Callbacks"
 
     cli_commands [

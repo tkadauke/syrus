@@ -146,7 +146,7 @@ RSpec.describe Syrus::PluginPurge do
     # A container-backed plugin's volumes are its data too; a purge that
     # dropped only tables would leave them behind.
     it "lists and removes what contributors hold for the plugin" do
-      Syrus::PluginRegistry.register(name: "runtime_like", version: "1.0.0", provides: { purge_contributor: contributor })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "runtime_like", version: "1.0.0", provides: { purge_contributor: contributor })
       purge = described_class.new("gone_plugin")
 
       expect(purge.report).to have_attributes(other_data: [ "volume gone_plugin_data (4 KB)" ], empty?: false)
@@ -161,7 +161,7 @@ RSpec.describe Syrus::PluginPurge do
         def self.purge_report(_) = raise("manager unreachable")
         def self.to_s = "BrokenContributor"
       end
-      Syrus::PluginRegistry.register(name: "broken_runtime", version: "1.0.0", provides: { purge_contributor: broken })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_runtime", version: "1.0.0", provides: { purge_contributor: broken })
 
       expect(described_class.new("gone_plugin").report.other_data.sole).to match(/BrokenContributor: could not report .*manager unreachable/)
     end

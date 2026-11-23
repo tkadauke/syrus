@@ -1106,7 +1106,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
     after { FileUtils.rm_rf(mirror_bare_dir) }
 
     def register_transport(url:, register_calls: nil)
-      Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, Class.new do
         include Syrus::Plugin::WorkspaceGitTransport
 
         define_singleton_method(:available_for?) { |_repository| true }

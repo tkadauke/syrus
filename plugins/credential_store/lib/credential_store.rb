@@ -2,6 +2,7 @@ module CredentialStore
   extend Syrus::PluginApi
 
   syrus_plugin "credential_store" do
+    requires_syrus nil
     experimental true
     display_name "Credential Store"
     description "Encrypted, scoped credential records and credential access audit history."

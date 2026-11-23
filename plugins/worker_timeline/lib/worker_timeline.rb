@@ -11,6 +11,7 @@ module WorkerTimeline
   }.freeze
 
   syrus_plugin "worker_timeline" do
+    requires_syrus nil
     experimental true
     display_name "Worker Timeline"
     description "Multi-lane worker activity timeline: one lane per durable worker process role, with Job/Workflow spans over time."

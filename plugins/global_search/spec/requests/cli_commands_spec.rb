@@ -11,7 +11,7 @@ RSpec.describe "Global Search CLI command", type: :request do
 
   before do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "global_search", version: "1.0.0", cli_commands: [
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "global_search", version: "1.0.0", cli_commands: [
       { path: %w[search], summary: "Search", handler: "GlobalSearch::Cli::Search", arguments: [ { name: "query", required: true } ], flags: [
         { name: "type" }, { name: "limit", type: :integer }, { name: "json", type: :boolean, default: false }
       ] }

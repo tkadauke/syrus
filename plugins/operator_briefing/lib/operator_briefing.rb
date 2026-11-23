@@ -6,6 +6,7 @@ module OperatorBriefing
   SEVERITIES = %w[informational fyi decision_required attention_debt].freeze
 
   syrus_plugin "operator_briefing" do
+    requires_syrus nil
     experimental true
     display_name "Operator Briefing"
     description "Per-repository operator briefings and blocked-on-you signals."

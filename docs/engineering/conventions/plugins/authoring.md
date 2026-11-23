@@ -153,6 +153,7 @@ class PrivateTasks::JobVisibility
 end
 
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "private_tasks",
   version: "1.0.0",
   provides: { job_visibility_restriction: PrivateTasks::JobVisibility }
@@ -581,6 +582,7 @@ other plugin names it needs to function:
 
 ```ruby
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "syrus-rails", version: "1.0.0",
   depends_on: [ "ruby" ],
   provides: { preview_provider: SyrusRails::PreviewProvider }
@@ -819,13 +821,14 @@ Include `Syrus::Plugin::PreviewProvider` and implement the interface methods:
 Register an instance using the direct form:
 
 ```ruby
-Syrus::PluginRegistry.register(:preview_provider, MyPlugin::PreviewProvider.new)
+Syrus::PluginRegistry.register_direct(:preview_provider, MyPlugin::PreviewProvider.new)
 ```
 
 Or via a gem manifest:
 
 ```ruby
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "my-plugin", version: "1.0.0",
   provides: { preview_provider: MyPlugin::PreviewProvider }
 )
@@ -899,6 +902,7 @@ Register via a gem manifest, the same as any other extension point:
 
 ```ruby
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "my-plugin", version: "1.0.0",
   provides: { runtime_session_provider: MyPlugin::RuntimeSessionProvider }
 )
@@ -1422,6 +1426,7 @@ class MyPlugin::LifecycleCallbacks
 end
 
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name:          "my_plugin",
   version:       "1.0.0",
   home_queue:    :control_plane,
@@ -1525,6 +1530,7 @@ A plugin may register multiple renderer classes by passing an array to the
 
 ```ruby
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "syrus_rails", version: "1.0.0",
   provides: { artifact_renderer: [SchemaErdRenderer, MigrationDiffRenderer] }
 )
@@ -1889,6 +1895,7 @@ class MyPlugin::WorkspaceTabs
 end
 
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "my_plugin", version: "1.0.0",
   frontend: {
     workspace_tabs: { "my_plugin/StatusTab" => "app/frontend/workspaceTabs/StatusTab.tsx" },
@@ -2211,7 +2218,10 @@ hosts, and contributions name them qualified with the host:
 
 ```ruby
 # test_insights: I offer a parser point
-Syrus::PluginRegistry.register(name: "test_insights", hosts: [ :parser ], ...)
+Syrus::PluginRegistry.register(
+  name: "test_insights", default_enabled: true, disableable: true,
+  experimental: false, requires_syrus: nil, hosts: [ :parser ], ...
+)
 Syrus::PluginRegistry.providers_for("test_insights:parser")
 
 # ruby: I contribute one
@@ -2615,6 +2625,7 @@ class MyPlugin::GraderFailureSummarizer
 end
 
 Syrus::PluginRegistry.register(
+  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
   name: "my-plugin", version: "1.0.0",
   provides: { grader_failure_summarizer: MyPlugin::GraderFailureSummarizer }
 )
@@ -3088,6 +3099,10 @@ module Throughput
   extend Syrus::PluginApi
 
   syrus_plugin "throughput" do
+    default_enabled true
+    disableable true
+    experimental false
+    requires_syrus nil
     display_name "Throughput"
     category     "observability"
     description  "Delivery throughput and landing waste."
@@ -3101,6 +3116,12 @@ module Throughput
   end
 end
 ```
+
+The four release-posture declarations are required. `default_enabled`,
+`disableable`, and `experimental` must be explicit booleans; use
+`requires_syrus nil` only when compatibility is intentionally unbounded.
+This is a breaking contract for older external plugins: omission raises while
+the manifest is built, and Syrus does not supply compatibility defaults.
 
 Then add `gem "<name>", path: "plugins/<name>"` to the Gemfile, put your
 provider classes under `plugins/<name>/app/services/<name>/`, and put specs
@@ -3754,7 +3775,7 @@ plugin-owned review invocation while preserving the already-recorded repair.
 **Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/`):
 
 1. Create an adapter class that includes `Syrus::Plugin::PlatformDelivery` and implements `.platform_key` (e.g. `"discord"`), `#deliver(message:, platform_identity:)`, and optionally `.connector_job_class` (a `PlatformPollingJob` subclass for the plugin's inbound listener, if it has one).
-2. Register it from the plugin gem's engine initializer: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", provides: { platform_delivery: Discord::PlatformAdapter })`.
+2. Register it from the plugin gem's engine initializer with explicit release posture: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, provides: { platform_delivery: Discord::PlatformAdapter })`.
 3. `PlatformDelivery::Registry.for`, `PlatformIdentity.available_platforms`, and boot-time connector start all pick it up automatically, respecting the plugin's `PluginRecord` enable/disable state. No core code change needed.
 4. If the platform needs custom linking instructions (bot handle, DM command, etc.), also implement `.platform_config_class` on the adapter, returning a `PlatformIdentity::PlatformConfig::Base` subclass defined in the plugin gem (e.g. `Discord::PlatformConfig`, implementing `#configured?` and `#instructions(token)`). `PlatformIdentity::PlatformConfig::Base.for` consults this hook for plugin platforms; leaving it unset (or omitting the method) falls back to `PlatformIdentity::PlatformConfig::Unconfigured` (shows up in Settings, not connectable).
 

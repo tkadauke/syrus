@@ -2,6 +2,8 @@ module S3BackupDestination
   extend Syrus::PluginApi
 
   syrus_plugin "s3_backup_destination" do
+    experimental false
+    requires_syrus nil
     display_name "S3 Backup Destination"
     description "Replicates sealed local recovery bundles to S3-compatible object storage."
     long_description "S3 Backup Destination streams immutable recovery bundles through the public artifact-source capability, verifies uploaded bytes remotely, and can materialize verified objects into host-provided recovery storage."

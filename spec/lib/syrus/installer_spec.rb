@@ -53,7 +53,7 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
 
   it "disposes experimental plugin effects when the instance opts out" do
     AppSetting.current.update!(beta_mode_enabled: true)
-    Syrus::PluginRegistry.register(name: "experimental_effect_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental_effect_plugin", version: "1.0.0", experimental: true, default_enabled: false)
     PluginRecord.find_by!(name: "experimental_effect_plugin").update!(enabled: true)
 
     log = []
@@ -126,8 +126,8 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     end
 
     it "does not install a degraded plugin's while_enabled effects" do
-      Syrus::PluginRegistry.register(name: "effect_base", version: "1.0.0")
-      Syrus::PluginRegistry.register(name: "effect_dependent", version: "1.0.0", depends_on: [ "effect_base" ])
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "effect_base", version: "1.0.0")
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "effect_dependent", version: "1.0.0", depends_on: [ "effect_base" ])
       PluginRecord.find_by!(name: "effect_base").update!(enabled: false)
 
       expect(effect_log_for("effect_dependent")).to eq([])
@@ -141,8 +141,8 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     end
 
     it "installs a healthy enabled plugin's effects and disposes them when it turns degraded" do
-      Syrus::PluginRegistry.register(name: "effect_base", version: "1.0.0")
-      Syrus::PluginRegistry.register(name: "effect_dependent", version: "1.0.0", depends_on: [ "effect_base" ])
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "effect_base", version: "1.0.0")
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "effect_dependent", version: "1.0.0", depends_on: [ "effect_base" ])
       log = effect_log_for("effect_dependent")
 
       PluginRecord.find_by!(name: "effect_base").update!(enabled: false)
@@ -156,7 +156,7 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
   # (treating installed as enabled) nor tear the current ones down. It keeps
   # what is installed and lets the next sync try again (NY13).
   it "keeps installed effects while plugin enablement cannot be read, then resyncs" do
-    Syrus::PluginRegistry.register(name: "effect_plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "effect_plugin", version: "1.0.0")
     log = []
     described_class.define("effect", plugin: "effect_plugin") do |scope|
       scope.effect("x") { log << :install; -> { log << :dispose } }

@@ -424,7 +424,7 @@ RSpec.describe Mcp::Sidecar do
   describe "plugin chat MCP tool sets", :reset_plugin_registry do
     around do |ex|
       Syrus::PluginRegistry.reset!
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "claude_agent",
         version: Syrus::PluginApi.default_version,
         provides: {
@@ -432,7 +432,7 @@ RSpec.describe Mcp::Sidecar do
           chat_provider:  ChatProviders::Claude
         }
       )
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "codex_agent",
         version: Syrus::PluginApi.default_version,
         provides: {
@@ -461,7 +461,7 @@ RSpec.describe Mcp::Sidecar do
     end
 
     it "advertises and dispatches enabled chat MCP plugin tools for matching tiers" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "chat-plugin",
         version: "0.1.0",
         provides: { chat_mcp_tool_set: stub_tool_set }
@@ -493,7 +493,7 @@ RSpec.describe Mcp::Sidecar do
         def self.tool_definitions(tier:) = []
       end
       [ failing, stub_tool_set ].each_with_index do |tool_set, index|
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "chat-plugin-#{index}", version: "0.1.0", provides: { chat_mcp_tool_set: tool_set }
         )
       end
@@ -521,7 +521,7 @@ RSpec.describe Mcp::Sidecar do
           MCP::Tool::Response.new([ { type: "text", text: "account" } ])
         end
       end
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "edge-tool-plugin",
         version: "0.1.0",
         provides: { chat_mcp_tool_set: edge_tool_set }
@@ -538,7 +538,7 @@ RSpec.describe Mcp::Sidecar do
     end
 
     it "does not advertise disabled chat MCP plugin tools" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "chat-plugin",
         version: "0.1.0",
         provides: { chat_mcp_tool_set: stub_tool_set }
@@ -551,7 +551,7 @@ RSpec.describe Mcp::Sidecar do
     end
 
     it "does not advertise chat MCP plugin tools when available_for? rejects the tier" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "chat-plugin",
         version: "0.1.0",
         provides: { chat_mcp_tool_set: stub_tool_set }
@@ -573,7 +573,7 @@ RSpec.describe Mcp::Sidecar do
           MCP::Tool::Response.new([ { type: "text", text: "pong" } ])
         end
       end
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "both-tiers-plugin",
         version: "0.1.0",
         provides: { chat_mcp_tool_set: both_tiers_tool_set }
