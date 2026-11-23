@@ -439,6 +439,36 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.getAllByRole("dialog", { name: "Approve JOB-42 for landing?" })).toHaveLength(1)
   })
 
+  it("keeps interactive summary targets action-free while allowing locked vertical reading scroll", async () => {
+    jobApi.fetchJobTab
+      .mockImplementationOnce(async () => ({ summary: { text: "Read the [review guide](https://example.com/review)." } }))
+      .mockImplementationOnce(async () => ({ visual_evidence: { screenshots: [] } }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    const link = await screen.findByRole("link", { name: "review guide" })
+    const scroller = screen.getByTestId("review-workspace-scroll-container")
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 300 })
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
+    scroller.scrollTop = 200
+
+    fireEvent.pointerDown(link, { clientX: 120, clientY: 240, pointerId: 505, pointerType: "touch" })
+    fireEvent.pointerMove(link, { clientX: 126, clientY: 232, pointerId: 505, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(200)
+    fireEvent.pointerMove(link, { clientX: 128, clientY: 160, pointerId: 505, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(280)
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    fireEvent.pointerUp(link, { clientX: 128, clientY: 160, pointerId: 505, pointerType: "touch" })
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+
+    fireEvent.pointerDown(link, { clientX: 100, clientY: 200, pointerId: 506, pointerType: "touch" })
+    fireEvent.pointerMove(link, { clientX: 190, clientY: 205, pointerId: 506, pointerType: "touch" })
+    fireEvent.pointerUp(link, { clientX: 190, clientY: 205, pointerId: 506, pointerType: "touch" })
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+  })
+
   it("cancels unarmed, cancelled, and lost-capture gestures without replaying intent", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
