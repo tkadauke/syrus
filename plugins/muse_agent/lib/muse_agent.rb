@@ -17,6 +17,8 @@ module SyrusMuseAgent
     disableable true
     provides agent_provider: "AgentProviders::Muse",
              chat_provider: "ChatProviders::Muse"
+    toolkit credential_probes: { "muse_api_key" => "MuseCredentialProbe" },
+            secret_extractors: [ "MuseCredentialProbe::SECRET_EXTRACTOR" ]
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("muse", ChatSessionRehydrator::Muse) }
@@ -28,9 +30,4 @@ module SyrusMuseAgent
       end
     end
   end
-end
-
-Syrus::Installer.define("muse_agent:credential probe") do |scope|
-  scope.effect("credential probe") { CredentialProbe.register_probe("muse_api_key", MuseCredentialProbe) }
-  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(MuseCredentialProbe::SECRET_EXTRACTOR) }
 end

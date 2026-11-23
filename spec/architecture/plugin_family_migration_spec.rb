@@ -7,10 +7,25 @@ RSpec.describe "Plugin family migration architecture" do
     affected_test_analyzer ci_log_parser prompt_injector diff_review_file_pattern_provider
     build_system_graph_provider
   ].freeze
+  TOOLKIT_POINTS = %i[
+    mcp_tool_set chat_mcp_tool_set permission_provider mcp_run_context_contributor
+  ].freeze
 
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
-  DISPATCHED_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
+  DISPATCHED_FAMILIES = {
+    ecosystem: ECOSYSTEM_POINTS,
+    # Toolkit keeps an explicit compatibility bridge for external plugins
+    # during the family migration; core callers must still use Dispatch.
+    toolkit: TOOLKIT_POINTS
+  }.freeze
+
+  it "keeps Toolkit's compatibility allowlist explicit" do
+    definition = Syrus::Plugin::Family.fetch(:toolkit)
+
+    expect(definition.legacy_mappings.keys).to contain_exactly(*TOOLKIT_POINTS)
+    expect(Syrus::PluginRegistry::EXTENSION_POINTS & TOOLKIT_POINTS).to contain_exactly(*TOOLKIT_POINTS)
+  end
 
   def registrations_in(source, point)
     source.scan(/\b#{Regexp.escape(point.to_s)}\s*:/).length

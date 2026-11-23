@@ -231,7 +231,9 @@ class CredentialProbe
 
   def self.probe_handler_for(credential)
     Syrus::Installer.sync!
-    CREDENTIAL_PROBE_METHODS[credential.to_s] || @registered_probe_handlers[credential.to_s]
+    CREDENTIAL_PROBE_METHODS[credential.to_s] ||
+      Syrus::Plugin::Toolkit.credential_probes[credential.to_s] ||
+      @registered_probe_handlers[credential.to_s]
   end
 
   def call
@@ -335,6 +337,7 @@ class CredentialProbe
 
   def registered_secrets
     Syrus::Installer.sync!
-    self.class.instance_variable_get(:@registered_secret_extractors).flat_map { |extractor| Array(extractor.call(user)) }
+    extractors = Syrus::Plugin::Toolkit.secret_extractors(user:) + self.class.instance_variable_get(:@registered_secret_extractors)
+    extractors.uniq.flat_map { |extractor| Array(extractor.call(user)) }
   end
 end

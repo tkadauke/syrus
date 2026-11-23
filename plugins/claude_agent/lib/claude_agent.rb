@@ -17,6 +17,8 @@ module SyrusClaudeAgent
     disableable true
     provides agent_provider: "AgentProviders::Claude",
              chat_provider: "ChatProviders::Claude"
+    toolkit credential_probes: { "claude_oauth_token" => "ClaudeCredentialProbe" },
+            secret_extractors: [ "ClaudeCredentialProbe::SECRET_EXTRACTOR" ]
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude) }
@@ -28,9 +30,4 @@ module SyrusClaudeAgent
       end
     end
   end
-end
-
-Syrus::Installer.define("claude_agent:credential probe") do |scope|
-  scope.effect("credential probe") { CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe) }
-  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR) }
 end

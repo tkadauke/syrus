@@ -91,7 +91,7 @@ module Syrus
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types while_enabled metrics always suggests_enabling on_boot
+        credential_types toolkit while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
       attr_reader :name, :namespace, :lib_dir
@@ -152,6 +152,35 @@ module Syrus
         end
 
         @provides.merge!(pairs)
+      end
+
+      # Concise declaration for the toolkit facet. The generated provider is a
+      # named plugin constant, so it remains reload-safe and appears normally
+      # in capability catalogs and health diagnostics.
+      def toolkit(workflow_tools: nil, chat_tools: nil, permissions: nil,
+        run_context: nil, credential_probes: {}, secret_extractors: [])
+        capabilities = {
+          workflow_tools: workflow_tools,
+          chat_tools: chat_tools,
+          permissions: permissions,
+          run_context: run_context,
+          credential_probes: credential_probes.empty? ? nil : credential_probes,
+          secret_extractors: secret_extractors.empty? ? nil : secret_extractors
+        }.compact.keys
+        return if capabilities.empty?
+
+        provider = Syrus::Plugin::Toolkit.provider(
+          key: name, display_name: @scalars[:display_name] || name.humanize,
+          workflow_tools:, chat_tools:, permissions:, run_context:,
+          credential_probes:, secret_extractors:
+        )
+        namespace.send(:remove_const, :Toolkit) if namespace.const_defined?(:Toolkit, false)
+        namespace.const_set(:Toolkit, provider)
+        stable = capabilities - [ :run_context ]
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family: :toolkit, provider: "#{namespace.name}::Toolkit",
+          implements: stable, provisional: capabilities & [ :run_context ]
+        )
       end
 
       def route(verb, path, to:)

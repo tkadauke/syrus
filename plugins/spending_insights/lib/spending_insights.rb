@@ -15,8 +15,8 @@ module SpendingInsights
     disableable true
     optionally_depends_on [ "metrics_dashboard" ]
     provides sidebar_page: "SpendingInsights::SidebarPages",
-             chat_mcp_tool_set: "SpendingInsights::ChatToolSet",
              "metrics_dashboard:tab" => "SpendingInsights::MetricsDashboardTabs"
+    toolkit chat_tools: "SpendingInsights::ChatToolSet"
     cli_commands [
       {
         path: %w[insights spending], summary: "Summarize agent spend", handler: "SpendingInsights::Cli::Spending",

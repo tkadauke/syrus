@@ -23,7 +23,6 @@ module Coworkers
     provides mentionable: "Coworkers::MentionableProvider",
              chat_identity_provider: "Coworkers::ChatIdentityProvider",
              callbacks: "Coworkers::Callbacks",
-             mcp_run_context_contributor: "Coworkers::RunContextContributor",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              repository_filter: "Coworkers::RepositoryFilter",
@@ -34,16 +33,15 @@ module Coworkers
              sidebar_page: "Coworkers::SidebarPages",
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
-             chat_mcp_tool_set: "Coworkers::ChatToolSet",
              reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
              review_context_contributor: "Coworkers::ReviewContextContributor",
              review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
              repository_configuration: "Coworkers::RepositoryConfiguration",
              review_gate: "Coworkers::ReviewGate",
-             mcp_tool_set: "Coworkers::ReviewToolSet",
              retention_policy: "Coworkers::ReviewContextRetentionPolicy",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
+    toolkit workflow_tools: "Coworkers::ReviewToolSet", chat_tools: "Coworkers::ChatToolSet", run_context: "Coworkers::RunContextContributor"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"
