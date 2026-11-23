@@ -4427,6 +4427,27 @@ failed with a lock-order error. That path only reserves since main's
 `c7b2166fe8` let user-level availability through. It is in `PENDING_DECISION`
 with the NY35 group, and NY35's context names it.
 
+## F120. The repair that made main healthy was closed as superseded — fixed
+
+**Before.** Main's `3788b1a9b9` added `supersede_unneeded_preflight_repairs!`: once
+main is healthy, any main-branch repair that has not started implementing is
+closed as `superseded`. But a repair whose preflight passes is exactly such a
+repair, and it is what makes main healthy. `MainBranchRepair.after_success`
+records healthy grader and CI results, calls
+`MainHealthChangedService.on_health_change!`, and only then closes its own anchor
+Job as `preflight_passed`. The health change got there first and closed it as
+`superseded`. Three examples in `spec/services/workflows/main_branch_repair_spec.rb`
+fail on main because of this. The closure reason is the Job's record of why it
+ended, and the reconciler's own completed-repair closure uses `preflight_passed`
+for the same case. So a repair that confirmed main healthy read as one that was
+merely overtaken.
+
+**Fix.** The sweep skips a repair whose Workflow recorded `preflight_passed`.
+That repair closes itself right after, with the right reason.
+
+**Specs.** The three existing `main_branch_repair_spec.rb` examples, red on main
+and green with the fix; `main_health_changed_service_spec.rb` unchanged and green.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
@@ -5190,9 +5211,12 @@ them changed methods `formal/mirrors.yml` watches, and one carried a bug (F118).
   skip, so a stopped recheck chain is still caught.
 - **"Close a main-branch repair still in preflight once main is healthy"**
   (`3788b1a9b9`), **"Keep a failed main-branch repair's workspace so its retry
-  can resume"** (`9de293e519`). *Relied-on invariant:* closing goes through the
-  same cancellation as a running repair. Holds: it closes through
-  `cancel_active_runs_and_close!`, and now also catches a queued repair. A
+  can resume"** (`9de293e519`). *Relied-on invariants:* closing goes through the
+  same cancellation as a running repair, and the sweep only closes repairs that
+  are unneeded. The first holds: it closes through `cancel_active_runs_and_close!`,
+  and now also catches a queued repair. The second does not, and was wrongly
+  marked as holding here at first. The repair whose own preflight just passed
+  is closed as superseded by the health change it caused (F120). A
   failed infrastructure Workflow whose retry policy resumes the failed Step now
   keeps its workspace. The prune job still removes it after the failed-workflow
   retention window, so disk use stays bounded.
