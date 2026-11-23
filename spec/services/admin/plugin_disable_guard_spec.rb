@@ -192,10 +192,17 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
       expect { described_class.ensure_disableable!(manifest_for("sweeper")) }.to raise_error(described_class::Blocked)
     end
 
-    it "blocks disabling while a step of the plugin's step kinds is active in any workflow" do
+    it "blocks disabling while a non-terminal workflow contains a plugin step, even when that step finished" do
       active_workflow(step_kind: "guard_spec_sweep_run")
+      Step.where(kind: "guard_spec_sweep_run").update_all(state: "succeeded")
 
-      expect(described_class.blockers_for(manifest_for("sweeper")).map(&:kind)).to eq([ "active_steps" ])
+      expect(described_class.blockers_for(manifest_for("sweeper"))).to include(
+        have_attributes(kind: "active_workflows", count: 1)
+      )
+      expect(I18n.with_locale(:de) { described_class.blockers_for(manifest_for("sweeper")).sole.label })
+        .to include("noch nicht beendeter Workflow")
+      expect(I18n.with_locale(:la) { described_class.blockers_for(manifest_for("sweeper")).sole.label })
+        .to include("Workflow nondum finitus")
     end
 
     it "does not block for finished work of its kinds or active work of other kinds" do

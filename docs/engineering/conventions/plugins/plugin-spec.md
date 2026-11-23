@@ -147,6 +147,10 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `surface` (facet; required core: `key`, `display_name`) — `admin_pages` (stable, collect, Module, Array<Module>, or nil), `artifact_renderers` (stable, collect, Module, Array<Module>, or nil), `filter_chips` (stable, collect, Array<FilterChips>), `filter_subjects` (stable, collect, Array<FilterSubject>), `preview_panel_viewers` (provisional, collect, Module, Array<Module>, or nil), `repo_page_tabs` (stable, collect, Module, Array<Module>, or nil), `sidebar_pages` (stable, collect, Module, Array<Module>, or nil), `ui_slots` (stable, collect, Module, Array<Module>, or nil), `workspace_tabs` (stable, collect, Module, Array<Module>, or nil)
 - `toolkit` (facet; required core: `key`, `display_name`) — `chat_tools` (stable, collect, Module or nil), `credential_probes` (stable, collect, Array<ProbeRegistration>), `permissions` (stable, collect, Module or nil), `run_context` (provisional, collect, Hash), `secret_extractors` (stable, collect, Array<secret extractor>), `workflow_tools` (stable, collect, Module or nil)
 
+## Workflow composition anchors
+
+The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
+
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
@@ -210,4 +214,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 38632 bytes (UTF-8, including this line).
+Size: 39477 bytes (UTF-8, including this line).
