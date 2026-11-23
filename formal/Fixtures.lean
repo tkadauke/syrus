@@ -72,16 +72,17 @@ def epicTurn : String :=
       else none
   "{\n  \"model\": \"EpicTurn.mayStart\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
-/-- `WorkEngine::Reconciler#orphaned_queue_job?` as `QueueExecution.orphanedAfter`,
-over every combination of the five SolidQueue execution flags. -/
+/-- `WorkEngine::Reconciler#orphaned_queue_job?` as `QueueExecution.orphaned`,
+over every combination of the five SolidQueue execution flags and the job's age. -/
 def orphanedQueueJob : String :=
   let bools := [true, false]
-  let cases := bools.flatMap fun r => bools.flatMap fun c => bools.flatMap fun s => bools.flatMap fun b => bools.map fun f =>
+  let cases := bools.flatMap fun r => bools.flatMap fun c => bools.flatMap fun s => bools.flatMap fun b => bools.flatMap fun f =>
+    bools.map fun old =>
     let flags : QueueExecution.Flags := ⟨r, c, s, b, f⟩
     "    {\"ready\": " ++ jsonBool r ++ ", \"claimed\": " ++ jsonBool c ++ ", \"scheduled\": " ++ jsonBool s ++
-      ", \"blocked\": " ++ jsonBool b ++ ", \"failed\": " ++ jsonBool f ++
-      ", \"orphaned\": " ++ jsonBool (QueueExecution.orphanedAfter flags) ++ "}"
-  "{\n  \"model\": \"QueueExecution.orphanedAfter\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+      ", \"blocked\": " ++ jsonBool b ++ ", \"failed\": " ++ jsonBool f ++ ", \"old\": " ++ jsonBool old ++
+      ", \"orphaned\": " ++ jsonBool (QueueExecution.orphaned flags old) ++ "}"
+  "{\n  \"model\": \"QueueExecution.orphaned\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
 /-- `Workflows::ImmutableReviewHeadBarrier.satisfied_for?` for one required
 review, as `ReviewBarrier.satisfied`, over every combination of its evidence. -/

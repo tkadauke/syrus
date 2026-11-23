@@ -841,6 +841,67 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
   end
 
+  # The snapshot reads each execution table in its own query. SolidQueue moves
+  # a job between tables atomically, but a move that lands between two reads
+  # leaves the job in neither if the destination was read before the source.
+  # A job scheduled minutes ago (a delayed retry, a provider backoff) is past
+  # the orphan grace when the dispatcher promotes it. Each forward move, made
+  # after any one of the reads, must still leave the job seen somewhere.
+  {
+    "scheduled -> ready" => [ :scheduled, :ready ],
+    "blocked -> ready" => [ :blocked, :ready ],
+    "ready -> claimed" => [ :ready, :claimed ]
+  }.each do |label, (from, to)|
+    it "does not call an old job orphaned when it moves #{label} during the snapshot" do
+      ensure_solid_queue_test_tables!
+      run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
+      workflow.update_columns(state: "running", started_at: 3.hours.ago)
+      process = SolidQueue::Process.create!(hostname: "worker-1", kind: "Worker", last_heartbeat_at: Time.current,
+        pid: 4242, name: "worker-snapshot-race")
+      reads = %w[solid_queue_ready_ids solid_queue_claimed solid_queue_failed solid_queue_scheduled solid_queue_blocked]
+
+      (1..4).each do |after_read|
+        queue_job = SolidQueue::Job.create!(class_name: "RunJob", queue_name: "runs", priority: 10,
+          arguments: { "arguments" => [ run.id ] }, created_at: 3.hours.ago, updated_at: 3.hours.ago,
+          scheduled_at: 1.second.ago, concurrency_key: "RunJob/job-#{run.job_id}")
+        [ SolidQueue::ReadyExecution, SolidQueue::ClaimedExecution, SolidQueue::ScheduledExecution,
+          SolidQueue::FailedExecution, SolidQueue::BlockedExecution ].each { |table| table.where(job_id: queue_job.id).delete_all }
+        place = lambda do |state|
+          case state
+          when :ready then SolidQueue::ReadyExecution.create!(job: queue_job, priority: 10, queue_name: "runs")
+          when :claimed then SolidQueue::ClaimedExecution.create!(job: queue_job, process_id: process.id)
+          when :scheduled then SolidQueue::ScheduledExecution.create!(job: queue_job, priority: 10, queue_name: "runs",
+            scheduled_at: 1.second.ago)
+          when :blocked then SolidQueue::BlockedExecution.create!(job: queue_job, expires_at: 1.minute.from_now)
+          end
+        end
+        remove = ->(state) { { ready: SolidQueue::ReadyExecution, claimed: SolidQueue::ClaimedExecution,
+          scheduled: SolidQueue::ScheduledExecution, blocked: SolidQueue::BlockedExecution }.fetch(state).where(job_id: queue_job.id).delete_all }
+        place.call(from)
+
+        seen = 0
+        allow(PerformanceLogging).to receive(:phase).and_wrap_original do |original, name, *args, **kwargs, &block|
+          result = original.call(name, *args, **kwargs, &block)
+          if reads.any? { |read| name == "work_engine.reconciler.#{read}" }
+            seen += 1
+            if seen == after_read
+              remove.call(from)
+              place.call(to)
+            end
+          end
+          result
+        end
+
+        result = reconcile(run_id: run.id)
+
+        expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job"),
+          "#{label} after read #{after_read} was called orphaned"
+        RSpec::Mocks.space.proxy_for(PerformanceLogging).reset
+        queue_job.destroy
+      end
+    end
+  end
+
   it "classifies a queued Run whose SolidQueue job has no execution row" do
     run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
     workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")

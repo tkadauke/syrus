@@ -24,6 +24,12 @@ This file proves:
 3. `replay_terminates`: repeated loss and replay cannot loop forever. Each
    in-place retry adds a Run, and the retry is refused once the count passes the
    limit, so a Step gets at most `limit` replayed retries.
+
+Since main's 10876221e8, a retry after a `provider_transient` failure reopens the
+Step and schedules its Run after a backoff instead of creating it at once. The
+limit is still checked first, and the Step can only fail again once that Run
+exists and fails, so each replay round still adds exactly one Run before the next
+can start: `step` below is unchanged.
 -/
 
 namespace SyrusModel

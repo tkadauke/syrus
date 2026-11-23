@@ -3440,6 +3440,21 @@ module WorkEngine
         end
         jobs = jobs.select { |job| root_run_id_by_job_id.key?(job.id) }
         solid_queue_job_ids = jobs.map(&:id)
+        # Each table is read in its own query, and SolidQueue moves a job
+        # forward between them atomically: scheduled or blocked -> ready ->
+        # claimed -> failed. Read them in that order, so a move between two
+        # reads lands in a table not read yet and the job is seen at least
+        # once. Reading ready first missed every job promoted from scheduled
+        # or blocked mid-snapshot, and called it orphaned however old it was
+        # (formal/SyrusModel/QueueExecution.lean, `flow_order_sees_every_move`).
+        scheduled_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_scheduled", count: solid_queue_job_ids.size) do
+          solid_queue_job_ids.empty? ? {} : SolidQueue::ScheduledExecution.where(job_id: solid_queue_job_ids).select(:job_id, :scheduled_at).index_by(&:job_id)
+        end
+        # RunJob is concurrency-limited per Job: a second Run's job waits here
+        # until the semaphore frees, and SolidQueue's dispatcher promotes it.
+        blocked_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_blocked", count: solid_queue_job_ids.size) do
+          solid_queue_job_ids.empty? ? Set.new : SolidQueue::BlockedExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
+        end
         ready_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_ready_ids", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? Set.new : SolidQueue::ReadyExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
         end
@@ -3448,14 +3463,6 @@ module WorkEngine
         end
         failed_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_failed", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? Set.new : SolidQueue::FailedExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
-        end
-        scheduled_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_scheduled", count: solid_queue_job_ids.size) do
-          solid_queue_job_ids.empty? ? {} : SolidQueue::ScheduledExecution.where(job_id: solid_queue_job_ids).select(:job_id, :scheduled_at).index_by(&:job_id)
-        end
-        # RunJob is concurrency-limited per Job: a second Run's job waits here
-        # until the semaphore frees, and SolidQueue's dispatcher promotes it.
-        blocked_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_blocked", count: solid_queue_job_ids.size) do
-          solid_queue_job_ids.empty? ? Set.new : SolidQueue::BlockedExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
         end
         running_root_run_ids = runs.select(&:running?).map(&:id).to_set
         parsed = PerformanceLogging.phase("work_engine.reconciler.solid_queue_parse") do

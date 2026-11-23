@@ -4321,6 +4321,70 @@ on each (the record lookups stubbed): all 32 agree. Run against the old model's
 answers it fails on exactly the 9 cases where they differ. `satisfied_for?` is
 now in `formal/mirrors.yml`.
 
+## F117. A lock on a row the transaction created is outside the order (NY32)
+
+**Before.** NY32 assumed `WorkUnit#mark_terminal!`/`#preempt!` held the unit while
+`TerminalUnitSync` cancelled the unit's own Workflow and Steps. It no longer
+does: `TerminalUnitSync` only settles the WorkIntent. With NY32's exemption
+removed, the full suite (parallel and CI-only) has exactly one hit, two examples
+of restarting a Job (`Api::V1::App::JobLifecycleController#restart`). One
+transaction closes the old Job, which preempts its WorkUnit and locks that row,
+then creates the replacement Job and launches it, which locks the Workflow and
+Step it just inserted.
+
+**Why it is not a deadlock.** A row a transaction inserted is invisible to every
+other transaction until commit. Nobody else can lock it first, and its creator
+never waits for it, so the lock adds no edge to the wait-for graph. The decided
+option A (lock the Workflow and Steps before the unit) would not have touched
+this hit, since the Workflow locked late is a different Job's.
+
+**Fix.** The checker now records the rows each application transaction inserts
+(`Syrus::LockOrder::Checker::CreateTracking`) and skips the order check for a
+lock whose rows are all self-created; such rows are not counted as held either.
+NY32's `PENDING_DECISION` entry is gone with no change to `WorkUnit`.
+
+**Proof.** `LockOrder.lean`, section `SelfCreated`: `self_created_never_waits`
+and `waits_only_on_committed_rows`. A transaction waits for a row only if it can
+see the row and the other transaction holds it, which needs the other to see it
+too; only committed rows satisfy both.
+
+**Specs.** `spec/lib/syrus/lock_order_spec.rb` "exempts rows the transaction
+created itself" (red before the checker change) and "still checks a
+pre-existing row taken after a self-created one". The two restart examples in
+`spec/requests/api/v1/app/job_lifecycle_spec.rb` pass in raise mode.
+
+## F118. The queue snapshot missed jobs promoted while it read — fixed
+
+**Before.** The reconciler's SolidQueue snapshot reads the five execution tables
+in separate queries: ready, claimed, failed, scheduled, blocked. SolidQueue moves
+a job forward atomically (scheduled or blocked to ready, ready to claimed,
+claimed to failed), but a move that lands between two reads leaves the job in
+neither when its new table was read before its old one. A job the dispatcher
+promoted from scheduled or blocked to ready after the first read was seen
+nowhere and classified `queued_run_with_orphaned_queue_job`. The repair deletes
+that SolidQueue job by id with no re-check and re-enqueues the Run. That deletes
+a healthy job, and if a worker claimed it meanwhile, the Run gets a second RunJob.
+Main's `600a716d44` added a 2-minute grace on the job's age, which does not close
+this: a job scheduled minutes ago is old when it is promoted. Main's
+`10876221e8` now schedules exactly such jobs, a provider backoff of one to three
+minutes.
+
+**Fix.** The snapshot reads the tables in the order a job moves through them:
+scheduled, blocked, ready, claimed, failed. A move between two reads then always
+lands in a table not yet read, so the job is seen at least once.
+
+**Proof.** `QueueExecution.lean`: `old_order_misses_promotion` (scheduled to
+ready after the first read), `old_order_unsafe`, and
+`flow_order_sees_every_move` (every forward move, after any number of reads).
+The model now also carries main's grace: `orphaned` adds the age condition,
+`orphaned_sound` keeps soundness, and the conformance fixture covers all 64
+combinations of the five flags and the age.
+
+**Specs.** `spec/services/work_engine/reconciler_spec.rb` "does not call an old
+job orphaned when it moves ... during the snapshot", for scheduled to ready,
+blocked to ready, and ready to claimed, each after every one of the first four
+reads. The first two were red before the reorder.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
@@ -5050,6 +5114,77 @@ reused test database.
 the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
+
+## M70. Main through `3788b1a9b9`
+
+Sixteen commits after this branch's last push to main (`deb8208602`). Two of
+them changed methods `formal/mirrors.yml` watches, and one carried a bug (F118).
+
+- **"Give a SolidQueue job time to settle before calling it orphaned"**
+  (`600a716d44`). `orphaned_queue_job?` also requires the job to be at least
+  `ORPHANED_QUEUE_JOB_GRACE` old. *Relied-on invariant:* a job with no execution
+  row in the snapshot really has none. Counterexample: the snapshot read order
+  misses old jobs promoted mid-snapshot. Fixed as F118, and the grace is now in
+  `QueueExecution.lean`.
+- **"Back off before rerunning a step that hit a transient provider error"**
+  (`10876221e8`). A `provider_transient` infrastructure retry reopens the Step
+  and schedules its Run after 1 or 3 minutes. *Relied-on invariants:* the retry
+  stays bounded, and the reconciler leaves the waiting Step alone but still
+  catches one whose wakeup is lost. Bounded holds: the limit is checked before
+  the backoff, and each replay round still adds one Run (`CascadeReplay.lean`,
+  doc updated). Being left alone holds. Catching a lost wakeup is open, as Lead
+  L13: once the backoff has passed, `queued_step_without_run` skips any Step
+  that has Runs, and `running_step_with_terminal_runs` skips any Step reopened
+  since its last Run.
+- **"Leave a retried Step alone while it waits for its turn"** (`98d30fa654`).
+  `running_step_with_terminal_runs` skips a queued Step reopened after its
+  latest terminal Run. *Relied-on invariant:* the retry's dispatch will reach
+  the Step. That holds for a retry, whose earlier Steps run first; it is the
+  other half of Lead L13.
+- **"Do not flag graders that fan-out admission is still holding back"**
+  (`1f52862907`). `queued_step_without_run` skips graders whose admission
+  decided within 5 minutes. *Relied-on invariant:* fan-out admission re-decides
+  every recheck delay while it holds graders. Holds: a stale decision ends the
+  skip, so a stopped recheck chain is still caught.
+- **"Close a main-branch repair still in preflight once main is healthy"**
+  (`3788b1a9b9`), **"Keep a failed main-branch repair's workspace so its retry
+  can resume"** (`9de293e519`). *Relied-on invariant:* closing goes through the
+  same cancellation as a running repair. Holds: it closes through
+  `cancel_active_runs_and_close!`, and now also catches a queued repair. A
+  failed infrastructure Workflow whose retry policy resumes the failed Step now
+  keeps its workspace. The prune job still removes it after the failed-workflow
+  retention window, so disk use stays bounded.
+- **"Deliver an app event unsequenced when the sequence row is locked"**
+  (`206ca9121a`). `next_sequence` failing with a lock-wait timeout or a deadlock
+  now sends the event without `sequence`, which the frontend applies directly.
+  *Relied-on invariant:* this runs outside any open transaction. A deadlock
+  rolls back the whole transaction, so rescuing it mid-transaction would carry
+  on with work that was undone. That holds for the broadcast paths checked so
+  far, which run after commit; not every caller of `AppEvents` has been
+  audited.
+- **"Select a provider with no enabled account rows without raising"**
+  (`c7b2166fe8`), **"Count a provider server_error toward the provider circuit"**
+  (`b3a59d0470`), **"Do not resume a session created by a different provider"**
+  (`29dc927a81`). Local guards. Each narrows an existing decision and adds no
+  new state.
+- The rest change logging, diagnostics, or deploy reporting (`164ed75177`,
+  `b114e10708`, `8eb20127d0`, `d1e2a9f103`), git transport retries
+  (`ceed13cb63`), or workspace-recovery replay safety for stranded preflight
+  graders (`7b26940df9`, which widens an existing replay-safe set by one kind).
+
+## Lead L13. A reopened Step whose Run never comes is invisible to the reconciler
+
+A queued Step that has only terminal Runs and was reopened after the last one is
+skipped by both Step-level checks: `queued_step_without_run` requires no Runs at
+all, and `running_step_with_terminal_runs` skips it as "waiting for its turn".
+The Workflow-level `running_workflow_without_active_descendants` counts the
+queued Step as active. So the Step's liveness rests entirely on whatever was
+meant to create its Run. For a provider backoff that is a scheduled
+`WorkflowPhaseAdmissionJob`. `WorkUnits::DeferredPhaseResume` returns without a
+Run and without rescheduling on several branches ("unowned", "not_ready", a
+provider-routing hold). Next: a spec that drops the scheduled resume and checks
+the reconciler flags the Step once its backoff has passed and its predecessors
+have handed off.
 
 ## M69. Main through `3561d3536a`
 
@@ -6763,7 +6898,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `3561d3536a`. Each loop iteration continues from there:
+Checked through main `3788b1a9b9`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

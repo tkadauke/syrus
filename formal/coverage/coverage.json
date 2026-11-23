@@ -3690,7 +3690,7 @@
         "C. Undo F97's atomicity: run TerminalUnitSync after the unit's transaction commits, and rely on the reconciler to repair a crash between the two."
       ],
       "recommendation": "A. It changes only the two entry points that cause the inversion and keeps the crash-safety F97 added; B reorders many more sites, and C reopens the window F97 closed.",
-      "decision": "A (2026-11-23, answered on the lean-plan site): In mark_terminal!/preempt!, lock the Workflow (and its active Steps) before the unit, keeping the order Workflow -> Step -> WorkUnit and F97's atomicity. To implement."
+      "decision": "A (2026-11-23, answered on the lean-plan site): In mark_terminal!/preempt!, lock the Workflow (and its active Steps) before the unit, keeping the order Workflow -> Step -> WorkUnit and F97's atomicity. Not needed as decided: TerminalUnitSync no longer cancels the unit's Workflow, and the one remaining hit locks a Workflow the same transaction created. That cannot deadlock, so the checker now exempts self-created rows and no WorkUnit change was made. Implemented as F117."
     },
     {
       "id": "NY33",
