@@ -76,6 +76,17 @@ module WorkDefinitions
     "#{bare_key}:branch:#{branch}"
   end
 
+  # The key of the merge lock that serializes the final merge into a Job's
+  # landing branch. It mirrors the landing lock key (same branch-suffix rule)
+  # but is a separate lock: the landing slot covers a whole landing unit, the
+  # merge lock only the last verify-merge-record sequence (see MergeLock).
+  def merge_lock_key_for(job, policy: nil)
+    landing_key = landing_lock_key_for(job, policy: policy)
+    return nil unless landing_key
+
+    landing_key.sub(/\Alanding:/, "merge:")
+  end
+
   def landing_workflow_kinds
     @landing_workflow_kinds ||= definitions_matching { |definition| definition.landing_lock? && definition.first_class? }
       .map(&:workflow_trigger_kind)

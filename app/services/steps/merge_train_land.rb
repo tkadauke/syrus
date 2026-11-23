@@ -6,6 +6,7 @@ module Steps
   # Jobs are marked closed/pr_merged. See docs/plans/landing-merge-train.md.
   class MergeTrainLand < Base
     include MergeTrainStep
+    include MergeLockControl
 
     BASE_SHA_ARTIFACT = "merge_train_base_sha"
     STALE_BASE_ARTIFACT = "merge_train_stale_base"
@@ -35,6 +36,15 @@ module Steps
       train = merge_train
       client = GithubClient.for(repository: repository, user: job.user)
 
+      with_merge_lock(
+        context: "merge_train",
+        on_timeout: -> { raise StepFailed, "merge_train: merge lock busy; another landing is merging into #{train.base_branch}" }
+      ) { land(train, client) }
+    end
+
+    private
+
+    def land(train, client)
       pre_merge_base_sha = ensure_base_unchanged!(train, client)
 
       if (already_on_base = integration_branch_already_on_base?(train, pre_merge_base_sha))
@@ -63,8 +73,6 @@ module Steps
         "integration #{integration_sha.to_s.first(9)} merged onto #{train.base_branch}@#{pre_merge_base_sha.to_s.first(9)}"
       )
     end
-
-    private
 
     # The exact integration SHA about to be merged must carry SHA-bound,
     # conclusive validation evidence (LandingValidationManifest). Missing,
