@@ -128,6 +128,35 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(screen.getAllByRole("button", { name: "New side chat with Maya" })).toHaveLength(1)
   })
 
+  it("keeps the side-chat action in the rightmost slot and shifts main-chat controls left", () => {
+    renderSidebar([
+      chatNav({
+        id: 1,
+        title: "Maya",
+        active_goal: chatGoal(),
+        pending_proposal_count: 1,
+        agent_appearance: {
+          name: "Maya",
+          accent_hex: "#B6492E",
+          avatar_key: null,
+          avatar_url: null,
+          coworker_id: 7,
+          coworker_chat_role: "main",
+          side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+        }
+      })
+    ])
+
+    const link = screen.getByRole("link", { name: "Maya" })
+    const sideChatAction = screen.getByRole("button", { name: "New side chat with Maya" })
+    const chatActionSlot = screen.getByTestId("recent-chat-action-slot")
+
+    expect(link).toHaveClass("pr-16")
+    expect(sideChatAction).toHaveClass("right-2")
+    expect(chatActionSlot).toHaveClass("right-10")
+    expect(screen.getByTestId("recent-chat-marker-slot")).toBe(link.lastElementChild)
+  })
+
   it("lazily loads named side chats under their coworker and uses the per-section limit", async () => {
     const appearance = {
       name: "Maya",
