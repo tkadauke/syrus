@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs"
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test"
-import { signInAsDemo } from "./support/auth"
+import { signInAsDemo, waitForSpaBoot } from "./support/auth"
 import { jobsListRow } from "./support/dashboard"
 
 // Bug-report screenshots hollow opted-in rows outside the viewport (see
@@ -82,9 +82,13 @@ async function openLargeReview(page: Page, viewport: { width: number; height: nu
   const row = await jobsListRow(page, title)
   await row.getByRole("link", { name: title, exact: true }).click()
   await page.waitForURL(/\/jobs\/[^/?#]+/)
+  // The job page finishes settling its own URL once it has loaded; reopening
+  // it before then is interrupted under WebKit (see waitForSpaBoot).
+  await page.getByRole("button", { name: "Review", exact: true }).waitFor()
   const jobUrl = page.url()
   await page.setViewportSize(viewport)
   await page.goto(jobUrl)
+  await waitForSpaBoot(page)
   await page.getByRole("button", { name: "Review", exact: true }).click()
   await expect(page.getByText("app/frontend/generated/module_0.ts").first()).toBeVisible()
   // Large file diffs start collapsed; expand them all so the page is as heavy

@@ -23,9 +23,9 @@ class JobAttachmentContext
 
   def materialize!
     attachments.map.with_object([]) do |attachment, entries|
-      if attachment.uploaded_file?
-        entries << materialize_file(attachment)
-      end
+      next unless attachment.uploaded_file?
+
+      entries << (attachment.file.attached? ? materialize_file(attachment) : missing_file_entry(attachment))
     end
   end
 
@@ -72,6 +72,14 @@ class JobAttachmentContext
     )
   end
 
+  # A file attachment whose upload never completed, or whose blob was purged,
+  # has no file to download. Reading its filename raised NoMethodError and
+  # failed a main-branch repair's implement step outright; say the file is
+  # gone instead, so the agent knows the context it was promised is missing.
+  def missing_file_entry(attachment)
+    Entry.new(name: attachment_name(attachment), type: "missing", path: nil, url: nil, reference_only: false)
+  end
+
   def attachment_name(attachment)
     attachment.file.filename.to_s.presence || "attachment ##{attachment.id}"
   end
@@ -96,7 +104,9 @@ class JobAttachmentContext
 
   def prompt_section(entries)
     lines = entries.map do |entry|
-      if entry.url
+      if entry.type == "missing"
+        "- #{entry.name}: no longer available (the uploaded file is missing)"
+      elsif entry.url
         "- #{entry.name} (#{entry.type}): #{entry.url}"
       else
         "- #{entry.name} (#{entry.type}): #{entry.path}"

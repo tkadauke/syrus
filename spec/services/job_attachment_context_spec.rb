@@ -22,6 +22,22 @@ RSpec.describe JobAttachmentContext do
     end
   end
 
+  # Production: a main-branch repair's implement step crashed with
+  # NoMethodError on an uploaded-file attachment that had no file.
+  it "notes an uploaded-file attachment whose file is gone instead of raising" do
+    upload = job.job_attachments.build(attachment_type: "uploaded_file")
+    upload.file.attach(io: StringIO.new("notes"), filename: "notes.md", content_type: "text/markdown")
+    upload.save!
+    upload.file.purge
+
+    Dir.mktmpdir do |dir|
+      prompt = described_class.new(job: job, workspace_path: dir).apply_to("Original prompt")
+
+      expect(prompt).to include("# Job Attachments")
+      expect(prompt).to include("attachment ##{upload.id}: no longer available")
+    end
+  end
+
   it "leaves prompts unchanged when a Job has no attachments" do
     Dir.mktmpdir do |dir|
       prompt = described_class.new(job: job, workspace_path: dir).apply_to("Original prompt")
