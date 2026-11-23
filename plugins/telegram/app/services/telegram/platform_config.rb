@@ -5,11 +5,11 @@ module Telegram
   # registered through the :platform_delivery extension point.
   class PlatformConfig < PlatformIdentity::PlatformConfig::Base
     def configured?
-      AppSetting.telegram_configured?
+      Telegram::BotAccess.configured?
     end
 
     def instructions(token)
-      bot_handle = AppSetting.telegram_bot_handle
+      bot_handle = Telegram::BotAccess.handle
       {
         text: "Send /start #{token} to @#{bot_handle} on Telegram",
         bot_handle: bot_handle

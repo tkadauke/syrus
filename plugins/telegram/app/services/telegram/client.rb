@@ -3,12 +3,32 @@ require "json"
 
 module Telegram
   # Thin Telegram Bot API client: one public method per endpoint.
+  #
+  # The token is a required argument and the client is only ever built inside
+  # a brokered call (Telegram::Provider), so it lives for the duration of that
+  # call. Telegram puts the token in the request path, which is why nothing
+  # here logs or interpolates a URL into an error.
   class Client
     BASE = "https://api.telegram.org"
     class Error < StandardError; end
+    class Unauthorized < Error; end
 
-    def initialize(token: AppSetting.telegram_bot_token)
+    def initialize(token:)
       @token = token
+    end
+
+    # GET /bot{token}/getMe -- the bot's own user. Raises Unauthorized when
+    # Telegram rejects the token and Error for anything else, so validation
+    # can tell a bad token from an outage.
+    def get_me
+      uri = URI("#{BASE}/bot#{@token}/getMe")
+      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.get(uri.request_uri) }
+      raise Unauthorized, "Telegram rejected the bot token" if [ 401, 404 ].include?(response.code.to_i)
+
+      data = JSON.parse(response.body)
+      raise Error, "Telegram getMe failed" unless data["ok"]
+
+      data["result"]
     end
 
     # GET /bot{token}/getUpdates?offset=N&timeout=T
@@ -39,7 +59,7 @@ module Telegram
       end
       JSON.parse(response.body)
     rescue => e
-      Rails.logger.error("Telegram::Client#send_message: #{e}")
+      Rails.logger.error("Telegram::Client#send_message: #{e.class}")
       nil
     end
   end
