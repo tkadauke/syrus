@@ -38,13 +38,13 @@ module ConnectedAccounts
       # plugin that made each one. Reading manifests with enabled? alone kept
       # a degraded or failed contributor's OAuth provider live (NY18).
       def contributions
-        return [] unless Syrus::PluginRegistry.extension_point?(EXTENSION_POINT)
+        return [] unless Syrus::Host::PluginRegistry.extension_point?(EXTENSION_POINT)
 
-        Syrus::PluginRegistry.providers_with_owner_for(EXTENSION_POINT)
+        Syrus::Host::PluginRegistry.providers_with_owner_for(EXTENSION_POINT)
       end
 
       def reject!(plugin_name, message)
-        Syrus::PluginRegistry.add_validation_error(plugin_name, message)
+        Syrus::Host::PluginRegistry.add_validation_error(plugin_name, message)
       end
     end
   end

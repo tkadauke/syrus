@@ -9,10 +9,10 @@ module MysqlDbBrowser
   # ever sees the surface, never an individual call's params) - so each tool
   # calls this from inside its own #call, mirroring
   # Mcp::Tools::AuthorizationSupport's find_*! pattern for first-party tools.
-  # See Syrus::Plugin::AgenticConnection for the shared gating logic this
+  # See Syrus::Host::AgenticConnection for the shared gating logic this
   # class and K8sCluster::AgenticAccess both delegate to.
   class AgenticAccess
-    extend Syrus::Plugin::AgenticConnection
+    extend Syrus::Host::AgenticConnection
 
     class ConnectionNotFound < StandardError; end
     class AccessDisabled < StandardError; end
@@ -72,7 +72,7 @@ module MysqlDbBrowser
     end
 
     # Write gate for a connection QueryExecutor already resolved via
-    # connection! - see Syrus::Plugin::AgenticConnection#require_write_access!
+    # connection! - see Syrus::Host::AgenticConnection#require_write_access!
     # for why this takes the record itself rather than an id.
     def self.connection_with_write_access!(connection)
       require_write_access!(

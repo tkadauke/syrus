@@ -17,7 +17,7 @@ module GitHistory
   # internal network only, never exposed through public ingress. Binding
   # 0.0.0.0 means anything else reachable on that port/network could ask for
   # any repository id, bypassing `GitHistoryController`'s
-  # `Repository.accessible_to(Current.user)` check entirely — the controller
+  # `Repository.accessible_to(Syrus::Host::Current.user)` check entirely — the controller
   # authorizes the *request*, but nothing previously authorized the *caller*.
   # Every request now requires a `Bearer` token matching GitHistory::RelayToken
   # (see RelayClient), a secret derived from the app's own secret_key_base so

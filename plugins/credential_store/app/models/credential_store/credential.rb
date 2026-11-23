@@ -1,8 +1,8 @@
 module CredentialStore
-  class Credential < ApplicationRecord
+  class Credential < Syrus::Host::Record
     self.table_name = "credential_store_credentials"
 
-    TYPE_NAME_PATTERN = Syrus::PluginRegistry.credential_type_name_pattern
+    TYPE_NAME_PATTERN = Syrus::Host::PluginRegistry.credential_type_name_pattern
     NAME_MAX_LENGTH = 120
     DESCRIPTION_MAX_LENGTH = 1000
     SAFE_METADATA_MAX_BYTES = 8.kilobytes

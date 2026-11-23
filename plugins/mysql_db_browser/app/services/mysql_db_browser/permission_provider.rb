@@ -1,6 +1,6 @@
 module MysqlDbBrowser
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
     # Coworkers request read access through request_permission, so the read

@@ -8,7 +8,7 @@ module MysqlDbBrowser
   # connection, per AgenticAccess) happens inside each tool's #call once the
   # agent names a mysql_connection_id.
   class ChatToolSet
-    include Syrus::Plugin::GatedToolSet
+    include Syrus::Host::GatedToolSet
 
     gated_by plugin: MysqlDbBrowser, model: MysqlConnection, label: "MySQL DB Browser"
 
@@ -32,12 +32,12 @@ module MysqlDbBrowser
       max_policy: "auto",
       scope: {
         options: lambda { |user:|
-          context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+          context = Syrus::Host::ToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_connection_metadata(context: context).pluck(:id)
         },
         label: ->(id) { MysqlConnection.find_by(id: id)&.label || "MySQL connection #{id}" },
         valid: lambda { |id, user:|
-          context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+          context = Syrus::Host::ToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_connection_metadata(context: context).any? { |connection| connection.fetch(:id).to_s == id.to_s }
         }
       }
