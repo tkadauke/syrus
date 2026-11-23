@@ -1,6 +1,6 @@
 module WorkUnits
   module Gates
-    class MainBranchHealth
+    class MainHealth
       REASON = "main_branch_health"
 
       def self.call(work_unit, **) = new(work_unit).call

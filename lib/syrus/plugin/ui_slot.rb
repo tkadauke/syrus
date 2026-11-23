@@ -34,6 +34,7 @@ module Syrus
       SLOTS = %w[
         dashboard.jobs.notice
         repository.detail
+        repository.settings
         job.detail
         job.detail.tab
         job.workflow.actions

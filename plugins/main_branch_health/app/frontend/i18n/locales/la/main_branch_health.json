@@ -1,0 +1,4 @@
+{
+  "plugin": { "display_name": "Main branch health", "description": "Plugin Main branch health pro Syro." },
+  "admin": { "title": "Main branch health", "message": "Plugin tuum paratum est." }
+}

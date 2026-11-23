@@ -1,0 +1,4 @@
+{
+  "plugin": { "display_name": "Main branch health", "description": "Main branch health plugin for Syrus." },
+  "admin": { "title": "Main branch health", "message": "Your plugin is ready." }
+}

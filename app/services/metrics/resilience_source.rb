@@ -57,8 +57,7 @@ module Metrics
     # ci_health/grader_health/enabled logic here where it could drift from
     # the real definition.
     def main_branch_broken_repository_count
-      Repository.select(:id, :main_branch_health_enabled, :ci_health, :grader_health)
-                .count(&:main_health_broken?)
+      Repository.find_each.count(&:main_health_broken?)
     end
   end
 end
