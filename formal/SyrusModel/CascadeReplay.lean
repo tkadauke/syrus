@@ -6,7 +6,9 @@ When a Step fails, `StepDispatcher#fail!` decides what that means:
 * advance, for kinds whose remediation is `:advance`;
 * the next loop iteration, for `:retry_step`;
 * otherwise an in-place infrastructure retry, if the last Run was classified
-  retryable and the Step has at most `INFRASTRUCTURE_STEP_RETRY_LIMIT` Runs;
+  retryable and the Step has at most `INFRASTRUCTURE_STEP_RETRY_LIMIT` Runs
+  (for a transient provider error the rerun waits out a backoff first; the
+  outcome and the Run it adds are the same, so timing is not modelled);
 * otherwise a try branch, if one applies;
 * otherwise a hard fail of the Workflow.
 
