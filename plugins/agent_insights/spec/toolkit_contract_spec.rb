@@ -22,4 +22,3 @@ RSpec.describe AgentInsights::Toolkit do
     plugin: "agent_insights", provider: "AgentInsights::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

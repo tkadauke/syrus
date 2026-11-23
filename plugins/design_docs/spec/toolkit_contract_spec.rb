@@ -22,4 +22,3 @@ RSpec.describe DesignDocs::Toolkit do
     plugin: "design_docs", provider: "DesignDocs::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

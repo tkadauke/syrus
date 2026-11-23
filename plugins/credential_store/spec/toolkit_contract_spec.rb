@@ -22,4 +22,3 @@ RSpec.describe CredentialStore::Toolkit do
     plugin: "credential_store", provider: "CredentialStore::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

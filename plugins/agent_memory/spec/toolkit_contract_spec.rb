@@ -22,4 +22,3 @@ RSpec.describe AgentMemory::Toolkit do
     plugin: "agent_memory", provider: "AgentMemory::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

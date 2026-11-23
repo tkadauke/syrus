@@ -22,4 +22,3 @@ RSpec.describe ScheduledTasks::Toolkit do
     plugin: "scheduled_tasks", provider: "ScheduledTasks::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

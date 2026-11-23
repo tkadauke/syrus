@@ -22,4 +22,3 @@ RSpec.describe Coworkers::Toolkit do
     plugin: "coworkers", provider: "Coworkers::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-
