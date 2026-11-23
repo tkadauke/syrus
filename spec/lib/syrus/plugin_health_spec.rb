@@ -182,6 +182,14 @@ RSpec.describe Syrus::PluginHealth do
     expect(health([ external_manifest(scan: scan) ]).status("external").state).to eq(:ok)
   end
 
+  it "accepts the requirement string declared by an external plugin manifest" do
+    allow(SyrusVersion).to receive(:release).and_return(Gem::Version.new("1.2.3"))
+
+    subject = health([ external_manifest(scan: scan, requires_syrus: ">= 1.0") ])
+
+    expect(subject.status("external").state).to eq(:ok)
+  end
+
   it "records a non-fatal scan error" do
     subject = health([ external_manifest(scan: scan(error: "Prism failed")) ])
     expect(subject.status("external").reasons.join).to include("Prism failed")
