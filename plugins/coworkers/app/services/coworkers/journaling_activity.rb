@@ -59,7 +59,7 @@ module Coworkers
       ).uniq
     end
 
-    def messages = ChatMessage.where(chat_session_id: chat_ids, created_at: range)
+    def messages = Syrus::Host::ChatMessages.where(chat_session_id: chat_ids, created_at: range)
 
     # Ordering full message rows made MySQL file-sort their large content
     # columns, and a busy day failed the journaling run with "Out of sort
@@ -68,7 +68,7 @@ module Coworkers
 
     def ordered_messages
       ids = messages.order(:created_at, :id).limit(MESSAGE_LIMIT).pluck(:id)
-      by_id = ChatMessage.where(id: ids).index_by(&:id)
+      by_id = Syrus::Host::ChatMessages.where(id: ids).index_by(&:id)
       ids.filter_map { |id| by_id[id] }
     end
 
@@ -82,7 +82,7 @@ module Coworkers
       repository = @coworker.workspace_repository
       return @daily_memory = nil unless repository
       if (chat = @coworker.coworker_chats.find_by(role: "main")&.chat_session)
-        root = ChatWorkspace.repo_path_for(chat, repository)
+        root = Syrus::Host::ChatWorkspaces.repo_path_for(chat, repository)
         pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
         return @daily_memory = text(pending, label: daily_memory_path) if pending
       end

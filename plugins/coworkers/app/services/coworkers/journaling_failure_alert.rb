@@ -24,7 +24,7 @@ module Coworkers
         entry["alerted_at"] = Time.current.iso8601
         task.update!(system_result_history: history)
         chat.chat_queued_messages.create!(content: {
-          ChatQueuedMessage::INTERNAL_ROLE_KEY => "system",
+          Syrus::Host::ChatDelivery.internal_role_key => "system",
           "text" => "Journaling is failing for #{date.iso8601}.",
           "source" => SOURCE,
           "journaling_date" => date.iso8601,
@@ -33,7 +33,7 @@ module Coworkers
         })
         queued = true
       end
-      ChatQueuedMessagePromoter.deliver_one_if_idle!(chat) if queued
+      Syrus::Host::ChatDelivery.deliver_next_if_idle!(chat) if queued
       queued
     end
 

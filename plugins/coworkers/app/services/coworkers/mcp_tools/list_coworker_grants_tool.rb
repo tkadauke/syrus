@@ -10,7 +10,7 @@ module Coworkers::McpTools
       def call(server_context:)
         owner = server_context.fetch(:chat_session).user
         coworkers = Coworkers::OwnerResolver.new(owner: owner).scope.order(Arel.sql("LOWER(name) ASC"), :id).to_a
-        rules_by_coworker_id = PermissionRule.active.where(
+        rules_by_coworker_id = Syrus::Host::PermissionRules.active.where(
           owner_user: owner, subject_selector_type: "agent",
           subject_selector_id: coworkers.map { |coworker| coworker.id.to_s }
         ).to_a.group_by { |rule| rule.subject_selector_id.to_i }
