@@ -162,6 +162,30 @@ module WorkEngine
 
     def self.call(...) = new(...).call
 
+    # When a queued Step that already has Runs is waiting for a fresh one: every
+    # Run is terminal, nothing else is pending for it, and the Step or its
+    # Workflow was reopened after the latest Run ended. Returns that reopen's
+    # time, or nil. A retry or a provider backoff leaves a Step in this shape
+    # until its Run is created, so "no Run was created" means no Run since the
+    # reopen, for the classifier and the repair alike.
+    def self.reopened_awaiting_run_at(step)
+      return nil unless step&.awaiting_run?
+
+      runs = step.runs.to_a
+      return nil if runs.empty? || !runs.all?(&:terminal?)
+
+      latest_end = runs.filter_map(&:finished_at).max
+      return nil if latest_end.blank?
+
+      StateTransition
+        .where(event_name: "reopen", created_at: latest_end..)
+        .where(
+          "(subject_type = 'Workflow' AND subject_id = ?) OR (subject_type = 'Step' AND subject_id = ?)",
+          step.workflow_id, step.id
+        )
+        .maximum(:created_at)
+    end
+
     def self.request(source:, job: nil, workflow: nil, run: nil, work_intent: nil)
       args = {
         source: source.to_s,
@@ -1061,7 +1085,12 @@ module WorkEngine
         workflow = step.workflow
         next unless workflow&.running?
         next unless older_than?(step.created_at, ORPHAN_RUN_GRACE_PERIOD)
-        next if step.runs.exists?
+        if step.runs.exists?
+          # Reopened for a retry: its own resume gets the same grace a new
+          # Step does before the reconciler steps in.
+          reopened_at = self.class.reopened_awaiting_run_at(step)
+          next unless reopened_at && older_than?(reopened_at, ORPHAN_RUN_GRACE_PERIOD)
+        end
 
         if (barrier = cancelled_retry_until_barrier_blocking(step))
           next issue(

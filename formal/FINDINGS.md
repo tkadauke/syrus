@@ -4385,6 +4385,48 @@ job orphaned when it moves ... during the snapshot", for scheduled to ready,
 blocked to ready, and ready to claimed, each after every one of the first four
 reads. The first two were red before the reorder.
 
+## F119. A reopened Step whose Run never came was invisible to the reconciler — fixed (Lead L13)
+
+**Before.** A retry or a provider backoff reopens a Step that keeps its earlier
+attempt's terminal Runs. Until the fresh Run is created, the Step is queued with
+only terminal Runs. `queued_step_without_run` required no Runs at all, and
+`running_step_with_terminal_runs` skips a Step reopened since its latest Run
+(main's `98d30fa654`, so a retry waiting its turn is left alone). The
+Workflow-level check counts the queued Step as active. So when the Run was never
+created, nothing flagged the Step. That happens when the scheduled
+`WorkflowPhaseAdmissionJob` is lost, or when `DeferredPhaseResume` returns
+without a Run and without rescheduling ("unowned", "not_ready", a provider
+hold). The provider backoff from main's `10876221e8` sends every transient
+provider failure down this path. `ResumeQueuedStep` also refused any Step with a
+Run, so it could not have repaired one.
+
+**Fix.** `WorkEngine::Reconciler.reopened_awaiting_run_at(step)` returns the
+reopen's time when a Step with Runs is waiting for a fresh one: it is awaiting a
+Run, every Run is terminal, and the Step or its Workflow was reopened after the
+latest Run ended. `queued_step_without_run` accepts such a Step once the usual
+grace has passed since the reopen, and `ResumeQueuedStep` re-checks with the
+same predicate. The other filters still apply: a Step behind its predecessors,
+a deliberate wait, grader admission, or a pending backoff.
+
+**Proof.** `ReopenedStepLiveness.lean`, over every combination of the inputs
+both checks read. `before_strands` gives the stranded Step. `after_live`: every
+actionable queued Step is flagged. `after_exclusive`: never by both checks.
+`resume_agrees`: the repair acts on every Step the check flags for it. All three
+methods are in `formal/mirrors.yml`.
+
+**Specs.** `spec/services/work_engine/reconciler_spec.rb`: "flags a reopened Step
+whose resume never created its Run" and "resumes a reopened Step whose resume
+never created its Run" (both red before the fix), and "waits for a just-reopened
+Step's own resume before flagging it".
+
+**Also found.** A third reserving path in NY35's lock cycle surfaced after the
+rebase: `BaseRefreshRetryEnqueuer#instantiate_retry!` reserves a provider
+account (locking the User row), then writes artifacts on its source Workflow,
+which locks it. The simulation `checkpoint_backed_blocked_stack_recovery`
+failed with a lock-order error. That path only reserves since main's
+`c7b2166fe8` let user-level availability through. It is in `PENDING_DECISION`
+with the NY35 group, and NY35's context names it.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
@@ -5172,7 +5214,7 @@ them changed methods `formal/mirrors.yml` watches, and one carried a bug (F118).
   (`ceed13cb63`), or workspace-recovery replay safety for stranded preflight
   graders (`7b26940df9`, which widens an existing replay-safe set by one kind).
 
-## Lead L13. A reopened Step whose Run never comes is invisible to the reconciler
+## Lead L13. A reopened Step whose Run never comes is invisible to the reconciler (closed: F119)
 
 A queued Step that has only terminal Runs and was reopened after the last one is
 skipped by both Step-level checks: `queued_step_without_run` requires no Runs at

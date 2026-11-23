@@ -119,6 +119,20 @@ models:
     owner: StepDispatcher
     method: self.epic_sibling_blocking?
     sha: 4714cf715a495c34
+- model: ReopenedStepLiveness.lean
+  mirrors:
+  - path: app/services/work_engine/reconciler.rb
+    owner: Reconciler
+    method: self.reopened_awaiting_run_at
+    sha: 11b0aa33105388a3
+  - path: app/services/work_engine/reconciler.rb
+    owner: Reconciler
+    method: classify_queued_steps_without_runs
+    sha: f1ccc5a9e51cf6f5
+  - path: app/services/work_engine/repair_executor.rb
+    owner: ResumeQueuedStep
+    method: perform
+    sha: 176ed25cd8cdcd8b
 - model: QueueExecution.lean
   mirrors:
   - path: app/services/work_engine/reconciler.rb

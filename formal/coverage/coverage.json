@@ -3272,6 +3272,23 @@
       "status": "partial",
       "done_by": "",
       "notes": "Repaired by revive_cleanup_cancelled_step once the Workflow is idle (main's ade7f9049f, from a production case). Prevention not yet examined: the step retry that reopens the Workflow could revive those Steps in the same transaction, which would make this state unreachable. Found by the inventory completeness spec (layer 5)."
+    },
+    {
+      "id": "reopened-step-liveness",
+      "area": "workflow",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A reopened Step waiting for its Run is flagged by exactly one reconciler check once its own resume is overdue",
+      "producer": "WorkEngine::Reconciler.reopened_awaiting_run_at; Reconciler#classify_queued_steps_without_runs; RepairExecutor ResumeQueuedStep",
+      "done_by": "F119 (Lead L13)",
+      "notes": "ReopenedStepLiveness.lean: before_strands, after_live, after_exclusive, resume_agrees."
     }
   ],
   "needs_you": [
@@ -3722,7 +3739,7 @@
       "id": "NY35",
       "item": "row-lock-order",
       "title": "Provider-account reservation locks the User row both before and after other rows. Which fix?",
-      "context": "Implementing NY31 (User first) and running the full suite raised three violations that NY31's evidence had missed. AvailabilitySelector#reserve_least_pressured_account takes user.with_lock inside whatever transaction is open, and holds that lock until the transaction commits. In some paths this happens before the Workflow and Step locks (the 158 hits NY31 was based on). In others it happens after them: StepDispatcher.create_run_and_enqueue already holds the Workflow and Step, and RetryWorkflowEnqueuer already holds the Job. So the User row is locked on both sides of Workflow, Step and Job. That is a two-way cycle, and no position in the order removes it. The NY31 change is set aside, not merged. The order stays as F110 left it, with the reservation inversion still pending.",
+      "context": "Implementing NY31 (User first) and running the full suite raised three violations that NY31's evidence had missed. AvailabilitySelector#reserve_least_pressured_account takes user.with_lock inside whatever transaction is open, and holds that lock until the transaction commits. In some paths this happens before the Workflow and Step locks (the 158 hits NY31 was based on). In others it happens after them: StepDispatcher.create_run_and_enqueue already holds the Workflow and Step, and RetryWorkflowEnqueuer already holds the Job. So the User row is locked on both sides of Workflow, Step and Job. That is a two-way cycle, and no position in the order removes it. The NY31 change is set aside, not merged. The order stays as F110 left it, with the reservation inversion still pending. A third reserving path surfaced after main's c7b2166fe8 let user-level provider availability reserve: BaseRefreshRetryEnqueuer#instantiate_retry! holds the Job, launches the retry (reserving, so locking the User row), then records the retry on its source Workflow with set_artifact!, which locks that Workflow. It is in PENDING_DECISION with the others. Option A would lock the owning User first in that transaction too, and option C would move the reservation out of it.",
       "options": [
         "A. Every transaction that can reserve locks the User row first. create_run_and_enqueue and RetryWorkflowEnqueuer lock the owning User before their Workflow/Job lock, which makes the re-lock inside the reservation free. Move User to the front of the order as NY31 decided; the checker then catches any reserving path that was missed.",
         "B. Drop the reservation mutex. Two reservations for the same user that race may see the same counts and pick the same account, so balancing is occasionally uneven. User stays last and the cycle disappears.",

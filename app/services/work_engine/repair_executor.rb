@@ -899,7 +899,9 @@ module WorkEngine
           step = target_step
           return skipped("Step no longer exists") unless step
           return skipped("Step is #{step.state}, not queued") unless step.queued?
-          return skipped("Step already has a Run") if step.runs.exists?
+          if step.runs.exists? && !WorkEngine::Reconciler.reopened_awaiting_run_at(step)
+            return skipped("Step already has a Run")
+          end
 
           workflow = step.workflow
           return skipped("Workflow no longer exists") unless workflow

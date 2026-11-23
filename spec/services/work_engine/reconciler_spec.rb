@@ -2533,6 +2533,52 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(reconcile(job_id: held_job.id).issues.map(&:kind)).to include("queued_step_without_run")
   end
 
+  # A Step reopened for a retry keeps its earlier attempt's terminal Runs, so
+  # "no Run was created" must mean "no Run since the reopen". Otherwise a
+  # reopened Step whose scheduled resume never created its Run was skipped by
+  # every check: queued_step_without_run wanted no Runs at all, and
+  # running_step_with_terminal_runs leaves a reopened Step to its retry.
+  def reopened_step_after_backoff(state: "failed")
+    held_job = Factories.job_record(state: "running")
+    held = WorkUnits::Launcher.instantiate(kind: "initial", job: held_job)
+    held.update_columns(state: "running", started_at: 2.hours.ago)
+    held.work_unit.mark_running!
+    first, second = held.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago, started_at: nil, finished_at: nil,
+                          details: second.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => 20.minutes.ago.iso8601))
+    second.runs.create!(job: held_job, user: held_job.user, trigger_kind: held.trigger_kind, agent_provider: held.agent_provider,
+                        state: state, created_at: 40.minutes.ago, started_at: 40.minutes.ago, finished_at: 30.minutes.ago)
+    StateTransition.create!(subject: second, from_state: "failed", to_state: "queued", event_name: "reopen",
+                            source: "aasm", created_at: 29.minutes.ago)
+    [ held_job, second ]
+  end
+
+  it "flags a reopened Step whose resume never created its Run" do
+    held_job, second = reopened_step_after_backoff
+
+    result = reconcile(job_id: held_job.id)
+
+    expect(kind(result, :queued_step_without_run)).to have_attributes(affected_ids: include(step_ids: [ second.id ]))
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+  end
+
+  it "resumes a reopened Step whose resume never created its Run" do
+    held_job, second = reopened_step_after_backoff
+    before = second.runs.pluck(:id)
+
+    reconcile_and_execute(job_id: held_job.id)
+
+    expect(second.reload.runs.where.not(id: before)).to exist
+  end
+
+  it "waits for a just-reopened Step's own resume before flagging it" do
+    held_job, second = reopened_step_after_backoff
+    StateTransition.where(subject: second, event_name: "reopen").update_all(created_at: 10.seconds.ago)
+
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).not_to include("queued_step_without_run")
+  end
+
   # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
   # Job lock (materialize_behind_active_lock?) and wait their turn. That is two
   # active Workflows by design; the newer one is waiting, not superseding.
