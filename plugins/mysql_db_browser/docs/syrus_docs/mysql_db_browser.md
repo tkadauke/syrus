@@ -227,7 +227,7 @@ the repository to be present in the run/chat token's allowed repository IDs.
 An unusable connection is reported exactly like a missing connection, mirroring
 `Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
 first-party tools. `AgenticAccess.connection!`/`.connection_with_write_access!`
-delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`
+delegate their gating logic to the shared `Syrus::Host::AgenticConnection`
 concern, which `K8sCluster::AgenticAccess` also extends - see the K8s Cluster
 docs' Agentic write-access gating section for the parallel shape.
 
