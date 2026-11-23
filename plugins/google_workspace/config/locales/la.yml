@@ -1,0 +1,4 @@
+la:
+  google_workspace:
+    settings:
+      operator_notice: "Clientem Google OAuth proprium registra et rationem verificationis Google hodiernam inspice antequam nexus permittas."

@@ -84,7 +84,7 @@ export default function ConnectedAccountsSettings() {
           {query.data?.providers.map((provider) => (
             <a
               className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand/90"
-              href={`/api/v1/app/connected_accounts/connect/${encodeURIComponent(provider.key)}?scopes=${encodeURIComponent(provider.scopes.join(","))}`}
+              href={`/api/v1/app/connected_accounts/connect/${encodeURIComponent(provider.key)}?scopes=${encodeURIComponent(provider.scopes.join(","))}&read_only=${provider.supports_read_only ? "true" : "false"}`}
               key={provider.key}
             >
               {t("accounts.connect_provider", { provider: provider.display_name })}

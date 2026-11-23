@@ -834,6 +834,14 @@ is a separate administrator opt-in and defaults off. Coworker access also
 requires the default-off **Coworker connected accounts** feature after the
 listed coworker isolation and permission prerequisites are satisfied.
 
+The bundled, experimental Google Workspace provider is disabled by default.
+Each instance registers its own Google OAuth web client, then saves its client
+id and encrypted secret under **Admin > Connected accounts**. Syrus pins the
+Google endpoints and requests offline access with only the Calendar read-only
+scope. Check Google's current consent-screen and verification policy before
+enabling connections. Connected users read events through the provider-neutral
+Personal Calendar tools and disconnect from **Settings > Connected accounts**.
+
 Generic plugin-managed credentials live in the bundled `credential_store`
 plugin, which stores payloads as encrypted blobs and keeps only safe display
 metadata outside the encrypted payload. The plugin also exposes brokered MCP

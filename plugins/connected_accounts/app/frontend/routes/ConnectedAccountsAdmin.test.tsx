@@ -11,6 +11,10 @@ vi.mock("@app/hooks/useT", () => ({
         ({
           "settings.title": "Connected accounts",
           "settings.description": "Configure OAuth.",
+          "settings.provider": "Provider",
+          "settings.google_notice": "Register your own Google OAuth client and check current verification policy.",
+          "settings.client_id": "Client ID",
+          "settings.client_secret": "Client secret",
           "settings.save": "Save configuration",
           "settings.saved": "Provider configuration saved.",
           "settings.save_failed": "Could not save provider configuration.",
@@ -41,7 +45,7 @@ describe("ConnectedAccountsAdmin", () => {
       api_origins: ["https://api.example/"]
     }
     vi.spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse({ provider_config: config }))
+      .mockResolvedValueOnce(jsonResponse({ providers: [{ ...config, provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false }] }))
       .mockResolvedValueOnce(jsonResponse({ error: { code: "validation_failed", message: "Provider URLs must use HTTPS" } }, 422))
 
     renderPage()
@@ -54,7 +58,7 @@ describe("ConnectedAccountsAdmin", () => {
     const config = { authorize_url: "https://oauth.example/authorize", scope_catalog: [], read_only_scopes: [], api_origins: [] }
     const fetchMock = vi
       .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse({ provider_config: config }))
+      .mockResolvedValueOnce(jsonResponse({ providers: [{ ...config, provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false }] }))
       .mockResolvedValueOnce(jsonResponse({ provider_config: config }))
 
     renderPage()
@@ -78,5 +82,18 @@ describe("ConnectedAccountsAdmin", () => {
         api_origins: ["https://api.example/"]
       }
     })
+  })
+
+  it("shows only instance credentials and the policy notice for Google", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValueOnce(jsonResponse({ providers: [
+      { provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false },
+      { provider_key: "google_workspace", display_name: "Google", managed_settings: true, client_secret_configured: true }
+    ] }))
+
+    renderPage()
+    expect(await screen.findByText(/check current verification policy/)).toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "Client ID" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Client secret")).toHaveAttribute("type", "password")
+    expect(screen.queryByRole("textbox", { name: "Authorization URL" })).not.toBeInTheDocument()
   })
 })

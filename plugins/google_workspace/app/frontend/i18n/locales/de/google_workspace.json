@@ -1,0 +1,7 @@
+{
+  "plugin": {
+    "display_name": "Google Workspace",
+    "description": "Google Calendar über ein verbundenes Google-Konto lesen.",
+    "long_description": "Verbinde einen von deiner Instanz bereitgestellten Google-OAuth-Client und stelle schreibgeschützte Google-Calendar-Daten über die persönlichen Kalenderwerkzeuge bereit."
+  }
+}
