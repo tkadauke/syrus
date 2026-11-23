@@ -50,7 +50,10 @@ export default function ConnectedAccountsAdmin() {
   const [provider, setProvider] = useState("")
   const query = useQuery({
     queryKey: ["connected_accounts", "provider_configs"],
-    queryFn: async () => (await getJson<ConfigsPayload>("/api/v1/app/admin/connected_accounts/provider_configs")).providers
+    queryFn: async () => {
+      const payload = await getJson<ConfigsPayload>("/api/v1/app/admin/connected_accounts/provider_configs")
+      return payload.providers
+    }
   })
   const selectedProvider = query.data?.some((item) => item.provider_key === provider) ? provider : query.data?.[0]?.provider_key || provider
   const current = query.data?.find((item) => item.provider_key === selectedProvider)
