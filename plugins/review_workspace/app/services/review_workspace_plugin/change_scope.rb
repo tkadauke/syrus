@@ -17,4 +17,3 @@ module ReviewWorkspacePlugin
     end
   end
 end
-
