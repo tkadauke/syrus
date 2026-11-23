@@ -541,6 +541,40 @@ RSpec.describe Syrus::PluginLoader do
       end
     end
 
+    %i[agent_runtime execution_backend runtime_session source_host speech_to_text].each do |family|
+      it "turns an obsolete external #{family} service declaration into health evidence and keeps booting" do
+        Dir.mktmpdir do |temporary|
+          snapshot = Syrus::PluginRegistry.snapshot
+          app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+          external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+          write_plugin(external_root, directory_name: "healthy_#{family}", gem_name: "healthy_#{family}_fixture")
+          obsolete = write_plugin(external_root, directory_name: "obsolete_#{family}", gem_name: "obsolete_#{family}_fixture")
+          constant = "Obsolete#{family.to_s.camelize}Fixture"
+          overwrite_entry(obsolete, "obsolete_#{family}_fixture", <<~RUBY)
+            module #{constant}
+              extend Syrus::PluginApi
+              syrus_plugin "obsolete_#{family}_fixture" do
+                provides #{family}: "#{constant}::Provider", provisional: %i[removed_service_api]
+              end
+            end
+          RUBY
+
+          loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+          expect { loader.load! }.not_to raise_error
+
+          described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+          status = Syrus::PluginRegistry.health.status("obsolete_#{family}_fixture")
+          expect(status.state).to eq(:failed)
+          expect(status.reasons.join).to include("removed_service_api")
+          expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_#{family}_fixture")
+        ensure
+          Syrus::PluginRegistry.restore(snapshot) if snapshot
+          Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+          Object.send(:remove_const, constant) if constant && Object.const_defined?(constant)
+        end
+      end
+    end
+
     it "isolates StandardError, LoadError, and syntax failures while loading healthy plugins" do
       Dir.mktmpdir do |temporary|
         snapshot = Syrus::PluginRegistry.snapshot

@@ -30,9 +30,9 @@ module GitMirror
       end
     end
     frontend i18n: [ "app/frontend/i18n/locales/*/git_mirror.json" ]
-    provides repository_content_provider: "GitMirror::ContentProvider",
-             workspace_git_transport: "GitMirror::WorkspaceGitTransport",
-             callbacks: "GitMirror::Callbacks",
+    source_host repository_content_provider: "GitMirror::ContentProvider",
+                workspace_git_transport: "GitMirror::WorkspaceGitTransport"
+    provides callbacks: "GitMirror::Callbacks",
              "plugin_runtime:service" => "GitMirror::RuntimeService"
   end
 end

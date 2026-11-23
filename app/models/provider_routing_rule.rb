@@ -281,7 +281,7 @@ class ProviderRoutingRule < ApplicationRecord
       return
     end
 
-    valid_providers = Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)
+    valid_providers = Syrus::Plugin::ServiceProvider.providers(:agent_provider).map(&:provider_key)
 
     candidate_list.each_with_index do |candidate, index|
       validate_candidate(candidate, index, valid_providers)

@@ -14,7 +14,7 @@ module WhisperStt
     default_enabled false
     disableable true
     depends_on [ "plugin_runtime" ]
-    provides "plugin_runtime:service" => "WhisperStt::RuntimeService",
-             speech_to_text_provider: "WhisperStt::Provider"
+    provides "plugin_runtime:service" => "WhisperStt::RuntimeService"
+    speech_to_text speech_to_text_provider: "WhisperStt::Provider"
   end
 end

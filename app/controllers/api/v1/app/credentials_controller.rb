@@ -563,7 +563,7 @@ module Api
         def refresh_affected_provider_availability(changed_attributes)
           changed = changed_attributes.map(&:to_sym)
 
-          Syrus::PluginRegistry.providers_for(:agent_provider).each do |provider_class|
+          Syrus::Plugin::ServiceProvider.providers(:agent_provider).each do |provider_class|
             next if (provider_class.credential_attributes & changed).empty?
 
             provider = provider_class.provider_key

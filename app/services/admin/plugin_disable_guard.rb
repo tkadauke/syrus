@@ -148,6 +148,10 @@ module Admin
     end
 
     def providers(extension_point)
+      if Syrus::Plugin::ServiceProvider::FAMILY_FOR.key?(extension_point.to_sym)
+        return Syrus::Plugin::ServiceProvider.for_manifest(manifest, extension_point)
+      end
+
       Array(manifest.provides[extension_point])
     end
 

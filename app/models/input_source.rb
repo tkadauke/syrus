@@ -34,7 +34,7 @@ class InputSource < ApplicationRecord
   end
 
   def provider_enabled?
-    Syrus::PluginRegistry.providers_for(:input_source).any? { |provider| is_a?(provider) }
+    Syrus::Plugin::ServiceProvider.providers(:input_source).any? { |provider| is_a?(provider) }
   end
 
   private

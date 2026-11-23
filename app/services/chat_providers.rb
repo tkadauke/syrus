@@ -12,7 +12,7 @@ module ChatProviders
   def self.for(provider)
     provider_key = provider.to_s
     klass = PerformanceLogging.phase("chat_providers.lookup", provider: provider_key) do
-      Syrus::PluginRegistry.providers_for(:chat_provider)
+      Syrus::Plugin::ServiceProvider.providers(:chat_provider)
         .find do |p|
           Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
             extension_point: :chat_provider, provider: p, operation: :provider_key, on_decline: false
@@ -29,7 +29,7 @@ module ChatProviders
   end
 
   def self.provider_keys
-    Syrus::PluginRegistry.providers_for(:chat_provider).filter_map do |provider|
+    Syrus::Plugin::ServiceProvider.providers(:chat_provider).filter_map do |provider|
       Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
         extension_point: :chat_provider, provider:, operation: :provider_key, on_decline: nil
       ) { provider.provider_key })
