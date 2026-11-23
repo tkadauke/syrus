@@ -26,6 +26,7 @@ module ConnectedAccounts
             next
           end
           seen[declaration.key] = plugin_name
+          SystemInvocation.send(:register_provider!, declaration)
           declaration
         rescue ArgumentError => error
           reject!(plugin_name, "invalid connected_accounts provider: #{error.message}")

@@ -708,7 +708,9 @@ declare exact `system_service_identities` and implement
 `register_system_access(identity, binding)`, or core may register the identity
 and implementation. The broker injects an opaque binding into the registered
 service; only that binding can open a block-scoped lease, and each use is
-audited. An identity string alone grants nothing. The system path cannot use
+audited. The broker calls the service's fixed `system_invoke(context)`
+implementation and never yields credential access to caller-supplied code. An
+identity string alone grants nothing. The system path cannot use
 user-owned accounts or act as a general plugin credential bypass. Installed
 in-process plugin code remains trusted and is not a sandbox boundary. Providers
 that declare

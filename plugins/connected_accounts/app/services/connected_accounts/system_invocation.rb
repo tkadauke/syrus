@@ -2,11 +2,11 @@ module ConnectedAccounts
   class SystemInvocation
     CORE_SERVICES = {}.freeze
     Binding = Data.define(:identity, :proof)
-    Registration = Data.define(:identity, :service, :declaration)
+    Registration = Data.define(:identity, :service, :provider_key)
     private_constant :Binding, :Registration
 
     class << self
-      def call(account:, service_binding:, scopes:, purpose:, target: {})
+      def call(account:, service_binding:, scopes:, purpose:, target: {}, input: {})
         account = Account.find_by(id: account) unless account.is_a?(Account)
         deny! unless account&.owner_policy&.system_access?
         registration = registration_for(service_binding)
@@ -17,7 +17,11 @@ module ConnectedAccounts
 
         context = McpToolContext.new(surface: :api, role: "system_service", user: account.credential_store_credential.created_by,
           permission_authorization: { system_service_identity: registration.identity })
-        AccountClient.with_access(account:, acting_mode: :as_service, scopes:, purpose:, context:, target:) { |access| yield access }
+        AccountClient.with_access(account:, acting_mode: :as_service, scopes:, purpose:, context:, target:) do |access|
+          invocation = Provider::SystemInvocationContext.new(access:, identity: registration.identity, purpose: purpose.to_s,
+            target: target.to_h.freeze, input: input.to_h.freeze)
+          Invoker.call(provider: registration.service, capability: "system_invoke", context: invocation)
+        end
       end
 
       private
@@ -25,14 +29,14 @@ module ConnectedAccounts
       def register_provider!(declaration)
         service = declaration.provider.constantize
         declaration.system_service_identities.each do |identity|
-          inject_binding(service, Registration.new(identity:, service:, declaration:))
+          inject_binding(service, Registration.new(identity:, service:, provider_key: declaration.key))
         end
         nil
       end
 
       def register_core_services!
         CORE_SERVICES.each do |identity, service|
-          inject_binding(service, Registration.new(identity: identity.to_s, service:, declaration: nil))
+          inject_binding(service, Registration.new(identity: identity.to_s, service:, provider_key: nil))
         end
         nil
       end
@@ -50,9 +54,11 @@ module ConnectedAccounts
       end
 
       def authorized_registration?(registration, declaration)
-        return true if registration.declaration.equal?(declaration)
+        if registration.provider_key.present?
+          return registration.provider_key == declaration.key && registration.service.equal?(declaration.provider.constantize)
+        end
 
-        registration.declaration.nil? && CORE_SERVICES[registration.identity].equal?(registration.service)
+        CORE_SERVICES[registration.identity].equal?(registration.service)
       end
 
       def registrations = (@registrations ||= ObjectSpace::WeakMap.new)

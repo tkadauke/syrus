@@ -258,7 +258,8 @@ RSpec.describe ConnectedAccounts::AccountClient do
         attr_reader :binding
 
         def register_system_access(_identity, binding) = (@binding = binding)
-        def deliver(**options, &block) = ConnectedAccounts::AccountClient.with_system_access(service_binding: binding, **options, &block)
+        def deliver(**options) = ConnectedAccounts::AccountClient.with_system_access(service_binding: binding, **options)
+        def system_invoke(context) = { purpose: context.purpose, input: context.input }
       end
     end
     stub_const("CoreDeliveryService", service)
@@ -268,15 +269,20 @@ RSpec.describe ConnectedAccounts::AccountClient do
     allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
 
     result = service.deliver(account:, scopes: [ "mail.read" ], purpose: "deliver a platform notification",
-      target: { url: "https://api.example.com/messages" }) { |access| access.authorization_header }
-    expect(result).to eq("Bearer [credential redacted]")
+      target: { url: "https://api.example.com/messages" }, input: { message_id: 7 })
+    expect(result).to eq(purpose: "deliver a platform notification", input: { message_id: 7 })
     expect(credential.access_events.where(action: "lease").last.metadata).to include(
       "system_service_identity" => "platform.delivery", "acting_mode" => "as_service",
       "purpose" => "deliver a platform notification")
 
     expect {
+      described_class.with_system_access(account:, service_binding: service.binding, scopes: [ "mail.read" ],
+        purpose: "bypass", target: { url: "https://api.example.com/messages" }) { :caller_code }
+    }.to raise_error(described_class::Denied, "system access does not accept caller code")
+
+    expect {
       described_class.with_system_access(account:, service_binding: "platform.delivery", scopes: [ "mail.read" ],
-        purpose: "bypass", target: { url: "https://api.example.com/messages" }) { :unused }
+        purpose: "bypass", target: { url: "https://api.example.com/messages" })
     }.to raise_error(described_class::Denied, "connected account not found")
   end
 
@@ -285,18 +291,20 @@ RSpec.describe ConnectedAccounts::AccountClient do
     account
     credential.update!(scope_type: "instance", scope_id: nil, owner_user: nil, allowed_surfaces: [ "api" ])
     account.update!(owner_kind: "instance", owner_user: nil, acting_modes: [ "as_service" ])
-    declaration = ConnectedAccounts::ProviderDeclaration.build(plugin_name: "example_plugin", attributes: {
+    attributes = {
       provider: "ConnectedAccounts::FakeProvider", key: "example", display_name: "Example",
       capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
       callback_route: "/unused", supports_read_only: false,
       system_service_identities: [ "provider.delivery" ],
       scopes: [ { key: "mail.read", label: "Read mail", risk: "low", syrus_capabilities: [ "mail.read@v1" ] } ]
-    })
-    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
+    }
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:contributions).and_return([ [ "example_plugin", attributes ] ])
+    ConnectedAccounts::ProviderRegistry.all
 
     result = ConnectedAccounts::FakeProvider.with_system_access(identity: "provider.delivery", account:,
-      scopes: [ "mail.read" ], purpose: "deliver", target: { url: "https://api.example.com/messages" }) { :ok }
-    expect(result).to eq(:ok)
+      scopes: [ "mail.read" ], purpose: "deliver", target: { url: "https://api.example.com/messages" },
+      input: { message_id: 7 })
+    expect(result).to eq(authorization: "Bearer [credential redacted]", input: { message_id: 7 })
   end
 
   it "refuses the system path for user-owned accounts" do
@@ -307,11 +315,12 @@ RSpec.describe ConnectedAccounts::AccountClient do
       system_service_identities: [ "provider.delivery" ],
       scopes: [ { key: "mail.read", label: "Read mail", risk: "low", syrus_capabilities: [ "mail.read@v1" ] } ]
     })
+    ConnectedAccounts::SystemInvocation.send(:register_provider!, declaration)
     allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("example").and_return(declaration)
 
     expect {
       ConnectedAccounts::FakeProvider.with_system_access(identity: "provider.delivery", account:,
-        scopes: [ "mail.read" ], purpose: "bypass") { :unused }
+        scopes: [ "mail.read" ], purpose: "bypass")
     }.to raise_error(described_class::Denied, "connected account not found")
   end
 end
