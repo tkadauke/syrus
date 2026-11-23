@@ -200,7 +200,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::User` (since 0.1.16) — Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised. Supported members: `admin?`, `display_name`, `find`, `handle`, `id`, `jobs`, `repositories`.
 - `Syrus::Host::Workflow` (since 0.1.16) — Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `runs`, `state`.
 
-The compatibility scanner also recognizes 475 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 470 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
