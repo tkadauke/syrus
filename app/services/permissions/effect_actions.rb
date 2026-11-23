@@ -1,6 +1,6 @@
 module Permissions
   # Stable capability contracts for core chat tools whose effects persist or
-  # leave the conversation: scheduled wakeups (persistent autonomy), outbound
+  # leave the conversation: self-owned chat wakeups, outbound
   # messages and chat spawning (communication), repository documents
   # (document mutation and deletion), and artifacts a run owns.
   #
@@ -11,11 +11,11 @@ module Permissions
   # threads keep their hop limits.
   #
   # Each operation declares how much authority may ever cover it. Safe edits
-  # to artifacts the caller owns (+submit_artifact+, +cancel_wakeup+) default
-  # to +allow+ because they only touch the caller's own recoverable state.
-  # Everything that schedules future autonomy, contacts another chat, or
-  # deletes a document defaults to +ask+. Document deletion is capped at
-  # exact-invocation authority.
+  # to artifacts the caller owns (+submit_artifact+) and wakeups scoped to the
+  # current chat (+schedule_wakeup+, +cancel_wakeup+) default to +allow+
+  # because they only touch the caller's own recoverable state. Cross-chat and
+  # repository scheduling use separate, gated operations. Communication and
+  # document changes default to +ask+.
   class EffectActions
     Operation = Data.define(:capability, :name, :effects, :risk, :default, :maximum_autonomy, :durations)
 
@@ -29,7 +29,7 @@ module Permissions
     JOB = %i[invocation chat_session job].freeze
 
     OPERATIONS = {
-      "schedule_wakeup" => Operation.new(SCHEDULES, "schedule_wakeup", %i[internal_write persistent_autonomy], :medium, :ask, :chat_session, SESSION),
+      "schedule_wakeup" => Operation.new(SCHEDULES, "schedule_wakeup", %i[internal_write], :low, :allow, :permanent, CapabilityDescriptor::AUTHORITY_DURATIONS),
       "cancel_wakeup" => Operation.new(SCHEDULES, "cancel_wakeup", %i[internal_write], :low, :allow, :permanent, CapabilityDescriptor::AUTHORITY_DURATIONS),
       "send_chat_message" => Operation.new(COMMUNICATION, "send_chat_message", %i[internal_write communication], :medium, :ask, :chat_session, SESSION),
       "spawn_chats" => Operation.new(COMMUNICATION, "spawn_chats", %i[internal_write communication persistent_autonomy], :high, :ask, :invocation, INVOCATION),

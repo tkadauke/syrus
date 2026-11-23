@@ -56,6 +56,7 @@ module Permissions
     ESSENTIAL = {
       chat: (CONTEXT + AUTHORITY_REDUCTION + RESEARCH + %w[
         propose_job propose_epic_with_jobs propose_epic list_chat_media attach_repository detach_repository submit_artifact
+        schedule_wakeup
         create_tag add_job_tag remove_job_tag
         runtime_inspect runtime_wait runtime_status runtime_list_sessions runtime_logs
         read_file list_files git_diff git_status

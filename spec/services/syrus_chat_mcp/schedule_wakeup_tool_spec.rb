@@ -53,7 +53,10 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool, :full_chat_access do
       expect(response[:result][:isError]).to be_falsey
       expect(response_payload(response)).to include(
         wakeup_id: wakeup.id,
+        chat_id: chat_session.id,
+        owner_user_id: user.id,
         fire_at: "2026-06-24T12:30:00Z",
+        state: "pending",
         message: "Wakeup scheduled for 2026-06-24T12:30:00Z"
       )
       expect(wakeup).to have_attributes(
@@ -75,7 +78,10 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool, :full_chat_access do
       expect(response[:result][:isError]).to be_falsey
       expect(response_payload(response)).to include(
         wakeup_id: wakeup.id,
+        chat_id: chat_session.id,
+        owner_user_id: user.id,
         fire_at: "2026-07-15T09:30:00Z",
+        state: "pending",
         message: "Wakeup scheduled for 2026-07-15T09:30:00Z"
       )
       expect(wakeup).to have_attributes(
