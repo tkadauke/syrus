@@ -1200,9 +1200,9 @@ review behavior.
 
 ## review_plan
 
-Owned by the Review plan plugin. Retired compatibility key: older repositories
-may still contain the bare boolean `review_plan: true`. It is parsed and ignored
-and does not change any workflow. See `review_planning.md`.
+Owned by the Review plan plugin: the bare boolean `review_plan: true` opts the
+repository into a self-review comment after the PR opens. See `review_planning.md`.
+While the plugin is disabled the key is ignored without an error.
 
 ## coverage
 

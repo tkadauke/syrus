@@ -5,10 +5,13 @@ module ReviewPlanning
     def self.step_kinds
       [
         {
-          kind: "review_plan", handler: "ReviewPlanning::LegacyStep",
-          label: "Review plan (retired)", style: "bg-gray-100 text-gray-700", agentic: false,
+          kind: "review_plan", handler: "ReviewPlanning::Step",
+          label: "Review plan", style: "bg-orange-100 text-orange-700", agentic: true,
+          agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+          required_mcp_tools: %w[submit_review_plan],
           fail_policy: :advance,
-          repair_semantics: :deterministic_idempotent
+          resource_profile_fallback_step_kinds: %w[implement],
+          skip_if_artifact: "review_plan"
         }
       ]
     end

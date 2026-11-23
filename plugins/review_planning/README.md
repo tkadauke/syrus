@@ -1,19 +1,22 @@
 # Review plan
 
-Owns the retired `review_plan` workflow step and the legacy `review_plan:`
-`.syrus.yml` key. Review planning once posted a plan comment on the pull request
-after `pr_open`; that was retired, and no new workflow materializes the step.
+An optional self-review pass: after the pull request opens, the implementing
+agent posts one comment pointing reviewers at the spots in its own diff worth a
+closer look.
 
 ## What It Adds
 
-- The `review_plan` step kind (`fail_policy: advance`, not agentic) so workflows
-  persisted before the retirement still execute: the handler records a skip and
-  the workflow advances.
-- The legacy boolean `review_plan:` key (also `plugins: { review_planning.config }`),
-  parsed and ignored.
+- The `review_plan` step, contributed at `workflow:post_pr` (once, after `pr_open`)
+  for repositories that set `review_plan: true` in `.syrus.yml`.
+- The workflow-only `submit_review_plan` MCP tool, offered to that step only.
+- The prompt, the PR-comment formatter, and the `review_plan:` configuration key
+  (also `plugins: { review_planning.config }`).
 
 ## Disableable
 
-Yes. The step is retired and advisory, nothing downstream reads it, and the
-standard plugin guard refuses a disable while a non-terminal workflow still
-contains a `review_plan` step. Recorded steps and artifacts are never removed.
+Yes. The review is advisory (`fail_policy: advance`) and nothing downstream reads
+it, so new workflows simply omit the step. The standard plugin guard refuses a
+disable while a non-terminal workflow still contains the step. Recorded
+`review_plan` artifacts are kept.
+
+See `docs/syrus_docs/review_planning.md` for the user-facing reference.
