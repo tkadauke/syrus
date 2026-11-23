@@ -907,7 +907,7 @@ module Api
         end
 
         def input_source_types_json(repository)
-          Syrus::PluginRegistry.providers_for(:input_source).map do |provider|
+          Syrus::Plugin::ServiceProvider.providers(:input_source).map do |provider|
             source = repository.persisted? ? repository.input_sources.find { |candidate| candidate.type == provider.name } : nil
             {
               type: provider.name,

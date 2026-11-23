@@ -14,8 +14,8 @@ module SyrusMuseAgent
     category "agent_provider"
     default_enabled false
     disableable true
-    provides agent_provider: "AgentProviders::Muse",
-             chat_provider: "ChatProviders::Muse"
+    agent_runtime agent_provider: "AgentProviders::Muse",
+                  chat_provider: "ChatProviders::Muse"
     toolkit credential_probes: { "muse_api_key" => "MuseCredentialProbe" },
             secret_extractors: [ "MuseCredentialProbe::SECRET_EXTRACTOR" ]
     surface filter_chips: { admin_user: { "has_muse_token" => "Filters::Chips::AdminUsers::HasMuseToken" } }

@@ -8,7 +8,7 @@ module WorkspaceGitTransports
   def for(repository, user:)
     return nil unless repository
 
-    Syrus::PluginRegistry.providers_for(:workspace_git_transport).each do |provider_class|
+    Syrus::Plugin::ServiceProvider.providers(:workspace_git_transport).each do |provider_class|
       next unless safe_available_for?(provider_class, repository)
 
       instance = provider_class.build(repository: repository, user: user)

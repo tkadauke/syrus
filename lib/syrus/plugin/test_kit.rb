@@ -131,7 +131,8 @@ module Syrus
           chain(:matching) { |provider| @provider = provider }
           match do |plugin|
             @providers = Syrus::PluginRegistry.providers_for(extension_point)
-            plugin.manifest && (@provider ? @providers.include?(@provider) : Array(plugin.manifest.provides[extension_point.to_sym]).any?)
+            plugin.manifest && (@provider ? @providers.include?(@provider) : (Array(plugin.manifest.provides[extension_point.to_sym]).any? ||
+              plugin.manifest.family_provides.any? { |declaration| Syrus::Plugin::ServiceProvider.declared?(declaration, extension_point) }))
           end
           failure_message { |plugin| "expected #{plugin.name} to register a provider for #{extension_point}; registered providers: #{@providers.inspect}" }
         end

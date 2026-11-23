@@ -13,8 +13,8 @@ module SyrusClaudeAgent
     category "agent_provider"
     default_enabled false
     disableable true
-    provides agent_provider: "AgentProviders::Claude",
-             chat_provider: "ChatProviders::Claude"
+    agent_runtime agent_provider: "AgentProviders::Claude",
+                  chat_provider: "ChatProviders::Claude"
     toolkit credential_probes: { "claude_oauth_token" => "ClaudeCredentialProbe" },
             secret_extractors: [ "ClaudeCredentialProbe::SECRET_EXTRACTOR" ]
     surface filter_chips: { admin_user: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" } }

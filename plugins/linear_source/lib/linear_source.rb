@@ -12,7 +12,7 @@ module SyrusLinearSource
     category "input_source"
     default_enabled false
     disableable true
-    provides input_source: "InputSources::Linear"
+    source_host input_source: "InputSources::Linear"
     route :post, "/api/v1/app/linear/teams", to: "api/v1/app/linear#teams"
   end
 end

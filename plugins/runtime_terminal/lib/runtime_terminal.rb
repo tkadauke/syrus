@@ -21,7 +21,7 @@ module RuntimeTerminal
     disableable true
     depends_on [ "terminal" ]
 
-    provides runtime_session_provider: "RuntimeTerminal::Provider"
+    runtime_session runtime_session_provider: "RuntimeTerminal::Provider"
 
     always do |scope|
       RuntimeTerminal::DataCleanup.install_into(scope)
