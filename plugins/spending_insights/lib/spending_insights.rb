@@ -53,6 +53,5 @@ module SpendingInsights
                        "/insights/spending"
       sampler MetricsSampler
     end
-
   end
 end
