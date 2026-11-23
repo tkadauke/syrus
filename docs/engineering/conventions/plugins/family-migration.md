@@ -185,9 +185,118 @@ string and resolved only when it is used.
   accepts it, and a spec covers the declaration path), so the delete-the-bridge
   step for that point waits for the first user.
 
+## What the Review and Policy removal taught us
+
+Review (seven points) and Policy (two points) were the first facets whose legacy
+points were deleted after the Ecosystem family. What the removal taught us:
+
+- Removal is small when core has already moved: no core call site read these
+  points, so the work was the registry tables (`EXTENSION_POINTS`,
+  descriptions, `INTERFACE_FOR`), the family definitions, and fixtures.
+- Replace the `CAPABILITY_FOR_LEGACY` hash (legacy point to capability) with a
+  plain `CAPABILITIES` list. The point names do not belong in the family once the
+  adapter is gone.
+- Specs that registered fixtures with `provides: { point: Module }` or
+  `register(:point, instance)` are the bulk of the cost. A shared helper
+  (`register_contributions`, `spec/support/contribution_providers.rb`) builds the
+  family declaration so each call site changes by one word.
+- Two legacy behaviors vanish with the bridge and were deliberately not
+  re-created: the registration-time check that a module includes its interface
+  module, and `providers_for` answering for the point. Family providers are
+  validated by the family's return shape instead.
+- Every removed point gets a boot-isolation regression in `plugin_loader_spec`:
+  an external plugin that still declares one is a failed plugin-health finding
+  (`Unknown extension point :point`) and the host keeps booting.
+
+### Still to remove
+
+The bridge, adapters, and legacy points remain for the families that were not
+removed in this pass, and their removal follows exactly the steps above:
+Lifecycle and DataPolicy (the plugin generator, test kit, `register_plugin_provider`
+matcher, loader fixtures, and the `Lifecycle.callback_providers_for` manifest-scoped
+read must move together; a family-based manifest read is needed because
+`manifest_providers_for` applies the bridge), ChatIntegration, Surface, Toolkit,
+and the five service families (specs register services directly through
+`register(:point, instance)`, which needs a family-level direct registration
+first). The manifest-declaration points still answer through
+`Declarations.providers_for_manifest`; their core callers
+(`WorkDefinitions`, `SlugRefs::Resolver`, `Job::Origin`, `Steps::Prepare`,
+`SystemAlerts`) have not moved to a declaration reader yet. Until the last
+family is removed, `LegacyBridge`, its duplicate report, and the architecture
+allowlists stay.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.
+
+## Permanently standalone points
+
+The design audit left nine points standalone because their lifecycle or
+ownership was unresolved. Each was re-read against its interface module, every
+core lookup, and every bundled registration. None is absorbed, because none
+fits a family capability as it is shaped today, and absorbing by name would only
+rename the registry. They stay registered in `EXTENSION_POINTS` with their legacy
+interface, and `spec/architecture/plugin_family_migration_spec.rb` pins that
+each has a decision here and no family mapping. Revisit a point only when the
+stated condition changes.
+
+- **`preview_provider`**: two bundled implementations (`rails`, `javascript`), but
+  the contract is a multi-call stateful object: `detect?(repo_path)` claims a
+  repository and the same instance is then asked for `start_command`,
+  `seed_command`, `env_for`, `setup_commands`, `health_check_path`, and
+  `log_paths`. Family dispatch returns one value per capability invocation and
+  cannot hand back a claimed session. The interface also owns a process-local
+  `registry` that core and specs append to, so selection merges two sources that
+  no plugin declaration covers. Revisit if dispatch gains a claim-then-session
+  composition.
+- **`memory_store`**: `Syrus::Plugin::MemoryStore` is an empty marker; the real
+  contract is the three duck-typed calls `Syrus::Memory` makes
+  (`prompt_context`, `chat_context_lines`, `chat_instructions`). Selection is an
+  exclusive slot (`providers_for(...).first`), not a composition, and the facade
+  already owns the degrade-quietly rule. One bundled implementation
+  (`agent_memory`). A family adds nothing the facade does not already own.
+- **`platform_delivery`**: one bundled implementation (`discord`). The contract
+  is class-level (`platform_key`, `connector_job_class`, `platform_config_class`)
+  plus an instance `deliver`, and core uses it to start connector jobs at boot,
+  to look up an adapter by platform key, and to extend the `PlatformIdentity`
+  platform list. That is connector lifecycle owned by `PlatformDelivery::Registry`
+  and keyed selection, not a capability a dispatcher can compose, and it belongs
+  with the chat and platform pluginization work. Revisit there.
+- **`repository_recommendation`**: one `collect` operation returning core's
+  recommendation hash, with core adding the dismissal key and swallowing errors.
+  One bundled implementation (`scheduled_tasks`). There is no selection,
+  lifecycle, or failure rule beyond what core already applies, so a family would
+  add declaration and catalog machinery for a single provisional capability.
+- **`workflow_artifact_contributor`**: one operation (`for_job`) merged into a
+  hash by key, one bundled implementation (`container_execution`). The merge is
+  last-writer-wins on artifact keys, which is a hash rule dispatch composition
+  does not express. Revisit when a second contributor needs a collision rule.
+- **`grader_failure_summarizer`**: one `collect` operation
+  (`summarize_grader_failure`) whose lines core never inspects, with a raising
+  summarizer dropped with a warning. Its only implementation is `test_insights`,
+  and it is a seam inside `Steps::GraderCollect` between the grader pipeline and
+  Test Insights. Test Insights is a core feature that ships as a plugin, so this
+  is the grader pipeline's own contract rather than a third-party extension
+  surface. Revisit if a second grader-evidence source appears.
+- **`grader_input_materializer`**: one broadcast operation
+  (`materialize_grader_inputs`) run during distributed grader source
+  materialization, again with `test_insights` as the only implementation. It
+  runs against an immutable snapshot checkout and warns instead of failing the
+  grader, rules that belong with the distributed-grader contract rather than a
+  facet. Revisit with a second implementation.
+- **`test_evidence`**: a three-operation duck-typed interface
+  (`failed_test_cases`, `failed_test_summary`, `test_case_count`,
+  `failed_test_identities`) where core probes `respond_to?` per operation and
+  deduplicates results by test identity. A family would have to decompose it
+  into separate capabilities first, and `test_insights` is the only
+  implementation. Revisit if a second test-result source appears.
+- **`approval_provider`**: no bundled implementation exists, so there is no
+  second implementation to derive a contract from and nothing to conform-test.
+  Selection is by the persisted delegation's `provider_key` against
+  `provider_key`, with human-only and ceiling checks in core before a provider is
+  asked to `decide`. Because it is authorization-adjacent, any family must set an
+  explicit fail-closed `failure`; designing that without a real provider would be
+  guesswork. Revisit when the first approval provider plugin is written.
 
 ## Extension-point target inventory
 
@@ -224,13 +333,12 @@ interface again when beginning that family.
   `slug_type`, `problem_provider`, `repository_configuration`,
   `step_environment`, and `worker_capability_probe` are data rather than
   provider classes; see the manifest-declaration section above.
-- **Standalone pending a verified family contract:** `preview_provider`,
-  `memory_store`, `platform_delivery`, `repository_recommendation`,
+- **Permanently standalone:** `preview_provider`, `memory_store`,
+  `platform_delivery`, `repository_recommendation`,
   `workflow_artifact_contributor`, `grader_failure_summarizer`,
-  `grader_input_materializer`, `test_evidence`, and `approval_provider`.
-  These remain standalone because their lifecycle or
-  ownership was unresolved in the audited design; do not absorb them by name
-  alone.
+  `grader_input_materializer`, `test_evidence`, and `approval_provider`. Each was
+  checked against its real interface and callers; the reasons are recorded in
+  [Permanently standalone points](#permanently-standalone-points).
 
 Non-registry APIs also have targets: `Filters.register_subject` and
 `Filters.register_chips` go to Surface; `CredentialProbe.register_probe` and

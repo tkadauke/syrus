@@ -307,6 +307,32 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  %i[review_gate adjudicator post_implementation_review_provider job_visibility_restriction repository_filter].each do |point|
+    it "isolates a plugin that still registers the removed #{point} point and reports plugin health" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        directory = write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture")
+        entry_file = directory.join("lib/external_loader_fixture.rb")
+        entry_file.write(entry_file.read.sub("provides callbacks:", "provides #{point}:"))
+
+        described_class.new(
+          plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+        ).load!
+        definition = ExternalLoaderFixture.instance_variable_get(:@syrus_plugin_definition)
+        expect { described_class.install_definition!(definition) }.not_to raise_error
+
+        status = Syrus::PluginRegistry.health.status("external_loader_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("Unknown extension point :#{point}")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+      end
+    end
+  end
+
   it "orders plugins after their declared plugin dependencies" do
     Dir.mktmpdir do |temporary|
       app_root = Pathname.new(temporary).join("app")
