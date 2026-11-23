@@ -54,6 +54,8 @@ class NotificationService
       }
     )
 
+    NotificationPushJob.perform_later(notification.id)
+
     notification
   end
 

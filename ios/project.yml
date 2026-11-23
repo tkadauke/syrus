@@ -1,0 +1,51 @@
+name: Syrus
+options:
+  bundleIdPrefix: estate.syrus
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set to your Apple Developer team to run on a device / use push.
+    DEVELOPMENT_TEAM: ""
+targets:
+  Syrus:
+    type: application
+    platform: iOS
+    sources: [Syrus]
+    entitlements:
+      path: Syrus/Syrus.entitlements
+      properties:
+        # Xcode swaps this to "production" for App Store / TestFlight archives.
+        aps-environment: development
+    info:
+      path: Syrus/Info.plist
+      properties:
+        CFBundleDisplayName: Syrus
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UIBackgroundModes: [remote-notification]
+        # Dev servers are commonly plain-http on a LAN / localhost.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Syrus connects to your Syrus server on the local network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: estate.syrus.app
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets: [SyrusTests]
+  SyrusTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SyrusTests]
+    dependencies:
+      - target: Syrus
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: estate.syrus.app.tests

@@ -1,0 +1,27 @@
+project:
+  id: ios
+  label: iOS App
+  kind: ios_app
+  capabilities:
+    os: macos
+    arch: arm64
+    toolchain: xcode
+    runtime: ios_simulator
+
+# The Xcode project is generated from project.yml (XcodeGen); it is not checked in.
+prepare:
+  - xcodegen generate
+
+grade:
+  - type: xcodebuild
+    description: |
+      Builds the Syrus iOS app and runs the SyrusTests unit tests on an iOS Simulator.
+    project: Syrus.xcodeproj
+    scheme: Syrus
+    destination: "platform=iOS Simulator,name=iPhone 17"
+    derived_data_path: .syrus/DerivedData/ios
+    result_bundle_path: build/syrus/ios/Syrus.xcresult
+    when_files_changed:
+      - "**"
+    phases: [review, landing, ci]
+    timeout_minutes: 30
