@@ -178,8 +178,11 @@ class LandingQueueProcessor
     queue_entries.group_by(&:landing_unit_key).each_value do |unit_entries|
       first_entry = unit_entries.first
       lane_keys = landing_lane_keys_for(first_entry.job)
-      # Occupied only when every lane is: a free lane takes the unit.
-      next if lane_keys.any? && lane_keys.all? { |key| occupied_lock_keys.include?(key) }
+      # Occupied only when every lane is: a free lane takes the unit. Units
+      # draining on lanes above a lowered setting still count.
+      next if WorkDefinitions.landing_capacity_full?(
+        first_entry.job, policy: delivery_policy_for(first_entry.job), occupied_keys: occupied_lock_keys
+      )
 
       workflow = if merge_train_unit?(first_entry)
         next if first_entry.blocker_jobs.any?
@@ -664,12 +667,7 @@ class LandingQueueProcessor
   # A landing is in progress for queue purposes only when every lane of the
   # Job's landing branch is occupied (with one lane: when the slot is).
   def landing_in_progress_for_job?(job)
-    lane_keys = landing_lane_keys_for(job)
-    return false if lane_keys.empty?
-
-    lane_keys.all? do |key|
-      WorkUnits::Ownership.active_for_lock_key?(key, kinds: WorkDefinitions.landing_lock_kinds)
-    end
+    WorkDefinitions.landing_capacity_full?(job, policy: delivery_policy_for(job))
   end
 
   def landing_lane_keys_for(job)

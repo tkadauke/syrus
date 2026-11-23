@@ -111,6 +111,38 @@ RSpec.describe "Parallel landing lanes", :ci_only do
       expect(landing_lock_keys.size).to eq(2)
     end
 
+    it "keeps counting units on higher lanes after landing_concurrency is lowered" do
+      repository.update!(landing_concurrency: 3)
+      jobs = (1..3).map { |n| queue_job(n) }
+      described_class.call
+      expect(jobs.map { |job| job.reload.state }).to all(eq("landing"))
+      fourth = queue_job(4)
+      base = "landing:repository:#{repository.id}"
+
+      repository.update!(landing_concurrency: 1)
+      status = WorkDefinitions.landing_lane_status_for(fourth.reload)
+      expect(status.map { |lane| [ lane[:lane], lane[:occupied], lane[:draining] ] }).to eq([ [ 1, true, false ], [ 2, true, true ], [ 3, true, true ] ])
+
+      # Lane 1 frees, but lanes 2 and 3 still hold units: no new dispatch.
+      unit = jobs.first.workflows.last.work_unit
+      unit.release_landing_locks!
+      unit.update!(state: "succeeded")
+      jobs.first.update!(state: "closed")
+      expect(described_class.call).to be_nil
+      expect(fourth.reload).to be_approved
+
+      # Once the draining lanes empty, the single lane takes the next unit.
+      jobs.drop(1).each do |job|
+        u = job.workflows.last.work_unit
+        u.release_landing_locks!
+        u.update!(state: "succeeded")
+        job.update!(state: "closed")
+      end
+      described_class.call
+      expect(fourth.reload).to be_landing
+      expect(landing_lock_keys).to eq([ base ])
+    end
+
     it "keeps a Job out of two landing units" do
       repository.update!(landing_concurrency: 2)
       job = queue_job(1)
