@@ -229,9 +229,7 @@ RSpec.describe PersistentMcpDaemon do
       it "dispatches owner-scoped coworker chat discovery and reads over the persistent workflow route" do
         PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
         Syrus::PluginRegistry.clear_plugin_record_cache!
-        scope = Syrus::EffectScope.new(label: "persistent coworker chat reads")
         Filters.subject(:chat_message)
-        Coworkers::SearchExtension.install_into(scope)
         SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
         SearchRecord.connection.execute(<<~SQL)
           CREATE VIRTUAL TABLE chat_message_fts
@@ -325,8 +323,6 @@ RSpec.describe PersistentMcpDaemon do
           arguments: { chat_session_id: inaccessible_chat.id }
         )
         expect(json_body(foreign_read).dig("result", "isError")).to be(true)
-      ensure
-        scope&.dispose
       end
 
       it "records a failed workflow usage row when the invocation token is invalid" do
