@@ -38,8 +38,8 @@ module CredentialStore
       { path: %w[credential_store types], summary: "List credential type names", handler: "CredentialStore::Cli::Types", flags: [ { name: "json", type: :boolean, default: false } ] },
       { path: %w[credential_store credentials], summary: "List accessible credential handles", handler: "CredentialStore::Cli::Credentials", flags: [ { name: "json", type: :boolean, default: false }, { name: "type" } ] }
     ]
-    provides admin_page: "CredentialStore::AdminPages",
-             sidebar_page: "CredentialStore::SidebarPages",
+    provides admin_pages: "CredentialStore::AdminPages",
+             sidebar_pages: "CredentialStore::SidebarPages",
              purge_contributor: "CredentialStore::PurgeContributor"
     toolkit workflow_tools: "CredentialStore::WorkflowToolSet", chat_tools: "CredentialStore::ChatToolSet", permissions: "CredentialStore::PermissionProvider"
     route :get, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#index"

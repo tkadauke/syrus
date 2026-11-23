@@ -19,18 +19,14 @@ module Mockups
              chat_payload_contributor: "Mockups::PayloadContributor",
              chat_prompt_injector: "Mockups::PromptSection",
              preview_panel_retention: "Mockups::PreviewPanelRetention",
-             sidebar_page: "Mockups::SidebarPages"
+             sidebar_pages: "Mockups::SidebarPages"
     toolkit chat_tools: "Mockups::ChatToolSet"
+    surface filter_subjects: { mockup: { model: "Mockups::Mockup", chips: "Mockups::FilterSubject::CHIPS" } }
 
     # Mockups index core panels, so an entry outlives the plugin being disabled
     # but not the panel or chat it points at.
     always do |scope|
       Mockups::DataCleanup.install_into(scope)
-    end
-
-    # The list and its filter bar only exist while the plugin is on.
-    while_enabled do |scope|
-      Mockups::FilterSubject.install_into(scope)
     end
 
     route :get, "/api/v1/app/mockups", to: "api/v1/app/mockups#index"

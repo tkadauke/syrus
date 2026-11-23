@@ -11,7 +11,7 @@ module AttentionReport
     default_enabled false
     disableable true
 
-    provides sidebar_page: "AttentionReport::SidebarPages"
+    provides sidebar_pages: "AttentionReport::SidebarPages"
     route :get, "/api/v1/app/insights/attention", to: "api/v1/app/insights/attention#show"
     frontend routes: {
           "attention_report/AttentionReport" => "app/frontend/routes/AttentionReport.tsx"

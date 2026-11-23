@@ -27,9 +27,6 @@ module DesignDocs
     module_function
 
     def install_into(scope)
-      scope.effect("design doc filter subject") do
-        Filters.register_subject(name: SUBJECT, model: DesignDocs::DesignDoc, chips: CHIPS)
-      end
       scope.effect("design doc smart folders") do
         ::SmartFolder.register_subject!(
           SUBJECT,

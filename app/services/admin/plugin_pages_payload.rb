@@ -2,7 +2,7 @@ module Admin
   class PluginPagesPayload
     def as_json(*)
       {
-        pages: Syrus::PluginRegistry.providers_for(:admin_page)
+        pages: Syrus::Plugin::Surface.contributions(:admin_pages)
           .flat_map { |provider| pages_for(provider) }
           .sort_by { |page| [ page[:order].to_i, page[:label].to_s ] }
       }

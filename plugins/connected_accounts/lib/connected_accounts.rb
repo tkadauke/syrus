@@ -66,8 +66,8 @@ module ConnectedAccounts
       ConnectedAccounts::ProviderRegistry.load!
       nil
     end
-    provides admin_page: "ConnectedAccounts::AdminPages",
-             sidebar_page: "ConnectedAccounts::SidebarPages",
+    provides admin_pages: "ConnectedAccounts::AdminPages",
+             sidebar_pages: "ConnectedAccounts::SidebarPages",
              retention_policy: "ConnectedAccounts::RetentionPolicy"
     toolkit permissions: "ConnectedAccounts::PermissionProvider"
     route :get, "/api/v1/app/connected_accounts/accounts", to: "api/v1/app/connected_accounts/accounts#index"

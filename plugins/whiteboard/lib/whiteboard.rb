@@ -13,7 +13,7 @@ module Whiteboard
     category "agent_capability"
     default_enabled true
     disableable true
-    provides workspace_tab: "Whiteboard::WorkspaceTabs",
+    provides workspace_tabs: "Whiteboard::WorkspaceTabs",
              chat_media_source: "Whiteboard::MediaSource",
              chat_payload_contributor: "Whiteboard::PayloadContributor",
              chat_prompt_injector: "Whiteboard::PromptSection"

@@ -19,8 +19,9 @@ module AgentActivity
     author "Thomas Kadauke"
     category "observability"
 
-    provides sidebar_page: "AgentActivity::SidebarPages",
-             admin_page: "AgentActivity::AdminPages"
+    provides sidebar_pages: "AgentActivity::SidebarPages",
+             admin_pages: "AgentActivity::AdminPages"
+    surface filter_subjects: { agent_activity: { model: "Agent", chips: FILTER_CHIPS } }
 
     route :get, "/api/v1/app/agent_activity/sessions", to: "api/v1/app/agent_activity#sessions"
     route :get, "/api/v1/app/admin/agent_activity/sessions", to: "api/v1/app/admin/agent_activity#sessions"
@@ -38,9 +39,6 @@ module AgentActivity
         i18n: [ "app/frontend/i18n/locales/*/agent_activity.json" ]
 
     while_enabled do |scope|
-      scope.effect("agent_activity filter subject") do
-        Filters.register_subject(name: :agent_activity, model: Agent, chips: FILTER_CHIPS)
-      end
       AgentActivity::SmartFolders.install_into(scope)
     end
   end

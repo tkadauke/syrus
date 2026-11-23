@@ -10,6 +10,9 @@ RSpec.describe "Plugin family migration architecture" do
   TOOLKIT_POINTS = %i[
     mcp_tool_set chat_mcp_tool_set permission_provider mcp_run_context_contributor
   ].freeze
+  SURFACE_POINTS = %i[
+    sidebar_page admin_page repo_page_tab workspace_tab ui_slot artifact_renderer preview_panel_viewer
+  ].freeze
 
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
@@ -17,7 +20,8 @@ RSpec.describe "Plugin family migration architecture" do
     ecosystem: ECOSYSTEM_POINTS,
     # Toolkit keeps an explicit compatibility bridge for external plugins
     # during the family migration; core callers must still use Dispatch.
-    toolkit: TOOLKIT_POINTS
+    toolkit: TOOLKIT_POINTS,
+    surface: SURFACE_POINTS
   }.freeze
 
   it "keeps Toolkit's compatibility allowlist explicit" do
@@ -25,6 +29,24 @@ RSpec.describe "Plugin family migration architecture" do
 
     expect(definition.legacy_mappings.keys).to contain_exactly(*TOOLKIT_POINTS)
     expect(Syrus::PluginRegistry::EXTENSION_POINTS & TOOLKIT_POINTS).to contain_exactly(*TOOLKIT_POINTS)
+  end
+
+  it "keeps Surface's compatibility allowlist explicit" do
+    definition = Syrus::Plugin::Family.fetch(:surface)
+
+    expect(definition.legacy_mappings.keys).to contain_exactly(*SURFACE_POINTS)
+    expect(Syrus::PluginRegistry::EXTENSION_POINTS & SURFACE_POINTS).to contain_exactly(*SURFACE_POINTS)
+  end
+
+  it "allows no bundled plugin to register a legacy point absorbed by Surface" do
+    actual = SURFACE_POINTS.to_h do |point|
+      plugins = Dir["plugins/*/lib/*.rb"].filter_map do |path|
+        File.basename(File.dirname(File.dirname(path))) if registrations_in(File.read(path), point).positive?
+      end
+      [ point, plugins.sort ]
+    end
+
+    expect(actual).to eq(SURFACE_POINTS.index_with { [] })
   end
 
   def registrations_in(source, point)

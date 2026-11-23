@@ -11,7 +11,7 @@ module TeamDirectory
     category "collaboration"
     default_enabled false
     disableable true
-    provides sidebar_page: "TeamDirectory::SidebarPages"
+    provides sidebar_pages: "TeamDirectory::SidebarPages"
     route :get, "/api/v1/app/profiles", to: "api/v1/app/profiles#index"
     route :get, "/api/v1/app/profiles/:id", to: "api/v1/app/profiles#show"
     frontend routes: {

@@ -21,8 +21,8 @@ module Terminal
     link "Open Terminal", "/terminal", description: "Open the top-level Terminal workspace browser."
 
     provides callbacks:    "Terminal::Callbacks",
-             sidebar_page: "Terminal::SidebarPages",
-             ui_slot:      "Terminal::UiSlots"
+             sidebar_pages: "Terminal::SidebarPages",
+             ui_slots:      "Terminal::UiSlots"
 
     route :get,    "/api/v1/app/terminal_sessions", to: "api/v1/app/terminal_sessions#index"
     route :post,   "/api/v1/app/terminal_sessions", to: "api/v1/app/terminal_sessions#create"

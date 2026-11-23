@@ -17,15 +17,10 @@ module SyrusClaudeAgent
              chat_provider: "ChatProviders::Claude"
     toolkit credential_probes: { "claude_oauth_token" => "ClaudeCredentialProbe" },
             secret_extractors: [ "ClaudeCredentialProbe::SECRET_EXTRACTOR" ]
+    surface filter_chips: { admin_user: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" } }
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude) }
-      scope.effect("admin user chips") do
-        Filters.register_chips(
-          subject: :admin_user,
-          chips: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" }
-        )
-      end
     end
   end
 end
