@@ -3194,6 +3194,23 @@
       "producer": "LocalBackups::Recovery::Preflight; bin/disaster-recovery --allow-unknown-<code>",
       "done_by": "F112 (NY22)",
       "notes": "RecoveryPreflight.lean: a ready preflight has no unaccepted unknown, and one flag excuses only its own unknown."
+    },
+    {
+      "id": "essential-wakeups-bounded",
+      "area": "permissions",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "design",
+      "title": "Approval-free self-scheduled work is bounded",
+      "producer": "Mcp::Tools::ScheduleWakeupTool; ChatWakeup; Permissions::EffectActions",
+      "done_by": "M68 (NY34 open)",
+      "notes": "Since main's 11d8bc436c, schedule_wakeup is essential and nothing bounds the number or rate of self-scheduled wakeups per chat."
     }
   ],
   "needs_you": [
@@ -3623,6 +3640,18 @@
         "C. Accept it: rows of one model stay unordered, and InnoDB deadlock detection plus the callers' retries handle the rare collision."
       ],
       "recommendation": "A. It is local to WorkflowCancellation, keeps the checker's rule simple (model order), and costs only the extra up-front locks on rows the cascade will lock anyway."
+    },
+    {
+      "id": "NY34",
+      "item": "essential-operations",
+      "title": "Should approval-free chat wakeups be bounded, now that they no longer ask?",
+      "context": "Main's 11d8bc436c made schedule_wakeup, list_wakeups and cancel_wakeup essential for the chat's own wakeups, so they never ask. Before, schedule_wakeup carried the persistent_autonomy effect, which made each self-scheduled wakeup subject to approval: the brake on work that perpetuates itself. Nothing replaces it. ChatWakeup has no per-chat limit, and the tool only bounds each wakeup's delay (1 minute to 24 hours, or a time within a year). So a chat can hold any number of pending wakeups, and a woken turn can schedule the next one, once a minute, indefinitely; each wakeup is a full, paid agent turn, with no approval anywhere. Nothing like this has been seen in production.",
+      "options": [
+        "A. Keep wakeups essential within a budget: at most a few pending wakeups per chat (for example 5) and a daily cap on wakeups that fire per chat (for example 48). Scheduling past either asks, as persistent autonomy did.",
+        "B. Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks.",
+        "C. Keep as is: self-scheduling is owned, scoped and audited, and an operator can cancel a runaway chat."
+      ],
+      "recommendation": "A. Two counters on the chat keep every legitimate use (reminders, polling a slow job) free while a runaway loop hits approval within a day; B models chains, which is more precise but more machinery, and C leaves cost unbounded."
     }
   ]
 }

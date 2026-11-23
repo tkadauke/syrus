@@ -4918,6 +4918,28 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M68. Main through `1aa74a2a4d`
+
+Ten commits. Nine are chat and mobile UI (sidebar scrolling and stickiness,
+coworker thread collapse state, a chat index N+1, a missing-recent-chats
+crash, visual-review docs) with no engine invariant. One is not:
+
+- **"Make self-scheduled chat wakeups essential by default"** (`11d8bc436c`).
+  `schedule_wakeup`, `list_wakeups` and `cancel_wakeup`, scoped to wakeups the
+  current chat owns, become essential operations: evaluated and audited, but
+  never asking. *Relied-on invariants:* an essential descriptor declares no
+  barrier effect, and a chat can only touch its own wakeups. Both hold, and the
+  commit's specs pin them. *What the change removes:* the
+  `persistent_autonomy` effect was the brake on self-perpetuating work, and
+  nothing replaces it. `ChatWakeup` has no per-chat limit, and the tool only
+  bounds each wakeup's delay (1 minute to 24 hours, or a time within a year),
+  so a chat can hold any number of pending wakeups, and a woken turn can
+  schedule the next one, once a minute, indefinitely, each a paid agent turn,
+  with no approval anywhere. Filed as NY34: it is a policy choice, so no code
+  is changed.
+
+---
+
 ## M67. Main through `a469015745`
 
 Ten commits. Startup diagnostics (`b7abea2d8d`, `92e7d08f7a`, `3d3121d34f`), a
@@ -6576,7 +6598,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `a469015745`. Each loop iteration continues from there:
+Checked through main `1aa74a2a4d`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
