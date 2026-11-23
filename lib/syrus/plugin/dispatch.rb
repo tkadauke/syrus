@@ -67,11 +67,11 @@ module Syrus
         invoke_result = lambda do |provider, implementation|
           result = Syrus::PluginInvocation.call(
             extension_point: definition.name, provider: implementation,
-            operation: contract.name, timeout:, on_decline: decline_value(contract),
+            operation: contract.name, timeout:, on_decline: failure_value(contract),
           ) do
             value = implementation.public_send(contract.name, context, **args)
             unless contract.return_contract.valid?(value)
-              next Syrus::PluginInvocation.decline(decline_value(contract))
+              next Syrus::PluginInvocation.decline(failure_value(contract))
             end
             value
           rescue ValidationError => error
@@ -108,10 +108,13 @@ module Syrus
       end
       private_class_method :absent_value
 
-      def decline_value(contract)
-        contract.decline.respond_to?(:call) ? contract.decline.call : contract.decline
+      # The value substituted for a provider that failed. Fail-closed families
+      # set it apart from the provider decline value so an unavailable provider
+      # can never read as "nothing to contribute".
+      def failure_value(contract)
+        contract.failure.respond_to?(:call) ? contract.failure.call : contract.failure
       end
-      private_class_method :decline_value
+      private_class_method :failure_value
     end
   end
 end

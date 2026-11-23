@@ -41,7 +41,7 @@ module App
     private
 
     def providers
-      Syrus::PluginRegistry.providers_for(:diff_review_annotation_provider)
+      Syrus::Plugin::ReviewContributions.contributions(:diff_review_annotation_providers)
     end
 
     def empty_payload

@@ -19,6 +19,12 @@ RSpec.describe "Plugin family migration architecture" do
     chat_identity_provider mentionable
   ].freeze
 
+  REVIEW_POINTS = %i[
+    review_gate reviewer_target_provider review_context_contributor review_presentation_contributor
+    post_implementation_review_provider diff_review_annotation_provider adjudicator
+  ].freeze
+  POLICY_POINTS = %i[job_visibility_restriction repository_filter].freeze
+
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
   DISPATCHED_FAMILIES = {
@@ -27,7 +33,9 @@ RSpec.describe "Plugin family migration architecture" do
     # during the family migration; core callers must still use Dispatch.
     toolkit: TOOLKIT_POINTS,
     surface: SURFACE_POINTS,
-    chat_integration: CHAT_INTEGRATION_POINTS
+    chat_integration: CHAT_INTEGRATION_POINTS,
+    review: REVIEW_POINTS,
+    policy: POLICY_POINTS
   }.freeze
 
   it "keeps Toolkit's compatibility allowlist explicit" do
@@ -69,6 +77,24 @@ RSpec.describe "Plugin family migration architecture" do
       [ point, plugins.sort ]
     end
     expect(actual).to eq(CHAT_INTEGRATION_POINTS.index_with { [] })
+  end
+
+  { review: REVIEW_POINTS, policy: POLICY_POINTS }.each do |family, points|
+    it "keeps #{family}'s compatibility allowlist explicit" do
+      definition = Syrus::Plugin::Family.fetch(family)
+      expect(definition.legacy_mappings.keys).to contain_exactly(*points)
+      expect(Syrus::PluginRegistry::EXTENSION_POINTS & points).to contain_exactly(*points)
+    end
+
+    it "allows no bundled plugin to register a legacy point absorbed by #{family}" do
+      actual = points.to_h do |point|
+        plugins = Dir["plugins/*/lib/*.rb"].filter_map do |path|
+          File.basename(File.dirname(File.dirname(path))) if registrations_in(File.read(path), point).positive?
+        end
+        [ point, plugins.sort ]
+      end
+      expect(actual).to eq(points.index_with { [] })
+    end
   end
 
   def registrations_in(source, point)

@@ -11,8 +11,8 @@ RSpec.describe CognitiveReview::Engine do
   end
 
   it "registers its workflow and review-tab providers" do
-    expect(Syrus::PluginRegistry.providers_for(:post_implementation_review_provider)).to include(CognitiveReview::PostImplementationReviewProvider)
-    expect(Syrus::PluginRegistry.providers_for(:diff_review_annotation_provider)).to include(CognitiveReview::DiffReviewAnnotationProvider)
+    expect(Syrus::Plugin::ReviewContributions.contributions(:post_implementation_review_providers)).to include(CognitiveReview::PostImplementationReviewProvider)
+    expect(Syrus::Plugin::ReviewContributions.contributions(:diff_review_annotation_providers)).to include(CognitiveReview::DiffReviewAnnotationProvider)
     expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(CognitiveReview::McpToolSet)
   end
 
@@ -23,8 +23,8 @@ RSpec.describe CognitiveReview::Engine do
     PluginRecord.find_by!(name: "cognitive_review").update!(enabled: false)
     Syrus::PluginRegistry.clear_plugin_record_cache!
 
-    expect(Syrus::PluginRegistry.providers_for(:post_implementation_review_provider)).not_to include(CognitiveReview::PostImplementationReviewProvider)
-    expect(Syrus::PluginRegistry.providers_for(:diff_review_annotation_provider)).not_to include(CognitiveReview::DiffReviewAnnotationProvider)
+    expect(Syrus::Plugin::ReviewContributions.contributions(:post_implementation_review_providers)).not_to include(CognitiveReview::PostImplementationReviewProvider)
+    expect(Syrus::Plugin::ReviewContributions.contributions(:diff_review_annotation_providers)).not_to include(CognitiveReview::DiffReviewAnnotationProvider)
     expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(CognitiveReview::McpToolSet)
     expect(job.latest_workflow.reload.artifact(CognitiveReview::Artifact::KEY)).to eq([ { "notes" => [] } ])
   end

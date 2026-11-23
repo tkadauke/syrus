@@ -123,8 +123,9 @@ RSpec.describe "Coworkers plugin" do
   end
 
   it "registers the owner-only Job visibility restriction before contributing coworker tasks" do
-    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
-    restriction = manifest.provides.fetch(:job_visibility_restriction)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    restriction = Syrus::Plugin::Policy.restrictions(:job_visibility_restrictions)
+      .find { |candidate| candidate == Coworkers::JobVisibilityRestriction }
 
     expect(restriction).to eq(Coworkers::JobVisibilityRestriction)
     expect(restriction).to include(Syrus::Plugin::JobVisibilityRestriction)
@@ -135,7 +136,7 @@ RSpec.describe "Coworkers plugin" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     next expect(Job::Kind.values).not_to include("coworker_task") unless Job::Kind.values.include?("coworker_task")
 
-    restrictions = Syrus::PluginRegistry.providers_for(:job_visibility_restriction)
+    restrictions = Syrus::Plugin::Policy.restrictions(:job_visibility_restrictions)
     expect(restrictions.map(&:origin_key)).to include("coworkers")
   end
 

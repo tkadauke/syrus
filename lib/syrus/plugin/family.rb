@@ -35,7 +35,11 @@ module Syrus
           end
         end
       end
-      Capability = Data.define(:name, :composition, :absent, :decline, :tier, :context, :method_contract, :return_contract)
+      # +decline+ is what a provider returns when it has nothing to contribute.
+      # +failure+ is what the dispatcher substitutes when a provider raises,
+      # times out, trips its circuit breaker, or returns an invalid value; it
+      # equals +decline+ unless the family is fail-closed (see Policy).
+      Capability = Data.define(:name, :composition, :absent, :decline, :failure, :tier, :context, :method_contract, :return_contract)
       LegacyMapping = Data.define(:extension_point, :capability, :adapter)
       CORE_METHOD_CONTRACTS = {
         key: MethodContract.no_arguments,
@@ -61,15 +65,16 @@ module Syrus
         def migrated? = @migrated
         def absorbs(*extension_points) = @absorbed_legacy_points.concat(extension_points.flatten.map(&:to_sym)).uniq!
         def unmapped_legacy_points = @absorbed_legacy_points - legacy_mappings.keys
-        def capability(name, composition:, absent:, decline: DEFAULT_DECLINE, tier:, context:, returns: nil)
+        def capability(name, composition:, absent:, decline: DEFAULT_DECLINE, failure: DEFAULT_DECLINE, tier:, context:, returns: nil)
           name = name.to_sym
           raise ArgumentError, "Duplicate capability #{name.inspect} in family #{@name.inspect}" if capabilities.key?(name)
           raise ArgumentError, "Unknown composition #{composition.inspect}" unless COMPOSITIONS.include?(composition.to_sym)
           raise ArgumentError, "Unknown capability tier #{tier.inspect}" unless TIERS.include?(tier.to_sym)
           composition = composition.to_sym
           decline = %i[collect broadcast first_claim].include?(composition) ? (composition == :collect ? [] : nil) : absent if decline.equal?(DEFAULT_DECLINE)
+          failure = decline if failure.equal?(DEFAULT_DECLINE)
           capabilities[name] = Capability.new(
-            name:, composition:, absent:, decline:, tier: tier.to_sym, context:,
+            name:, composition:, absent:, decline:, failure:, tier: tier.to_sym, context:,
             method_contract: MethodContract.context(context), return_contract: ReturnContract.build(returns)
           )
         end

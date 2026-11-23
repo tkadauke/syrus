@@ -260,5 +260,7 @@ RSpec.configure do |config|
     Syrus::Plugin::Toolkit.restore_definition! if defined?(Syrus::Plugin::Toolkit)
     Syrus::Plugin::Surface.restore_definition! if defined?(Syrus::Plugin::Surface)
     Syrus::Plugin::ChatIntegration.restore_definition! if defined?(Syrus::Plugin::ChatIntegration)
+    Syrus::Plugin::ReviewContributions.restore_definition! if defined?(Syrus::Plugin::ReviewContributions)
+    Syrus::Plugin::Policy.restore_definition! if defined?(Syrus::Plugin::Policy)
   end
 end
