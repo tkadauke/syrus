@@ -98,10 +98,6 @@ RSpec.describe AgentRole do
       expect(described_class.for_step_kind("security_review")).to eq(described_class::WORKFLOW_SECURITY_REVIEWER)
     end
 
-    it "maps visual_review to WORKFLOW_VISUAL_REVIEWER" do
-      expect(described_class.for_step_kind("visual_review")).to eq(described_class::WORKFLOW_VISUAL_REVIEWER)
-    end
-
     it "falls back to WORKFLOW_IMPLEMENT for an ordinary agentic step kind" do
       expect(described_class.for_step_kind("implement")).to eq(described_class::WORKFLOW_IMPLEMENT)
     end
@@ -116,7 +112,7 @@ RSpec.describe AgentRole do
       specialized_kinds = %w[
         agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase
         summarize summarize_amend test_plan refresh_job_metadata submit_report
-        adversarial_review security_review visual_review
+        adversarial_review security_review
       ]
 
       declared_kinds = Step::Kind::BUILT_IN_ENTRIES.filter_map do |entry|
