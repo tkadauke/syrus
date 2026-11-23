@@ -79,4 +79,27 @@ RSpec.describe "API: review workspace", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.fetch("ui_panels").pluck("id")).not_to include("review_workspace.ready_jobs")
   end
+
+  describe "GET /api/v1/app/review_workspace/:id/summary" do
+    it "aggregates change scope from the stored diff review version" do
+      job = Factories.job_record(user:, repository:, state: "implemented", issue_title: "Scope me")
+      DiffReviewVersion.create!(
+        job:, version_index: 1, base_sha: "a" * 40, head_sha: "b" * 40, source_key: "k", reason: "source_diff",
+        files_snapshot: [ { "path" => "a.rb", "additions" => 3, "deletions" => 1 }, { "path" => "b.rb", "additions" => 2, "deletions" => 0 } ]
+      )
+
+      get "/api/v1/app/review_workspace/#{job.id}/summary"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.fetch("change_scope")).to eq("files_changed" => 2, "additions" => 5, "deletions" => 1, "truncated" => false)
+    end
+
+    it "returns a null change scope when no diff was stored" do
+      job = Factories.job_record(user:, repository:, state: "implemented", issue_title: "No diff")
+
+      get "/api/v1/app/review_workspace/#{job.id}/summary"
+
+      expect(response.parsed_body).to include("change_scope" => nil)
+    end
+  end
 end

@@ -12,6 +12,11 @@ module Api
           render json: { count: ReviewWorkspacePlugin::EligibleJobs.call(user: Current.user, scope: reviewable_job_scope).length }
         end
 
+        def summary
+          job = reviewable_job_scope.find(params[:id])
+          render json: { change_scope: ReviewWorkspacePlugin::ChangeScope.call(job) }
+        end
+
         private
 
         def reviewable_job_scope
