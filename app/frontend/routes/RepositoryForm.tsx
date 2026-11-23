@@ -532,10 +532,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             onChange={(checked) => setValues({ ...values, ci_repair_enabled: checked })}
             value={values.ci_repair_enabled}
           />
-          <PluginUiSlot
-            panels={payload.ui_settings}
-            props={{ values, setValues, setRepairTouched }}
-          />
+          <PluginUiSlot panels={payload.ui_settings} props={{ values, setValues, setRepairTouched }} />
           <Checkbox
             label={t("repository_form.check_timeout_failures")}
             onChange={(checked) => setValues({ ...values, treat_grader_timeouts_as_failures: checked })}
