@@ -116,15 +116,32 @@ module Syrus
       end
 
       def self.credential_probes(user: nil)
-        Dispatch.call(:toolkit, :credential_probes, Context::ToolkitCredentialContext.new(user:)).each_with_object({}) do |entry, probes|
+        context = Context::ToolkitCredentialContext.new(user:)
+        entries = Dispatch.call(:toolkit, :credential_probes, context) + disabled_plugin_entries(:credential_probes, context)
+        entries.each_with_object({}) do |entry, probes|
           raise ArgumentError, "credential probe #{entry.credential.inspect} is registered by more than one provider" if probes.key?(entry.credential)
           probes[entry.credential] = entry.handler
         end
       end
 
       def self.secret_extractors(user: nil)
-        Dispatch.call(:toolkit, :secret_extractors, Context::ToolkitCredentialContext.new(user:)).flatten.uniq
+        context = Context::ToolkitCredentialContext.new(user:)
+        (Dispatch.call(:toolkit, :secret_extractors, context) + disabled_plugin_entries(:secret_extractors, context)).flatten.uniq
       end
+
+      # Credential probes and secret extractors are not gated on enablement:
+      # operators save and verify credentials before turning a plugin on, and
+      # stored secrets must stay redactable after it is turned off. Dispatch only
+      # reaches enabled plugins, so the disabled ones are read directly.
+      def self.disabled_plugin_entries(capability, context)
+        PluginRegistry.all_plugins.reject(&:enabled?).flat_map do |manifest|
+          provider = provider_for_manifest(manifest)
+          provider ? Array(provider.public_send(capability, context)) : []
+        rescue StandardError, LoadError
+          []
+        end
+      end
+      private_class_method :disabled_plugin_entries
 
       def self.provider_for_manifest(manifest)
         declaration = manifest.family_provides.find { |entry| entry.family == :toolkit }

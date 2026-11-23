@@ -295,7 +295,7 @@ RSpec.describe AgentInsights::Tools::SubmitInsightTool do
       PluginRecord.find_or_create_by!(name: "agent_insights").update!(enabled: false, disableable: true)
 
       context = McpToolContext.from_run(eager_run)
-      expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(AgentInsights::McpToolSet)
+      expect(workflow_tool_sets).not_to include(AgentInsights::McpToolSet)
     end
 
     it "is advertised by the plugin tool set while the plugin is enabled" do

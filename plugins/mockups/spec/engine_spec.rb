@@ -11,7 +11,7 @@ RSpec.describe Mockups::Engine do
   end
 
   it "registers Mockups::ChatToolSet as the :chat_mcp_tool_set provider" do
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(Mockups::ChatToolSet)
+    expect(chat_tool_sets).to include(Mockups::ChatToolSet)
   end
 
   it "registers the preview panel retention provider" do
@@ -24,7 +24,4 @@ RSpec.describe Mockups::Engine do
     expect(manifest.version).to eq(Syrus::PluginApi.default_version)
   end
 
-  it "includes the ChatMcpToolSet plugin interface module" do
-    expect(Mockups::ChatToolSet.ancestors).to include(Syrus::Plugin::ChatMcpToolSet)
-  end
 end

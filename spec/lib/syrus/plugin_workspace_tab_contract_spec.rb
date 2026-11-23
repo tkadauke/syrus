@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "plugin workspace tab contracts" do
   it "declares installed workspace tabs with frontend and i18n metadata" do
     manifests = Syrus::PluginRegistry.all_plugins
-    workspace_tab_manifests = manifests.select { |manifest| manifest.provides.key?(:workspace_tab) }
+    workspace_tab_manifests = manifests.select { |manifest| manifest_surface_implementations(manifest, :workspace_tabs).any? }
 
     expect(workspace_tab_manifests).not_to be_empty
 
@@ -12,7 +12,7 @@ RSpec.describe "plugin workspace tab contracts" do
       frontend_workspace_tabs = metadata.dig(:frontend, :workspace_tabs).to_h
       i18n_patterns = Array(metadata.dig(:frontend, :i18n))
 
-      Array(manifest.provides[:workspace_tab]).each do |provider|
+      manifest_surface_implementations(manifest, :workspace_tabs).each do |provider|
         Array(provider.workspace_tabs).each do |raw_tab|
           tab = raw_tab.to_h.symbolize_keys
 

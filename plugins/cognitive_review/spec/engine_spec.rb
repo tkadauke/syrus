@@ -13,7 +13,7 @@ RSpec.describe CognitiveReview::Engine do
   it "registers its workflow and review-tab providers" do
     expect(Syrus::Plugin::ReviewContributions.contributions(:post_implementation_review_providers)).to include(CognitiveReview::PostImplementationReviewProvider)
     expect(Syrus::Plugin::ReviewContributions.contributions(:diff_review_annotation_providers)).to include(CognitiveReview::DiffReviewAnnotationProvider)
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(CognitiveReview::McpToolSet)
+    expect(workflow_tool_sets).to include(CognitiveReview::McpToolSet)
   end
 
   it "withholds providers when disabled without deleting workflow artifacts" do
@@ -25,7 +25,7 @@ RSpec.describe CognitiveReview::Engine do
 
     expect(Syrus::Plugin::ReviewContributions.contributions(:post_implementation_review_providers)).not_to include(CognitiveReview::PostImplementationReviewProvider)
     expect(Syrus::Plugin::ReviewContributions.contributions(:diff_review_annotation_providers)).not_to include(CognitiveReview::DiffReviewAnnotationProvider)
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(CognitiveReview::McpToolSet)
+    expect(workflow_tool_sets).not_to include(CognitiveReview::McpToolSet)
     expect(job.latest_workflow.reload.artifact(CognitiveReview::Artifact::KEY)).to eq([ { "notes" => [] } ])
   end
 
@@ -51,6 +51,5 @@ RSpec.describe CognitiveReview::Engine do
   it "includes the required provider interface modules" do
     expect(CognitiveReview::PostImplementationReviewProvider.ancestors).to include(Syrus::Plugin::PostImplementationReviewProvider)
     expect(CognitiveReview::DiffReviewAnnotationProvider.ancestors).to include(Syrus::Plugin::DiffReviewAnnotationProvider)
-    expect(CognitiveReview::McpToolSet.ancestors).to include(Syrus::Plugin::McpToolSet)
   end
 end

@@ -18,7 +18,7 @@ RSpec.describe "CredentialStore MCP tool sets" do
   it "never advertises SSH exec to coworkers through any grant" do
     permanently_excluded = %w[credential_store_ssh_exec]
     definitions = CredentialStore::ChatToolSet.tool_definitions(tier: :deferred).index_by { |tool| tool.fetch(:name) }
-    registered_grant_tools = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |provider|
+    registered_grant_tools = chat_tool_sets.flat_map do |provider|
       provider.respond_to?(:coworker_grants) ? provider.coworker_grants.flat_map { |grant| grant.fetch(:tools) } : []
     end
 

@@ -14,7 +14,7 @@ RSpec.describe ScheduledTasks::Engine do
   end
 
   it "registers the scoped permission provider" do
-    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(ScheduledTasks::PermissionProvider)
+    expect(permission_providers).to include(ScheduledTasks::PermissionProvider)
   end
 
   it "removes its Calendar contribution while either plugin is disabled", :reset_plugin_registry do

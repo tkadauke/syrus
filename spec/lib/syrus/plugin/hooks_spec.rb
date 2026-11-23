@@ -15,7 +15,7 @@ RSpec.describe "Lifecycle and DataPolicy hook families", :reset_plugin_registry 
     end
     constant = "#{name.camelize}#{family.to_s.camelize}"
     stub_const(constant, provider)
-    Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
       Syrus::Plugin::FamilyDeclaration.build(family:, provider: constant, provisional: [ capability ])
     ])
   end
@@ -46,7 +46,7 @@ RSpec.describe "Lifecycle and DataPolicy hook families", :reset_plugin_registry 
     it "returns legacy and family callbacks together, in one call, without core merging them" do
       stub_const("FamilyCallbacksFixture", family_callbacks)
       register_family("family_hooks", :lifecycle, :callback_providers) { |_ctx| FamilyCallbacksFixture }
-      Syrus::PluginRegistry.register(name: "legacy_hooks", version: "1", provides: { callbacks: callbacks })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_hooks", version: "1", provides: { callbacks: callbacks })
 
       expect(Syrus::Plugin::Lifecycle.callback_providers).to include(callbacks, family_callbacks)
       expect(Syrus::PluginRegistry.providers_for(:callbacks)).to include(callbacks, family_callbacks)
@@ -64,7 +64,7 @@ RSpec.describe "Lifecycle and DataPolicy hook families", :reset_plugin_registry 
 
     it "names the owning plugin of a family-declared callbacks module" do
       stub_const("FamilyCallbacksFixture", family_callbacks)
-      Syrus::PluginRegistry.register(name: "family_owner", version: "1", provides: {}, family_provides: [
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "family_owner", version: "1", provides: {}, family_provides: [
         Syrus::Plugin::FamilyDeclaration.build(
           family: :lifecycle, provider: "FamilyOwnerLifecycle", provisional: [ :callback_providers ]
         )
@@ -91,7 +91,7 @@ RSpec.describe "Lifecycle and DataPolicy hook families", :reset_plugin_registry 
       stub_const("HealthyRetention", healthy)
       stub_const("BrokenRetention", broken)
       register_family("healthy_retention", :data_policy, :retention_policies) { |_ctx| HealthyRetention }
-      Syrus::PluginRegistry.register(name: "broken_retention", version: "1", provides: { retention_policy: broken })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_retention", version: "1", provides: { retention_policy: broken })
       allow(Rails.logger).to receive(:error)
 
       expect(RetentionPolicyRegistry.plugin_definitions).to include(:healthy_definition)
@@ -129,7 +129,7 @@ RSpec.describe "Lifecycle and DataPolicy hook families", :reset_plugin_registry 
       stub_const("HealthyPurge", healthy)
       stub_const("BrokenPurge", broken)
       register_family("healthy_purge", :data_policy, :purge_contributors) { |_ctx| HealthyPurge }
-      Syrus::PluginRegistry.register(name: "broken_purge", version: "1", provides: { purge_contributor: broken })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_purge", version: "1", provides: { purge_contributor: broken })
       purge = Syrus::PluginPurge.new("gone_plugin")
 
       other_data = purge.other_data
@@ -163,7 +163,7 @@ RSpec.describe "Lifecycle and DataPolicy hook families", :reset_plugin_registry 
       end
       stub_const("RetainingPanels", retaining)
       register_family("retaining", :data_policy, :preview_panel_retentions) { |_ctx| RetainingPanels }
-      Syrus::PluginRegistry.register(name: "declining", version: "1", provides: { preview_panel_retention: Class.new { include Syrus::Plugin::PreviewPanelRetention } })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "declining", version: "1", provides: { preview_panel_retention: Class.new { include Syrus::Plugin::PreviewPanelRetention } })
 
       providers = Syrus::Plugin::DataPolicy.preview_panel_retentions
       expect(providers).to include(RetainingPanels)

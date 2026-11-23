@@ -36,10 +36,12 @@ RSpec.describe SyrusMuseAgent::Engine do
       plugin.disableable = true
     end
     record.update!(enabled: true, default_enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
     expect(CredentialProbe.probe_handler_for("muse_api_key")).to eq(MuseCredentialProbe)
     expect(ChatSessionRehydrator.for("muse")).to eq(ChatSessionRehydrator::Muse)
 
     record.update!(enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
     expect(CredentialProbe.probe_handler_for("muse_api_key")).to eq(MuseCredentialProbe)
     expect(ChatSessionRehydrator.for("muse")).to be_nil
   ensure

@@ -8,7 +8,8 @@ RSpec.describe ReviewWorkspacePlugin::Engine do
     expect(manifest.display_name).to eq("Review Workspace")
     expect(manifest.default_enabled?).to be(true)
     expect(manifest.disableable?).to be(true)
-    expect(manifest.provides).to include(:sidebar_page, :ui_slot)
+    expect(manifest.family_provides.find { |entry| entry.family == :surface }.capabilities)
+      .to include(:sidebar_pages, :ui_slots)
   end
 
   it "keeps its Ruby namespace distinct from the core review workspace" do

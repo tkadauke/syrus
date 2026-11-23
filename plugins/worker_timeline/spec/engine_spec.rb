@@ -14,11 +14,11 @@ RSpec.describe WorkerTimeline::Engine do
   end
 
   it "registers the Worker Timeline sidebar page provider even before the plugin is enabled" do
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(WorkerTimeline::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).not_to include(WorkerTimeline::SidebarPages)
 
     PluginRecord.find_by!(name: "worker_timeline").update!(enabled: true)
 
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(WorkerTimeline::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).to include(WorkerTimeline::SidebarPages)
   end
 
   it "registers the Worker Timeline filter subject while the plugin is enabled" do

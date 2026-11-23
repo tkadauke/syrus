@@ -1088,7 +1088,7 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/coworkers"
     expect(response).to have_http_status(:not_found)
     expect(Coworkers::SidebarPages.sidebar_pages).to be_present
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(Coworkers::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).not_to include(Coworkers::SidebarPages)
     expect(Syrus::PluginRegistry.providers_for(:chat_identity_provider)).not_to include(Coworkers::ChatIdentityProvider)
 
     get "/api/v1/app/chats"

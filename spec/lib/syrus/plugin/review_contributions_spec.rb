@@ -30,7 +30,7 @@ RSpec.describe Syrus::Plugin::ReviewContributions, :reset_plugin_registry do
     end
     constant = "#{name.camelize}Provider"
     stub_const(constant, provider)
-    Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
       Syrus::Plugin::FamilyDeclaration.build(family: :review, provider: constant, provisional: [ capability ])
     ])
   end
@@ -50,7 +50,7 @@ RSpec.describe Syrus::Plugin::ReviewContributions, :reset_plugin_registry do
     stub_const("BadGateProvider", bad)
     stub_const("GoodGateProvider", good)
     [ [ "bad_gate", "BadGateProvider" ], [ "good_gate", "GoodGateProvider" ] ].each do |name, constant|
-      Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
         Syrus::Plugin::FamilyDeclaration.build(family: :review, provider: constant, provisional: %i[review_gates])
       ])
     end

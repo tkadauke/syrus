@@ -16,22 +16,22 @@ RSpec.describe MysqlDbBrowser::Engine do
   end
 
   it "registers the DB Browser sidebar page provider even before the plugin is enabled" do
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(MysqlDbBrowser::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).not_to include(MysqlDbBrowser::SidebarPages)
 
     PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
 
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(MysqlDbBrowser::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).to include(MysqlDbBrowser::SidebarPages)
   end
 
   it "registers the agentic-access workflow and chat MCP tool set providers once the plugin is enabled" do
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(MysqlDbBrowser::WorkflowToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).not_to include(MysqlDbBrowser::ChatToolSet)
+    expect(workflow_tool_sets).not_to include(MysqlDbBrowser::WorkflowToolSet)
+    expect(chat_tool_sets).not_to include(MysqlDbBrowser::ChatToolSet)
 
     PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
 
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(MysqlDbBrowser::WorkflowToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(MysqlDbBrowser::ChatToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(MysqlDbBrowser::PermissionProvider)
+    expect(workflow_tool_sets).to include(MysqlDbBrowser::WorkflowToolSet)
+    expect(chat_tool_sets).to include(MysqlDbBrowser::ChatToolSet)
+    expect(permission_providers).to include(MysqlDbBrowser::PermissionProvider)
   end
 
   describe ".enabled?" do

@@ -16,22 +16,22 @@ RSpec.describe K8sCluster::Engine do
   end
 
   it "registers the sidebar page provider even before the plugin is enabled" do
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(K8sCluster::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).not_to include(K8sCluster::SidebarPages)
 
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
 
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(K8sCluster::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).to include(K8sCluster::SidebarPages)
   end
 
   it "registers the agentic-access workflow and chat MCP tool set providers once the plugin is enabled" do
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(K8sCluster::WorkflowToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).not_to include(K8sCluster::ChatToolSet)
+    expect(workflow_tool_sets).not_to include(K8sCluster::WorkflowToolSet)
+    expect(chat_tool_sets).not_to include(K8sCluster::ChatToolSet)
 
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
 
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(K8sCluster::WorkflowToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(K8sCluster::ChatToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(K8sCluster::PermissionProvider)
+    expect(workflow_tool_sets).to include(K8sCluster::WorkflowToolSet)
+    expect(chat_tool_sets).to include(K8sCluster::ChatToolSet)
+    expect(permission_providers).to include(K8sCluster::PermissionProvider)
   end
 
   describe ".enabled?" do

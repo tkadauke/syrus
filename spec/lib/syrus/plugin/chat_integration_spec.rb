@@ -11,7 +11,7 @@ RSpec.describe Syrus::Plugin::ChatIntegration, :reset_plugin_registry do
 
   it "adapts legacy registrations into family dispatch" do
     contributor = Class.new { include Syrus::Plugin::ChatPayloadContributor }
-    Syrus::PluginRegistry.register(name: "legacy_chat", version: "1", provides: { chat_payload_contributor: contributor })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_chat", version: "1", provides: { chat_payload_contributor: contributor })
 
     expect(described_class.contributions(:payload_contributors)).to include(contributor)
   end
@@ -25,7 +25,7 @@ RSpec.describe Syrus::Plugin::ChatIntegration, :reset_plugin_registry do
       define_singleton_method(:turn_finalizers) { |_context| [ first, second ] }
     end
     stub_const("FamilyChatIntegration", provider)
-    Syrus::PluginRegistry.register(name: "family_chat", version: "1", provides: {}, family_provides: [
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "family_chat", version: "1", provides: {}, family_provides: [
       Syrus::Plugin::FamilyDeclaration.build(
         family: :chat_integration, provider: "FamilyChatIntegration", provisional: %i[turn_finalizers]
       )
@@ -49,7 +49,7 @@ RSpec.describe Syrus::Plugin::ChatIntegration, :reset_plugin_registry do
     stub_const("BadFamilyChatIntegration", bad)
     stub_const("GoodFamilyChatIntegration", good)
     [ [ "bad_family_chat", "BadFamilyChatIntegration" ], [ "good_family_chat", "GoodFamilyChatIntegration" ] ].each do |name, provider|
-      Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
         Syrus::Plugin::FamilyDeclaration.build(
           family: :chat_integration, provider:, provisional: %i[turn_finalizers]
         )
@@ -79,7 +79,7 @@ RSpec.describe Syrus::Plugin::ChatIntegration, :reset_plugin_registry do
       stub_const(bad_name, bad)
       stub_const(good_name, good)
       [ [ "bad_#{capability}", bad_name ], [ "good_#{capability}", good_name ] ].each do |name, provider_name|
-        Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
           Syrus::Plugin::FamilyDeclaration.build(
             family: :chat_integration, provider: provider_name, provisional: [ capability ]
           )

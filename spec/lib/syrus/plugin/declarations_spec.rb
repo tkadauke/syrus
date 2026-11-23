@@ -160,7 +160,7 @@ RSpec.describe Syrus::Plugin::Declarations do
 
     it "reports a dimension core does not know as a registration finding, not an exception" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_probe", declarations: {
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_probe", declarations: {
           worker_capability_probe: [ valid.merge(dimension: "weather") ]
         })
 
@@ -177,7 +177,7 @@ RSpec.describe Syrus::Plugin::Declarations do
   describe "registration" do
     it "drops an invalid declaration into the manifest's validation errors and keeps the valid ones" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_mixed", declarations: {
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_mixed", declarations: {
           job_origin: [ { key: "Bad Key" }, { key: "good" } ],
           removed_point: [ { x: 1 } ]
         })
@@ -193,7 +193,7 @@ RSpec.describe Syrus::Plugin::Declarations do
   describe "manifest introspection" do
     it "lists every declaration without resolving any plugin constant" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_lazy", declarations: described_class.sanitize("acme_lazy", {
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_lazy", declarations: described_class.sanitize("acme_lazy", {
           workflow_kinds: [ { work_definitions: [ "Missing::WorkDefinition" ], job_kinds: [ { kind: "acme_lazy_job" } ] } ],
           job_origin: [ { key: "acme_lazy", provider: "Missing::Origin" } ],
           slug_type: [ { prefix: "LAZY", display_label: "Lazy", resolver: "Missing::Resolver", client_path: "/lazy/:id" } ],
@@ -231,8 +231,8 @@ RSpec.describe Syrus::Plugin::Declarations do
 
     it "answers from a registered provider class and from a declaration through the same lookup" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_legacy", provides: { job_origin: legacy_origin })
-        Syrus::PluginRegistry.register(name: "acme_declared", declarations: { job_origin: [ { key: "declared_origin" } ] })
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_legacy", provides: { job_origin: legacy_origin })
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_declared", declarations: { job_origin: [ { key: "declared_origin" } ] })
 
         keys = Syrus::PluginRegistry.providers_for(:job_origin).map(&:origin_key)
         expect(keys).to include("legacy_origin", "declared_origin")
@@ -245,7 +245,7 @@ RSpec.describe Syrus::Plugin::Declarations do
 
     it "reports a plugin that declares a point as data and still registers a class for it" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_doubled", provides: { job_origin: legacy_origin },
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_doubled", provides: { job_origin: legacy_origin },
           declarations: { job_origin: [ { key: "doubled" } ] })
 
         expect(Syrus::PluginRegistry.declaration_duplicate_registrations)
@@ -255,7 +255,7 @@ RSpec.describe Syrus::Plugin::Declarations do
 
     it "withholds a disabled plugin's declarations like it withholds its classes" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_off", disableable: true, declarations: { job_origin: [ { key: "off_origin" } ] })
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_off", declarations: { job_origin: [ { key: "off_origin" } ] })
         PluginRecord.find_or_create_by!(name: "acme_off").update!(enabled: false, disableable: true)
 
         expect(Syrus::PluginRegistry.providers_for(:job_origin).map(&:origin_key)).not_to include("off_origin")
@@ -303,7 +303,7 @@ RSpec.describe Syrus::Plugin::Declarations do
 
     it "still refuses a declaration that shadows a core kind" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_shadow", declarations: {
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_shadow", declarations: {
           workflow_kinds: [ { job_kinds: [ { kind: "issue" } ] } ]
         })
         Syrus::Installer.sync!
@@ -337,7 +337,7 @@ RSpec.describe Syrus::Plugin::Declarations do
   describe "problem_provider kinds" do
     it "register through the same validated registry as a legacy provider" do
       with_registry do
-        Syrus::PluginRegistry.register(name: "acme_problems", declarations: {
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "acme_problems", declarations: {
           problem_provider: [ { namespace: "acme_problems", kinds: [
             { code: "acme_problems.stale", scope: "run", retryable: true, default_remediation: "restart_workflow" }
           ] } ]

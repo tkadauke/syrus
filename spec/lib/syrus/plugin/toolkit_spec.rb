@@ -23,7 +23,7 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
       include Syrus::Plugin::McpToolSet
     end
     Syrus::PluginRegistry.register(
-      name: "legacy_tools", version: "1", provides: { mcp_tool_set: tool_set }
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_tools", version: "1", provides: { mcp_tool_set: tool_set }
     )
 
     expect(Syrus::Plugin::Dispatch.call(:toolkit, :workflow_tools, discovery_context)).to include(tool_set)
@@ -37,7 +37,7 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
       key: "family", display_name: "Family", workflow_tools: "ToolkitFamilyOnlyToolSet"
     ))
     Syrus::PluginRegistry.register(
-      name: "family_tools", version: "1", provides: {},
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "family_tools", version: "1", provides: {},
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :toolkit, provider: "ToolkitFamilyOnlyProvider", implements: %i[workflow_tools]
       ) ]
@@ -58,7 +58,7 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
       key: "doubled", display_name: "Doubled", workflow_tools: "ToolkitDoubledToolSet"
     ))
     Syrus::PluginRegistry.register(
-      name: "doubled", version: "1", provides: { mcp_tool_set: ToolkitDoubledToolSet },
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "doubled", version: "1", provides: { mcp_tool_set: ToolkitDoubledToolSet },
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :toolkit, provider: "ToolkitDoubledProvider", implements: %i[workflow_tools]
       ) ]
@@ -72,7 +72,7 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
       include Syrus::Plugin::ChatMcpToolSet
     end
     manifest = Syrus::Plugin::Manifest.new(
-      name: "legacy_chat_tools", version: "1", provides: { chat_mcp_tool_set: tool_set }, metadata: {}
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_chat_tools", version: "1", provides: { chat_mcp_tool_set: tool_set }, metadata: {}
     )
 
     expect(described_class.chat_tool_set_for(manifest)).to eq([ tool_set ])
@@ -111,7 +111,7 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
       key: "run_context", display_name: "Run context", run_context: "ToolkitRunContextContributor"
     ))
     Syrus::PluginRegistry.register(
-      name: "run_context", version: "1", provides: {},
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "run_context", version: "1", provides: {},
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :toolkit, provider: "ToolkitRunContextProvider", provisional: %i[run_context]
       ) ]
@@ -130,7 +130,7 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
       key: "failing", display_name: "Failing", permissions: "ToolkitFailingPermissionProvider"
     ))
     Syrus::PluginRegistry.register(
-      name: "failing_toolkit", version: "1", provides: {},
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "failing_toolkit", version: "1", provides: {},
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :toolkit, provider: "ToolkitFailingProvider", implements: %i[permissions]
       ) ]
@@ -161,13 +161,13 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
     stub_const("ToolkitBrokenOwnershipProvider", broken_family_provider)
     stub_const("ToolkitHealthyCallbackProvider", healthy_provider)
     Syrus::PluginRegistry.register(
-      name: "broken_ownership", version: "1", provides: {},
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_ownership", version: "1", provides: {},
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :toolkit, provider: "ToolkitBrokenOwnershipProvider", implements: %i[permissions]
       ) ]
     )
     Syrus::PluginRegistry.register(
-      name: "healthy_callbacks", version: "1", provides: { callbacks: healthy_provider }
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "healthy_callbacks", version: "1", provides: { callbacks: healthy_provider }
     )
     health = Syrus::PluginRuntimeHealth.new
     Syrus::PluginInvocation.runtime_health = health

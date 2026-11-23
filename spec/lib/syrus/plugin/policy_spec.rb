@@ -18,7 +18,7 @@ RSpec.describe Syrus::Plugin::Policy, :reset_plugin_registry do
     end
     constant = "#{name.camelize}Policy"
     stub_const(constant, provider)
-    Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
       Syrus::Plugin::FamilyDeclaration.build(family: :policy, provider: constant, provisional: [ capability ])
     ])
   end
