@@ -788,7 +788,7 @@ RSpec.describe RetryFailedStepEnqueuer do
     failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
 
     other_job = Factories.job_record(user: job.user, repository: job.repository, issue_number: 998)
-    other_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: other_job)
+    other_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: other_job)
     other_unit = other_workflow.work_unit
     other_unit.update!(state: "running", started_at: Time.current)
     other_unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
@@ -806,7 +806,7 @@ RSpec.describe RetryFailedStepEnqueuer do
 
   it "keeps the owning WorkUnit active when retrying in place" do
     job = Factories.job_record(state: "failed")
-    workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     unit = workflow.work_unit
     failed_step = workflow.steps.first
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
@@ -937,18 +937,18 @@ RSpec.describe RetryFailedStepEnqueuer do
   it "selects the causal workspace-recovery failure before an unstarted cancelled grade loop and tail" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
-    visual_review = workflow.steps.create!(kind: "visual_review", position: 1, state: "failed")
+    review = workflow.steps.create!(kind: "adversarial_review", position: 1, state: "failed")
     workflow.steps.create!(kind: "grader_fanout", position: 2, state: "cancelled", loop_id: "grade-loop")
     workflow.steps.create!(kind: "grader_collect", position: 3, state: "cancelled", loop_id: "grade-loop")
     workflow.steps.create!(kind: "summarize", position: 4, state: "cancelled")
-    run = visual_review.runs.create!(job: job, trigger_kind: "initial", state: "failed", agent_outcome: "workspace_recovery_failed")
+    run = review.runs.create!(job: job, trigger_kind: "initial", state: "failed", agent_outcome: "workspace_recovery_failed")
     run.create_run_failure_classification!(
       classification: "workspace_recovery_failed", retryable: true, confidence: 1.0,
       reason: "workspace could not be reconstructed", classified_at: Time.current
     )
 
-    expect(described_class.failed_step_for(workflow)).to eq(visual_review)
-    expect(described_class.fresh_workflow_required_for?(visual_review)).to be(true)
+    expect(described_class.failed_step_for(workflow)).to eq(review)
+    expect(described_class.fresh_workflow_required_for?(review)).to be(true)
   end
 
   it "resumes a failed merge_train_reconcile step in place instead of rebuilding the whole train" do
