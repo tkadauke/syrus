@@ -60,7 +60,7 @@ module Adjudicators
   end
 
   def self.all
-    BUILT_INS + Syrus::PluginRegistry.providers_for(:adjudicator)
+    BUILT_INS + Syrus::Plugin::ReviewContributions.contributions(:adjudicators)
   end
 
   # An adjudicator that raises is declining, loudly. Rung 0 runs on the failure

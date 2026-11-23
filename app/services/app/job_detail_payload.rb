@@ -521,7 +521,7 @@ module App
     # Fields contributed by plugin-owned review gates (e.g. effective review
     # configuration). A deployment without the owning plugin contributes none.
     def review_gate_fields_json
-      Syrus::PluginRegistry.providers_for(:review_gate).each_with_object({}) do |provider, fields|
+      Syrus::Plugin::ReviewContributions.contributions(:review_gates).each_with_object({}) do |provider, fields|
         next unless provider.respond_to?(:job_detail_fields)
 
         result = Syrus::PluginInvocation.call(

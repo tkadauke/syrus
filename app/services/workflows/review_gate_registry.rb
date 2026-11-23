@@ -129,7 +129,7 @@ module Workflows
       end
 
       def definitions
-        raw = BUILT_INS + Syrus::PluginRegistry.providers_for(:review_gate).flat_map do |provider|
+        raw = BUILT_INS + Syrus::Plugin::ReviewContributions.contributions(:review_gates).flat_map do |provider|
           result = Syrus::PluginInvocation.call(
             extension_point: :review_gate, provider:, operation: :review_gates, on_decline: []
           ) { provider.review_gates }
