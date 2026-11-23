@@ -6,6 +6,75 @@ Families are defined by core and implementations are read from plugin manifests.
 A stable capability requires at least two independent in-tree implementations
 and a generated contract test; all other capabilities are provisional.
 
+## `agent_runtime`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `agent_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `chat_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `agy_agent` | `SyrusAgyAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+| `claude_agent` | `SyrusClaudeAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+| `codex_agent` | `SyrusCodexAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+| `muse_agent` | `SyrusMuseAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+
+## `chat_integration`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `identity_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `job_status_extensions` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `media_sources` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `mentionables` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `payload_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `prompt_injectors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `turn_finalizers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `turn_lifecycles` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `turn_orientations` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+| `workspace_lifecycles` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ChatIntegrationContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `coworkers` | `Coworkers::ChatIntegration` | - | - | `mentionables`, `identity_providers`, `prompt_injectors`, `turn_orientations`, `workspace_lifecycles`, `turn_lifecycles`, `payload_contributors`, `turn_finalizers` |
+| `mockups` | `Mockups::ChatIntegration` | - | - | `media_sources`, `payload_contributors`, `prompt_injectors` |
+| `sdlc_pipeline` | `SdlcPipeline::ChatIntegration` | - | - | `job_status_extensions` |
+| `video_walkthroughs` | `VideoWalkthroughs::ChatIntegration` | - | - | `payload_contributors`, `turn_orientations` |
+| `whiteboard` | `Whiteboard::ChatIntegration` | - | - | `media_sources`, `payload_contributors`, `prompt_injectors` |
+
+## `data_policy`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `preview_panel_retentions` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `purge_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `retention_policies` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+Fail-closed capabilities: `purge_contributors` (a failed provider contributes `[Syrus::Plugin::DataPolicy::UNAVAILABLE]`), `retention_policies` (a failed provider contributes `[Syrus::Plugin::DataPolicy::UNAVAILABLE]`). These differ from the usual decline-on-error rule.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `connected_accounts` | `ConnectedAccounts::DataPolicy` | - | - | `retention_policies` |
+| `coworkers` | `Coworkers::DataPolicy` | - | - | `retention_policies` |
+| `credential_store` | `CredentialStore::DataPolicy` | - | - | `purge_contributors` |
+| `metrics_dashboard` | `MetricsDashboard::DataPolicy` | - | - | `retention_policies` |
+| `mockups` | `Mockups::DataPolicy` | - | - | `preview_panel_retentions` |
+| `plugin_runtime` | `PluginRuntime::DataPolicy` | - | - | `purge_contributors` |
+| `test_insights` | `TestInsights::DataPolicy` | - | - | `retention_policies` |
+
 ## `ecosystem`
 
 Shape: `facet`. Required core: `key`, `display_name`.
@@ -51,6 +120,53 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
 | `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |
 
+## `execution_backend`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `execution_backend` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `container_execution` | `ContainerExecution::ExecutionBackendServices` | - | - | `execution_backend` |
+
+## `lifecycle`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `callback_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `domain_subscribers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `agent_insights` | `AgentInsights::Lifecycle` | - | - | `domain_subscribers` |
+| `alertmanager_investigations` | `AlertmanagerInvestigations::Lifecycle` | - | - | `callback_providers` |
+| `build_cache` | `BuildCache::Lifecycle` | - | - | `domain_subscribers` |
+| `coworkers` | `Coworkers::Lifecycle` | - | - | `callback_providers` |
+| `design_docs` | `DesignDocs::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `git_mirror` | `GitMirror::Lifecycle` | - | - | `callback_providers` |
+| `global_search` | `GlobalSearch::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `k8s_cluster` | `K8sCluster::Lifecycle` | - | - | `callback_providers` |
+| `local_backups` | `LocalBackups::Lifecycle` | - | - | `callback_providers` |
+| `metrics_dashboard` | `MetricsDashboard::Lifecycle` | - | - | `callback_providers` |
+| `operator_briefing` | `OperatorBriefing::Lifecycle` | - | - | `callback_providers` |
+| `plugin_runtime` | `PluginRuntime::Lifecycle` | - | - | `callback_providers` |
+| `s3_backup_destination` | `S3BackupDestination::Lifecycle` | - | - | `domain_subscribers` |
+| `scheduled_tasks` | `ScheduledTasks::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `tailscale` | `Tailscale::Lifecycle` | - | - | `callback_providers` |
+| `terminal` | `Terminal::Lifecycle` | - | - | `callback_providers` |
+| `test_insights` | `TestInsights::Lifecycle` | - | - | `domain_subscribers` |
+| `throughput` | `Throughput::Lifecycle` | - | - | `callback_providers` |
+| `video_walkthroughs` | `VideoWalkthroughs::Lifecycle` | - | - | `callback_providers` |
+
 ## `mail`
 
 Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
@@ -83,16 +199,193 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `google_workspace` | `GoogleWorkspace::CalendarAdapter` | `google_workspace` | - | `list_events`, `get_event` |
 | `personal_calendar` | `PersonalCalendar::FakeAdapter` | `fake` | - | `list_events`, `get_event` |
 
+## `policy`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `job_visibility_restrictions` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::PolicyContext` | `Module, Array<Module>, or nil` |
+| `repository_filters` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::PolicyContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+Fail-closed capabilities: `job_visibility_restrictions` (a failed provider contributes `[Syrus::Plugin::Policy::FAIL_CLOSED]`), `repository_filters` (a failed provider contributes `[Syrus::Plugin::Policy::FAIL_CLOSED]`). These differ from the usual decline-on-error rule.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `coworkers` | `Coworkers::Policy` | - | - | `job_visibility_restrictions`, `repository_filters` |
+
 ## `review`
 
 Shape: `facet`. Required core: `key`, `display_name`.
 
 | Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
 |---|---|---|---|---|---|---|
+| `adjudicators` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `diff_review_annotation_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
 | `external_reviewer` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
+| `post_implementation_review_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `review_context_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `review_gates` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `review_presentation_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `reviewer_target_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
 
 For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
 
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
-| - | - | - | - | - |
+| `cognitive_review` | `CognitiveReview::ReviewContributions` | - | - | `post_implementation_review_providers`, `diff_review_annotation_providers` |
+| `coworkers` | `Coworkers::ReviewContributions` | - | - | `reviewer_target_providers`, `review_context_contributors`, `review_presentation_contributors`, `review_gates` |
+
+## `runtime_session`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `runtime_session_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `browser` | `SyrusBrowser::RuntimeSessionServices` | - | `runtime_session_provider` | - |
+| `runtime_terminal` | `RuntimeTerminal::RuntimeSessionServices` | - | `runtime_session_provider` | - |
+
+## `source_host`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `input_source` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `repository_content_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `source_control_provider` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `workspace_git_transport` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `git_mirror` | `GitMirror::SourceHostServices` | - | `repository_content_provider` | `workspace_git_transport` |
+| `github_host` | `GithubHost::SourceHostServices` | - | `repository_content_provider` | - |
+| `github_source` | `SyrusGithubSource::SourceHostServices` | - | `input_source` | `source_control_provider` |
+| `linear_source` | `SyrusLinearSource::SourceHostServices` | - | `input_source` | - |
+
+## `speech_to_text`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `speech_to_text_provider` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `whisper_stt` | `WhisperStt::SpeechToTextServices` | - | - | `speech_to_text_provider` |
+
+## `surface`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `admin_pages` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+| `artifact_renderers` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+| `filter_chips` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Array<FilterChips>` |
+| `filter_subjects` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Array<FilterSubject>` |
+| `preview_panel_viewers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+| `repo_page_tabs` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+| `sidebar_pages` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+| `ui_slots` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+| `workspace_tabs` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::SurfaceContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `admin_mysql` | `AdminMysql::Surface` | - | `admin_pages` | - |
+| `agent_activity` | `AgentActivity::Surface` | - | `sidebar_pages`, `admin_pages`, `filter_subjects` | - |
+| `agent_insights` | `AgentInsights::Surface` | - | `admin_pages`, `repo_page_tabs`, `filter_subjects` | - |
+| `agent_memory` | `AgentMemory::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
+| `attention_report` | `AttentionReport::Surface` | - | `sidebar_pages` | - |
+| `browser` | `SyrusBrowser::Surface` | - | `artifact_renderers` | - |
+| `build_cache` | `BuildCache::Surface` | - | `admin_pages`, `ui_slots` | - |
+| `calendar` | `Calendar::Surface` | - | `sidebar_pages` | - |
+| `claude_agent` | `SyrusClaudeAgent::Surface` | - | `filter_chips` | - |
+| `codex_agent` | `SyrusCodexAgent::Surface` | - | `filter_chips` | - |
+| `connected_accounts` | `ConnectedAccounts::Surface` | - | `sidebar_pages`, `admin_pages` | - |
+| `coworkers` | `Coworkers::Surface` | - | `sidebar_pages`, `filter_chips` | - |
+| `credential_store` | `CredentialStore::Surface` | - | `sidebar_pages`, `admin_pages` | - |
+| `design_docs` | `DesignDocs::Surface` | - | `sidebar_pages`, `repo_page_tabs`, `workspace_tabs`, `filter_subjects` | - |
+| `git_history` | `GitHistory::Surface` | - | `repo_page_tabs` | - |
+| `github_source` | `SyrusGithubSource::Surface` | - | `admin_pages`, `repo_page_tabs`, `ui_slots` | - |
+| `global_search` | `GlobalSearch::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
+| `k8s_cluster` | `K8sCluster::Surface` | - | `sidebar_pages` | - |
+| `local_backups` | `LocalBackups::Surface` | - | `admin_pages` | - |
+| `metrics_dashboard` | `MetricsDashboard::Surface` | - | `sidebar_pages` | - |
+| `mockups` | `Mockups::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
+| `muse_agent` | `SyrusMuseAgent::Surface` | - | `filter_chips` | - |
+| `mysql_db_browser` | `MysqlDbBrowser::Surface` | - | `sidebar_pages` | - |
+| `operator_briefing` | `OperatorBriefing::Surface` | - | `sidebar_pages` | - |
+| `plugin_runtime` | `PluginRuntime::Surface` | - | `admin_pages` | - |
+| `review_workspace` | `ReviewWorkspacePlugin::Surface` | - | `sidebar_pages`, `ui_slots` | - |
+| `scheduled_tasks` | `ScheduledTasks::Surface` | - | `sidebar_pages`, `repo_page_tabs`, `filter_chips` | - |
+| `sdlc_pipeline` | `SdlcPipeline::Surface` | - | `repo_page_tabs`, `filter_subjects` | - |
+| `spending_insights` | `SpendingInsights::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
+| `syrus-rails` | `SyrusRails::Surface` | - | `artifact_renderers` | - |
+| `syrus_dev` | `SyrusDev::Surface` | - | `admin_pages` | - |
+| `tailscale` | `Tailscale::Surface` | - | `admin_pages` | - |
+| `team_directory` | `TeamDirectory::Surface` | - | `sidebar_pages` | - |
+| `terminal` | `Terminal::Surface` | - | `sidebar_pages`, `ui_slots` | - |
+| `test_insights` | `TestInsights::Surface` | - | `repo_page_tabs`, `ui_slots`, `filter_subjects` | - |
+| `throughput` | `Throughput::Surface` | - | `repo_page_tabs` | - |
+| `whiteboard` | `Whiteboard::Surface` | - | `workspace_tabs` | - |
+| `worker_timeline` | `WorkerTimeline::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
+
+## `toolkit`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `chat_tools` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ToolkitDiscoveryContext` | `Module or nil` |
+| `credential_probes` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::ToolkitCredentialContext` | `Array<ProbeRegistration>` |
+| `permissions` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ToolkitDiscoveryContext` | `Module or nil` |
+| `run_context` | `collect` | `[]` | `{}` | `provisional` | `Syrus::Plugin::Context::ToolkitRunContext` | `Hash` |
+| `secret_extractors` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::ToolkitCredentialContext` | `Array<secret extractor>` |
+| `workflow_tools` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ToolkitDiscoveryContext` | `Module or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `admin_mysql` | `AdminMysql::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `agent_insights` | `AgentInsights::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `agent_memory` | `AgentMemory::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `agy_agent` | `SyrusAgyAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `browser` | `SyrusBrowser::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `claude_agent` | `SyrusClaudeAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `codex_agent` | `SyrusCodexAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `cognitive_review` | `CognitiveReview::Toolkit` | - | `workflow_tools`, `permissions` | - |
+| `connected_accounts` | `ConnectedAccounts::Toolkit` | - | `permissions` | - |
+| `coworkers` | `Coworkers::Toolkit` | - | `workflow_tools`, `chat_tools` | `run_context` |
+| `credential_store` | `CredentialStore::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `design_docs` | `DesignDocs::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `k8s_cluster` | `K8sCluster::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `mockups` | `Mockups::Toolkit` | - | `chat_tools` | - |
+| `muse_agent` | `SyrusMuseAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
+| `mysql_db_browser` | `MysqlDbBrowser::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `operator_briefing` | `OperatorBriefing::Toolkit` | - | `workflow_tools`, `permissions` | - |
+| `scheduled_tasks` | `ScheduledTasks::Toolkit` | - | `chat_tools`, `permissions` | - |
+| `sdlc_pipeline` | `SdlcPipeline::Toolkit` | - | `chat_tools` | - |
+| `spending_insights` | `SpendingInsights::Toolkit` | - | `chat_tools` | - |
+| `syrus-rails` | `SyrusRails::Toolkit` | - | `workflow_tools` | - |
+| `syrus_dev` | `SyrusDev::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `test_insights` | `TestInsights::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `theming_tools` | `ThemingTools::Toolkit` | - | `chat_tools` | - |
+| `video_walkthroughs` | `VideoWalkthroughs::Toolkit` | - | `chat_tools`, `credential_probes` | - |
+| `whiteboard` | `Whiteboard::Toolkit` | - | `chat_tools` | - |

@@ -207,7 +207,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       second_filter = Class.new
       second_filter.define_singleton_method(:apply) { |scope:, user:| scope.where.not(id: second_excluded_repo.id) }
       allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:repository_filter).and_return([ first_filter, second_filter ])
+      allow(Syrus::Plugin::Policy).to receive(:restrictions).with(:repository_filters).and_return([ first_filter, second_filter ])
 
       get "/api/v1/app/chats/new"
 
@@ -793,8 +793,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(groups.find { |group| group.fetch("key") == "shared-with-me" }.fetch("chats").pluck("id")).to eq([ shared.id ])
     expect(groups.reject { |group| %w[test-agents shared-with-me].include?(group.fetch("key")) }.flat_map { |group| group.fetch("chats") }.pluck("id")).to eq([ ordinary.id ])
 
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_identity_provider).and_return([])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:identity_providers).and_return([])
     get "/api/v1/app/chats"
 
     restored_ids = parse_body.fetch("groups").reject { |group| group.fetch("key") == "shared-with-me" }.flat_map { |group| group.fetch("chats") }.pluck("id")

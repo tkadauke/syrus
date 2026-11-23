@@ -134,10 +134,68 @@ with `AcmeLang::Ecosystem.detect_prepare(repo_context)`, returning
 `Syrus::Host::EcosystemPreparePlan` values. Registering any former Ecosystem
 extension point is now a plugin-health error; there is no compatibility bridge.
 
+## Toolkit family
+
+Agent-facing tool discovery, permission declarations, workflow run context, and
+credential probing belong to the `toolkit` facet. Bundled plugins use the
+manifest helper so their provider has a stable name and resolves plugin
+constants lazily across reloads.
+
+Replace separate declarations such as:
+
+```ruby
+provides mcp_tool_set: "Acme::WorkflowTools",
+         chat_mcp_tool_set: "Acme::ChatTools",
+         permission_provider: "Acme::Permissions"
+```
+
+with:
+
+```ruby
+toolkit workflow_tools: "Acme::WorkflowTools",
+        chat_tools: "Acme::ChatTools",
+        permissions: "Acme::Permissions"
+```
+
+Credential integrations declare `credential_probes:` and
+`secret_extractors:` on the same helper instead of installing callbacks on
+`CredentialProbe`. See the generated [`toolkit` family reference](families/toolkit.md)
+for contexts, return shapes, and decline values. `run_context` is provisional
+because it currently has one bundled implementation; the other capabilities
+are stable and have multiple independent bundled providers.
+
+## Surface family
+
+Pages, repository and workspace tabs, UI slots, artifact renderers, preview
+viewers, and filter registrations belong to the `surface` facet. The Ruby
+manifest declaration is catalog-visible data; React components continue to
+register at runtime through `pluginContributionRegistry` and external bundle
+entry points. Catalog reads therefore never load a plugin's application code.
+
+Replace legacy registrations with the manifest helper:
+
+```ruby
+surface sidebar_pages: "Acme::SidebarPages",
+        repo_page_tabs: "Acme::RepoPageTabs",
+        ui_slots: "Acme::UiSlots",
+        filter_subjects: {
+          acme_record: { model: "Acme::Record", chips: "Acme::Filters::CHIPS" }
+        },
+        filter_chips: {
+          job: { "acme_state" => "Acme::Filters::JobState" }
+        }
+```
+
+Referenced constants are strings and resolve only for enabled contributions.
+Keep the matching frontend contribution in `frontend` and register its
+component key with `registerPluginContribution`; this migration does not change
+component keys, lazy loaders, locale loading, or error boundaries. See the
+generated [`surface` family reference](families/surface.md) for exact contracts.
+
 ## Per-origin Job visibility
 
 A plugin whose Jobs contain data for only a subset of repository members can
-register a `job_visibility_restriction`. Repository membership remains the
+contribute a `job_visibility_restrictions` capability through the Policy family. Repository membership remains the
 outer access boundary; this provider narrows only Jobs whose `origin` matches
 its `origin_key`.
 
@@ -152,12 +210,8 @@ class PrivateTasks::JobVisibility
   end
 end
 
-Syrus::PluginRegistry.register(
-  default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
-  name: "private_tasks",
-  version: "1.0.0",
-  provides: { job_visibility_restriction: PrivateTasks::JobVisibility }
-)
+# In the plugin's manifest definition:
+policy job_visibility_restrictions: "PrivateTasks::JobVisibility"
 ```
 
 `visible_origin_ids` may return an array or a one-column relation. Core applies
@@ -1445,6 +1499,11 @@ Syrus::PluginRegistry.register(
   provides:      { callbacks: MyPlugin::LifecycleCallbacks }
 )
 ```
+
+The `provides: { callbacks: ... }` form above is the legacy registration. It
+keeps working through the compatibility bridge, but new plugins declare
+`lifecycle callback_providers: "MyPlugin::LifecycleCallbacks"` in the manifest
+DSL.
 
 `home_queue:` (default `:default`) is the Solid Queue queue used for
 `PluginLifecycleJob` and `PluginTickJob`. `:default` means the job's

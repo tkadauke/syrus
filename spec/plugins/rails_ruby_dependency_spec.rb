@@ -44,14 +44,18 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
       description: "Ruby on Rails intelligence",
       homepage:    "https://github.com/tkadauke/syrus",
       depends_on:  [ "ruby" ],
-      provides: {
-        mcp_tool_set:      SyrusRails::McpToolSet,
-        artifact_renderer: [ SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer ],
-        preview_provider:  SyrusRails::PreviewProvider
-      },
-      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
-        family: :ecosystem, provider: "SyrusRails::Ecosystem", implements: %i[prompt_context]
-      ) ]
+      provides: { preview_provider: SyrusRails::PreviewProvider },
+      family_provides: [
+        Syrus::Plugin::FamilyDeclaration.build(
+          family: :surface, provider: "SyrusRails::Surface", implements: %i[artifact_renderers]
+        ),
+        Syrus::Plugin::FamilyDeclaration.build(
+          family: :toolkit, provider: "SyrusRails::Toolkit", implements: %i[workflow_tools]
+        ),
+        Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "SyrusRails::Ecosystem", implements: %i[prompt_context]
+        )
+      ]
     )
   end
 

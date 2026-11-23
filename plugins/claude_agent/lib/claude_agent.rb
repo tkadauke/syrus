@@ -15,22 +15,14 @@ module SyrusClaudeAgent
     category "agent_provider"
     default_enabled false
     disableable true
-    provides agent_provider: "AgentProviders::Claude",
-             chat_provider: "ChatProviders::Claude"
+    agent_runtime agent_provider: "AgentProviders::Claude",
+                  chat_provider: "ChatProviders::Claude"
+    toolkit credential_probes: { "claude_oauth_token" => "ClaudeCredentialProbe" },
+            secret_extractors: [ "ClaudeCredentialProbe::SECRET_EXTRACTOR" ]
+    surface filter_chips: { admin_user: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" } }
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude) }
-      scope.effect("admin user chips") do
-        Filters.register_chips(
-          subject: :admin_user,
-          chips: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" }
-        )
-      end
     end
   end
-end
-
-Syrus::Installer.define("claude_agent:credential probe") do |scope|
-  scope.effect("credential probe") { CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe) }
-  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR) }
 end

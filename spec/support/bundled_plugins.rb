@@ -257,5 +257,12 @@ RSpec.configure do |config|
     # provider list between examples.
     Syrus::PluginRegistry.restore(snapshot) if snapshot
     Syrus::Plugin::Ecosystem.restore_definition! if defined?(Syrus::Plugin::Ecosystem)
+    Syrus::Plugin::Toolkit.restore_definition! if defined?(Syrus::Plugin::Toolkit)
+    Syrus::Plugin::Surface.restore_definition! if defined?(Syrus::Plugin::Surface)
+    Syrus::Plugin::ChatIntegration.restore_definition! if defined?(Syrus::Plugin::ChatIntegration)
+    Syrus::Plugin::ReviewContributions.restore_definition! if defined?(Syrus::Plugin::ReviewContributions)
+    Syrus::Plugin::Policy.restore_definition! if defined?(Syrus::Plugin::Policy)
+    Syrus::Plugin::Lifecycle.restore_definition! if defined?(Syrus::Plugin::Lifecycle)
+    Syrus::Plugin::DataPolicy.restore_definition! if defined?(Syrus::Plugin::DataPolicy)
   end
 end

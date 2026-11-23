@@ -25,11 +25,9 @@ module SyrusBrowser
     # acceleration -- on a stock install where nobody touched Plugin Runtime.
     optionally_depends_on [ "plugin_runtime" ]
     frontend i18n: [ "app/frontend/i18n/locales/*/browser.json" ]
-    provides mcp_tool_set: "SyrusBrowser::McpToolSet",
-             chat_mcp_tool_set: "SyrusBrowser::ChatToolSet",
-             permission_provider: "SyrusBrowser::PermissionProvider",
-             artifact_renderer: "SyrusBrowser::ImageDiffRenderer",
-             runtime_session_provider: "SyrusBrowser::RuntimeSessionProvider",
+    provides artifact_renderers: "SyrusBrowser::ImageDiffRenderer",
              "plugin_runtime:service" => "SyrusBrowser::RuntimeService"
+    runtime_session runtime_session_provider: "SyrusBrowser::RuntimeSessionProvider"
+    toolkit workflow_tools: "SyrusBrowser::McpToolSet", chat_tools: "SyrusBrowser::ChatToolSet", permissions: "SyrusBrowser::PermissionProvider"
   end
 end

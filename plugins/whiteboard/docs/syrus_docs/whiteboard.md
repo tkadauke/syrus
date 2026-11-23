@@ -5,9 +5,8 @@ canvas per chat, plus MCP drawing tools so chat agents can sketch alongside
 operators. It is default-ON, customer-facing, category `agent_capability`,
 `disableable: true`, providing `chat_mcp_tool_set: "Whiteboard::ChatToolSet"`,
 `workspace_tab: "Whiteboard::WorkspaceTabs"`,
-`chat_media_source: "Whiteboard::MediaSource"`,
-`chat_payload_contributor: "Whiteboard::PayloadContributor"`, and
-`chat_prompt_injector: "Whiteboard::PromptSection"`.
+the ChatIntegration family capabilities `media_sources`,
+`payload_contributors`, and `prompt_injectors`.
 
 ## Schema
 

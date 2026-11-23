@@ -1,6 +1,5 @@
 require "coworkers/data_cleanup"
 require "coworkers/chat_extension"
-require "coworkers/search_extension"
 require "coworkers/schedule_extension"
 
 module Coworkers
@@ -20,30 +19,64 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
-    provides mentionable: "Coworkers::MentionableProvider",
-             chat_identity_provider: "Coworkers::ChatIdentityProvider",
-             callbacks: "Coworkers::Callbacks",
-             mcp_run_context_contributor: "Coworkers::RunContextContributor",
-             workflow_kinds: "Coworkers::WorkflowKinds",
-             job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
-             repository_filter: "Coworkers::RepositoryFilter",
-             chat_prompt_injector: "Coworkers::PromptSection",
-             chat_turn_orientation: "Coworkers::MessageReply",
-             chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
-             chat_turn_lifecycle: "Coworkers::ChatTurnLifecycle",
-             sidebar_page: "Coworkers::SidebarPages",
-             chat_payload_contributor: "Coworkers::PayloadContributor",
-             chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
-             chat_mcp_tool_set: "Coworkers::ChatToolSet",
-             reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
-             review_context_contributor: "Coworkers::ReviewContextContributor",
-             review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
-             repository_configuration: "Coworkers::RepositoryConfiguration",
-             review_gate: "Coworkers::ReviewGate",
-             mcp_tool_set: "Coworkers::ReviewToolSet",
-             retention_policy: "Coworkers::ReviewContextRetentionPolicy",
+    lifecycle callback_providers: "Coworkers::Callbacks"
+    data_policy retention_policies: "Coworkers::ReviewContextRetentionPolicy"
+    provides sidebar_pages: "Coworkers::SidebarPages",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
+    workflow_kinds(
+      trigger_kinds: [ {
+        kind: "coworker_run", template: "Coworkers::Workflow",
+        label: "Coworker run", style: "bg-violet-100 text-violet-700",
+        retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure",
+        owns_job_lifecycle: true
+      } ],
+      step_kinds: [
+        {
+          kind: "coworker_run", handler: "Coworkers::RunStep",
+          label: "Coworker run", style: "bg-violet-100 text-violet-700",
+          agentic: true, agent_role: "agent:coworker"
+        },
+        {
+          kind: "post_to_chat", handler: "Coworkers::PostToChat",
+          label: "Post to chat", style: "bg-violet-100 text-violet-700",
+          agentic: false
+        },
+        {
+          kind: "coworker_review", handler: "Coworkers::ReviewStep",
+          label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
+          agent_role: "workflow:coworker_reviewer", panel_capable: true,
+          reviewer_target_required: true, required_mcp_tools: %w[submit_coworker_review],
+          resource_profile_fallback_step_kinds: %w[implement],
+          # String key: the step entry's own `review_gate` attribute, not a
+          # registration of the review_gate extension point.
+          "review_gate" => {
+            artifact_key: "coworker_review_iterations", exit_verdicts: %w[approved skipped],
+            cancellation_reason: "coworker_review_approved"
+          }
+        }
+      ],
+      job_kinds: [ { kind: "coworker_task", infrastructure: true, issueless: true } ],
+      work_definitions: [ "Coworkers::WorkDefinition" ]
+    )
+    repository_configuration key: "coworkers.review", schema_version: 1, legacy_keys: [ "coworker_review" ],
+                             provider: "Coworkers::RepositoryConfiguration"
+    review_contributions reviewer_target_providers: "Coworkers::ReviewerTargetProvider",
+                         review_context_contributors: "Coworkers::ReviewContextContributor",
+                         review_presentation_contributors: "Coworkers::ReviewPresentationContributor",
+                         review_gates: "Coworkers::ReviewGate"
+    policy job_visibility_restrictions: "Coworkers::JobVisibilityRestriction",
+           repository_filters: "Coworkers::RepositoryFilter"
+    chat_integration mentionables: "Coworkers::MentionableProvider",
+                     identity_providers: "Coworkers::ChatIdentityProvider",
+                     prompt_injectors: "Coworkers::PromptSection",
+                     turn_orientations: "Coworkers::MessageReply",
+                     workspace_lifecycles: "Coworkers::ChatWorkspaceLifecycle",
+                     turn_lifecycles: "Coworkers::ChatTurnLifecycle",
+                     payload_contributors: "Coworkers::PayloadContributor",
+                     turn_finalizers: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ]
+    toolkit workflow_tools: "Coworkers::ReviewToolSet", chat_tools: "Coworkers::ChatToolSet", run_context: "Coworkers::RunContextContributor"
+    surface filter_chips: { chat_message: { "coworker_id" => "Coworkers::Filters::CoworkerId" } }
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"
@@ -105,7 +138,6 @@ module Coworkers
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
     while_enabled do |scope|
       Coworkers::ChatExtension.install_into(scope)
-      Coworkers::SearchExtension.install_into(scope)
       Coworkers::ScheduleExtension.install_into(scope)
     end
   end

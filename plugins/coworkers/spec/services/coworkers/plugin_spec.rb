@@ -123,8 +123,9 @@ RSpec.describe "Coworkers plugin" do
   end
 
   it "registers the owner-only Job visibility restriction before contributing coworker tasks" do
-    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
-    restriction = manifest.provides.fetch(:job_visibility_restriction)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    restriction = Syrus::Plugin::Policy.restrictions(:job_visibility_restrictions)
+      .find { |candidate| candidate == Coworkers::JobVisibilityRestriction }
 
     expect(restriction).to eq(Coworkers::JobVisibilityRestriction)
     expect(restriction).to include(Syrus::Plugin::JobVisibilityRestriction)
@@ -135,7 +136,7 @@ RSpec.describe "Coworkers plugin" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     next expect(Job::Kind.values).not_to include("coworker_task") unless Job::Kind.values.include?("coworker_task")
 
-    restrictions = Syrus::PluginRegistry.providers_for(:job_visibility_restriction)
+    restrictions = Syrus::Plugin::Policy.restrictions(:job_visibility_restrictions)
     expect(restrictions.map(&:origin_key)).to include("coworkers")
   end
 
@@ -198,7 +199,7 @@ RSpec.describe "Coworkers plugin" do
     expect(ChatSession.new).not_to respond_to(:coworker)
   end
 
-  it "registers a reversible coworker chat filter with owner-scoped options" do
+  it "registers an enabled-only coworker chat filter with owner-scoped options" do
     mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "git@example.com:workspaces.git")
     other_user = Factories.user(email_address: "other-coworkers@example.com")
     Coworkers::Coworker.create!(owner_user: other_user, name: "Hidden", handle: "hidden", workspace_repo: "git@example.com:other.git")
@@ -207,13 +208,9 @@ RSpec.describe "Coworkers plugin" do
     Coworkers::Chat.create!(coworker: mine, chat_session: linked_chat, role: "main")
     linked_message = linked_chat.messages.create!(role: "user", content: { "text" => "linked" })
     syrus_message = syrus_chat.messages.create!(role: "user", content: { "text" => "syrus" })
-    scope = Syrus::EffectScope.new(label: "coworker filter spec")
-    PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
+    plugin_record = PluginRecord.find_by!(name: "coworkers")
+    plugin_record.update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    # Reconcile the disabled baseline before layering this explicitly scoped
-    # registration over the process-wide installer.
-    Filters.subject(:chat_message)
-    Coworkers::SearchExtension.install_into(scope)
     chip = Filters::Registry.find("coworker_id", subject: :chat_message)
 
     expect(chip.schema_values(owner)).to eq([ { "value" => "syrus", "label" => "Syrus" }, { "value" => mine.id.to_s, "label" => "Maya" } ])
@@ -221,10 +218,9 @@ RSpec.describe "Coworkers plugin" do
     expect(chip.new(scope: ChatMessage.all, op: :is, value: "syrus", user: owner).apply).to contain_exactly(syrus_message)
     expect(chip.new(scope: ChatMessage.all, op: :is_not, value: mine.id, user: owner).apply).to include(syrus_message)
 
-    scope.dispose
+    plugin_record.update!(enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
     expect(Filters::Registry.fields(subject: :chat_message)).not_to include("coworker_id")
-  ensure
-    scope&.dispose
   end
   it "cleans plugin rows up with their core owners" do
     scope = Syrus::EffectScope.new(label: "spec")

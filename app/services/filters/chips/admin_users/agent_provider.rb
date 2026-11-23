@@ -7,7 +7,7 @@ module Filters
         column :agent_provider
 
         def self.values
-          Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key).sort
+          Syrus::Plugin::ServiceProvider.providers(:agent_provider).map(&:provider_key).sort
         end
       end
     end

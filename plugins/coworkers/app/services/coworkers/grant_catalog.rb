@@ -50,7 +50,7 @@ module Coworkers
       end
 
       def plugin_descriptors
-        Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |provider|
+        Syrus::Host::Toolkit.chat_tool_sets.flat_map do |provider|
           provider.respond_to?(:coworker_grants) ? Array(provider.coworker_grants) : []
         end.map { |attributes| build_descriptor(attributes) }
       end

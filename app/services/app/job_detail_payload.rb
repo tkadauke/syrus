@@ -521,7 +521,7 @@ module App
     # Fields contributed by plugin-owned review gates (e.g. effective review
     # configuration). A deployment without the owning plugin contributes none.
     def review_gate_fields_json
-      Syrus::PluginRegistry.providers_for(:review_gate).each_with_object({}) do |provider, fields|
+      Syrus::Plugin::ReviewContributions.contributions(:review_gates).each_with_object({}) do |provider, fields|
         next unless provider.respond_to?(:job_detail_fields)
 
         result = Syrus::PluginInvocation.call(
@@ -915,8 +915,8 @@ module App
     # diff_review_version_id) so the review UI can group and filter rounds
     # instead of collapsing them.
     def typed_artifacts_json
-      renderer_map = Syrus::PluginRegistry
-        .providers_for(:artifact_renderer)
+      renderer_map = Syrus::Plugin::Surface
+        .contributions(:artifact_renderers)
         .each_with_object({}) { |klass, hash| hash[klass.artifact_type] = klass.renderer_type.to_s }
 
       artifact_workflows_matching("typed_artifacts").flat_map do |wf|

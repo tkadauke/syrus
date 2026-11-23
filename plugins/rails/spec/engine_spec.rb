@@ -17,18 +17,17 @@ RSpec.describe SyrusRails::Engine do
     end
 
     it "registers its Ecosystem provider and keeps its unrelated extension points" do
-      expect(registration.provides.keys).to contain_exactly(
-        :mcp_tool_set,
-        :artifact_renderer,
-        :preview_provider
-      )
-      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] })
-        .to eq([ [ "SyrusRails::Ecosystem", %i[prompt_context] ] ])
+      expect(registration.provides.keys).to contain_exactly(:preview_provider)
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to eq([
+        [ "SyrusRails::Surface", %i[artifact_renderers] ],
+        [ "SyrusRails::Toolkit", %i[workflow_tools] ],
+        [ "SyrusRails::Ecosystem", %i[prompt_context] ]
+      ])
     end
 
-    it "registers both artifact renderers as an array under :artifact_renderer" do
-      renderers = Array(registration.provides[:artifact_renderer])
-      expect(renderers).to include(SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer)
+    it "registers both artifact renderers through the Surface family" do
+      expect(surface_implementations(:artifact_renderers))
+        .to include(SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer)
     end
 
     it "declares a dependency on the ruby plugin" do

@@ -7,7 +7,7 @@ class WorkspaceTabsPayload
   end
 
   def as_json(*)
-    Syrus::PluginRegistry.providers_for(:workspace_tab)
+    Syrus::Plugin::Surface.contributions(:workspace_tabs)
       .select { |provider| available?(provider) }
       .flat_map { |provider| tabs_for(provider) }
       .sort_by { |tab| [ tab[:order], tab[:label] ] }

@@ -136,7 +136,9 @@ RSpec.describe SdlcPipeline::Filter do
     def select_queries
       queries = []
       callback = ->(_name, _start, _finish, _id, payload) do
-        queries << payload[:sql] if payload[:sql].match?(/\ASELECT/i) && payload[:name] != "SCHEMA"
+        queries << payload[:sql] if payload[:sql].match?(/\ASELECT/i) && payload[:name] != "SCHEMA" &&
+          # Plugin enablement reads (family dispatch) are registry plumbing, not filter cost.
+          !payload[:sql].include?("\"plugin_records\"")
       end
       ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
       queries

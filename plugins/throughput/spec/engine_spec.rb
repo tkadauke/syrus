@@ -6,14 +6,14 @@ RSpec.describe Throughput::Engine do
 
     expect(manifest).to be_present
     expect(manifest.enabled?).to be(true)
-    expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).to include(Throughput::RepoPageTabs)
+    expect(surface_implementations(:repo_page_tabs)).to include(Throughput::RepoPageTabs)
   end
 
   it "schedules repository snapshot refreshes through plugin callbacks" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "throughput" }
 
     expect(manifest.tick_interval).to eq(5.minutes)
-    expect(manifest.provides[:callbacks]).to eq(Throughput::Callbacks)
+    expect(Syrus::Plugin::Lifecycle.callback_providers_for(manifest)).to eq([ Throughput::Callbacks ])
   end
 
   # MetricsSampler registers via the manifest's `metrics do ... sampler

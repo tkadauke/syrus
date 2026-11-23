@@ -52,13 +52,21 @@ module Syrus
         return [] unless mapping
         return [] if conformance && !conformance.conforming?(plugin: manifest.name, family: definition.name)
 
-        manifest.family_provides.filter_map do |declaration|
+        manifest.family_provides.flat_map do |declaration|
           next unless declaration.family == definition.name && declaration.capabilities.include?(mapping.capability)
           reference = CapabilityProvider.new(plugin_name: manifest.name, family: definition.name,
             capability: mapping.capability, provider_name: declaration.provider,
             key: declaration.key, priority: manifest.prepare_priority)
-          Provider.new(reference, mapping.adapter)
-        end
+          if mapping.adapter.class.public_instance_methods(false).include?(:legacy_providers)
+            next reference.invoke do |implementation|
+              Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+                extension_point: mapping.extension_point, provider: implementation,
+                operation: mapping.capability, on_decline: []
+              ) { mapping.adapter.legacy_providers(implementation) })
+            end
+          end
+          [ Provider.new(reference, mapping.adapter) ]
+        end.compact
       end
 
       def duplicates_for(manifests)

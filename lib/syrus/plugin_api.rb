@@ -85,14 +85,22 @@ module Syrus
       ].freeze
 
       PROCESS_ROLES = %w[web worker preview sidecar].freeze
+
+      # Spelled out rather than read from Syrus::Plugin::Declarations: this file
+      # loads before the autoloader exists. A spec pins the two lists together.
+      DECLARATION_POINTS = %i[
+        workflow_kinds job_origin slug_type problem_provider
+        repository_configuration step_environment worker_capability_probe
+      ].freeze
       LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands roles].freeze
 
       # Kept next to the DSL that accepts these keys so generated authoring
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types while_enabled metrics always suggests_enabling on_boot
-      ]).freeze
+        credential_types toolkit surface chat_integration review_contributions policy lifecycle data_policy
+        agent_runtime execution_backend runtime_session source_host speech_to_text while_enabled metrics always suggests_enabling on_boot
+      ] + DECLARATION_POINTS + %i[declare]).freeze
 
       attr_reader :name, :namespace, :lib_dir
 
@@ -104,6 +112,7 @@ module Syrus
         @lists = {}
         @provides = {}
         @family_provides = []
+        @declarations = {}
         @routes = []
         @links = []
         @metric_blocks = []
@@ -151,12 +160,222 @@ module Syrus
           return
         end
 
+        surface_keys = %i[sidebar_pages admin_pages repo_page_tabs workspace_tabs ui_slots artifact_renderers preview_panel_viewers]
+        surface_entries = pairs.slice(*surface_keys)
+        unless surface_entries.empty?
+          surface(**surface_entries)
+          pairs = pairs.except(*surface_keys)
+        end
+
         @provides.merge!(pairs)
       end
+
+      # Concise declaration for the toolkit facet. The generated provider is a
+      # named plugin constant, so it remains reload-safe and appears normally
+      # in capability catalogs and health diagnostics.
+      def toolkit(workflow_tools: nil, chat_tools: nil, permissions: nil,
+        run_context: nil, credential_probes: {}, secret_extractors: [])
+        capabilities = {
+          workflow_tools: workflow_tools,
+          chat_tools: chat_tools,
+          permissions: permissions,
+          run_context: run_context,
+          credential_probes: credential_probes.empty? ? nil : credential_probes,
+          secret_extractors: secret_extractors.empty? ? nil : secret_extractors
+        }.compact.keys
+        return if capabilities.empty?
+
+        provider = Syrus::Plugin::Toolkit.provider(
+          key: name, display_name: @scalars[:display_name] || name.humanize,
+          workflow_tools:, chat_tools:, permissions:, run_context:,
+          credential_probes:, secret_extractors:
+        )
+        namespace.send(:remove_const, :Toolkit) if namespace.const_defined?(:Toolkit, false)
+        namespace.const_set(:Toolkit, provider)
+        stable = capabilities - [ :run_context ]
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family: :toolkit, provider: "#{namespace.name}::Toolkit",
+          implements: stable, provisional: capabilities & [ :run_context ]
+        )
+      end
+
+      # Declares UI surfaces and filter registrations without resolving the
+      # plugin's application constants during manifest/catalog discovery.
+      def surface(sidebar_pages: nil, admin_pages: nil, repo_page_tabs: nil,
+        workspace_tabs: nil, ui_slots: nil, artifact_renderers: nil,
+        preview_panel_viewers: nil, filter_subjects: {}, filter_chips: {})
+        contributions = { sidebar_pages:, admin_pages:, repo_page_tabs:, workspace_tabs:,
+          ui_slots:, artifact_renderers:, preview_panel_viewers: }.compact
+        @surface_options ||= { filter_subjects: {}, filter_chips: {} }
+        @surface_options.merge!(contributions)
+        @surface_options[:filter_subjects].merge!(filter_subjects)
+        @surface_options[:filter_chips].merge!(filter_chips)
+        contributions = @surface_options.except(:filter_subjects, :filter_chips)
+        filter_subjects = @surface_options[:filter_subjects]
+        filter_chips = @surface_options[:filter_chips]
+        capabilities = contributions.keys
+        capabilities << :filter_subjects if filter_subjects.any?
+        capabilities << :filter_chips if filter_chips.any?
+        return if capabilities.empty?
+
+        provider = Syrus::Plugin::Surface.provider(
+          key: name, display_name: @scalars[:display_name] || name.humanize,
+          filter_subjects:, filter_chips:, **contributions
+        )
+        namespace.send(:remove_const, :Surface) if namespace.const_defined?(:Surface, false)
+        namespace.const_set(:Surface, provider)
+        @family_provides.reject! { |entry| entry.family == :surface && entry.provider == "#{namespace.name}::Surface" }
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family: :surface, provider: "#{namespace.name}::Surface",
+          implements: capabilities - [ :preview_panel_viewers ],
+          provisional: capabilities & [ :preview_panel_viewers ]
+        )
+      end
+
+      # Declares chat-turn integrations without resolving application constants
+      # while plugin manifests and catalogs are loaded.
+      def chat_integration(**contributions)
+        contributions.compact!
+        return if contributions.empty?
+
+        provider = Syrus::Plugin::ChatIntegration.provider(
+          key: name, display_name: @scalars[:display_name] || name.humanize, **contributions
+        )
+        namespace.send(:remove_const, :ChatIntegration) if namespace.const_defined?(:ChatIntegration, false)
+        namespace.const_set(:ChatIntegration, provider)
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family: :chat_integration, provider: "#{namespace.name}::ChatIntegration",
+          provisional: contributions.keys
+        )
+      end
+
+      # Declares review-family contributions (gates, reviewer targets, review
+      # context and presentation, post-implementation review, diff annotations,
+      # adjudicators) without resolving application constants at load time.
+      def review_contributions(**contributions)
+        contributions.compact!
+        return if contributions.empty?
+
+        declare_contribution_family(:review, :ReviewContributions, Syrus::Plugin::ReviewContributions, contributions)
+      end
+
+      # Declares policy-family restrictions. Policy composition is fail-closed:
+      # a restriction that cannot be evaluated hides rather than reveals.
+      def policy(**contributions)
+        contributions.compact!
+        return if contributions.empty?
+
+        declare_contribution_family(:policy, :Policy, Syrus::Plugin::Policy, contributions)
+      end
+
+      # Declares services for the service families. Services keep their own
+      # interface modules; the declaration only names the plugin's service
+      # classes (strings, resolved lazily) per capability.
+      #
+      #   agent_runtime agent_provider: "AgentProviders::Acme", chat_provider: "ChatProviders::Acme"
+      def agent_runtime(agent_provider: nil, chat_provider: nil)
+        declare_service_family(:agent_runtime, :AgentRuntimeServices, { agent_provider:, chat_provider: })
+      end
+
+      def execution_backend(execution_backend: nil)
+        declare_service_family(:execution_backend, :ExecutionBackendServices, { execution_backend: })
+      end
+
+      def runtime_session(runtime_session_provider: nil)
+        declare_service_family(:runtime_session, :RuntimeSessionServices, { runtime_session_provider: })
+      end
+
+      def source_host(source_control_provider: nil, input_source: nil, repository_content_provider: nil,
+        workspace_git_transport: nil)
+        declare_service_family(:source_host, :SourceHostServices,
+          { source_control_provider:, input_source:, repository_content_provider:, workspace_git_transport: })
+      end
+
+      def speech_to_text(speech_to_text_provider: nil)
+        declare_service_family(:speech_to_text, :SpeechToTextServices, { speech_to_text_provider: })
+      end
+
+      # Declares lifecycle hooks: plugin lifecycle callbacks and domain-event
+      # subscribers. Hooks are broadcast; every enabled plugin's hook runs and a
+      # failing one is isolated from the rest.
+      def lifecycle(callback_providers: nil, domain_subscribers: nil)
+        contributions = { callback_providers:, domain_subscribers: }.compact
+        return if contributions.empty?
+
+        declare_contribution_family(:lifecycle, :Lifecycle, Syrus::Plugin::Lifecycle, contributions)
+      end
+
+      # Declares data-governance hooks: retention definitions, purge
+      # contributors, and retained-preview-panel decisions. A contributor that
+      # fails is reported and never silently skipped.
+      def data_policy(retention_policies: nil, purge_contributors: nil, preview_panel_retentions: nil)
+        contributions = { retention_policies:, purge_contributors:, preview_panel_retentions: }.compact
+        return if contributions.empty?
+
+        declare_contribution_family(:data_policy, :DataPolicy, Syrus::Plugin::DataPolicy, contributions)
+      end
+
+      # Manifest declarations. Each is plain data validated here, while the
+      # manifest is being parsed, so a malformed one fails with a message naming
+      # this plugin and the field instead of surfacing later at the first call
+      # site. Behavior a declaration cannot express as data is named by constant
+      # string and loaded only when used; see Syrus::Plugin::Declarations.
+      #
+      #   workflow_kinds trigger_kinds: [ { kind: "briefing", template: "Briefing::Workflow", label: "Briefing", style: "bg-sky-100" } ],
+      #                  step_kinds:    [ { kind: "briefing_run", handler: "Briefing::RunStep", label: "Briefing", style: "bg-sky-100", agentic: false } ],
+      #                  job_kinds:     [ { kind: "briefing", infrastructure: true, issueless: true } ],
+      #                  work_definitions: [ "Briefing::WorkDefinition" ]
+      #   job_origin key: "nightly", provider: "Nightly::JobOrigin"
+      #   slug_type prefix: "DOC", display_label: "Design Doc", resolver: "Docs::SlugResolver", client_path: "/docs/:id"
+      #   problem_provider namespace: "briefing", kinds: [ { code: "briefing.stale", scope: "run", retryable: true, default_remediation: "restart_workflow" } ]
+      #   repository_configuration key: "briefing.review", provider: "Briefing::RepositoryConfiguration", legacy_keys: [ "briefing" ]
+      #   step_environment forwarded_env_keys: %w[BRIEFING_BUCKET], extra_env: "Briefing::RuntimeEnv"
+      #   worker_capability_probe dimension: "runtime", token: "briefing_vm", probe: "Briefing::CapabilityProbe"
+      DECLARATION_POINTS.each do |point|
+        define_method(point) { |**attrs| declare(point, **attrs) }
+      end
+
+      def declare(point, **attrs)
+        entry = Syrus::Plugin::Declarations.normalize!(name, point, attrs)
+        (@declarations[point.to_sym] ||= []) << entry
+        entry
+      end
+
+      def declarations = @declarations
 
       def route(verb, path, to:)
         @routes << { verb: verb.to_s.upcase, path: path, controller: to }
       end
+
+      def declare_contribution_family(family, constant, owner, contributions)
+        provider = owner.provider(key: name, display_name: @scalars[:display_name] || name.humanize, **contributions)
+        namespace.send(:remove_const, constant) if namespace.const_defined?(constant, false)
+        namespace.const_set(constant, provider)
+        @family_provides.reject! { |entry| entry.family == family && entry.provider == "#{namespace.name}::#{constant}" }
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family:, provider: "#{namespace.name}::#{constant}", provisional: contributions.keys
+        )
+      end
+      private :declare_contribution_family
+
+      def declare_service_family(family, constant, services)
+        services = services.compact
+        return if services.empty?
+
+        definition = Syrus::Plugin::Family.fetch(family)
+        provider = Syrus::Plugin::ServiceProvider.build(
+          key: name, display_name: @scalars[:display_name] || name.humanize, **services
+        )
+        namespace.send(:remove_const, constant) if namespace.const_defined?(constant, false)
+        namespace.const_set(constant, provider)
+        @family_provides.reject! { |entry| entry.family == family && entry.provider == "#{namespace.name}::#{constant}" }
+        tiers = services.keys.group_by { |capability| definition.capabilities.fetch(capability).tier }
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family:, provider: "#{namespace.name}::#{constant}",
+          implements: tiers.fetch(:stable, []), provisional: tiers.fetch(:provisional, [])
+        )
+      end
+      private :declare_service_family
 
       def frontend(pairs = {})
         return @frontend if pairs.empty?
@@ -364,6 +583,7 @@ module Syrus
           version: version || Syrus::PluginApi.default_version,
           provides: resolved_provides,
           family_provides: @family_provides,
+          declarations: @declarations,
           events: events,
           routes: (routes if routes.any?),
           links: (links if links.any?),
@@ -475,7 +695,7 @@ module Syrus
           # wrote; a plugin that was never enabled here wrote none.
           requires = effect[:scoped] ? :enabled : :ever_enabled
 
-          Syrus::Installer.define(label, plugin: name, requires: requires, &effect[:block])
+          Syrus::Plugin::Lifecycle.define_effect(label, plugin: name, requires: requires, &effect[:block])
         end
       end
     end

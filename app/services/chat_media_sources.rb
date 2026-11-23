@@ -4,7 +4,7 @@ module ChatMediaSources
   CORE_SOURCES = [ ChatMedia::ChatImageSource ].freeze
 
   def self.all
-    CORE_SOURCES + Syrus::PluginRegistry.providers_for(:chat_media_source)
+    CORE_SOURCES + Syrus::Plugin::ChatIntegration.contributions(:media_sources)
   end
 
   def self.kinds

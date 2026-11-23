@@ -34,9 +34,9 @@ module PluginRuntime
     # The reconcile loop. PluginTickSchedulerJob only ticks enabled plugins, so
     # disabling this plugin stops it touching containers at all.
     tick_interval 1.minute
-    provides callbacks: "PluginRuntime::Callbacks",
-             admin_page: "PluginRuntime::AdminPages",
-             purge_contributor: "PluginRuntime::PurgeContributor"
+    lifecycle callback_providers: "PluginRuntime::Callbacks"
+    data_policy purge_contributors: "PluginRuntime::PurgeContributor"
+    provides admin_pages: "PluginRuntime::AdminPages"
 
     # Admin -> Plugin Services: every plugin container, with stop, start,
     # restart, and logs.

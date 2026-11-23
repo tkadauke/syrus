@@ -39,12 +39,10 @@ module CredentialStore
       { path: %w[credential_store types], summary: "List credential type names", handler: "CredentialStore::Cli::Types", flags: [ { name: "json", type: :boolean, default: false } ] },
       { path: %w[credential_store credentials], summary: "List accessible credential handles", handler: "CredentialStore::Cli::Credentials", flags: [ { name: "json", type: :boolean, default: false }, { name: "type" } ] }
     ]
-    provides admin_page: "CredentialStore::AdminPages",
-             sidebar_page: "CredentialStore::SidebarPages",
-             mcp_tool_set: "CredentialStore::WorkflowToolSet",
-             chat_mcp_tool_set: "CredentialStore::ChatToolSet",
-             permission_provider: "CredentialStore::PermissionProvider",
-             purge_contributor: "CredentialStore::PurgeContributor"
+    data_policy purge_contributors: "CredentialStore::PurgeContributor"
+    provides admin_pages: "CredentialStore::AdminPages",
+             sidebar_pages: "CredentialStore::SidebarPages"
+    toolkit workflow_tools: "CredentialStore::WorkflowToolSet", chat_tools: "CredentialStore::ChatToolSet", permissions: "CredentialStore::PermissionProvider"
     route :get, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#index"
     route :post, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#create"
     route :get, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#show"

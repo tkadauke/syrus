@@ -412,9 +412,9 @@ module Admin
     end
 
     def plugin_tool_owners
-      enabled_tool_sets = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).to_set
+      enabled_tool_sets = Syrus::Plugin::Toolkit.chat_tool_sets.to_set
       Syrus::PluginRegistry.all_plugins.each_with_object({}) do |manifest, index|
-        Array(manifest.provides[:chat_mcp_tool_set]).select { |tool_set| enabled_tool_sets.include?(tool_set) }.each do |tool_set|
+        Array(Syrus::Plugin::Toolkit.chat_tool_set_for(manifest)).select { |tool_set| enabled_tool_sets.include?(tool_set) }.each do |tool_set|
           plugin_tool_names(tool_set).each do |tool_name|
             index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
           end

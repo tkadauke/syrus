@@ -12,7 +12,7 @@ RSpec.describe VideoWalkthroughs::Engine do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "video_walkthroughs" }
 
     expect(manifest.tick_interval).to eq(1.day)
-    expect(Array(manifest.provides[:callbacks])).to include(VideoWalkthroughs::Callbacks)
+    expect(Syrus::Plugin::Lifecycle.callback_providers_for(manifest)).to include(VideoWalkthroughs::Callbacks)
   end
 
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no

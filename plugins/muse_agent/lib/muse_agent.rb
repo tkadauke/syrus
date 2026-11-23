@@ -15,22 +15,14 @@ module SyrusMuseAgent
     category "agent_provider"
     default_enabled false
     disableable true
-    provides agent_provider: "AgentProviders::Muse",
-             chat_provider: "ChatProviders::Muse"
+    agent_runtime agent_provider: "AgentProviders::Muse",
+                  chat_provider: "ChatProviders::Muse"
+    toolkit credential_probes: { "muse_api_key" => "MuseCredentialProbe" },
+            secret_extractors: [ "MuseCredentialProbe::SECRET_EXTRACTOR" ]
+    surface filter_chips: { admin_user: { "has_muse_token" => "Filters::Chips::AdminUsers::HasMuseToken" } }
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("muse", ChatSessionRehydrator::Muse) }
-      scope.effect("admin user chips") do
-        Filters.register_chips(
-          subject: :admin_user,
-          chips: { "has_muse_token" => "Filters::Chips::AdminUsers::HasMuseToken" }
-        )
-      end
     end
   end
-end
-
-Syrus::Installer.define("muse_agent:credential probe") do |scope|
-  scope.effect("credential probe") { CredentialProbe.register_probe("muse_api_key", MuseCredentialProbe) }
-  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(MuseCredentialProbe::SECRET_EXTRACTOR) }
 end

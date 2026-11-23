@@ -178,7 +178,7 @@ module Mcp
 
     def self.plugin_tools_for(chat_session, tier:, policy: nil, agent_actor: nil)
       tool_sets = PerformanceLogging.phase("chat_mcp_sidecar.plugin_tool_sets", chat_id: chat_session.id, tier: tier) do
-        Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)
+        Syrus::Plugin::Toolkit.chat_tool_sets
       end
 
       tool_sets
@@ -252,7 +252,7 @@ module Mcp
 
     def self.plugin_workflow_tools_for(context)
       tool_sets = PerformanceLogging.phase("workflow_mcp_sidecar.plugin_tool_sets", repository_id: context.repository&.id) do
-        Syrus::PluginRegistry.providers_for(:mcp_tool_set)
+        Syrus::Plugin::Toolkit.workflow_tool_sets
       end
       step_details = context.run&.step&.respond_to?(:details) ? context.run.step.details : nil
       target = step_details.to_h.dig("reviewer_target")

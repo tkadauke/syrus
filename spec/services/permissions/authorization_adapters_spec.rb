@@ -22,17 +22,17 @@ RSpec.describe Permissions::AuthorizationAdapters do
   end
 
   it "resolves adapters only from the registry's active provider set" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([ provider ])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([ provider ])
     expect(described_class.resolve("synthetic.records")).to equal(adapter)
 
     # Disabled and unhealthy plugins are omitted by PluginRegistry. Resolution
     # therefore fails closed without core knowing why a provider is absent.
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([])
     expect(described_class.resolve("synthetic.records")).to be_nil
   end
 
   it "rejects ambiguous action ownership" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([ provider, provider ])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([ provider, provider ])
 
     expect { described_class.resolve("synthetic.records") }
       .to raise_error(described_class::DuplicateAction, /more than one provider/)
@@ -42,7 +42,7 @@ RSpec.describe Permissions::AuthorizationAdapters do
     unavailable_provider = Class.new do
       def self.permission_authorization_adapters = raise("unavailable")
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider)
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers)
       .and_return([ unavailable_provider, provider ])
 
     expect(Rails.logger).to receive(:warn).with(/provider inventory unavailable: RuntimeError: unavailable/)
@@ -52,7 +52,7 @@ RSpec.describe Permissions::AuthorizationAdapters do
   it "lets the generic decision resolve plugin-owned descriptor and subject policy" do
     request = instance_double(ChatPendingAction, action: "synthetic.records", subject_id: 42)
     decision = Permissions::AuthorizationDecision.new(request:, item: double, user: double)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([ provider ])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([ provider ])
 
     expect(decision.send(:permission_descriptor)).to equal(request)
     expect(decision.send(:subject_selector)).to eq([ "agent", request.subject_id.to_s ])
@@ -70,7 +70,7 @@ RSpec.describe Permissions::AuthorizationAdapters do
       tool_name: "read_custom_data", capability: "custom.read", ungated: false,
       tier: :essential, tool:, provider: nil
     )
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([])
     allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(catalog_entry)
     allow(McpToolRegistry).to receive(:entries).with(surface: :coworker)
       .and_return([ Struct.new(:tool, :descriptor).new(tool, descriptor) ])

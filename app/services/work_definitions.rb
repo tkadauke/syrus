@@ -28,7 +28,7 @@ module WorkDefinitions
 
   def installed_definition_for(kind)
     Syrus::PluginRegistry.all_plugins.each do |manifest|
-      Array(manifest.provides[:workflow_kinds]).each do |provider|
+      Syrus::PluginRegistry.manifest_providers_for(manifest, :workflow_kinds).each do |provider|
         provider = provider.safe_constantize if provider.is_a?(String)
         next unless provider.respond_to?(:work_definitions)
 

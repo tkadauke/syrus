@@ -19,10 +19,18 @@ module BuildCache
         { key: "bucket", label: "Cache bucket", type: :secret_env, env_var: "SCCACHE_BUCKET",
           required: false, description: "S3-compatible bucket for the shared compiler cache. Set in .env." }
       ]
-    provides admin_page: "BuildCache::AdminPages",
-             ui_slot: "BuildCache::UiSlots",
-             domain_subscriber: "BuildCache::Subscribers",
-             step_environment: "BuildCache::StepEnvironment"
+    lifecycle domain_subscribers: "BuildCache::Subscribers"
+    provides admin_pages: "BuildCache::AdminPages",
+             ui_slots: "BuildCache::UiSlots"
+    # sccache reaches the shared S3 bucket through these names; values come from
+    # the worker's own environment. SCCACHE_BASEDIRS is deliberately absent --
+    # see BuildCache::StepEnvironment for why forwarding it would corrupt
+    # gcov/--coverage builds.
+    step_environment forwarded_env_keys: %w[
+                       SCCACHE_BUCKET SCCACHE_ENDPOINT SCCACHE_REGION SCCACHE_S3_KEY_PREFIX
+                       AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+                     ],
+                     extra_env: "BuildCache::StepEnvironment"
     route :get, "/api/v1/app/admin/build_cache", to: "api/v1/app/admin/build_cache#show"
     route :get, "/api/v1/app/admin/build_cache/stats", to: "api/v1/app/admin/build_cache#stats"
     route :post, "/api/v1/app/admin/build_cache/clear_requests", to: "api/v1/app/admin/build_cache#create_clear_request"

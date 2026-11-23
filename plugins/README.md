@@ -216,7 +216,7 @@ may also receive those two tools through the plugin-declared
 
 ```ruby
 Syrus::PluginRegistry.all_plugins          # → [Syrus::Plugin::Manifest, ...]
-Syrus::PluginRegistry.providers_for(:agent_provider)  # → [Class, ...]
+Syrus::Plugin::ServiceProvider.providers(:agent_provider)  # → [Class, ...]
 
 # Manifest now carries enabled state:
 manifest = Syrus::PluginRegistry.all_plugins.first

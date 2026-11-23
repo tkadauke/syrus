@@ -503,7 +503,7 @@ RSpec.describe "SPA shell", type: :request do
     repository = Factories.repository(user: owner)
     sign_in_as(owner)
 
-    tabs = Syrus::PluginRegistry.providers_for(:repo_page_tab).flat_map do |provider|
+    tabs = surface_implementations(:repo_page_tabs).flat_map do |provider|
       Array(provider.repo_page_tabs(repository: repository, user: owner))
     end
 

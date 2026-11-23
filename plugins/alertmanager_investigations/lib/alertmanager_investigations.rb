@@ -75,6 +75,6 @@ module AlertmanagerInvestigations
       }
     ]
 
-    provides callbacks: "AlertmanagerInvestigations::Callbacks"
+    lifecycle callback_providers: "AlertmanagerInvestigations::Callbacks"
   end
 end

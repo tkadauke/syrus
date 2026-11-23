@@ -9,7 +9,4 @@ RSpec.describe SyrusBrowser::ImageDiffRenderer do
     expect(described_class.renderer_type).to eq(:image_diff)
   end
 
-  it "includes Syrus::Plugin::ArtifactRenderer" do
-    expect(described_class.ancestors).to include(Syrus::Plugin::ArtifactRenderer)
-  end
 end

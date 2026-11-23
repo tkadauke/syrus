@@ -546,9 +546,7 @@ module Api
         end
 
         def repository_index_scope
-          Syrus::PluginRegistry.providers_for(:repository_filter).reduce(Repository.accessible_to(Current.user)) do |scope, filter|
-            filter.apply(scope: scope, user: Current.user)
-          end
+          Syrus::Plugin::Policy.filter_repositories(Repository.accessible_to(Current.user), user: Current.user)
         end
 
         def repository_json(repository)
@@ -909,7 +907,7 @@ module Api
         end
 
         def input_source_types_json(repository)
-          Syrus::PluginRegistry.providers_for(:input_source).map do |provider|
+          Syrus::Plugin::ServiceProvider.providers(:input_source).map do |provider|
             source = repository.persisted? ? repository.input_sources.find { |candidate| candidate.type == provider.name } : nil
             {
               type: provider.name,

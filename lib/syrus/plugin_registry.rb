@@ -20,25 +20,20 @@ module Syrus
       chat_workspace_lifecycle
       chat_turn_lifecycle
       chat_turn_finalizer
-      adjudicator
       source_control_provider
       artifact_renderer
       grader_failure_summarizer
       callbacks
       platform_delivery
       grader_input_materializer
-      post_implementation_review_provider
-      diff_review_annotation_provider
       workspace_tab
       ui_slot
       domain_subscriber
       step_environment
       workflow_kinds
       job_origin
-      job_visibility_restriction
       mentionable
       chat_identity_provider
-      repository_filter
       preview_panel_viewer
       preview_panel_retention
       repository_recommendation
@@ -55,12 +50,8 @@ module Syrus
       workspace_git_transport
       slug_type
       permission_provider
-      reviewer_target_provider
-      review_context_contributor
-      review_presentation_contributor
       problem_provider
       repository_configuration
-      review_gate
       backup_artifact_source
       backup_destination
       system_alert_provider
@@ -89,25 +80,20 @@ module Syrus
       chat_workspace_lifecycle: "Prepares and cleans up plugin-owned resources attached to a chat workspace.",
       chat_turn_lifecycle: "Observes or augments documented lifecycle stages around each interactive chat turn.",
       chat_turn_finalizer: "Performs plugin-owned finalization after a chat turn has produced its result.",
-      adjudicator: "Evaluates competing implementation or review evidence and returns a normalized adjudication decision.",
       source_control_provider: "Implements repository-host operations such as issues, pull requests, reviews, and credentials for one source-control service.",
       artifact_renderer: "Turns a supported workflow artifact into a bounded human-readable representation.",
       grader_failure_summarizer: "Converts provider-specific grader failures into concise normalized explanations.",
       callbacks: "Receives documented plugin lifecycle callbacks for boot, shutdown, enablement, ticks, metrics, and reversible effects.",
       platform_delivery: "Publishes or deploys built artifacts through a plugin-owned delivery platform.",
       grader_input_materializer: "Materializes additional immutable inputs required by distributed grader execution.",
-      post_implementation_review_provider: "Adds a post-implementation review step and its provider-specific invocation policy.",
-      diff_review_annotation_provider: "Produces structured annotations attached to files or lines in a reviewed diff.",
       workspace_tab: "Registers a plugin-owned tab in the live workflow workspace UI.",
       ui_slot: "Registers a plugin-owned component for one of the host's named UI insertion slots.",
       domain_subscriber: "Subscribes plugin handlers to documented domain events emitted by the host.",
       step_environment: "Contributes environment variables or setup context to supported workflow step executions.",
       workflow_kinds: "Registers plugin-owned Job, Workflow trigger, Step, and WorkDefinition kinds with their handlers.",
       job_origin: "Describes and renders a plugin-owned source from which Jobs may originate.",
-      job_visibility_restriction: "Applies an additional plugin-owned visibility restriction when users query Jobs.",
       mentionable: "Adds a plugin-owned entity that users and agents can address through mentions.",
       chat_identity_provider: "Supplies plugin-owned participant identities and presentation metadata for chat.",
-      repository_filter: "Applies a plugin-owned repository filter while preserving the host's authorization scope.",
       preview_panel_viewer: "Renders a supported content type inside the repository preview panel.",
       preview_panel_retention: "Decides which plugin-owned preview resources remain available and when they expire.",
       repository_recommendation: "Produces evidence-backed plugin recommendations for a repository.",
@@ -124,12 +110,8 @@ module Syrus
       workspace_git_transport: "Provides clone and fetch transport for workflow workspaces backed by a supported repository source.",
       slug_type: "Defines parsing, lookup, and presentation for a plugin-owned canonical identifier type.",
       permission_provider: "Declares plugin capabilities, resource scopes, presets, authorization adapters, and permission migrations.",
-      reviewer_target_provider: "Selects and describes plugin-owned targets that a review provider can evaluate.",
-      review_context_contributor: "Adds bounded plugin-owned evidence to the context supplied to review agents.",
-      review_presentation_contributor: "Adds plugin-owned sections or metadata to the presentation of review results.",
       problem_provider: "Detects and describes a plugin-owned class of actionable repository or workflow problems.",
       repository_configuration: "Declares and validates plugin-owned repository configuration read from the supported configuration file.",
-      review_gate: "Evaluates plugin-owned evidence to decide whether downstream work may pass a named review gate.",
       backup_artifact_source: "Provides sealed backup artifacts for validation, pinning, streaming, and replication tracking.",
       backup_destination: "Replicates sealed backup artifacts to a plugin-owned offsite destination and reports their remote state.",
       system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery."
@@ -156,25 +138,20 @@ module Syrus
       chat_workspace_lifecycle: -> { Syrus::Plugin::ChatWorkspaceLifecycle },
       chat_turn_lifecycle: -> { Syrus::Plugin::ChatTurnLifecycle },
       chat_turn_finalizer:     -> { Syrus::Plugin::ChatTurnFinalizer },
-      adjudicator:             -> { Syrus::Plugin::Adjudicator },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
       grader_failure_summarizer: -> { Syrus::Plugin::GraderFailureSummarizer },
       callbacks:               -> { Syrus::Plugin::Callbacks },
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
       grader_input_materializer: -> { Syrus::Plugin::GraderInputMaterializer },
-      post_implementation_review_provider: -> { Syrus::Plugin::PostImplementationReviewProvider },
-      diff_review_annotation_provider: -> { Syrus::Plugin::DiffReviewAnnotationProvider },
       workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },
       ui_slot:                 -> { Syrus::Plugin::UiSlot },
       domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },
       step_environment:        -> { Syrus::Plugin::StepEnvironment },
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
       job_origin:              -> { Syrus::Plugin::JobOrigin },
-      job_visibility_restriction: -> { Syrus::Plugin::JobVisibilityRestriction },
       mentionable:              -> { Syrus::Plugin::Mentionable },
       chat_identity_provider:     -> { Syrus::Plugin::ChatIdentityProvider },
-      repository_filter:       -> { Syrus::Plugin::RepositoryFilter },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       preview_panel_retention: -> { Syrus::Plugin::PreviewPanelRetention },
       repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },
@@ -191,12 +168,8 @@ module Syrus
       workspace_git_transport: -> { Syrus::Plugin::WorkspaceGitTransport },
       slug_type:               -> { Syrus::Plugin::SlugType },
       permission_provider:     -> { Syrus::Plugin::PermissionProvider },
-      reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider },
-      review_context_contributor: -> { Syrus::Plugin::ReviewContextContributor },
-      review_presentation_contributor: -> { Syrus::Plugin::ReviewPresentationContributor },
       problem_provider:          -> { Syrus::Plugin::ProblemProvider },
       repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
-      review_gate:             -> { Syrus::Plugin::ReviewGate },
       backup_artifact_source:  -> { Syrus::Plugin::BackupArtifactSource },
       backup_destination:      -> { Syrus::Plugin::BackupDestination },
       system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider }
@@ -222,7 +195,7 @@ module Syrus
     class << self
       # Called by plugin gem engine initializers. Release posture is deliberately
       # required so an omission cannot silently acquire a product default.
-      def register(name: nil, version: nil, default_enabled:, disableable:, experimental:, requires_syrus:, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
+      def register(name: nil, version: nil, default_enabled:, disableable:, experimental:, requires_syrus:, provides: {}, family_provides: [], declarations: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         validate_provides!(provides)
         events = normalize_events!(events)
         validate_core_event_name_uniqueness!(events)
@@ -237,6 +210,9 @@ module Syrus
           credential_type_names: credential_type_names
         )
         validation_errors = []
+        declarations, declaration_errors = Syrus::Plugin::Declarations.sanitize(name, declarations)
+        validation_errors.concat(declaration_errors)
+        validation_errors.concat(Syrus::Plugin::Declarations.semantic_errors(name, declarations))
         begin
           cli_commands = Syrus::Plugin::CliCommand.normalize_all(plugin: name, declarations: cli_commands)
         rescue Syrus::Plugin::CliCommand::ValidationError => e
@@ -269,6 +245,7 @@ module Syrus
             version:         version,
             provides:        provides,
             family_provides: family_provides,
+            declarations:    declarations,
             metadata:        metadata,
             description:     description,
             description_i18n_key: description_i18n_key,
@@ -470,7 +447,8 @@ module Syrus
             conformance = conformance_for(plugins) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
             sort_by_prepare_priority(plugins).flat_map do |manifest|
               Array(manifest.provides[ep]) +
-                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:) +
+                Syrus::Plugin::Declarations.providers_for_manifest(manifest, ep)
             end
           else
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
@@ -484,7 +462,8 @@ module Syrus
                 .then { |ms| sort_by_prepare_priority(ms) }
                 .flat_map do |manifest|
                   Array(manifest.provides[ep]) +
-                    Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+                    Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:) +
+                    Syrus::Plugin::Declarations.providers_for_manifest(manifest, ep)
                 end
             end
           end
@@ -492,6 +471,24 @@ module Syrus
 
         direct = @mutex.synchronize { @direct_providers[ep].dup }
         manifest_providers + direct
+      end
+
+      # Every provider of one legacy extension point declared by one manifest,
+      # legacy registrations first and family declarations adapted by the
+      # bridge. Not enablement-filtered: lifecycle events such as on_disable
+      # must still reach a plugin that was just turned off.
+      def manifest_providers_for(manifest, extension_point)
+        ep = extension_point.to_sym
+        conformance = conformance_for([ manifest ]) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
+        Array(manifest.provides[ep]) +
+          Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:) +
+          Syrus::Plugin::Declarations.providers_for_manifest(manifest, ep)
+      end
+
+      # Plugins that declare a point as manifest data and also still register a
+      # provider class for it. Migration work, like the family duplicate report.
+      def declaration_duplicate_registrations
+        Syrus::Plugin::Declarations.duplicates_for(@mutex.synchronize { @plugins.dup })
       end
 
       def legacy_bridge_duplicate_registrations
@@ -508,8 +505,13 @@ module Syrus
         mapping = definition.legacy_mappings.values.find { |entry| entry.capability == capability }
         return family_providers unless mapping
 
-        legacy_providers = providers_for(mapping.extension_point).filter_map do |provider|
-          next if provider.is_a?(Syrus::Plugin::LegacyBridge::Provider)
+        # Reuse the already enablement/health-filtered snapshot. Calling
+        # providers_for here would repeat the database and health reads on
+        # every hot-path family dispatch and would also hand family providers
+        # back through the reverse bridge.
+        legacy = plugins.flat_map { |manifest| Array(manifest.provides[mapping.extension_point]) }
+        legacy.concat(direct_providers_for(mapping.extension_point))
+        legacy_providers = legacy.map do |provider|
           key = mapping.adapter.key(provider) if mapping.adapter.respond_to?(:key)
           Syrus::Plugin::LegacyBridge::LegacyCapabilityProvider.new(
             provider:, adapter: mapping.adapter, capability:, key:
@@ -563,13 +565,21 @@ module Syrus
 
       def plugin_name_for(provider)
         provider_class = provider.is_a?(Class) ? provider : provider.class
-        @mutex.synchronize do
-          @plugins.find do |manifest|
-            manifest.provides.values.any? do |providers|
-              Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider_class }
-            end || manifest.family_provides.any? { |declaration| declaration.provider == provider_class.name }
-          end&.name
-        end
+        plugins = @mutex.synchronize { @plugins.dup }
+        plugins.find do |manifest|
+          next manifest.name == provider.declaring_plugin if provider.respond_to?(:declaring_plugin) && provider.respond_to?(:declaration?)
+
+          manifest.provides.values.any? do |providers|
+            Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider_class }
+          end || manifest.family_provides.any? do |declaration|
+            next true if declaration.provider == provider_class.name
+
+            family_provider = Object.const_get(declaration.provider)
+            family_provider.respond_to?(:owns_implementation?) && family_provider.owns_implementation?(provider)
+          rescue StandardError, ScriptError
+            false
+          end
+        end&.name
       end
 
       # Returns every definition a tool set can advertise, independent of a
@@ -802,7 +812,7 @@ module Syrus
       # got registered before the failure (same policy as PluginLifecycleJob
       # applies to on_enable).
       def fire_boot_callbacks!
-        providers_for(:callbacks).each do |provider|
+        Syrus::Plugin::Lifecycle.callback_providers.each do |provider|
           provider.on_boot
         rescue StandardError => e
           drain_effects_for_callback_provider(provider)
@@ -815,7 +825,7 @@ module Syrus
       # process shutdown even though it doesn't route through
       # PluginLifecycleJob like the operator-triggered on_disable does.
       def fire_shutdown_callbacks!
-        providers_for(:callbacks).each do |provider|
+        Syrus::Plugin::Lifecycle.callback_providers.each do |provider|
           provider.on_shutdown
         rescue StandardError => e
           Rails.logger.warn("[PluginRegistry] on_shutdown failed for #{provider}: #{e.class}: #{e.message}")
@@ -885,7 +895,7 @@ module Syrus
       end
 
       def drain_effects_for_callback_provider(provider)
-        plugin_name = all_plugins.find { |m| Array(m.provides[:callbacks]).include?(provider) }&.name
+        plugin_name = plugin_name_for(provider)
         Syrus::Plugin::EffectRegistry.drain!(plugin_name) if plugin_name
       end
 

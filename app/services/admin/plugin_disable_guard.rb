@@ -148,7 +148,11 @@ module Admin
     end
 
     def providers(extension_point)
-      Array(manifest.provides[extension_point])
+      if Syrus::Plugin::ServiceProvider::FAMILY_FOR.key?(extension_point.to_sym)
+        return Syrus::Plugin::ServiceProvider.for_manifest(manifest, extension_point)
+      end
+
+      Syrus::PluginRegistry.manifest_providers_for(manifest, extension_point)
     end
 
     def blocker(kind, label, count)

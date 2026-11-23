@@ -238,7 +238,7 @@ RSpec.describe AgentInsights::Tools::ListInsightsTool do
 
   describe "feature flag gating" do
     it "is advertised by the plugin tool set while the plugin is enabled" do
-      expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(AgentInsights::McpToolSet)
+      expect(workflow_tool_sets).to include(AgentInsights::McpToolSet)
       expect(AgentInsights::McpToolSet::TOOL_CLASSES).to include(described_class)
     end
 
@@ -247,7 +247,7 @@ RSpec.describe AgentInsights::Tools::ListInsightsTool do
       eager_run = run
       PluginRecord.find_or_create_by!(name: "agent_insights").update!(enabled: false, disableable: true)
 
-      expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(AgentInsights::McpToolSet)
+      expect(workflow_tool_sets).not_to include(AgentInsights::McpToolSet)
     end
   end
 

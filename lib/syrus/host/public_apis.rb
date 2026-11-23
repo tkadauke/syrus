@@ -53,7 +53,8 @@ module Syrus
         CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError",
         EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
-        EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan"
+        EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan",
+        Toolkit: "Syrus::Plugin::Toolkit"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -91,7 +92,8 @@ module Syrus
         CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ],
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
-        EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ]
+        EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ],
+        Toolkit: [ "Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition.", %w[chat_tool_sets chat_tool_set_for] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

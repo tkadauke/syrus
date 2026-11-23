@@ -26,6 +26,8 @@ module Syrus
       def total_rows = row_counts.values.sum + inline_row_counts.values.sum
     end
 
+    UNAVAILABLE_LINE = "a purge contributor could not be loaded; its data may remain (see plugin health)"
+
     class UnknownPlugin < StandardError; end
     class PluginStillInstalled < StandardError; end
 
@@ -72,10 +74,18 @@ module Syrus
         dropped << table
       end
 
+      # Every contributor purges; one that fails is reported in the result
+      # instead of silently skipping its data, and the others still run.
       removed = contributors.flat_map do |contributor|
-        Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        next [ UNAVAILABLE_LINE ] if Syrus::Plugin::DataPolicy.unavailable?(contributor)
+
+        result = Syrus::PluginInvocation.call(
           extension_point: :purge_contributor, provider: contributor, operation: :purge, on_decline: []
-        ) { Array(contributor.purge!(@plugin_name)) })
+        ) { Array(contributor.purge!(@plugin_name)) }
+        if result.is_a?(Syrus::PluginInvocation::Failed)
+          next [ "#{contributor}: purge failed (#{result.exception_class}: #{result.message})" ]
+        end
+        Syrus::PluginInvocation.value(result)
       end
 
       PluginRecord.where(name: @plugin_name).delete_all
@@ -86,6 +96,8 @@ module Syrus
     # cannot answer says so rather than hiding data from the report.
     def other_data
       contributors.flat_map do |contributor|
+        next [ UNAVAILABLE_LINE ] if Syrus::Plugin::DataPolicy.unavailable?(contributor)
+
         result = Syrus::PluginInvocation.call(
           extension_point: :purge_contributor, provider: contributor, operation: :purge_report,
           on_decline: []
@@ -98,7 +110,7 @@ module Syrus
     end
 
     def contributors
-      Syrus::PluginRegistry.providers_for(:purge_contributor).map do |provider|
+      Syrus::Plugin::DataPolicy.purge_contributors.map do |provider|
         provider.is_a?(String) ? provider.constantize : provider
       end
     end

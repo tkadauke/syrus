@@ -3,7 +3,7 @@ module SourceControl
     module_function
 
     def all
-      Syrus::PluginRegistry.providers_for(:source_control_provider)
+      Syrus::Plugin::ServiceProvider.providers(:source_control_provider)
     end
 
     def for_repository(repository)

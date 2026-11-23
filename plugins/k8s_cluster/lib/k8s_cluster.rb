@@ -30,11 +30,9 @@ module K8sCluster
       { path: %w[k8s logs], summary: "Show a pod's log tail", handler: "K8sCluster::Cli::Logs", arguments: [ { name: "pod", required: true } ], flags: [ { name: "cluster" }, { name: "namespace", required: true }, { name: "container" }, { name: "tail", type: :integer, default: 200 } ] },
       { path: %w[k8s overview], summary: "Show aggregate node/pod CPU and memory usage", handler: "K8sCluster::Cli::Overview", flags: [ { name: "cluster" } ] }
     ]
-    provides sidebar_page: "K8sCluster::SidebarPages",
-             mcp_tool_set: "K8sCluster::WorkflowToolSet",
-             chat_mcp_tool_set: "K8sCluster::ChatToolSet",
-             permission_provider: "K8sCluster::PermissionProvider",
-             callbacks: "K8sCluster::Callbacks"
+    lifecycle callback_providers: "K8sCluster::Callbacks"
+    provides sidebar_pages: "K8sCluster::SidebarPages"
+    toolkit workflow_tools: "K8sCluster::WorkflowToolSet", chat_tools: "K8sCluster::ChatToolSet", permissions: "K8sCluster::PermissionProvider"
     tick_interval 5.minutes
     route :get, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#index"
     route :post, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#create"

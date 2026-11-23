@@ -18,16 +18,16 @@ module DesignDocs
     optionally_depends_on [ "global_search" ]
     events "design_doc.upserted" => :async,
            "design_doc.deleted" => :async
-    provides sidebar_page: "DesignDocs::SidebarPages",
-             permission_provider: "DesignDocs::PermissionProvider",
-             repo_page_tab: "DesignDocs::RepoPageTabs",
-             workspace_tab: "DesignDocs::WorkspaceTabs",
-             chat_mcp_tool_set: "DesignDocs::ChatToolSet",
-             mcp_tool_set: "DesignDocs::WorkflowToolSet",
-             callbacks: "DesignDocs::Callbacks",
-             domain_subscriber: "DesignDocs::Subscribers",
-             slug_type: "DesignDocs::SlugType",
+    lifecycle callback_providers: "DesignDocs::Callbacks",
+              domain_subscribers: "DesignDocs::Subscribers"
+    provides sidebar_pages: "DesignDocs::SidebarPages",
+             repo_page_tabs: "DesignDocs::RepoPageTabs",
+             workspace_tabs: "DesignDocs::WorkspaceTabs",
              "global_search:source" => "DesignDocs::SearchSource"
+    slug_type prefix: "DOC", display_label: "Design Doc", preview_available: true,
+              client_path: "/design_docs/:id", resolver: "DesignDocs::SlugType"
+    toolkit workflow_tools: "DesignDocs::WorkflowToolSet", chat_tools: "DesignDocs::ChatToolSet", permissions: "DesignDocs::PermissionProvider"
+    surface filter_subjects: { design_doc: { model: "DesignDocs::DesignDoc", chips: "DesignDocs::SmartFolders::CHIPS" } }
     cli_commands [
       {
         path: %w[docs list], summary: "List design docs", handler: "DesignDocs::Cli::List",

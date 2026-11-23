@@ -24,6 +24,6 @@ module ThemingTools
     category "agent_capability"
     default_enabled false
     disableable true
-    provides chat_mcp_tool_set: "ThemingTools::ChatToolSet"
+    toolkit chat_tools: "ThemingTools::ChatToolSet"
   end
 end

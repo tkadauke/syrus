@@ -40,7 +40,9 @@ RSpec.describe Coworkers::RepositoryConfiguration do
   end
 
   it "keeps the legacy top-level key as a plugin-owned alias" do
-    expect(described_class.legacy_keys).to eq([ "coworker_review" ])
-    expect(described_class.key).to eq("coworkers.review")
+    manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "coworkers" }
+    provider = Syrus::PluginRegistry.manifest_providers_for(manifest, :repository_configuration).first
+    expect(provider.legacy_keys).to eq([ "coworker_review" ])
+    expect(provider.key).to eq("coworkers.review")
   end
 end

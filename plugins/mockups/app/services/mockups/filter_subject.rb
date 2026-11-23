@@ -10,11 +10,5 @@ module Mockups
       "created_at" => "Filters::Chips::CreatedAt",
       "updated_at" => "Filters::Chips::UpdatedAt"
     }.freeze
-
-    def self.install_into(scope)
-      scope.effect("mockup filter subject") do
-        Filters.register_subject(name: :mockup, model: Mockups::Mockup, chips: CHIPS)
-      end
-    end
   end
 end

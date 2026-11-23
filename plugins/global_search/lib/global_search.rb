@@ -16,9 +16,9 @@ module GlobalSearch
     default_enabled true
     disableable true
     hosts [ :source ]
-    provides callbacks: "GlobalSearch::Callbacks",
-             domain_subscriber: "GlobalSearch::Subscribers",
-             sidebar_page: "GlobalSearch::SidebarPages",
+    lifecycle callback_providers: "GlobalSearch::Callbacks",
+              domain_subscribers: "GlobalSearch::Subscribers"
+    provides sidebar_pages: "GlobalSearch::SidebarPages",
              "global_search:source" => [
                "GlobalSearch::JobSource",
                "GlobalSearch::EpicSource",
@@ -26,6 +26,9 @@ module GlobalSearch
                "GlobalSearch::EpicSearchSource",
                "GlobalSearch::SourceProvider"
              ]
+    surface filter_subjects: { repository: { model: "Repository", chips: {
+      "created_at" => "Filters::Chips::CreatedAt", "updated_at" => "Filters::Chips::UpdatedAt"
+    } } }
     cli_commands [
       {
         path: %w[search], summary: "Search Jobs, Epics, chats, and repositories", handler: "GlobalSearch::Cli::Search",
@@ -40,18 +43,5 @@ module GlobalSearch
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/global_search.json" ]
-
-    while_enabled do |scope|
-      scope.effect("repository search filters") do
-        Filters.register_subject(
-          name: :repository,
-          model: Repository,
-          chips: {
-            "created_at" => "Filters::Chips::CreatedAt",
-            "updated_at" => "Filters::Chips::UpdatedAt"
-          }
-        )
-      end
-    end
   end
 end

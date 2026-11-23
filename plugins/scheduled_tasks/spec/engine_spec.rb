@@ -7,14 +7,14 @@ RSpec.describe ScheduledTasks::Engine do
     expect(manifest).to be_present
     expect(manifest.default_enabled?).to be(true)
     expect(manifest.tick_interval).to eq(1.minute)
-    expect(Array(manifest.provides[:callbacks])).to include(ScheduledTasks::Callbacks)
+    expect(Syrus::Plugin::Lifecycle.callback_providers_for(manifest)).to include(ScheduledTasks::Callbacks)
     expect(manifest.optionally_depends_on).to include("calendar")
     expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
       .to include(ScheduledTasks::CalendarEventSource)
   end
 
   it "registers the scoped permission provider" do
-    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(ScheduledTasks::PermissionProvider)
+    expect(permission_providers).to include(ScheduledTasks::PermissionProvider)
   end
 
   it "removes its Calendar contribution while either plugin is disabled", :reset_plugin_registry do

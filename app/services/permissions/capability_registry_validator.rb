@@ -24,14 +24,15 @@ module Permissions
           descriptor: entry.descriptor, explicit_descriptor: entry.explicit_descriptor, ungated: entry.ungated
         )
       end
-      plugin = %i[mcp_tool_set chat_mcp_tool_set].flat_map do |extension_point|
-        Syrus::PluginRegistry.providers_for(extension_point).flat_map do |provider|
-          plugin_registrations(provider, extension_point)
-        end
+      plugin = Syrus::Plugin::Toolkit.workflow_tool_sets.flat_map do |provider|
+        plugin_registrations(provider, :mcp_tool_set)
       end
-      permission_providers = Syrus::PluginRegistry.providers_for(:permission_provider).flat_map do |provider|
+      plugin.concat(Syrus::Plugin::Toolkit.chat_tool_sets.flat_map do |provider|
+        plugin_registrations(provider, :chat_mcp_tool_set)
+      end)
+      permission_providers = Syrus::Plugin::Toolkit.permission_providers.flat_map do |provider|
         descriptors = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
-          extension_point: :permission_provider, provider:, operation: :permission_capability_descriptors,
+          extension_point: :toolkit, provider:, operation: :permission_capability_descriptors,
           on_decline: []
         ) { provider.permission_capability_descriptors })
         descriptors.map do |descriptor|
@@ -47,7 +48,7 @@ module Permissions
 
     def self.plugin_registrations(provider, extension_point)
       definitions = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
-        extension_point:, provider:, operation: :tool_definitions, on_decline: []
+        extension_point: :toolkit, provider:, operation: :tool_definitions, on_decline: []
       ) { Syrus::PluginRegistry.all_tool_definitions(provider) })
       definitions.map do |definition|
         definition = definition.symbolize_keys

@@ -15,7 +15,7 @@ RSpec.describe "plugin admin page contracts" do
     end
 
     manifests = Syrus::PluginRegistry.all_plugins
-    admin_page_manifests = manifests.select { |manifest| manifest.provides.key?(:admin_page) }
+    admin_page_manifests = manifests.select { |manifest| manifest_surface_implementations(manifest, :admin_pages).any? }
 
     expect(admin_page_manifests).not_to be_empty
 
@@ -27,7 +27,7 @@ RSpec.describe "plugin admin page contracts" do
         .select { |route| route[:controller].to_s == "spa#show" }
         .map { |route| route[:path].to_s }
 
-      Array(manifest.provides[:admin_page]).each do |provider|
+      manifest_surface_implementations(manifest, :admin_pages).each do |provider|
         Array(provider.admin_pages).each do |raw_page|
           page = raw_page.to_h.symbolize_keys
 

@@ -14,9 +14,19 @@ module SpendingInsights
     default_enabled false
     disableable true
     optionally_depends_on [ "metrics_dashboard" ]
-    provides sidebar_page: "SpendingInsights::SidebarPages",
-             chat_mcp_tool_set: "SpendingInsights::ChatToolSet",
+    provides sidebar_pages: "SpendingInsights::SidebarPages",
              "metrics_dashboard:tab" => "SpendingInsights::MetricsDashboardTabs"
+    toolkit chat_tools: "SpendingInsights::ChatToolSet"
+    surface filter_subjects: {
+      spending_report: { model: "Run", chips: {
+        "repository_id" => "Filters::Chips::SpendingReport::RepositoryId",
+        "user_id" => "Filters::Chips::SpendingReport::UserId",
+        "created_at" => "Filters::Chips::SpendingReport::CreatedAt",
+        "agent_provider" => "Filters::Chips::SpendingReport::AgentProvider",
+        "trigger_kind" => "Filters::Chips::SpendingReport::TriggerKind",
+        "epic_id" => "Filters::Chips::SpendingReport::EpicId"
+      } }
+    }
     cli_commands [
       {
         path: %w[insights spending], summary: "Summarize agent spend", handler: "SpendingInsights::Cli::Spending",
@@ -44,23 +54,6 @@ module SpendingInsights
               comment: "Cumulative Run#cost_usd, so a cost blowup is alertable instead of only visible on " \
                        "/insights/spending"
       sampler MetricsSampler
-    end
-
-    while_enabled do |scope|
-      scope.effect("filter subjects") do
-        Filters.register_subject(
-          name: :spending_report,
-          model: Run,
-          chips: {
-            "repository_id"  => "Filters::Chips::SpendingReport::RepositoryId",
-            "user_id"        => "Filters::Chips::SpendingReport::UserId",
-            "created_at"     => "Filters::Chips::SpendingReport::CreatedAt",
-            "agent_provider" => "Filters::Chips::SpendingReport::AgentProvider",
-            "trigger_kind"   => "Filters::Chips::SpendingReport::TriggerKind",
-            "epic_id"        => "Filters::Chips::SpendingReport::EpicId"
-          }
-        )
-      end
     end
   end
 end

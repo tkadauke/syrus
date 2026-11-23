@@ -22,12 +22,13 @@ module VideoWalkthroughs
     home_queue :videos
     optionally_depends_on [ "metrics_dashboard" ]
 
-    provides chat_mcp_tool_set: "VideoWalkthroughs::ChatToolSet",
-             chat_payload_contributor: "VideoWalkthroughs::PayloadContributor",
-             chat_turn_orientation: "VideoWalkthroughs::TurnOrientation",
-             callbacks: "VideoWalkthroughs::Callbacks",
-             slug_type: "VideoWalkthroughs::SlugType",
-             "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
+    lifecycle callback_providers: "VideoWalkthroughs::Callbacks"
+    slug_type prefix: "WALKTHROUGH", display_label: "Walkthrough", resolver: "VideoWalkthroughs::SlugType"
+    provides "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
+    chat_integration payload_contributors: "VideoWalkthroughs::PayloadContributor",
+                     turn_orientations: "VideoWalkthroughs::TurnOrientation"
+    toolkit chat_tools: "VideoWalkthroughs::ChatToolSet",
+            credential_probes: { "gemini_api_key" => "VideoWalkthroughs::CredentialProbe" }
 
     route :post, "/api/v1/app/chats/:chat_id/video_walkthroughs", to: "api/v1/app/video_walkthroughs#create"
     route :post, "/api/v1/app/video_walkthroughs/:id/retry", to: "api/v1/app/video_walkthroughs#retry"
@@ -43,12 +44,6 @@ module VideoWalkthroughs
                              dependent: :destroy
       end
       nil
-    end
-
-    while_enabled do |scope|
-      # ::CredentialProbe, not CredentialProbe: this block is lexically inside
-      # `module VideoWalkthroughs`, which has its own CredentialProbe.
-      scope.effect("gemini credential probe") { ::CredentialProbe.register_probe("gemini_api_key", VideoWalkthroughs::CredentialProbe) }
     end
 
     # A plain aggregate value on a timer -- the declarative sample-block form

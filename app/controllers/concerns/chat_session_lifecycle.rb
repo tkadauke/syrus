@@ -20,9 +20,7 @@ module ChatSessionLifecycle
   end
 
   def repository_default_eligible_repositories
-    Syrus::PluginRegistry.providers_for(:repository_filter).reduce(Repository.accessible_to(Current.user)) do |scope, filter|
-      filter.apply(scope: scope, user: Current.user)
-    end
+    Syrus::Plugin::Policy.filter_repositories(Repository.accessible_to(Current.user), user: Current.user)
   end
 
   def repository_from_params

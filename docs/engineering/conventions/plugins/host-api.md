@@ -619,6 +619,17 @@ Supported members:
 - `user`
 - `workflow`
 
+### `Syrus::Host::Toolkit`
+
+Since: `0.1.16`
+
+Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition. Only the listed members are supported.
+
+Supported members:
+
+- `chat_tool_set_for`
+- `chat_tool_sets`
+
 ### `Syrus::Host::User`
 
 Since: `0.1.16`
@@ -686,7 +697,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentRole::WORKFLOW_IMPLEMENT`
 - `AgentRole::WORKFLOW_MANUAL`
 - `AgentRole::WORKFLOW_ROLES`
-- `AgentRole::WORKFLOW_SUMMARY_TEST_PLAN`
 - `AgentRole::WORKFLOW_VISUAL_REVIEWER`
 - `AgentSidecarEnvironment`
 - `Api::V1::Admin::BaseController`
@@ -776,7 +786,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Execution::ChatWorkloadPolicy`
 - `Execution::Local`
 - `Feature`
-- `Filters`
 - `Filters::Ast`
 - `Filters::Ast::AndNode`
 - `Filters::Ast::Chip`
@@ -1008,7 +1017,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Step`
 - `Step::AGENTIC_KINDS`
 - `Step::Kind`
-- `Step::PlacementPolicy::CONTROL_PLANE`
 - `StepWorkspace`
 - `Steps::AdversarialReview`
 - `Steps::AdversarialReview::MemoryPersistenceFailed`
@@ -1066,15 +1074,12 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::ReviewerTargetProvider`
 - `Syrus::Plugin::RuntimeSessionProvider`
 - `Syrus::Plugin::SidebarPage`
-- `Syrus::Plugin::SlugType`
 - `Syrus::Plugin::SourceControlProvider`
 - `Syrus::Plugin::SpeechToTextProvider`
-- `Syrus::Plugin::StepEnvironment`
 - `Syrus::Plugin::TestEvidence`
 - `Syrus::Plugin::UiSlot`
 - `Syrus::Plugin::WorkerCapabilityProbe`
 - `Syrus::Plugin::WorkflowArtifactContributor`
-- `Syrus::Plugin::WorkflowKinds`
 - `Syrus::Plugin::WorkspaceGitTransport`
 - `Syrus::Plugin::WorkspaceTab`
 - `Syrus::PluginApi`

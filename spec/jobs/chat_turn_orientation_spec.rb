@@ -18,8 +18,8 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
   # Only this extension point is stubbed; everything else the job reaches for
   # keeps its real providers.
   def stub_orientation_providers(providers = [])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_orientation).and_return(providers)
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:turn_orientations).and_return(providers)
   end
 
   def provider(&block)
@@ -44,6 +44,32 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
   # A provider that cannot orient the turn must not cost the user their turn.
   it "falls through to a normal turn when a provider raises" do
     stub_orientation_providers([ provider { raise "boom" }, provider { "recovered" } ])
+
+    expect(orientation).to eq("recovered")
+  end
+
+  it "continues the turn when a family provider fails during dispatch", :reset_plugin_registry do
+    Syrus::Plugin::ChatIntegration.restore_definition!
+    bad = Class.new do
+      def self.key = "bad_orientation_family"
+      def self.display_name = "Bad orientation family"
+      def self.turn_orientations(_context) = raise("broken family dispatch")
+    end
+    recovered = provider { "recovered" }
+    good = Class.new do
+      define_singleton_method(:key) { "good_orientation_family" }
+      define_singleton_method(:display_name) { "Good orientation family" }
+      define_singleton_method(:turn_orientations) { |_context| recovered }
+    end
+    stub_const("BadOrientationFamily", bad)
+    stub_const("GoodOrientationFamily", good)
+    [ [ "bad_orientation_family", "BadOrientationFamily" ], [ "good_orientation_family", "GoodOrientationFamily" ] ].each do |name, provider_name|
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
+        Syrus::Plugin::FamilyDeclaration.build(
+          family: :chat_integration, provider: provider_name, provisional: %i[turn_orientations]
+        )
+      ])
+    end
 
     expect(orientation).to eq("recovered")
   end

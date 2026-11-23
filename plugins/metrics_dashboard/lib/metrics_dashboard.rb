@@ -32,9 +32,9 @@ module MetricsDashboard
     # for other plugins".
     hosts [ :tab ]
 
-    provides sidebar_page: "MetricsDashboard::SidebarPages",
-             callbacks: "MetricsDashboard::Callbacks",
-             retention_policy: "MetricsDashboard::RetentionPolicy"
+    lifecycle callback_providers: "MetricsDashboard::Callbacks"
+    data_policy retention_policies: "MetricsDashboard::RetentionPolicy"
+    provides sidebar_pages: "MetricsDashboard::SidebarPages"
 
     # PluginTickSchedulerJob only ticks enabled, healthy plugins, so recording
     # stops when the plugin is disabled without any flag of our own to keep in

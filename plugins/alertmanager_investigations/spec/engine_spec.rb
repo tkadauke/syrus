@@ -8,7 +8,7 @@ RSpec.describe AlertmanagerInvestigations::Engine do
     expect(manifest).to be_experimental
     expect(manifest.default_enabled?).to eq(false)
     expect(manifest.tick_interval).to eq(1.minute)
-    expect(Array(manifest.provides[:callbacks])).to include(AlertmanagerInvestigations::Callbacks)
+    expect(Syrus::Plugin::Lifecycle.callback_providers_for(manifest)).to include(AlertmanagerInvestigations::Callbacks)
     expect(manifest.config_schema.map { |entry| entry[:key] }).to include(
       "base_url",
       "rate_limit_minutes",

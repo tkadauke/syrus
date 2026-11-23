@@ -1,5 +1,4 @@
 require "scheduled_tasks/data_cleanup"
-require "scheduled_tasks/filter_extension"
 
 module ScheduledTasks
   extend Syrus::PluginApi
@@ -24,16 +23,16 @@ module ScheduledTasks
     # recurring.yml used before this moved.
     tick_interval 1.minute
 
-    provides callbacks: "ScheduledTasks::Callbacks",
-             job_origin: "ScheduledTasks::JobOrigin",
-             domain_subscriber: "ScheduledTasks::Subscribers",
-             chat_mcp_tool_set: "ScheduledTasks::ChatToolSet",
-             permission_provider: "ScheduledTasks::PermissionProvider",
-             sidebar_page: "ScheduledTasks::SidebarPages",
-             repo_page_tab: "ScheduledTasks::RepoPageTabs",
+    lifecycle callback_providers: "ScheduledTasks::Callbacks",
+              domain_subscribers: "ScheduledTasks::Subscribers"
+    job_origin key: "scheduled_tasks", provider: "ScheduledTasks::JobOrigin"
+    provides sidebar_pages: "ScheduledTasks::SidebarPages",
+             repo_page_tabs: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",
              "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs",
              "calendar:event_source" => "ScheduledTasks::CalendarEventSource"
+    toolkit chat_tools: "ScheduledTasks::ChatToolSet", permissions: "ScheduledTasks::PermissionProvider"
+    surface filter_chips: { job: { "scheduled_task_id" => "ScheduledTasks::Filters::ScheduledTaskId" } }
 
     cli_commands [
       {
@@ -97,6 +96,5 @@ module ScheduledTasks
     always do |scope|
       ScheduledTasks::DataCleanup.install_into(scope)
     end
-    while_enabled { |scope| ScheduledTasks::FilterExtension.install_into(scope) }
   end
 end

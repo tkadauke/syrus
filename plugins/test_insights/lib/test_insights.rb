@@ -18,17 +18,20 @@ module TestInsights
     disableable true
     optionally_depends_on [ "global_search" ]
     hosts [ :parser ]
-    provides domain_subscriber: "TestInsights::Subscribers",
-             test_evidence: "TestInsights::TestEvidence",
-             permission_provider: "TestInsights::PermissionProvider",
+    lifecycle domain_subscribers: "TestInsights::Subscribers"
+    data_policy retention_policies: "TestInsights::RetentionPolicy"
+    provides test_evidence: "TestInsights::TestEvidence",
              grader_input_materializer: "TestInsights::GraderRuntimeProfileProvider",
              grader_failure_summarizer: "TestInsights::GraderFailureSummarizer",
              "global_search:source" => "TestInsights::SearchSource",
-             repo_page_tab: "TestInsights::RepoPageTabs",
-             ui_slot: "TestInsights::UiSlots",
-             mcp_tool_set: "TestInsights::McpToolSet",
-             chat_mcp_tool_set: "TestInsights::ChatToolSet",
-             retention_policy: "TestInsights::RetentionPolicy"
+             repo_page_tabs: "TestInsights::RepoPageTabs",
+             ui_slots: "TestInsights::UiSlots"
+    toolkit workflow_tools: "TestInsights::McpToolSet", chat_tools: "TestInsights::ChatToolSet", permissions: "TestInsights::PermissionProvider"
+    surface filter_subjects: { test_case: { model: "TestInsights::TestIdentity", chips: {
+      "repository_id" => "Filters::Chips::RepositoryId",
+      "created_at" => "Filters::Chips::CreatedAt",
+      "updated_at" => "Filters::Chips::UpdatedAt"
+    } } }
     route :get, "/api/v1/app/jobs/:job_id/test_results", to: "api/v1/app/job_test_results#index"
     route :get, "/api/v1/app/repositories/:repository_id/flaky_tests", to: "api/v1/app/repository_flaky_tests#index"
     route :get, "/api/v1/app/repositories/:repository_id/tests", to: "api/v1/app/repository_tests#index"
@@ -39,20 +42,6 @@ module TestInsights
     frontend routes: { "test_insights/RepositoryTests" => "app/frontend/repo_tabs/RepositoryTests.tsx" },
         ui_slots: { "test_insights/JobTests" => "app/frontend/ui_slots/JobTests.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/test_insights.json" ]
-
-    while_enabled do |scope|
-      scope.effect("filter subjects") do
-        Filters.register_subject(
-          name: :test_case,
-          model: TestInsights::TestIdentity,
-          chips: {
-            "repository_id" => "Filters::Chips::RepositoryId",
-            "created_at"    => "Filters::Chips::CreatedAt",
-            "updated_at"    => "Filters::Chips::UpdatedAt"
-          }
-        )
-      end
-    end
 
     # Rows this plugin owns on core records outlive it being disabled, and
     # still have to go when their owner does.

@@ -26,10 +26,9 @@ module AgentMemory
     default_enabled true
     disableable true
     provides memory_store: "AgentMemory::Store",
-             permission_provider: "AgentMemory::PermissionProvider",
-             mcp_tool_set: "AgentMemory::McpToolSet",
-             chat_mcp_tool_set: "AgentMemory::ChatToolSet",
-             sidebar_page: "AgentMemory::SidebarPages"
+             sidebar_pages: "AgentMemory::SidebarPages"
+    toolkit workflow_tools: "AgentMemory::McpToolSet", chat_tools: "AgentMemory::ChatToolSet", permissions: "AgentMemory::PermissionProvider"
+    surface filter_subjects: { memory: { model: "AgentMemory::Entry", chips: FILTER_CHIPS } }
     route :get, "/api/v1/app/memories", to: "api/v1/app/memories#index"
     route :post, "/api/v1/app/memories", to: "api/v1/app/memories#create"
     route :patch, "/api/v1/app/memories/:id", to: "api/v1/app/memories#update"
@@ -40,12 +39,6 @@ module AgentMemory
     route :get, "/api/v1/app/memories/:id/audit_events", to: "api/v1/app/memories#audit_events"
     frontend routes: { "agent_memory/Memories" => "app/frontend/routes/Memories.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/agent_memory.json" ]
-
-    while_enabled do |scope|
-      scope.effect("memory filter subject") do
-        Filters.register_subject(name: :memory, model: AgentMemory::Entry, chips: FILTER_CHIPS)
-      end
-    end
 
     # Rows this plugin owns on core records outlive it being disabled, and
     # still have to go when their owner does.

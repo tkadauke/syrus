@@ -8,7 +8,7 @@ module Repositories
     end
 
     def self.plugin_tabs_for(repository:, user:)
-      Syrus::PluginRegistry.providers_for(:repo_page_tab)
+      Syrus::Plugin::Surface.contributions(:repo_page_tabs)
         .flat_map { |provider| tabs_from_provider(provider, repository: repository, user: user) }
         .sort_by { |tab| [ tab[:order].to_i, tab[:label].to_s ] }
     end

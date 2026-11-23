@@ -307,6 +307,32 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  %i[review_gate adjudicator post_implementation_review_provider job_visibility_restriction repository_filter].each do |point|
+    it "isolates a plugin that still registers the removed #{point} point and reports plugin health" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        directory = write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture")
+        entry_file = directory.join("lib/external_loader_fixture.rb")
+        entry_file.write(entry_file.read.sub("provides callbacks:", "provides #{point}:"))
+
+        described_class.new(
+          plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+        ).load!
+        definition = ExternalLoaderFixture.instance_variable_get(:@syrus_plugin_definition)
+        expect { described_class.install_definition!(definition) }.not_to raise_error
+
+        status = Syrus::PluginRegistry.health.status("external_loader_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("Unknown extension point :#{point}")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+      end
+    end
+  end
+
   it "orders plugins after their declared plugin dependencies" do
     Dir.mktmpdir do |temporary|
       app_root = Pathname.new(temporary).join("app")
@@ -384,6 +410,299 @@ RSpec.describe Syrus::PluginLoader do
   describe "boot isolation" do
     def overwrite_entry(directory, gem_name, source)
       directory.join("lib/#{gem_name}.rb").write(source)
+    end
+
+    it "turns an obsolete external Toolkit declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        healthy = write_plugin(external_root, directory_name: "healthy_toolkit", gem_name: "healthy_toolkit_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_toolkit", gem_name: "obsolete_toolkit_fixture")
+        overwrite_entry(obsolete, "obsolete_toolkit_fixture", <<~RUBY)
+          module ObsoleteToolkitFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_toolkit_fixture" do
+              provides toolkit: "ObsoleteToolkitFixture::Provider", implements: %i[removed_toolkit_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_toolkit_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_toolkit_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_toolkit_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteToolkitFixture) if defined?(ObsoleteToolkitFixture)
+      end
+    end
+
+    it "turns an obsolete external Surface declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_surface", gem_name: "healthy_surface_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_surface", gem_name: "obsolete_surface_fixture")
+        overwrite_entry(obsolete, "obsolete_surface_fixture", <<~RUBY)
+          module ObsoleteSurfaceFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_surface_fixture" do
+              provides surface: "ObsoleteSurfaceFixture::Provider", implements: %i[removed_surface_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_surface_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_surface_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_surface_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteSurfaceFixture) if defined?(ObsoleteSurfaceFixture)
+      end
+    end
+
+    it "turns an obsolete external ChatIntegration declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_chat", gem_name: "healthy_chat_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_chat", gem_name: "obsolete_chat_fixture")
+        overwrite_entry(obsolete, "obsolete_chat_fixture", <<~RUBY)
+          module ObsoleteChatFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_chat_fixture" do
+              provides chat_integration: "ObsoleteChatFixture::Provider", provisional: %i[removed_chat_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_chat_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_chat_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_chat_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteChatFixture) if defined?(ObsoleteChatFixture)
+      end
+    end
+
+    it "turns an obsolete external Review declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_review", gem_name: "healthy_review_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_review", gem_name: "obsolete_review_fixture")
+        overwrite_entry(obsolete, "obsolete_review_fixture", <<~RUBY)
+          module ObsoleteReviewFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_review_fixture" do
+              provides review: "ObsoleteReviewFixture::Provider", provisional: %i[removed_review_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_review_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_review_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_review_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteReviewFixture) if defined?(ObsoleteReviewFixture)
+      end
+    end
+
+    it "turns an obsolete external Policy declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_policy", gem_name: "healthy_policy_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_policy", gem_name: "obsolete_policy_fixture")
+        overwrite_entry(obsolete, "obsolete_policy_fixture", <<~RUBY)
+          module ObsoletePolicyFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_policy_fixture" do
+              provides policy: "ObsoletePolicyFixture::Provider", provisional: %i[removed_policy_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_policy_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_policy_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_policy_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoletePolicyFixture) if defined?(ObsoletePolicyFixture)
+      end
+    end
+
+    %i[agent_runtime execution_backend runtime_session source_host speech_to_text].each do |family|
+      it "turns an obsolete external #{family} service declaration into health evidence and keeps booting" do
+        Dir.mktmpdir do |temporary|
+          snapshot = Syrus::PluginRegistry.snapshot
+          app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+          external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+          write_plugin(external_root, directory_name: "healthy_#{family}", gem_name: "healthy_#{family}_fixture")
+          obsolete = write_plugin(external_root, directory_name: "obsolete_#{family}", gem_name: "obsolete_#{family}_fixture")
+          constant = "Obsolete#{family.to_s.camelize}Fixture"
+          overwrite_entry(obsolete, "obsolete_#{family}_fixture", <<~RUBY)
+            module #{constant}
+              extend Syrus::PluginApi
+              syrus_plugin "obsolete_#{family}_fixture" do
+                provides #{family}: "#{constant}::Provider", provisional: %i[removed_service_api]
+              end
+            end
+          RUBY
+
+          loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+          expect { loader.load! }.not_to raise_error
+
+          described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+          status = Syrus::PluginRegistry.health.status("obsolete_#{family}_fixture")
+          expect(status.state).to eq(:failed)
+          expect(status.reasons.join).to include("removed_service_api")
+          expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_#{family}_fixture")
+        ensure
+          Syrus::PluginRegistry.restore(snapshot) if snapshot
+          Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+          Object.send(:remove_const, constant) if constant && Object.const_defined?(constant)
+        end
+      end
+    end
+
+    {
+      "workflow_kinds" => [ %(workflow_kinds trigger_kinds: [ { kind: "Bad Kind", template: "T", label: "L", style: "s" } ]), "trigger_kinds entry kind" ],
+      "job_origin" => [ %(job_origin key: "Not A Key"), "job_origin key" ],
+      "slug_type" => [ %(slug_type prefix: "lower", display_label: "X", resolver: "X::Y"), "slug_type prefix" ],
+      "problem_provider" => [ %(problem_provider namespace: "ns", kinds: [ { code: "other.code", scope: "run", retryable: true, default_remediation: "escalate" } ]), "must start with its namespace" ],
+      "repository_configuration" => [ %(repository_configuration key: "someone_else.review", provider: "X::Y"), "owner namespace" ],
+      "step_environment" => [ %(step_environment forwarded_env_keys: %w[lower_case]), "forwarded_env_keys" ],
+      "worker_capability_probe" => [ %(worker_capability_probe dimension: "runtime", token: "ok", probe: "not a constant"), "probe must be a constant name" ],
+      "an unknown point" => [ %(declare :removed_point, anything: 1), "unknown manifest declaration :removed_point" ]
+    }.each do |point, (declaration, message)|
+      it "turns an obsolete external #{point} declaration into health evidence and keeps booting" do
+        Dir.mktmpdir do |temporary|
+          snapshot = Syrus::PluginRegistry.snapshot
+          app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+          external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+          write_plugin(external_root, directory_name: "healthy_declaration", gem_name: "healthy_declaration_fixture")
+          obsolete = write_plugin(external_root, directory_name: "obsolete_declaration", gem_name: "obsolete_declaration_fixture")
+          overwrite_entry(obsolete, "obsolete_declaration_fixture", <<~RUBY)
+            module ObsoleteDeclarationFixture
+              extend Syrus::PluginApi
+              syrus_plugin "obsolete_declaration_fixture" do
+                #{declaration}
+              end
+            end
+          RUBY
+
+          loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+          expect { loader.load! }.not_to raise_error
+
+          described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+          status = Syrus::PluginRegistry.health.status("obsolete_declaration_fixture")
+          expect(status.state).to eq(:failed)
+          expect(status.reasons.join).to include(message)
+          expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_declaration_fixture")
+        ensure
+          Syrus::PluginRegistry.restore(snapshot) if snapshot
+          Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+          Object.send(:remove_const, :ObsoleteDeclarationFixture) if defined?(ObsoleteDeclarationFixture)
+        end
+      end
+    end
+
+    it "turns an obsolete external Lifecycle declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_lifecycle", gem_name: "healthy_lifecycle_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_lifecycle", gem_name: "obsolete_lifecycle_fixture")
+        overwrite_entry(obsolete, "obsolete_lifecycle_fixture", <<~RUBY)
+          module ObsoleteLifecycleFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_lifecycle_fixture" do
+              provides lifecycle: "ObsoleteLifecycleFixture::Provider", provisional: %i[removed_lifecycle_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_lifecycle_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_lifecycle_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_lifecycle_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteLifecycleFixture) if defined?(ObsoleteLifecycleFixture)
+      end
+    end
+
+    it "turns an obsolete external DataPolicy declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_data_policy", gem_name: "healthy_data_policy_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_data_policy", gem_name: "obsolete_data_policy_fixture")
+        overwrite_entry(obsolete, "obsolete_data_policy_fixture", <<~RUBY)
+          module ObsoleteDataPolicyFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_data_policy_fixture" do
+              provides data_policy: "ObsoleteDataPolicyFixture::Provider", provisional: %i[removed_data_policy_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_data_policy_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_data_policy_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_data_policy_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteDataPolicyFixture) if defined?(ObsoleteDataPolicyFixture)
+      end
     end
 
     it "isolates StandardError, LoadError, and syntax failures while loading healthy plugins" do
