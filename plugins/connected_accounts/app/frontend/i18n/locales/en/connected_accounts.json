@@ -1,7 +1,9 @@
 {
   "settings": {
     "title": "Connected accounts",
-    "description": "Configure the instance-wide generic OAuth 2 provider. Comma-separate scopes, read-only scopes, and API origins.",
+    "description": "Configure instance-wide connected-account providers. Comma-separate editable scopes and API origins.",
+    "provider": "Provider",
+    "google_notice": "Register your own Google OAuth client and check Google's current verification policy. Only the client id and secret are configurable; Syrus pins Google's endpoints and the read-only Calendar scope.",
     "authorize_url": "Authorization URL",
     "token_url": "Token URL",
     "revoke_url": "Revocation URL",

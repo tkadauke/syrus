@@ -77,6 +77,9 @@ module ConnectedAccounts
     route :delete, "/api/v1/app/connected_accounts/accounts/:id", to: "api/v1/app/connected_accounts/accounts#destroy"
     route :get, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#show"
     route :patch, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#update"
+    route :get, "/api/v1/app/admin/connected_accounts/provider_configs", to: "api/v1/app/connected_accounts/provider_configs#index"
+    route :get, "/api/v1/app/admin/connected_accounts/provider_configs/:provider", to: "api/v1/app/connected_accounts/provider_configs#show"
+    route :patch, "/api/v1/app/admin/connected_accounts/provider_configs/:provider", to: "api/v1/app/connected_accounts/provider_configs#update"
     route :get, "/admin/connected_accounts", to: "spa#show"
     route :get, "/settings/connected_accounts", to: "spa#show"
     frontend routes: {
