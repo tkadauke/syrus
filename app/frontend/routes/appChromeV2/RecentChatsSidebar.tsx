@@ -649,7 +649,7 @@ export function RecentChatsSidebar({
                         <Link
                           aria-disabled={Boolean(chat.archived_at)}
                           aria-label={title}
-                          className={`${recentChatLinkClass(active)} ${isCoworkerMain ? "pl-7" : ""} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
+                          className={`${recentChatLinkClass(active)} ${isCoworkerMain ? "pl-7 pr-16" : ""} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
                           onClick={(event) => {
                             if (chat.archived_at) {
                               event.preventDefault()
@@ -732,7 +732,7 @@ export function RecentChatsSidebar({
                         {chat.agent_appearance?.coworker_chat_role === "main" ? (
                           <button
                             aria-label={t("nav:new_coworker_side_chat", { name: chat.agent_appearance.name })}
-                            className={`${RECENT_CHATS_ICON_BUTTON_CLASS} absolute right-8 top-1/2 z-10 -translate-y-1/2`}
+                            className={`${RECENT_CHATS_ICON_BUTTON_CLASS} absolute right-2 top-1/2 z-10 -translate-y-1/2`}
                             disabled={creatingSideChatIds.has(chat.id)}
                             onClick={() => createSideChat(chat)}
                             type="button"
@@ -743,6 +743,7 @@ export function RecentChatsSidebar({
                         {chat.archived_at ? null : (
                           <RecentChatActionsMenu
                             chat={chat}
+                            coworkerMain={isCoworkerMain}
                             deleteDisabled={deletingChatIds.has(chat.id)}
                             onDelete={() => deleteRecentChat(chat)}
                             onNotice={onNotice}
@@ -1602,6 +1603,7 @@ function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingMod
 
 function RecentChatActionsMenu({
   chat,
+  coworkerMain = false,
   deleteDisabled = false,
   onDelete,
   onNotice,
@@ -1611,6 +1613,7 @@ function RecentChatActionsMenu({
   setOpen
 }: {
   chat: ChatNavRecord
+  coworkerMain?: boolean
   deleteDisabled?: boolean
   onDelete: () => void
   onNotice: (message: string | null) => void
@@ -1700,7 +1703,7 @@ function RecentChatActionsMenu({
   }
 
   return (
-    <div className="absolute right-2 top-1/2 z-10 -translate-y-1/2" data-testid="recent-chat-action-slot" ref={referenceRef}>
+    <div className={`absolute ${coworkerMain ? "right-10" : "right-2"} top-1/2 z-10 -translate-y-1/2`} data-testid="recent-chat-action-slot" ref={referenceRef}>
       <button
         aria-expanded={open}
         aria-label={t("chat:chat_actions_for", { title: sidebarChatTitle(chat, t("chat:new_title")) })}
