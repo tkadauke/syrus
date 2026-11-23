@@ -53,17 +53,17 @@ class WorkflowWorkspaceRecovery
   class Resume < State
     def call
       unsafe_run = machine.active_runs.detect do |run|
-        run.running? && !run.step.kind.in?(%w[grader grader_collect])
+        run.running? && !WorkflowWorkspaceRecovery.replay_safe?(run)
       end
       if unsafe_run
         return machine.retry_required("active #{unsafe_run.step.kind} Run may mutate state and cannot be replayed safely")
       end
 
       replayable = machine.active_runs.reject { |run| machine.live_execution?(run) }
-      grader_runs = replayable.select { |run| run.step.kind == "grader" }
+      grader_runs = replayable.select { |run| run.step.kind.in?(PARALLEL_GRADER_KINDS) }
       grader_runs.each { |run| machine.requeue!(run) }
 
-      control_run = replayable.reject { |run| run.step.kind == "grader" }.last
+      control_run = replayable.reject { |run| run.step.kind.in?(PARALLEL_GRADER_KINDS) }.last
       machine.requeue!(control_run) if control_run
 
       resumed = grader_runs + Array(control_run)
@@ -90,6 +90,19 @@ class WorkflowWorkspaceRecovery
     Step::PlacementPolicy::CONTROL_PLANE,
     Step::PlacementPolicy::EXTERNAL_CONTEXT
   ].freeze
+
+  # Graders and their collectors only judge a tree; they never write the
+  # workflow workspace, so a stranded one is safe to replay. The preflight
+  # kinds are the same work for a main-branch repair: leaving them out made
+  # every main repair that lost its worker mid-preflight fail the whole
+  # attempt instead of reconstructing and resuming.
+  PARALLEL_GRADER_KINDS = %w[grader preflight_grader].freeze
+  REPLAY_SAFE_KINDS = (PARALLEL_GRADER_KINDS + %w[grader_collect preflight_grader_collect]).freeze
+
+  def self.replay_safe?(run)
+    step = run.step
+    step.kind.in?(REPLAY_SAFE_KINDS) || WORKSPACE_FREE_PLACEMENTS.include?(step.placement_policy)
+  end
 
   attr_reader :workflow, :workspace, :git, :candidate
   attr_writer :candidate
