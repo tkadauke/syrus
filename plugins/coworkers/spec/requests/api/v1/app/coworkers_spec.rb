@@ -364,6 +364,63 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
+  it "keeps coworker and epic lookups bounded as the mixed chat index grows" do
+    repositories = 3.times.map do |index|
+      Factories.repository(user: owner, owner: "acme", name: "chat-index-#{index}")
+    end
+    epics = repositories.map.with_index do |repository, index|
+      Factories.epic(user: owner, repository: repository, title: "Chat index epic #{index}")
+    end
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-chat-index-budget",
+      workspace_repo: repositories.first.remote_url
+    )
+
+    create_mixed_chats = lambda do |range|
+      range.each do |index|
+        repository = index.even? ? repositories[index % repositories.size] : nil
+        chat = ChatSession.create!(
+          user: owner, repository: repository, title: "Mixed chat #{index}",
+          last_message_at: index.minutes.ago
+        )
+        Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "side") if (index % 3).zero?
+        next unless index.even?
+
+        epic = epics[index % epics.size] if (index % 4).zero?
+        job = Factories.job_record(
+          user: owner, repository: epic&.repository || repositories[index % repositories.size], epic: epic,
+          issue_number: 10_000 + index, state: "implemented", issue_title: "Mixed job #{index}"
+        )
+        ChatAttachment.create!(chat_session: chat, attachable: job, attached_at: Time.current)
+      end
+    end
+    capture_index_queries = lambda do
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        queries << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+      end
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { get "/api/v1/app/chats" }
+      expect(response).to have_http_status(:ok)
+      queries
+    end
+    association_query_counts = lambda do |queries|
+      {
+        coworker_chats: queries.grep(/FROM ["`]?coworker_chats["`]?/i).size,
+        coworkers: queries.grep(/FROM ["`]?coworkers["`]?/i).size,
+        epics: queries.grep(/FROM ["`]?epics["`]?/i).size
+      }
+    end
+
+    sign_in_as(owner)
+    create_mixed_chats.call(0...6)
+    small_counts = association_query_counts.call(capture_index_queries.call)
+    create_mixed_chats.call(6...18)
+    large_counts = association_query_counts.call(capture_index_queries.call)
+
+    expect(large_counts).to eq(small_counts)
+    expect(large_counts).to include(coworker_chats: 3, coworkers: 1, epics: 1)
+  end
+
   it "scopes mention autocomplete without leaking the user or coworker directory" do
     rostered = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", role_summary: "Researcher", workspace_repo: "https://github.com/acme/workspace.git")
     available = Coworkers::Coworker.create!(owner_user: owner, name: "Nora", handle: "nora", workspace_repo: "https://github.com/acme/workspace.git")
