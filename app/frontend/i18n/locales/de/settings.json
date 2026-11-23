@@ -1224,6 +1224,8 @@
     "check_cost_footer": "Syrus-Kostenfußzeile zu PR-Beschreibungen hinzufügen",
     "check_auto_merge": "Genehmigte Syrus-PRs automatisch mergen",
     "check_trust_rebase": "Sauberen Rebases vertrauen (nach konfliktfreiem Rebase nicht neu bewerten)",
+    "label_landing_concurrency": "Gleichzeitige Landing-Einheiten",
+    "landing_concurrency_hint": "Wie viele Landing-Einheiten (einzelne Landings, Job-Bundles, Epic-Merge-Trains) für dieses Repository gleichzeitig validiert werden dürfen, 1 bis 5. Nur der abschließende Merge wird serialisiert. Bei 1 gibt es einen einzigen Landing-Platz.",
     "check_distributed_workflow_dag": "Verteilte Workflow-DAG-Ausführung für geeignete Schritte verwenden",
     "distributed_workflow_dag_hint": "Erfordert, dass die instanzweite Funktion für verteilte Workflows und die Worker-Slot-Zulassung aktiviert sind.",
     "check_ci_repair": "Fehlgeschlagene Pull-Request-CI automatisch reparieren",

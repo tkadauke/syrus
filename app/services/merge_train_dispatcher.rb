@@ -53,6 +53,7 @@ class MergeTrainDispatcher
       raise ActiveRecord::Rollback if blocked_member_entry(members)
       base_branch = landing_branch_result_for(members).base_branch
       raise ActiveRecord::Rollback if base_branch.blank?
+      landing_lane = WorkDefinitions.free_landing_lane_for(members.last, policy: delivery_policy)
 
       train = MergeTrain.create!(
         epic: @epic,
@@ -78,6 +79,7 @@ class MergeTrainDispatcher
           # integration branch against that member branch instead of the base.
           RebaseTarget::BASE_BRANCH_ARTIFACT => train.base_branch
         }.merge(fix_replay_artifacts_for(members))
+          .merge(WorkDefinitions.landing_lane_artifacts(landing_lane))
       )
     end
 
@@ -148,7 +150,12 @@ class MergeTrainDispatcher
     return nil if members.empty?
 
     definition = WorkDefinitions.for(TRAIN_KIND)
-    keys = definition.lock_keys_for(job: members.last, member_jobs: members, artifacts: {})
+    lane = WorkDefinitions.free_landing_lane_for(members.last, policy: delivery_policy)
+    keys = definition.lock_keys_for(
+      job: members.last,
+      member_jobs: members,
+      artifacts: WorkDefinitions.landing_lane_artifacts(lane)
+    )
     key, owner = WorkUnits::Ownership.blocking_lock_owner(keys)
     return nil unless owner
 
@@ -171,16 +178,7 @@ class MergeTrainDispatcher
   end
 
   def landing_job_in_progress(job: landing_lock_job, policy: delivery_policy)
-    lock_key = WorkDefinitions.landing_lock_key_for(job, policy: policy)
-    if lock_key && (unit = WorkUnits::Ownership.active_unit_for_lock_key(lock_key, kinds: WorkDefinitions.landing_lock_kinds))
-      return unit.member_jobs.order(:id).first || unit.workflow&.job
-    end
-
-    return unless lock_key
-
-    Job.landing.where(repository_id: @epic.repository_id).order(:id).detect do |landing_job|
-      WorkDefinitions.landing_lock_key_for(landing_job, policy: policy) == lock_key
-    end
+    WorkDefinitions.landing_blocker_job_for(job, policy: policy)
   end
 
   # A train takes one landing slot, so its members must resolve to one branch.

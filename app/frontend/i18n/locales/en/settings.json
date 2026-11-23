@@ -1224,6 +1224,8 @@
     "check_cost_footer": "Add Syrus cost footer to PR descriptions",
     "check_auto_merge": "Auto-merge approved Syrus PRs",
     "check_trust_rebase": "Trust clean rebases (skip re-grading after a conflict-free rebase)",
+    "label_landing_concurrency": "Concurrent landing units",
+    "landing_concurrency_hint": "How many landing units (solo landings, job bundles, Epic merge trains) may validate at the same time for this repository, 1 to 5. Only the final merge is serialized. 1 keeps a single landing slot.",
     "check_distributed_workflow_dag": "Use distributed workflow DAG execution for eligible steps",
     "distributed_workflow_dag_hint": "Requires the instance-wide distributed workflow feature; eligible graders use immutable checkouts and RunHostAdmission.",
     "check_ci_repair": "Automatically repair failing pull request CI",

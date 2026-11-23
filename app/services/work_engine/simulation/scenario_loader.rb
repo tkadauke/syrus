@@ -9,7 +9,7 @@ module WorkEngine
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
         main_branch_repair_blocks_work landing_paused pr_check_gate
-        distributed_workflow_dag_enabled
+        distributed_workflow_dag_enabled landing_concurrency
       ].freeze
       JOB_UPDATE_KEYS = %w[
         state priority closure_reason pr_number branch_name pr_checks_state pr_checks_sha

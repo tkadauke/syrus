@@ -130,6 +130,18 @@ The dashboard's landing queue explains the active queue status. The Job detail
 page shows the latest workflow and, when admin debugging is enabled, the Work
 Intent and Work Unit that Syrus is using internally to schedule the attempt.
 
+## Landing Concurrency
+
+By default a repository lands one unit at a time. The repository setting
+`landing_concurrency` (1 to 5, default 1, next to the "Trust clean rebases"
+option in the repository form) lets up to that many landing units, whether a
+single Job, a job bundle, or an Epic merge train, validate at once. Only the
+final merge is serialized, so whichever unit is ready first merges first and
+the others rebase onto the moved base and continue. Each running unit holds
+one landing lane; a unit that fails its graders holds only its own lane while
+the others keep landing. With the default of 1, landing works exactly as it
+always has.
+
 ## Reusing Green Results
 
 Landing can reuse a previous green validation when the proof still matches the

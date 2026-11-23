@@ -45,6 +45,7 @@ class JobBundleDispatcher
       raise ActiveRecord::Rollback unless members.all? { |job| LandingApprovalGate.satisfied?(job, policy: delivery_policy) }
       base_branch = landing_branch_result_for(members).base_branch
       raise ActiveRecord::Rollback if base_branch.blank?
+      landing_lane = WorkDefinitions.free_landing_lane_for(members.last, policy: delivery_policy)
 
       train = MergeTrain.create!(
         repository: @repository,
@@ -70,6 +71,7 @@ class JobBundleDispatcher
           # integration branch against that member branch instead of the base.
           RebaseTarget::BASE_BRANCH_ARTIFACT => train.base_branch
         }.merge(fix_replay_artifacts_for(members))
+          .merge(WorkDefinitions.landing_lane_artifacts(landing_lane))
       )
     end
 
@@ -163,7 +165,12 @@ class JobBundleDispatcher
     return nil if members.empty?
 
     definition = WorkDefinitions.for(BUNDLE_KIND)
-    keys = definition.lock_keys_for(job: members.last, member_jobs: members, artifacts: {})
+    lane = WorkDefinitions.free_landing_lane_for(members.last, policy: delivery_policy)
+    keys = definition.lock_keys_for(
+      job: members.last,
+      member_jobs: members,
+      artifacts: WorkDefinitions.landing_lane_artifacts(lane)
+    )
     key, owner = WorkUnits::Ownership.blocking_lock_owner(keys)
     return nil unless owner
 
@@ -177,7 +184,12 @@ class JobBundleDispatcher
     VisualDiffSubmission.cancel_obsolete_automatic_work!(potential_member_candidates)
   end
 
+  # With more than one lane a second bundle may validate beside the first, so
+  # "a bundle is active" no longer stops a dispatch by itself: the lanes being
+  # full (landing_job_in_progress) does.
   def active_bundle_in_progress?
+    return false if multiple_landing_lanes?
+
     lock_key = landing_lock_key
     return false unless lock_key
 
@@ -195,6 +207,7 @@ class JobBundleDispatcher
   # is not stuck" at a glance.
   def active_bundle_train
     return @active_bundle_train if defined?(@active_bundle_train)
+    return @active_bundle_train = nil if multiple_landing_lanes?
 
     branch = landing_branch_for_dispatch
     @active_bundle_train = branch && MergeTrain.active
@@ -204,16 +217,11 @@ class JobBundleDispatcher
   end
 
   def landing_job_in_progress(job: landing_lock_job, policy: delivery_policy)
-    lock_key = WorkDefinitions.landing_lock_key_for(job, policy: policy)
-    if lock_key && (unit = WorkUnits::Ownership.active_unit_for_lock_key(lock_key, kinds: WorkDefinitions.landing_lock_kinds))
-      return unit.member_jobs.order(:id).first || unit.workflow&.job
-    end
+    WorkDefinitions.landing_blocker_job_for(job, policy: policy)
+  end
 
-    return unless lock_key
-
-    Job.landing.where(repository_id: @repository.id).order(:id).detect do |landing_job|
-      WorkDefinitions.landing_lock_key_for(landing_job, policy: policy) == lock_key
-    end
+  def multiple_landing_lanes?
+    WorkDefinitions.landing_lane_count(@repository) > 1
   end
 
   def landing_lock_key

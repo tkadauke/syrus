@@ -597,6 +597,20 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.reload.trigger_label).to eq("delegate")
   end
 
+  it "updates landing_concurrency within 1..5 and rejects values outside it" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    expect(repository.landing_concurrency).to eq(1)
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: { repository: { landing_concurrency: 3 } }
+    expect(response).to have_http_status(:ok)
+    expect(repository.reload.landing_concurrency).to eq(3)
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: { repository: { landing_concurrency: 6 } }
+    expect(response).not_to have_http_status(:ok)
+    expect(repository.reload.landing_concurrency).to eq(3)
+  end
+
   it "returns the new repository form payload" do
     sign_in_as(user)
     user.update!(agent_provider: "codex", claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")

@@ -155,11 +155,14 @@ module WorkDefinitions
       false
     end
 
-    def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
+    def lock_keys_for(job:, member_jobs:, artifacts: {}, **options)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
       keys << "epic:#{job.epic_id}" if lock_scope == "epic" && job.epic_id.present?
       keys << "repository:#{job.repository_id}" if lock_scope == "repository" && job.repository_id.present?
-      keys << WorkDefinitions.landing_lock_key_for(job) if landing_lock? && !child?
+      if landing_lock? && !child?
+        lane = options[:landing_lane] || artifacts.to_h[WorkDefinitions::LANDING_LANE_ARTIFACT]
+        keys << WorkDefinitions.landing_lock_key_for(job, lane: lane)
+      end
       keys.uniq
     end
 

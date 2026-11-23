@@ -67,6 +67,7 @@ export type RepositoryFormRecord = {
   pr_cost_footer_enabled: boolean
   auto_merge_enabled: boolean
   trust_clean_rebase_grade: boolean
+  landing_concurrency: number
   pr_check_gate: PrCheckGate
   known_flaky_failure_dismissal_enabled: boolean
   known_flaky_failure_min_score: number | null
@@ -147,6 +148,7 @@ export type RepositoryInput = {
   pr_cost_footer_enabled: boolean
   auto_merge_enabled: boolean
   trust_clean_rebase_grade: boolean
+  landing_concurrency: number
   pr_check_gate: PrCheckGate
   known_flaky_failure_dismissal_enabled: boolean
   known_flaky_failure_min_score: number | null

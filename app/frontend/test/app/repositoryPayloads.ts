@@ -252,6 +252,7 @@ export function repositoryFormPayload(
       pr_cost_footer_enabled: true,
       auto_merge_enabled: false,
       trust_clean_rebase_grade: false,
+      landing_concurrency: 1,
       main_branch_health_enabled: true,
       main_branch_repair_enabled: true,
       main_branch_repair_blocks_work: true,

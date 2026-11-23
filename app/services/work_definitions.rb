@@ -63,10 +63,13 @@ module WorkDefinitions
   # non-default branch gets the generalized, branch-suffixed key. Callers
   # that already resolved a `DeliveryPolicy` for this job's repository may
   # pass it via `policy:` to avoid a redundant `.syrus.yml` read.
-  def landing_lock_key_for(job, policy: nil)
+  def landing_lock_key_for(job, policy: nil, lane: nil)
     return nil unless job&.repository_id
 
     bare_key = "landing:repository:#{job.repository_id}"
+    # Lane 1 is the original slot and keeps its key byte for byte; further
+    # lanes insert `:lane:<k>` before the branch suffix.
+    bare_key = "#{bare_key}:lane:#{lane.to_i}" if lane.to_i > 1
     repository = job.repository
     return bare_key unless repository
 
@@ -74,6 +77,91 @@ module WorkDefinitions
     return bare_key if branch.blank? || branch == repository.default_branch
 
     "#{bare_key}:branch:#{branch}"
+  end
+
+  # Artifact on a landing Workflow naming the lane it landed in. Written only
+  # for lanes above 1, so a single-lane repository's artifacts are unchanged.
+  # Every site that recomputes a unit's lock keys already passes the
+  # workflow's artifacts, which is how a lane-2 unit keeps asking for lane 2.
+  LANDING_LANE_ARTIFACT = "landing_lane".freeze
+
+  def landing_lane_count(repository)
+    count = repository&.landing_concurrency.to_i
+    count.clamp(Repository::LANDING_CONCURRENCY_RANGE.begin, Repository::LANDING_CONCURRENCY_RANGE.end)
+  end
+
+  # Every lane's lock key for the Job's landing branch, lane 1 first.
+  def landing_lane_keys_for(job, policy: nil)
+    return [] unless job&.repository_id
+
+    (1..landing_lane_count(job.repository)).map { |lane| landing_lock_key_for(job, policy: policy, lane: lane) }
+  end
+
+  # The lane a lock key belongs to (1 for the unsuffixed original key).
+  def landing_lane_for_key(lock_key)
+    lock_key.to_s[/\Alanding:repository:\d+:lane:(\d+)/, 1]&.to_i || 1
+  end
+
+  # The artifacts a landing dispatch passes to claim `lane`; empty for lane 1.
+  def landing_lane_artifacts(lane)
+    lane.to_i > 1 ? { LANDING_LANE_ARTIFACT => lane.to_i } : {}
+  end
+
+  # The lowest-numbered lane whose lock no active landing unit holds, or nil
+  # when every lane is occupied.
+  def free_landing_lane_for(job, policy: nil)
+    keys = landing_lane_keys_for(job, policy: policy)
+    keys.each_with_index do |key, index|
+      return index + 1 unless WorkUnits::Ownership.active_for_lock_key?(key, kinds: landing_lock_kinds)
+    end
+    nil
+  end
+
+  # Active landing units on the Job's branch, one per occupied lane.
+  def active_landing_units_for(job, policy: nil)
+    landing_lane_keys_for(job, policy: policy).filter_map do |key|
+      WorkUnits::Ownership.active_unit_for_lock_key(key, kinds: landing_lock_kinds)
+    end
+  end
+
+  # Occupancy of every lane on the Job's landing branch, for the reconciler,
+  # stuck-Job explainer and admin views: which lanes are held and by which unit.
+  def landing_lane_status_for(job, policy: nil)
+    landing_lane_keys_for(job, policy: policy).each_with_index.map do |key, index|
+      unit = WorkUnits::Ownership.active_unit_for_lock_key(key, kinds: landing_lock_kinds)
+      {
+        lane: index + 1,
+        lock_key: key,
+        occupied: unit.present?,
+        work_unit_id: unit&.id,
+        work_unit_kind: unit&.kind,
+        workflow_slug: unit&.workflow&.slug,
+        member_job_ids: unit ? unit.work_unit_members.order(:id).pluck(:job_id) : []
+      }
+    end
+  end
+
+  # The Job that keeps `job` from starting a landing, or nil while a lane is
+  # free. A landing is "in progress" only once every lane of the branch is
+  # taken: by an active landing unit, or by a Job already in the landing state
+  # that no unit accounts for (so a single-lane repository behaves exactly as
+  # it always has).
+  def landing_blocker_job_for(job, policy: nil)
+    lane_count = landing_lane_keys_for(job, policy: policy).size
+    return nil if lane_count.zero?
+
+    units = active_landing_units_for(job, policy: policy)
+    unit_job = ->(unit) { unit.member_jobs.order(:id).first || unit.workflow&.job }
+    return unit_job.call(units.first) if units.size >= lane_count
+
+    accounted_job_ids = units.flat_map { |unit| unit.member_jobs.pluck(:id) + [ unit.workflow&.job_id ] }.compact
+    base_key = landing_lock_key_for(job, policy: policy)
+    orphans = Job.landing.where(repository_id: job.repository_id).where.not(id: accounted_job_ids).order(:id).select do |landing_job|
+      landing_lock_key_for(landing_job, policy: policy) == base_key
+    end
+    return nil if units.size + orphans.size < lane_count
+
+    orphans.first || unit_job.call(units.first)
   end
 
   # The key of the merge lock that serializes the final merge into a Job's

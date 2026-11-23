@@ -1224,6 +1224,8 @@
     "check_cost_footer": "Pedem pretii Syrus descriptionibus PR addere",
     "check_auto_merge": "PR Syrus probatos automatice permiscere",
     "check_trust_rebase": "Rebasibus mundis fidere (post rebase sine conflictu non iterum aestimare)",
+    "label_landing_concurrency": "Unitates adventus simul",
+    "landing_concurrency_hint": "Quot unitates adventus (adventus singuli, fasces laborum, trames confluentiae Epicorum) simul pro hoc repositorio comprobari possint, 1 ad 5. Sola confluentia ultima in ordinem redigitur. 1 unum locum adventus servat.",
     "check_distributed_workflow_dag": "Exsecutionem DAG distributam pro gradibus idoneis uti",
     "distributed_workflow_dag_hint": "Requirit ut functio distributa totius instantiae et admissio locorum operatorum activae sint.",
     "check_ci_repair": "Defectus CI petitionum tractationis automatice reparare",

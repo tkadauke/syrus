@@ -34,6 +34,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     non_agentic_claim_without_process_retries
     linear_epic_siblings_implement_in_turn
     parallel_grader_worker_loss_retries
+    parallel_landing_lanes_survive_a_failed_unit
     pinned_host_admission_deferral_budget_reenqueues_elsewhere
     queued_job_with_published_pr_converges
     queued_step_without_run
@@ -247,6 +248,23 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
       .where(work_unit_members: { job_id: result.job_ids })
     expect(scenario_locks.where("lock_key LIKE ?", "landing:repository:%")).to be_empty
     expect(scenario_locks.where("lock_key LIKE ?", "job:%")).to be_empty
+  end
+
+  it "lands three units in parallel lanes while one of them fails and retries" do
+    result = run_scenario("parallel_landing_lanes_survive_a_failed_unit")
+
+    expect(result).to be_success
+    jobs = Job.where(id: result.job_ids).order(:id).to_a
+    expect(jobs).to all(be_closed)
+    # All three units were validating at once: each one's landing preflight ran
+    # before any of them reached its merge.
+    first_merge_index = result.events.index { |event| event.match?(/RUN-\d+ auto_merge ->/) }
+    preflights = result.events.first(first_merge_index).grep(/RUN-\d+ mergeability_preflight ->/)
+    expect(preflights.size).to eq(3)
+    # The failing unit retried on its own; the other two merged exactly once.
+    expect(result.events.grep(/auto_merge -> success/).size).to eq(3)
+    expect(jobs.second.workflows.where(trigger_kind: "auto_merge").count).to eq(2)
+    expect(jobs.first.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
   end
 
   it "lands an approved upstream Epic train before releasing its downstream Epic" do
