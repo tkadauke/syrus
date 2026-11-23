@@ -997,10 +997,10 @@ describe("ReviewWorkspaceRoute", () => {
         tab === "review" ? { typed_artifacts: [], visual_evidence: { screenshots: [] }, ...review } : summary
       )
     }
-    function mockList(scope: unknown = null) {
+    function mockList(scope: unknown = null, head: string | null = "h1") {
       vi.spyOn(globalThis, "fetch").mockImplementation(
         async (input) =>
-          new Response(JSON.stringify(String(input).includes("/summary") ? { change_scope: scope } : { count: 1, jobs: [job()] }), {
+          new Response(JSON.stringify(String(input).includes("/summary") ? { change_scope: scope, current_head_sha: head } : { count: 1, jobs: [job()] }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
           })
@@ -1017,8 +1017,8 @@ describe("ReviewWorkspaceRoute", () => {
             {
               id: 1,
               artifacts: {
-                adversarial_review_iterations: [{ iteration: 1, verdict: "approved", non_blocking_findings: [{}] }],
-                security_review_iterations: [{ iteration: 1, verdict: "approved" }]
+                adversarial_review_iterations: [{ iteration: 1, verdict: "approved", reviewed_head_sha: "h1", non_blocking_findings: [{}] }],
+                security_review_iterations: [{ iteration: 1, verdict: "approved", reviewed_head_sha: "h1" }]
               }
             }
           ]
@@ -1074,7 +1074,7 @@ describe("ReviewWorkspaceRoute", () => {
           pr_checks: { state: "failing", attribution: { verdict: "own", own_names: ["rspec"], failing_names: ["rspec"] } }
         },
         actions: { can_approve: false },
-        workflows: [{ id: 2, artifacts: { security_review_iterations: [{ iteration: 2, verdict: "needs_work" }] } }]
+        workflows: [{ id: 2, artifacts: { security_review_iterations: [{ iteration: 2, verdict: "needs_work", reviewed_head_sha: "h1" }] } }]
       })
       mockList()
       renderRoute("/review/JOB-42")
@@ -1085,10 +1085,34 @@ describe("ReviewWorkspaceRoute", () => {
       expect(rowText("adversarial")).toBeUndefined()
     })
 
+    it("does not present review evidence from a superseded commit as current", async () => {
+      mockDetail({
+        workflows: [
+          { id: 1, artifacts: { adversarial_review_iterations: [{ iteration: 1, verdict: "approved", reviewed_head_sha: "old" }] } },
+          { id: 2, artifacts: {} }
+        ]
+      })
+      mockList(null, "h2")
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("adversarial")).toBeUndefined()
+      expect(rowText("reviews_unconfirmed")).toContain("Not confirmed for the current commit")
+      expect(screen.queryByText(/no findings/i)).not.toBeInTheDocument()
+    })
+
+    it("treats unstamped review evidence as unconfirmed when the current head is unknown", async () => {
+      mockDetail({ workflows: [{ id: 1, artifacts: { security_review_iterations: [{ iteration: 1, verdict: "approved" }] } }] })
+      mockList(null, null)
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("security")).toBeUndefined()
+      expect(rowText("reviews_unconfirmed")).toBeTruthy()
+    })
+
     it("keeps unknown and pending checks and skipped reviews honest", async () => {
       mockDetail({
         job: { id: 42, summary_state: "implemented", pr_checks: { state: "unknown" } },
-        workflows: [{ id: 2, artifacts: { adversarial_review_iterations: [{ iteration: 1, verdict: "skipped" }] } }]
+        workflows: [{ id: 2, artifacts: { adversarial_review_iterations: [{ iteration: 1, verdict: "skipped", reviewed_head_sha: "h1" }] } }]
       })
       mockList()
       renderRoute("/review/JOB-42")

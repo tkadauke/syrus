@@ -94,12 +94,23 @@ RSpec.describe "API: review workspace", type: :request do
       expect(response.parsed_body.fetch("change_scope")).to eq("files_changed" => 2, "additions" => 5, "deletions" => 1, "truncated" => false)
     end
 
+    it "reports the head of the newest succeeded implementation step" do
+      job = Factories.job_with_run(
+        user:, repository:, state: "implemented", issue_title: "Head",
+        step_attrs: { state: "succeeded" }, run_attrs: { state: "succeeded", head_sha: "c" * 40 }
+      )
+
+      get "/api/v1/app/review_workspace/#{job.id}/summary"
+
+      expect(response.parsed_body).to include("current_head_sha" => "c" * 40)
+    end
+
     it "returns a null change scope when no diff was stored" do
       job = Factories.job_record(user:, repository:, state: "implemented", issue_title: "No diff")
 
       get "/api/v1/app/review_workspace/#{job.id}/summary"
 
-      expect(response.parsed_body).to include("change_scope" => nil)
+      expect(response.parsed_body).to include("change_scope" => nil, "current_head_sha" => nil)
     end
   end
 end

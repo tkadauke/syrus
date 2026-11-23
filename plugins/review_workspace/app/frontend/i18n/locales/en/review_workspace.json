@@ -100,5 +100,6 @@
   "link_job": "Open {{slug}}",
   "link_epic": "Open {{number}}",
   "link_pr": "PR #{{number}} (opens GitHub)",
-  "link_full_diff": "Full diff and details"
+  "link_full_diff": "Full diff and details",
+  "brief_reviews_unconfirmed": "Not confirmed for the current commit"
 }

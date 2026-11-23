@@ -625,6 +625,7 @@ function JobReview({
       ) : (
         <MobileReviewCard
           changeScope={summary.data?.change_scope ?? null}
+          currentHeadSha={summary.data?.current_head_sha ?? null}
           gestureHelpVisible={gestureHelpVisible}
           key={job.id}
           job={job}
@@ -641,6 +642,7 @@ function JobReview({
 
 function MobileReviewCard({
   changeScope,
+  currentHeadSha,
   gestureHelpVisible,
   job,
   onDetails,
@@ -650,6 +652,7 @@ function MobileReviewCard({
   visualEvidenceNavigation
 }: {
   changeScope: ChangeScope | null
+  currentHeadSha: string | null
   gestureHelpVisible: boolean
   job: ReviewWorkspaceJob
   onDetails: () => void
@@ -711,7 +714,14 @@ function MobileReviewCard({
   const prefix = routePrefix(useLocation().pathname)
   const prNumber = payload.job.pr_number ?? payload.job.external_pr_number ?? job.pr_number
   const prUrl = payload.job.pr_url ?? payload.job.external_pr_url
-  const brief = buildDecisionBrief({ canApprove, changeScope, dependencyBlocked: job.dependency_blocked, payload, screenshotCount: screenshots.length })
+  const brief = buildDecisionBrief({
+    canApprove,
+    changeScope,
+    currentHeadSha,
+    dependencyBlocked: job.dependency_blocked,
+    payload,
+    screenshotCount: screenshots.length
+  })
   return (
     <article className="relative space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
       {/* Gesture-start regions disable native panning so the pending lock owns
