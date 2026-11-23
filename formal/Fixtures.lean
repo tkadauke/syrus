@@ -72,8 +72,20 @@ def epicTurn : String :=
       else none
   "{\n  \"model\": \"EpicTurn.mayStart\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
+/-- `WorkEngine::Reconciler#orphaned_queue_job?` as `QueueExecution.orphanedAfter`,
+over every combination of the five SolidQueue execution flags. -/
+def orphanedQueueJob : String :=
+  let bools := [true, false]
+  let cases := bools.flatMap fun r => bools.flatMap fun c => bools.flatMap fun s => bools.flatMap fun b => bools.map fun f =>
+    let flags : QueueExecution.Flags := ⟨r, c, s, b, f⟩
+    "    {\"ready\": " ++ jsonBool r ++ ", \"claimed\": " ++ jsonBool c ++ ", \"scheduled\": " ++ jsonBool s ++
+      ", \"blocked\": " ++ jsonBool b ++ ", \"failed\": " ++ jsonBool f ++
+      ", \"orphaned\": " ++ jsonBool (QueueExecution.orphanedAfter flags) ++ "}"
+  "{\n  \"model\": \"QueueExecution.orphanedAfter\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+
 def all : List (String × String) :=
-  [("auto_approval", autoApproval), ("train_evidence", trainEvidence), ("epic_turn", epicTurn)]
+  [("auto_approval", autoApproval), ("train_evidence", trainEvidence), ("epic_turn", epicTurn),
+   ("orphaned_queue_job", orphanedQueueJob)]
 
 end Fixtures
 

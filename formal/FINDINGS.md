@@ -5026,6 +5026,24 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## Lead L12. The review-barrier model has one way to pass; the code has three
+
+Found while preparing its conformance fixture (formal/INTEGRATION.md, layer 3).
+
+`ReviewBarrier.lean` passes the barrier when the tracked HEAD was approved.
+`Workflows::ImmutableReviewHeadBarrier.satisfied_for?` accepts, for each
+required review: succeeded approved evidence for that HEAD; a review that
+reacted without changing HEAD (`reacted_without_head_change?`); or a recorded
+budget exhaustion for that HEAD (`exhausted_for_head?`). The exhaustion is a
+deliberate exception, recorded with a high-severity workflow warning, that lets
+a HEAD through which was never re-reviewed. So the model's headline property,
+"whatever is pushed was approved by every required review", is about a barrier
+the code no longer is: under exhaustion it is false by design. No fixture until
+the model has all three paths, and its theorem is restated as "approved, or
+reacted without a HEAD change, or a recorded and warned exhaustion".
+
+---
+
 ## M68. Main through `1aa74a2a4d`
 
 Ten commits. Nine are chat and mobile UI (sidebar scrolling and stickiness,

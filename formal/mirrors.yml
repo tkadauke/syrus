@@ -119,3 +119,9 @@ models:
     owner: StepDispatcher
     method: self.epic_sibling_blocking?
     sha: 4714cf715a495c34
+- model: QueueExecution.lean
+  mirrors:
+  - path: app/services/work_engine/reconciler.rb
+    owner: Reconciler
+    method: orphaned_queue_job?
+    sha: e1ed75fe809ac577
