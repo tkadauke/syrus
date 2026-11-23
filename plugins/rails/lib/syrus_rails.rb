@@ -43,7 +43,7 @@ module SyrusRails
     category "language"
     depends_on [ "ruby" ]
 
-    provides artifact_renderer: [ "SyrusRails::SchemaErdRenderer", "SyrusRails::MigrationDiffRenderer" ],
+    provides artifact_renderers: [ "SyrusRails::SchemaErdRenderer", "SyrusRails::MigrationDiffRenderer" ],
              preview_provider: "SyrusRails::PreviewProvider"
     toolkit workflow_tools: "SyrusRails::McpToolSet"
     provides ecosystem: "SyrusRails::Ecosystem", implements: %i[prompt_context]

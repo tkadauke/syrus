@@ -13,7 +13,7 @@ module LocalBackups
     icon_url "/plugin-icons/local_backups.svg"
     default_enabled false
     disableable true
-    provides admin_page: "LocalBackups::AdminPages", callbacks: "LocalBackups::Callbacks",
+    provides admin_pages: "LocalBackups::AdminPages", callbacks: "LocalBackups::Callbacks",
              system_alert_provider: "LocalBackups::Alerts",
              backup_artifact_source: "LocalBackups::ArtifactSource"
     tick_interval 1.day

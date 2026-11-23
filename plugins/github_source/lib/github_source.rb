@@ -15,9 +15,9 @@ module SyrusGithubSource
     category "input_source"
     default_enabled true
     disableable true
-    provides repo_page_tab: "GithubSource::RepoPageTabs",
-             ui_slot: "GithubSource::UiSlots",
-             admin_page: "GithubSource::AdminPages",
+    provides repo_page_tabs: "GithubSource::RepoPageTabs",
+             ui_slots: "GithubSource::UiSlots",
+             admin_pages: "GithubSource::AdminPages",
              input_source: "InputSources::Github",
              source_control_provider: "SourceControl::GithubOperations"
     route :get, "/api/v1/app/admin/github_api_usage", to: "api/v1/app/admin/github_api_usage#show"

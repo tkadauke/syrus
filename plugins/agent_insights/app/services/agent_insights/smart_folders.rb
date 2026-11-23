@@ -35,9 +35,6 @@ module AgentInsights
     module_function
 
     def install_into(scope)
-      scope.effect("agent_insights filter subject") do
-        Filters.register_subject(name: SUBJECT, model: AgentInsights::Suggestion, chips: CHIPS)
-      end
       scope.effect("agent_insights smart folders") do
         ::SmartFolder.register_subject!(
           SUBJECT,

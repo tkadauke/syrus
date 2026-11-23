@@ -1,5 +1,4 @@
 require "scheduled_tasks/data_cleanup"
-require "scheduled_tasks/filter_extension"
 
 module ScheduledTasks
   extend Syrus::PluginApi
@@ -27,12 +26,13 @@ module ScheduledTasks
     provides callbacks: "ScheduledTasks::Callbacks",
              job_origin: "ScheduledTasks::JobOrigin",
              domain_subscriber: "ScheduledTasks::Subscribers",
-             sidebar_page: "ScheduledTasks::SidebarPages",
-             repo_page_tab: "ScheduledTasks::RepoPageTabs",
+             sidebar_pages: "ScheduledTasks::SidebarPages",
+             repo_page_tabs: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",
              "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs",
              "calendar:event_source" => "ScheduledTasks::CalendarEventSource"
     toolkit chat_tools: "ScheduledTasks::ChatToolSet", permissions: "ScheduledTasks::PermissionProvider"
+    surface filter_chips: { job: { "scheduled_task_id" => "ScheduledTasks::Filters::ScheduledTaskId" } }
 
     cli_commands [
       {
@@ -96,6 +96,5 @@ module ScheduledTasks
     always do |scope|
       ScheduledTasks::DataCleanup.install_into(scope)
     end
-    while_enabled { |scope| ScheduledTasks::FilterExtension.install_into(scope) }
   end
 end

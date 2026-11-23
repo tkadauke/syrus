@@ -18,7 +18,7 @@ module SyrusDev
       signals.syrus_repositories
     end
 
-    provides admin_page: "SyrusDev::AdminPages"
+    provides admin_pages: "SyrusDev::AdminPages"
     toolkit workflow_tools: "SyrusDev::WorkflowToolSet", chat_tools: "SyrusDev::ChatToolSet", permissions: "SyrusDev::PermissionProvider"
     route :get, "/api/v1/app/admin/performance", to: "api/v1/app/admin/performance#show"
     route :get, "/api/v1/app/admin/performance/events", to: "api/v1/app/admin/performance#events"

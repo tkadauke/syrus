@@ -21,15 +21,10 @@ module SyrusCodexAgent
       "codex_api_key" => "CodexCredentialProbe",
       "codex_auth_json" => "CodexCredentialProbe"
     }, secret_extractors: [ "CodexCredentialProbe::SECRET_EXTRACTOR" ]
+    surface filter_chips: { admin_user: { "has_codex_token" => "Filters::Chips::AdminUsers::HasCodexToken" } }
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("codex", ChatSessionRehydrator::Codex) }
-      scope.effect("admin user chips") do
-        Filters.register_chips(
-          subject: :admin_user,
-          chips: { "has_codex_token" => "Filters::Chips::AdminUsers::HasCodexToken" }
-        )
-      end
     end
   end
 end
