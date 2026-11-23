@@ -23,6 +23,32 @@ RSpec.describe RunQueueResolver, :ci_only do
     )
   end
 
+  def solid_queue_worker(hostname, queues: "runs")
+    SolidQueue::Process.create!(
+      hostname: hostname,
+      kind: "Worker",
+      name: "#{hostname}-#{SecureRandom.hex(4)}",
+      pid: 123,
+      last_heartbeat_at: Time.current,
+      metadata: {
+        "queues" => queues,
+        "polling_interval" => 0.1,
+        "pool_size" => 1
+      }
+    )
+  end
+
+  def instance_version(hostname:, role: "worker", capabilities:, **attributes)
+    InstanceVersion.create!({
+      hostname: hostname,
+      role: role,
+      version: "abc123",
+      started_at: 1.minute.ago,
+      last_heartbeat_at: Time.current,
+      capabilities: capabilities
+    }.merge(attributes))
+  end
+
   it "preserves a live storage-affinity queue for default mutable retries when no capability payload is available" do
     run = mutable_run_with_storage("storage-main")
     queue = "resume-storage-main"
@@ -95,6 +121,84 @@ RSpec.describe RunQueueResolver, :ci_only do
 
     expect(decision.queue_name).to eq("runs-macos-arm64")
     expect(decision).not_to be_blocked
+  end
+
+  it "bulk-loads fresh worker instances once for multiple admission candidates and keeps hosts distinct" do
+    ensure_solid_queue_test_tables!
+    solid_queue_worker("worker-a", queues: "runs-macos-arm64")
+    solid_queue_worker("worker-b", queues: "runs-macos-arm64")
+    instance_version(hostname: "worker-a", capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
+    instance_version(hostname: "worker-b", capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] })
+    instance_version(hostname: "worker-a", role: "web", capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] })
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      planned_execution_capabilities: { "os" => [ "macos" ] }
+    )
+    step = Step.create!(
+      workflow: workflow,
+      kind: "prepare",
+      position: 0,
+      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    )
+    run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+    instance_loads = []
+    subscriber = ->(*, payload) { instance_loads << payload[:sql] if payload[:name] == "InstanceVersion Load" }
+
+    decision = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      described_class.resolve(run: run)
+    end
+
+    workers = decision.details
+      .fetch("live_workers")
+      .select { |worker| worker.fetch("selected_queue") }
+      .index_by { |worker| worker.fetch("hostname") }
+    expect(instance_loads.size).to eq(1)
+    expect(workers.fetch("worker-a")).to include(
+      "eligible" => true,
+      "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] }
+    )
+    expect(workers.fetch("worker-b")).to include(
+      "eligible" => false,
+      "capabilities" => { "os" => [ "linux" ], "arch" => [ "amd64" ] }
+    )
+    expect(decision).not_to be_blocked
+  end
+
+  it "does not use stale or finished worker instances during bulk admission lookup" do
+    ensure_solid_queue_test_tables!
+    solid_queue_worker("stale-worker", queues: "runs-macos-arm64")
+    solid_queue_worker("finished-worker", queues: "runs-macos-arm64")
+    instance_version(
+      hostname: "stale-worker",
+      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 3.minutes.ago
+    )
+    instance_version(
+      hostname: "finished-worker",
+      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      finished_at: Time.current
+    )
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      planned_execution_capabilities: { "os" => [ "macos" ] }
+    )
+    step = Step.create!(
+      workflow: workflow,
+      kind: "prepare",
+      position: 0,
+      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    )
+    run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+
+    decision = described_class.resolve(run: run)
+
+    workers = decision.details.fetch("live_workers").index_by { |worker| worker.fetch("hostname") }
+    expect(workers.fetch("stale-worker")).to include("eligible" => false, "capabilities" => {})
+    expect(workers.fetch("finished-worker")).to include("eligible" => false, "capabilities" => {})
+    expect(decision).to be_blocked
   end
 
   it "uses the newest host health sample when a worker has multiple fresh samples" do
