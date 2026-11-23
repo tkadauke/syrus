@@ -83,9 +83,19 @@ def orphanedQueueJob : String :=
       ", \"orphaned\": " ++ jsonBool (QueueExecution.orphanedAfter flags) ++ "}"
   "{\n  \"model\": \"QueueExecution.orphanedAfter\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
+/-- `Workflows::ImmutableReviewHeadBarrier.satisfied_for?` for one required
+review, as `ReviewBarrier.satisfied`, over every combination of its evidence. -/
+def reviewBarrier : String :=
+  let cases := ReviewBarrier.allEvidence.map fun e =>
+    "    {\"tracked_head\": " ++ jsonBool e.tracked ++ ", \"succeeded\": " ++ jsonBool e.succeeded ++
+      ", \"approved\": " ++ jsonBool e.approved ++ ", \"reacted_without_head_change\": " ++ jsonBool e.reactedWithoutHeadChange ++
+      ", \"exhausted_for_head\": " ++ jsonBool e.exhaustedForHead ++
+      ", \"satisfied\": " ++ jsonBool (ReviewBarrier.satisfied e) ++ "}"
+  "{\n  \"model\": \"ReviewBarrier.satisfied\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+
 def all : List (String × String) :=
   [("auto_approval", autoApproval), ("train_evidence", trainEvidence), ("epic_turn", epicTurn),
-   ("orphaned_queue_job", orphanedQueueJob)]
+   ("orphaned_queue_job", orphanedQueueJob), ("review_barrier", reviewBarrier)]
 
 end Fixtures
 

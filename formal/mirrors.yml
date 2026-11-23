@@ -125,3 +125,9 @@ models:
     owner: Reconciler
     method: orphaned_queue_job?
     sha: e1ed75fe809ac577
+- model: ReviewBarrier.lean
+  mirrors:
+  - path: app/services/workflows/immutable_review_head_barrier.rb
+    owner: ImmutableReviewHeadBarrier
+    method: self.satisfied_for?
+    sha: bb1bc62b67670339

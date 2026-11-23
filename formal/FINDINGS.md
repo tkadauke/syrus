@@ -4298,6 +4298,31 @@ old model's answers, it fails on exactly the two cases the old model missed.
 
 ---
 
+## F116. The review-barrier model had one way to pass where the code has three — model fixed (Lead L12)
+
+**Before.** `ReviewBarrier.lean` passed the required-review barrier only when
+the tracked HEAD was approved. `Workflows::ImmutableReviewHeadBarrier.satisfied_for?`
+also passes a required review that reacted without changing HEAD, and one whose
+budget exhaustion was recorded for that HEAD, with a high-severity warning. So
+the model's headline, "whatever is pushed was approved by every required
+review", described a barrier the code is not: under exhaustion it is false by
+design. The code was right; the model was stale.
+
+**Fix.** An `Evidence` section models `satisfied_for?` for one required review
+with all three paths. `pass_is_approval_reaction_or_exception` restates the
+promise exactly, `pass_without_exception_is_reviewed` keeps the strong form
+when no exhaustion was recorded, and `exhaustion_passes_unreviewed` names the
+exception. The step-sequence counterexamples are unchanged.
+
+**Conformance.** `formal/fixtures/review_barrier.json` holds the verdict for all
+32 combinations of one review's evidence, and
+`spec/formal/review_barrier_conformance_spec.rb` runs the real `satisfied_for?`
+on each (the record lookups stubbed): all 32 agree. Run against the old model's
+answers it fails on exactly the 9 cases where they differ. `satisfied_for?` is
+now in `formal/mirrors.yml`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -5026,7 +5051,7 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
-## Lead L12. The review-barrier model has one way to pass; the code has three
+## Lead L12. The review-barrier model has one way to pass; the code has three (closed: F116)
 
 Found while preparing its conformance fixture (formal/INTEGRATION.md, layer 3).
 
