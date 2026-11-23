@@ -1,10 +1,10 @@
 require "rails_helper"
 
 RSpec.describe GoogleWorkspace::CalendarAdapter do
-  Account = Data.define(:provider, :id) unless const_defined?(:Account)
-  Access = Data.define(:authorization_header) unless const_defined?(:Access)
-  let(:account) { Account.new(provider: "google_workspace", id: 17) }
-  let(:access) { Access.new(authorization_header: "Bearer secret-access-token") }
+  CalendarAccount = Data.define(:provider, :id) unless const_defined?(:CalendarAccount)
+  CalendarAccess = Data.define(:authorization_header) unless const_defined?(:CalendarAccess)
+  let(:account) { CalendarAccount.new(provider: "google_workspace", id: 17) }
+  let(:access) { CalendarAccess.new(authorization_header: "Bearer secret-access-token") }
   let(:arguments) do
     { "starts_at" => "2026-11-22T00:00:00Z", "ends_at" => "2026-11-25T00:00:00Z", "limit" => 10, "event_id" => "timed" }
   end
@@ -63,7 +63,7 @@ RSpec.describe GoogleWorkspace::CalendarAdapter do
   end
 
   it "declines accounts from other providers" do
-    other = Account.new(provider: "other", id: 18)
+    other = CalendarAccount.new(provider: "other", id: 18)
     expect(described_class.list_events(PersonalCalendar::Context.new(account: other, access:, arguments:))).to be_nil
   end
 end

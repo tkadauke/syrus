@@ -3,5 +3,8 @@
     "display_name": "Google Workspace",
     "description": "Google Calendar über ein verbundenes Google-Konto lesen.",
     "long_description": "Verbinde einen von deiner Instanz bereitgestellten Google-OAuth-Client und stelle schreibgeschützte Google-Calendar-Daten über die persönlichen Kalenderwerkzeuge bereit."
+  },
+  "settings": {
+    "provider_notice": "Registriere deinen eigenen Google-OAuth-Client und prüfe Googles aktuelle Verifizierungsrichtlinien. Nur Client-ID und Geheimnis sind konfigurierbar; Syrus fixiert Googles Endpunkte und die Nur-Lese-Calendar-Berechtigung."
   }
 }

@@ -9,6 +9,8 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
       display_name: "Example",
       capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
       callback_route: "/connected_accounts/callback/example",
+      settings_notice: "Configure Example with your own client.",
+      settings_notice_i18n_key: "example:settings.provider_notice",
       supports_read_only: true,
       scopes: [
         { key: "records.read", label: "Read records", risk: "low", read_only: true, syrus_capabilities: [ "records.read@v1" ] }
@@ -21,7 +23,9 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
 
     expect(declaration).to have_attributes(
       plugin_name: "example_plugin", key: "example", display_name: "Example",
-      callback_route: "/connected_accounts/callback/example", supports_read_only: true
+      callback_route: "/connected_accounts/callback/example", supports_read_only: true,
+      settings_notice: "Configure Example with your own client.",
+      settings_notice_i18n_key: "example:settings.provider_notice"
     )
     expect(declaration.scopes.first).to include("label" => "Read records", "risk" => "low")
     expect(declaration.read_only_scope_keys).to eq([ "records.read" ])
