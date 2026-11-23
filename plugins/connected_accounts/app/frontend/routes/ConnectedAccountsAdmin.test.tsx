@@ -14,7 +14,7 @@ vi.mock("@app/hooks/useT", () => ({
 function translate(key: string, options?: { defaultValue?: string }) {
   return (
     (
-      ({
+      {
         "settings.title": "Connected accounts",
         "settings.description": "Configure OAuth.",
         "settings.provider": "Provider",
@@ -28,8 +28,10 @@ function translate(key: string, options?: { defaultValue?: string }) {
         "settings.scope_catalog": "Scope catalog",
         "settings.read_only_scopes": "Read-only scopes",
         "settings.api_origins": "API origins"
-      }) satisfies Record<string, string>
-    )[key] ?? options?.defaultValue ?? key
+      } satisfies Record<string, string>
+    )[key] ??
+    options?.defaultValue ??
+    key
   )
 }
 
@@ -52,7 +54,9 @@ describe("ConnectedAccountsAdmin", () => {
       api_origins: ["https://api.example/"]
     }
     vi.spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse({ providers: [{ ...config, provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false }] }))
+      .mockResolvedValueOnce(
+        jsonResponse({ providers: [{ ...config, provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false }] })
+      )
       .mockResolvedValueOnce(jsonResponse({ error: { code: "validation_failed", message: "Provider URLs must use HTTPS" } }, 422))
 
     renderPage()
@@ -65,7 +69,9 @@ describe("ConnectedAccountsAdmin", () => {
     const config = { authorize_url: "https://oauth.example/authorize", scope_catalog: [], read_only_scopes: [], api_origins: [] }
     const fetchMock = vi
       .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse({ providers: [{ ...config, provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false }] }))
+      .mockResolvedValueOnce(
+        jsonResponse({ providers: [{ ...config, provider_key: "generic_oauth2", display_name: "Generic OAuth 2", managed_settings: false }] })
+      )
       .mockResolvedValueOnce(jsonResponse({ provider_config: config }))
 
     renderPage()
@@ -92,10 +98,21 @@ describe("ConnectedAccountsAdmin", () => {
   })
 
   it("shows only instance credentials and provider-owned policy copy for a managed provider", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValueOnce(jsonResponse({ providers: [
-      { provider_key: "example_workspace", plugin_name: "example_workspace", display_name: "Example", managed_settings: true, client_secret_configured: true,
-        settings_notice: "Fallback provider notice.", settings_notice_i18n_key: "example_workspace:settings.provider_notice" }
-    ] }))
+    vi.spyOn(window, "fetch").mockResolvedValueOnce(
+      jsonResponse({
+        providers: [
+          {
+            provider_key: "example_workspace",
+            plugin_name: "example_workspace",
+            display_name: "Example",
+            managed_settings: true,
+            client_secret_configured: true,
+            settings_notice: "Fallback provider notice.",
+            settings_notice_i18n_key: "example_workspace:settings.provider_notice"
+          }
+        ]
+      })
+    )
 
     renderPage()
     expect(await screen.findByText(/check current verification policy/)).toBeInTheDocument()
@@ -105,8 +122,13 @@ describe("ConnectedAccountsAdmin", () => {
   })
 
   it("clears a submitted client secret after saving it", async () => {
-    const provider = { provider_key: "example_workspace", plugin_name: "example_workspace", display_name: "Example",
-      managed_settings: true, client_secret_configured: false }
+    const provider = {
+      provider_key: "example_workspace",
+      plugin_name: "example_workspace",
+      display_name: "Example",
+      managed_settings: true,
+      client_secret_configured: false
+    }
     vi.spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse({ providers: [provider] }))
       .mockResolvedValueOnce(jsonResponse({ provider_config: { ...provider, client_secret_configured: true } }))

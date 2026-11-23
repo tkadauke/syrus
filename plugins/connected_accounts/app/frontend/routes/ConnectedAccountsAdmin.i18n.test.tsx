@@ -21,11 +21,7 @@ describe("ProviderSettingsNotice", () => {
 
     render(
       <Suspense fallback={<span>Loading translation</span>}>
-        <ProviderSettingsNotice
-          notice={englishFallback}
-          i18nKey="google_workspace:settings.provider_notice"
-          pluginName="google_workspace"
-        />
+        <ProviderSettingsNotice notice={englishFallback} i18nKey="google_workspace:settings.provider_notice" pluginName="google_workspace" />
       </Suspense>
     )
 
