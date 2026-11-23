@@ -3745,7 +3745,20 @@
         "B. Drop the reservation mutex. Two reservations for the same user that race may see the same counts and pick the same account, so balancing is occasionally uneven. User stays last and the cycle disappears.",
         "C. Reserve outside any transaction. Account selection moves ahead of the callers' transactions and runs in its own short transaction. This gives the cleanest lock story, but it is the largest change, and the pin can be stale by the time the Run is created."
       ],
-      "recommendation": "A. It keeps the balancing guarantee and NY31's order, and needs small changes at only the two outer sites; the suite-wide checker then proves that no other path reserves late. B is a fine fallback if more reserving paths turn up."
+      "recommendation": "A. It keeps the balancing guarantee and NY31's order, and needs small changes at only the two outer sites; the suite-wide checker then proves that no other path reserves late. B is a fine fallback if more reserving paths turn up.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): Every transaction that can reserve locks the User row first. create_run_and_enqueue and RetryWorkflowEnqueuer lock the owning User before their Workflow/Job lock, which makes the re-lock inside the reservation free. Move User to the front of the order as NY31 decided; the checker then catches any reserving path that was missed. Started, not merged: locking the User first at the three sites the survey named only moved the inversion outward to six more transaction entry points, some of which reserve for several Jobs at once. Reopened as NY36."
+    },
+    {
+      "id": "NY36",
+      "item": "row-lock-order",
+      "title": "Option A for the User-row lock spreads to many transactions. Switch the reservation to a lock that never waits?",
+      "context": "Implementing NY35's A: create_run_and_enqueue, enqueue_next_loop_iteration! and RetryWorkflowEnqueuer now lock the owning User first. With those done, the suite in raise mode shows the reservation still runs after other locks in six more transaction entry points. They are MergeTrainDispatcher (12 hits), LandingQueueProcessor (6), JobBundleDispatcher (5), RetryFailedStepEnqueuer (1), GraderFanoutAdmission (holding the AppSetting row, 1) and another StepDispatcher path (1). The earlier record-mode survey hid them because it records only the highest-ranked held lock. Merge trains and bundles reserve for several member Jobs inside one Epic transaction, so A would have to lock every User those members might reserve for, in id order, before the Epic. A lock taken with FOR UPDATE NOWAIT never waits: if the row is busy it fails at once. It therefore adds no edge to the wait-for graph and cannot be part of a deadlock, whatever else the transaction holds. That makes it a fit for a mutex whose only job is to make concurrent load-balancing decisions see each other.",
+      "options": [
+        "A. Keep going with NY35's A: add the User-first lock at all nine entry points, locking every member Job's User in id order where a transaction reserves for several, and rely on the checker to find the rest.",
+        "B. Drop the reservation mutex (NY35's B). Two reservations racing may pick the same account, so balancing is occasionally uneven. The User row returns to last in the order.",
+        "D. Take the reservation's User lock with NOWAIT. Uncontended, behaviour is unchanged: the mutex serializes reservations. If another transaction holds the row, the reservation goes ahead without the mutex, uneven at worst as in B, and only under real contention. The checker treats a NOWAIT lock as outside the order, and LockOrder.lean proves a never-waiting lock adds no wait-for edge. The three User-first locks already added would be reverted."
+      ],
+      "recommendation": "D. It keeps the balancing guarantee in the common case, removes the cycle by construction instead of site by site, and touches one method. A is the most invasive and keeps finding sites. B is simplest but gives up the mutex everywhere."
     }
   ]
 }
