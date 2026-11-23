@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { CoverageArtifact } from "../api/jobs"
-import { CoverageCard } from "./CoverageCard"
+import type { CoverageArtifact } from "@app/api/jobs"
+import CoverageCard from "./CoverageCard"
 
 const fullCoverage: CoverageArtifact = {
   summary: { lines_pct: 85.2, branches_pct: 72.1, functions_pct: 91.0 },
