@@ -120,6 +120,10 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
 - `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
 
+## Workflow composition anchors
+
+The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
+
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
@@ -180,4 +184,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32407 bytes (UTF-8, including this line).
+Size: 33252 bytes (UTF-8, including this line).

@@ -218,6 +218,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
+
+    it "declares the workflow kernel's federated composition points" do
+      expect(described_class.hosted_extension_points).to include(
+        "workflow:judge", "workflow:post_implementation", "workflow:post_pr"
+      )
+    end
   end
 
   describe "Syrus::Plugin::RepositoryFilter" do

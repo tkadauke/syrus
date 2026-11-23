@@ -134,7 +134,11 @@ module Admin
       step_kinds = contributed_kinds(kind_providers, :step_kinds)
       [
         trigger_kinds.any? ? blocker(:active_workflows, "Active workflows are of #{manifest.name}'s kinds", Workflow.where(state: %w[queued running], trigger_kind: trigger_kinds).count) : nil,
-        step_kinds.any? ? blocker(:active_steps, "Active steps are of #{manifest.name}'s kinds", Step.active.where(kind: step_kinds).count) : nil
+        step_kinds.any? ? blocker(
+          :active_workflows,
+          I18n.t("api.admin.plugin_disable.workflow_steps_in_flight", plugin: manifest.name),
+          Workflow.where(state: %w[queued running]).joins(:steps).where(steps: { kind: step_kinds }).distinct.count
+        ) : nil
       ].compact
     end
 
