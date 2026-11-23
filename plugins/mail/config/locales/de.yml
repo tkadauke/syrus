@@ -1,0 +1,10 @@
+de:
+  permissions:
+    capabilities:
+      mail.read@v1:
+        label: E-Mail lesen
+        description: E-Mails in einem verbundenen Konto suchen und lesen.
+      mail/search@v1:
+        label: E-Mail durchsuchen
+      mail.message/read@v1:
+        label: E-Mail-Nachricht lesen

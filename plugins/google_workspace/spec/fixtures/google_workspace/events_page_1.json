@@ -1,0 +1,1 @@
+{"items":[{"id":"timed","summary":"Timed event","description":"<b>Agenda</b>","start":{"dateTime":"2026-11-22T10:00:00+01:00","timeZone":"Europe/Berlin"},"end":{"dateTime":"2026-11-22T11:00:00+01:00","timeZone":"Europe/Berlin"},"recurringEventId":"series-1"}],"nextPageToken":"page-2"}

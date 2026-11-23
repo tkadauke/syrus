@@ -1,0 +1,10 @@
+prepare: []
+project:
+  id: mail
+  label: "mail plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
