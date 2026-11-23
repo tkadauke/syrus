@@ -12,7 +12,7 @@ module Api
           # Raw SQL - the Query tab, and the Live-diagnostics tab's canned
           # system-table SELECTs.
           def execute
-            render json: executor.execute(params.dig(:mysql_query, :sql), user: Current.user)
+            render json: executor.execute(params.dig(:mysql_query, :sql), user: Syrus::Host::Current.user)
           rescue ::MysqlDbBrowser::QueryExecutor::BlankStatement => e
             render_error("blank_statement", e.message, status: :unprocessable_content)
           rescue ::MysqlDbBrowser::QueryExecutor::WriteNotAllowed => e
@@ -36,7 +36,7 @@ module Api
             page = [ params[:page].to_i, 1 ].max
             offset = (page - 1) * per_page
 
-            result = executor.execute_select(user: Current.user, limit: per_page + 1) do |client|
+            result = executor.execute_select(user: Syrus::Host::Current.user, limit: per_page + 1) do |client|
               build_select(client: client, filter_tree: filter_tree, filter_schema: filter_schema, sort_column: sort_column, sort_direction: sort_direction, per_page: per_page, offset: offset)
             end
 
@@ -74,7 +74,7 @@ module Api
             )
             filter_tree = ::Filters::QueryParam.decode(params[:q])
 
-            result = executor.execute_select(user: Current.user, limit: compiler.limit) do |client|
+            result = executor.execute_select(user: Syrus::Host::Current.user, limit: compiler.limit) do |client|
               where_clause = filter_tree.present? ? ::MysqlDbBrowser::FilterTreeSqlCompiler.new(client: client, filter_schema: compiler.filter_schema, identifier_prefix: params[:database]).compile(filter_tree) : nil
               compiler.sql(where_clause: where_clause)
             end
@@ -144,8 +144,8 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(
-              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user,
+            Syrus::Host::ToolContext.new(
+              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
               allowed_repository_ids: Repository.ids
             )
           end

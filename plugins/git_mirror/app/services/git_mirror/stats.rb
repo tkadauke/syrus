@@ -13,7 +13,7 @@ module GitMirror
       return nil unless endpoint
 
       Rails.cache.fetch(CACHE_KEY, expires_in: CACHE_TTL) { Client.new(endpoint: endpoint).stats }
-    rescue RepositoryContent::Error => e
+    rescue Syrus::Host::ContentError => e
       Rails.logger.warn("[GitMirror] stats unavailable: #{e.message}")
       nil
     end

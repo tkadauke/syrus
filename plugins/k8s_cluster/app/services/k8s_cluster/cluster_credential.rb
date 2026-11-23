@@ -174,7 +174,7 @@ module K8sCluster
       end
 
       def default_context
-        McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+        Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: Syrus::Host::Current.user)
       end
     end
   end

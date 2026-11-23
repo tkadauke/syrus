@@ -1,5 +1,5 @@
 module Api::V1::App::ConnectedAccounts
-  class ProviderConfigsController < Api::V1::App::Admin::BaseController
+  class ProviderConfigsController < Syrus::Host::AppAdminController
     def index
       render json: { providers: configurable_providers.map { |item| serialized(config_for(item.key), declaration: item) } }
     end

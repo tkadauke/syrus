@@ -34,7 +34,7 @@ module Api
               credential.update!(safe_metadata: metadata)
             end
             record_enrollment!("update", "allowed", key: key, source: "confirmation", credential: credential)
-            render json: { enrollment: key.as_json, credential: credential && ::CredentialStore::ManagementPayload.credential_json(credential, user: Current.user) }
+            render json: { enrollment: key.as_json, credential: credential && ::CredentialStore::ManagementPayload.credential_json(credential, user: Syrus::Host::Current.user) }
           rescue ::CredentialStore::SshExec::Error, ActiveRecord::RecordInvalid => e
             record_enrollment!("update", "failed", error: e, source: "confirmation")
             render_error("ssh_host_key_confirmation_failed", e.message, status: :unprocessable_content)
@@ -62,8 +62,8 @@ module Api
             end
 
             credential = ::CredentialStore::Credential.new(attrs.merge(
-              created_by: Current.user,
-              owner_user: attrs[:scope_type] == "user" ? User.find_by(id: attrs[:scope_id]) : Current.user,
+              created_by: Syrus::Host::Current.user,
+              owner_user: attrs[:scope_type] == "user" ? User.find_by(id: attrs[:scope_id]) : Syrus::Host::Current.user,
               last_rotated_at: Time.current
             ))
             if credential.save
@@ -108,7 +108,7 @@ module Api
             if credential.update(payload: payload, last_rotated_at: Time.current, revoked_at: nil)
               ::CredentialStore::CredentialAccessEvent.record!(
                 credential: credential,
-                user: Current.user,
+                user: Syrus::Host::Current.user,
                 surface: "admin",
                 action: "rotate",
                 result: "allowed",
@@ -127,7 +127,7 @@ module Api
             credential.update!(revoked_at: Time.current)
             ::CredentialStore::CredentialAccessEvent.record!(
               credential: credential,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               surface: "admin",
               action: "revoke",
               result: "allowed"
@@ -158,14 +158,14 @@ module Api
           end
 
           def deny_enrollment!(action)
-            ::CredentialStore::CredentialAccessEvent.record!(credential: nil, user: Current.user, surface: "admin", action: action, result: "denied",
+            ::CredentialStore::CredentialAccessEvent.record!(credential: nil, user: Syrus::Host::Current.user, surface: "admin", action: action, result: "denied",
               denial_reason: "not authorized to enroll an SSH host key", metadata: { operation: "ssh_host_key_enrollment" })
             render_error("forbidden", "You cannot manage SSH host keys for that scope.", status: :forbidden)
             false
           end
 
           def record_enrollment!(action, result, key: nil, error: nil, source:, credential: enrollment_credential)
-            ::CredentialStore::CredentialAccessEvent.record!(credential: credential, user: Current.user, surface: "admin", action: action, result: result,
+            ::CredentialStore::CredentialAccessEvent.record!(credential: credential, user: Syrus::Host::Current.user, surface: "admin", action: action, result: result,
               metadata: { operation: "ssh_host_key_enrollment", source: source, host: key&.host || enrollment_params[:host], port: key&.port || enrollment_params[:port], fingerprint: key&.fingerprint, error_class: error&.class&.name }.compact)
           end
 
@@ -186,7 +186,7 @@ module Api
           end
 
           def authorization
-            @authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
+            @authorization ||= ::CredentialStore::ManagementAuthorization.new(Syrus::Host::Current.user)
           end
 
           def authorize_credential!(credential)
@@ -197,11 +197,11 @@ module Api
           end
 
           def payload_for(credentials)
-            ::CredentialStore::ManagementPayload.new(user: Current.user, credentials: credentials).as_json
+            ::CredentialStore::ManagementPayload.new(user: Syrus::Host::Current.user, credentials: credentials).as_json
           end
 
           def credential_json(credential)
-            ::CredentialStore::ManagementPayload.credential_json(credential, user: Current.user)
+            ::CredentialStore::ManagementPayload.credential_json(credential, user: Syrus::Host::Current.user)
           end
 
           def credential_mutation_payload(credential, message)
@@ -259,7 +259,7 @@ module Api
 
           def record_change!(credential, action, before:, after:, payload_replaced:)
             ::CredentialStore::CredentialAccessEvent.record!(
-              credential: credential, user: Current.user, surface: "admin", action: action, result: "allowed",
+              credential: credential, user: Syrus::Host::Current.user, surface: "admin", action: action, result: "allowed",
               metadata: { before: before, after: after, payload_replaced: payload_replaced }
             )
           end
