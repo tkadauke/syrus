@@ -130,6 +130,15 @@ visual_review:
     credentials — exercise the diff-review workspace there. The Source
     tab on that same Job still shows the "GitHub token not configured"
     empty state; that surface has no fixture yet.
+    Only for changes touching the mobile chat header, tabs, scrim, or safe-area
+    layout: first use browser_emulate with preset "iphone-15-pro". Ensure the
+    seeded chat has enough messages for several screens, adding them with an ad
+    hoc seed command if needed. In Account Settings > Preferences, enable
+    "Auto-hide chat header on mobile" and save. Return to chat with the drawer
+    closed, then click empty message-stream background rather than a link,
+    button, input, tab, or other interactive control. Wait for
+    data-testid="mobile-chat-hidden-header-scrim" before capturing; a second
+    background tap reveals the header again.
   targets:
     - name: Browser UI
       provider: browser
