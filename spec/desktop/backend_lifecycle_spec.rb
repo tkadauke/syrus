@@ -196,9 +196,14 @@ RSpec.describe "desktop backend lifecycle" do
     expect(update_fn).to match(/ok && \(await backendHealthy\(\)\)[\s\S]{0,600}removeSupersededSyrusImages/)
     # The pin just applied is the one image that must survive.
     expect(update_fn).to include("pinnedRef: image")
-    # Cleanup lives on the update path only — first installs go through the
-    # onboarding driver and never call updateBackend.
-    expect(lifecycle.scan(/removeSupersededSyrusImages\(/).length).to eq(1)
+    # Cleanup lives on the update path, plus the launch-time retirement of the
+    # image an update kept for rollback (F114). That one only runs once an
+    # update wrote a retention record, so first installs (which never call
+    # updateBackend) remove nothing.
+    expect(lifecycle.scan(/removeSupersededSyrusImages\(/).length).to eq(2)
+    retire_fn = lifecycle[/const retireExpiredRetainedImage[\s\S]*?\n\}/]
+    expect(retire_fn).to match(/if \(!retention \|\| activeRetention\(retention\)\) \{\s*return/)
+    expect(retire_fn.index("readImageRetention")).to be < retire_fn.index("removeSupersededSyrusImages")
   end
 
   it "scopes image cleanup to same-repository siblings of the pin and stays polite" do
