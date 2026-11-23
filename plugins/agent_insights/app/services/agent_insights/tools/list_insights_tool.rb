@@ -45,9 +45,9 @@ module AgentInsights
 
         def call(server_context:, repository_id: nil, state: nil, limit: nil, page: nil)
           state_s = state.to_s.presence || "all"
-          return Mcp::Tools.invalid("state must be one of: #{STATES.join(', ')}") unless STATES.include?(state_s)
+          return Syrus::Host::McpTools.invalid("state must be one of: #{STATES.join(', ')}") unless STATES.include?(state_s)
 
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
           scope = visible_scope(context, repository_id: repository_id)
           return scope if scope.is_a?(MCP::Tool::Response)
 
@@ -123,7 +123,7 @@ module AgentInsights
         end
 
         def invalid_repository_id(repository_id)
-          Mcp::Tools.invalid("repository_id must be an integer: #{repository_id}")
+          Syrus::Host::McpTools.invalid("repository_id must be an integer: #{repository_id}")
         end
 
         def normalized_limit(value, default:, max:)

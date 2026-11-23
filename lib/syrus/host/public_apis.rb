@@ -3,6 +3,7 @@ require "syrus/host/backup_artifact_source"
 require "syrus/host/backup_destination"
 require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
+require "syrus/host/agent_runtime"
 require "syrus/host/runtime_images"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
@@ -235,13 +236,13 @@ module Syrus
         InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
         ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive from_server_context from_run] ],
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],
-        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many] ],
+        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many transaction] ],
         BackgroundJob: [ "Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised.", %w[queue_as operational_log_context] ],
         McpTools: [ "Provides database-connection and MCP response helpers; core tool implementations are not promised.", %w[with_database_connection success invalid not_authorized unauthorized run_from_context utf8 write_log] ],
         AdminController: [ "Bases admin-token plugin API controllers; core filters and implementation details are not promised.", %w[params render] ],
         AppController: [ "Bases authenticated plugin application API controllers; core filters are not promised.", %w[params render] ],
         AppAdminController: [ "Bases authenticated plugin admin API controllers; core filters are not promised.", %w[params render] ],
-        ProcessRunner: [ "Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised.", %w[new run capture start mounts forwarded_env] ],
+        ProcessRunner: [ "Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised.", %w[new run capture start mounts agent_mounts forwarded_env] ],
         PluginJob: [ "Bases plugin-owned background jobs with a per-plugin queue, concurrency lease, and retry policy; DEFAULT_ATTEMPTS is the retry budget. Queue topology and health bookkeeping are not promised.", %w[plugin_slug plugin_queue_concurrency DEFAULT_ATTEMPTS] ],
         ReviewerTargets: [ "Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised.", %w[resolve TargetRequired TargetUnavailable] ],
         AdversarialReviewStep: [ "Bases plugin review steps that reuse the adversarial-review loop and raises MemoryPersistenceFailed; the loop internals and overridable hooks beyond call are not promised.", %w[new call MemoryPersistenceFailed] ],
@@ -265,7 +266,7 @@ module Syrus
         PendingActionAuthorizedToolCall: [ "Bases pending actions that replay an authorized tool call; replay internals are not promised.", %w[new] ],
         PendingActionPermissionManagement: [ "Bases pending actions that change durable permissions; permission storage is not promised.", %w[new] ],
         OperationalLogging: [ "Emits structured plugin diagnostic events; subscribers and storage are not promised.", %w[ingest] ],
-        PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
+        PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase report_duration] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram registry] ],
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register register_direct providers_for capability_providers providers_with_owner_for extension_point?] ],
         PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
@@ -384,7 +385,7 @@ module Syrus
         RepositoryContent: [ "Reads repository files at an immutable revision and raises its NotFound, Unavailable, UnknownRevision, Unsupported, Truncated, and Error outcomes; provider selection is not promised.", %w[for Error NotFound Unavailable UnknownRevision Unsupported Truncated] ],
         StepWorkspace: [ "Resolves the workspace of a workflow step; directory layout beyond the returned paths is not promised.", %w[for] ],
         WorkerCapabilities: [ "Reports the capabilities advertised by this worker; probing is not promised.", %w[current normalize] ],
-        WorkflowWorkspace: [ "Resolves a workflow's checkout path and names the required branch artifact; workspace lifecycle is not promised.", %w[new path_for REQUIRED_BRANCH_ARTIFACT] ],
+        WorkflowWorkspace: [ "Resolves a workflow's checkout path and names the required branch artifact; workspace lifecycle is not promised.", %w[new path_for REQUIRED_BRANCH_ARTIFACT data_root agent_home_for] ],
         DataCleanup: [ "Runs a plugin's data cleanup when it is disabled or removed; scheduling is not promised.", %w[register] ],
         PathJail: [ "Confines file paths to a root and raises PathEscape; resolution details are not promised.", %w[PathEscape resolve!] ],
         PluginDataCleanup: [ "Marks a plugin-owned model for cleanup when its plugin is removed; cleanup ordering is not promised.", %w[] ],
@@ -425,6 +426,7 @@ module Syrus
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
         RuntimeImages: [ "Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.", %w[available? find publish_local acquire active_base request_build retain revoke delete audit] ],
+        AgentRuntime: [ "Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler] ],
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 

@@ -1,5 +1,5 @@
 module AgentInsights
-  class Suggestion < ApplicationRecord
+  class Suggestion < Syrus::Host::Record
     self.table_name = "agent_insight_suggestions"
 
     SEVERITIES = %w[low medium high].freeze

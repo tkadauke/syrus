@@ -1,6 +1,6 @@
 module AgentProviders
   class Muse < Base
-    include Syrus::Plugin::AgentProvider
+    include Syrus::Host::AgentProvider
 
     def self.provider_key = "muse"
     def self.display_name = "Muse Code"
@@ -29,7 +29,7 @@ module AgentProviders
         runner: runner,
         timeout: timeout,
         max_model_steps: max_turns,
-        muse_home: File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "muse")
+        muse_home: File.join(Syrus::Host::WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "muse")
       ).run
     end
 
@@ -83,7 +83,7 @@ module AgentProviders
         timeout: timeout,
         session_id: resume_session_id,
         max_model_steps: max_turns,
-        muse_home: WorkflowWorkspace.agent_home_for(workflow, provider),
+        muse_home: Syrus::Host::WorkflowWorkspace.agent_home_for(workflow, provider),
         mcp_server: (mcp ? mcp_server : nil),
         required_mcp_tools: required_mcp_tools,
         env: cli_invocation_env,
