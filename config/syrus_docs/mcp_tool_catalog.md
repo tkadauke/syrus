@@ -83,7 +83,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `revoke_permission_lease` | chat | deferred | write | no | - | - | - | - | essential |
 | `run_visual_diff` | chat | deferred | write | no | - | - | - | - | gated (operational) |
 | `run_visual_review` | chat | deferred | write | no | - | - | - | - | gated (operational) |
-| `schedule_wakeup` | chat | deferred | write | no | - | - | - | - | essential |
+| `schedule_wakeup` | chat | deferred | write | no | - | - | - | - | gated (persistent_autonomy) |
 | `search_chats` | chat | deferred | read | no | - | - | - | - | essential |
 | `search_syrus_docs` | chat | deferred | read | no | - | - | - | - | essential |
 | `select_job_delivery_track` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
@@ -265,7 +265,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `resume_landing_queue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.landing_queue` | - | gated (operational) |
 | `run_visual_diff` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
 | `run_visual_review` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
-| `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | essential |
+| `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | gated (persistent_autonomy) |
 | `search_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
 | `search_syrus_docs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
 | `select_job_delivery_track` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.delivery` | - | deniable (material control) |
@@ -326,7 +326,6 @@ surface (see [Permission authority](permission_authority.md)):
 | `suggest_next_step` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `unpin_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - | essential |
 | `withdraw_pending_action` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.pending_actions` | - | essential |
-| `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - | essential |
 | `list_ci_checks` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |

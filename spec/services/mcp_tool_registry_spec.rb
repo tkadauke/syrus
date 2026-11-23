@@ -263,7 +263,7 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
           read_live_state
-          get_coverage_report read_run_worker_health start_preview stop_preview
+          read_run_worker_health start_preview stop_preview
           read_preview_log report_cannot_proceed report_main_concern record_isolated_repro submit_summary submit_test_plan
           search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_artifact patch_workflow run_target_prepare submit_visual_artifact
@@ -303,7 +303,7 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
           read_live_state
-          get_coverage_report read_run_worker_health start_preview stop_preview
+          read_run_worker_health start_preview stop_preview
           read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_adversarial_review
         ]

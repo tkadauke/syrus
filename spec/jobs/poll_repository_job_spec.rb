@@ -51,7 +51,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job.advance_after_triage!
       workflow = job.workflows.first
       expect(job).to be_skip_prepare
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement dependency_audit summarize test_plan pr_open ])
       expect(workflow.first_step.kind).to eq("implement")
     end
 
@@ -69,7 +69,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Job.find_by!(repository: repository, issue_number: 42)
       job.advance_after_triage!
       workflow = job.workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement dependency_audit summarize test_plan pr_open ])
     end
 
     # Filing an investigation used to be possible only by confirming a chat
@@ -146,7 +146,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Job.find_by!(repository: repository, issue_number: 42)
       job.advance_after_triage!
       workflow = job.workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement dependency_audit summarize test_plan pr_open ])
       expect(workflow.first_step.kind).to eq("prepare")
     end
 
@@ -1039,7 +1039,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Job.find_by!(repository: repository, issue_number: 99)
       job.advance_after_triage!
       workflow = job.latest_workflow
-      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement dependency_audit summarize test_plan pr_open ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 

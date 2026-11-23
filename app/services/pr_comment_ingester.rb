@@ -1,4 +1,6 @@
 class PrCommentIngester
+  REPORT_MARKER = /<!-- syrus-[a-z][a-z-]* -->/
+
   Result = Data.define(:qualifying_records, :non_qualifying_records) do
     def any_qualifying? = qualifying_records.any?
   end
@@ -133,8 +135,10 @@ class PrCommentIngester
     return false unless BotIdentity.for(@job).authored_github_comment?(comment)
 
     body = comment.body.to_s
-    body.include?(CoverageReport::PrCommentFormatter::MARKER) ||
-      body.include?(DependencyAuditReport::PrCommentFormatter::MARKER)
+    # Every Syrus report comment opens with an HTML-comment marker of this
+    # shape (dependency audit, and the reports plugins post), so none needs to
+    # be named here.
+    body.match?(REPORT_MARKER)
   end
 
   def qualifies_for_workflow?(record)

@@ -1212,12 +1212,15 @@ through the post-implementation review extension point.
 
 ## coverage
 
-Enables coverage reporting. Syrus parses lcov or Cobertura artifacts produced by graders, computes diff annotations, and optionally posts a PR comment.
+Owned by the Coverage plugin: `coverage:` configures the analysis of the coverage
+reports graders produce, thresholds, and the PR comment. The full field
+reference, the nested-project rules, and the on/off behavior live in
+`coverage.md`. While the plugin is disabled the block is ignored without an
+error.
 
 Typed framework graders instrument their **review**-phase entry only, because
-review is the only phase whose workflows run a `coverage_analyze` step. A typed
+review is the only phase whose workflows run the coverage analysis. A typed
 grader with `coverage: true` whose `phases` omit `review` runs uninstrumented.
-See `coverage.md`.
 
 The `vitest` grader declares `coverage/lcov.info` as its output. When the Vite
 config points `coverage.reportsDirectory` somewhere else, name the real file
@@ -1229,37 +1232,6 @@ grade:
     coverage: true
     coverage_artifact: coverage/js/lcov.info
 ```
-
-```yaml
-coverage:
-  sources:
-    - artifact: coverage/lcov.info
-      format: lcov
-    - artifact: coverage/cobertura.xml
-      format: cobertura
-  threshold:
-    lines: 80
-    pr_lines: 70
-  on_miss: warn
-  pr_comment: true
-  hitmap_ttl_days: 7
-```
-
-### coverage fields
-
-| Field | Required | Default | Notes |
-|---|---|---|---|
-| `sources` | yes | — | Array of artifact paths + format, relative to the declaring `.syrus.yml` |
-| `threshold.lines` | no | — | Overall line coverage % (0–100) |
-| `threshold.pr_lines` | no | — | PR-diff line coverage % (0–100) |
-| `threshold.branches` | no | — | Overall branch coverage % (0–100), recorded as a warning rather than a hard gate |
-| `on_miss` | no | `warn` | `block`, `warn`, or `schedule` |
-| `pr_comment` | no | `false` | Post coverage summary as PR comment |
-| `hitmap_ttl_days` | no | 7 | Days to retain the hit-map blob |
-
-`on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
-
-Nested `.syrus.yml` files may declare their own `coverage:` blocks. Those sources and thresholds apply to the owning project, not the whole repository; source paths are resolved relative to the directory containing the nested `.syrus.yml`, even when that file declares an explicit `project.path` metadata override. Root coverage keeps the legacy repository-wide behavior. A repository aggregate is computed only when root coverage is configured or when nested project coverage is the only configured coverage source.
 
 ## deployment_stages
 

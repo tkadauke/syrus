@@ -64,6 +64,8 @@ module Syrus
       backup_artifact_source
       backup_destination
       system_alert_provider
+      line_coverage_provider
+      skill
     ].freeze
 
     # Qualified points hosted by the workflow kernel rather than by an
@@ -118,6 +120,8 @@ module Syrus
       mentionable: "Adds a plugin-owned entity that users and agents can address through mentions.",
       chat_identity_provider: "Supplies plugin-owned participant identities and presentation metadata for chat.",
       repository_filter: "Applies a plugin-owned repository filter while preserving the host's authorization scope.",
+      line_coverage_provider: "Supplies per-line coverage evidence for reviewed diffs, the latest default-branch file coverage, and agent-prompt context.",
+      skill: "Contributes built-in skills, each a named instruction set resolved like the host's own built-in skills.",
       preview_panel_viewer: "Renders a supported content type inside the repository preview panel.",
       preview_panel_retention: "Decides which plugin-owned preview resources remain available and when they expire.",
       repository_recommendation: "Produces evidence-backed plugin recommendations for a repository.",
@@ -185,6 +189,8 @@ module Syrus
       mentionable:              -> { Syrus::Plugin::Mentionable },
       chat_identity_provider:     -> { Syrus::Plugin::ChatIdentityProvider },
       repository_filter:       -> { Syrus::Plugin::RepositoryFilter },
+      line_coverage_provider:  -> { Syrus::Plugin::LineCoverageProvider },
+      skill:                   -> { Syrus::Plugin::Skill },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       preview_panel_retention: -> { Syrus::Plugin::PreviewPanelRetention },
       repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },

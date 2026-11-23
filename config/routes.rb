@@ -412,7 +412,6 @@ Rails.application.routes.draw do
             post :repair_main_branch
             post :sync_fork
             post :check_ci_now
-            get :coverage_trend
             get :readiness
             get :readiness_probe, action: :readiness_probe_status
             post :readiness_probe
@@ -443,7 +442,6 @@ Rails.application.routes.draw do
         get "repositories/:repository_id/preview/logs", to: "repository_preview#logs", constraints: { repository_id: /\d+/ }
         post "repositories/:repository_id/preview", to: "repository_preview#create", constraints: { repository_id: /\d+/ }
         delete "repositories/:repository_id/preview", to: "repository_preview#destroy", constraints: { repository_id: /\d+/ }
-        get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }
         get "workflows/:workflow_id/visual_artifact", to: "workflows#visual_artifact", constraints: { workflow_id: /\d+/ }
         get "workflows/:workflow_id/target_graph", to: "target_graphs#workflow", constraints: { workflow_id: /\d+/ }
         get "repositories/:repository_id/input_sources/:type", to: "input_sources#show"

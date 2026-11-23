@@ -2,7 +2,7 @@ require "pathname"
 
 # Persists only the coverage files a grader explicitly declared. Immutable
 # grader checkouts are worker-local and disposable, so the Run is the durable
-# boundary between grader execution and the later coverage_analyze Step.
+# boundary between grader execution and the later coverage analysis step.
 class GraderCoverageOutputCollector
   Result = Data.define(:artifact, :format, :status, :reason)
 

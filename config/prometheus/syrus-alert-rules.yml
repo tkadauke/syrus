@@ -29,7 +29,7 @@ groups:
           or syrus_recurring_job_last_success_seconds{job=~"refresh_workflow_step_resource_profiles|refresh_retention_size_snapshot"} > 7200
           or syrus_recurring_job_last_success_seconds{job="prune_workflow_workspaces"} > 14400
           or syrus_recurring_job_last_success_seconds{job="refresh_cognitive_debt_snapshots"} > 28800
-          or syrus_recurring_job_last_success_seconds{job=~"prune_ui_engagement_samples|prune_branch_publications|database_retention_archive_sweep|reap_stale_branches|reconcile_integration_branches|prune_coverage_hit_map_ttl|purge_expired_passkey_challenges"} > 172800
+          or syrus_recurring_job_last_success_seconds{job=~"prune_ui_engagement_samples|prune_branch_publications|database_retention_archive_sweep|reap_stale_branches|reconcile_integration_branches|purge_expired_passkey_challenges"} > 172800
         for: 10m
         labels:
           severity: page

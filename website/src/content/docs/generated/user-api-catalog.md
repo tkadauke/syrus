@@ -380,7 +380,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/repositories/:id/archive` | `api/v1/app/repositories#archive` |
 | core | POST | `/api/v1/app/repositories/:id/check_ci_now` | `api/v1/app/repositories#check_ci_now` |
 | core | GET | `/api/v1/app/repositories/:id/cognitive_debt` | `api/v1/app/repositories#cognitive_debt` |
-| core | GET | `/api/v1/app/repositories/:id/coverage_trend` | `api/v1/app/repositories#coverage_trend` |
 | core | GET | `/api/v1/app/repositories/:id/delivery` | `api/v1/app/repositories#delivery` |
 | core | GET | `/api/v1/app/repositories/:id/edit` | `api/v1/app/repositories#edit` |
 | core | GET | `/api/v1/app/repositories/:id/health_history` | `api/v1/app/repositories#health_history` |
@@ -477,7 +476,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/ui_engagement_samples` | `api/v1/app/ui_engagement_samples#create` |
 | core | PATCH | `/api/v1/app/user_time_zone` | `api/v1/app/user_time_zones#update` |
 | core | GET | `/api/v1/app/users/invitable` | `api/v1/app/users#invitable` |
-| core | GET | `/api/v1/app/workflows/:workflow_id/coverage_hit_map` | `api/v1/app/workflows#coverage_hit_map` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/detail` | `api/v1/app/workflows#detail` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/preview` | `api/v1/app/workflows#preview` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/target_graph` | `api/v1/app/target_graphs#workflow` |

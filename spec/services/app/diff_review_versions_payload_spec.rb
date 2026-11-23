@@ -172,12 +172,12 @@ RSpec.describe App::DiffReviewVersionsPayload do
   it "renders coverage annotations from the selected version workflow" do
     selected_workflow = job.workflows.first
     latest_workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "chat_feedback", agent_provider: "claude", state: "succeeded")
-    Workflow::CoverageArtifact.write!(selected_workflow, {
+    selected_workflow.set_artifact!("coverage", {
       "diff_annotations" => {
         "app/models/selected.rb" => { "1" => "covered" }
       }
     })
-    Workflow::CoverageArtifact.write!(latest_workflow, {
+    latest_workflow.set_artifact!("coverage", {
       "diff_annotations" => {
         "app/models/selected.rb" => { "1" => "uncovered" }
       }
@@ -202,7 +202,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
   it "falls back to matching same-job coverage for an all-changes version without coverage provenance" do
     coverage_workflow = job.workflows.first
     all_changes_workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "chat_feedback", agent_provider: "claude", state: "succeeded")
-    Workflow::CoverageArtifact.write!(coverage_workflow, {
+    coverage_workflow.set_artifact!("coverage", {
       "diff_annotations" => {
         "app/models/selected.rb" => { "1" => "covered" },
         "app/models/other.rb" => { "1" => "uncovered" }
@@ -230,7 +230,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
 
   it "does not fall back to same-job coverage for an explicit source diff selection" do
     coverage_workflow = job.workflows.first
-    Workflow::CoverageArtifact.write!(coverage_workflow, {
+    coverage_workflow.set_artifact!("coverage", {
       "diff_annotations" => {
         "app/models/selected.rb" => { "1" => "covered" }
       }

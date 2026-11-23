@@ -17,7 +17,7 @@ module Workflows
   # repair), so the first grading pass grades that work directly instead of
   # redundantly re-running respond first.
   #
-  # No coverage_analyze/coverage_pr_comment/refresh_job_metadata — those
+  # No refresh_job_metadata or PR-comment steps — those
   # steps key off job.pr_number, which external_pr Jobs never set (they use
   # external_pr_number instead).
   #

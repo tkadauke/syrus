@@ -6,8 +6,8 @@ module SyrusMcp
   # Image-capable sibling to SubmitArtifactTool. Captures the current browser
   # page, accepts an image file path inside the workflow workspace, or accepts
   # base64-encoded image bytes and persists the image as an ActiveStorage blob
-  # on the current Workflow (mirroring the has_one_attached :coverage_hit_map
-  # pattern), then records a 'typed_artifacts' entry pointing at it so the job
+  # on the current Workflow (an ActiveStorage attachment on the Workflow,
+  # like other workflow artifacts), then records a 'typed_artifacts' entry pointing at it so the job
   # detail UI's Artifacts tab can render it through a registered :image_diff
   # renderer.
   class SubmitVisualArtifactTool < MCP::Tool

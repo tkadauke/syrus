@@ -61,7 +61,15 @@ module Syrus
         VisualReviewEvidenceGuard: "VisualReviewEvidenceGuard",
         VisualReviewRuntimeSession: "VisualReviewRuntimeSession",
         FeedbackKind: "Workflow::FeedbackKind",
-        TargetGraphCompiler: "TargetGraph::Compiler"
+        TargetGraphCompiler: "TargetGraph::Compiler",
+        BotIdentity: "BotIdentity",
+        CodePathNormalizer: "CodeFacts::PathNormalizer",
+        CoverageParsers: "CoverageAnalysis::Parsers",
+        RetainedGraderCoverageOutputs: "RetainedGraderCoverageOutputs",
+        SkillBase: "Skills::Base",
+        StepFailed: "Steps::Base::StepFailed",
+        WorkspaceContext: "Syrus::Plugin::Context::WorkspaceContext",
+        PluginDispatch: "Syrus::Plugin::Dispatch"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -109,7 +117,15 @@ module Syrus
         VisualReviewEvidenceGuard: [ "Validates visual review evidence.", %w[blocked_evidence_reason validate_visual_diff_after_artifacts] ],
         VisualReviewRuntimeSession: [ "Manages a visual review runtime session.", %w[new start! stop!] ],
         FeedbackKind: [ "Resolves feedback text for a workflow.", %w[for review_text] ],
-        TargetGraphCompiler: [ "Compiles repository target configuration.", %w[compile] ]
+        TargetGraphCompiler: [ "Compiles repository target configuration.", %w[compile] ],
+        BotIdentity: [ "Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments.", %w[for authored_github_comment?] ],
+        CodePathNormalizer: [ "Normalizes tool-reported source paths to repository-relative paths.", %w[normalize] ],
+        CoverageParsers: [ "Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract.", %w[for] ],
+        RetainedGraderCoverageOutputs: [ "Reads the coverage files graders declared and the Run retained.", %w[for] ],
+        SkillBase: [ "Bases plugin-contributed built-in skills; instruction rendering is not promised.", %w[definition] ],
+        StepFailed: [ "Signals a deliberate, retry-classified step failure from a plugin-owned step.", %w[new message] ],
+        WorkspaceContext: [ "Carries the workspace path and format hint passed to ecosystem capability providers.", %w[new] ],
+        PluginDispatch: [ "Asks ecosystem capability providers a question and composes their answers.", %w[call] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

@@ -96,7 +96,7 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   def seed_low_cost_profiles(except: [], attributed: false)
-    %w[prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open].each do |step_kind|
+    %w[prepare implement adversarial_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open].each do |step_kind|
       next if except.include?(step_kind)
 
       if attributed
@@ -813,9 +813,9 @@ RSpec.describe WorkflowAdmissionBudget do
     )
     expect(decision.pressure.dig("candidate", "process_attributed_cost")).to include(
       "duration_seconds" => expected_duration,
-      "cpu_percent" => 16.0,
+      "cpu_percent" => 15.0,
       "memory_bytes" => 25,
-      "io_bytes" => 14
+      "io_bytes" => 13
     )
     expect(decision.pressure.dig("candidate", "fallback_reasons")).to eq([])
   end

@@ -188,17 +188,6 @@ module Factories
     }.merge(attrs))
   end
 
-  def coverage_snapshot(**attrs)
-    j = attrs[:job] || job
-    CoverageSnapshot.create!({
-      repository: attrs[:repository] || j.repository,
-      workflow:   attrs[:workflow]   || j.workflows.first,
-      job:        j,
-      sha:        "abc#{SecureRandom.hex(3)}",
-      branch:     "main"
-    }.merge(attrs))
-  end
-
   def platform_identity(**attrs)
     PlatformIdentity.create!({
       user: attrs[:user] || user,
