@@ -10,7 +10,7 @@ module AgentInsights
         created_job = nil
         result = nil
 
-        ApplicationRecord.transaction do
+        Syrus::Host::Record.transaction do
           suggestion.with_lock do
             unless suggestion.pending?
               result = Result.error("Suggestion cannot be accepted (already accepted or dismissed).")

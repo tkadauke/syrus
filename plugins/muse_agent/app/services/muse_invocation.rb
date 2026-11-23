@@ -4,12 +4,12 @@ require "securerandom"
 require "set"
 
 class MuseInvocation
-  DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
+  DEFAULT_TIMEOUT_SECONDS = Syrus::Host::AgentRuntime.default_timeout_seconds
   DEFAULT_TRANSCRIPT_POLICY = :redacted_export
   TRANSCRIPT_POLICIES = %i[redacted_export raw_export exec_jsonl].freeze
   STARTUP_ERROR_MAX_BYTES = 4.kilobytes
   # The image pins the launcher with MUSE_NO_AUTO_UPDATE (see Dockerfile), but
-  # AgentInvocation::ENV_FORWARD does not carry it, so every scrubbed invocation
+  # Syrus::Host::AgentRuntime.forwarded_env_keys does not carry it, so every scrubbed invocation
   # would otherwise re-enable the launcher's update check -- which stalls startup
   # and fails writing its timestamp into the read-only /opt/muse/bin.
   LAUNCHER_ENV = { "MUSE_NO_AUTO_UPDATE" => "1" }.freeze
@@ -108,7 +108,7 @@ class MuseInvocation
       File.write(prompt_path, prompt)
       write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
       runner_result = with_muse_rules_context_fit(workspace_path, log_sink) do
-        ProcessRunner.new(
+        Syrus::Host::ProcessRunner.new(
           env: muse_env(workspace_path, muse_home: @muse_home).merge(env || {}),
           command: muse_exec_command(
             workspace_path: workspace_path,
@@ -119,10 +119,10 @@ class MuseInvocation
             max_model_steps: max_model_steps
           ),
           stdin_data: api_key,
-          mounts: ProcessRunner.agent_mounts(workspace_path, @muse_home),
+          mounts: Syrus::Host::ProcessRunner.agent_mounts(workspace_path, @muse_home),
           network: "agent",
           timeout: timeout,
-          silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+          silent_timeout: Syrus::Host::AgentRuntime.silent_timeout_seconds,
           activity_probe: muse_session_activity_probe(session_id),
           kind: "agent",
           run: current_run,
@@ -132,8 +132,8 @@ class MuseInvocation
           stop_requested: -> { stop_requested.call || @required_mcp_failed },
           on_spawned_process: process_started,
           workload_policy: workload_policy,
-          max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
-          on_output_line_too_long: AgentInvocation.oversized_event_handler("Muse"),
+          max_output_line_bytes: Syrus::Host::AgentRuntime.max_event_bytes,
+          on_output_line_too_long: Syrus::Host::AgentRuntime.oversized_event_handler("Muse"),
           on_output_line: ->(line) do
             exec_jsonl << line
             exec_jsonl << "\n" unless line.end_with?("\n")
@@ -156,7 +156,7 @@ class MuseInvocation
         stop_requested: -> { stop_requested.call || @required_mcp_failed }
       )
 
-      AgentInvocation::Result.new(
+      Syrus::Host::InvocationResult.new(
         turns: metadata[:turns],
         exit_status: cleanup_timeout ? 0 : runner_result.exit_status,
         timed_out: !cleanup_timeout && (runner_result.timed_out || runner_result.silent_timed_out),
@@ -198,8 +198,8 @@ class MuseInvocation
   end
 
   def muse_env(workspace_path, muse_home: nil)
-    env = ProcessRunner.forwarded_env(
-      AgentInvocation::ENV_FORWARD,
+    env = Syrus::Host::ProcessRunner.forwarded_env(
+      Syrus::Host::AgentRuntime.forwarded_env_keys,
       extra: LAUNCHER_ENV.merge(WorkspaceDependencyEnv.for(workspace_path))
     )
     if muse_home.present?
@@ -839,10 +839,10 @@ class MuseInvocation
 
     FileUtils.mkdir_p(transcript_dir)
     path = File.join(transcript_dir, "muse-#{session_id}-#{policy}.jsonl")
-    result = ProcessRunner.new(
+    result = Syrus::Host::ProcessRunner.new(
       env: muse_env(workspace_path, muse_home: @muse_home),
       command: muse_export_command(session_id: session_id, path: path, redacted: policy == :redacted_export),
-      mounts: ProcessRunner.mounts(workspace_path),
+      mounts: Syrus::Host::ProcessRunner.mounts(workspace_path),
       network: "agent",
       timeout: 60,
       silent_timeout: 15,
@@ -873,7 +873,7 @@ class MuseInvocation
   end
 
   def process_start_failure(error)
-    AgentInvocation::Result.new(
+    Syrus::Host::InvocationResult.new(
       turns: nil,
       exit_status: nil,
       timed_out: false,
