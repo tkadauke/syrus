@@ -171,10 +171,10 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     plugin_descriptor = descriptor(capability: "plugin.data@v1", operation: "plugin.data/read@v1")
     provider = stub_const("ExampleToolSet", Class.new)
     allow(McpToolRegistry).to receive(:entries).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:workflow_tool_sets).and_return([ provider ])
+    allow(Syrus::Plugin::Toolkit).to receive(:chat_tool_sets).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([])
     allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
     expect(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([
       { name: "read_plugin_data", capability_descriptor: plugin_descriptor }
     ])
@@ -190,9 +190,9 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
   it "rejects a plugin definition without an explicit descriptor" do
     provider = stub_const("UnratchetedToolSet", Class.new)
     allow(McpToolRegistry).to receive(:entries).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:workflow_tool_sets).and_return([ provider ])
+    allow(Syrus::Plugin::Toolkit).to receive(:chat_tool_sets).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([])
     allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([{ name: "read_plugin_data" }])
 
     finding = described_class.for_application.findings.find { |candidate| candidate.code == :missing_descriptor }
@@ -203,9 +203,9 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
   it "rejects a malformed explicit plugin descriptor" do
     provider = stub_const("MalformedToolSet", Class.new)
     allow(McpToolRegistry).to receive(:entries).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:workflow_tool_sets).and_return([ provider ])
+    allow(Syrus::Plugin::Toolkit).to receive(:chat_tool_sets).and_return([])
+    allow(Syrus::Plugin::Toolkit).to receive(:permission_providers).and_return([])
     allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([
       { name: "read_plugin_data", capability_descriptor: { capability: "unversioned" } }
     ])
