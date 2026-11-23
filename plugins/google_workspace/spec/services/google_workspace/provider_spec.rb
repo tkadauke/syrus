@@ -12,7 +12,7 @@ RSpec.describe GoogleWorkspace::Provider do
   let(:manifest) { Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "google_workspace" } }
   let(:provider_declaration) do
     ConnectedAccounts::ProviderDeclaration.build(plugin_name: manifest.name,
-      attributes: manifest.provides.fetch("connected_accounts:provider"))
+      attributes: manifest.provides.fetch("connected_accounts:provider").sole)
   end
   let(:provider_class) { described_class }
 
