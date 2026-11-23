@@ -1,6 +1,6 @@
 module AgentMemory
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = (AgentRole::CHAT_ROLES + AgentRole::WORKFLOW_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq.freeze
     CAPABILITY = "agent_memory.entries@v1"

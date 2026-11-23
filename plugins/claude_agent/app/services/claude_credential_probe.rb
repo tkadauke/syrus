@@ -22,9 +22,9 @@ class ClaudeCredentialProbe
     token = ambient ? nil : user.claude_oauth_token
     Dir.mktmpdir("syrus-claude-probe-") do |workspace|
       output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(
-          AgentInvocation::ENV_FORWARD,
+      result = Syrus::Host::ProcessRunner.new(
+        env: Syrus::Host::ProcessRunner.forwarded_env(
+          Syrus::Host::AgentRuntime.forwarded_env_keys,
           extra: token ? { "CLAUDE_CODE_OAUTH_TOKEN" => token } : {}
         ),
         command: [
@@ -34,7 +34,7 @@ class ClaudeCredentialProbe
           "--max-turns", "1",
           "Reply with OK."
         ],
-        mounts: ProcessRunner.mounts(workspace),
+        mounts: Syrus::Host::ProcessRunner.mounts(workspace),
         network: "agent",
         timeout: CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
