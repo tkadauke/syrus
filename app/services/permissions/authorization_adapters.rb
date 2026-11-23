@@ -19,7 +19,7 @@ module Permissions
         next [] unless provider.respond_to?(:permission_authorization_adapters)
 
         result = Syrus::PluginInvocation.call(
-          extension_point: :permission_provider, provider:, operation: :permission_authorization_adapters,
+          extension_point: :toolkit, provider:, operation: :permission_authorization_adapters,
           on_decline: []
         ) { provider.permission_authorization_adapters.to_a }
         if result.is_a?(Syrus::PluginInvocation::Failed)

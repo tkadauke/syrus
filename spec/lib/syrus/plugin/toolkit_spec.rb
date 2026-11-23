@@ -89,4 +89,24 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
 
     expect(Syrus::Plugin::Dispatch.call(:toolkit, :workflow_tools, discovery_context)).to eq([ healthy_tool_set ])
   end
+
+  it "preserves non-empty run-context hashes through dispatch and runtime assembly" do
+    attributes = { chat_session: Object.new, granted_capabilities: [ "code.read" ] }
+    contributor = Class.new do
+      define_singleton_method(:context_attributes) { |**| attributes }
+    end
+    stub_const("ToolkitRunContextContributor", contributor)
+    stub_const("ToolkitRunContextProvider", described_class.provider(
+      key: "run_context", display_name: "Run context", run_context: "ToolkitRunContextContributor"
+    ))
+    Syrus::PluginRegistry.register(
+      name: "run_context", version: "1", provides: {},
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :toolkit, provider: "ToolkitRunContextProvider", provisional: %i[run_context]
+      ) ]
+    )
+
+    expect(described_class.run_context_attributes(run: double, role: AgentRole::COWORKER)).to eq([ attributes ])
+    expect(McpToolContext.send(:run_context_attributes, double, AgentRole::COWORKER)).to eq(attributes)
+  end
 end
