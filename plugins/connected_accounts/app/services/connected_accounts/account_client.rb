@@ -15,8 +15,10 @@ module ConnectedAccounts
       end
 
 
-      def with_system_access(account:, service_capability:, scopes:, purpose:, target: {}, &block)
-        SystemInvocation.call(account:, service_capability:, scopes:, purpose:, target:, &block)
+      def with_system_access(account:, service_identity:, scopes:, purpose:, target: {}, input: {}, &caller_block)
+        raise Denied, "system access does not accept caller code" if caller_block
+
+        SystemInvocation.call(account:, service_identity:, scopes:, purpose:, target:, input:)
       end
     end
 
