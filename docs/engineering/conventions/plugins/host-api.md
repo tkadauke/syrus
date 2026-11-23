@@ -787,7 +787,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Execution::ChatWorkloadPolicy`
 - `Execution::Local`
 - `Feature`
-- `Filters`
 - `Filters::Ast`
 - `Filters::Ast::AndNode`
 - `Filters::Ast::Chip`
