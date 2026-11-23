@@ -1,7 +1,7 @@
 module ConnectedAccounts
   ProviderDeclaration = Data.define(
     :plugin_name, :provider, :key, :display_name, :capabilities, :callback_route,
-    :scopes, :supports_read_only
+    :scopes, :supports_read_only, :configuration
   ) do
     RISK_LEVELS = %w[low medium high critical].freeze
 
@@ -15,7 +15,8 @@ module ConnectedAccounts
         capabilities: Array(values["capabilities"]).map(&:to_s).freeze,
         callback_route: values["callback_route"].to_s,
         scopes: Array(values["scopes"]).map { |scope| scope.to_h.stringify_keys.freeze }.freeze,
-        supports_read_only: values["supports_read_only"]
+        supports_read_only: values["supports_read_only"],
+        configuration: values.fetch("configuration", {}).to_h.stringify_keys.freeze
       ).tap(&:validate!)
     end
 

@@ -1,0 +1,4 @@
+en:
+  google_workspace:
+    settings:
+      operator_notice: "Register your own Google OAuth client and check Google's current verification policy before enabling connections."
