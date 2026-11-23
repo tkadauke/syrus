@@ -85,7 +85,7 @@ const SIDEBAR_DIALOG_CLOSE_CLASS = "rounded p-1 text-text-secondary hover:bg-sur
 const RECENT_CHATS_ICON_BUTTON_CLASS =
   "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded p-0 text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
 const RECENT_CHAT_ACTION_SLOT_CLASS = "relative flex h-6 w-6 shrink-0 items-center justify-center"
-const RECENT_CHAT_MARKER_SLOT_CLASS = "relative flex h-6 min-w-6 shrink-0 items-center justify-end pr-[0.3125rem]"
+const RECENT_CHAT_MARKER_SLOT_CLASS = "relative flex shrink-0 items-center"
 const RECENT_CHAT_MARKER_CELL_CLASS = "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
@@ -696,7 +696,7 @@ export function RecentChatsSidebar({
                           </span>
                           {chat.archived_at ? <span className="shrink-0 text-xs text-text-muted">{t("chat:archived")}</span> : null}
                           <span
-                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} ${canHover ? "h-6 min-w-6 justify-end pr-[0.3125rem]" : "h-11 min-w-11 justify-center"} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                             data-testid="recent-chat-marker-slot"
                           >
                             <IndicatorPopover canHover={canHover} chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
@@ -1402,6 +1402,7 @@ function IndicatorPopover({
     <>
       <span
         aria-expanded={open}
+        className={canHover ? undefined : "inline-flex h-full w-full items-center justify-center"}
         role="button"
         onClick={(event) => {
           if (canHover) return

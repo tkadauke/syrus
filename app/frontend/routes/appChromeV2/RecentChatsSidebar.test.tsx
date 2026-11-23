@@ -1056,7 +1056,10 @@ describe("RecentChatsSidebar action and marker slot", () => {
 
       const marker = screen.getByTestId("job-running-marker")
       const reference = marker.closest('[role="button"]')!
+      const markerSlot = screen.getByTestId("recent-chat-marker-slot")
       expect(reference).toHaveAttribute("aria-expanded", "false")
+      expect(markerSlot).toHaveClass("h-11", "min-w-11", "justify-center")
+      expect(reference).toHaveClass("h-full", "w-full", "items-center", "justify-center")
       const row = screen.getByTitle("Chat").parentElement!
       fireEvent.mouseEnter(row)
       expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
