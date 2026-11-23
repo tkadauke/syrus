@@ -9,6 +9,11 @@ The classifier enumerated four of the five execution kinds. `RunJob` is
 concurrency-limited per Job, so a second Run of the same Job sits in
 `blocked` until the semaphore frees. Old behavior: that waiting job was
 "orphaned", deleted and re-enqueued (where it blocked again).
+
+The Ruby classifier also waits a grace period after the job's last change
+before calling it orphaned, so a job moving between states during the
+snapshot scan is not misread. That age condition only ever withholds the
+verdict; it is orthogonal to the flag classification modelled here.
 -/
 
 namespace SyrusModel

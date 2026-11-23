@@ -73,11 +73,14 @@ module Workflows
       )
       repository.reload
 
+      # Close the anchor first: a healthy main makes the health-change handler
+      # supersede open preflight repairs, and this one passed rather than
+      # being superseded.
+      close_anchor_job!(workflow)
+
       if repository.main_health != previous_health || (was_landing_paused && repository.main_health == "healthy")
         MainHealthChangedService.on_health_change!(repository)
       end
-
-      close_anchor_job!(workflow)
     end
 
     # Preflight could not prove main broken or healthy (infrastructure retries
