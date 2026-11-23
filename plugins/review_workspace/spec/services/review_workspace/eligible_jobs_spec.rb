@@ -29,6 +29,13 @@ RSpec.describe ReviewWorkspacePlugin::EligibleJobs do
     expect(described_class.call(user:)).to eq([ eligible ])
   end
 
+  it "excludes manually paused Jobs" do
+    eligible = implemented
+    implemented(manual_paused: true, manual_paused_at: Time.current)
+
+    expect(described_class.call(user:)).to eq([ eligible ])
+  end
+
   it "excludes approval-blocking work while permitting non-blocking review work" do
     blocked = Factories.job_with_run(user:, repository:, state: "implemented", run_attrs: { state: "running", trigger_kind: "initial" })
     review_running = Factories.job_with_run(user:, repository:, state: "implemented", run_attrs: { state: "running", trigger_kind: "manual_visual_review" })

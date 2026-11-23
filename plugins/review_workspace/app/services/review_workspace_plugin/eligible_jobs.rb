@@ -26,7 +26,7 @@ module ReviewWorkspacePlugin
       scoped_writable_jobs = scope.where(id: writable_jobs.select(:id))
 
       Job.visible_to(user, scope: scoped_writable_jobs)
-        .where(state: "implemented", investigation: false, kind: Job::Kind.user_facing_values)
+        .where(state: "implemented", investigation: false, manual_paused: false, kind: Job::Kind.user_facing_values)
     end
 
     def approvable_by_user?(job)
