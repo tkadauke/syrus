@@ -28,6 +28,17 @@ export async function signIn(page: Page, user: { email: string; password: string
   await page.getByLabel(/password/i).fill(user.password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
   await page.waitForURL((url) => !url.pathname.endsWith("/session/new"))
+  await waitForSpaBoot(page)
+}
+
+// The landing page has loaded, but the SPA has not necessarily booted: its
+// router initializes -- and calls history.replaceState on the current URL --
+// once the bundle runs, which can be well after the load event. A spec that
+// navigates on straight away races that call, and WebKit reports the pending
+// page.goto as "interrupted by another navigation" to the page being left.
+// React's first commit comes after the router is up.
+export async function waitForSpaBoot(page: Page) {
+  await page.waitForFunction(() => (window as unknown as { __syrusReactFirstRender?: boolean }).__syrusReactFirstRender === true)
 }
 
 export async function signInAsDemo(page: Page) {

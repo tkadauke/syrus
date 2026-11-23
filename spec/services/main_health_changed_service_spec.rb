@@ -2178,6 +2178,16 @@ RSpec.describe MainHealthChangedService, :ci_only do
       expect(job.reload).to have_attributes(state: "closed", closure_reason: "superseded")
     end
 
+    it "leaves a repair whose own preflight found main healthy to close itself" do
+      repository.update!(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "healthy")
+      job = repair_job
+      repair_workflow(job).set_artifact!("preflight_passed", true)
+
+      described_class.supersede_unneeded_preflight_repairs!(repository)
+
+      expect(job.reload).not_to be_closed
+    end
+
     it "keeps repairs while main is still broken" do
       repository.update!(main_branch_health_enabled: true, ci_health: "broken", grader_health: "healthy")
       job = repair_job

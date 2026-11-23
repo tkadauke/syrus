@@ -53,5 +53,33 @@ theorem after_exact (e : Exec) : orphanedAfter (flags true e) = true ↔ e = .no
 /-- Adding the flag alone is not enough: the old predicate ignores it. -/
 theorem flag_alone_insufficient : orphanedBefore (flags true .blocked) = true := by decide
 
+/-! ## The snapshot reads each execution table separately
+
+The reconciler loads ready, claimed, failed, scheduled and blocked executions in
+separate queries. A job that moves between states during the scan (a delayed
+job promoted from scheduled to ready, a claim landing between two reads) can
+show no flag at all for one pass, though it always held an execution row. Such
+a job was flagged and re-enqueued while in transit. The classifier now also
+requires the job to have been unchanged past a grace period (`settled`): a job
+in transit was just changed, so it is never flagged. -/
+
+/-- What the snapshot shows for a job: a torn read can drop its one flag. -/
+def observed (torn : Bool) (e : Exec) : Flags :=
+  if torn then flags true .none else flags true e
+
+def orphanedSettled (f : Flags) (settled : Bool) : Bool := orphanedAfter f && settled
+
+/-- A torn read alone made the old classifier flag a job that had a row. -/
+theorem torn_read_misclassifies : orphanedAfter (observed true .scheduled) = true := by decide
+
+/-- **No job in transit is flagged.** A job that just changed is not settled,
+    whatever the snapshot showed. -/
+theorem transit_never_flagged (torn : Bool) (e : Exec) :
+    orphanedSettled (observed torn e) false = false := by
+  cases torn <;> cases e <;> decide
+
+/-- **A real orphan is still found** once it has sat past the grace period. -/
+theorem settled_orphan_flagged : orphanedSettled (observed false .none) true = true := by decide
+
 end QueueExecution
 end SyrusModel
