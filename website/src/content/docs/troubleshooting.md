@@ -403,7 +403,8 @@ with Docker's own image store, so the space is often consumed by old,
 unused Docker images rather than by Syrus data — superseded Syrus backend
 images left behind by updates are the most common culprit. The desktop
 app cleans those up automatically once an updated backend is confirmed
-healthy, but images from other sources still accumulate.
+healthy, keeping only the image the last update replaced, for up to seven
+days, as a rollback. Images from other sources still accumulate.
 
 Check Docker's image store first:
 

@@ -87,6 +87,7 @@ import SyrusModel.SupersededCiRepair
 import SyrusModel.AbandonedReplication
 import SyrusModel.RecoveryPreflight
 import SyrusModel.CheckoutHooks
+import SyrusModel.RollbackImage
 import SyrusModel.DispatchOrder
 import SyrusModel.Kernel.Basic
 import SyrusModel.Kernel.Reconcile

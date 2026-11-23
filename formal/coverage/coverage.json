@@ -3228,6 +3228,23 @@
       "producer": "cli/cmd/checkout.go (postCheckoutHooksAllowed, runPostCheckoutHooks, withPostCheckoutHookPolicy)",
       "done_by": "F113 (NY23)",
       "notes": "CheckoutHooks.lean: an agent-added hook needs consent, and unknown kinds never run hooks."
+    },
+    {
+      "id": "rollback-image-kept",
+      "area": "desktop",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "The image a backend update replaced is kept for rollback until the next update or seven days",
+      "producer": "desktop/electron/installer/imageRetention.ts; backendLifecycle.updateBackend/ensureRunning; imageCleanup",
+      "done_by": "F114 (NY24)",
+      "notes": "RollbackImage.lean: at most one previous image is kept, it survives its update's cleanup, and an expired one is retired at launch."
     }
   ],
   "needs_you": [
@@ -3541,7 +3558,7 @@
         "C. Keep as is: reclaim all space immediately, and rely on re-pulling for rollback."
       ],
       "recommendation": "A. It bounds disk use at two images, and it keeps the one image that makes a local rollback possible.",
-      "decision": "B (2026-11-22, answered on the lean-plan site): Keep the previous image only until the next successful update or for a fixed period, such as 7 days. To implement."
+      "decision": "B (2026-11-22, answered on the lean-plan site): Keep the previous image only until the next successful update or for a fixed period, such as 7 days. Implemented as F114."
     },
     {
       "id": "NY25",

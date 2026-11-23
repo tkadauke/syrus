@@ -66,7 +66,11 @@ export const isSyrusManagedImageRef = (ref: string): boolean => {
 // must still look like one of our images.
 export const supersededSyrusImages = (
   imageRefs: string[],
-  { pinnedRef, inUseRefs }: { pinnedRef: string | null; inUseRefs: string[] }
+  {
+    pinnedRef,
+    inUseRefs,
+    retainedRef = null
+  }: { pinnedRef: string | null; inUseRefs: string[]; retainedRef?: string | null }
 ): string[] => {
   if (!pinnedRef) {
     return []
@@ -78,7 +82,9 @@ export const supersededSyrusImages = (
   // siblings so a test-stack update never deletes the production image, and
   // vice versa.
   const pinnedTagChannel = tagChannel(splitRef(pinnedRef).tag ?? "latest")
-  const keep = new Set([pinnedRef, ...inUseRefs].map(normalizeImageRef))
+  // The previous image a recent update replaced is kept for rollback while
+  // its retention lasts (imageRetention.ts).
+  const keep = new Set([pinnedRef, ...inUseRefs, ...(retainedRef ? [retainedRef] : [])].map(normalizeImageRef))
   return imageRefs.filter(
     (ref) =>
       isSyrusManagedImageRef(ref) &&
@@ -119,9 +125,11 @@ export type ImageCleanupResult = { removed: string[]; reclaimedDisplay: string |
 // whole pass is best-effort: it must never fail the update that invoked it.
 export const removeSupersededSyrusImages = async ({
   pinnedRef,
+  retainedRef = null,
   log = () => {}
 }: {
   pinnedRef: string | null
+  retainedRef?: string | null
   log?: (line: string) => void
 }): Promise<ImageCleanupResult> => {
   const nothing: ImageCleanupResult = { removed: [], reclaimedDisplay: null }
@@ -160,7 +168,7 @@ export const removeSupersededSyrusImages = async ({
 
     const removed: string[] = []
     let reclaimedBytes = 0
-    for (const ref of supersededSyrusImages(refs, { pinnedRef, inUseRefs })) {
+    for (const ref of supersededSyrusImages(refs, { pinnedRef, inUseRefs, retainedRef })) {
       try {
         await run(["image", "rm", ref])
         removed.push(ref)

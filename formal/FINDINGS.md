@@ -4232,6 +4232,45 @@ Job with no `kind`, which the allow-list now refuses; they declare
 
 ---
 
+## F114. A backend update deleted the image it had just replaced — fixed (NY24)
+
+**Decision (NY24, B).** Keep the previous image only until the next successful
+update, or for a fixed period such as 7 days.
+
+**Before.** After a backend update passed its health gate, the desktop removed
+every same-channel backend image except the new pin
+(`removeSupersededSyrusImages`), including the image that had been running a
+minute earlier. A version that misbehaved after the health gate (a migration or
+runtime problem) could only be rolled back by re-pulling about 7.6 GB, which
+may be impossible offline.
+
+**Fix (desktop).**
+
+- `updateBackend` captures the pin it is replacing before the installer runs.
+  After a healthy update it writes `image-retention.json` in the state
+  directory (`retentionAfterUpdate`: the replaced ref, kept 7 days) and passes
+  that ref to the cleanup, which keeps it. The record replaces the last one, so
+  the image an earlier update kept is retired by the next update.
+- `ensureRunning`, the launch check, retires the kept image once its deadline
+  has passed, on a healthy stack only; a broken stack keeps every image.
+- Retention is best-effort like the cleanup it feeds: a lost or corrupt record
+  only means the image is not kept.
+- Docs: the website's Desktop and Troubleshooting pages.
+
+**Proof.** `RollbackImage.lean`: `at_most_one_kept`, `update_keeps_replaced`,
+`second_update_retires_first`, `expired_retired_at_launch`.
+
+**Tests.** `desktop/src/imageRetention.test.ts` (red before: the module did not
+exist): the seven-day record, no record without a changed pin, expiry
+(including an unreadable deadline), the filter keeping the retained image and
+removing older ones, and the record's round trip. `imageRetentionLaunch.test.ts`
+drives `ensureRunning`: an expired record is retired, an active one is kept, no
+record does nothing; removing the launch call turns it red. Desktop suite as CI
+runs it (`npx vitest run desktop/src`): 46 files, 318 tests, 0 failures; the
+desktop typecheck is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
