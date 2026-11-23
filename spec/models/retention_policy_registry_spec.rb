@@ -83,8 +83,7 @@ RSpec.describe RetentionPolicyRegistry do
       :run_diagnostic,
       :work_engine_reconciler_activity,
       :provider_session,
-      :run_health_snapshot,
-      :main_branch_health_check
+      :run_health_snapshot
     )
   end
 
