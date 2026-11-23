@@ -60,6 +60,23 @@ module Syrus
           # this one hook sees every row lock the application takes.
           ActiveRecord::Relation.prepend(RelationLock)
           ActiveRecord::Base.prepend(CreateTracking)
+          ActiveRecord::Base.singleton_class.prepend(WriteTracking)
+        end
+
+        # Lead L14: an UPDATE or DELETE also takes an InnoDB exclusive lock on
+        # every row it changes, held to commit. With SYRUS_LOCK_ORDER_WRITES=1
+        # each row-level write (save, update_columns, destroy) counts as a
+        # lock on that row, to survey how far the order covers what the code
+        # really locks. Off by default; relation-wide update_all/delete_all are
+        # not seen.
+        def wrote(model_class, constraints)
+          return unless ENV["SYRUS_LOCK_ORDER_WRITES"] == "1"
+
+          key = model_class.primary_key
+          id = constraints[key] || constraints[key.to_sym]
+          return if id.nil? || id.is_a?(Array) || id.is_a?(Arel::Nodes::Node)
+
+          observe(model_class, model_class.connection, ids: [ id ])
         end
 
         # A row the transaction inserted is invisible to every other
@@ -151,6 +168,18 @@ module Syrus
           result = super
           Checker.created(self)
           result
+        end
+      end
+
+      module WriteTracking
+        def _update_record(values, constraints)
+          Checker.wrote(self, constraints)
+          super
+        end
+
+        def _delete_record(constraints)
+          Checker.wrote(self, constraints)
+          super
         end
       end
 

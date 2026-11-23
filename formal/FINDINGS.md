@@ -5289,9 +5289,29 @@ That is a two-way wait. NY36's option D removes this case by construction: a
 NOWAIT User lock never waits, so T2 fails fast instead. The general gap remains.
 Counting write locks in the checker will likely surface many "write a
 lower-ranked row after locking a higher one" patterns, such as
-`workflow.with_lock { job.update! }`. Next: a record-mode survey with write
-tracking (an `after_save`/`after_destroy` hook that records the row as locked),
-then decide per pattern whether the order or the code changes.
+`workflow.with_lock { job.update! }`. *Survey.* `SYRUS_LOCK_ORDER_WRITES=1` now counts every row-level write (`save`,
+`update_columns`, `destroy`, through Active Record's class-level `_update_record`
+and `_delete_record`) as a lock on that row. It is off by default, and
+`update_all`/`delete_all` are not seen. The parallel suite in record mode with
+writes counted found 73 distinct site pairs:
+
+- **WorkUnit, then Steps, Workflow, Job, WorkIntent and Runs (about 900 hits).**
+  `Workflows::LifecyclePropagation` calls `sync_work_unit_terminal!` first in
+  every terminal transition, so `WorkUnit#mark_terminal!` writes the unit before
+  the same transaction cancels Steps and Runs, updates the Job and settles the
+  intent. WorkUnit is last in the order. The retry path's `mark_running!` has
+  the same shape.
+- **Job, then Run (131).** `Run#start` locks the Job (`before { job.lock! }`)
+  and then saves the Run. The order puts Run first, and RunJob locks it first;
+  paths that start a Run without locking it do not.
+- **User, then Job or Workflow (72).** The provider reservation (NY36).
+- **Step, then Workflow (64)** and **Job, then Epic (23)**: smaller groups,
+  not yet traced.
+
+So the order F110 proves acyclic covers explicit locks only, and the code's
+writes do not follow it. InnoDB detects the resulting deadlocks and rolls one
+transaction back, so the cost is a retried or failed transaction, not a hang.
+Filed as NY37.
 
 ## M71. Main through `16254d1666`
 

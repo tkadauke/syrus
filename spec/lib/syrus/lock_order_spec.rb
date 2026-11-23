@@ -126,6 +126,51 @@ RSpec.describe Syrus::LockOrder::Checker do
     expect(Syrus::LockOrder.pending_decision?(violation.with(held_site: "app/services/other.rb:1"))).to be(false)
   end
 
+  # Lead L14: an UPDATE takes an InnoDB row lock just as SELECT ... FOR UPDATE
+  # does. Opt-in, for surveying: SYRUS_LOCK_ORDER_WRITES=1.
+  describe "write tracking" do
+    def with_writes(value)
+      previous = ENV["SYRUS_LOCK_ORDER_WRITES"]
+      ENV["SYRUS_LOCK_ORDER_WRITES"] = value
+      yield
+    ensure
+      ENV["SYRUS_LOCK_ORDER_WRITES"] = previous
+    end
+
+    it "counts a write to a lower-ranked row after a higher-ranked lock when enabled" do
+      with_writes("1") do
+        expect {
+          ActiveRecord::Base.transaction do
+            workflow.lock!
+            job.update_columns(updated_at: Time.current)
+          end
+        }.to raise_error(Syrus::LockOrder::Error, /took Job at .* while holding Workflow/)
+      end
+    end
+
+    it "counts save and destroy as writes too" do
+      with_writes("1") do
+        expect {
+          ActiveRecord::Base.transaction do
+            workflow.lock!
+            job.touch
+          end
+        }.to raise_error(Syrus::LockOrder::Error, /took Job/)
+      end
+    end
+
+    it "ignores writes when not enabled" do
+      with_writes(nil) do
+        expect {
+          ActiveRecord::Base.transaction do
+            workflow.lock!
+            job.update_columns(updated_at: Time.current)
+          end
+        }.not_to raise_error
+      end
+    end
+  end
+
   it "records instead of raising in record mode" do
     described_class.mode = :record
     before = described_class.violations.size

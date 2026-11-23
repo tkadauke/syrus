@@ -3759,6 +3759,18 @@
         "D. Take the reservation's User lock with NOWAIT. Uncontended, behaviour is unchanged: the mutex serializes reservations. If another transaction holds the row, the reservation goes ahead without the mutex, uneven at worst as in B, and only under real contention. The checker treats a NOWAIT lock as outside the order, and LockOrder.lean proves a never-waiting lock adds no wait-for edge. The three User-first locks already added would be reverted."
       ],
       "recommendation": "D. It keeps the balancing guarantee in the common case, removes the cycle by construction instead of site by site, and touches one method. A is the most invasive and keeps finding sites. B is simplest but gives up the mutex everywhere."
+    },
+    {
+      "id": "NY37",
+      "item": "row-lock-order",
+      "title": "Writes take row locks too, and they do not follow the lock order. Bring writes under it, or scope the guarantee to explicit locks?",
+      "context": "Lead L14: an UPDATE or DELETE holds an InnoDB exclusive lock on its rows until commit, but the suite's checker only sees SELECT ... FOR UPDATE. Counting row-level writes (opt-in, SYRUS_LOCK_ORDER_WRITES=1), the parallel suite shows 73 site pairs that write a lower-ranked row after holding a higher-ranked one. About 900 hits come from one pattern: every Workflow terminal transition writes its WorkUnit first (sync_work_unit_terminal!) and then its Steps, Runs, Job and WorkIntent, while WorkUnit is last in the order. 131 more are Run#start locking the Job before saving the Run. 72 are the provider reservation (NY36). The rest are Step-then-Workflow and Job-then-Epic. InnoDB detects these deadlocks and rolls a transaction back, so the cost is a retried or failed transaction, not a hang.",
+      "options": [
+        "A. Bring writes under the order, pattern by pattern. Write the WorkUnit last in each terminal transition (the same transaction, so F97's atomicity holds), lock the Run before the Job in Run#start, trace the two small groups, then switch write tracking on in raise mode so new code is checked.",
+        "B. Scope the guarantee to explicit locks. Keep the checker as it is, document that writes are outside the proven order and rely on InnoDB's deadlock detection, and keep the survey flag for audits.",
+        "C. Reorder the ranks to fit the writes (move WorkUnit before Workflow) and change the launch paths, which lock the Workflow before the unit, instead."
+      ],
+      "recommendation": "A. The WorkUnit pattern is one call moved in four methods and covers about 900 of the hits, and Run#start is one lock. Once the groups are fixed, raise-mode write tracking keeps it from regressing. B leaves the proof covering only part of what the code locks, and C moves the inversion to the launch paths."
     }
   ]
 }
