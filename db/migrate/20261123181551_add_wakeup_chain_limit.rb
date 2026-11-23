@@ -10,7 +10,7 @@ class AddWakeupChainLimit < ActiveRecord::Migration[8.1]
       add_column :chat_wakeups, :chain_depth, :integer, default: 1, null: false
     end
     unless column_exists?(:chat_wakeups, :source_wakeup_id)
-      add_reference :chat_wakeups, :source_wakeup, null: true, index: true
+      add_reference :chat_wakeups, :source_wakeup, null: true, index: true, foreign_key: false
     end
   end
 end
