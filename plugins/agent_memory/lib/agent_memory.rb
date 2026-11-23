@@ -24,10 +24,8 @@ module AgentMemory
     default_enabled true
     disableable true
     provides memory_store: "AgentMemory::Store",
-             permission_provider: "AgentMemory::PermissionProvider",
-             mcp_tool_set: "AgentMemory::McpToolSet",
-             chat_mcp_tool_set: "AgentMemory::ChatToolSet",
              sidebar_page: "AgentMemory::SidebarPages"
+    toolkit workflow_tools: "AgentMemory::McpToolSet", chat_tools: "AgentMemory::ChatToolSet", permissions: "AgentMemory::PermissionProvider"
     route :get, "/api/v1/app/memories", to: "api/v1/app/memories#index"
     route :post, "/api/v1/app/memories", to: "api/v1/app/memories#create"
     route :patch, "/api/v1/app/memories/:id", to: "api/v1/app/memories#update"

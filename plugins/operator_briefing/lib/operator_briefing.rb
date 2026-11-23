@@ -18,11 +18,10 @@ module OperatorBriefing
     disableable true
     depends_on [ "agent_memory", "design_docs" ]
 
-    provides mcp_tool_set: "OperatorBriefing::McpToolSet",
-             permission_provider: "OperatorBriefing::PermissionProvider",
-             workflow_kinds: "OperatorBriefing::WorkflowKinds",
+    provides workflow_kinds: "OperatorBriefing::WorkflowKinds",
              sidebar_page: "OperatorBriefing::SidebarPages",
              callbacks: "OperatorBriefing::Callbacks"
+    toolkit workflow_tools: "OperatorBriefing::McpToolSet", permissions: "OperatorBriefing::PermissionProvider"
     tick_interval 1.minute
     route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
     route :get, "/api/v1/app/briefing/history", to: "api/v1/app/operator_briefing/briefings#history"

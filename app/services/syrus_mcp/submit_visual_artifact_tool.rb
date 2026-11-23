@@ -497,7 +497,7 @@ module SyrusMcp
 
       def browser_tool_provider(run, tool_name)
         context = McpToolContext.from_run(run)
-        Syrus::PluginRegistry.providers_for(:mcp_tool_set).find do |provider|
+        Syrus::Plugin::Toolkit.workflow_tool_sets.find do |provider|
           next false unless provider_available_for_context?(provider, context)
 
           provider_tool_names(provider, context).include?(tool_name)

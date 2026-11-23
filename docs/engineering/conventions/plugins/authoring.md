@@ -134,6 +134,36 @@ with `AcmeLang::Ecosystem.detect_prepare(repo_context)`, returning
 `Syrus::Host::EcosystemPreparePlan` values. Registering any former Ecosystem
 extension point is now a plugin-health error; there is no compatibility bridge.
 
+## Toolkit family
+
+Agent-facing tool discovery, permission declarations, workflow run context, and
+credential probing belong to the `toolkit` facet. Bundled plugins use the
+manifest helper so their provider has a stable name and resolves plugin
+constants lazily across reloads.
+
+Replace separate declarations such as:
+
+```ruby
+provides mcp_tool_set: "Acme::WorkflowTools",
+         chat_mcp_tool_set: "Acme::ChatTools",
+         permission_provider: "Acme::Permissions"
+```
+
+with:
+
+```ruby
+toolkit workflow_tools: "Acme::WorkflowTools",
+        chat_tools: "Acme::ChatTools",
+        permissions: "Acme::Permissions"
+```
+
+Credential integrations declare `credential_probes:` and
+`secret_extractors:` on the same helper instead of installing callbacks on
+`CredentialProbe`. See the generated [`toolkit` family reference](families/toolkit.md)
+for contexts, return shapes, and decline values. `run_context` is provisional
+because it currently has one bundled implementation; the other capabilities
+are stable and have multiple independent bundled providers.
+
 ## Per-origin Job visibility
 
 A plugin whose Jobs contain data for only a subset of repository members can

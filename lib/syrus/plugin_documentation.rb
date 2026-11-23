@@ -24,6 +24,7 @@ module Syrus
       frontend: "Prebuilt frontend entry and i18n locale-file patterns.", events: "Domain events published by the plugin.",
       link: "One plugin navigation link.", links: "A list of plugin navigation links.",
       credential_type_names: "Credential type names declared for discovery.", credential_types: "Credential type metadata declarations.",
+      toolkit: "Toolkit-family tools, permission declarations, run context, credential probes, and secret extractors.",
       while_enabled: "Reversible installation effects active only while enabled.", metrics: "Plugin-owned metric declarations.",
       always: "Reversible effects retained after a previously enabled plugin is disabled.",
       suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback."
@@ -174,6 +175,35 @@ module Syrus
             `affected_tests` remains provisional because it has one in-tree implementation. `parse_ci_log`, `review_file_patterns`, and `target_graph` remain provisional because core calls them but no bundled plugin implements them yet; the contract kit supplies reference fakes until real implementations prove the contracts.
 
             For keyed capabilities, the absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+          MD
+        elsif family.name == :toolkit
+          <<~MD
+            ## Migration from legacy extension points
+
+            Toolkit replaces the separate MCP tool-set, permission-provider,
+            run-context, and credential-registration declarations. Bundled plugins
+            use the manifest helper, which creates a named family provider and
+            keeps referenced plugin constants reload-safe.
+
+            Before:
+
+            ```ruby
+            provides mcp_tool_set: "Acme::WorkflowTools",
+                     permission_provider: "Acme::Permissions"
+            ```
+
+            After:
+
+            ```ruby
+            toolkit workflow_tools: "Acme::WorkflowTools",
+                    permissions: "Acme::Permissions"
+            ```
+
+            Family dispatch preserves provider priority and isolates failures, so
+            one broken tool-set provider does not prevent the remaining tools from
+            being advertised. `run_context` remains provisional because only one
+            bundled plugin implements it; every other toolkit capability has at
+            least two independent bundled implementations and generated contracts.
           MD
         end
         (<<~MD).sub(/\n+\z/, "\n")

@@ -15,6 +15,10 @@ module SyrusCodexAgent
     disableable true
     provides agent_provider: "AgentProviders::Codex",
              chat_provider: "ChatProviders::Codex"
+    toolkit credential_probes: {
+      "codex_api_key" => "CodexCredentialProbe",
+      "codex_auth_json" => "CodexCredentialProbe"
+    }, secret_extractors: [ "CodexCredentialProbe::SECRET_EXTRACTOR" ]
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("codex", ChatSessionRehydrator::Codex) }
@@ -26,10 +30,4 @@ module SyrusCodexAgent
       end
     end
   end
-end
-
-Syrus::Installer.define("codex_agent:credential probes") do |scope|
-  scope.effect("api key probe") { CredentialProbe.register_probe("codex_api_key", CodexCredentialProbe) }
-  scope.effect("auth json probe") { CredentialProbe.register_probe("codex_auth_json", CodexCredentialProbe) }
-  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(CodexCredentialProbe::SECRET_EXTRACTOR) }
 end

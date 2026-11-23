@@ -228,7 +228,7 @@ class PersistentMcpDaemon
 
   def plugin_chat_tools
     @plugin_chat_tools ||= unique_tools(
-      Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
+      Syrus::Plugin::Toolkit.chat_tool_sets.flat_map do |tool_set|
         %i[essential deferred evaluator].flat_map do |tier|
           Mcp::Sidecar.mcp_tools_for(
             tool_set,

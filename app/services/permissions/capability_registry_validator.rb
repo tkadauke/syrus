@@ -29,7 +29,7 @@ module Permissions
           plugin_registrations(provider, extension_point)
         end
       end
-      permission_providers = Syrus::PluginRegistry.providers_for(:permission_provider).flat_map do |provider|
+      permission_providers = Syrus::Plugin::Toolkit.permission_providers.flat_map do |provider|
         descriptors = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
           extension_point: :permission_provider, provider:, operation: :permission_capability_descriptors,
           on_decline: []

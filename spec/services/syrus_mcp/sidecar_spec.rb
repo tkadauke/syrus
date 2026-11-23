@@ -128,8 +128,7 @@ RSpec.describe Mcp::Sidecar do
 
     before do
       run.step.update!(details: run.step.details.to_h.merge("reviewer_target" => target))
-      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([])
+      allow(Syrus::Plugin::Toolkit).to receive(:workflow_tool_sets).and_return([])
       allow(ReviewContextContributions).to receive(:tool_set).with(target).and_return(tool_set)
     end
 
@@ -217,8 +216,7 @@ RSpec.describe Mcp::Sidecar do
           end
         end
       end
-      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ fake_tool_set ])
+      allow(Syrus::Plugin::Toolkit).to receive(:workflow_tool_sets).and_return([ fake_tool_set ])
 
       response = jsonrpc(server_for(run), "tools/call", params: {
         name: "submit_visual_artifact",

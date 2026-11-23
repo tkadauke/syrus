@@ -15,9 +15,8 @@ module CognitiveReview
     optionally_depends_on [ "agent_memory" ]
 
     provides post_implementation_review_provider: "CognitiveReview::PostImplementationReviewProvider",
-             permission_provider: "CognitiveReview::PermissionProvider",
-             diff_review_annotation_provider: "CognitiveReview::DiffReviewAnnotationProvider",
-             mcp_tool_set: "CognitiveReview::McpToolSet"
+             diff_review_annotation_provider: "CognitiveReview::DiffReviewAnnotationProvider"
+    toolkit workflow_tools: "CognitiveReview::McpToolSet", permissions: "CognitiveReview::PermissionProvider"
 
     route :get, "/api/v1/app/jobs/:job_id/review_notes/:id", to: "api/v1/app/cognitive_review_notes#show"
     route :post, "/api/v1/app/jobs/:job_id/review_notes/:id/acknowledge", to: "api/v1/app/cognitive_review_notes#acknowledge"
