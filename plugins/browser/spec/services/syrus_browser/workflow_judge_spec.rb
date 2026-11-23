@@ -24,4 +24,27 @@ RSpec.describe SyrusBrowser::WorkflowJudge do
   ensure
     PluginRecord.find_by(name: "browser")&.update!(enabled: true)
   end
+
+  it "does not contribute to external PR feedback workflows" do
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+    )
+
+    expect(
+      Workflows::CompositionAnchors.judges(
+        job:, trigger_kind: "external_pr_feedback", agent_step: "respond"
+      )
+    ).to be_empty
+  end
+
+  it "keeps visual review outside the required immutable-HEAD review registry" do
+    entry = Step::Kind.fetch("visual_review")
+
+    expect(entry.review_gate).to eq(
+      artifact_key: "visual_review_iterations",
+      exit_verdicts: %w[approved skipped],
+      cancellation_reason: "visual_review_approved"
+    )
+    expect(Workflows::ReviewGateRegistry.definitions.map(&:step_kind)).not_to include("visual_review")
+  end
 end
