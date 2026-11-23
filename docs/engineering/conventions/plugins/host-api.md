@@ -411,6 +411,7 @@ Declares the CPU and memory a grader can productively use; grant resolution agai
 
 Supported members:
 
+- `ALL`
 - `cpu`
 - `cpu_min`
 - `empty?`

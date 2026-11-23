@@ -102,7 +102,7 @@ module Syrus
         GraderStep: [ "Describes one grader step an ecosystem grader-type provider returns; configuration parsing and plan expansion are not promised.", %w[new name display_name run ci phases description required timeout_minutes when_files_changed junit_output failures base_retry deps metadata capabilities resources] ],
         GraderBaseRetry: [ "Names how a grader reruns against the base branch (strategy and optional command); retry orchestration is not promised.", %w[new strategy command] ],
         GraderDefaults: [ "Supplies the default grading phases and the grader timeout ceiling that ecosystem grader types share; the values may change between releases.", %w[default_phases max_timeout_minutes] ],
-        GraderResourceRequest: [ "Declares the CPU and memory a grader can productively use; grant resolution against the host is not promised.", %w[new parse cpu cpu_min memory_bytes empty?] ],
+        GraderResourceRequest: [ "Declares the CPU and memory a grader can productively use; grant resolution against the host is not promised.", %w[new parse ALL cpu cpu_min memory_bytes empty?] ],
         GraderExecutionCapabilities: [ "Normalizes the execution capabilities (os, arch, toolchain, runtime) a grader target requires; worker routing is not promised.", %w[new to_h] ],
         TestRunResult: [ "Carries one parsed test-suite run returned by a test-result parser; the XML parser that produces it is not promised.", %w[new] ],
         TestCaseResult: [ "Carries one parsed test case inside a TestRunResult; the XML parser that produces it is not promised.", %w[new] ],

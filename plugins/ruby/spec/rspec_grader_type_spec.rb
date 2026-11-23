@@ -496,7 +496,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.first.run).to include(".syrus/rspec-json/rspec.json")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.failures).to eq("allow_inherited")
-    expect(steps.first.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "plugin", command: nil))
+    expect(steps.first.base_retry).to eq(Syrus::Host::GraderBaseRetry.new(strategy: "plugin", command: nil))
     expect(steps.first.junit_output).to eq(".syrus/grade-output/rspec-junit.xml")
     expect(steps.first.metadata).to include(
       "grader_type" => "rspec",
@@ -574,7 +574,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.timeout_minutes).to eq(12)
     expect(step.required).to be(false)
     expect(step.failures).to eq("allow_inherited")
-    expect(step.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "plugin", command: nil))
+    expect(step.base_retry).to eq(Syrus::Host::GraderBaseRetry.new(strategy: "plugin", command: nil))
     expect(step.metadata).to include(
       "grader_type" => "rspec",
       "grader_framework" => "rspec",
