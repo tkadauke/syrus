@@ -35,6 +35,24 @@ RSpec.describe "Coverage plugin boundary" do
     expect(offenders).to be_empty, "coverage references belong in plugins/syrus_coverage: #{offenders.join(', ')}"
   end
 
+  # The coverage card, trend sparkline, trend API client and their strings live
+  # under the plugin and reach core pages through `job.detail` and
+  # `repository.detail` slots. (The source browser's line overlay and diff
+  # annotations are part of core's diff/source viewer and read the Job payload's
+  # `coverage` key; they are not listed here.)
+  FRONTEND_OWNED_COVERAGE = /CoverageCard|CoverageSparkline|fetchRepositoryCoverageTrend|CoverageTrend(Point|Payload)|coverage_trend_|"coverage_(title|unavailable|files_show|project_col_project)"/
+
+  it "keeps the coverage card, sparkline and their locale keys out of core frontend files" do
+    files = Dir.glob(Rails.root.join("app/frontend/**/*.{ts,tsx,json}")).map { |path| Pathname.new(path).relative_path_from(Rails.root).to_s }
+    offenders = files.filter_map do |path|
+      next if path.start_with?("app/frontend/i18n/locales/") && !path.end_with?("jobs.json", "settings.json")
+
+      Rails.root.join(path).read.lines.each_with_index.filter_map { |line, index| "#{path}:#{index + 1}" if line.match?(FRONTEND_OWNED_COVERAGE) }.first
+    end
+
+    expect(offenders).to be_empty, "coverage UI belongs in plugins/syrus_coverage/app/frontend: #{offenders.join(', ')}"
+  end
+
   it "keeps the step kinds in the plugin, not in core's Step::Kind" do
     core_kinds = Step::Kind::BUILT_IN_ENTRIES.map(&:kind)
 

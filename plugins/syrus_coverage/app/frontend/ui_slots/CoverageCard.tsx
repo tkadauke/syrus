@@ -1,15 +1,15 @@
 import { useState } from "react"
-import { useT } from "../hooks/useT"
-import type { CoverageArtifact } from "../api/jobs"
-import { Card } from "./Card"
-import { TonePill, type PillTone } from "./StatusPill"
+import { useT } from "@app/hooks/useT"
+import type { CoverageArtifact } from "@app/api/jobs"
+import { Card } from "@app/components/Card"
+import { TonePill, type PillTone } from "@app/components/StatusPill"
 
 type CoverageCardProps = {
   coverage: CoverageArtifact
 }
 
-export function CoverageCard({ coverage }: CoverageCardProps) {
-  const { t } = useT("jobs")
+export default function CoverageCard({ coverage }: CoverageCardProps) {
+  const { t } = useT("syrus_coverage")
   const [filesExpanded, setFilesExpanded] = useState(false)
 
   if (coverage.coverage_unavailable) {
