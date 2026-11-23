@@ -20,7 +20,7 @@ class Coworkers::SpawnChat
       chat.pin_chat_provider!(chat.chat_provider)
     end
     Syrus::Host::ChatTitles.enqueue(chat_id: chat.id, message_id: message.id) if @title.blank?
-    ChatSessions::Creator.enqueue_turn(chat, message)
+    Syrus::Host::ChatSessionsCreator.enqueue_turn(chat, message)
     chat
   end
 end

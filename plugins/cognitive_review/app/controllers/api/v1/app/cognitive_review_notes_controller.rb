@@ -2,8 +2,8 @@ module Api
   module V1
     module App
       class CognitiveReviewNotesController < Syrus::Host::AppController
-        include ChatLockErrors
-        include ChatSessionLifecycle
+        include Syrus::Host::ChatLockErrors
+        include Syrus::Host::ChatSessionLifecycle
 
         def show
           job = find_job

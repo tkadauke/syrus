@@ -10,8 +10,8 @@ module Coworkers
     class << self
       def call(critique:, verdict:, server_context:, key_learning: nil)
         run = Syrus::Host::McpTools.run_from_context(server_context)
-        context = McpToolContext.from_run(run)
-        return Mcp::Tools.not_authorized unless Coworkers::ReviewToolSet::SUBMIT_ROLES.include?(context.role)
+        context = Syrus::Host::ToolContext.from_run(run)
+        return Syrus::Host::McpTools.not_authorized unless Coworkers::ReviewToolSet::SUBMIT_ROLES.include?(context.role)
         critique = Syrus::Host::McpTools.utf8(critique).strip
         verdict = Syrus::Host::McpTools.utf8(verdict).strip
         key_learning = Syrus::Host::McpTools.utf8(key_learning).strip
@@ -19,10 +19,10 @@ module Coworkers
         return Syrus::Host::McpTools.invalid("invalid verdict") unless VERDICTS.include?(verdict)
         reviewer = run.review_evidence&.then { |evidence| Coworkers::ReviewEvidenceTarget.resolve(evidence, run:) }
         return Syrus::Host::McpTools.invalid("key_learning is required") if reviewer&.respond_to?(:finalize_review_memory!) && key_learning.empty?
-        ReviewEvidence::VerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
+        Syrus::Host::ReviewEvidenceVerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
           verdict: verdict, critique: critique, key_learning: key_learning)
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
-      rescue Steps::AdversarialReview::MemoryPersistenceFailed
+      rescue Syrus::Host::StepsAdversarialReviewMemoryPersistenceFailed
         raise
       rescue StandardError => e
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)

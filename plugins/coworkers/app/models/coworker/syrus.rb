@@ -1,6 +1,6 @@
 module Coworker
   class Syrus
-    include Mentionable
+    include ::Syrus::Host::Mentionable
 
     def self.for(user) = new(user)
 

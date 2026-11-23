@@ -137,7 +137,7 @@ module OperatorBriefing
       @current_briefings ||= Briefing
         .joins(:job)
         .where(owner_user: user, repository_id: enabled_repository_ids)
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::JobTerminalStates })
         .includes(:job)
         .order(created_at: :desc, id: :desc)
         .each_with_object({}) do |briefing, index|
@@ -227,7 +227,7 @@ module OperatorBriefing
         ::Workflow.joins(:job)
           .where(id: workflow_ids, jobs: { repository_id: enabled_repository_ids })
           .each_with_object({}) do |workflow, index|
-            index[workflow.id] = TypedArtifactRenderer.enrich(Array(workflow.artifact("typed_artifacts")))
+            index[workflow.id] = Syrus::Host::TypedArtifactRenderer.enrich(Array(workflow.artifact("typed_artifacts")))
           end
       end
     end

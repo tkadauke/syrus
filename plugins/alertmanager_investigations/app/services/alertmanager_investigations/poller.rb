@@ -62,7 +62,7 @@ module AlertmanagerInvestigations
           return
         end
 
-        result = InvestigationJobs::Creator.call(
+        result = Syrus::Host::InvestigationJobsCreator.call(
           user: runbook.repository.user,
           repository: runbook.repository,
           prompt: Prompt.new(alert: alert, runbook: runbook).to_s,

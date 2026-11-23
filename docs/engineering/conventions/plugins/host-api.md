@@ -51,6 +51,74 @@ Supported members:
 - `usage_status`
 - `usage_windows`
 
+### `Syrus::Host::AgentProviderCatalogOptions`
+
+Since: `0.1.16`
+
+Exposes AgentProviderCatalogOptions to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentProviders`
+
+Since: `0.1.16`
+
+Exposes AgentProviders to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
+### `Syrus::Host::AgentProvidersConfigurationError`
+
+Since: `0.1.16`
+
+Exposes AgentProviders::ConfigurationError to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleAgentInsight`
+
+Since: `0.1.16`
+
+Exposes AgentRole::AGENT_INSIGHT to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleChatPlanner`
+
+Since: `0.1.16`
+
+Exposes AgentRole::CHAT_PLANNER to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleCoworker`
+
+Since: `0.1.16`
+
+Exposes AgentRole::COWORKER to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleCoworkerChat`
+
+Since: `0.1.16`
+
+Exposes AgentRole::COWORKER_CHAT to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleWorkflowCoworkerReviewer`
+
+Since: `0.1.16`
+
+Exposes AgentRole::WORKFLOW_COWORKER_REVIEWER to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleWorkflowManual`
+
+Since: `0.1.16`
+
+Exposes AgentRole::WORKFLOW_MANUAL to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::AgentRoleWorkflowRoles`
+
+Since: `0.1.16`
+
+Exposes AgentRole::WORKFLOW_ROLES to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `freeze`
+
 ### `Syrus::Host::AgentRuntime`
 
 Since: `0.1.16`
@@ -90,6 +158,12 @@ Supported members:
 - `params`
 - `render`
 
+### `Syrus::Host::AppAdversarialReviewProjects`
+
+Since: `0.1.16`
+
+Exposes App::AdversarialReviewProjects to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::AppController`
 
 Since: `0.1.16`
@@ -100,6 +174,65 @@ Supported members:
 
 - `params`
 - `render`
+
+### `Syrus::Host::AppEvents`
+
+Since: `0.1.16`
+
+Exposes AppEvents to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `broadcast`
+
+### `Syrus::Host::AppJobDiscussionChatResolver`
+
+Since: `0.1.16`
+
+Exposes App::JobDiscussionChatResolver to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::AppReviewNoteProjects`
+
+Since: `0.1.16`
+
+Exposes App::ReviewNoteProjects to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::AppearanceColorPalette`
+
+Since: `0.1.16`
+
+Exposes Appearance::ColorPalette to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `default_agent_order`
+- `next_default_color`
+
+### `Syrus::Host::AppearanceColorPaletteHexPattern`
+
+Since: `0.1.16`
+
+Exposes Appearance::ColorPalette::HEX_PATTERN to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ApplicationPolicy`
+
+Since: `0.1.16`
+
+Exposes ApplicationPolicy to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ApplicationPolicyScope`
+
+Since: `0.1.16`
+
+Exposes ApplicationPolicy::Scope to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::ApplicationRecord`
 
@@ -209,6 +342,12 @@ Supported members:
 - `chat_turn_identity`
 - `chat_turn_trigger`
 
+### `Syrus::Host::ChatLockErrors`
+
+Since: `0.1.16`
+
+Exposes ChatLockErrors to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::ChatMcpToolSet`
 
 Since: `0.1.16`
@@ -227,6 +366,28 @@ Supported members:
 - `chat_payload_counts`
 - `chat_payload_paths`
 
+### `Syrus::Host::ChatProviderOptions`
+
+Since: `0.1.16`
+
+Exposes ChatProviderOptions to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatQueuedMessageInternalRoleKey`
+
+Since: `0.1.16`
+
+Exposes ChatQueuedMessage::INTERNAL_ROLE_KEY to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatQueuedMessagePromoter`
+
+Since: `0.1.16`
+
+Exposes ChatQueuedMessagePromoter to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `deliver_one_if_idle!`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
@@ -240,6 +401,44 @@ Supported members:
 - `repository`
 - `title`
 - `user`
+
+### `Syrus::Host::ChatSessionCrossChatMessage`
+
+Since: `0.1.16`
+
+Exposes ChatSession::CrossChatMessage to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::ChatSessionCrossChatMessageClosedThreadError`
+
+Since: `0.1.16`
+
+Exposes ChatSession::CrossChatMessage::ClosedThreadError to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatSessionEffortLevels`
+
+Since: `0.1.16`
+
+Exposes ChatSession::EFFORT_LEVELS to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatSessionLifecycle`
+
+Since: `0.1.16`
+
+Exposes ChatSessionLifecycle to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatSessionsCreator`
+
+Since: `0.1.16`
+
+Exposes ChatSessions::Creator to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `enqueue_turn`
 
 ### `Syrus::Host::ChatTitles`
 
@@ -257,6 +456,16 @@ Since: `0.1.16`
 
 Lets a plugin finalize a chat turn; turn orchestration is not promised. Only the listed members are supported.
 
+### `Syrus::Host::ChatTurnJob`
+
+Since: `0.1.16`
+
+Exposes ChatTurnJob to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `perform_later`
+
 ### `Syrus::Host::ChatTurnLifecycle`
 
 Since: `0.1.16`
@@ -268,6 +477,19 @@ Lets a plugin observe chat turn lifecycle events; turn orchestration is not prom
 Since: `0.1.16`
 
 Lets a plugin contribute orientation text to a chat turn; prompt assembly is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatWorkspace`
+
+Since: `0.1.16`
+
+Exposes ChatWorkspace to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ensure_root!`
+- `rebase_in_progress?`
+- `repo_path_for`
+- `uncommitted_changes?`
 
 ### `Syrus::Host::ChatWorkspaceLifecycle`
 
@@ -288,6 +510,17 @@ Supported members:
 - `raw_text`
 - `table`
 - `text`
+
+### `Syrus::Host::CommandRedactor`
+
+Since: `0.1.16`
+
+Exposes CommandRedactor to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `redact`
+- `redact_value`
 
 ### `Syrus::Host::ContentBlob`
 
@@ -514,6 +747,16 @@ Supported members:
 - `api_user`
 - `user`
 
+### `Syrus::Host::DataCleanup`
+
+Since: `0.1.16`
+
+Exposes Syrus::DataCleanup to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `register`
+
 ### `Syrus::Host::DiffReviewAnnotationProvider`
 
 Since: `0.1.16`
@@ -523,6 +766,16 @@ Lets a plugin annotate a diff-review version; review storage is not promised. On
 Supported members:
 
 - `review_annotations`
+
+### `Syrus::Host::DiffReviewVersionsFinalReviewVersion`
+
+Since: `0.1.16`
+
+Exposes DiffReviewVersions::FinalReviewVersion to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `resolve`
 
 ### `Syrus::Host::DiskUsage`
 
@@ -573,6 +826,12 @@ Supported members:
 - `span_labels`
 - `version_file`
 
+### `Syrus::Host::EpicArchivedState`
+
+Since: `0.1.16`
+
+Exposes Epic::ARCHIVED_STATE to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::ExecutionBackend`
 
 Since: `0.1.16`
@@ -592,6 +851,16 @@ Bases an alternate execution backend; request routing is not promised. Only the 
 Supported members:
 
 - `run`
+
+### `Syrus::Host::ExecutionChatWorkloadPolicy`
+
+Since: `0.1.16`
+
+Exposes Execution::ChatWorkloadPolicy to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_current_setting`
 
 ### `Syrus::Host::ExternalReviewArtifact`
 
@@ -675,6 +944,22 @@ Supported members:
 - `refresh`
 - `submit`
 
+### `Syrus::Host::FiltersChipsBase`
+
+Since: `0.1.16`
+
+Exposes Filters::Chips::Base to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::FiltersQueryParam`
+
+Since: `0.1.16`
+
+Exposes Filters::QueryParam to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `decode`
+
 ### `Syrus::Host::GatedToolSet`
 
 Since: `0.1.16`
@@ -695,6 +980,16 @@ Supported members:
 - `tool_classes`
 - `tool_definitions`
 
+### `Syrus::Host::GitMergeDrivers`
+
+Since: `0.1.16`
+
+Exposes GitMergeDrivers to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `register!`
+
 ### `Syrus::Host::GitRunner`
 
 Since: `0.1.16`
@@ -706,6 +1001,16 @@ Supported members:
 - `GitError`
 - `new`
 - `redact`
+- `run`
+
+### `Syrus::Host::GithubAuthenticatedGit`
+
+Since: `0.1.16`
+
+Exposes GithubAuthenticatedGit to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
 - `run`
 
 ### `Syrus::Host::GraderBaseRetry`
@@ -784,11 +1089,40 @@ Supported members:
 - `timeout_minutes`
 - `when_files_changed`
 
+### `Syrus::Host::HandleFormat`
+
+Since: `0.1.16`
+
+Exposes Handle::FORMAT to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::HandleRegistry`
+
+Since: `0.1.16`
+
+Exposes HandleRegistry to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `claim!`
+- `normalize`
+- `release!`
+- `rename!`
+
 ### `Syrus::Host::InputSource`
 
 Since: `0.1.16`
 
 Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
+
+### `Syrus::Host::InvestigationJobsCreator`
+
+Since: `0.1.16`
+
+Exposes InvestigationJobs::Creator to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
 
 ### `Syrus::Host::InvocationResult`
 
@@ -831,6 +1165,22 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::JobKind`
+
+Since: `0.1.16`
+
+Exposes Job::Kind to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `user_facing_values`
+
+### `Syrus::Host::JobTerminalStates`
+
+Since: `0.1.16`
+
+Exposes Job::TERMINAL_STATES to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::JobVisibilityRestriction`
 
 Since: `0.1.16`
@@ -853,6 +1203,27 @@ Supported members:
 - `new`
 - `run`
 
+### `Syrus::Host::McpCoworkerToolExposure`
+
+Since: `0.1.16`
+
+Exposes Mcp::CoworkerToolExposure to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `plugin_definition?`
+- `plugin_provider?`
+
+### `Syrus::Host::McpPagination`
+
+Since: `0.1.16`
+
+Exposes Mcp::Pagination to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `normalize_page`
+
 ### `Syrus::Host::McpRunContextContributor`
 
 Since: `0.1.16`
@@ -862,6 +1233,25 @@ Lets a plugin add attributes to the MCP run context; context construction is not
 Supported members:
 
 - `context_attributes`
+
+### `Syrus::Host::McpToolPayloadsWorkflowPayload`
+
+Since: `0.1.16`
+
+Exposes McpToolPayloads::WorkflowPayload to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::McpToolRegistry`
+
+Since: `0.1.16`
+
+Exposes McpToolRegistry to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `coworker_grants`
+- `entries`
+- `entry_for`
+- `tool_name_for`
 
 ### `Syrus::Host::McpToolSet`
 
@@ -878,6 +1268,7 @@ Provides database-connection and MCP response helpers; core tool implementations
 Supported members:
 
 - `invalid`
+- `not_authorized`
 - `run_from_context`
 - `success`
 - `truncate_text`
@@ -886,17 +1277,78 @@ Supported members:
 - `with_database_connection`
 - `write_log`
 
+### `Syrus::Host::McpToolsAuthorizationSupport`
+
+Since: `0.1.16`
+
+Exposes Mcp::Tools::AuthorizationSupport to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `pending_coworker_plugin_approval`
+
+### `Syrus::Host::McpToolsEvidenceRedactor`
+
+Since: `0.1.16`
+
+Exposes Mcp::Tools::EvidenceRedactor to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::McpToolsPendingActionToolSupport`
+
+Since: `0.1.16`
+
+Exposes Mcp::Tools::PendingActionToolSupport to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::McpToolsProposalToolSupport`
+
+Since: `0.1.16`
+
+Exposes Mcp::Tools::ProposalToolSupport to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::Memory`
+
+Since: `0.1.16`
+
+Exposes Syrus::Memory to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available?`
+- `selected_review_memories`
+
+### `Syrus::Host::Mentionable`
+
+Since: `0.1.16`
+
+Exposes Mentionable to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::MentionablesResolver`
+
+Since: `0.1.16`
+
+Exposes Mentionables::Resolver to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find`
+- `resolve`
+
 ### `Syrus::Host::Metrics`
 
 Since: `0.1.16`
 
-Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised. Only the listed members are supported.
+Fetches plugin-declared metrics instruments; registry mutation beyond reading it and core declarations are not promised. Only the listed members are supported.
 
 Supported members:
 
 - `counter`
 - `gauge`
 - `histogram`
+- `registry`
 
 ### `Syrus::Host::OperationalLogging`
 
@@ -907,6 +1359,46 @@ Emits structured plugin diagnostic events; subscribers and storage are not promi
 Supported members:
 
 - `ingest`
+
+### `Syrus::Host::Paginatable`
+
+Since: `0.1.16`
+
+Exposes Paginatable to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PathJail`
+
+Since: `0.1.16`
+
+Exposes Syrus::PathJail to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `resolve!`
+
+### `Syrus::Host::PathJailPathEscape`
+
+Since: `0.1.16`
+
+Exposes Syrus::PathJail::PathEscape to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PendingActionsAuthorizedToolCall`
+
+Since: `0.1.16`
+
+Exposes PendingActions::AuthorizedToolCall to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PendingActionsBase`
+
+Since: `0.1.16`
+
+Exposes PendingActions::Base to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PendingActionsPermissionManagement`
+
+Since: `0.1.16`
+
+Exposes PendingActions::PermissionManagement to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::PerformanceLogging`
 
@@ -934,6 +1426,127 @@ Supported members:
 - `register_resource_scope`
 - `retire_permission_identifier`
 
+### `Syrus::Host::PermissionsAuthorizationDecision`
+
+Since: `0.1.16`
+
+Exposes Permissions::AuthorizationDecision to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PermissionsAuthorizationRequest`
+
+Since: `0.1.16`
+
+Exposes Permissions::AuthorizationRequest to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PermissionsCapabilityDescriptor`
+
+Since: `0.1.16`
+
+Exposes Permissions::CapabilityDescriptor to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PermissionsCapabilityDescriptorAuthorityDurations`
+
+Since: `0.1.16`
+
+Exposes Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PermissionsCapabilityDescriptorPolicies`
+
+Since: `0.1.16`
+
+Exposes Permissions::CapabilityDescriptor::POLICIES to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `reverse`
+
+### `Syrus::Host::PermissionsCapabilityPresentation`
+
+Since: `0.1.16`
+
+Exposes Permissions::CapabilityPresentation to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
+### `Syrus::Host::PermissionsCapabilityRegistryValidator`
+
+Since: `0.1.16`
+
+Exposes Permissions::CapabilityRegistryValidator to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_application`
+
+### `Syrus::Host::PermissionsCatalog`
+
+Since: `0.1.16`
+
+Exposes Permissions::Catalog to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find!`
+
+### `Syrus::Host::PermissionsCatalogUnknownCapability`
+
+Since: `0.1.16`
+
+Exposes Permissions::Catalog::UnknownCapability to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PermissionsCoworkerDefaultPolicy`
+
+Since: `0.1.16`
+
+Exposes Permissions::CoworkerDefaultPolicy to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `descriptor_auto_allowable?`
+- `grant_policy_for`
+- `requestable?`
+- `validate!`
+- `verdict`
+- `violations`
+
+### `Syrus::Host::PermissionsCoworkerDefaultPolicyRoles`
+
+Since: `0.1.16`
+
+Exposes Permissions::CoworkerDefaultPolicy::ROLES to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PermissionsManagement`
+
+Since: `0.1.16`
+
+Exposes Permissions::Management to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PermissionsPermissionRequest`
+
+Since: `0.1.16`
+
+Exposes Permissions::PermissionRequest to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PermissionsPolicyEvaluatorPolicyRank`
+
+Since: `0.1.16`
+
+Exposes Permissions::PolicyEvaluator::POLICY_RANK to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `fetch`
+
 ### `Syrus::Host::PlatformDelivery`
 
 Since: `0.1.16`
@@ -960,6 +1573,12 @@ Supported members:
 - `syrus_plugin`
 - `syrus_plugin_definition`
 
+### `Syrus::Host::PluginDataCleanup`
+
+Since: `0.1.16`
+
+Exposes PluginDataCleanup to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::PluginInvocation`
 
 Since: `0.1.16`
@@ -970,6 +1589,18 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::PluginJob`
+
+Since: `0.1.16`
+
+Exposes PluginJob to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PluginJobDefaultAttempts`
+
+Since: `0.1.16`
+
+Exposes PluginJob::DEFAULT_ATTEMPTS to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::PluginRegistry`
 
 Since: `0.1.16`
@@ -978,8 +1609,10 @@ Registers manifests and reads extension providers; reset, health, and cache inte
 
 Supported members:
 
+- `all_plugins`
 - `capability_providers`
 - `extension_point?`
+- `health`
 - `providers_for`
 - `providers_with_owner_for`
 - `register`
@@ -1013,6 +1646,22 @@ Supported members:
 - `run`
 - `start`
 
+### `Syrus::Host::PromptsAdversarialReview`
+
+Since: `0.1.16`
+
+Exposes Prompts::AdversarialReview to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::PromptsMemoryContext`
+
+Since: `0.1.16`
+
+Exposes Prompts::MemoryContext to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::PurgeContributor`
 
 Since: `0.1.16`
@@ -1037,6 +1686,16 @@ Supported members:
 - `has_many`
 - `sanitize_sql_like`
 - `transaction`
+
+### `Syrus::Host::RepoDefaultBranchSyrusYml`
+
+Since: `0.1.16`
+
+Exposes RepoDefaultBranchSyrusYml to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_job`
 
 ### `Syrus::Host::Repository`
 
@@ -1067,6 +1726,16 @@ Supported members:
 - `affected_project?`
 - `legacy_keys`
 - `overlay`
+
+### `Syrus::Host::RepositoryContent`
+
+Since: `0.1.16`
+
+Exposes RepositoryContent to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::RepositoryContentProvider`
 
@@ -1103,6 +1772,16 @@ Supported members:
 
 - `apply`
 
+### `Syrus::Host::RepositoryPolicy`
+
+Since: `0.1.16`
+
+Exposes RepositoryPolicy to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::RetentionPolicy`
 
 Since: `0.1.16`
@@ -1112,6 +1791,44 @@ Lets a plugin declare data retention definitions; pruning scheduling is not prom
 Supported members:
 
 - `retention_definitions`
+
+### `Syrus::Host::RetentionPolicyExecutorsDefault`
+
+Since: `0.1.16`
+
+Exposes RetentionPolicyExecutors::Default to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::RetentionPolicyExecutorsResult`
+
+Since: `0.1.16`
+
+Exposes RetentionPolicyExecutors::Result to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::RetentionPolicyRegistryDefinition`
+
+Since: `0.1.16`
+
+Exposes RetentionPolicyRegistry::Definition to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::RetentionPrunerDefaultBatchSize`
+
+Since: `0.1.16`
+
+Exposes RetentionPruner::DEFAULT_BATCH_SIZE to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::RetentionPrunerDefaultMaxBatches`
+
+Since: `0.1.16`
+
+Exposes RetentionPruner::DEFAULT_MAX_BATCHES to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::ReviewContextContributor`
 
@@ -1126,6 +1843,16 @@ Supported members:
 - `tombstone`
 - `tool_capability`
 - `tool_set`
+
+### `Syrus::Host::ReviewEvidenceVerdictSubmission`
+
+Since: `0.1.16`
+
+Exposes ReviewEvidence::VerdictSubmission to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call!`
 
 ### `Syrus::Host::ReviewGate`
 
@@ -1168,6 +1895,28 @@ Supported members:
 - `target_type`
 - `uniqueness_key`
 
+### `Syrus::Host::ReviewerTargets`
+
+Since: `0.1.16`
+
+Exposes ReviewerTargets to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `resolve`
+
+### `Syrus::Host::ReviewerTargetsTargetRequired`
+
+Since: `0.1.16`
+
+Exposes ReviewerTargets::TargetRequired to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ReviewerTargetsTargetUnavailable`
+
+Since: `0.1.16`
+
+Exposes ReviewerTargets::TargetUnavailable to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::Run`
 
 Since: `0.1.16`
@@ -1181,6 +1930,16 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::RunJob`
+
+Since: `0.1.16`
+
+Exposes RunJob to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `agent_runner`
 
 ### `Syrus::Host::SidebarPage`
 
@@ -1303,6 +2062,54 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::StepWorkspace`
+
+Since: `0.1.16`
+
+Exposes StepWorkspace to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
+### `Syrus::Host::StepsAdversarialReview`
+
+Since: `0.1.16`
+
+Exposes Steps::AdversarialReview to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::StepsAdversarialReviewMemoryPersistenceFailed`
+
+Since: `0.1.16`
+
+Exposes Steps::AdversarialReview::MemoryPersistenceFailed to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::StepsBase`
+
+Since: `0.1.16`
+
+Exposes Steps::Base to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::SyrusYml`
+
+Since: `0.1.16`
+
+Exposes SyrusYml to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `load_repo`
+
+### `Syrus::Host::SyrusYmlParseError`
+
+Since: `0.1.16`
+
+Exposes SyrusYml::ParseError to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::SystemAlert`
 
 Since: `0.1.16`
@@ -1375,6 +2182,16 @@ Supported members:
 - `chat_tool_set_for`
 - `chat_tool_sets`
 
+### `Syrus::Host::TypedArtifactRenderer`
+
+Since: `0.1.16`
+
+Exposes TypedArtifactRenderer to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `enrich`
+
 ### `Syrus::Host::UiSlot`
 
 Since: `0.1.16`
@@ -1401,6 +2218,58 @@ Supported members:
 - `id`
 - `jobs`
 - `repositories`
+
+### `Syrus::Host::ValidatesAgentProvider`
+
+Since: `0.1.16`
+
+Exposes ValidatesAgentProvider to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::WorkDefinitionsBase`
+
+Since: `0.1.16`
+
+Exposes WorkDefinitions::Base to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::WorkUnitsGateResult`
+
+Since: `0.1.16`
+
+Exposes WorkUnits::GateResult to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `block`
+- `pass`
+
+### `Syrus::Host::WorkUnitsLauncher`
+
+Since: `0.1.16`
+
+Exposes WorkUnits::Launcher to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `create_and_start!`
+- `instantiate`
+- `start!`
+
+### `Syrus::Host::WorkUnitsLauncherLockConflict`
+
+Since: `0.1.16`
+
+Exposes WorkUnits::Launcher::LockConflict to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::WorkerCapabilities`
+
+Since: `0.1.16`
+
+Exposes WorkerCapabilities to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `current`
+- `normalize`
 
 ### `Syrus::Host::WorkerCapabilityProbe`
 
@@ -1450,6 +2319,22 @@ Supported members:
 - `new`
 - `path_for`
 
+### `Syrus::Host::WorkflowWorkspaceRequiredBranchArtifact`
+
+Since: `0.1.16`
+
+Exposes WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+### `Syrus::Host::WorkflowsBase`
+
+Since: `0.1.16`
+
+Exposes Workflows::Base to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `resolve_plan`
+
 ### `Syrus::Host::WorkspaceGitTransport`
 
 Since: `0.1.16`
@@ -1476,7 +2361,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AdminAction`
 - `Agent`
 - `AgentEventAbbreviator`
-- `AgentProviderCatalogOptions`
 - `AgentProviders`
 - `AgentProviders::Base`
 - `AgentProviders::ConfigurationError`
@@ -1490,25 +2374,18 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentRole::COWORKER`
 - `AgentRole::COWORKER_CHAT`
 - `AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER`
-- `AgentRole::WORKFLOW_COWORKER_REVIEWER`
 - `AgentRole::WORKFLOW_IMPLEMENT`
-- `AgentRole::WORKFLOW_MANUAL`
 - `AgentRole::WORKFLOW_ROLES`
 - `AgentRole::WORKFLOW_VISUAL_REVIEWER`
 - `AgentSidecarEnvironment`
 - `Api::V1::Admin::BaseController`
 - `Api::V1::App::Admin::BaseController`
 - `Api::V1::App::BaseController`
-- `App::AdversarialReviewProjects`
-- `App::JobDiscussionChatResolver`
 - `App::Presentation`
 - `App::ProviderAvailability`
-- `App::ReviewNoteProjects`
 - `App::RunArtifactsPayload`
 - `AppEvents`
 - `AppSetting`
-- `Appearance::ColorPalette`
-- `Appearance::ColorPalette::HEX_PATTERN`
 - `ApplicationCable::Channel`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
@@ -1530,22 +2407,15 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
 - `ChatProposal`
-- `ChatProviderOptions`
 - `ChatProviders::Base`
 - `ChatProviders::ConfigurationError`
-- `ChatQueuedMessage::INTERNAL_ROLE_KEY`
 - `ChatQueuedMessagePromoter`
 - `ChatResultBadges`
 - `ChatSession`
-- `ChatSession::CrossChatMessage`
-- `ChatSession::CrossChatMessage::ClosedThreadError`
-- `ChatSession::EFFORT_LEVELS`
 - `ChatSession::MODES`
 - `ChatSessionLifecycle`
 - `ChatSessionRehydrator`
-- `ChatSessions::Creator`
 - `ChatSpendEntry`
-- `ChatTurnJob`
 - `ChatWakeup`
 - `ChatWorkEvents`
 - `ChatWorkspace`
@@ -1560,17 +2430,14 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Current`
 - `DiffReviewComment`
 - `DiffReviewVersion`
-- `DiffReviewVersions::FinalReviewVersion`
 - `DirectJobs::Creator`
 - `DirectJobs::Creator::Attachment`
 - `Document::MAX_ATTACHMENTS_PER_JOB`
 - `Epic`
-- `Epic::ARCHIVED_STATE`
 - `Epic::MERGED_JOB_CLOSURE_REASONS`
 - `Epic::SUCCESSFUL_JOB_CLOSURE_REASONS`
 - `EpicMarkerParser`
 - `Epics::Filter`
-- `Execution::ChatWorkloadPolicy`
 - `Feature`
 - `Filters::Ast`
 - `Filters::Ast::AndNode`
@@ -1598,14 +2465,10 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Filters::SmartFolderResolution::PRESET_FIELD`
 - `Filters::UnknownFilterField`
 - `FtsQueryParser`
-- `GitMergeDrivers`
 - `GithubApiUsageRollup`
-- `GithubAuthenticatedGit`
 - `GithubClient`
 - `GithubIssueJobAttributes`
 - `Handle`
-- `Handle::FORMAT`
-- `HandleRegistry`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
 - `IngestIssueImagesJob`
@@ -1615,7 +2478,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `InputSources::PendingWorkWakeup`
 - `InstanceVersion`
 - `InstanceVersion::HEARTBEAT_STALE_THRESHOLD`
-- `InvestigationJobs::Creator`
 - `IssueImageExtractor`
 - `Job`
 - `Job::Kind`
@@ -1635,12 +2497,10 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `LandedCommit`
 - `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
-- `Mcp::CoworkerToolExposure`
 - `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
 - `Mcp::Tools::AgentPreviewRegistry`
-- `Mcp::Tools::AuthorizationSupport`
 - `Mcp::Tools::AuthorizationSupport::AuthorizationError`
 - `Mcp::Tools::BulkPendingActionToolSupport`
 - `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
@@ -1652,9 +2512,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `McpToolContext`
 - `McpToolPayloads::WorkflowPayload`
 - `McpToolPolicy`
-- `McpToolRegistry`
-- `Mentionable`
-- `Mentionables::Resolver`
 - `MergeTrain`
 - `MergeTrainDispatcher::RETRY_COOLDOWN`
 - `MergeTrainMember`
@@ -1668,9 +2525,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `OperationalLogging`
 - `Paginatable`
 - `PendingActionItem`
-- `PendingActions::AuthorizedToolCall`
 - `PendingActions::Base`
-- `PendingActions::PermissionManagement`
 - `PerformanceLogEvent`
 - `PerformanceLogging`
 - `PerformanceLogging::BROWSER_TRACE_EVENT`
@@ -1683,31 +2538,18 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PerformanceLogging::Store::MAX_EVENTS`
 - `PermissionLease`
 - `PermissionRule`
-- `Permissions::AuthorizationDecision`
-- `Permissions::AuthorizationRequest`
-- `Permissions::CapabilityDescriptor`
 - `Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS`
-- `Permissions::CapabilityDescriptor::POLICIES`
 - `Permissions::CapabilityDescriptorAdapter`
 - `Permissions::CapabilityPresentation`
-- `Permissions::CapabilityRegistryValidator`
-- `Permissions::Catalog`
-- `Permissions::Catalog::UnknownCapability`
-- `Permissions::CoworkerDefaultPolicy`
-- `Permissions::CoworkerDefaultPolicy::ROLES`
 - `Permissions::Management`
 - `Permissions::Management::PROFILE_SOURCE_PREFIX`
-- `Permissions::PermissionRequest`
-- `Permissions::PolicyEvaluator::POLICY_RANK`
 - `PersistentMcpDaemon`
 - `PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER`
 - `PersistentMcpDaemon::MCP_PATH`
 - `PlatformIdentity`
 - `PlatformIdentity::PlatformConfig::Base`
 - `PlatformPollingJob`
-- `PluginDataCleanup`
 - `PluginJob`
-- `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
 - `PrReviewComment`
 - `PreviewCommandSource`
@@ -1718,7 +2560,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PreviewPanelVersion`
 - `PreviewProcessLauncher`
 - `ProcessRunner`
-- `Prompts::AdversarialReview`
 - `Prompts::ChatSystem`
 - `Prompts::GitSafety::TEXT`
 - `Prompts::MemoryContext`
@@ -1749,10 +2590,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RetentionPolicyRegistry::Definition`
 - `RetentionPruner::DEFAULT_BATCH_SIZE`
 - `RetentionPruner::DEFAULT_MAX_BATCHES`
-- `ReviewEvidence::VerdictSubmission`
-- `ReviewerTargets`
-- `ReviewerTargets::TargetRequired`
-- `ReviewerTargets::TargetUnavailable`
 - `Run`
 - `Run::ACTIVE_STATES`
 - `RunDiff`
@@ -1781,15 +2618,11 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Step`
 - `Step::AGENTIC_KINDS`
 - `Step::Kind`
-- `StepWorkspace`
-- `Steps::AdversarialReview`
-- `Steps::AdversarialReview::MemoryPersistenceFailed`
 - `Steps::Base`
 - `Steps::MergeTrainLand::STALE_BASE_ARTIFACT`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
-- `Syrus::Memory`
 - `Syrus::Metrics`
 - `Syrus::PathJail`
 - `Syrus::PathJail::PathEscape`
@@ -1834,9 +2667,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `SyrusMcp::TypedArtifactProvenance`
 - `SyrusSearchDatabaseTasks`
 - `SyrusVersion`
-- `SyrusYml`
 - `SyrusYml::CONFIG_FILE`
-- `SyrusYml::ParseError`
 - `SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV`
 - `Team`
 - `TeamMembership`
@@ -1850,17 +2681,12 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ToolPayloadRedactor`
 - `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`
-- `TypedArtifactRenderer`
 - `UiEngagementSample`
 - `User`
 - `User::DASHBOARD_OPTIONAL_COLUMNS`
 - `User::DASHBOARD_REQUIRED_COLUMNS`
-- `ValidatesAgentProvider`
 - `WorkDefinitions::Base`
-- `WorkUnits::GateResult`
 - `WorkUnits::Launcher`
-- `WorkUnits::Launcher::LockConflict`
-- `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`
 - `WorkerHostHealthSample`
@@ -1872,7 +2698,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `WorkflowVisualEvidence`
 - `WorkflowWarnings`
 - `WorkflowWorkspace`
-- `WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT`
 - `Workflows::Base`
 - `WorkspaceDependencyEnv`
 - `WorkspaceReuseOutcomes::Summary`

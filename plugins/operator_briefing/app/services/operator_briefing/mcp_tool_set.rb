@@ -34,7 +34,7 @@ module OperatorBriefing
     end
 
     def handle(tool_name, params, server_context)
-      context = McpToolContext.from_run(Syrus::Host::McpTools.run_from_context(server_context))
+      context = Syrus::Host::ToolContext.from_run(Syrus::Host::McpTools.run_from_context(server_context))
       klass = self.class.tool_classes_for(context).find { |candidate| candidate.tool_name == tool_name.to_s }
       return Syrus::Host::McpTools.invalid("Unknown Operator Briefing tool: #{tool_name.inspect}") unless klass
 

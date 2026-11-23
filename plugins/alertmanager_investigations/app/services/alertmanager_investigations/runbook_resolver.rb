@@ -35,7 +35,7 @@ module AlertmanagerInvestigations
       return nil unless safe_path?(location.path)
       return nil unless @configuration.runbook_allowed?(repository, location.path)
 
-      content = RepositoryContent.for(repository)
+      content = Syrus::Host::RepositoryContent.for(repository)
       revision = content.resolve(repository.default_branch)
       blob = content.read(revision, location.path, max_bytes: MAX_RUNBOOK_BYTES)
       return nil if blob.truncated

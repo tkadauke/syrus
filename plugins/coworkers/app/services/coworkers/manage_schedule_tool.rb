@@ -86,7 +86,7 @@ module Coworkers
         def call
           repository = coworker.workspace_repository
           raise ArgumentError, "workspace repository is unavailable" unless repository
-          raise ArgumentError, "repository write access is required" unless RepositoryPolicy.new(coworker.owner_user, repository).write?
+          raise ArgumentError, "repository write access is required" unless Syrus::Host::RepositoryPolicy.new(coworker.owner_user, repository).write?
 
           created = coworker.schedules.create!(
             user: coworker.owner_user, repository: repository, name: attributes[:name].to_s.strip,

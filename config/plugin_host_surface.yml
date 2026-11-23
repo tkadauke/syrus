@@ -1,7 +1,14 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
+# Remaining entries used by the coworkers, review and briefing group:
+# - ActiveRecord models (ChatMessage, PermissionRule, Job, Repository, ...) need
+#   contracted query facades, not wholesale promotion; Job, Repository, User, Run,
+#   Workflow and ChatSession are read-only wrapper facades the plugins outgrow.
+# - Syrus::PluginApi cannot move: plugin manifests load before host aliases install.
+# - Permissions::CapabilityDescriptorAdapter is called through private deep_redact and
+#   deep_normalize helpers; those are not a public contract.
 ---
-legacy_baseline: 406
+legacy_baseline: 346
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -9,7 +16,6 @@ constants:
 - name: AdminAction
 - name: Agent
 - name: AgentEventAbbreviator
-- name: AgentProviderCatalogOptions
 - name: AgentProviders
 - name: AgentProviders::Base
 - name: AgentProviders::ConfigurationError
@@ -23,25 +29,18 @@ constants:
 - name: AgentRole::COWORKER
 - name: AgentRole::COWORKER_CHAT
 - name: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-- name: AgentRole::WORKFLOW_COWORKER_REVIEWER
 - name: AgentRole::WORKFLOW_IMPLEMENT
-- name: AgentRole::WORKFLOW_MANUAL
 - name: AgentRole::WORKFLOW_ROLES
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
 - name: AgentSidecarEnvironment
 - name: Api::V1::Admin::BaseController
 - name: Api::V1::App::Admin::BaseController
 - name: Api::V1::App::BaseController
-- name: App::AdversarialReviewProjects
-- name: App::JobDiscussionChatResolver
 - name: App::Presentation
 - name: App::ProviderAvailability
-- name: App::ReviewNoteProjects
 - name: App::RunArtifactsPayload
 - name: AppEvents
 - name: AppSetting
-- name: Appearance::ColorPalette
-- name: Appearance::ColorPalette::HEX_PATTERN
 - name: ApplicationCable::Channel
 - name: ApplicationPolicy
 - name: ApplicationPolicy::Scope
@@ -63,22 +62,15 @@ constants:
 - name: ChatPendingAction
 - name: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES
 - name: ChatProposal
-- name: ChatProviderOptions
 - name: ChatProviders::Base
 - name: ChatProviders::ConfigurationError
-- name: ChatQueuedMessage::INTERNAL_ROLE_KEY
 - name: ChatQueuedMessagePromoter
 - name: ChatResultBadges
 - name: ChatSession
-- name: ChatSession::CrossChatMessage
-- name: ChatSession::CrossChatMessage::ClosedThreadError
-- name: ChatSession::EFFORT_LEVELS
 - name: ChatSession::MODES
 - name: ChatSessionLifecycle
 - name: ChatSessionRehydrator
-- name: ChatSessions::Creator
 - name: ChatSpendEntry
-- name: ChatTurnJob
 - name: ChatWakeup
 - name: ChatWorkEvents
 - name: ChatWorkspace
@@ -93,17 +85,14 @@ constants:
 - name: Current
 - name: DiffReviewComment
 - name: DiffReviewVersion
-- name: DiffReviewVersions::FinalReviewVersion
 - name: DirectJobs::Creator
 - name: DirectJobs::Creator::Attachment
 - name: Document::MAX_ATTACHMENTS_PER_JOB
 - name: Epic
-- name: Epic::ARCHIVED_STATE
 - name: Epic::MERGED_JOB_CLOSURE_REASONS
 - name: Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
 - name: EpicMarkerParser
 - name: Epics::Filter
-- name: Execution::ChatWorkloadPolicy
 - name: Feature
 - name: Filters::Ast
 - name: Filters::Ast::AndNode
@@ -131,14 +120,10 @@ constants:
 - name: Filters::SmartFolderResolution::PRESET_FIELD
 - name: Filters::UnknownFilterField
 - name: FtsQueryParser
-- name: GitMergeDrivers
 - name: GithubApiUsageRollup
-- name: GithubAuthenticatedGit
 - name: GithubClient
 - name: GithubIssueJobAttributes
 - name: Handle
-- name: Handle::FORMAT
-- name: HandleRegistry
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
 - name: IngestIssueImagesJob
@@ -148,7 +133,6 @@ constants:
 - name: InputSources::PendingWorkWakeup
 - name: InstanceVersion
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-- name: InvestigationJobs::Creator
 - name: IssueImageExtractor
 - name: Job
 - name: Job::Kind
@@ -168,12 +152,10 @@ constants:
 - name: LandedCommit
 - name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
-- name: Mcp::CoworkerToolExposure
 - name: Mcp::Pagination
 - name: Mcp::Tools
 - name: Mcp::Tools::AdminPendingActionToolSupport
 - name: Mcp::Tools::AgentPreviewRegistry
-- name: Mcp::Tools::AuthorizationSupport
 - name: Mcp::Tools::AuthorizationSupport::AuthorizationError
 - name: Mcp::Tools::BulkPendingActionToolSupport
 - name: Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE
@@ -185,9 +167,6 @@ constants:
 - name: McpToolContext
 - name: McpToolPayloads::WorkflowPayload
 - name: McpToolPolicy
-- name: McpToolRegistry
-- name: Mentionable
-- name: Mentionables::Resolver
 - name: MergeTrain
 - name: MergeTrainDispatcher::RETRY_COOLDOWN
 - name: MergeTrainMember
@@ -201,9 +180,7 @@ constants:
 - name: OperationalLogging
 - name: Paginatable
 - name: PendingActionItem
-- name: PendingActions::AuthorizedToolCall
 - name: PendingActions::Base
-- name: PendingActions::PermissionManagement
 - name: PerformanceLogEvent
 - name: PerformanceLogging
 - name: PerformanceLogging::BROWSER_TRACE_EVENT
@@ -216,31 +193,18 @@ constants:
 - name: PerformanceLogging::Store::MAX_EVENTS
 - name: PermissionLease
 - name: PermissionRule
-- name: Permissions::AuthorizationDecision
-- name: Permissions::AuthorizationRequest
-- name: Permissions::CapabilityDescriptor
 - name: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS
-- name: Permissions::CapabilityDescriptor::POLICIES
 - name: Permissions::CapabilityDescriptorAdapter
 - name: Permissions::CapabilityPresentation
-- name: Permissions::CapabilityRegistryValidator
-- name: Permissions::Catalog
-- name: Permissions::Catalog::UnknownCapability
-- name: Permissions::CoworkerDefaultPolicy
-- name: Permissions::CoworkerDefaultPolicy::ROLES
 - name: Permissions::Management
 - name: Permissions::Management::PROFILE_SOURCE_PREFIX
-- name: Permissions::PermissionRequest
-- name: Permissions::PolicyEvaluator::POLICY_RANK
 - name: PersistentMcpDaemon
 - name: PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER
 - name: PersistentMcpDaemon::MCP_PATH
 - name: PlatformIdentity
 - name: PlatformIdentity::PlatformConfig::Base
 - name: PlatformPollingJob
-- name: PluginDataCleanup
 - name: PluginJob
-- name: PluginJob::DEFAULT_ATTEMPTS
 - name: PluginRecord
 - name: PrReviewComment
 - name: PreviewCommandSource
@@ -251,7 +215,6 @@ constants:
 - name: PreviewPanelVersion
 - name: PreviewProcessLauncher
 - name: ProcessRunner
-- name: Prompts::AdversarialReview
 - name: Prompts::ChatSystem
 - name: Prompts::GitSafety::TEXT
 - name: Prompts::MemoryContext
@@ -282,10 +245,6 @@ constants:
 - name: RetentionPolicyRegistry::Definition
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
-- name: ReviewEvidence::VerdictSubmission
-- name: ReviewerTargets
-- name: ReviewerTargets::TargetRequired
-- name: ReviewerTargets::TargetUnavailable
 - name: Run
 - name: Run::ACTIVE_STATES
 - name: RunDiff
@@ -314,15 +273,11 @@ constants:
 - name: Step
 - name: Step::AGENTIC_KINDS
 - name: Step::Kind
-- name: StepWorkspace
-- name: Steps::AdversarialReview
-- name: Steps::AdversarialReview::MemoryPersistenceFailed
 - name: Steps::Base
 - name: Steps::MergeTrainLand::STALE_BASE_ARTIFACT
 - name: Syrus::DataCleanup
 - name: Syrus::Events
 - name: Syrus::Installer
-- name: Syrus::Memory
 - name: Syrus::Metrics
 - name: Syrus::PathJail
 - name: Syrus::PathJail::PathEscape
@@ -367,9 +322,7 @@ constants:
 - name: SyrusMcp::TypedArtifactProvenance
 - name: SyrusSearchDatabaseTasks
 - name: SyrusVersion
-- name: SyrusYml
 - name: SyrusYml::CONFIG_FILE
-- name: SyrusYml::ParseError
 - name: SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV
 - name: Team
 - name: TeamMembership
@@ -383,17 +336,12 @@ constants:
 - name: ToolPayloadRedactor
 - name: ToolPayloadRedactor::REDACTED
 - name: TracksFinishedAt
-- name: TypedArtifactRenderer
 - name: UiEngagementSample
 - name: User
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
 - name: User::DASHBOARD_REQUIRED_COLUMNS
-- name: ValidatesAgentProvider
 - name: WorkDefinitions::Base
-- name: WorkUnits::GateResult
 - name: WorkUnits::Launcher
-- name: WorkUnits::Launcher::LockConflict
-- name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis
 - name: WorkerHostHealthSample
@@ -405,7 +353,6 @@ constants:
 - name: WorkflowVisualEvidence
 - name: WorkflowWarnings
 - name: WorkflowWorkspace
-- name: WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT
 - name: Workflows::Base
 - name: WorkspaceDependencyEnv
 - name: WorkspaceReuseOutcomes::Summary

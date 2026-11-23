@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(114)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(114)
+    expect(Syrus::Host.apis.size).to eq(221)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(221)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -46,6 +46,18 @@ RSpec.describe Syrus::Host::PublicApis do
       expect(api.summary).to include("not promised"), name
       expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true)
     end
+  end
+
+  it "aliases every host facade onto its core constant and documents it with a contract" do
+    described_class::ALIASES.each do |name, target|
+      expect(Syrus::Host.const_get(name)).to equal(target.constantize), name.to_s
+      api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
+      expect(api).to be_present, "#{name} has no contract"
+      expect(api.since).to match(/\A\d+\.\d+\.\d+/)
+    end
+    expect(Syrus::Host::McpToolsAuthorizationSupport).to equal(Mcp::Tools::AuthorizationSupport)
+    expect(Syrus::Host::PendingActionsBase).to equal(PendingActions::Base)
+    expect(Syrus::Host::PermissionsCatalog).to equal(Permissions::Catalog)
   end
 
   it "exposes the shared grader defaults without the SyrusYml constants" do

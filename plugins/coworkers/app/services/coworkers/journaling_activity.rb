@@ -71,11 +71,11 @@ module Coworkers
       repository = @coworker.workspace_repository
       return @daily_memory = nil unless repository
       if (chat = @coworker.coworker_chats.find_by(role: "main")&.chat_session)
-        root = ChatWorkspace.repo_path_for(chat, repository)
+        root = Syrus::Host::ChatWorkspace.repo_path_for(chat, repository)
         pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
         return @daily_memory = text(pending, label: daily_memory_path) if pending
       end
-      reader = RepositoryContent.for(repository, user: @coworker.owner_user)
+      reader = Syrus::Host::RepositoryContent.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
       @daily_memory = text(reader.read(revision, daily_memory_path, max_bytes: 64.kilobytes).text, label: daily_memory_path)
     rescue Syrus::Host::ContentNotFound, Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnsupported, Syrus::Host::ContentUnknownRevision

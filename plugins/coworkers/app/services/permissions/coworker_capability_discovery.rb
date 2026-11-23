@@ -63,10 +63,10 @@ module Permissions
 
     def descriptor_for(tool)
       if tool.tool
-        McpToolRegistry.entry_for(tool.tool)&.descriptor
+        Syrus::Host::McpToolRegistry.entry_for(tool.tool)&.descriptor
       elsif tool.definition
         Syrus::Host::CapabilityDescriptor.for_plugin_definition(
-          tool.definition.merge(requestable_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          tool.definition.merge(requestable_roles: [ Syrus::Host::AgentRoleCoworkerChat, Syrus::Host::AgentRoleCoworker ])
         )
       end
     end
@@ -203,9 +203,9 @@ module Permissions
       return false unless descriptor.requestable_roles.include?(context.role)
       return false if grant && descriptor.capability.sub(/@v\d+\z/, "") != capability
 
-      Permissions::Catalog.find!(capability: descriptor.capability, operation: descriptor.operation)
+      Syrus::Host::PermissionsCatalog.find!(capability: descriptor.capability, operation: descriptor.operation)
         .requestable_roles.include?(context.role)
-    rescue Permissions::Catalog::UnknownCapability
+    rescue Syrus::Host::PermissionsCatalogUnknownCapability
       false
     end
 
@@ -244,7 +244,7 @@ module Permissions
       rescue ArgumentError
         descriptor.defaults.fetch(context.role, :deny)
       end
-      policies.min_by { |policy| Permissions::PolicyEvaluator::POLICY_RANK.fetch(policy) } || :deny
+      policies.min_by { |policy| Syrus::Host::PermissionsPolicyEvaluatorPolicyRank.fetch(policy) } || :deny
     end
 
     def state_and_reason(availability:, eligible:, policy:)
@@ -264,7 +264,7 @@ module Permissions
       return tool.availability_state unless tool.availability_state.to_sym == :available
       return :available if tool.provider
 
-      entry = McpToolRegistry.entry_for(tool.tool)
+      entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
       return :unavailable unless entry
       return :unavailable if entry.feature_flag && !Feature.public_send("#{entry.feature_flag}_enabled?")
 
@@ -289,7 +289,7 @@ module Permissions
     end
 
     def permission_management
-      @permission_management ||= Permissions::Management.new(context.user)
+      @permission_management ||= Syrus::Host::PermissionsManagement.new(context.user)
     end
 
     def required_scope(descriptors)

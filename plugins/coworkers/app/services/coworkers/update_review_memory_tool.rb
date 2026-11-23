@@ -11,8 +11,8 @@ class Coworkers::UpdateReviewMemoryTool < MCP::Tool
   class << self
     def call(path:, content:, server_context:)
       run = Syrus::Host::McpTools.run_from_context(server_context)
-      context = McpToolContext.from_run(run)
-      return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_COWORKER_REVIEWER
+      context = Syrus::Host::ToolContext.from_run(run)
+      return Syrus::Host::McpTools.not_authorized unless context.role == Syrus::Host::AgentRoleWorkflowCoworkerReviewer
       reviewer = run.review_evidence&.then { |evidence| Coworkers::ReviewEvidenceTarget.resolve(evidence, run:) }
       return Syrus::Host::McpTools.invalid("coworker review context is unavailable") unless reviewer&.respond_to?(:update_review_memory!)
       relative = reviewer.update_review_memory!(run:, path:, content: Syrus::Host::McpTools.utf8(content))

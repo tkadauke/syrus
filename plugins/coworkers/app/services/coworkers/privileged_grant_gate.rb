@@ -51,7 +51,7 @@ module Coworkers
       private
 
       def current_worker_confined?
-        Array(WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)
+        Array(Syrus::Host::WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)
       end
 
       def confined_worker_available?
@@ -60,7 +60,7 @@ module Coworkers
 
       def confined_workers
         InstanceVersion.fresh.where(role: "worker").select do |worker|
-          Array(WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?(CONFINEMENT_RUNTIME)
+          Array(Syrus::Host::WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?(CONFINEMENT_RUNTIME)
         end
       rescue ActiveRecord::StatementInvalid
         []
@@ -79,8 +79,8 @@ module Coworkers
       end
 
       def broker_authorization_available?
-        manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
-        manifest&.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
+        manifest = Syrus::Host::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
+        manifest&.enabled? && Syrus::Host::PluginRegistry.health.healthy?(manifest.name)
       end
     end
 

@@ -52,12 +52,12 @@ module CognitiveReview
 
         def call(notes:, server_context:)
           run = Syrus::Host::McpTools.run_from_context(server_context)
-          context = McpToolContext.from_run(run)
+          context = Syrus::Host::ToolContext.from_run(run)
           return Syrus::Host::McpTools.unauthorized("submit_review_notes is only available to post-implementation review runs") unless CognitiveReview::McpToolSet.available_for_context?(context)
 
           normalized = normalize_notes(notes)
           return Syrus::Host::McpTools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
-          version = DiffReviewVersions::FinalReviewVersion.resolve(job: run.job, workflow: run.workflow, run: run)
+          version = Syrus::Host::DiffReviewVersionsFinalReviewVersion.resolve(job: run.job, workflow: run.workflow, run: run)
           return Syrus::Host::McpTools.invalid("No diff review version is available for this run/workflow.") unless version
 
           if normalized.empty?

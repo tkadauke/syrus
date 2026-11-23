@@ -38,7 +38,7 @@ module Coworkers
       private
 
       def core_descriptors
-        grouped = McpToolRegistry.entries(surface: :coworker).group_by { |entry| entry.capability.to_s }
+        grouped = Syrus::Host::McpToolRegistry.entries(surface: :coworker).group_by { |entry| entry.capability.to_s }
         legacy = Coworkers::Create::DEFAULT_GRANTS.keys.map do |name|
           entries = grouped.fetch(name, [])
           next if name.blank?
@@ -46,7 +46,7 @@ module Coworkers
             default_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(name, "confirm"), maximum_policy: "auto", tools: entries.map(&:tool_name), scope_options_callback: nil,
             scope_label_callback: nil, valid_scope_callback: nil, privileged: false)
         end
-        legacy + McpToolRegistry.coworker_grants.map { |attributes| build_descriptor(attributes) }
+        legacy + Syrus::Host::McpToolRegistry.coworker_grants.map { |attributes| build_descriptor(attributes) }
       end
 
       def plugin_descriptors
@@ -61,13 +61,13 @@ module Coworkers
 
           descriptors = tools.filter_map do |tool|
             if tool.tool
-              McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool.tool }&.descriptor
+              Syrus::Host::McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool.tool }&.descriptor
             elsif tool.definition
               Syrus::Host::CapabilityDescriptor.for_plugin_definition(tool.definition)
             end
           end
           default_policy = descriptors.all? do |descriptor|
-            descriptor.defaults.values_at(AgentRole::COWORKER_CHAT, AgentRole::COWORKER).all?(:allow)
+            descriptor.defaults.values_at(Syrus::Host::AgentRoleCoworkerChat, Syrus::Host::AgentRoleCoworker).all?(:allow)
           end ? "auto" : "confirm"
           grant = tools.filter_map(&:grant).first&.symbolize_keys
           if grant

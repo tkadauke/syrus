@@ -5,7 +5,7 @@ class Coworkers::ReviewEvidenceTarget
       if target.present?
         return unless target["type"] == Coworkers::ReviewerTargetProvider.target_type
 
-        return ReviewerTargets.resolve(
+        return Syrus::Host::ReviewerTargets.resolve(
           target,
           owner: run.job.owner_user || run.job.user,
           repository: run.job.repository

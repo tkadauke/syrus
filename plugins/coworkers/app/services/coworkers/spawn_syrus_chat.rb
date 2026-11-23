@@ -32,7 +32,7 @@ class Coworkers::SpawnSyrusChat
         target_chat_session: chat,
         opened_by_user: @coworker.owner_user
       )
-      ChatSession::CrossChatMessage.new(thread:, text: @prompt, from: @origin_chat).deliver!
+      Syrus::Host::ChatSessionCrossChatMessage.new(thread:, text: @prompt, from: @origin_chat).deliver!
       Permissions::CoworkerAudit.record!(
         :coworker_syrus_chat_spawned,
         owner: @coworker.owner_user,

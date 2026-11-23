@@ -1,5 +1,5 @@
 module Coworkers
-  class Workflow < ::Workflows::Base
+  class Workflow < Syrus::Host::WorkflowsBase
     steps :prepare, :coworker_run, :post_to_chat, :auto_close
 
     def self.trigger_kind = "coworker_run"
@@ -7,7 +7,7 @@ module Coworkers
 
     def self.instantiate(job:, artifacts: nil, **options)
       coworker = Coworkers::Coworker.find(job.origin_id)
-      branch_artifact = { WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT => "coworkers/#{coworker.handle}" }
+      branch_artifact = { Syrus::Host::WorkflowWorkspaceRequiredBranchArtifact => "coworkers/#{coworker.handle}" }
       super(job:, artifacts: branch_artifact.merge(artifacts.to_h), **options)
     end
 

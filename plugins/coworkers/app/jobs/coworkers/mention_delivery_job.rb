@@ -1,4 +1,4 @@
-class Coworkers::MentionDeliveryJob < PluginJob
+class Coworkers::MentionDeliveryJob < Syrus::Host::PluginJob
   plugin :coworkers
   queue_as :chat
 
@@ -14,7 +14,7 @@ class Coworkers::MentionDeliveryJob < PluginJob
 
     link = Coworkers::MentionSession.find_or_create!(coworker:, source_chat:)
     message = Coworkers::MentionSession.deliver!(link:, source_message:)
-    ChatTurnJob.perform_later(link.chat_session_id, message.id)
+    Syrus::Host::ChatTurnJob.perform_later(link.chat_session_id, message.id)
     source_chat.broadcast_controls
   rescue StandardError => error
     Coworkers::MentionSession.fail!(source_message:, coworker:, error:)

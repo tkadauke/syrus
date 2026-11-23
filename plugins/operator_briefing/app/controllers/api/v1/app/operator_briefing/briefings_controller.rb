@@ -3,7 +3,7 @@ module Api
     module App
       module OperatorBriefing
         class BriefingsController < Syrus::Host::AppController
-          include ChatSessionLifecycle
+          include Syrus::Host::ChatSessionLifecycle
 
           def show
             render json: ::OperatorBriefing::Payload.new(user: Syrus::Host::Current.user).as_json
@@ -36,7 +36,7 @@ module Api
             current_briefing = briefing
             return render_error("briefing_archived", "Only the current live briefing can start a dive.", status: :unprocessable_content) unless current_briefing.live?
 
-            result = WorkUnits::Launcher.create_and_start!(
+            result = Syrus::Host::WorkUnitsLauncher.create_and_start!(
               kind: "briefing_dive",
               job: current_briefing.job,
               artifacts: {
@@ -57,7 +57,7 @@ module Api
 
           def discuss
             current_briefing = briefing
-            chat_session = ::App::JobDiscussionChatResolver.new(job: current_briefing.job, user: Syrus::Host::Current.user).resolve
+            chat_session = Syrus::Host::AppJobDiscussionChatResolver.new(job: current_briefing.job, user: Syrus::Host::Current.user).resolve
             message = chat_session.messages.create!(
               role: "user",
               content: { "text" => discussion_message(current_briefing) },

@@ -51,7 +51,7 @@ module OperatorBriefing
     end
 
     def broadcast_block(block)
-      AppEvents.broadcast(
+      Syrus::Host::AppEvents.broadcast(
         user: briefing.owner_user,
         type: "operator_briefing.block_submitted",
         resource: "operator_briefing",

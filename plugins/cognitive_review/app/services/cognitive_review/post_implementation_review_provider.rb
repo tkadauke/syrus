@@ -53,12 +53,12 @@ module CognitiveReview
     end
 
     def self.memory_context(job)
-      context = Prompts::MemoryContext.new(
+      context = Syrus::Host::PromptsMemoryContext.new(
         user: job&.user,
         repository_ids: [ job&.repository_id ].compact
       ).to_s
       return "Agent Memory context:\n\n#{context}" if context.present?
-      return "Agent Memory context: enabled, but no relevant memories were found." if Syrus::Memory.available?
+      return "Agent Memory context: enabled, but no relevant memories were found." if Syrus::Host::Memory.available?
 
       "Agent Memory context: unavailable; rely on the Job prompt, repository context, and final diff."
     rescue StandardError => e
@@ -99,7 +99,7 @@ module CognitiveReview
       return nil unless version
 
       changed_files = Array(version&.files_snapshot).filter_map { |file| file["path"].to_s.presence }
-      policy = App::ReviewNoteProjects.call(
+      policy = Syrus::Host::AppReviewNoteProjects.call(
         workspace_path: Syrus::Host::WorkflowWorkspace.path_for(workflow),
         changed_files: changed_files
       )
@@ -130,7 +130,7 @@ module CognitiveReview
     private_class_method :review_note_policy_context
 
     def self.diff_review_version(job:, workflow:, run:)
-      DiffReviewVersions::FinalReviewVersion.resolve(job: job, workflow: workflow, run: run)
+      Syrus::Host::DiffReviewVersionsFinalReviewVersion.resolve(job: job, workflow: workflow, run: run)
     end
     private_class_method :diff_review_version
 

@@ -9,7 +9,7 @@ module Permissions
 
     def call(lease_id)
       coworker = context.agent_actor
-      unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) && coworker &&
+      unless context.role.in?([ Syrus::Host::AgentRoleCoworkerChat, Syrus::Host::AgentRoleCoworker ]) && coworker &&
           coworker.owner_user_id == context.user.id
         raise CoworkerPermissionRequest::Rejected.new(:not_a_coworker, "only a coworker can surrender its own lease")
       end

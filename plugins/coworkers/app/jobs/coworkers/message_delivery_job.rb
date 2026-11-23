@@ -1,5 +1,5 @@
 module Coworkers
-  class MessageDeliveryJob < PluginJob
+  class MessageDeliveryJob < Syrus::Host::PluginJob
     plugin :coworkers
 
     discard_on ActiveRecord::RecordNotFound
@@ -22,12 +22,12 @@ module Coworkers
         )
         receiver_chat.chat_queued_messages.create!(
           content: message_content(direction: "incoming", sender: sender, receiver: receiver, text: text, delivery_context: delivery_context).merge(
-            ChatQueuedMessage::INTERNAL_ROLE_KEY => "user"
+            Syrus::Host::ChatQueuedMessageInternalRoleKey => "user"
           )
         )
       end
 
-      ChatQueuedMessagePromoter.deliver_one_if_idle!(receiver_chat)
+      Syrus::Host::ChatQueuedMessagePromoter.deliver_one_if_idle!(receiver_chat)
     end
 
     private

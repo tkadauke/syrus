@@ -1,12 +1,12 @@
 module Coworkers
-  class RunStep < ::Steps::Base
+  class RunStep < Syrus::Host::StepsBase
     class PersistenceFailed < StepFailed; end
 
     def call
       workspace.setup
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking coworker for background run (#{workflow.slug})")
-      result = run_agent(prompt: run.prompt, workload_policy: Execution::ChatWorkloadPolicy.for_current_setting)
+      result = run_agent(prompt: run.prompt, workload_policy: Syrus::Host::ExecutionChatWorkloadPolicy.for_current_setting)
       run.update!(agent_summary: result.final_text.to_s.strip.presence)
       persist_workspace!
     end

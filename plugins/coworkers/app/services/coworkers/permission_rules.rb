@@ -119,7 +119,7 @@ module Coworkers
 
     def catalog_tool_descriptor(tool)
       if tool.tool
-        entry = McpToolRegistry.entry_for(tool.tool)
+        entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
         entry&.descriptor || (entry && Syrus::Host::CapabilityDescriptor.for_registry_entry(
           tool_name: entry.tool_name, capability: entry.capability, mutation: entry.mutation,
           required_roles: entry.required_roles, admin_only: entry.admin_only
@@ -130,7 +130,7 @@ module Coworkers
     end
 
     def canonical_descriptors(capability)
-      registered = Permissions::CapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
+      registered = Syrus::Host::PermissionsCapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
         descriptor = registration.descriptor
         descriptor if descriptor && unversioned(descriptor.capability) == capability.to_s
       end
@@ -143,7 +143,7 @@ module Coworkers
       grant = Coworkers::GrantCatalog.fetch(capability)
       [ Syrus::Host::CapabilityDescriptor.for_registry_entry(
         tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
-        required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+        required_roles: [ Syrus::Host::AgentRoleCoworkerChat, Syrus::Host::AgentRoleCoworker ],
         default_policy: POLICY.fetch(grant.default_policy).to_sym
       ) ]
     end
@@ -188,6 +188,6 @@ module Coworkers
     end
 
     def unversioned(value) = value.to_s.sub(/@v\d+\z/, "")
-    def policy_rank(value) = Permissions::PolicyEvaluator::POLICY_RANK.fetch(value.to_sym)
+    def policy_rank(value) = Syrus::Host::PermissionsPolicyEvaluatorPolicyRank.fetch(value.to_sym)
   end
 end

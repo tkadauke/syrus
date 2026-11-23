@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class DiveWorkflow < ::Workflows::Base
+  class DiveWorkflow < Syrus::Host::WorkflowsBase
     steps :prepare, :briefing_dive_investigate, :submit_dive_report
 
     def self.trigger_kind = "briefing_dive"

@@ -6,7 +6,7 @@ class Coworkers::CreatePreflight
                  remote_workspace: nil, test_push: true)
     @owner = owner
     @name = name
-    @handle = HandleRegistry.normalize(handle)
+    @handle = Syrus::Host::HandleRegistry.normalize(handle)
     @workspace_repo = workspace_repo
     @attributes = { accent_hex: accent_hex, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact
@@ -56,9 +56,9 @@ class Coworkers::CreatePreflight
     raise ArgumentError, "chat provider is not configured: #{provider}" unless @owner.chat_provider_configured?(provider)
     return if model.blank?
 
-    available = Array(AgentProviders.for(provider).available_models).map { |entry| entry.respond_to?(:id) ? entry.id : entry.to_s }
+    available = Array(Syrus::Host::AgentProviders.for(provider).available_models).map { |entry| entry.respond_to?(:id) ? entry.id : entry.to_s }
     raise ArgumentError, "unknown chat model for #{provider}: #{model}" unless available.include?(model)
-  rescue AgentProviders::ConfigurationError
+  rescue Syrus::Host::AgentProvidersConfigurationError
     raise ArgumentError, "chat provider is not configured: #{provider}"
   end
 

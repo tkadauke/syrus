@@ -29,7 +29,7 @@ module Coworkers
     end
 
     def self.plan(job, syrus_yml)
-      Workflows::Base.resolve_plan(Coworkers::ReviewPlan, job, syrus_yml)
+      Syrus::Host::WorkflowsBase.resolve_plan(Coworkers::ReviewPlan, job, syrus_yml)
     end
   end
 end

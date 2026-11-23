@@ -2,8 +2,8 @@ class Coworkers::ReviewToolSet
   include Syrus::Host::McpToolSet
 
   # Roles allowed to call the verdict tool; the memory tool is reviewer-only.
-  SUBMIT_ROLES = [ AgentRole::WORKFLOW_COWORKER_REVIEWER, AgentRole::WORKFLOW_MANUAL ].freeze
-  REVIEWER_ROLES = [ AgentRole::WORKFLOW_COWORKER_REVIEWER ].freeze
+  SUBMIT_ROLES = [ Syrus::Host::AgentRoleWorkflowCoworkerReviewer, Syrus::Host::AgentRoleWorkflowManual ].freeze
+  REVIEWER_ROLES = [ Syrus::Host::AgentRoleWorkflowCoworkerReviewer ].freeze
   TOOLS = [
     { tool: Coworkers::UpdateReviewMemoryTool, capability: "review.memory.write", roles: REVIEWER_ROLES },
     { tool: Coworkers::SubmitReviewTool, capability: "review.verdict.submit", roles: SUBMIT_ROLES }
@@ -23,10 +23,10 @@ class Coworkers::ReviewToolSet
 
   def handle(tool_name, params, server_context)
     context = Syrus::Host::ToolContext.from_server_context(server_context)
-    return Mcp::Tools.not_authorized unless self.class.available_for_context?(context)
+    return Syrus::Host::McpTools.not_authorized unless self.class.available_for_context?(context)
     entry = TOOLS.find { |candidate| candidate[:tool].tool_name == tool_name.to_s }
     return Syrus::Host::McpTools.invalid("unknown coworker review tool") unless entry
-    return Mcp::Tools.not_authorized unless entry[:roles].include?(context.role)
+    return Syrus::Host::McpTools.not_authorized unless entry[:roles].include?(context.role)
     entry[:tool].call(**(params || {}).symbolize_keys, server_context:)
   end
 end

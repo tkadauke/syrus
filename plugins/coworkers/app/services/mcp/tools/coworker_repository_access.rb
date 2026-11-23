@@ -10,10 +10,10 @@ module Mcp::Tools
       context = Syrus::Host::ToolContext.from_server_context(server_context)
       repository = find_repository(context, repository_id:, slug:)
       return Syrus::Host::McpTools.invalid("repository not found or is not accessible") unless repository
-      return repository unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+      return repository unless context.role.in?([ Syrus::Host::AgentRoleCoworkerChat, Syrus::Host::AgentRoleCoworker ])
 
       scope = context.capability_scopes[capability]
-      return Mcp::Tools.not_authorized unless scope == ALL || Array(scope).map(&:to_i).include?(repository.id)
+      return Syrus::Host::McpTools.not_authorized unless scope == ALL || Array(scope).map(&:to_i).include?(repository.id)
 
       repository
     end

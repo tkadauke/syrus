@@ -29,7 +29,7 @@ module Coworkers
         coworker = context.agent_actor
         return Syrus::Host::McpTools.invalid("spawn_coworker_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
 
-        requested_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@")) if handle.present?
+        requested_handle = Syrus::Host::HandleRegistry.normalize(handle.to_s.delete_prefix("@")) if handle.present?
         return Syrus::Host::McpTools.invalid("a coworker can only spawn a side chat of itself") if requested_handle && requested_handle != coworker.handle
         return Syrus::Host::McpTools.invalid("prompt is required") if prompt.to_s.strip.blank?
 
@@ -37,7 +37,7 @@ module Coworkers
           limiter = Coworkers::SpawnChatLimiter.new(coworker:, server_context:)
           next Syrus::Host::McpTools.invalid(limiter.refusal) unless limiter.allowed?
 
-          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
+          pending = Syrus::Host::McpToolsAuthorizationSupport.pending_coworker_plugin_approval(
             tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title }, always_pending: true
           )
           next pending if pending

@@ -51,12 +51,12 @@ module Coworkers
         issue_number: nil
       )
       job.advance_after_triage! if job.may_advance_after_triage?
-      workflow = WorkUnits::Launcher.instantiate(kind: "coworker_run", job: job)
+      workflow = Syrus::Host::WorkUnitsLauncher.instantiate(kind: "coworker_run", job: job)
       if target_date
         workflow.set_artifact!("journaling_target_on", target_date.iso8601)
         workflow.set_artifact!("journaling_catch_up_remaining", catch_up_remaining)
       end
-      WorkUnits::Launcher.start!(workflow, prompt: prompt)
+      Syrus::Host::WorkUnitsLauncher.start!(workflow, prompt: prompt)
       job
     end
   end

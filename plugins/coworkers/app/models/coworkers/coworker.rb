@@ -2,8 +2,8 @@ class Coworkers::Coworker < Syrus::Host::Record
   # Opts in as an exact-agent permission rule subject (see Permissions::RuleDraft).
   def self.permission_agent_subject? = true
   self.table_name = "coworkers"
-  include Mentionable
-  include PluginDataCleanup
+  include Syrus::Host::Mentionable
+  include Syrus::Host::PluginDataCleanup
 
   STATES = %w[active paused archived].freeze
   AVATAR_KEYS = %w[comet orbit prism sprout wave spark].freeze
@@ -19,13 +19,13 @@ class Coworkers::Coworker < Syrus::Host::Record
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
-  normalizes :handle, with: ->(value) { HandleRegistry.normalize(value) }
+  normalizes :handle, with: ->(value) { Syrus::Host::HandleRegistry.normalize(value) }
 
   validates :name, :workspace_repo, presence: true
-  validates :handle, presence: true, format: { with: Handle::FORMAT }, uniqueness: { case_sensitive: false }
+  validates :handle, presence: true, format: { with: Syrus::Host::HandleFormat }, uniqueness: { case_sensitive: false }
   validates :state, inclusion: { in: STATES }
-  validates :chat_effort, inclusion: { in: ChatSession::EFFORT_LEVELS }, allow_nil: true
-  validates :accent_hex, format: { with: Appearance::ColorPalette::HEX_PATTERN }
+  validates :chat_effort, inclusion: { in: Syrus::Host::ChatSessionEffortLevels }, allow_nil: true
+  validates :accent_hex, format: { with: Syrus::Host::AppearanceColorPaletteHexPattern }
   validates :avatar_key, inclusion: { in: AVATAR_KEYS }, allow_nil: true
   validate :avatar_is_image
 
@@ -84,7 +84,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   def finalize_review_memory!(run:, key_learning:, verdict:)
     Coworkers::ReviewMemoryLifecycle.persist!(coworker: self, run:, key_learning:, verdict:)
   rescue Coworkers::ReviewMemoryLifecycle::PersistenceError
-    raise Steps::AdversarialReview::MemoryPersistenceFailed.new("coworker review memory was not persisted",
+    raise Syrus::Host::StepsAdversarialReviewMemoryPersistenceFailed.new("coworker review memory was not persisted",
       evidence: { review_evidence_id: run.review_evidence&.id, persistence_state: "failed" })
   end
 
@@ -92,11 +92,11 @@ class Coworkers::Coworker < Syrus::Host::Record
 
   def assign_default_color
     used = self.class.where(owner_user_id: owner_user_id).where.not(id: id).pluck(:accent_hex)
-    self.accent_hex = Appearance::ColorPalette.next_default_color(used) || Appearance::ColorPalette.default_agent_order.first
+    self.accent_hex = Syrus::Host::AppearanceColorPalette.next_default_color(used) || Syrus::Host::AppearanceColorPalette.default_agent_order.first
   end
-  def claim_handle! = HandleRegistry.claim!(handle: handle, owner: self)
-  def rename_handle! = HandleRegistry.rename!(owner: self, handle: handle)
-  def release_handle! = HandleRegistry.release!(owner: self)
+  def claim_handle! = Syrus::Host::HandleRegistry.claim!(handle: handle, owner: self)
+  def rename_handle! = Syrus::Host::HandleRegistry.rename!(owner: self, handle: handle)
+  def release_handle! = Syrus::Host::HandleRegistry.release!(owner: self)
 
   def avatar_is_image
     return unless avatar.attached?

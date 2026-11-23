@@ -56,7 +56,7 @@ class Coworkers::Create
                  idempotency_key: nil)
     @owner = owner
     @name = name
-    @handle = HandleRegistry.normalize(handle)
+    @handle = Syrus::Host::HandleRegistry.normalize(handle)
     @workspace_repo = workspace_repo
     @about = about.to_s.strip.presence
     @avatar = avatar
@@ -176,7 +176,7 @@ class Coworkers::Create
   def create_kickoff!(coworker)
     chat = coworker.coworker_chats.find_by!(role: "main").chat_session
     message = chat.messages.create!(role: "system", content: { "text" => kickoff }, skip_turn_trigger: false)
-    enqueued = ChatTurnJob.perform_later(chat.id, message.id)
+    enqueued = Syrus::Host::ChatTurnJob.perform_later(chat.id, message.id)
     raise KickoffEnqueueFailed, "could not enqueue the coworker's kickoff turn" unless enqueued
   end
 

@@ -2,8 +2,8 @@ module Api
   module V1
     module App
       class CoworkersController < Syrus::Host::AppController
-        include ChatProviderOptions
-        include AgentProviderCatalogOptions
+        include Syrus::Host::ChatProviderOptions
+        include Syrus::Host::AgentProviderCatalogOptions
 
         def index
           coworkers = scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).to_a
@@ -97,7 +97,7 @@ module Api
           return unless coworker
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
           repository = coworker.workspace_repository or raise ActiveRecord::RecordNotFound
-          reader = RepositoryContent.for(repository, user: Syrus::Host::Current.user)
+          reader = Syrus::Host::RepositoryContent.for(repository, user: Syrus::Host::Current.user)
           revision = reader.resolve("coworkers/#{coworker.handle}")
           path = "reviews/journal/evidence-#{context.review_evidence_id}.md"
           journal = reader.read(revision, path, max_bytes: 64.kilobytes)

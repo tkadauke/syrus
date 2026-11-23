@@ -3,7 +3,7 @@ class Coworkers::Workspace
 
   def self.for(server_context)
     run = server_context[:run]
-    root = StepWorkspace.for(run.step, run: run).path if run&.step&.kind == "coworker_run"
+    root = Syrus::Host::StepWorkspace.for(run.step, run: run).path if run&.step&.kind == "coworker_run"
     new(server_context.fetch(:chat_session), root: root)
   end
 
@@ -13,7 +13,7 @@ class Coworkers::Workspace
     repository = link&.coworker&.workspace_repository
     raise InvalidPath, "coworker workspace is unavailable" unless repository
 
-    @root = (root || ChatWorkspace.repo_path_for(chat_session, repository)).expand_path
+    @root = (root || Syrus::Host::ChatWorkspace.repo_path_for(chat_session, repository)).expand_path
   end
 
   def write(path, content)

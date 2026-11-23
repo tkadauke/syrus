@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class WorkDefinition < ::WorkDefinitions::Base
+  class WorkDefinition < Syrus::Host::WorkDefinitionsBase
     self.plugin = "operator_briefing"
     self.kind = "briefing_generate"
     self.workflow_trigger_kind = "briefing_generate"

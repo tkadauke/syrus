@@ -1,5 +1,5 @@
 module PendingActions
-  class EscalateCoworkerGrants < Base
+  class EscalateCoworkerGrants < Syrus::Host::PendingActionsBase
     action_key "escalate_coworker_grants"
     requires_chat_session!
 

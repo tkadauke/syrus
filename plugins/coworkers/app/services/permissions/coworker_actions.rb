@@ -65,7 +65,7 @@ module Permissions
     class << self
       def covers?(tool_name) = OPERATIONS.key?(tool_name.to_s)
 
-      def descriptor_for(tool_name, required_roles: CoworkerDefaultPolicy::ROLES)
+      def descriptor_for(tool_name, required_roles: Syrus::Host::PermissionsCoworkerDefaultPolicyRoles)
         operation = OPERATIONS.fetch(tool_name.to_s)
         descriptor(tool_name: tool_name, family: operation.family, effects: operation.effects, risk: operation.risk,
           default: operation.default, benign_internal: operation.benign_internal, roles: required_roles)
@@ -75,24 +75,24 @@ module Permissions
       def grant_default_policy(family, ungated: [])
         policies = OPERATIONS.select { |name, operation| operation.family == family.to_s && !ungated.include?(name) }
           .values.map(&:default)
-        CoworkerDefaultPolicy.grant_policy_for(policies)
+        Syrus::Host::PermissionsCoworkerDefaultPolicy.grant_policy_for(policies)
       end
 
       # Builds a coworker descriptor and validates the default against the
       # shared safety rule, so a new tool cannot silently inherit +allow+.
-      def descriptor(tool_name:, family:, effects:, risk:, default:, roles: CoworkerDefaultPolicy::ROLES,
+      def descriptor(tool_name:, family:, effects:, risk:, default:, roles: Syrus::Host::PermissionsCoworkerDefaultPolicyRoles,
         benign_internal: nil, maximum_autonomy: nil, durations: nil, essential: false, deniable_reason: nil)
         family = family.to_s
         operation = "#{family}/#{tool_name.to_s.tr('/', '.').gsub(/[^a-zA-Z0-9_.-]/, '_').downcase}@v1"
         effects = Array(effects)
         # Pure reads keep the historical permanent ceiling; any write stays per-invocation.
         maximum_autonomy ||= effects.all? { |effect| %i[local_read confidential_read].include?(effect) } ? :permanent : :invocation
-        durations ||= maximum_autonomy == :permanent ? CapabilityDescriptor::AUTHORITY_DURATIONS : [ :invocation ]
+        durations ||= maximum_autonomy == :permanent ? Syrus::Host::PermissionsCapabilityDescriptorAuthorityDurations : [ :invocation ]
 
-        CoworkerDefaultPolicy.validate!(CapabilityDescriptor.new(
+        Syrus::Host::PermissionsCoworkerDefaultPolicy.validate!(Syrus::Host::PermissionsCapabilityDescriptor.new(
           capability: "#{family}@v1",
           operation: operation,
-          presentation: CapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
+          presentation: Syrus::Host::PermissionsCapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
           effects: effects,
           risk: risk,
           requestable_roles: roles,

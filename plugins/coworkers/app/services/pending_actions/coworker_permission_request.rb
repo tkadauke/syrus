@@ -3,7 +3,7 @@ module PendingActions
   # itself. It is decided only through Permissions::CoworkerAuthorizationDecision
   # (adaptive rule/lease approval or denial); it has no invocation to execute,
   # so confirming it through the generic action path is always refused.
-  class CoworkerPermissionRequest < Base
+  class CoworkerPermissionRequest < Syrus::Host::PendingActionsBase
     action_key "coworker_permission_request"
     requires_chat_session!
 

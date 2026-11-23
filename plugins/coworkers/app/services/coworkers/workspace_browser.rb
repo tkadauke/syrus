@@ -11,7 +11,7 @@ class Coworkers::WorkspaceBrowser
   def initialize(coworker:, repository:, user:)
     @coworker = coworker
     @repository = repository
-    @reader = RepositoryContent.for(repository, user: user)
+    @reader = Syrus::Host::RepositoryContent.for(repository, user: user)
   end
 
   def call(path: nil, filters: {})

@@ -21,15 +21,15 @@ class Coworkers::HomeBranchPersistence
     repository = @coworker.workspace_repository
     raise ArgumentError, "coworker workspace repository is unavailable" unless repository
 
-    path = ChatWorkspace.repo_path_for(@chat_session, repository)
+    path = Syrus::Host::ChatWorkspace.repo_path_for(@chat_session, repository)
     branch = "coworkers/#{@coworker.handle}"
 
-    if ChatWorkspace.rebase_in_progress?(path)
+    if Syrus::Host::ChatWorkspace.rebase_in_progress?(path)
       continue_rebase!(path)
       return save(repository, path, branch, schedule_background:)
     end
 
-    commit_changes!(path) if ChatWorkspace.uncommitted_changes?(path)
+    commit_changes!(path) if Syrus::Host::ChatWorkspace.uncommitted_changes?(path)
     return unless unpublished_commits?(path, branch)
 
     save(repository, path, branch, schedule_background:)
@@ -79,7 +79,7 @@ class Coworkers::HomeBranchPersistence
     url = repository.authenticated_url(user: @chat_session.user)
     refresh_remote_branch!(url, path, branch)
     begin
-      GitMergeDrivers.register!(git: @git, path:)
+      Syrus::Host::GitMergeDrivers.register!(git: @git, path:)
       @git.run("rebase", "origin/#{branch}", chdir: path.to_s)
     rescue Syrus::Host::GitRunner::GitError => e
       raise Conflict,

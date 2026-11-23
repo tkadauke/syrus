@@ -11,7 +11,7 @@ class Coworkers::PromptSection
     return unless coworker.respond_to?(:kind) && coworker.kind == "coworker"
     return unless repository
 
-    root = ChatWorkspace.repo_path_for(chat_session, repository)
+    root = Syrus::Host::ChatWorkspace.repo_path_for(chat_session, repository)
     rendered = HEADING + grant_section(coworker)
     rendered << conflict_section(chat_session:, repository:, root:)
     rendered = truncate_aggregate(rendered) if rendered.bytesize > MAX_TOTAL_BYTES
@@ -120,21 +120,21 @@ class Coworkers::PromptSection
   end
 
   def self.safe_conflict_read(root, relative)
-    candidate = Syrus::PathJail.resolve!(root, relative)
+    candidate = Syrus::Host::PathJail.resolve!(root, relative)
     return if candidate.symlink? || !candidate.file?
 
-    path = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    path = Syrus::Host::PathJail.resolve!(root, relative, resolve_symlinks: true)
     bounded_read(path, MAX_FILE_BYTES)
-  rescue Syrus::PathJail::PathEscape
+  rescue Syrus::Host::PathJailPathEscape
     nil
   end
 
   def self.safe_workspace_read(root, relative)
-    path = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    path = Syrus::Host::PathJail.resolve!(root, relative, resolve_symlinks: true)
     return unless path.file?
 
     bounded_read(path, MAX_FILE_BYTES)
-  rescue Syrus::PathJail::PathEscape
+  rescue Syrus::Host::PathJailPathEscape
     nil
   end
 

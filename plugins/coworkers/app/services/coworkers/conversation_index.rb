@@ -11,7 +11,7 @@ class Coworkers::ConversationIndex
   def initialize(coworker:, user:, filter: nil, sort: nil, cursor: nil)
     @coworker = coworker
     @user = user
-    @filter = Filters::QueryParam.decode(filter)
+    @filter = Syrus::Host::FiltersQueryParam.decode(filter)
     @sort = SORTS.include?(sort) ? sort : "last_activity"
     @cursor = cursor
   end

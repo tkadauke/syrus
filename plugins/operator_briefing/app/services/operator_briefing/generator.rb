@@ -78,7 +78,7 @@ module OperatorBriefing
       @current_live_briefing ||= Briefing
         .joins(:job)
         .where(owner_user: user, repository: repository)
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::JobTerminalStates })
         .includes(:job)
         .order(created_at: :desc, id: :desc)
         .first
@@ -92,7 +92,7 @@ module OperatorBriefing
       Briefing
         .joins(:job)
         .where(owner_user: user, repository: repository)
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::JobTerminalStates })
         .includes(:job)
         .find_each do |briefing|
           job = briefing.job
@@ -130,7 +130,7 @@ module OperatorBriefing
     end
 
     def launch_generation!(job)
-      WorkUnits::Launcher.create_and_start!(
+      Syrus::Host::WorkUnitsLauncher.create_and_start!(
         kind: "briefing_generate",
         job: job,
         agent_provider: settings.agent_provider.presence

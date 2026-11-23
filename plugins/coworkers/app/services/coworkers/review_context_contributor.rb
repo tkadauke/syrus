@@ -48,7 +48,7 @@ class Coworkers::ReviewContextContributor
   end
 
   def self.resolve(target, run)
-    ReviewerTargets.resolve(
+    Syrus::Host::ReviewerTargets.resolve(
       target,
       owner: run.job.owner_user || run.job.user,
       repository: run.job.repository

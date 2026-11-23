@@ -1,5 +1,5 @@
-class Coworkers::ProvisioningCleanupJob < PluginJob
-  MAX_ATTEMPTS = PluginJob::DEFAULT_ATTEMPTS
+class Coworkers::ProvisioningCleanupJob < Syrus::Host::PluginJob
+  MAX_ATTEMPTS = Syrus::Host::PluginJobDefaultAttempts
 
   plugin :coworkers
   queue_as :cleanup

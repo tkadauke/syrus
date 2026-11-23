@@ -33,7 +33,7 @@ module Coworkers
         return Syrus::Host::McpTools.invalid("chat bridge thread #{thread.id} is closed") unless thread.open?
         return Syrus::Host::McpTools.invalid("chat bridge thread #{thread.id} reached its hop limit") if thread.at_max_hops?
 
-        result = ChatSession::CrossChatMessage.new(thread: thread, text: body, from: chat_session).deliver!
+        result = Syrus::Host::ChatSessionCrossChatMessage.new(thread: thread, text: body, from: chat_session).deliver!
         thread.reload
         Syrus::Host::McpTools.success(
           thread_id: thread.id,
@@ -44,7 +44,7 @@ module Coworkers
           target_chat_session_id: thread.counterpart(chat_session).id,
           message_id: result.fetch(:outbound_message).id
         )
-      rescue ChatSession::CrossChatMessage::ClosedThreadError => e
+      rescue Syrus::Host::ChatSessionCrossChatMessageClosedThreadError => e
         Syrus::Host::McpTools.invalid(e.message)
       end
 

@@ -2,8 +2,8 @@ require "mcp"
 
 module Coworkers::McpTools
   class ProposeGrantEscalationTool < MCP::Tool
-    extend Mcp::Tools::ProposalToolSupport
-    extend Mcp::Tools::PendingActionToolSupport
+    extend Syrus::Host::McpToolsProposalToolSupport
+    extend Syrus::Host::McpToolsPendingActionToolSupport
 
     tool_name "propose_coworker_grants"
     description "Propose grant policy or scope changes for a coworker owned by the signed-in user. Use policy off to remove a grant. Nothing changes until the owner confirms."
