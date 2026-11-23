@@ -1,0 +1,34 @@
+#!/usr/bin/env ruby
+# Checks or updates formal/mirrors.yml, the record of which Ruby methods each
+# Lean model mirrors (Syrus::FormalMirrors).
+#
+#   bin/formal-mirrors            list mirrors whose source changed (exit 1 if any)
+#   bin/formal-mirrors --update   record the current hashes, after reviewing the models
+require_relative "../lib/syrus/formal_mirrors"
+
+root = File.expand_path("..", __dir__)
+
+if ARGV.include?("--update")
+  changed = Syrus::FormalMirrors.update!(root)
+  if changed.empty?
+    puts "formal/mirrors.yml is current."
+  else
+    changed.each { |mirror| puts "updated #{mirror.model}: #{mirror.label}" }
+  end
+  exit 0
+end
+
+stale = Syrus::FormalMirrors.mirrors(root).reject do |mirror|
+  mirror.sha && Syrus::FormalMirrors.current_sha(root, mirror) == mirror.sha
+end
+if stale.empty?
+  puts "Every mirrored method matches formal/mirrors.yml."
+  exit 0
+end
+
+stale.each do |mirror|
+  status = Syrus::FormalMirrors.current_sha(root, mirror) ? "changed" : "not found"
+  puts "#{mirror.model} may be stale: #{mirror.label} #{status}"
+end
+puts "Review those models, then run bin/formal-mirrors --update."
+exit 1

@@ -1,0 +1,103 @@
+# Which Ruby methods each Lean model mirrors, with a hash of each method's
+# source (Syrus::FormalMirrors). spec/architecture/formal_mirrors_spec.rb
+# fails when a mirrored method changes: review the model, then run
+# `bin/formal-mirrors --update`.
+models:
+- model: CascadeReplay.lean
+  mirrors:
+  - path: app/services/work_engine/repair_executor.rb
+    owner: FailWorkflowFromFailedStep
+    method: perform
+    sha: c69892f4891e8d52
+  - path: app/services/step_dispatcher.rb
+    owner: StepDispatcher
+    method: fail!
+    sha: f0de3e6ef83f03b8
+  - path: app/services/step_dispatcher.rb
+    owner: StepDispatcher
+    method: retry_step_after_infrastructure_failure!
+    sha: 1ffbf382c1af2d83
+- model: BranchBound.lean
+  mirrors:
+  - path: app/services/step_dispatcher.rb
+    owner: StepDispatcher
+    method: try_node_for
+    sha: 2b725c96cc2d3168
+  - path: app/services/step_dispatcher.rb
+    owner: StepDispatcher
+    method: materialize_branch_steps!
+    sha: 6d3776d8f46540b2
+- model: SignerPrefix.lean
+  mirrors:
+  - path: app/services/syrus/plugin_package/verifier.rb
+    owner: Verifier
+    method: owns_name?
+    sha: afec23192748d388
+  - path: app/services/plugin_registry_client.rb
+    owner: PluginRegistryClient
+    method: parse_entries
+    sha: 2334a9a2572a30a4
+- model: StackConflictRecovery.lean
+  mirrors:
+  - path: app/services/steps/pr_open.rb
+    owner: PrOpen
+    method: ensure_stack_base_fresh!
+    sha: bb5f24a535d0070a
+  - path: app/services/workflows/base.rb
+    owner: Base
+    method: self.stack_aware_pr_open
+    sha: 1e462262925b415a
+  - path: app/services/steps/stack_base_agent_rebase.rb
+    owner: StackBaseAgentRebase
+    method: call
+    sha: 1d4229aec30ceb95
+- model: ApprovalEffectBacking.lean
+  mirrors:
+  - path: app/services/mcp/tools/authorization_support.rb
+    owner: AuthorizationSupport
+    method: approval_effect_backed?
+    sha: 886f5e68d637b703
+- model: SupersededCiRepair.lean
+  mirrors:
+  - path: app/services/work_engine/repair_executor.rb
+    owner: CancelSupersededCiRepair
+    method: perform
+    sha: 5c0d6f2985f7f9de
+  - path: app/services/work_engine/reconciler.rb
+    owner: Reconciler
+    method: superseded_ci_repair_start_block?
+    sha: 01e6c41c4cc8649a
+- model: AbandonedReplication.lean
+  mirrors:
+  - path: plugins/local_backups/app/services/local_backups/abandoned_replication_sweep.rb
+    owner: AbandonedReplicationSweep
+    method: call
+    sha: 6eb95e9d4b3da843
+- model: RecoveryPreflight.lean
+  mirrors:
+  - path: plugins/local_backups/lib/local_backups/recovery.rb
+    owner: Preflight
+    method: unknown
+    sha: 965f6cdd8358c482
+  - path: plugins/local_backups/lib/local_backups/recovery.rb
+    owner: Preflight
+    method: call
+    sha: 474100af82c272ae
+- model: LandingUnitCycle.lean
+  mirrors:
+  - path: app/models/job_dependency.rb
+    owner: JobDependency
+    method: no_landing_unit_cycle
+    sha: c5d1fe43e52019a9
+- model: ClosedIntent.lean
+  mirrors:
+  - path: app/services/work_intents/terminal_unit_sync.rb
+    owner: TerminalUnitSync
+    method: cancelled_after_job_closed?
+    sha: 7eb6c53636f1e43a
+- model: EnablementRead.lean
+  mirrors:
+  - path: lib/syrus/plugin_registry.rb
+    owner: PluginRegistry
+    method: enablement_records
+    sha: 2c29ccc42890fb99
