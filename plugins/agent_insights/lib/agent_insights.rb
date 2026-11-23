@@ -22,8 +22,8 @@ module AgentInsights
       runs if runs >= 50
     end
 
+    lifecycle domain_subscribers: "AgentInsights::Subscribers"
     provides workflow_kinds: "AgentInsights::WorkflowKinds",
-             domain_subscriber: "AgentInsights::Subscribers",
              repo_page_tabs: "AgentInsights::RepoPageTabs",
              admin_pages: "AgentInsights::AdminPages",
              slug_type: "AgentInsights::SlugType"

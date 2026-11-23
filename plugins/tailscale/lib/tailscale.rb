@@ -24,8 +24,8 @@ module Tailscale
         { key: "exit_node", label: "Advertise as exit node", type: :boolean,
           required: false, default: false }
       ]
-    provides callbacks: "Tailscale::Callbacks",
-             admin_pages: "Tailscale::AdminPages",
+    lifecycle callback_providers: "Tailscale::Callbacks"
+    provides admin_pages: "Tailscale::AdminPages",
              "plugin_runtime:privileged_service" => "Tailscale::RuntimeService"
     route :get, "/api/v1/app/admin/tailscale/status", to: "api/v1/app/admin/tailscale#status"
     route :get, "/api/v1/admin/tailscale/status", to: "api/v1/admin/tailscale#status"

@@ -324,7 +324,14 @@ class RetentionPolicyRegistry
   end
 
   def self.plugin_definitions
-    Syrus::PluginRegistry.providers_for(:retention_policy).flat_map do |provider|
+    Syrus::Plugin::DataPolicy.retention_policies.flat_map do |provider|
+      if Syrus::Plugin::DataPolicy.unavailable?(provider)
+        # A contributor that could not even be resolved is reported; the other
+        # contributors' definitions are still returned.
+        Rails.logger.error("[RetentionPolicyRegistry] a retention policy provider is unavailable; see plugin health")
+        next []
+      end
+
       result = Syrus::PluginInvocation.call(
         extension_point: :retention_policy, provider:, operation: :retention_definitions, on_decline: []
       ) { Array(provider.retention_definitions) }

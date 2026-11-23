@@ -18,11 +18,11 @@ module DesignDocs
     optionally_depends_on [ "global_search" ]
     events "design_doc.upserted" => :async,
            "design_doc.deleted" => :async
+    lifecycle callback_providers: "DesignDocs::Callbacks",
+              domain_subscribers: "DesignDocs::Subscribers"
     provides sidebar_pages: "DesignDocs::SidebarPages",
              repo_page_tabs: "DesignDocs::RepoPageTabs",
              workspace_tabs: "DesignDocs::WorkspaceTabs",
-             callbacks: "DesignDocs::Callbacks",
-             domain_subscriber: "DesignDocs::Subscribers",
              slug_type: "DesignDocs::SlugType",
              "global_search:source" => "DesignDocs::SearchSource"
     toolkit workflow_tools: "DesignDocs::WorkflowToolSet", chat_tools: "DesignDocs::ChatToolSet", permissions: "DesignDocs::PermissionProvider"

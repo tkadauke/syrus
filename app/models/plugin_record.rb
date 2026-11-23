@@ -62,7 +62,7 @@ class PluginRecord < ApplicationRecord
 
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == name }
     next unless manifest
-    next if Array(manifest.provides[:callbacks]).empty?
+    next if Syrus::Plugin::Lifecycle.callback_providers_for(manifest).empty?
 
     event = enabled? ? "on_enable" : "on_disable"
     queue = manifest.home_queue == :default ? PluginLifecycleJob.queue_name : manifest.home_queue.to_s

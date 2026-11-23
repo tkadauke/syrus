@@ -36,6 +36,8 @@ module Syrus
       runtime_session: "RuntimeSession service-family long-lived runtime session providers.",
       source_host: "SourceHost service-family source-control, input-source, repository-content, and git-transport services.",
       speech_to_text: "SpeechToText service-family transcription providers.",
+      lifecycle: "Lifecycle-family plugin callbacks and domain-event subscribers (broadcast; failures are isolated per hook).",
+      data_policy: "DataPolicy-family retention policies, purge contributors, and retained preview-panel decisions (every contributor participates; failures are reported).",
       while_enabled: "Reversible installation effects active only while enabled.", metrics: "Plugin-owned metric declarations.",
       always: "Reversible effects retained after a previously enabled plugin is disabled.",
       suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback."
@@ -354,6 +356,95 @@ module Syrus
 
             Both capabilities are provisional: neither has two independent in-tree
             implementations.
+          MD
+        elsif family.name == :lifecycle
+          <<~MD
+            ## Migration from legacy extension points
+
+            The Lifecycle family holds hooks that react to the plugin lifecycle and
+            to domain events: `callbacks` and `domain_subscriber`. It is also the
+            plugin-facing owner of reversible installation effects:
+            `while_enabled` and `always` blocks register through
+            `Syrus::Plugin::Lifecycle.define_effect`, which delegates to
+            `Syrus::Installer.define`.
+
+            Before:
+
+            ```ruby
+            provides callbacks: "Acme::Callbacks",
+                     domain_subscriber: "Acme::Subscribers"
+            ```
+
+            After:
+
+            ```ruby
+            lifecycle callback_providers: "Acme::Callbacks",
+                      domain_subscribers: "Acme::Subscribers"
+            ```
+
+            Composition is broadcast: every enabled, healthy plugin's hook runs and
+            none claims or short-circuits the rest. Failure rule, unchanged by the
+            migration:
+
+            - A failing `on_boot` is logged and drains only that plugin's registered
+              effects; the remaining plugins still boot. `on_shutdown` always drains.
+              Enable and disable events run through `PluginLifecycleJob`, which
+              drains on failure and re-raises so the job's retry machinery sees it.
+              Lifecycle events are manifest-scoped, so `on_disable` still reaches a
+              plugin that was just disabled.
+            - Each domain subscriber runs inside its own `PluginInvocation`, so one
+              subscriber raising never reaches the publisher or another subscriber.
+              Async delivery enqueues one job per subscriber on that plugin's home
+              queue.
+
+            Both capabilities are provisional: they return the established
+            behavior modules (`Syrus::Plugin::Callbacks`,
+            `Syrus::Plugin::DomainSubscriber`) while their multi-operation
+            interfaces are decomposed, and no capability has two independent
+            in-tree implementations of one decomposed operation contract.
+          MD
+        elsif family.name == :data_policy
+          <<~MD
+            ## Migration from legacy extension points
+
+            The DataPolicy family holds data-governance hooks: `retention_policy`,
+            `purge_contributor`, and `preview_panel_retention`.
+
+            Before:
+
+            ```ruby
+            provides retention_policy: "Acme::RetentionPolicy",
+                     purge_contributor: "Acme::PurgeContributor"
+            ```
+
+            After:
+
+            ```ruby
+            data_policy retention_policies: "Acme::RetentionPolicy",
+                        purge_contributors: "Acme::PurgeContributor"
+            ```
+
+            Composition is collect: every enabled contributor participates, and a
+            retention run or purge must account for all of them. A contributor that
+            cannot be resolved, raises, times out, trips its circuit breaker, or
+            returns an invalid value contributes
+            `Syrus::Plugin::DataPolicy::UNAVAILABLE` instead of dropping out
+            silently, and callers report it while the remaining contributors still
+            run:
+
+            - Retention: `RetentionPolicyRegistry` logs an error for a failing
+              provider and still returns every other provider's definitions.
+            - Purge: a contributor that cannot report is listed in the purge report,
+              and one that fails to remove its data adds a line to the purge result,
+              while every other contributor still reports and removes.
+            - Preview-panel retention is an any-of decision: a provider that
+              declines does not retain the panel.
+
+            All three capabilities are provisional: none has two independent
+            in-tree implementations with a generated contract
+            (`preview_panel_retentions` has one bundled implementation, and the
+            purge and retention contributions keep their multi-operation module
+            interfaces).
           MD
         elsif Syrus::Plugin::ServiceProvider::TIERS.key?(family.name)
           service_family_notes(family)

@@ -33,6 +33,30 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `video_walkthroughs` | `VideoWalkthroughs::ChatIntegration` | - | - | `payload_contributors`, `turn_orientations` |
 | `whiteboard` | `Whiteboard::ChatIntegration` | - | - | `media_sources`, `payload_contributors`, `prompt_injectors` |
 
+## `data_policy`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `preview_panel_retentions` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `purge_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `retention_policies` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+Fail-closed capabilities: `purge_contributors` (a failed provider contributes `[Syrus::Plugin::DataPolicy::UNAVAILABLE]`), `retention_policies` (a failed provider contributes `[Syrus::Plugin::DataPolicy::UNAVAILABLE]`). These differ from the usual decline-on-error rule.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `connected_accounts` | `ConnectedAccounts::DataPolicy` | - | - | `retention_policies` |
+| `coworkers` | `Coworkers::DataPolicy` | - | - | `retention_policies` |
+| `credential_store` | `CredentialStore::DataPolicy` | - | - | `purge_contributors` |
+| `metrics_dashboard` | `MetricsDashboard::DataPolicy` | - | - | `retention_policies` |
+| `mockups` | `Mockups::DataPolicy` | - | - | `preview_panel_retentions` |
+| `plugin_runtime` | `PluginRuntime::DataPolicy` | - | - | `purge_contributors` |
+| `test_insights` | `TestInsights::DataPolicy` | - | - | `retention_policies` |
+
 ## `ecosystem`
 
 Shape: `facet`. Required core: `key`, `display_name`.
@@ -109,6 +133,39 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 |---|---|---|---|---|
 | `google_workspace` | `GoogleWorkspace::CalendarAdapter` | `google_workspace` | - | `list_events`, `get_event` |
 | `personal_calendar` | `PersonalCalendar::FakeAdapter` | `fake` | - | `list_events`, `get_event` |
+
+## `lifecycle`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `callback_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `domain_subscribers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `agent_insights` | `AgentInsights::Lifecycle` | - | - | `domain_subscribers` |
+| `alertmanager_investigations` | `AlertmanagerInvestigations::Lifecycle` | - | - | `callback_providers` |
+| `build_cache` | `BuildCache::Lifecycle` | - | - | `domain_subscribers` |
+| `coworkers` | `Coworkers::Lifecycle` | - | - | `callback_providers` |
+| `design_docs` | `DesignDocs::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `git_mirror` | `GitMirror::Lifecycle` | - | - | `callback_providers` |
+| `global_search` | `GlobalSearch::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `k8s_cluster` | `K8sCluster::Lifecycle` | - | - | `callback_providers` |
+| `local_backups` | `LocalBackups::Lifecycle` | - | - | `callback_providers` |
+| `metrics_dashboard` | `MetricsDashboard::Lifecycle` | - | - | `callback_providers` |
+| `operator_briefing` | `OperatorBriefing::Lifecycle` | - | - | `callback_providers` |
+| `plugin_runtime` | `PluginRuntime::Lifecycle` | - | - | `callback_providers` |
+| `s3_backup_destination` | `S3BackupDestination::Lifecycle` | - | - | `domain_subscribers` |
+| `scheduled_tasks` | `ScheduledTasks::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `tailscale` | `Tailscale::Lifecycle` | - | - | `callback_providers` |
+| `terminal` | `Terminal::Lifecycle` | - | - | `callback_providers` |
+| `test_insights` | `TestInsights::Lifecycle` | - | - | `domain_subscribers` |
+| `throughput` | `Throughput::Lifecycle` | - | - | `callback_providers` |
+| `video_walkthroughs` | `VideoWalkthroughs::Lifecycle` | - | - | `callback_providers` |
 
 ## `policy`
 

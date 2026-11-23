@@ -8,7 +8,7 @@ class PluginTickJob < ApplicationJob
     # been disabled or turned unhealthy while the tick waited in the queue.
     return unless manifest.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
 
-    providers = Array(manifest.provides[:callbacks])
+    providers = Syrus::Plugin::Lifecycle.callback_providers_for(manifest)
     providers.each(&:on_tick)
   end
 end

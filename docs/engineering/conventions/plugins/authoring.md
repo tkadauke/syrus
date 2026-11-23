@@ -1504,6 +1504,11 @@ Syrus::PluginRegistry.register(
 )
 ```
 
+The `provides: { callbacks: ... }` form above is the legacy registration. It
+keeps working through the compatibility bridge, but new plugins declare
+`lifecycle callback_providers: "MyPlugin::LifecycleCallbacks"` in the manifest
+DSL.
+
 `home_queue:` (default `:default`) is the Solid Queue queue used for
 `PluginLifecycleJob` and `PluginTickJob`. `:default` means the job's
 class-level `queue_as` declaration applies. Use a named queue such as
