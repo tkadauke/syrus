@@ -577,7 +577,7 @@ module Syrus
 
             family_provider = Object.const_get(declaration.provider)
             family_provider.respond_to?(:owns_implementation?) && family_provider.owns_implementation?(provider)
-          rescue NameError
+          rescue StandardError, ScriptError
             false
           end
         end&.name
