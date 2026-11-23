@@ -1122,7 +1122,7 @@ visual_review:
       captures: ["queue loaded", "job selected"]
 ```
 
-`enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the always-on instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the always-on default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without an omitted `enabled` forcing the feature off. See [`visual_review.md`](visual_review.md) for the full feature reference.
+`enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the always-on instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the always-on default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without an omitted `enabled` forcing the feature off. See the Browser plugin's visual-review documentation for the full feature reference.
 
 `rounds` controls how many visual-review passes run. Range: 0–10, defaults to `1`.
 

@@ -53,6 +53,14 @@ RSpec.describe SyrusBrowser::ChatToolSet do
           "browser_drop" => "browser.upload@v1"
         )
     end
+
+    it "classifies visual workflow requests as essential confirmation-card creation" do
+      definitions = described_class.tool_definitions(tier: :deferred).index_by { |definition| definition[:name] }
+
+      %w[run_visual_review run_visual_diff].each do |name|
+        expect(definitions.fetch(name).fetch(:capability_descriptor)).to be_essential
+      end
+    end
   end
 
   describe "#handle" do
