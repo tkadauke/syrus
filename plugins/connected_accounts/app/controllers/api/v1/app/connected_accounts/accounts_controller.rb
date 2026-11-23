@@ -32,7 +32,7 @@ module Api::V1::App::ConnectedAccounts
 
     def destroy
       account = owned_account
-      ::ConnectedAccounts::Disconnector.call(account: account, user: Current.user)
+      ::ConnectedAccounts::Disconnector.call(account: account, user: Syrus::Host::Current.user)
       render json: { account: serialized(account, account.last_used_at) }
     end
 

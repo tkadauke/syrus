@@ -160,6 +160,19 @@ Supported members:
 - `find_agentic_with_write_access!`
 - `require_write_access!`
 
+### `Syrus::Host::AgenticConnection`
+
+Since: `0.1.16`
+
+Shared agentic-access gating for plugin-owned connection records; connection storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `agentic_credential_usable_by?`
+- `find_agentic!`
+- `find_agentic_with_write_access!`
+- `require_write_access!`
+
 ### `Syrus::Host::AppAdminController`
 
 Since: `0.1.16`
@@ -1212,6 +1225,12 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::InputSource`
+
+Since: `0.1.16`
+
+Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -1814,6 +1833,7 @@ Supported members:
 - `forwarded_env`
 - `mounts`
 - `new`
+- `probe_mounts`
 - `run`
 - `start`
 
@@ -3269,7 +3289,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::PurgeContributor`
 - `Syrus::Plugin::RepoPageTab`
 - `Syrus::Plugin::RepositoryConfiguration`
-- `Syrus::Plugin::RepositoryContentProvider`
 - `Syrus::Plugin::RepositoryFilter`
 - `Syrus::Plugin::RepositoryRecommendation`
 - `Syrus::Plugin::RetentionPolicy`

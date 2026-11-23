@@ -327,7 +327,6 @@ constants:
 - name: Syrus::Plugin::PurgeContributor
 - name: Syrus::Plugin::RepoPageTab
 - name: Syrus::Plugin::RepositoryConfiguration
-- name: Syrus::Plugin::RepositoryContentProvider
 - name: Syrus::Plugin::RepositoryFilter
 - name: Syrus::Plugin::RepositoryRecommendation
 - name: Syrus::Plugin::RetentionPolicy
