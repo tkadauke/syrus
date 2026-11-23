@@ -22,4 +22,3 @@ RSpec.describe VideoWalkthroughs::Toolkit do
     plugin: "video_walkthroughs", provider: "VideoWalkthroughs::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

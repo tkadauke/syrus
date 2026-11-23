@@ -22,4 +22,3 @@ RSpec.describe AdminMysql::Toolkit do
     plugin: "admin_mysql", provider: "AdminMysql::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

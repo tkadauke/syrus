@@ -22,4 +22,3 @@ RSpec.describe ThemingTools::Toolkit do
     plugin: "theming_tools", provider: "ThemingTools::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

@@ -22,4 +22,3 @@ RSpec.describe SpendingInsights::Toolkit do
     plugin: "spending_insights", provider: "SpendingInsights::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-
