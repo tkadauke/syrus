@@ -3593,8 +3593,20 @@ module WorkEngine
     # a stalled claim it is not slow, it is unreachable, and the Run behind it
     # waits forever. Seen in production on two Runs whose jobs had lost their
     # ready rows, one of them queued for twelve and a half hours.
+    #
+    # The snapshot reads each execution table in its own query, so a job
+    # moving between states during the scan -- a delayed job promoted from
+    # scheduled to ready, a claim landing between the ready and claimed reads
+    # -- can look execution-less for one pass. Production flagged and
+    # re-enqueued jobs created the same second, one of which then started on
+    # its own. A real orphan is old; require the job to have sat a while.
+    ORPHANED_QUEUE_JOB_GRACE = 2.minutes
+
     def orphaned_queue_job?(sq)
-      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]
+      return false unless !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]
+
+      changed_at = [ sq[:created_at], sq[:updated_at] ].compact.max
+      older_than?(changed_at, ORPHANED_QUEUE_JOB_GRACE)
     end
 
     def host_admission_deferral_budget_exhausted?(run)

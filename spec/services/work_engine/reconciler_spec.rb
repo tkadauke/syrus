@@ -825,6 +825,22 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
   end
 
+  # Production: the snapshot's separate execution-table reads caught jobs in
+  # transit and re-enqueued RunJobs created the same second.
+  it "does not call a just-enqueued SolidQueue job orphaned" do
+    run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
+    queue_job = solid_queue_run_job(run, queue_name: "resume-storage-orphan", created_at: 10.seconds.ago)
+    SolidQueue::ReadyExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ClaimedExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::FailedExecution.where(job_id: queue_job.id).delete_all
+
+    result = reconcile(run_id: run.id)
+
+    expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
+  end
+
   it "classifies a queued Run whose SolidQueue job has no execution row" do
     run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
     workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
