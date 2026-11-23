@@ -20,6 +20,10 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
     if Syrus::Plugin::ServiceProvider::FAMILY_FOR.key?(extension_point)
       allow(Syrus::Plugin::ServiceProvider).to receive(:providers).and_call_original
       allow(Syrus::Plugin::ServiceProvider).to receive(:providers).with(extension_point).and_return(providers)
+    elsif Syrus::Plugin::Lifecycle::CAPABILITY_FOR_LEGACY.key?(extension_point)
+      allow(Syrus::Plugin::Lifecycle).to receive(:domain_subscribers).and_return(providers)
+    elsif Syrus::Plugin::DataPolicy::CAPABILITY_FOR_LEGACY.key?(extension_point)
+      allow(Syrus::Plugin::DataPolicy).to receive(Syrus::Plugin::DataPolicy::CAPABILITY_FOR_LEGACY.fetch(extension_point)).and_return(providers)
     elsif capability
       allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
       allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(capability).and_return(providers)

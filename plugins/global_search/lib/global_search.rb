@@ -14,9 +14,9 @@ module GlobalSearch
     default_enabled true
     disableable true
     hosts [ :source ]
-    provides callbacks: "GlobalSearch::Callbacks",
-             domain_subscriber: "GlobalSearch::Subscribers",
-             sidebar_pages: "GlobalSearch::SidebarPages",
+    lifecycle callback_providers: "GlobalSearch::Callbacks",
+              domain_subscribers: "GlobalSearch::Subscribers"
+    provides sidebar_pages: "GlobalSearch::SidebarPages",
              "global_search:source" => [
                "GlobalSearch::JobSource",
                "GlobalSearch::EpicSource",

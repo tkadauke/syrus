@@ -177,7 +177,7 @@ module WeatherTools
     category "tooling"
     author "Your name"
     description "Weather Tools plugin for Syrus."
-    provides callbacks: "WeatherTools::Callbacks"
+    lifecycle callback_providers: "WeatherTools::Callbacks"
     surface admin_pages: "WeatherTools::AdminPages"
     frontend bundle: "dist/frontend/plugin.js",
              i18n: [ "app/frontend/i18n/locales/*/weather_tools.json" ]
@@ -186,7 +186,8 @@ end
 ```
 
 `depends_on`, `optionally_depends_on`, and `conflicts_with` name plugin
-manifests. `provides` maps a registered extension point to a class-name string,
+manifests. `lifecycle` declares plugin lifecycle callbacks and domain-event
+subscribers. `provides` maps a registered extension point to a class-name string,
 resolved after autoload paths exist. `route` mounts a plugin controller.
 `frontend` paths are relative to the plugin root. `cli_commands` declares
 non-interactive server-backed commands whose handlers subclass

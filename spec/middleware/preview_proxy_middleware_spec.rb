@@ -608,8 +608,7 @@ RSpec.describe PreviewProxyMiddleware do
         include Syrus::Plugin::PreviewPanelRetention
         define_singleton_method(:retained_preview_panel?) { |candidate| candidate.id == panel.id }
       end
-      allow(Syrus::PluginRegistry).to receive(:providers_for)
-        .with(:preview_panel_retention).and_return([ retention ])
+      allow(Syrus::Plugin::DataPolicy).to receive(:preview_panel_retentions).and_return([ retention ])
 
       status, _, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
 

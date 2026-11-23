@@ -24,6 +24,8 @@ RSpec.describe "Plugin family migration architecture" do
     post_implementation_review_provider diff_review_annotation_provider adjudicator
   ].freeze
   POLICY_POINTS = %i[job_visibility_restriction repository_filter].freeze
+  LIFECYCLE_POINTS = %i[callbacks domain_subscriber].freeze
+  DATA_POLICY_POINTS = %i[retention_policy purge_contributor preview_panel_retention].freeze
   SERVICE_FAMILIES = {
     agent_runtime: %i[agent_provider chat_provider],
     execution_backend: %i[execution_backend],
@@ -42,7 +44,9 @@ RSpec.describe "Plugin family migration architecture" do
     surface: SURFACE_POINTS,
     chat_integration: CHAT_INTEGRATION_POINTS,
     review: REVIEW_POINTS,
-    policy: POLICY_POINTS
+    policy: POLICY_POINTS,
+    lifecycle: LIFECYCLE_POINTS,
+    data_policy: DATA_POLICY_POINTS
   }.merge(SERVICE_FAMILIES).freeze
 
   it "keeps Toolkit's compatibility allowlist explicit" do
@@ -86,7 +90,7 @@ RSpec.describe "Plugin family migration architecture" do
     expect(actual).to eq(CHAT_INTEGRATION_POINTS.index_with { [] })
   end
 
-  { review: REVIEW_POINTS, policy: POLICY_POINTS }.each do |family, points|
+  { review: REVIEW_POINTS, policy: POLICY_POINTS, lifecycle: LIFECYCLE_POINTS, data_policy: DATA_POLICY_POINTS }.each do |family, points|
     it "keeps #{family}'s compatibility allowlist explicit" do
       definition = Syrus::Plugin::Family.fetch(family)
       expect(definition.legacy_mappings.keys).to contain_exactly(*points)
@@ -120,6 +124,21 @@ RSpec.describe "Plugin family migration architecture" do
       end
       expect(registered).to be_empty
     end
+  end
+
+  it "keeps core off manifest-scoped reads of points absorbed by the hook families" do
+    points = (LIFECYCLE_POINTS + DATA_POLICY_POINTS).map { |point| Regexp.escape(point.to_s) }.join("|")
+    pattern = /provides\[\s*:(?:#{points})\s*\]/
+    violations = Dir["{app,lib}/**/*.rb"].select { |path| File.read(path).match?(pattern) }
+
+    expect(violations).to be_empty
+  end
+
+  it "routes plugin installation effects through the Lifecycle family" do
+    source = File.read("lib/syrus/plugin_api.rb")
+
+    expect(source).to include("Syrus::Plugin::Lifecycle.define_effect")
+    expect(source).not_to include("Syrus::Installer.define")
   end
 
   def registrations_in(source, point)

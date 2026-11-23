@@ -28,7 +28,7 @@ module S3BackupDestination
       { key: "secret_access_key", label: "Secret key", type: :secret_env, env_var: "SYRUS_BACKUP_S3_SECRET_ACCESS_KEY", required: true,
         description: "Credential isolated to the backup destination bucket." }
     ]
-    provides backup_destination: "S3BackupDestination::Destination",
-             domain_subscriber: "S3BackupDestination::Subscriber"
+    lifecycle domain_subscribers: "S3BackupDestination::Subscriber"
+    provides backup_destination: "S3BackupDestination::Destination"
   end
 end

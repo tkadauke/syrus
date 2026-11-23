@@ -15,8 +15,8 @@ module Mockups
     category "agent_capability"
     default_enabled true
     disableable true
-    provides preview_panel_retention: "Mockups::PreviewPanelRetention",
-             sidebar_pages: "Mockups::SidebarPages"
+    data_policy preview_panel_retentions: "Mockups::PreviewPanelRetention"
+    provides sidebar_pages: "Mockups::SidebarPages"
     chat_integration media_sources: "Mockups::MediaSource",
                      payload_contributors: "Mockups::PayloadContributor",
                      prompt_injectors: "Mockups::PromptSection"

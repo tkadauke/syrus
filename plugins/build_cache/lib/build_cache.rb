@@ -17,9 +17,9 @@ module BuildCache
         { key: "bucket", label: "Cache bucket", type: :secret_env, env_var: "SCCACHE_BUCKET",
           required: false, description: "S3-compatible bucket for the shared compiler cache. Set in .env." }
       ]
+    lifecycle domain_subscribers: "BuildCache::Subscribers"
     provides admin_pages: "BuildCache::AdminPages",
              ui_slots: "BuildCache::UiSlots",
-             domain_subscriber: "BuildCache::Subscribers",
              step_environment: "BuildCache::StepEnvironment"
     route :get, "/api/v1/app/admin/build_cache", to: "api/v1/app/admin/build_cache#show"
     route :get, "/api/v1/app/admin/build_cache/stats", to: "api/v1/app/admin/build_cache#stats"

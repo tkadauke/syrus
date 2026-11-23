@@ -21,9 +21,9 @@ module ScheduledTasks
     # recurring.yml used before this moved.
     tick_interval 1.minute
 
-    provides callbacks: "ScheduledTasks::Callbacks",
-             job_origin: "ScheduledTasks::JobOrigin",
-             domain_subscriber: "ScheduledTasks::Subscribers",
+    lifecycle callback_providers: "ScheduledTasks::Callbacks",
+              domain_subscribers: "ScheduledTasks::Subscribers"
+    provides job_origin: "ScheduledTasks::JobOrigin",
              sidebar_pages: "ScheduledTasks::SidebarPages",
              repo_page_tabs: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",
