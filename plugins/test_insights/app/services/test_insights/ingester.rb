@@ -141,6 +141,7 @@ module TestInsights
 
           {
             test_run_id: test_run.id,
+            grader_name: @grader_name,
             repository_id: @repository.id,
             test_identity_id: test_identity.id,
             name: TestCase.truncate_string_column(c.name),
