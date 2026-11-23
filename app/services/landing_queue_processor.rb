@@ -848,12 +848,7 @@ class LandingQueueProcessor
       end
 
     check_blocker.call({ key: "landing_paused" }) if job.user.landing_paused? || job.owner_user&.landing_paused?
-    if job.repository.main_branch_health_enabled? &&
-       job.repository.strict_breakage_policy? &&
-       job.repository.main_branch_repair_blocks_work? &&
-       job.repository.landing_paused? &&
-       job.repository.main_health_broken? &&
-       !MainHealthChangedService.fix_main_job?(job)
+    if WorkGates.evaluate(job:, landing: true).vetoes.any?(&:landing?)
       check_blocker.call({ key: "landing_paused_main_broken" })
     end
     check_blocker.call({ key: "repository_archived" }) if job.repository.archived?
