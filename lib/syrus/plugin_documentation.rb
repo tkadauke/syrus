@@ -301,10 +301,13 @@ module Syrus
             ## Migration from legacy extension points
 
             The Review family keeps the `external_reviewer` service capability and
-            also absorbs the review-step extension points: `review_gate`,
+            also replaces the review-step extension points: `review_gate`,
             `reviewer_target_provider`, `review_context_contributor`,
             `review_presentation_contributor`, `post_implementation_review_provider`,
-            `diff_review_annotation_provider`, and `adjudicator`.
+            `diff_review_annotation_provider`, and `adjudicator`. Those points are
+            no longer registered. A plugin that still declares one fails
+            registration with `Unknown extension point`, which the loader turns
+            into a failed plugin-health finding while the host keeps booting.
 
             Before:
 
@@ -337,8 +340,12 @@ module Syrus
           <<~MD
             ## Migration from legacy extension points
 
-            The Policy family holds authorization-adjacent restrictions:
-            `job_visibility_restriction` and `repository_filter`.
+            The Policy family holds authorization-adjacent restrictions. It
+            replaces the `job_visibility_restriction` and `repository_filter`
+            extension points, which are no longer registered: a plugin that still
+            declares one fails registration with `Unknown extension point`, which
+            the loader turns into a failed plugin-health finding while the host
+            keeps booting.
 
             Before:
 

@@ -82,10 +82,13 @@ Use `it_behaves_like "a valid review provider"` from `syrus/plugin/test_kit`, pa
 ## Migration from legacy extension points
 
 The Review family keeps the `external_reviewer` service capability and
-also absorbs the review-step extension points: `review_gate`,
+also replaces the review-step extension points: `review_gate`,
 `reviewer_target_provider`, `review_context_contributor`,
 `review_presentation_contributor`, `post_implementation_review_provider`,
-`diff_review_annotation_provider`, and `adjudicator`.
+`diff_review_annotation_provider`, and `adjudicator`. Those points are
+no longer registered. A plugin that still declares one fails
+registration with `Unknown extension point`, which the loader turns
+into a failed plugin-health finding while the host keeps booting.
 
 Before:
 

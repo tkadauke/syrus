@@ -16,10 +16,7 @@ module Syrus
         def self.name = "Syrus::Plugin::Policy::FAIL_CLOSED"
       end
 
-      CAPABILITY_FOR_LEGACY = {
-        job_visibility_restriction: :job_visibility_restrictions,
-        repository_filter: :repository_filters
-      }.freeze
+      CAPABILITIES = %i[job_visibility_restrictions repository_filters].freeze
 
       def self.provider(key:, display_name:, **contributions) =
         ContributionProvider.build(key:, display_name:, **contributions)

@@ -137,7 +137,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
         }
       end
     end
-    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "selected_version_annotations", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
+    register_contributions(name: "selected_version_annotations", version: "1.0.0", contributes: { diff_review_annotation_provider: provider })
     selected = DiffReviewVersions::Creator.call(
       job: job,
       base_sha: "selected-base",
