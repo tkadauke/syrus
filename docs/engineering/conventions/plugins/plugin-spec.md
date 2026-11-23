@@ -153,6 +153,10 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 
 The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
 
+## Workflow composition anchors
+
+The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
+
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
