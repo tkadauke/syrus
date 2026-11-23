@@ -87,7 +87,7 @@ module Syrus
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types toolkit while_enabled metrics always suggests_enabling on_boot
+        credential_types toolkit surface while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
       attr_reader :name, :namespace, :lib_dir
@@ -147,6 +147,13 @@ module Syrus
           return
         end
 
+        surface_keys = %i[sidebar_pages admin_pages repo_page_tabs workspace_tabs ui_slots artifact_renderers preview_panel_viewers]
+        surface_entries = pairs.slice(*surface_keys)
+        unless surface_entries.empty?
+          surface(**surface_entries)
+          pairs = pairs.except(*surface_keys)
+        end
+
         @provides.merge!(pairs)
       end
 
@@ -176,6 +183,39 @@ module Syrus
         @family_provides << Syrus::Plugin::FamilyDeclaration.build(
           family: :toolkit, provider: "#{namespace.name}::Toolkit",
           implements: stable, provisional: capabilities & [ :run_context ]
+        )
+      end
+
+      # Declares UI surfaces and filter registrations without resolving the
+      # plugin's application constants during manifest/catalog discovery.
+      def surface(sidebar_pages: nil, admin_pages: nil, repo_page_tabs: nil,
+        workspace_tabs: nil, ui_slots: nil, artifact_renderers: nil,
+        preview_panel_viewers: nil, filter_subjects: {}, filter_chips: {})
+        contributions = { sidebar_pages:, admin_pages:, repo_page_tabs:, workspace_tabs:,
+          ui_slots:, artifact_renderers:, preview_panel_viewers: }.compact
+        @surface_options ||= { filter_subjects: {}, filter_chips: {} }
+        @surface_options.merge!(contributions)
+        @surface_options[:filter_subjects].merge!(filter_subjects)
+        @surface_options[:filter_chips].merge!(filter_chips)
+        contributions = @surface_options.except(:filter_subjects, :filter_chips)
+        filter_subjects = @surface_options[:filter_subjects]
+        filter_chips = @surface_options[:filter_chips]
+        capabilities = contributions.keys
+        capabilities << :filter_subjects if filter_subjects.any?
+        capabilities << :filter_chips if filter_chips.any?
+        return if capabilities.empty?
+
+        provider = Syrus::Plugin::Surface.provider(
+          key: name, display_name: @scalars[:display_name] || name.humanize,
+          filter_subjects:, filter_chips:, **contributions
+        )
+        namespace.send(:remove_const, :Surface) if namespace.const_defined?(:Surface, false)
+        namespace.const_set(:Surface, provider)
+        @family_provides.reject! { |entry| entry.family == :surface && entry.provider == "#{namespace.name}::Surface" }
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family: :surface, provider: "#{namespace.name}::Surface",
+          implements: capabilities - [ :preview_panel_viewers ],
+          provisional: capabilities & [ :preview_panel_viewers ]
         )
       end
 

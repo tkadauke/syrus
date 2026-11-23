@@ -25,6 +25,7 @@ module Syrus
       link: "One plugin navigation link.", links: "A list of plugin navigation links.",
       credential_type_names: "Credential type names declared for discovery.", credential_types: "Credential type metadata declarations.",
       toolkit: "Toolkit-family tools, permission declarations, run context, credential probes, and secret extractors.",
+      surface: "Surface-family pages, tabs, slots, artifact and preview renderers, and filter registrations.",
       while_enabled: "Reversible installation effects active only while enabled.", metrics: "Plugin-owned metric declarations.",
       always: "Reversible effects retained after a previously enabled plugin is disabled.",
       suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback."
@@ -204,6 +205,40 @@ module Syrus
             being advertised. `run_context` remains provisional because only one
             bundled plugin implements it; every other toolkit capability has at
             least two independent bundled implementations and generated contracts.
+          MD
+        elsif family.name == :surface
+          <<~MD
+            ## Migration from legacy extension points
+
+            Surface keeps manifest-visible contribution data separate from the
+            frontend runtime registry. The manifest helper records which pages,
+            tabs, slots, renderers, and filters a plugin contributes while the
+            browser bundle still registers React components through
+            `registerPluginContribution`.
+
+            Before:
+
+            ```ruby
+            provides sidebar_page: "Acme::SidebarPages",
+                     ui_slot: "Acme::UiSlots"
+            ```
+
+            After:
+
+            ```ruby
+            surface sidebar_pages: "Acme::SidebarPages",
+                    ui_slots: "Acme::UiSlots"
+            ```
+
+            Use `filter_subjects:` and `filter_chips:` instead of lifecycle
+            effects that call `Filters.register_subject` or
+            `Filters.register_chips`. Provider constants are resolved only when
+            enabled contributions are dispatched, so catalog reads do not load
+            plugin application code and disabled plugins remain lazy.
+
+            `preview_panel_viewers` is provisional because no bundled plugin
+            implements it yet. Every other Surface capability has at least two
+            independent bundled implementations and generated contract coverage.
           MD
         end
         (<<~MD).sub(/\n+\z/, "\n")

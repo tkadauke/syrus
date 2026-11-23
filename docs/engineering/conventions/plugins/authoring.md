@@ -164,6 +164,34 @@ for contexts, return shapes, and decline values. `run_context` is provisional
 because it currently has one bundled implementation; the other capabilities
 are stable and have multiple independent bundled providers.
 
+## Surface family
+
+Pages, repository and workspace tabs, UI slots, artifact renderers, preview
+viewers, and filter registrations belong to the `surface` facet. The Ruby
+manifest declaration is catalog-visible data; React components continue to
+register at runtime through `pluginContributionRegistry` and external bundle
+entry points. Catalog reads therefore never load a plugin's application code.
+
+Replace legacy registrations with the manifest helper:
+
+```ruby
+surface sidebar_pages: "Acme::SidebarPages",
+        repo_page_tabs: "Acme::RepoPageTabs",
+        ui_slots: "Acme::UiSlots",
+        filter_subjects: {
+          acme_record: { model: "Acme::Record", chips: "Acme::Filters::CHIPS" }
+        },
+        filter_chips: {
+          job: { "acme_state" => "Acme::Filters::JobState" }
+        }
+```
+
+Referenced constants are strings and resolve only for enabled contributions.
+Keep the matching frontend contribution in `frontend` and register its
+component key with `registerPluginContribution`; this migration does not change
+component keys, lazy loaders, locale loading, or error boundaries. See the
+generated [`surface` family reference](families/surface.md) for exact contracts.
+
 ## Per-origin Job visibility
 
 A plugin whose Jobs contain data for only a subset of repository members can

@@ -21,7 +21,8 @@ module WorkerTimeline
     category "observability"
     default_enabled false
     disableable true
-    provides sidebar_page: "WorkerTimeline::SidebarPages"
+    provides sidebar_pages: "WorkerTimeline::SidebarPages"
+    surface filter_subjects: { worker_timeline: { model: "Workflow", chips: FILTER_CHIPS } }
     route :get, "/api/v1/app/admin/worker_timeline/macro", to: "api/v1/app/admin/worker_timeline#macro"
     route :get, "/api/v1/app/admin/worker_timeline/live", to: "api/v1/app/admin/worker_timeline#live"
     route :get, "/api/v1/app/admin/worker_timeline/workflow", to: "api/v1/app/admin/worker_timeline#workflow"
@@ -40,9 +41,6 @@ module WorkerTimeline
     end
 
     while_enabled do |scope|
-      scope.effect("worker_timeline filter subject") do
-        Filters.register_subject(name: :worker_timeline, model: Workflow, chips: FILTER_CHIPS)
-      end
       scope.effect("worker_timeline smart folder subject") do
         SmartFolder.register_subject!(
           :worker_timeline,

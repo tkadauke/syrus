@@ -18,17 +18,20 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
     App::JobDetailPayload.workflows(job: job, user: user)
   end
 
-  it "injects renderer_type for rails_schema_erd artifacts using the registered plugin" do
+  def register_renderers(*renderers)
+    stub_const("TypedArtifactSurfaceProvider", Syrus::Plugin::Surface.provider(
+      key: "typed-artifacts", display_name: "Typed artifacts", artifact_renderers: renderers
+    ))
     Syrus::PluginRegistry.register(
-      name:    "syrus-rails",
-      version: "0.1.0",
-      provides: {
-        artifact_renderer: [
-          SyrusRails::SchemaErdRenderer,
-          SyrusRails::MigrationDiffRenderer
-        ]
-      }
+      name: "typed-artifacts", version: "1", provides: {},
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :surface, provider: "TypedArtifactSurfaceProvider", implements: %i[artifact_renderers]
+      ) ]
     )
+  end
+
+  it "injects renderer_type for rails_schema_erd artifacts using the registered plugin" do
+    register_renderers(SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer)
 
     run = Factories.job.initial_run
     job = run.job
@@ -48,11 +51,7 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
   end
 
   it "injects renderer_type for rails_migration_diff artifacts" do
-    Syrus::PluginRegistry.register(
-      name:    "syrus-rails",
-      version: "0.1.0",
-      provides: { artifact_renderer: [ SyrusRails::MigrationDiffRenderer ] }
-    )
+    register_renderers(SyrusRails::MigrationDiffRenderer)
 
     run = Factories.job.initial_run
     job = run.job
@@ -72,11 +71,7 @@ RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails"
   end
 
   it "preserves cumulative migration fallback outcome details for the reviewer" do
-    Syrus::PluginRegistry.register(
-      name: "syrus-rails",
-      version: "0.1.0",
-      provides: { artifact_renderer: [ SyrusRails::MigrationDiffRenderer ] }
-    )
+    register_renderers(SyrusRails::MigrationDiffRenderer)
 
     run = Factories.job.initial_run
     job = run.job

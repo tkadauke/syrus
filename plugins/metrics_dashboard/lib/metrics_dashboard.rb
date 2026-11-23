@@ -31,7 +31,7 @@ module MetricsDashboard
     # for other plugins".
     hosts [ :tab ]
 
-    provides sidebar_page: "MetricsDashboard::SidebarPages",
+    provides sidebar_pages: "MetricsDashboard::SidebarPages",
              callbacks: "MetricsDashboard::Callbacks",
              retention_policy: "MetricsDashboard::RetentionPolicy"
 

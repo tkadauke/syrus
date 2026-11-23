@@ -21,7 +21,7 @@ module AdminMysql
       signals.database_adapters.grep(/mysql/i).presence
     end
 
-    provides admin_page: "AdminMysql::AdminPages"
+    provides admin_pages: "AdminMysql::AdminPages"
     toolkit workflow_tools: "AdminMysql::WorkflowToolSet", chat_tools: "AdminMysql::ChatToolSet", permissions: "AdminMysql::PermissionProvider"
     route :get, "/api/v1/app/admin/mysql", to: "api/v1/app/admin/mysql#show"
     route :post, "/api/v1/app/admin/mysql/kill_query", to: "api/v1/app/admin/mysql#kill_query"

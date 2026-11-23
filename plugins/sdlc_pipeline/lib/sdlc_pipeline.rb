@@ -12,9 +12,10 @@ module SdlcPipeline
     description "A bounded repository pipeline derived from existing lifecycle and deployment facts."
     long_description "SDLC Pipeline turns the existing Job, Epic, landing, and deployment-stage records into an ordered repository view. It is a read-only projection: disabling or removing the plugin does not change delivery state."
 
-    provides repo_page_tab: "SdlcPipeline::RepoPageTabs",
+    provides repo_page_tabs: "SdlcPipeline::RepoPageTabs",
              chat_job_status_extension: "SdlcPipeline::ChatJobStatusExtension"
     toolkit chat_tools: "SdlcPipeline::ChatToolSet"
+    surface filter_subjects: { sdlc_pipeline: { model: "Job", chips: "SdlcPipeline::SmartFolders::CHIPS" } }
     route :get, "/api/v1/app/repositories/:repository_id/sdlc_pipeline",
           to: "api/v1/app/repository_sdlc_pipeline#show"
 

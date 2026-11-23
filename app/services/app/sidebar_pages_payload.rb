@@ -2,7 +2,7 @@ module App
   class SidebarPagesPayload
     def as_json(*)
       {
-        pages: Syrus::PluginRegistry.providers_for(:sidebar_page)
+        pages: Syrus::Plugin::Surface.contributions(:sidebar_pages)
           .flat_map { |provider| pages_for(provider) }
           .each_with_index.sort_by { |page, index| [ page[:order].to_i, index ] }
           .map(&:first)

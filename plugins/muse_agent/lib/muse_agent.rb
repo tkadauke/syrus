@@ -18,15 +18,10 @@ module SyrusMuseAgent
              chat_provider: "ChatProviders::Muse"
     toolkit credential_probes: { "muse_api_key" => "MuseCredentialProbe" },
             secret_extractors: [ "MuseCredentialProbe::SECRET_EXTRACTOR" ]
+    surface filter_chips: { admin_user: { "has_muse_token" => "Filters::Chips::AdminUsers::HasMuseToken" } }
 
     while_enabled do |scope|
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("muse", ChatSessionRehydrator::Muse) }
-      scope.effect("admin user chips") do
-        Filters.register_chips(
-          subject: :admin_user,
-          chips: { "has_muse_token" => "Filters::Chips::AdminUsers::HasMuseToken" }
-        )
-      end
     end
   end
 end

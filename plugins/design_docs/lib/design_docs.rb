@@ -16,14 +16,15 @@ module DesignDocs
     optionally_depends_on [ "global_search" ]
     events "design_doc.upserted" => :async,
            "design_doc.deleted" => :async
-    provides sidebar_page: "DesignDocs::SidebarPages",
-             repo_page_tab: "DesignDocs::RepoPageTabs",
-             workspace_tab: "DesignDocs::WorkspaceTabs",
+    provides sidebar_pages: "DesignDocs::SidebarPages",
+             repo_page_tabs: "DesignDocs::RepoPageTabs",
+             workspace_tabs: "DesignDocs::WorkspaceTabs",
              callbacks: "DesignDocs::Callbacks",
              domain_subscriber: "DesignDocs::Subscribers",
              slug_type: "DesignDocs::SlugType",
              "global_search:source" => "DesignDocs::SearchSource"
     toolkit workflow_tools: "DesignDocs::WorkflowToolSet", chat_tools: "DesignDocs::ChatToolSet", permissions: "DesignDocs::PermissionProvider"
+    surface filter_subjects: { design_doc: { model: "DesignDocs::DesignDoc", chips: "DesignDocs::SmartFolders::CHIPS" } }
     cli_commands [
       {
         path: %w[docs list], summary: "List design docs", handler: "DesignDocs::Cli::List",
