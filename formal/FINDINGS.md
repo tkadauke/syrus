@@ -4117,6 +4117,45 @@ Contributor guidance: `docs/engineering/conventions/database-and-migrations.md`.
 
 ---
 
+## F111. An abandoned backup upload protected its backup forever — fixed (NY21)
+
+**Decision (NY21, A).** Keep deletion conservative, and add a sweep that marks
+a replication failed once its lease has expired and its destination is no
+longer configured.
+
+**Before.** `LocalBackups::Retention` never deletes a backup with an
+`uploading` replication. Leases last six hours and are never renewed, and
+nothing expired them, so a replication whose worker died stayed `uploading`
+until the same destination pinned again. A destination removed mid-upload never
+does, so its backup was protected from retention and capacity reclamation
+forever (`AbandonedReplication.before_pins_forever`).
+
+**Fix.**
+
+- `Syrus::Plugin::BackupDestination` gains two optional methods (1.x, additive):
+  `identity`, the destination identity it pins under (default nil), and
+  `configured?` (default true). The S3 destination answers both.
+- `LocalBackups::AbandonedReplicationSweep` marks failed an `uploading`
+  replication whose lease has expired when no enabled destination that is
+  configured claims its identity. It releases nothing while any enabled
+  destination does not declare an identity, and it locks the Backup before the
+  replication (as `ArtifactSource.pin` does), rechecking the lease under the
+  lock.
+- `LocalBackups::MaintenanceJob` runs it before retention, so the released
+  backup is reclaimable in the same pass. Docs: Local Backups.
+
+**Proof.** `AbandonedReplication.lean`: `never_releases_live`,
+`releases_abandoned`, `anonymous_destination_releases_nothing`.
+
+**Specs.** `abandoned_replication_sweep_spec.rb` (new, red before: the sweep
+did not exist): a gone destination, an unconfigured one, a live one kept, an
+active lease kept, an anonymous destination releasing nothing, and the
+maintenance job order. `destination_spec.rb`: the S3 identity and
+configuration. Run and green, CI-only included: both plugins, `spec/lib/syrus`
+and the architecture specs (1,059 examples), and `bin/check-plugin-boundaries`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

@@ -3160,6 +3160,23 @@
       "producer": "Syrus::LockOrder; spec/support/lock_order.rb (suite-wide checker)",
       "done_by": "F110 (NY25); NY31-NY33 open",
       "notes": "LockOrder.lean proves the order acyclic; the suite fails any inversion except the three awaiting NY31-NY33."
+    },
+    {
+      "id": "abandoned-replication-released",
+      "area": "backups",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "An abandoned backup upload stops protecting its backup, and a live one never does",
+      "producer": "LocalBackups::AbandonedReplicationSweep; Syrus::Plugin::BackupDestination#identity/#configured?",
+      "done_by": "F111 (NY21)",
+      "notes": "AbandonedReplication.lean: safe (never releases a live upload) and complete once every destination is identified."
     }
   ],
   "needs_you": [
@@ -3434,7 +3451,7 @@
         "C. Keep as is: an abandoned upload pins its backup until an operator deletes it."
       ],
       "recommendation": "A. It never deletes under a live or recoverable upload, and it releases exactly the case that cannot recover on its own.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Keep deletion conservative, and add a sweep that marks a replication 'failed' once its lease has expired and its destination is no longer configured, so only an abandoned upload is released. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Keep deletion conservative, and add a sweep that marks a replication 'failed' once its lease has expired and its destination is no longer configured, so only an abandoned upload is released. Implemented as F111."
     },
     {
       "id": "NY22",

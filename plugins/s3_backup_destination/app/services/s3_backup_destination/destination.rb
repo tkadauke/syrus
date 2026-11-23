@@ -117,6 +117,10 @@ module S3BackupDestination
     end
 
     def self.configured_bucket! = ENV["SYRUS_BACKUP_S3_BUCKET"].presence || raise(Error, "backup bucket is not configured")
+    def self.identity = IDENTITY
+    def self.configured?
+      %w[SYRUS_BACKUP_S3_BUCKET SYRUS_BACKUP_S3_ACCESS_KEY_ID SYRUS_BACKUP_S3_SECRET_ACCESS_KEY].all? { |name| ENV[name].present? }
+    end
     def self.object_key(backup_id) = [ENV.fetch("SYRUS_BACKUP_S3_PREFIX", "syrus-backups").delete_suffix("/"), "#{backup_id}.tar"].join("/")
 
     def self.existing_reference(client, bucket:, key:, backup_id:, source_checksum:)

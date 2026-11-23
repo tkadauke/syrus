@@ -107,4 +107,29 @@ RSpec.describe S3BackupDestination::Destination do
     expect(health).to include(healthy: false)
     expect(health.fetch(:error)).not_to include("example.test", "private")
   end
+
+  # NY21: the artifact source releases an expired upload only when no
+  # configured destination claims its identity.
+  describe "identity and configuration" do
+    names = %w[SYRUS_BACKUP_S3_BUCKET SYRUS_BACKUP_S3_ACCESS_KEY_ID SYRUS_BACKUP_S3_SECRET_ACCESS_KEY]
+
+    around do |example|
+      previous = names.to_h { |name| [ name, ENV[name] ] }
+      example.run
+    ensure
+      previous.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
+    end
+
+    it "claims the identity it pins uploads under" do
+      expect(described_class.identity).to eq(described_class::IDENTITY)
+    end
+
+    it "is configured only with a bucket and both keys" do
+      names.each { |name| ENV[name] = "set" }
+      expect(described_class).to be_configured
+
+      ENV.delete("SYRUS_BACKUP_S3_SECRET_ACCESS_KEY")
+      expect(described_class).not_to be_configured
+    end
+  end
 end

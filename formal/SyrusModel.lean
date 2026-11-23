@@ -84,6 +84,7 @@ import SyrusModel.BranchBound
 import SyrusModel.StackConflictRecovery
 import SyrusModel.ApprovalEffectBacking
 import SyrusModel.SupersededCiRepair
+import SyrusModel.AbandonedReplication
 import SyrusModel.DispatchOrder
 import SyrusModel.Kernel.Basic
 import SyrusModel.Kernel.Reconcile

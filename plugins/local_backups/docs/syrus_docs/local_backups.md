@@ -46,6 +46,11 @@ Backup Destination plugin can replicate those streams to an S3-compatible
 bucket and record remotely verified state. Set
 `SYRUS_BACKUP_REQUIRE_VERIFIED_REPLICATION=1` to prevent retention from
 deleting a local bundle until at least one destination has verified it.
+Retention never deletes a bundle while a destination is uploading it. An
+upload whose lease has expired, for a destination that is no longer enabled or
+configured, is marked failed by the maintenance pass so its bundle becomes
+reclaimable; while any enabled destination does not say which uploads it owns,
+nothing is released.
 On Docker Compose, `SYRUS_BACKUP_HOST_PATH` selects a host-visible directory
 that is separate from the installer's upgrade safety archives. The worker
 mounts it read-write and web mounts it read-only. Daily scheduled creation is
