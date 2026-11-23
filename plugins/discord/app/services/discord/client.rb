@@ -8,7 +8,9 @@ module Discord
   #
   # The token is a required argument and the client is only ever built inside
   # a brokered call (Discord::Provider), so it lives for the duration of that
-  # call. Nothing else should construct one with a long-lived token.
+  # call. Nothing else should construct one with a long-lived token. Rescue
+  # paths log only the exception class: these run inside the brokered call,
+  # before the broker can scrub anything, and a message may quote the token.
   class Client
     BASE = "https://discord.com/api/v10"
 
@@ -37,7 +39,7 @@ module Discord
       response = request(Net::HTTP::Post, "/users/@me/channels", { recipient_id: user_id })
       response && response["id"]
     rescue => e
-      Rails.logger.error("Discord::Client#create_dm_channel: #{e}")
+      Rails.logger.error("Discord::Client#create_dm_channel: #{e.class}")
       nil
     end
 
@@ -45,7 +47,7 @@ module Discord
     def send_message(channel_id:, content:)
       request(Net::HTTP::Post, "/channels/#{channel_id}/messages", { content: content })
     rescue => e
-      Rails.logger.error("Discord::Client#send_message: #{e}")
+      Rails.logger.error("Discord::Client#send_message: #{e.class}")
       nil
     end
 
