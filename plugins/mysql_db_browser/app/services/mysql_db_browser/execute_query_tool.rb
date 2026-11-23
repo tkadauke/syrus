@@ -35,8 +35,8 @@ module MysqlDbBrowser
 
     class << self
       def call(server_context:, mysql_connection_id: nil, sql: nil, limit: nil)
-        Mcp::Tools.with_database_connection do
-          context = McpToolContext.from_server_context(server_context) if server_context.present?
+        Syrus::Host::McpTools.with_database_connection do
+          context = Syrus::Host::ToolContext.from_server_context(server_context) if server_context.present?
           connection = AgenticAccess.connection!(mysql_connection_id, context: context, tool_name: tool_name)
           user = MysqlDbBrowser.user_from_server_context(server_context)
           payload = QueryExecutor.new(connection, context: context, tool_name: tool_name).execute(sql, user: user, limit: limit || QueryExecutor::DEFAULT_LIMIT)

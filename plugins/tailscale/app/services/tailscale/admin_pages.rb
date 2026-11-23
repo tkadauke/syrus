@@ -1,6 +1,6 @@
 module Tailscale
   class AdminPages
-    include Syrus::Plugin::AdminPage
+    include Syrus::Host::AdminPage
 
     def self.admin_pages
       [

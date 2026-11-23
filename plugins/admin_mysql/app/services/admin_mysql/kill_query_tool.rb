@@ -24,12 +24,12 @@ module AdminMysql
     class << self
       def call(server_context:, thread_id: nil)
         chat_session = server_context[:chat_session]
-        return Mcp::Tools.unauthorized("Admin MySQL query interruption requires an admin chat context") unless chat_session&.user&.admin?
+        return Syrus::Host::McpTools.unauthorized("Admin MySQL query interruption requires an admin chat context") unless chat_session&.user&.admin?
 
         inspector = Inspector.new
         process = inspector.process(thread_id)
-        return Mcp::Tools.invalid("MySQL thread not found: #{thread_id}") unless process
-        return Mcp::Tools.invalid("MySQL thread #{process[:id]} has no current statement") unless process[:info].present?
+        return Syrus::Host::McpTools.invalid("MySQL thread not found: #{thread_id}") unless process
+        return Syrus::Host::McpTools.invalid("MySQL thread #{process[:id]} has no current statement") unless process[:info].present?
 
         query_details = {
           "thread_id" => process[:id],

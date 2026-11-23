@@ -19,8 +19,8 @@ module K8sCluster
     end
 
     def call
-      capture = ProcessRunner.new(
-        env: env, command: argv, mounts: ProcessRunner.mounts(Dir.pwd), network: "agent",
+      capture = Syrus::Host::ProcessRunner.new(
+        env: env, command: argv, mounts: Syrus::Host::ProcessRunner.mounts(Dir.pwd), network: "agent",
         timeout: timeout, kind: "chat_shell_command", run: Thread.current[:syrus_current_run],
         workflow: Thread.current[:syrus_current_run]&.workflow,
         chat_session: Thread.current[:syrus_current_chat_session]

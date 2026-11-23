@@ -58,7 +58,7 @@ module CredentialStore
       end
 
       def call(server_context:, credential: nil, host: nil, user: nil, command: nil, port: nil, connect_timeout: nil, allow_unconstrained_host: false, allow_risky_command: false)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         payload = CredentialStore::SshExec.call(
           context: context,
           credential: credential,
@@ -72,7 +72,7 @@ module CredentialStore
         )
         MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ], error: !payload.fetch(:ok))
       rescue CredentialStore::Broker::Error, CredentialStore::SshExec::Error => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

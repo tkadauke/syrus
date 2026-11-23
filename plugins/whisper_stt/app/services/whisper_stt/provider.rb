@@ -1,5 +1,5 @@
 module WhisperStt
-  class Provider < ChatSpeechToText::Providers::Base
+  class Provider < Syrus::Host::SpeechToTextBase
     include Syrus::Plugin::SpeechToTextProvider
 
     def self.provider_key = "whisper_stt"
@@ -26,7 +26,7 @@ module WhisperStt
     end
 
     def transcribe_batch(request)
-      started_at = ChatSpeechToText::Telemetry.monotonic_time
+      started_at = Syrus::Host::SpeechToTextTelemetry.monotonic_time
       response = client.transcribe(
         audio: request.audio,
         content_type: request.content_type,
@@ -35,36 +35,36 @@ module WhisperStt
         correlation_id: request.correlation_id
       )
       text = response.fetch("text", "").to_s.strip
-      raise ChatSpeechToText::Providers::TranscriptionError, "whisper.cpp returned an empty transcript" if text.blank?
+      raise Syrus::Host::SpeechToTextError, "whisper.cpp returned an empty transcript" if text.blank?
 
-      result = ChatSpeechToText::Providers::TranscriptionResult.new(
+      result = Syrus::Host::SpeechToTextResult.new(
         text: text,
         segments: response["segments"] || [],
         provider: self.class.provider_key,
         confidence: nil
       )
-      ChatSpeechToText::Telemetry.log(
+      Syrus::Host::SpeechToTextTelemetry.log(
         "transcribed",
         mode: "backend_batch",
         provider: self.class.provider_key,
-        duration_ms: ChatSpeechToText::Telemetry.duration_ms(started_at)
+        duration_ms: Syrus::Host::SpeechToTextTelemetry.duration_ms(started_at)
       )
       result
     rescue Client::TimeoutError => e
-      raise transcription_error(e.message, started_at, ChatSpeechToText::Providers::TranscriptionTimeout)
+      raise transcription_error(e.message, started_at, Syrus::Host::SpeechToTextTimeout)
     rescue Client::Unavailable => e
-      raise transcription_error(e.message, started_at, ChatSpeechToText::Providers::TranscriptionUnavailable)
+      raise transcription_error(e.message, started_at, Syrus::Host::SpeechToTextUnavailable)
     rescue Client::InvalidInput => e
-      raise transcription_error(e.message, started_at, ChatSpeechToText::Providers::InvalidAudio)
+      raise transcription_error(e.message, started_at, Syrus::Host::SpeechToTextInvalidAudio)
     rescue Client::Error => e
       raise transcription_error(e.message.presence || "whisper.cpp transcription failed", started_at)
-    rescue ChatSpeechToText::Providers::TranscriptionError => e
-      ChatSpeechToText::Telemetry.log(
+    rescue Syrus::Host::SpeechToTextError => e
+      Syrus::Host::SpeechToTextTelemetry.log(
         "error",
         mode: "backend_batch",
         provider: self.class.provider_key,
-        duration_ms: ChatSpeechToText::Telemetry.duration_ms(started_at),
-        **ChatSpeechToText::Telemetry.safe_error(e)
+        duration_ms: Syrus::Host::SpeechToTextTelemetry.duration_ms(started_at),
+        **Syrus::Host::SpeechToTextTelemetry.safe_error(e)
       )
       raise
     end
@@ -81,7 +81,7 @@ module WhisperStt
         @closed = false
         @id = client.start_stream(content_type: request.content_type, language: request.language, prompt: request.prompt)
       rescue Client::Error => e
-        raise ChatSpeechToText::Providers::TranscriptionError, e.message
+        raise Syrus::Host::SpeechToTextError, e.message
       end
 
       def accept_audio(audio)
@@ -116,30 +116,30 @@ module WhisperStt
         text = payload["text"].to_s.strip
         return if text.blank?
 
-        request.on_delta.call(ChatSpeechToText::Providers::StreamingDelta.new(text: text, final: final, confidence: nil))
+        request.on_delta.call(Syrus::Host::SpeechToTextStreamingDelta.new(text: text, final: final, confidence: nil))
       end
 
       def ensure_open!
-        raise ChatSpeechToText::Providers::TranscriptionError, "Dictation stream is closed." if @closed
+        raise Syrus::Host::SpeechToTextError, "Dictation stream is closed." if @closed
       end
 
       def fail_stream(error)
         @closed = true
         client.cancel_stream(id: id)
-        translated = ChatSpeechToText::Providers::TranscriptionError.new(error.message.presence || "whisper.cpp streaming transcription failed")
+        translated = Syrus::Host::SpeechToTextError.new(error.message.presence || "whisper.cpp streaming transcription failed")
         request.on_error.call(translated)
         raise translated
       end
     end
 
-    def transcription_error(message, started_at, error_class = ChatSpeechToText::Providers::TranscriptionError)
+    def transcription_error(message, started_at, error_class = Syrus::Host::SpeechToTextError)
       error_class.new(message).tap do |error|
-        ChatSpeechToText::Telemetry.log(
+        Syrus::Host::SpeechToTextTelemetry.log(
           "error",
           mode: "backend_batch",
           provider: self.class.provider_key,
-          duration_ms: ChatSpeechToText::Telemetry.duration_ms(started_at),
-          **ChatSpeechToText::Telemetry.safe_error(error)
+          duration_ms: Syrus::Host::SpeechToTextTelemetry.duration_ms(started_at),
+          **Syrus::Host::SpeechToTextTelemetry.safe_error(error)
         )
       end
     end

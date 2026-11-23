@@ -61,7 +61,7 @@ module CredentialStore
     attr_reader :scope_labels, :last_access_events
 
     def credential_types
-      Syrus::PluginRegistry.credential_types.sort_by { |entry| entry.fetch("name") }.map do |entry|
+      Syrus::Host::PluginRegistry.credential_types.sort_by { |entry| entry.fetch("name") }.map do |entry|
         {
           name: entry.fetch("name"),
           label: entry["label"].presence || entry.fetch("name"),

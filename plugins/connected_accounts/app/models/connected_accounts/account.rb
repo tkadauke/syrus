@@ -1,5 +1,5 @@
 module ConnectedAccounts
-  class Account < ApplicationRecord
+  class Account < Syrus::Host::Record
     self.table_name = "connected_accounts_accounts"
 
     STATUSES = %w[connected needs_reauth revoked error].freeze

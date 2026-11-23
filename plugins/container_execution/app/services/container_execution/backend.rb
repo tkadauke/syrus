@@ -26,7 +26,7 @@ module ContainerExecution
     private
 
     def run_in_image(request, policy, image)
-      ProcessRunner.new(
+      Syrus::Host::ProcessRunner.new(
         env: policy.process_env,
         command: docker_command(request, image),
         mounts: request.mounts,

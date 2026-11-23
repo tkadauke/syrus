@@ -24,12 +24,12 @@ module K8sCluster
     # helper is public so focused tool specs can build that same shape without
     # duplicating context setup in every resource-tool example.
     def agentic_context_from(server_context)
-      McpToolContext.from_server_context(server_context)
+      Syrus::Host::ToolContext.from_server_context(server_context)
     end
 
     def respond_with(cluster_id:, params:, server_context: nil)
       context = nil
-      Mcp::Tools.with_database_connection do
+      Syrus::Host::McpTools.with_database_connection do
         previous_context = Thread.current[:k8s_cluster_mcp_context]
         previous_tool_name = Thread.current[:k8s_cluster_mcp_tool_name]
         context = agentic_context_from(server_context)
