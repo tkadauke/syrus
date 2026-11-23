@@ -37,6 +37,13 @@ RSpec.describe SyrusBrowser::Engine do
     expect(Step::Kind.fetch("visual_review").handler_class).to eq(SyrusBrowser::VisualReviewStep)
   end
 
+  it "owns visual review workflow kinds and the judge contribution" do
+    expect(Syrus::PluginRegistry.providers_for(:workflow_kinds)).to include(SyrusBrowser::WorkflowKinds)
+    expect(Syrus::PluginRegistry.providers_with_owner_for("workflow:judge"))
+      .to include([ "browser", SyrusBrowser::WorkflowJudge ])
+    expect(Step::Kind.fetch("visual_review").handler_class).to eq(SyrusBrowser::VisualReviewStep)
+  end
+
   it "registers a manifest named 'browser'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "browser" }
     expect(manifest).not_to be_nil
