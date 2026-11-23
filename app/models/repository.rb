@@ -35,6 +35,11 @@ class Repository < ApplicationRecord
   # rebase instead of re-running the landing graders. Trades a small
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
+  # How many landing units (solo landing, job bundle, Epic merge train) may
+  # validate at once per repository (and landing branch). Only the final merge
+  # is serialized (MergeLock). 1 keeps today's single landing slot.
+  LANDING_CONCURRENCY_RANGE = (1..5)
+  attribute :landing_concurrency, :integer, default: 1
   # Opt-in: land a Job whose failing checks are ALL already failing on its base
   # instead of holding it for an operator override.
   #
@@ -57,6 +62,7 @@ class Repository < ApplicationRecord
   # should stay on "all" -- that is what it is for.
   PR_CHECK_GATES = %w[ all own_only none ].freeze
   attribute :pr_check_gate, :string, default: "all"
+  validates :landing_concurrency, numericality: { only_integer: true, in: LANDING_CONCURRENCY_RANGE }
   validates :pr_check_gate, inclusion: { in: PR_CHECK_GATES }
   # Opt-in: dismiss a required-grader failure at rung 0 (Adjudicators::KnownFlakyFailure)
   # when every one of its failing tests already has a confirmed-flaky history in

@@ -156,8 +156,14 @@ module Admin
         started_at: unit.started_at&.iso8601,
         finished_at: unit.finished_at&.iso8601,
         active_lock_ids: unit.work_unit_locks.select(&:active?).map(&:id),
-        active_lock_keys: unit.work_unit_locks.select(&:active?).map(&:lock_key)
+        active_lock_keys: unit.work_unit_locks.select(&:active?).map(&:lock_key),
+        landing_lane: landing_lane_for(unit)
       }
+    end
+
+    def landing_lane_for(unit)
+      key = unit.work_unit_locks.select(&:active?).map(&:lock_key).find { |k| k.start_with?(WorkUnit::LANDING_LOCK_KEY_PREFIX) }
+      key && WorkDefinitions.landing_lane_for_key(key)
     end
 
     def active_work_unit
@@ -430,6 +436,7 @@ module Admin
     def landing_payload
       entry = landing_queue_entry
       {
+        lanes: WorkDefinitions.landing_lane_status_for(job),
         queue: entry && {
           position: entry.position,
           eligible: entry.eligible?,

@@ -1,0 +1,72 @@
+name: parallel landing lanes keep merging while one unit fails
+repository:
+  owner: simulation
+  name: parallel-landing-lanes
+  auto_merge_enabled: true
+  landing_concurrency: 3
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  third:
+    title: Third job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve first once implemented
+    once: true
+    when:
+      job:
+        id: first
+        state: implemented
+    do:
+      approve: first
+  - name: approve second once implemented
+    once: true
+    when:
+      job:
+        id: second
+        state: implemented
+    do:
+      approve: second
+  - name: approve third once implemented
+    once: true
+    when:
+      job:
+        id: third
+        state: implemented
+    do:
+      approve: third
+outcomes:
+  default: success
+  steps:
+    second:auto_merge:
+      - status: failure
+        error_class: Octokit::BadGateway
+        error_message: 502 Bad Gateway
+      - success
+expect:
+  jobs:
+    first:
+      - closed
+    second:
+      - closed
+    third:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - "auto_merge -> success"

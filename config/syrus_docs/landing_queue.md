@@ -59,7 +59,7 @@ When enabled, Syrus may run a clean isolated reproduction for a failing test. A 
 
 ## The landing slot and blocks that cannot clear
 
-Only one landing unit may occupy a repository's landing slot. Jobs blocked by an active landing unit, repository pause, urgent-work gate, dependency, or another external condition remain visible with the effective reason. Syrus releases stale ownership when no active work can clear it and does not let a failed or cancelled unit hold the slot indefinitely.
+By default only one landing unit may occupy a repository's landing slot; see "Landing concurrency" below to allow more. Jobs blocked by an active landing unit, repository pause, urgent-work gate, dependency, or another external condition remain visible with the effective reason. Syrus releases stale ownership when no active work can clear it and does not let a failed or cancelled unit hold the slot indefinitely.
 
 Temporary blockers are rechecked automatically. Conditions that require operator action remain blocked until that action occurs. A stalled urgent Job stops delaying unrelated landing after 30 minutes when it has no active work and is not already landing.
 
@@ -198,6 +198,14 @@ External PR Jobs use the GitHub PR as the source of truth instead of a Syrus-own
 For same-repository external PRs, `mergeability_preflight` first attempts a deterministic rebase of the PR head ref onto the current base branch and force-pushes it with `--force-with-lease` before landing graders run. If that deterministic rebase conflicts, Syrus dispatches the normal `rebase` workflow against the external PR's actual head branch and defers landing. Fork PRs skip this preflight rebase because Syrus cannot push their branches.
 
 For same-repository external PRs, grader failures enter the `landing_fix` retry loop before merge. If the agent commits a repair, `external_pr_merge` pushes the local repair commit to the PR's actual head branch immediately before merging. For fork PRs, Syrus cannot push repairs; required grader failures post a `REQUEST_CHANGES` review and `fail_landing!` returns the Job to `implemented`.
+
+## Landing concurrency
+
+The repository setting `landing_concurrency` (an integer from 1 to 5, default 1; edit it in the repository form or through the repository API, next to `trust_clean_rebase_grade`) is how many landing units may validate at once. A landing unit is a solo landing, a job bundle, or an Epic merge train. Only the final merge is serialized, behind a per-repository merge lock, so whichever unit is ready first merges first and the others rebase onto the moved base through the usual base-moved handling.
+
+Each concurrent unit holds one landing lane. Lane 1 uses the lock key `landing:repository:<id>`, exactly as before; further lanes use `landing:repository:<id>:lane:<k>`, and a non-default landing branch adds the usual `:branch:<name>` suffix. The queue treats a landing as in progress only when every lane is occupied, and dispatches the next unit into the first free lane. Queue order, bundling, Epic merge trains, and the urgent and fix-main slot releases keep their rules and apply per lane. A Job is never in two landing units at once, and a unit's members never overlap another active unit's members. A failing unit holds only its own lane through its repair loop while the others keep landing.
+
+With the default of 1, landing behaves exactly as it did before the setting existed. The stuck-Job explainer reports each lane, whether it is occupied, and which unit holds it.
 
 ## trust_clean_rebase_grade
 

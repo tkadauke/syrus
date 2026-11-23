@@ -177,8 +177,9 @@ class LandingQueueProcessor
 
     queue_entries.group_by(&:landing_unit_key).each_value do |unit_entries|
       first_entry = unit_entries.first
-      lock_key = landing_lock_key_for(first_entry.job)
-      next if lock_key && occupied_lock_keys.include?(lock_key)
+      lane_keys = landing_lane_keys_for(first_entry.job)
+      # Occupied only when every lane is: a free lane takes the unit.
+      next if lane_keys.any? && lane_keys.all? { |key| occupied_lock_keys.include?(key) }
 
       workflow = if merge_train_unit?(first_entry)
         next if first_entry.blocker_jobs.any?
@@ -197,7 +198,7 @@ class LandingQueueProcessor
       next unless workflow
 
       landed_workflows << workflow
-      occupied_lock_keys << lock_key if lock_key
+      occupied_lock_keys.merge(claimed_lane_keys(workflow, lane_keys))
     end
 
     refresh_snapshot!(Job.landing_queue) if landed_workflows.any?
@@ -580,7 +581,8 @@ class LandingQueueProcessor
     refresh_mergeability = false
     Job.transaction do
       job.lock!
-      raise ActiveRecord::Rollback if landing_in_progress_for_job?(job)
+      lane = WorkDefinitions.free_landing_lane_for(job, policy: delivery_policy_for(job))
+      raise ActiveRecord::Rollback if lane.nil? && landing_lock_key_for(job)
       raise ActiveRecord::Rollback if active_landing_workflow_for_job?(job)
       raise ActiveRecord::Rollback unless job.approved?
       # This re-check is the race guard against state that changed since the
@@ -608,7 +610,11 @@ class LandingQueueProcessor
       job.start_landing!
       job.save!
       work_kind = job.external_pr? ? "external_pr_merge" : "auto_merge"
-      workflow = WorkUnits::Launcher.instantiate(kind: work_kind, job: job)
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: work_kind,
+        job: job,
+        artifacts: WorkDefinitions.landing_lane_artifacts(lane).presence
+      )
       audit(job, "landing_queue: dispatching #{workflow.trigger_kind} #{workflow.slug}")
       WorkflowActivity.landing_workflow_dispatched!(job, workflow)
       landed = true
@@ -655,11 +661,26 @@ class LandingQueueProcessor
     false
   end
 
+  # A landing is in progress for queue purposes only when every lane of the
+  # Job's landing branch is occupied (with one lane: when the slot is).
   def landing_in_progress_for_job?(job)
-    lock_key = landing_lock_key_for(job)
-    return false unless lock_key
+    lane_keys = landing_lane_keys_for(job)
+    return false if lane_keys.empty?
 
-    WorkUnits::Ownership.active_for_lock_key?(lock_key, kinds: WorkDefinitions.landing_lock_kinds)
+    lane_keys.all? do |key|
+      WorkUnits::Ownership.active_for_lock_key?(key, kinds: WorkDefinitions.landing_lock_kinds)
+    end
+  end
+
+  def landing_lane_keys_for(job)
+    WorkDefinitions.landing_lane_keys_for(job, policy: delivery_policy_for(job))
+  end
+
+  # The lane keys the freshly dispatched unit actually holds, falling back to
+  # the first lane when the unit holds none yet.
+  def claimed_lane_keys(workflow, lane_keys)
+    held = workflow.work_unit&.work_unit_locks&.active&.pluck(:lock_key).to_a & lane_keys
+    held.presence || lane_keys.first(1)
   end
 
   def landing_lock_key_for(job)
