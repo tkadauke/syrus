@@ -1446,6 +1446,7 @@ function IndicatorPopover({
     <>
       <span
         aria-expanded={open}
+        role="button"
         onClick={(event) => {
           if (canHover) return
           event.preventDefault()
@@ -1461,10 +1462,14 @@ function IndicatorPopover({
           setOpen(true)
         }}
         onMouseEnter={() => {
+          if (!canHover) return
           cancelClose()
           setOpen(true)
         }}
-        onMouseLeave={scheduleClose}
+        onMouseLeave={() => {
+          if (!canHover) return
+          scheduleClose()
+        }}
         ref={mergedReferenceRef}
         tabIndex={0}
       >
