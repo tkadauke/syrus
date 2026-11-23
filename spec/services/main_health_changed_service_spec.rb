@@ -2129,6 +2129,66 @@ RSpec.describe MainHealthChangedService, :ci_only do
   # preflight on the previous commit. The repair kept grading the old snapshot
   # for an hour, reported failures main no longer had, and would have handed
   # an agent work that was already done.
+  describe ".supersede_unneeded_preflight_repairs!" do
+    def repair_job(state: "queued")
+      repository.jobs.create!(
+        user: user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "repair", issue_body: "Main branch health is broken.", agent_provider: "claude",
+        priority: "high", state: state
+      )
+    end
+
+    def repair_workflow(job, implement_started: false)
+      workflow = Workflow.create!(job: job, trigger_kind: "main_branch_repair", state: "running", started_at: 10.minutes.ago)
+      Step.create!(workflow: workflow, kind: "preflight_grader_fanout", position: 0, state: "succeeded")
+      implement = Step.create!(workflow: workflow, kind: "implement", position: 5, state: implement_started ? "running" : "queued")
+      implement.runs.create!(job: job, trigger_kind: "main_branch_repair", agent_provider: "claude", state: "running") if implement_started
+      workflow
+    end
+
+    # Production: a failed repair was retried, main turned healthy minutes
+    # later when another repair landed, and the retry kept grading.
+    it "closes a repair still in preflight once main is healthy" do
+      repository.update!(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "healthy")
+      job = repair_job
+      repair_workflow(job)
+
+      described_class.supersede_unneeded_preflight_repairs!(repository)
+
+      expect(job.reload).to have_attributes(state: "closed", closure_reason: "superseded")
+    end
+
+    it "keeps a repair that has started implementing" do
+      repository.update!(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "healthy")
+      job = repair_job(state: "running")
+      repair_workflow(job, implement_started: true)
+
+      described_class.supersede_unneeded_preflight_repairs!(repository)
+
+      expect(job.reload).not_to be_closed
+    end
+
+    it "runs when main health changes to healthy" do
+      repository.update!(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "healthy")
+      job = repair_job
+      repair_workflow(job)
+
+      described_class.new(repository).on_health_change!
+
+      expect(job.reload).to have_attributes(state: "closed", closure_reason: "superseded")
+    end
+
+    it "keeps repairs while main is still broken" do
+      repository.update!(main_branch_health_enabled: true, ci_health: "broken", grader_health: "healthy")
+      job = repair_job
+      repair_workflow(job)
+
+      described_class.supersede_unneeded_preflight_repairs!(repository)
+
+      expect(job.reload).not_to be_closed
+    end
+  end
+
   describe ".supersede_stale_preflight_repairs!" do
     def repair_job(state: "queued")
       repository.jobs.create!(
