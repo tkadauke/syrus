@@ -72,8 +72,8 @@ export default function ConnectedAccountsAdmin() {
     ? tokenProvider
     : instanceQuery.data?.providers?.[0]?.key || ""
   const connectToken = useMutation({
-    mutationFn: () =>
-      postJson("/api/v1/app/admin/connected_accounts/instance_accounts", { account: { provider: selectedTokenProvider, token, display_label: label } }),
+    mutationFn: (provider: string) =>
+      postJson("/api/v1/app/admin/connected_accounts/instance_accounts", { account: { provider, token, display_label: label } }),
     onSuccess: () => {
       setToken("")
       setLabel("")
@@ -208,7 +208,7 @@ export default function ConnectedAccountsAdmin() {
               <h3 className="font-semibold text-text-primary">{account.display_label}</h3>
               <Text>{t("instance.status", { status: account.status })}</Text>
               <div className="flex gap-2">
-                <Button type="button" onClick={() => connectToken.mutate()} disabled={!token}>
+                <Button type="button" onClick={() => connectToken.mutate(account.provider)} disabled={!token}>
                   {t("instance.rotate")}
                 </Button>
                 {account.status !== "revoked" && (
@@ -227,7 +227,7 @@ export default function ConnectedAccountsAdmin() {
             <span>{t("instance.token")}</span>
             <Input type="password" value={token} onChange={(event) => setToken(event.target.value)} />
           </label>
-          <Button type="button" disabled={!token || connectToken.isPending} onClick={() => connectToken.mutate()}>
+          <Button type="button" disabled={!token || connectToken.isPending} onClick={() => connectToken.mutate(selectedTokenProvider)}>
             {t("instance.connect")}
           </Button>
         </section>
