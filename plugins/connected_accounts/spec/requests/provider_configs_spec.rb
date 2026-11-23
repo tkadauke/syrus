@@ -38,4 +38,25 @@ RSpec.describe "Connected accounts provider configuration", type: :request do
     expect(response.parsed_body.dig("provider_config", "read_only_scopes")).to eq([ "profile" ])
   end
 
+  it "lists configurable providers with their provider-owned settings metadata" do
+    declaration = ConnectedAccounts::ProviderDeclaration.build(plugin_name: "example_plugin", attributes: {
+      provider: "ConnectedAccounts::FakeProvider", key: "example", display_name: "Example",
+      capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
+      callback_route: "/api/v1/app/connected_accounts/callback/example", supports_read_only: true,
+      settings_notice: "Configure Example with your own client.",
+      settings_notice_i18n_key: "example:settings.provider_notice",
+      scopes: [ { key: "profile", label: "Read profile", risk: "low", read_only: true,
+        syrus_capabilities: [ "profile.read@v1" ] } ]
+    })
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:all).and_return([ declaration ])
+
+    get "/api/v1/app/admin/connected_accounts/provider_configs"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("providers")).to contain_exactly(include(
+      "provider_key" => "example", "display_name" => "Example",
+      "settings_notice" => "Configure Example with your own client.",
+      "settings_notice_i18n_key" => "example:settings.provider_notice"
+    ))
+  end
 end
