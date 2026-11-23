@@ -132,8 +132,10 @@ module Syrus
       end
 
       def self.chat_tool_set_for(manifest)
+        legacy = Array(manifest.provides[:chat_mcp_tool_set] || manifest.provides["chat_mcp_tool_set"])
         provider = provider_for_manifest(manifest)
-        provider&.chat_tools(Context::ToolkitDiscoveryContext.new)
+        family = provider&.chat_tools(Context::ToolkitDiscoveryContext.new)
+        (legacy + Array(family)).compact.uniq
       end
     end
 
