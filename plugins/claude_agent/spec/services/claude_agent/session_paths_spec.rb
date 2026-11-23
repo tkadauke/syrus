@@ -21,6 +21,41 @@ RSpec.describe ClaudeAgent::SessionPaths do
       path = described_class.canonical_path_for(home: "/h", cwd: "/a/.foo/b", session_id: "id")
       expect(path).to eq("/h/.claude/projects/-a--foo-b/id.jsonl")
     end
+
+    # Regression: on macOS /var is a symlink to /private/var. Claude Code
+    # stores a session for a workspace under /var/... in the project named
+    # after the resolved /private/var/... path, so encoding the path as given
+    # put resume transcripts where Claude never looked.
+    it "encodes the cwd with symlinks resolved, the way Claude Code reports it" do
+      Dir.mktmpdir("claude-paths-spec-") do |dir|
+        real = File.join(File.realpath(dir), "real", "workflows", "7")
+        FileUtils.mkdir_p(real)
+        File.symlink(File.join(File.realpath(dir), "real"), File.join(dir, "link"))
+        linked_cwd = File.join(dir, "link", "workflows", "7")
+
+        path = described_class.canonical_path_for(home: "/h", cwd: linked_cwd, session_id: "id")
+        subagents = described_class.canonical_subagents_dir_for(home: "/h", cwd: linked_cwd, session_id: "id")
+
+        expected_project = real.gsub(%r{[/.]}, "-")
+        expect(path).to eq("/h/.claude/projects/#{expected_project}/id.jsonl")
+        expect(subagents).to eq("/h/.claude/projects/#{expected_project}/id/subagents")
+      end
+    end
+
+    it "resolves symlinks the same way before the workspace directory exists" do
+      Dir.mktmpdir("claude-paths-spec-") do |dir|
+        FileUtils.mkdir_p(File.join(dir, "real"))
+        File.symlink(File.join(File.realpath(dir), "real"), File.join(dir, "link"))
+        not_yet_created = File.join(dir, "link", "workflows", "8")
+
+        before = described_class.canonical_path_for(home: "/h", cwd: not_yet_created, session_id: "id")
+        FileUtils.mkdir_p(not_yet_created)
+        after = described_class.canonical_path_for(home: "/h", cwd: not_yet_created, session_id: "id")
+
+        expect(before).to eq(after)
+        expect(before).to include(File.join(File.realpath(dir), "real", "workflows", "8").gsub(%r{[/.]}, "-"))
+      end
+    end
   end
 
   describe ".canonical_transcript_jsonl" do

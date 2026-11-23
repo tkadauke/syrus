@@ -13,8 +13,34 @@ module ClaudeAgent
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
 
     def self.canonical_path_for(home:, cwd:, session_id:)
-      encoded = cwd.to_s.gsub(PATH_ENCODE_PATTERN, "-")
-      File.join(home, ".claude", "projects", encoded, "#{session_id}.jsonl")
+      File.join(home, ".claude", "projects", encoded_project(cwd), "#{session_id}.jsonl")
+    end
+
+    # Claude Code names the project after the cwd the OS reports, which has
+    # every symlink resolved. On macOS /var is a symlink to /private/var, so
+    # a workspace at /var/lib/syrus/workflows/<id> is stored under
+    # "-private-var-lib-syrus-workflows-<id>"; encoding the unresolved path
+    # restored resume transcripts where Claude never looks and never found
+    # the transcripts it wrote. The deepest existing ancestor is resolved and
+    # the rest appended, so the answer is the same before and after the
+    # workspace directory itself is created.
+    def self.encoded_project(cwd)
+      resolved_cwd(cwd.to_s).gsub(PATH_ENCODE_PATTERN, "-")
+    end
+
+    def self.resolved_cwd(cwd)
+      return cwd unless cwd.start_with?("/")
+
+      existing = cwd
+      missing = []
+      until File.exist?(existing) || existing == "/"
+        missing.unshift(File.basename(existing))
+        existing = File.dirname(existing)
+      end
+      resolved = File.join(File.realpath(existing), *missing)
+      cwd.end_with?("/") && !resolved.end_with?("/") ? "#{resolved}/" : resolved
+    rescue SystemCallError
+      cwd
     end
 
     def self.canonical_transcript_jsonl(home:, cwd:, session_id:)
@@ -36,8 +62,7 @@ module ClaudeAgent
     # on disk (isSidechain lines are NOT interleaved inline in SDK-CLI mode,
     # contrary to interactive-CLI transcripts).
     def self.canonical_subagents_dir_for(home:, cwd:, session_id:)
-      encoded = cwd.to_s.gsub(PATH_ENCODE_PATTERN, "-")
-      File.join(home, ".claude", "projects", encoded, session_id.to_s, "subagents")
+      File.join(home, ".claude", "projects", encoded_project(cwd), session_id.to_s, "subagents")
     end
   end
 end
