@@ -42,7 +42,7 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.first.run).to include("run_package_script typecheck")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.junit_output).to eq(".syrus/grade-output/vitest-junit.xml")
-    expect(steps.first.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "plugin", command: nil))
+    expect(steps.first.base_retry).to eq(Syrus::Host::GraderBaseRetry.new(strategy: "plugin", command: nil))
     expect(steps.first.metadata).to include(
       "grader_type" => "vitest",
       "grader_framework" => "vitest",
