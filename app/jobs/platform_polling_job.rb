@@ -42,8 +42,7 @@ class PlatformPollingJob < ApplicationJob
 
     # { name:, status:, platform?: } where status is :started,
     # :already_running, :not_configured, or :error. `platform` is included
-    # when the subclass declares its own .platform_key (core connectors like
-    # PollTelegramUpdatesJob do this directly); plugin connectors don't
+    # when the subclass declares its own .platform_key; plugin connectors don't
     # implement it here -- PlatformDelivery::Registry merges the owning
     # provider's .platform_key in instead, since the job class itself only
     # knows the plugin, not the platform key the plugin registered under.

@@ -408,7 +408,7 @@ describe("AdminSettings platform polling controls", () => {
           jsonResponse({
             started: ["Discord::GatewayConnectionJob"],
             connectors: [
-              { name: "PollTelegramUpdatesJob", status: "already_running", platform: "telegram" },
+              { name: "Telegram::PollUpdatesJob", status: "already_running", platform: "telegram" },
               { name: "Discord::GatewayConnectionJob", status: "started", platform: "discord" }
             ]
           })

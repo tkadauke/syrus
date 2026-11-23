@@ -2,10 +2,6 @@ require "rails_helper"
 
 RSpec.describe PlatformIdentity::PlatformConfig::Base do
   describe ".for" do
-    it "returns a Telegram config for 'telegram'" do
-      expect(described_class.for("telegram")).to be_a(PlatformIdentity::PlatformConfig::Telegram)
-    end
-
     it "returns a Slack config for 'slack'" do
       expect(described_class.for("slack")).to be_a(PlatformIdentity::PlatformConfig::Slack)
     end

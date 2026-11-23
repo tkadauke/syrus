@@ -473,9 +473,10 @@ finishes.
 ### PlatformIdentity
 
 Links a `User` to an account on an external chat platform so they can talk to
-their Syrus chat from that platform. `PLATFORMS = %w[telegram slack]` are
+their Syrus chat from that platform. `PLATFORMS = %w[slack]` is
 core; `PlatformIdentity.available_platforms` extends that with every
-enabled `:platform_delivery` plugin's `platform_key` (currently `discord`).
+enabled `:platform_delivery` plugin's `platform_key` (currently `discord` and
+`telegram`).
 Slack is reserved in `PLATFORMS` but has no working adapter yet
 (`configured? == false`). See [External platform chat](#external-platform-chat)
 for the linking and message-routing flow.
@@ -2078,9 +2079,10 @@ and talk to their Syrus chat from Telegram, Discord, or (once wired up)
 Slack, instead of only the web/CLI/desktop clients.
 
 `PlatformIdentity` (`user`, `platform`, `external_id`, `external_handle`,
-`linked_at`) records the link. `PLATFORMS = %w[telegram slack]` are core;
+`linked_at`) records the link. `PLATFORMS = %w[slack]` is core;
 `PlatformIdentity.available_platforms` extends that with every enabled
-`:platform_delivery` plugin's `platform_key` (currently `discord` — see
+`:platform_delivery` plugin's `platform_key` (currently `discord` and
+`telegram` — see
 [Plugin system](#plugin-system)). Slack is reserved in the core list but
 has no working adapter yet. Linking is token-based: `POST
 /api/v1/app/platform_identities/linking_token` returns a signed, 15-minute
@@ -2101,21 +2103,22 @@ policy implemented — every inbound platform message wakes the agent).
 Outbound delivery — the agent's reply going back to the platform — goes
 through a shared `Syrus::Plugin::PlatformDelivery` interface
 (`.platform_key`, `.connector_job_class`, `.platform_config_class`,
-`#deliver(message:, platform_identity:)`), so core (Telegram) and plugin
-(Discord) adapters share the same shape.
+`#deliver(message:, platform_identity:)`), so the Telegram and Discord plugin
+adapters share the same shape.
 
-Telegram is long-polled: `PollTelegramUpdatesJob` (a `PlatformPollingJob`,
-self-re-enqueuing rather than cron-scheduled) calls `TelegramClient#get_updates`
+Telegram is long-polled: `Telegram::PollUpdatesJob` (a `PlatformPollingJob`,
+self-re-enqueuing rather than cron-scheduled) calls `Telegram::Client#get_updates`
 against `GET /bot<token>/getUpdates`, tracks `AppSetting.telegram_update_offset`
 as the polling cursor, and routes non-`/start` messages through
-`InboundMessageRouter`; `PlatformDelivery::TelegramAdapter` chunks outbound
+`InboundMessageRouter`; `Telegram::PlatformAdapter` chunks outbound
 text to Telegram's 4096-character message cap. Discord instead holds a
 persistent Gateway websocket connection (`Discord::GatewayConnectionJob`,
 also a self-re-enqueuing `PlatformPollingJob` — reconnecting counts as
 "polling again" when the socket drops) and chunks outbound text to
 Discord's 2000-character cap via `Discord::PlatformAdapter`. Both
-connectors are started at boot (`config/initializers/platform_polling.rb`,
-server processes only) rather than through `config/recurring.yml`.
+connectors are provided by bundled plugins and are started at boot
+(`config/initializers/platform_polling.rb`, server processes only) only while
+their plugin is enabled rather than through `config/recurring.yml`.
 
 ## Failure recovery
 

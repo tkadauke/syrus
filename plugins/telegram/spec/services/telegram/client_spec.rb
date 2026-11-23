@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe TelegramClient do
+RSpec.describe Telegram::Client do
   let(:token) { "test-bot-token" }
   subject(:client) { described_class.new(token: token) }
 
@@ -28,7 +28,7 @@ RSpec.describe TelegramClient do
         )
 
       expect { client.get_updates(offset: 0) }
-        .to raise_error(TelegramClient::Error, "Unauthorized")
+        .to raise_error(Telegram::Client::Error, "Unauthorized")
     end
 
     it "raises on network error" do

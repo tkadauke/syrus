@@ -3,7 +3,7 @@ require "json"
 
 module Discord
   # Thin wrapper around Discord's REST API (bot token auth). Mirrors
-  # TelegramClient's shape: one public method per endpoint, each swallowing
+  # Telegram::Client's shape: one public method per endpoint, each swallowing
   # and logging its own network errors so callers never need to rescue.
   class Client
     BASE = "https://discord.com/api/v10"
