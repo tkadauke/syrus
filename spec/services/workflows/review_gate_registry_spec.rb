@@ -38,7 +38,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
     grade_plan = double(any_configured?: false, format_configured?: false, generate_configured?: false, graders_configured?: false)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_plan)
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_plan)
@@ -134,7 +134,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
   end
 
   it "preserves the visual-review exclusion for external PR feedback" do
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: true, rounds: 1))
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: true, rounds: 1))
 
     gates = described_class.for(
       slot: :after_agent,

@@ -1,8 +1,7 @@
 # Resolves the optional coverage plan configured in `.syrus.yml`.
 #
 # Thin adapter over RepoDefaultBranchSyrusYml, which owns the actual GitHub
-# fetch and SyrusYml parse (shared with RepoAdversarialReviewPlan,
-# RepoVisualReviewPlan, and RepoGradeLoopPlan so
+# fetch and SyrusYml parse (shared with the review and grade plans so
 # Workflows::Base resolves the repository's default-branch config once per
 # workflow instantiation instead of each plan fetching it independently).
 # Previously parsed the GitHub content directly with YAML.safe_load +

@@ -98,8 +98,8 @@ RSpec.describe Workflows::CompositionAnchors, :reset_plugin_registry do
     allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_return(
       RepoSecurityReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 0, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 0, source: "none", note: "disabled")
     )
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
       RepoGradeLoopPlan::Result.new(

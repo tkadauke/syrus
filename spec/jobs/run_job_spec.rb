@@ -1936,14 +1936,14 @@ RSpec.describe RunJob, :ci_only do
   end
 
   def stub_visual_review_plan(enabled:)
-    plan = RepoVisualReviewPlan::Result.new(
+    plan = SyrusBrowser::RepoVisualReviewPlan::Result.new(
       enabled: enabled,
       rounds: 1,
       source: "spec",
       note: enabled ? nil : "disabled for dispatch-focused spec"
     )
-    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(plan)
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(plan)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(plan)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(plan)
   end
 
   def seed_remote_with_initial_commit(bare_path)
