@@ -4845,6 +4845,13 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M66. Main through `29c22a4edd`
+
+One commit: macOS workers run the release's pinned Ruby through mise. Worker
+provisioning only; no engine invariant.
+
+---
+
 ## M65. Main through `ebbcb88009`
 
 Five commits. `25b268d453` (previous-failures gate JUnit), `ff64d942f9` (enable
@@ -6461,7 +6468,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `ebbcb88009`. Each loop iteration continues from there:
+Checked through main `29c22a4edd`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
