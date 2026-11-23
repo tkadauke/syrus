@@ -2056,6 +2056,61 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(a.reload).to be_closed
     end
 
+    context "with the merge lock" do
+      let(:lock_key) { "merge:repository:#{repository.id}" }
+
+      before do
+        Steps::MergeLockControl.merge_lock_wait = 0
+        Steps::MergeLockControl.merge_lock_poll = 0
+      end
+
+      after do
+        Steps::MergeLockControl.merge_lock_wait = nil
+        Steps::MergeLockControl.merge_lock_poll = nil
+      end
+
+      def holder_unit
+        other = member_job(issue_number: 90)
+        other_workflow = Workflows::AutoMerge.instantiate(job: other)
+        attach_work_unit(other_workflow, state: "running")
+      end
+
+      it "fails without merging when another landing holds the lock past the wait budget" do
+        a = member_job(issue_number: 1)
+        train = build_train([ a ])
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        handler.workflow.set_artifact!("merge_train_base_sha", "basesha123")
+        allow(handler).to receive(:repository).and_return(repository)
+        stub_git(handler)
+        attach_work_unit(handler.workflow, state: "running")
+        holder_unit.work_unit_locks.create!(lock_key: lock_key)
+
+        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /merge lock busy/)
+        expect(client).not_to have_received(:create_pull_request)
+      end
+
+      it "waits for the holder, then takes the base-moved path and releases the lock" do
+        a = member_job(issue_number: 1)
+        train = build_train([ a ])
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        handler.workflow.set_artifact!("merge_train_base_sha", "oldbase111")
+        allow(handler).to receive(:repository).and_return(repository)
+        stub_git(handler, base: "newbase222")
+        unit = attach_work_unit(handler.workflow, state: "running")
+        holder_lock = holder_unit.work_unit_locks.create!(lock_key: lock_key)
+        Steps::MergeLockControl.merge_lock_wait = 30
+        Steps::MergeLockControl.merge_lock_poll = 0.001
+        # The holder finishes its merge while this landing is waiting.
+        allow(handler).to receive(:sleep) { holder_lock.release! }
+
+        expect { handler.call }.to raise_error(Steps::MergeTrainLand::BaseMoved)
+
+        expect(handler).to have_received(:sleep).at_least(:once)
+        expect(unit.work_unit_locks.where(lock_key: lock_key).count).to eq(1)
+        expect(unit.work_unit_locks.active.where(lock_key: lock_key)).to be_empty
+      end
+    end
+
     it "raises BaseMoved (not StepFailed) and sets failure_code when the base branch moved after build" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

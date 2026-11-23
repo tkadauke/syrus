@@ -39,10 +39,30 @@ RSpec.describe MergeLock do
   end
 
   it "hands the free lock to the earliest-started waiter (FIFO)" do
+    holder_wf, holder_job, = landing_unit(started_at: 4.hours.ago, pr_number: 3)
     early_wf, early_job, = landing_unit(started_at: 3.hours.ago, pr_number: 1)
     late_wf, late_job, = landing_unit(started_at: 1.hour.ago, pr_number: 2)
-    expect(described_class.try_acquire(workflow: late_wf, job: late_job)).to be_nil
-    expect(described_class.try_acquire(workflow: early_wf, job: early_job)).to be_present
+    holder = described_class.try_acquire(workflow: holder_wf, job: holder_job, step: holder_wf.steps.last)
+
+    # Both queue up behind the holder; the later one asks first.
+    expect(described_class.try_acquire(workflow: late_wf, job: late_job, step: late_wf.steps.last)).to be_nil
+    expect(described_class.try_acquire(workflow: early_wf, job: early_job, step: early_wf.steps.last)).to be_nil
+
+    holder.release!
+    holder_wf.steps.last.update_columns(state: "succeeded")
+
+    expect(described_class.try_acquire(workflow: late_wf, job: late_job, step: late_wf.steps.last)).to be_nil
+    expect(described_class.try_acquire(workflow: early_wf, job: early_job, step: early_wf.steps.last)).to be_present
+  end
+
+  it "does not resolve lock keys for other waiters while polling" do
+    wf1, job1, = landing_unit(started_at: 2.hours.ago, pr_number: 1)
+    wf2, job2, = landing_unit(started_at: 1.hour.ago, pr_number: 2)
+    described_class.try_acquire(workflow: wf1, job: job1, step: wf1.steps.last)
+    key = WorkDefinitions.merge_lock_key_for(job2)
+
+    expect(WorkDefinitions).not_to receive(:merge_lock_key_for)
+    described_class.try_acquire(workflow: wf2, job: job2, step: wf2.steps.last, key: key)
   end
 
   it "is released by the terminal work unit machinery when the holder is gone" do
