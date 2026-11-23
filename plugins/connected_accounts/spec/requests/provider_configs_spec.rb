@@ -37,4 +37,5 @@ RSpec.describe "Connected accounts provider configuration", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.dig("provider_config", "read_only_scopes")).to eq([ "profile" ])
   end
+
 end
