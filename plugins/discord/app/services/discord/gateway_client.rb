@@ -76,7 +76,7 @@ module Discord
           connect_and_pump
           @run_outcome ||= @session_id.present? ? :closed : :startup_failure
         rescue => e
-          Rails.logger.error("Discord::GatewayClient: connection error: #{e.message}")
+          Rails.logger.error("Discord::GatewayClient: connection error: #{e.class}")
           @should_reconnect = @session_id.present?
           @run_outcome = @should_reconnect ? :connection_error : :startup_failure
         end
@@ -110,7 +110,7 @@ module Discord
 
       @driver.on(:message) { |event| handle_frame(event.data) }
       @driver.on(:close) { |event| handle_close(event) }
-      @driver.on(:error) { |event| Rails.logger.error("Discord::GatewayClient: #{event.message}") }
+      @driver.on(:error) { |event| Rails.logger.error("Discord::GatewayClient: websocket error") }
 
       @driver.start
       pump until @closed

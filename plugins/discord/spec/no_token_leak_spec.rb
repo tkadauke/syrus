@@ -98,4 +98,44 @@ RSpec.describe "Discord bot token redaction" do
 
     expect(seen.join).not_to include(token)
   end
+
+  it "logs only the exception class from the REST client's internal rescue paths" do
+    stub_request(:post, "https://discord.com/api/v10/users/@me/channels").to_raise(Net::OpenTimeout.new("failed with Bot #{token}"))
+    stub_request(:post, "https://discord.com/api/v10/channels/c/messages").to_raise(Net::OpenTimeout.new("failed with Bot #{token}"))
+
+    Discord::Client.new(token: token).create_dm_channel("1")
+    Discord::Client.new(token: token).send_message(channel_id: "c", content: "x")
+
+    expect(log.string).to include("create_dm_channel").and include("send_message")
+    expect(log.string).not_to include(token)
+  end
+
+  it "logs only the exception class when the real Gateway client's connection fails" do
+    client = Discord::GatewayClient.new(token: token)
+    allow(client).to receive(:connect_and_pump).and_raise("handshake failed for #{token}")
+
+    client.run { |_event| nil }
+
+    expect(log.string).to include("connection error")
+    expect(log.string).not_to include(token)
+  end
+
+  it "does not log the token from websocket driver errors" do
+    client = Discord::GatewayClient.new(token: token)
+    driver = Class.new do
+      attr_reader :handlers
+
+      def on(name, &block) = (@handlers ||= {})[name] = block
+      def start = nil
+    end.new
+    allow(::WebSocket::Driver).to receive(:client).and_return(driver)
+    socket = instance_double(OpenSSL::SSL::SSLSocket, close: nil)
+    allow(socket).to receive(:readpartial).and_raise(EOFError)
+    allow(client).to receive(:open_socket).and_return(socket)
+    client.send(:connect_and_pump)
+
+    driver.handlers[:error].call(Struct.new(:message).new("bad frame #{token}"))
+
+    expect(log.string).not_to include(token)
+  end
 end
