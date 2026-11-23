@@ -356,7 +356,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
         ]
       end
     end
-    Syrus::PluginRegistry.register(name: "provider_routing_rules_spec_plugin", version: "1.0.0", provides: { workflow_kinds: workflow_kind_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "provider_routing_rules_spec_plugin", version: "1.0.0", provides: { workflow_kinds: workflow_kind_provider })
 
     get "/api/v1/app/credentials/options"
 

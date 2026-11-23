@@ -41,7 +41,7 @@ RSpec.describe WorkspaceTabsPayload do
 
   it "resolves a registered provider's tabs into wire-shaped hashes" do
     provider = make_provider(id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status")
-    Syrus::PluginRegistry.register(name: "wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
 
     expect(other_tabs(chat_session)).to eq([
       {
@@ -56,7 +56,7 @@ RSpec.describe WorkspaceTabsPayload do
 
   it "excludes tabs from a provider whose available_for? returns false" do
     provider = make_provider(id: "my_plugin.hidden", available: false)
-    Syrus::PluginRegistry.register(name: "hidden_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "hidden_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
 
     expect(other_tabs(chat_session)).to eq([])
   end
@@ -64,15 +64,15 @@ RSpec.describe WorkspaceTabsPayload do
   it "sorts resolved tabs by order, then label" do
     later = make_provider(id: "plugin_b.tab", order: 20)
     earlier = make_provider(id: "plugin_a.tab", order: 10)
-    Syrus::PluginRegistry.register(name: "later_wt_plugin", version: "1.0.0", provides: { workspace_tab: later })
-    Syrus::PluginRegistry.register(name: "earlier_wt_plugin", version: "1.0.0", provides: { workspace_tab: earlier })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "later_wt_plugin", version: "1.0.0", provides: { workspace_tab: later })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "earlier_wt_plugin", version: "1.0.0", provides: { workspace_tab: earlier })
 
     expect(other_tabs(chat_session).map { |tab| tab[:id] }).to eq([ "plugin_a.tab", "plugin_b.tab" ])
   end
 
   it "excludes tabs from disabled plugins" do
     provider = make_provider(id: "my_plugin.disabled")
-    Syrus::PluginRegistry.register(name: "disabled_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "disabled_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
     PluginRecord.find_by!(name: "disabled_wt_plugin").update!(enabled: false)
 
     expect(other_tabs(chat_session)).to eq([])
@@ -80,7 +80,7 @@ RSpec.describe WorkspaceTabsPayload do
 
   it "passes the chat session to providers and preserves optional tab data" do
     provider = make_provider(id: "my_plugin.contextual", with_chat: true)
-    Syrus::PluginRegistry.register(name: "contextual_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "contextual_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
 
     expect(other_tabs(chat_session).first).to include(data: { chat_id: chat_session.id })
   end

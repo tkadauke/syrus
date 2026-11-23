@@ -26,6 +26,15 @@ export type CaptureOptions = { hollowOffscreen?: boolean }
 
 export const HOLLOW_ATTRIBUTE = "data-capture-hollow"
 export const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
+export const MIN_FULL_PAGE_SCREENSHOT_SCALE = 0.25
+export const MAX_FULL_PAGE_CAPTURE_ELEMENTS = 50_000
+
+export class UnsafeFullPageCaptureError extends Error {
+  constructor() {
+    super("The page is too large to capture safely")
+    this.name = "UnsafeFullPageCaptureError"
+  }
+}
 
 let html2canvasPromise: Promise<Html2Canvas> | null = null
 // How many elements the latest viewport capture hollowed; read by the debug
@@ -73,6 +82,9 @@ export function captureFullPage(html2canvas: Html2Canvas) {
   const width = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, window.innerWidth)
   const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, window.innerHeight)
   const scale = Math.min(1, Math.sqrt(MAX_FULL_PAGE_SCREENSHOT_PIXELS / (width * height)))
+  if (scale < MIN_FULL_PAGE_SCREENSHOT_SCALE || document.getElementsByTagName("*").length > MAX_FULL_PAGE_CAPTURE_ELEMENTS) {
+    throw new UnsafeFullPageCaptureError()
+  }
   const untag = tagScrollPositions(document)
 
   return html2canvas(document.body, {
@@ -204,7 +216,10 @@ export function planHollowing(originalDoc: Document, bounds: Bounds): HollowPlan
     // Table rows hollow cell by cell, so column widths still see every cell.
     const targets: Array<[number, HTMLElement]> =
       original.tagName === "TR" ? Array.from(original.children as HTMLCollectionOf<HTMLElement>).map((cell, i) => [i, cell]) : [[-1, original]]
-    plan.rows.set(index, targets.map(([i, target]) => [i, target.getBoundingClientRect()]))
+    plan.rows.set(
+      index,
+      targets.map(([i, target]) => [i, target.getBoundingClientRect()])
+    )
     targets.forEach(([, target]) => plan.emptied.add(target))
     return true
   })

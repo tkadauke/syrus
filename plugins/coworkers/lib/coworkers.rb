@@ -7,6 +7,7 @@ module Coworkers
   extend Syrus::PluginApi
 
   syrus_plugin "coworkers" do
+    requires_syrus nil
     experimental true
     display_name "Coworkers"
     description "Persistent named agents with their own chats, capabilities, and workspace identity."

@@ -14,6 +14,11 @@ module JavaScript
   extend Syrus::PluginApi
 
   syrus_plugin "javascript" do
+    default_enabled true
+
+    disableable true
+    experimental false
+    requires_syrus nil
     description "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; npm/yarn/pnpm audit dependency scanning; default `any`-type review criterion"
     long_description "JavaScript adds Node, JavaScript, and TypeScript project intelligence. It detects package managers from lockfiles, prepares dependencies, hosts dev-server previews from common package scripts, augments ESLint grader output, and supplies autofix/dependency-audit commands.\n\nUse it for frontend apps, Node services, static sites, and mixed repositories with JS or TS components. Framework-specific behavior can layer on top of this plugin later."
     homepage "https://github.com/tkadauke/syrus"

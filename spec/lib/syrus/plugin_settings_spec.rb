@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Syrus::PluginSettings do
   def register(schema)
-    Syrus::PluginRegistry.register(name: "configurable", version: "1.0.0", config_schema: schema)
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "configurable", version: "1.0.0", config_schema: schema)
   end
 
   it "returns the schema default when nothing has been saved" do

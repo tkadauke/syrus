@@ -14,7 +14,9 @@ module Syrus
       homepage: "Plugin homepage URL.", icon_url: "Plugin-owned icon path or URL.", author: "Plugin author.",
       category: "Catalog category.", version: "Plugin version; normally read from the gem.",
       default_enabled: "Whether a new installation enables the plugin.", disableable: "Whether an operator may disable it.",
-      experimental: "Marks an instance-local experimental plugin.", home_queue: "Default Solid Queue queue.",
+      experimental: "Marks an instance-local experimental plugin.",
+      requires_syrus: "Compatibility requirement, or nil when intentionally unbounded.",
+      home_queue: "Default Solid Queue queue.",
       tick_interval: "Optional control-plane tick interval.", prepare_priority: "Ordering priority for prepare contributions.",
       depends_on: "Required plugin names.", optionally_depends_on: "Optional plugin names.", conflicts_with: "Mutually exclusive plugin names.",
       roles: "Process roles in which the plugin may load.",
@@ -86,6 +88,8 @@ module Syrus
           A plugin is a gem loaded as trusted in-process code and requires a Syrus restart after installation or upgrade. Its gemspec must set a requirement string such as `metadata["requires_syrus"] = ">= 0.1.16"`; Syrus parses it as a `Gem::Requirement`. The requirement must cover the oldest tested Syrus release and be no lower than the newest host API `since` version the plugin uses. The entry file extends `Syrus::PluginApi` and declares one `syrus_plugin` block. Accepted keys:
 
           #{fields}
+
+          Every manifest must explicitly declare `default_enabled`, `disableable`, `experimental`, and `requires_syrus`. Use literal booleans for the first three and `requires_syrus nil` only when the plugin is intentionally unbounded. There are no compatibility defaults for older plugin manifests; omitting any release-posture field is an error.
 
           `frontend` declares the prebuilt browser entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
 

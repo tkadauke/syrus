@@ -2,6 +2,7 @@ module Tailscale
   extend Syrus::PluginApi
 
   syrus_plugin "tailscale" do
+    requires_syrus nil
     experimental true
     display_name "Tailscale"
     description "Exposes Syrus on your Tailscale network for access from laptops and mobile."

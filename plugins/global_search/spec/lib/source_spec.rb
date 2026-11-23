@@ -21,7 +21,7 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
   end
 
   def register(klass)
-    Syrus::PluginRegistry.register(name: "search_table_plugin", version: "1.0.0", provides: { "global_search:source" => klass })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "search_table_plugin", version: "1.0.0", provides: { "global_search:source" => klass })
   end
 
   it "merges plugin tables into the required set" do
@@ -76,8 +76,8 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
     end
     healthy_provider = provider({ "healthy_fts" => "CREATE VIRTUAL TABLE IF NOT EXISTS healthy_fts USING fts5(body)" })
 
-    Syrus::PluginRegistry.register(name: "broken_search_plugin", version: "1.0.0", provides: { "global_search:source" => broken_provider })
-    Syrus::PluginRegistry.register(name: "healthy_search_plugin", version: "1.0.0", provides: { "global_search:source" => healthy_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_search_plugin", version: "1.0.0", provides: { "global_search:source" => broken_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "healthy_search_plugin", version: "1.0.0", provides: { "global_search:source" => healthy_provider })
 
     expect(SyrusSearchDatabaseTasks.required_table_sql).to have_key("healthy_fts")
   end
@@ -89,8 +89,8 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
     end
     healthy_provider = provider({ "healthy_fts" => "CREATE VIRTUAL TABLE IF NOT EXISTS healthy_fts USING fts5(body)" })
 
-    Syrus::PluginRegistry.register(name: "broken_search_plugin", version: "1.0.0", provides: { "global_search:source" => broken_provider })
-    Syrus::PluginRegistry.register(name: "healthy_search_plugin", version: "1.0.0", provides: { "global_search:source" => healthy_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_search_plugin", version: "1.0.0", provides: { "global_search:source" => broken_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "healthy_search_plugin", version: "1.0.0", provides: { "global_search:source" => healthy_provider })
 
     expect { GlobalSearch::SourceBackfill.run! }.not_to raise_error
     expect(healthy_provider.rebuilt).to eq([ "healthy_fts" ])
@@ -105,7 +105,7 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
       def self.rebuild_search_table(name) = self.rebuilt += [ name ]
     end
 
-    Syrus::PluginRegistry.register(name: "legacy_search_plugin", version: "1.0.0", provides: { "global_search:source" => legacy_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_search_plugin", version: "1.0.0", provides: { "global_search:source" => legacy_provider })
 
     GlobalSearch::SourceBackfill.run!
 

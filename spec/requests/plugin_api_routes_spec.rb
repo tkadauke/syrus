@@ -20,7 +20,7 @@ end
 
 RSpec.describe "Plugin API routes", type: :request do
   before do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "raising_route_fixture",
       version: "1.0.0",
       routes: [
@@ -31,7 +31,7 @@ RSpec.describe "Plugin API routes", type: :request do
         }
       ]
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "healthy_route_fixture",
       version: "1.0.0",
       routes: [

@@ -33,7 +33,7 @@ RSpec.describe Syrus::Events, :reset_plugin_registry do
   end
 
   def register(provider, name: "subscriber_plugin", home_queue: :default)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name, version: "1.0.0", home_queue: home_queue,
       provides: { domain_subscriber: provider }
     )
@@ -46,7 +46,7 @@ RSpec.describe Syrus::Events, :reset_plugin_registry do
 
   it "accepts event names declared by registered plugins" do
     klass = subscriber({ "plugin.thing_happened" => :on_event })
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "event_plugin", version: "1.0.0",
       events: { "plugin.thing_happened" => :inline },
       provides: { domain_subscriber: klass }
@@ -104,7 +104,7 @@ RSpec.describe Syrus::Events, :reset_plugin_registry do
 
   it "does not deliver to a plugin whose hard dependency is missing" do
     klass = subscriber({ "step.grader.completed" => :on_event })
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "degraded_plugin", version: "1.0.0", depends_on: [ "absent" ],
       provides: { domain_subscriber: klass }
     )

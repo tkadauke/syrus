@@ -23,7 +23,7 @@ RSpec.describe Prompts::WorkflowMcpToolInstructions do
       end
     end
 
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "oracle_agent",
       version: "1.0.0",
       provides: { agent_provider: provider }

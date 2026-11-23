@@ -31,7 +31,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     # fallback). Register the real bundled plugin, mirroring its engine.rb
     # manifest, so Gemfile-based specs below exercise production wiring.
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
         family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
           family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
@@ -386,7 +386,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     after { Syrus::PluginRegistry.reset! }
 
     it "merges computed values from a provider that implements #extra_env" do
-      Syrus::PluginRegistry.register(name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
 
       extra = described_class.prep_extra_env(scope: scope, workspace_path: @ws_path)
 
@@ -394,19 +394,19 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     end
 
     it "is a no-op for a provider that only implements #forwarded_env_keys" do
-      Syrus::PluginRegistry.register(name: "fake_silent", version: "1.0.0", provides: { step_environment: silent_provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "fake_silent", version: "1.0.0", provides: { step_environment: silent_provider })
 
       expect(described_class.prep_extra_env(scope: scope, workspace_path: @ws_path)).not_to have_key("FAKE_COMPUTED")
     end
 
     it "logs and continues when a provider's #extra_env raises" do
-      Syrus::PluginRegistry.register(name: "fake_raising", version: "1.0.0", provides: { step_environment: raising_provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "fake_raising", version: "1.0.0", provides: { step_environment: raising_provider })
 
       expect { described_class.prep_extra_env(scope: scope, workspace_path: @ws_path) }.not_to raise_error
     end
 
     it "computes distinct values for a chat-session scope on the same repository" do
-      Syrus::PluginRegistry.register(name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
       chat_session = ChatSession.create!(user: job.user)
       chat_scope = PrepareScope.for_chat_session(chat_session, repository: job.repository)
 
@@ -572,7 +572,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       # workflow artifact on every run, which re-validates the whole record
       # (including the pre-existing "claude" agent_provider against
       # User.agent_providers).
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "claude_agent", version: "0", category: "agent_provider",
         provides: { agent_provider: AgentProviders::Claude }
       )
@@ -583,7 +583,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     context "with every bundled language plugin registered", requires_plugin: %w[ruby javascript python go] do
       before do
         unless Syrus::PluginRegistry.registered_names.include?("javascript")
-          Syrus::PluginRegistry.register(
+          Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
             name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
             family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
               family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
@@ -592,7 +592,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
         end
 
         unless Syrus::PluginRegistry.registered_names.include?("python")
-          Syrus::PluginRegistry.register(
+          Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
             name: "python", version: Syrus::PluginApi.default_version, prepare_priority: 30,
             family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
               family: :ecosystem, provider: "Python::Ecosystem", implements: %i[detect_prepare]
@@ -601,7 +601,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
         end
 
         unless Syrus::PluginRegistry.registered_names.include?("go")
-          Syrus::PluginRegistry.register(
+          Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
             name: "go", version: Syrus::PluginApi.default_version, prepare_priority: 40,
             family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
               family: :ecosystem, provider: "Go::Ecosystem", implements: %i[detect_prepare]

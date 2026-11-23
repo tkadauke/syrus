@@ -14,6 +14,8 @@ module AgentMemory
   }.freeze
 
   syrus_plugin "agent_memory" do
+    experimental false
+    requires_syrus nil
     display_name "Agent Memory"
     description "Durable facts agents remember between runs, scoped per user and repository."
     long_description "Agent Memory is the store behind `write_memory` and its siblings: short, durable facts an agent records in one run and reads back in the next -- a user's preferences, a project decision, a correction worth not repeating.\n\nIt registers as Syrus's `memory_store`, which means it is swappable rather than merely optional: disable it and prompts simply carry no memory section, or replace it with a different store entirely."

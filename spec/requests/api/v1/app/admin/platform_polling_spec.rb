@@ -142,7 +142,7 @@ RSpec.describe "API: POST /api/v1/app/admin/platform_polling/start", type: :requ
         end
 
         it "starts the plugin connector job alongside core pollers, reporting it in both started and connectors" do
-          Syrus::PluginRegistry.register(
+          Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
             name: "discord_plugin", version: "1.0.0",
             provides: { platform_delivery: plugin_adapter_class }
           )
@@ -157,7 +157,7 @@ RSpec.describe "API: POST /api/v1/app/admin/platform_polling/start", type: :requ
         end
 
         it "reports the plugin connector as already_running instead of starting a duplicate" do
-          Syrus::PluginRegistry.register(
+          Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
             name: "discord_plugin", version: "1.0.0",
             provides: { platform_delivery: plugin_adapter_class }
           )

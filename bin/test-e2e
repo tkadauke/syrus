@@ -34,11 +34,14 @@ browsers_installed_at() {
   local root="$1"
   local chromium_dir
   local headless_dir
+  local webkit_dir
   chromium_dir="$(browser_dir_name chromium)"
   headless_dir="$(browser_dir_name chromium-headless-shell)"
+  webkit_dir="$(browser_dir_name webkit)"
 
   [ -x "$root/$chromium_dir/chrome-linux64/chrome" ] &&
-    [ -x "$root/$headless_dir/chrome-headless-shell-linux64/chrome-headless-shell" ]
+    [ -x "$root/$headless_dir/chrome-headless-shell-linux64/chrome-headless-shell" ] &&
+    [ -x "$root/$webkit_dir/pw_run.sh" ]
 }
 
 # Only adopt the image's shared browser directory when it has both binaries the
@@ -66,7 +69,7 @@ if ! browsers_installed_at "${PLAYWRIGHT_BROWSERS_PATH:-$(default_browsers_path)
   echo "[test-e2e] If this hangs after the download reaches 100%, you are likely on"
   echo "[test-e2e] a Node that Playwright's downloader cannot finish under; CI uses"
   echo "[test-e2e] Node 22. See CONTRIBUTING.md's E2E section for the manual install."
-  npx playwright install chromium chromium-headless-shell
+  npx playwright install chromium chromium-headless-shell webkit
 fi
 
 # Run against an ephemeral database of our own, never the developer's.

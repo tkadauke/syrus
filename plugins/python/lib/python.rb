@@ -11,6 +11,11 @@ module Python
   extend Syrus::PluginApi
 
   syrus_plugin "python" do
+    default_enabled true
+
+    disableable true
+    experimental false
+    requires_syrus nil
     description "Python-generic intelligence: uv/poetry/pip prepare detection, " \
       "pytest JSON-report grader detail, venv/uv prompt reminder, " \
       "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion"

@@ -2,6 +2,8 @@ module SyrusBrowser
   extend Syrus::PluginApi
 
   syrus_plugin "browser" do
+    experimental false
+    requires_syrus nil
     display_name "Browser (Playwright)"
     description "Headless Chromium browser control for workflow agents and Coding Mode chats, " \
       "via a bundled @playwright/mcp stdio subprocess or an optional container-backed " \

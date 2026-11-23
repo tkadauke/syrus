@@ -83,7 +83,7 @@ RSpec.describe McpToolUsageRecorder do
     end
 
     it "derives advertised tools from core and available plugin registries" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "available_card_gap_plugin",
         version: "1.0.0",
         provides: {
@@ -91,7 +91,7 @@ RSpec.describe McpToolUsageRecorder do
           mcp_tool_set: available_workflow_tool_set
         }
       )
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "unavailable_card_gap_plugin",
         version: "1.0.0",
         provides: { chat_mcp_tool_set: unavailable_chat_tool_set }

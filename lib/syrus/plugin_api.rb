@@ -7,6 +7,10 @@ module Syrus
   #     extend Syrus::PluginApi
   #
   #     syrus_plugin "throughput" do
+  #       default_enabled true
+  #       disableable true
+  #       experimental false
+  #       requires_syrus nil
   #       display_name "Throughput"
   #       category     "observability"
   #       description  "Delivery throughput and landing waste."
@@ -77,7 +81,7 @@ module Syrus
       SCALARS = %i[
         display_name display_name_i18n_key description description_i18n_key
         long_description long_description_i18n_key homepage icon_url author category
-        version default_enabled disableable experimental home_queue tick_interval prepare_priority
+        version default_enabled disableable experimental requires_syrus home_queue tick_interval prepare_priority
       ].freeze
 
       PROCESS_ROLES = %w[web worker preview sidecar].freeze
@@ -96,7 +100,7 @@ module Syrus
         @name = name
         @namespace = namespace
         @lib_dir = lib_dir
-        @scalars = { default_enabled: true, disableable: true, experimental: false, home_queue: :default, prepare_priority: 100 }
+        @scalars = { home_queue: :default, prepare_priority: 100 }
         @lists = {}
         @provides = {}
         @family_provides = []
@@ -306,6 +310,9 @@ module Syrus
       def routes = @routes
 
       def build!
+        missing = %i[default_enabled disableable experimental requires_syrus].reject { |field| @scalars.key?(field) }
+        raise Error, "#{name} must declare #{missing.join(', ')}" if missing.any?
+
         invalid_roles = roles.map(&:to_s) - PROCESS_ROLES
         raise Error, "#{name} declares invalid process roles: #{invalid_roles.join(', ')}" if invalid_roles.any?
 
@@ -350,6 +357,8 @@ module Syrus
       end
 
       def manifest_arguments
+        release_posture = %i[default_enabled disableable experimental requires_syrus]
+          .to_h { |field| [ field, @scalars.fetch(field) ] }
         {
           name: name,
           version: version || Syrus::PluginApi.default_version,
@@ -362,11 +371,11 @@ module Syrus
           credential_types: (@credential_types if @credential_types.any?),
           frontend: (frontend if frontend.any?),
           plugin_root: File.expand_path("..", lib_dir)
-        }.merge(
-          SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
+        }.compact.merge(release_posture).merge(
+          SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version || release_posture.key?(field) }.compact
         ).merge(
           LISTS.each_with_object({}) { |field, args| args[field] = @lists[field] if @lists.key?(field) }
-        ).compact
+        )
       end
 
       def metric_declarations

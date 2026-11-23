@@ -26,10 +26,15 @@ module SyrusRails
   # Direct (instance rather than class) registration of the preview provider,
   # kept because it is a different registration path from the manifest's.
   def self.register!
-    Syrus::PluginRegistry.register(:preview_provider, PreviewProvider.new)
+    Syrus::PluginRegistry.register_direct(:preview_provider, PreviewProvider.new)
   end
 
   syrus_plugin "syrus-rails" do
+    default_enabled true
+
+    disableable true
+    experimental false
+    requires_syrus nil
     description "Ruby on Rails framework intelligence."
     long_description "Syrus Rails layers Rails-specific behavior on top of the generic Ruby plugin. It understands Rails migrations, eager loading, schema checks, preview boot, routes, models, and framework-specific review criteria so agents can work with Rails apps safely.\n\nUse it for Rails repositories where plain Ruby support is not enough. It depends on the Ruby plugin and contributes the Rails-specific graders, MCP helpers, artifact renderers, and preview integration used by Syrus itself."
     homepage "https://github.com/tkadauke/syrus"

@@ -60,6 +60,7 @@ are computed at read time with `rate()`.
 | `syrus_retention_prune_last_success_timestamp_seconds` | gauge | `retention_key` | no | Unix timestamp of the latest successful database retention policy pass |
 | `syrus_retention_rows_pruned_total` | counter | `retention_key` | no | Rows deleted or payload-cleared by database retention policy |
 | `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
+| `syrus_run_lifecycle_lock_retries_total` | counter | `kind`, `queue`, `outcome` | no | Run lifecycle persistence lock conflicts, including recovered and exhausted retries |
 | `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |
 | `syrus_spawned_processes` | gauge | `kind`, `state` | no | Spawned subprocesses running or recently finished, by kind and state (GLOBAL -- aggregate with max by, never sum) |

@@ -282,7 +282,7 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       provider = Class.new do
         define_singleton_method(:metrics_dashboard_tabs) { [ { id: id, label: label, panels: panels } ] }
       end
-      Syrus::PluginRegistry.register(name: name, version: "1.0.0", provides: { "metrics_dashboard:tab" => provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: name, version: "1.0.0", provides: { "metrics_dashboard:tab" => provider })
       PluginRecord.find_or_create_by!(name: name).update!(enabled: true, disableable: true)
     end
 

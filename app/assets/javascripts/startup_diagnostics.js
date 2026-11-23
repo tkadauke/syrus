@@ -16,8 +16,12 @@
   // online -- counted across reloads so it can never loop forever.
   var AUTO_RETRY_DELAYS_MS = [2000, 5000, 15000, 30000, 60000];
   var AUTO_RETRY_KEY = "syrus.startup.autoRetryAttempt";
+  var REVISION_KEY = "syrus.startup.appRevision";
   var autoRetryTimer = null;
   var autoRetrying = false;
+  var currentRevision = meta("syrus-app-revision") || "unknown";
+  var previousRevision = storedValue(REVISION_KEY);
+  var revisionChanged = !!previousRevision && previousRevision !== currentRevision;
 
   function meta(name) {
     var el = document.querySelector('meta[name="' + name + '"]');
@@ -51,6 +55,31 @@
     }
   }
 
+  function sameOriginAssetPath(value) {
+    try {
+      var url = new URL(value, window.location.href);
+      return url.origin === window.location.origin && url.pathname.indexOf("/assets/") === 0 ? url.pathname : "unknown";
+    } catch (e) {
+      return "unknown";
+    }
+  }
+
+  function storedValue(key) {
+    try {
+      return window.sessionStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storeValue(key, value) {
+    try {
+      window.sessionStorage.setItem(key, value);
+    } catch (e) {
+      // Diagnostics remain useful when private browsing refuses storage.
+    }
+  }
+
   function finiteNumber(value) {
     return typeof value === "number" && isFinite(value) ? Math.max(0, Math.round(value * 10) / 10) : null;
   }
@@ -77,6 +106,59 @@
       }
     }
     return result;
+  }
+
+  function sizeBucket(value) {
+    if (typeof value !== "number" || !isFinite(value) || value < 0) return "unavailable";
+    if (value === 0) return "zero";
+    if (value < 10 * 1024) return "under_10kb";
+    if (value < 100 * 1024) return "10kb_to_100kb";
+    if (value < 1024 * 1024) return "100kb_to_1mb";
+    return "over_1mb";
+  }
+
+  function durationBucket(value) {
+    if (typeof value !== "number" || !isFinite(value) || value < 0) return "unavailable";
+    if (value < 100) return "under_100ms";
+    if (value < 1000) return "100ms_to_1s";
+    if (value < 5000) return "1s_to_5s";
+    return "over_5s";
+  }
+
+  function resourceTiming(resourceUrl, resourcePath) {
+    if (!window.performance || !performance.getEntriesByType) return null;
+    var entries = performance.getEntriesByType("resource");
+    var entry = entries.filter(function (candidate) {
+      return candidate.name === resourceUrl || sameOriginAssetPath(candidate.name) === resourcePath;
+    }).pop();
+    if (!entry) return null;
+
+    var transferSize = finiteNumber(entry.transferSize);
+    var encodedSize = finiteNumber(entry.encodedBodySize);
+    var classification = "unavailable";
+    if (entry.deliveryType === "cache" || (transferSize === 0 && encodedSize > 0)) classification = "cache";
+    else if (entry.deliveryType === "local") classification = "service_worker";
+    else if (transferSize > 0) classification = "network";
+
+    return {
+      response_status: finiteNumber(entry.responseStatus),
+      duration_bucket: durationBucket(entry.duration),
+      transfer_size_bucket: sizeBucket(entry.transferSize),
+      encoded_size_bucket: sizeBucket(entry.encodedBodySize),
+      transfer_classification: classification
+    };
+  }
+
+  function serviceWorkerContext() {
+    var container = navigator.serviceWorker;
+    return {
+      service_worker_present: !!container,
+      service_worker_controlled: !!(container && container.controller)
+    };
+  }
+
+  function lastCompletedMilestone() {
+    return milestones.length ? milestones[milestones.length - 1].name : "none";
   }
 
   function startupTimings() {
@@ -145,7 +227,7 @@
   }
 
   function fingerprint(kind, detail) {
-    return ["startup", kind, meta("syrus-app-revision") || "unknown", sameOriginPath(detail || window.location.href)].join(":").slice(0, 500);
+    return ["startup", kind, previousRevision || "none", currentRevision, sameOriginPath(window.location.href), sameOriginAssetPath(detail || "")].join(":").slice(0, 500);
   }
 
   function postJson(path, payload) {
@@ -260,7 +342,7 @@
   }
 
   function report(kind, message, extra) {
-    var key = kind + ":" + (extra && extra.milestone ? extra.milestone : "") + ":" + (extra && extra.resource_url ? extra.resource_url : "");
+    var key = kind + ":" + (extra && extra.milestone ? extra.milestone : "") + ":" + (extra && (extra.resource_path || extra.resource_url) ? (extra.resource_path || extra.resource_url) : "");
     if (reportedKeys[key]) return;
     reportedKeys[key] = true;
 
@@ -268,7 +350,7 @@
       browser_error: {
         occurred_at: new Date().toISOString(),
         app_revision: meta("syrus-app-revision"),
-        fingerprint: fingerprint(kind, extra && extra.resource_url),
+        fingerprint: fingerprint(kind, extra && (extra.resource_path || extra.resource_url)),
         name: kind,
         message: safeErrorText(message, 500),
         url: window.location.origin + sameOriginPath(window.location.href),
@@ -283,6 +365,7 @@
         feature_flags: {},
         recent_api_requests: [],
         recent_errors: [],
+        recoverable: kind === "StartupResourceError",
         metadata: context(extra || {})
       }
     });
@@ -347,7 +430,10 @@
   document.addEventListener("visibilitychange", function () {
     lifecycleState = document.visibilityState === "hidden" ? "hidden" : "active";
   });
-  window.addEventListener("pagehide", function () { lifecycleState = "pagehide"; });
+  window.addEventListener("pagehide", function () {
+    lifecycleState = "pagehide";
+    storeValue(REVISION_KEY, currentRevision);
+  });
   window.addEventListener("pageshow", function (event) { lifecycleState = event.persisted ? "restored" : "active"; });
   document.addEventListener("freeze", function () { lifecycleState = "frozen"; });
   document.addEventListener("resume", function () { lifecycleState = "active"; });
@@ -368,8 +454,18 @@
           scheduleAutoRetry();
         }
         report("StartupResourceError", "SPA startup resource failed to load", {
-          resource_tag: tagName,
-          resource_url: sameOriginPath(resourceUrl)
+          resource_path: sameOriginAssetPath(resourceUrl),
+          resource_type: tagName === "link" ? "stylesheet" : "script",
+          initiator_type: tagName,
+          startup_phase: window.__syrusReactFirstRender ? "post_render" : "startup",
+          last_completed_milestone: lastCompletedMilestone(),
+          event_kind: shortText(event.type || "error", 20),
+          browser_online: navigator.onLine !== false,
+          revision_changed: revisionChanged,
+          previous_app_revision: previousRevision,
+          resource_timing: resourceTiming(resourceUrl, sameOriginAssetPath(resourceUrl)),
+          service_worker_present: serviceWorkerContext().service_worker_present,
+          service_worker_controlled: serviceWorkerContext().service_worker_controlled
         });
       }
       return;

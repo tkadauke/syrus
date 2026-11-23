@@ -17,6 +17,11 @@ module Ruby
   extend Syrus::PluginApi
 
   syrus_plugin "ruby" do
+    default_enabled true
+
+    disableable true
+    experimental false
+    requires_syrus nil
     description "Ruby-generic intelligence: RSpec and Minitest grader detail, RuboCop grader detail, " \
       "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
       "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \

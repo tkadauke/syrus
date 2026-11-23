@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs"
-import { expect, test, type Page, type TestInfo } from "@playwright/test"
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
 import { jobsListRow } from "./support/dashboard"
 
@@ -95,6 +95,40 @@ async function openLargeReview(page: Page, viewport: { width: number; height: nu
   }
   await expect(page.locator("[data-capture-hollow]").first()).toBeAttached()
   await page.evaluate(() => document.fonts.ready)
+}
+
+async function addInnerScrolledSurface(page: Page) {
+  const scrollTop = await page.evaluate(() => {
+    const surface = document.createElement("section")
+    surface.setAttribute("data-testid", "capture-inner-scroll-surface")
+    Object.assign(surface.style, {
+      height: "280px",
+      overflowY: "scroll",
+      border: "1px solid rgb(156, 163, 175)",
+      background: "white"
+    })
+    for (let index = 0; index < 1_000; index++) {
+      const row = document.createElement("div")
+      row.setAttribute("data-capture-hollow", "")
+      row.style.height = "24px"
+      row.style.whiteSpace = "nowrap"
+      row.textContent = `Inner-scrolled diagnostic row ${index}: ${"resource payload ".repeat(4)}`
+      surface.appendChild(row)
+    }
+    document.querySelector("[data-testid='agent-diff-viewer']")?.prepend(surface)
+    surface.scrollTop = 12_000
+    return surface.scrollTop
+  })
+  expect(scrollTop, "the synthetic complex surface must be inner-scrolled").toBeGreaterThan(10_000)
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+}
+
+async function expectContainedBy(locator: Locator, container: Locator) {
+  const [box, containerBox] = await Promise.all([locator.boundingBox(), container.boundingBox()])
+  expect(box).not.toBeNull()
+  expect(containerBox).not.toBeNull()
+  expect(box!.x, "content must not be clipped by the dialog's left edge").toBeGreaterThanOrEqual(containerBox!.x)
+  expect(box!.x + box!.width, "content must not overflow the dialog's right edge").toBeLessThanOrEqual(containerBox!.x + containerBox!.width)
 }
 
 // The element that scrolls the diff vertically: the window, or the nearest
@@ -206,8 +240,10 @@ for (const viewport of [
   { name: "mobile", width: 402, height: 812 }
 ]) {
   test(`hollowed viewport captures match full captures on a large review diff (${viewport.name})`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "core-webkit-screenshot" && viewport.name !== "mobile", "WebKit regression coverage targets the mobile-sized case")
     test.setTimeout(600_000)
     await openLargeReview(page, viewport)
+    if (viewport.name === "mobile") await addInnerScrolledSurface(page)
 
     // Top of the diff: rows below the fold get hollowed. Expanding the files
     // may have scrolled the page, so go back up first.
@@ -242,3 +278,34 @@ for (const viewport of [
     await expectPixelParity(page, testInfo, `${viewport.name}-horizontal-scroll`)
   })
 }
+
+test("unsafe full-page fallback stays readable inside the mobile bug-report dialog", async ({ page }, testInfo) => {
+  test.skip(!["core", "core-webkit-screenshot"].includes(testInfo.project.name), "Only core browser projects exercise this dialog")
+  await page.setViewportSize({ width: 393, height: 852 })
+  await signInAsDemo(page)
+
+  await page.getByRole("button", { name: "Report a bug" }).first().click()
+  const dialog = page.getByRole("dialog", { name: "Report a bug" })
+  await expect(dialog).toBeVisible()
+  await expect(page.getByText("Capturing...")).toBeHidden({ timeout: 30_000 })
+
+  await page.evaluate(() => {
+    for (const element of [document.body, document.documentElement]) {
+      Object.defineProperties(element, {
+        scrollHeight: { configurable: true, value: 40_000 },
+        scrollWidth: { configurable: true, value: 40_000 }
+      })
+    }
+  })
+
+  await dialog.getByText("Full page", { exact: true }).click()
+  const warning = dialog.getByText(/too complex for a safe full-page screenshot/i)
+  await expect(warning).toBeVisible()
+  await expect(dialog.getByLabel("Viewport")).toBeChecked()
+
+  expect(await dialog.evaluate((element) => element.scrollLeft)).toBe(0)
+  await expectContainedBy(dialog.getByText("Report a bug"), dialog)
+  await expectContainedBy(warning, dialog)
+  await expectContainedBy(dialog.getByText("Screenshot", { exact: true }), dialog)
+  await expectContainedBy(dialog.getByText("Viewport", { exact: true }).last(), dialog)
+})

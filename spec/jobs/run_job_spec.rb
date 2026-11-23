@@ -118,6 +118,64 @@ RSpec.describe RunJob, :ci_only do
       expect(run.workflow.reload).to be_running
     end
 
+    it "records recovered lock contention with queue and lifecycle context" do
+      run = job.initial_run
+      run_job = RunJob.new
+      run_job.queue_name = "merges"
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      attempts = 0
+      messages = []
+      allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
+      allow(run).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+
+        original.call(*args, &block)
+      end
+
+      expect(run_job.send(:acquire_run_execution!)).to be(true)
+      expect(messages).to include(a_hash_including(
+        "event" => "run_lifecycle_persistence_contention",
+        "queue" => "merges",
+        "job_id" => job.id,
+        "workflow_id" => run.workflow_id,
+        "run_id" => run.id,
+        "attempt" => 1,
+        "exhausted" => false
+      ))
+      samples = Syrus::Metrics.counter(:syrus_run_lifecycle_lock_retries_total).samples.to_h
+      expect(samples.fetch(kind: "acquire_execution", queue: "merges", outcome: "recovered")).to eq(1)
+    end
+
+    it "records exhausted lifecycle contention before preserving the final exception" do
+      run = job.initial_run
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      messages = []
+      allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
+      allow(run).to receive(:with_lock).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
+
+      expect { run_job.send(:acquire_run_execution!) }
+        .to raise_error(ActiveRecord::LockWaitTimeout, "still locked")
+      expect(messages.last).to include(
+        "event" => "run_lifecycle_persistence_contention",
+        "job_id" => job.id,
+        "workflow_id" => run.workflow_id,
+        "run_id" => run.id,
+        "attempt" => RunJob::LIFECYCLE_LOCK_RETRY_ATTEMPTS,
+        "exhausted" => true,
+        "error_class" => "ActiveRecord::LockWaitTimeout",
+        "error_message" => "still locked"
+      )
+      expect(messages.last.fetch("error_backtrace")).to be_an(Array)
+    end
+
     it "defers a queued run when another work unit owns its required lock" do
       run = job.initial_run
       run_job = RunJob.new

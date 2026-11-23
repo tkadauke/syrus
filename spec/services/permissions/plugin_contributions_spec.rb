@@ -14,7 +14,7 @@ RSpec.describe Permissions::PluginContributions do
   let(:tool_provider) { Class.new }
 
   def manifest(name:, enabled:, provides:)
-    Syrus::Plugin::Manifest.new(
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name:, display_name: name.titleize, version: "1", provides:, metadata: {}, enabled:
     )
   end

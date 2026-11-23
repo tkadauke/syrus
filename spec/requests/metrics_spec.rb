@@ -73,7 +73,7 @@ RSpec.describe "GET /metrics", type: :request do
     # the whole registry, which would also drop the agent-provider plugins
     # `let!(:admin)` above depends on.
     before do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "probe_metrics_plugin", version: "1.0.0", provides: { callbacks: callbacks_provider }
       )
     end

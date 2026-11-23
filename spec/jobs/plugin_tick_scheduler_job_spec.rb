@@ -24,7 +24,7 @@ RSpec.describe PluginTickSchedulerJob, :reset_plugin_registry do
   end
 
   def register(name: "ticking_plugin", tick_interval: 30.seconds, home_queue: :default, depends_on: [])
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name, version: "1.0.0", tick_interval: tick_interval,
       home_queue: home_queue, depends_on: depends_on,
       provides: { callbacks: callbacks_provider }

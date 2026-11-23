@@ -145,9 +145,10 @@ module Syrus
       state = :ok
 
       if manifest.external && manifest.requires_syrus
+        requirement = normalize_requirement(manifest.requires_syrus)
         if SyrusVersion.release.nil?
           reasons << "requires Syrus #{manifest.requires_syrus}; running release version is unknown, compatibility check skipped"
-        elsif !manifest.requires_syrus.satisfied_by?(SyrusVersion.release)
+        elsif !requirement.satisfied_by?(SyrusVersion.release)
           state = :incompatible
           reasons << "requires Syrus #{manifest.requires_syrus}; running release is #{SyrusVersion.release}"
         end
@@ -159,7 +160,7 @@ module Syrus
         scan_reasons << I18n.t("api.plugins.host_surface.unsupported", count: scan.unlisted.size) if scan.unlisted.any?
         scan_reasons << I18n.t("api.plugins.host_surface.legacy", count: scan.legacy.size) if scan.legacy.any?
         scan_reasons << I18n.t("api.plugins.host_surface.dynamic", count: scan.dynamic.size) if scan.dynamic.any?
-        declared = declared_minimum(manifest.requires_syrus)
+        declared = declared_minimum(normalize_requirement(manifest.requires_syrus))
         if scan.minimum_syrus_version && declared && declared < Gem::Version.new(scan.minimum_syrus_version)
           scan_reasons << I18n.t("api.plugins.host_surface.minimum", declared:, derived: scan.minimum_syrus_version)
         end
@@ -236,6 +237,12 @@ module Syrus
       return unless requirement
 
       requirement.requirements.filter_map { |operator, version| version if %w[>= > = ~>].include?(operator) }.max
+    end
+
+    def normalize_requirement(requirement)
+      return unless requirement
+
+      requirement.is_a?(Gem::Requirement) ? requirement : Gem::Requirement.new(requirement)
     end
 
     def canonical_cycle_key(cycle)

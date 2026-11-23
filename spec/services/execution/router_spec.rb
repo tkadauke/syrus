@@ -29,7 +29,7 @@ RSpec.describe Execution::Router do
         )
       end
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "accepting_execution_backend",
       version: "1.0.0",
       provides: { execution_backend: backend }
@@ -48,7 +48,7 @@ RSpec.describe Execution::Router do
       def self.available_for?(_request) = false
       def run(_request) = raise("should not run")
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "declining_execution_backend",
       version: "1.0.0",
       provides: { execution_backend: backend }
@@ -85,7 +85,7 @@ RSpec.describe Execution::Router do
         :direct_result
       end
     end.new
-    Syrus::PluginRegistry.register(:execution_backend, backend)
+    Syrus::PluginRegistry.register_direct(:execution_backend, backend)
 
     expect(described_class.new.run(request)).to eq(:direct_result)
   end

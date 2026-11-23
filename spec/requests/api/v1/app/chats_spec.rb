@@ -777,7 +777,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         }
       end
     end
-    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
+    Syrus::PluginRegistry.register_direct(:chat_identity_provider, provider)
 
     get "/api/v1/app/chats"
 
@@ -813,7 +813,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         { key: "test-agents", label: "Test agents", chat_session_ids: user.chat_sessions.where(id: chats).pluck(:id) }
       end
     end
-    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
+    Syrus::PluginRegistry.register_direct(:chat_identity_provider, provider)
 
     get "/api/v1/app/chats"
     group = parse_body.fetch("groups").find { |candidate| candidate.fetch("key") == "test-agents" }
@@ -1381,7 +1381,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         end
       end
       allow(provider).to receive(:chat_status_contributions).and_call_original
-      Syrus::PluginRegistry.register(:chat_identity_provider, provider)
+      Syrus::PluginRegistry.register_direct(:chat_identity_provider, provider)
 
       get "/api/v1/app/chats/search", params: { q: "badgeneedle" }
 
@@ -5713,7 +5713,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
         begin
           unless registered_before
-            Syrus::PluginRegistry.register(
+            Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
               name:    "syrus-rails",
               version: "0.1.0",
               provides: { artifact_renderer: [ SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer ] }

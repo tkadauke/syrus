@@ -114,6 +114,7 @@ describe("startupDiagnostics", () => {
     delete window.__syrusStartupFallbackTimer
     document.head.innerHTML = ""
     document.body.innerHTML = ""
+    window.sessionStorage.clear()
     vi.restoreAllMocks()
   })
 
@@ -298,8 +299,12 @@ describe("startupDiagnostics", () => {
     expect(error.metadata).toMatchObject({
       app_revision: "app-sha",
       asset_revision: "asset-sha",
-      resource_tag: "script",
-      resource_url: "/assets/spa-dead.js?v=asset-sha",
+      resource_path: "/assets/spa-dead.js",
+      resource_type: "script",
+      initiator_type: "script",
+      event_kind: "error",
+      last_completed_milestone: "shell_loaded",
+      browser_online: true,
       navigator_standalone: false
     })
     expect(startupStatus()).toHaveAttribute("data-startup-state", "resource_error")
@@ -324,12 +329,70 @@ describe("startupDiagnostics", () => {
       message: "SPA startup resource failed to load"
     })
     expect(error.metadata).toMatchObject({
-      resource_tag: "script",
-      resource_url: "/assets/lazy-chunk-dead.js?v=asset-sha"
+      resource_path: "/assets/lazy-chunk-dead.js",
+      resource_type: "script",
+      startup_phase: "post_render"
     })
     expect(startupStatus()).toHaveAttribute("hidden")
     expect(startupStatus()).toHaveAttribute("data-startup-state", "ready")
     expect(startupStatus()).not.toHaveTextContent("The app could not load")
+  })
+
+  it("reports allowlisted resource transport, service-worker, and revision evidence without URL content", () => {
+    window.sessionStorage.setItem("syrus.startup.appRevision", "previous-sha")
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false })
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller: { state: "activated", scriptURL: "https://unsafe.example/sw.js?token=secret" } }
+    })
+    const resourceUrl = `${window.location.origin}/assets/spa-WhiteboardTab.css?token=secret&user=private`
+    const fetchSpy = installStartupShell({
+      performanceEntries: {
+        resource: [
+          {
+            name: resourceUrl,
+            entryType: "resource",
+            initiatorType: "link",
+            responseStatus: 503,
+            duration: 1400,
+            transferSize: 2048,
+            encodedBodySize: 12000
+          } as unknown as PerformanceEntry
+        ]
+      }
+    })
+    const failedStylesheet = document.createElement("link")
+    failedStylesheet.rel = "stylesheet"
+    failedStylesheet.href = resourceUrl
+    document.head.appendChild(failedStylesheet)
+
+    failedStylesheet.dispatchEvent(new Event("error"))
+
+    const [error] = postedBrowserErrors(fetchSpy)
+    expect(error).toMatchObject({ recoverable: true })
+    expect(error.metadata).toMatchObject({
+      resource_path: "/assets/spa-WhiteboardTab.css",
+      resource_type: "stylesheet",
+      initiator_type: "link",
+      startup_phase: "startup",
+      last_completed_milestone: "shell_loaded",
+      event_kind: "error",
+      browser_online: false,
+      service_worker_present: true,
+      service_worker_controlled: true,
+      revision_changed: true,
+      previous_app_revision: "previous-sha",
+      resource_timing: {
+        response_status: 503,
+        duration_bucket: "1s_to_5s",
+        transfer_size_bucket: "under_10kb",
+        encoded_size_bucket: "10kb_to_100kb",
+        transfer_classification: "network"
+      }
+    })
+    expect(JSON.stringify(error)).not.toContain("token=secret")
+    expect(JSON.stringify(error)).not.toContain("user=private")
+    expect(JSON.stringify(error)).not.toContain("unsafe.example")
   })
 
   it("reports global errors and unhandled rejections with bounded structured fields", () => {

@@ -3,7 +3,7 @@ module JobVisibilityRestrictionSpecHelper
 
   Rails.application.reloader.to_prepare do
     provider = Thread.current[THREAD_KEY]
-    Syrus::PluginRegistry.register(:job_visibility_restriction, provider) if provider
+    Syrus::PluginRegistry.register_direct(:job_visibility_restriction, provider) if provider
   end
 
   def with_job_visibility_restriction(origin:, visible_origin_ids:)
@@ -16,7 +16,7 @@ module JobVisibilityRestrictionSpecHelper
     snapshot = Syrus::PluginRegistry.snapshot
     boot_snapshot = Syrus::PluginRegistry.boot_snapshot
     Thread.current[THREAD_KEY] = provider
-    Syrus::PluginRegistry.register(:job_visibility_restriction, provider)
+    Syrus::PluginRegistry.register_direct(:job_visibility_restriction, provider)
     Syrus::PluginRegistry.boot_snapshot = Syrus::PluginRegistry.snapshot
     yield provider
   ensure

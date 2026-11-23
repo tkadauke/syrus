@@ -52,7 +52,7 @@ RSpec.describe Steps::PostImplementationReview do
         [ "submit_review_notes" ]
       end
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "post_implementation_review_spec_provider",
       version: "1.0.0",
       provides: { post_implementation_review_provider: provider }
@@ -77,7 +77,7 @@ RSpec.describe Steps::PostImplementationReview do
       def self.review_needed?(job:, trigger_kind:) = true
       def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "post_implementation_review_failure_spec_provider",
       version: "1.0.0",
       provides: { post_implementation_review_provider: provider }
@@ -93,7 +93,7 @@ RSpec.describe Steps::PostImplementationReview do
       include Syrus::Plugin::PostImplementationReviewProvider
       def self.review_needed?(job:, trigger_kind:) = true
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "post_implementation_review_retry_spec_provider",
       version: "1.0.0",
       provides: { post_implementation_review_provider: provider }

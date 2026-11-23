@@ -146,7 +146,7 @@ RSpec.describe Steps::VisualReview do
     )
   end
 
-  it "keeps an optional configured browser provider on the existing skip policy when startup fails" do
+  it "records optional browser-provider startup failure as failed coverage instead of a successful skip" do
     target = double(legacy_browser: false)
     lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true, start_required?: false)
     allow(lifecycle).to receive(:start!).and_raise("browser unavailable")
@@ -157,11 +157,12 @@ RSpec.describe Steps::VisualReview do
 
     expect(lifecycle).to receive(:stop!).once
     expect { handler.send(:start_runtime_sessions!) }
-      .to raise_error(Steps::Base::StepSkipped, /browser unavailable/)
+      .to raise_error(Steps::Base::StepFailed, /browser unavailable/)
     expect(workflow.reload.artifact("visual_review_runtime_failure")).to include(
       "reason" => "runtime_session_start_failed",
       "message" => "browser unavailable"
     )
+    expect(workflow.artifact("visual_review_iterations")).to be_blank
   end
 
   it "stops runtime sessions when prompt construction fails after startup" do

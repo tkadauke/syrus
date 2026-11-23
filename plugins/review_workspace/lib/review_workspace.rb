@@ -2,6 +2,8 @@ module ReviewWorkspacePlugin
   extend Syrus::PluginApi
 
   syrus_plugin "review_workspace" do
+    experimental false
+    requires_syrus nil
     display_name "Review Workspace"
     category "collaboration"
     author "Thomas Kadauke"

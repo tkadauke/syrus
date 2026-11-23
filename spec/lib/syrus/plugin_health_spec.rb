@@ -27,7 +27,7 @@ RSpec.describe Syrus::PluginHealth do
   end
 
   def manifest(name, depends_on: [], conflicts_with: [], optionally_depends_on: [])
-    Syrus::Plugin::Manifest.new(
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name, version: "1.0.0", provides: {}, metadata: {},
       depends_on: depends_on, conflicts_with: conflicts_with,
       optionally_depends_on: optionally_depends_on
@@ -35,7 +35,7 @@ RSpec.describe Syrus::PluginHealth do
   end
 
   def external_manifest(scan:, requires_syrus: nil)
-    Syrus::Plugin::Manifest.new(name: "external", version: "1.0.0", provides: {}, external: true,
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, name: "external", version: "1.0.0", provides: {}, external: true,
       requires_syrus:, metadata: { plugin_host_surface_scan: scan })
   end
 
@@ -180,6 +180,14 @@ RSpec.describe Syrus::PluginHealth do
 
   it "does not warn for a clean external plugin" do
     expect(health([ external_manifest(scan: scan) ]).status("external").state).to eq(:ok)
+  end
+
+  it "accepts the requirement string declared by an external plugin manifest" do
+    allow(SyrusVersion).to receive(:release).and_return(Gem::Version.new("1.2.3"))
+
+    subject = health([ external_manifest(scan: scan, requires_syrus: ">= 1.0") ])
+
+    expect(subject.status("external").state).to eq(:ok)
   end
 
   it "records a non-fatal scan error" do

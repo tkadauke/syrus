@@ -9,7 +9,7 @@ RSpec.describe "Scheduled Tasks CLI commands", type: :request do
 
   before do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "scheduled_tasks", version: "1.0.0", cli_commands: [
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "scheduled_tasks", version: "1.0.0", cli_commands: [
       { path: %w[schedule show], summary: "Show a schedule", handler: "ScheduledTasks::Cli::Show", arguments: [ { name: "ID", required: true } ] },
       { path: %w[schedule run], summary: "Run a schedule", handler: "ScheduledTasks::Cli::Run", arguments: [ { name: "ID", required: true } ] }
     ])

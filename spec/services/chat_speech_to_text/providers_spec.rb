@@ -47,7 +47,7 @@ RSpec.describe ChatSpeechToText::Providers do
     it "resolves the first available provider from the plugin registry" do
       user = Factories.user
       stub_env("SYRUS_STT_PROVIDER" => nil)
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "test-speech-to-text",
         version: "1.0.0",
         provides: { speech_to_text_provider: TestSpeechToTextProvider }
@@ -68,7 +68,7 @@ RSpec.describe ChatSpeechToText::Providers do
     it "returns nil when registered providers are unavailable" do
       stub_env("SYRUS_STT_PROVIDER" => nil)
       TestSpeechToTextProvider.available = false
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "test-speech-to-text",
         version: "1.0.0",
         provides: { speech_to_text_provider: TestSpeechToTextProvider }
@@ -79,7 +79,7 @@ RSpec.describe ChatSpeechToText::Providers do
 
     it "filters candidates by the optional env pin" do
       stub_env("SYRUS_STT_PROVIDER" => "pinned_stt")
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "test-speech-to-text",
         version: "1.0.0",
         provides: { speech_to_text_provider: [ TestSpeechToTextProvider, PinnedSpeechToTextProvider ] }
@@ -93,7 +93,7 @@ RSpec.describe ChatSpeechToText::Providers do
     it "falls through when an available provider cannot build for the user" do
       stub_env("SYRUS_STT_PROVIDER" => nil)
       allow(TestSpeechToTextProvider).to receive(:build).and_return(nil)
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "test-speech-to-text",
         version: "1.0.0",
         provides: { speech_to_text_provider: [ TestSpeechToTextProvider, PinnedSpeechToTextProvider ] }
@@ -106,7 +106,7 @@ RSpec.describe ChatSpeechToText::Providers do
 
     it "returns nil when the env pin does not match any available provider" do
       stub_env("SYRUS_STT_PROVIDER" => "missing_stt")
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "test-speech-to-text",
         version: "1.0.0",
         provides: { speech_to_text_provider: TestSpeechToTextProvider }

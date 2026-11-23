@@ -37,7 +37,7 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
         ]
       end
     end
-    Syrus::PluginRegistry.register(name: "spending-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "spending-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
 
     get "/api/v1/app/sidebar_pages"
 
@@ -89,7 +89,7 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
         ]
       end
     end
-    Syrus::PluginRegistry.register(name: "agent-activity-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "agent-activity-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
 
     get "/api/v1/app/sidebar_pages"
 
@@ -110,8 +110,8 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
       include Syrus::Plugin::SidebarPage
       def self.sidebar_pages = [ { id: "second", label: "Second", path: "/second", order: 10 } ]
     end
-    Syrus::PluginRegistry.register(name: "first-plugin", version: "0.1.0", provides: { sidebar_page: first_provider })
-    Syrus::PluginRegistry.register(name: "second-plugin", version: "0.1.0", provides: { sidebar_page: second_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "first-plugin", version: "0.1.0", provides: { sidebar_page: first_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "second-plugin", version: "0.1.0", provides: { sidebar_page: second_provider })
 
     get "/api/v1/app/sidebar_pages"
 
@@ -126,7 +126,7 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
       include Syrus::Plugin::SidebarPage
       def self.sidebar_pages = [ { id: "hidden", label: "Hidden", path: "/hidden" } ]
     end
-    Syrus::PluginRegistry.register(name: "sidebar-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "sidebar-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
     PluginRecord.find_by!(name: "sidebar-plugin").update!(enabled: false)
 
     get "/api/v1/app/sidebar_pages"
@@ -144,7 +144,7 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
     end
 
     expect(PluginRecord.where(name: "fresh-plugin")).not_to exist
-    Syrus::PluginRegistry.register(name: "fresh-plugin", version: "0.1.0", default_enabled: true, provides: { sidebar_page: page_provider })
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "fresh-plugin", version: "0.1.0", default_enabled: true, provides: { sidebar_page: page_provider })
 
     get "/api/v1/app/sidebar_pages"
 

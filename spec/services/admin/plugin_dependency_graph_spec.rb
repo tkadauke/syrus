@@ -8,7 +8,7 @@ RSpec.describe Admin::PluginDependencyGraph, :reset_plugin_registry do
   end
 
   def register(name, depends_on: [])
-    Syrus::PluginRegistry.register(name: name, version: "1.0.0", depends_on: depends_on)
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: name, version: "1.0.0", depends_on: depends_on)
   end
 
   # DOC-44: disabling an optional dependency never cascades to the plugin
@@ -16,7 +16,7 @@ RSpec.describe Admin::PluginDependencyGraph, :reset_plugin_registry do
   # its optional dependencies.
   it "ignores optional dependencies in both directions" do
     register("design_docs")
-    Syrus::PluginRegistry.register(name: "chat", version: "1.0.0", optionally_depends_on: [ "design_docs" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "chat", version: "1.0.0", optionally_depends_on: [ "design_docs" ])
     graph = described_class.new(Syrus::PluginRegistry.all_plugins)
 
     expect(graph.dependents_for("design_docs")).to eq([])

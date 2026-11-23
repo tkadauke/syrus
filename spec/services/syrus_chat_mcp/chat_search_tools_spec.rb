@@ -93,7 +93,7 @@ RSpec.describe "Mcp::Tools chat search tools", :full_chat_access do
         end
       end
       allow(provider).to receive(:chat_status_contributions).and_call_original
-      Syrus::PluginRegistry.register(:chat_identity_provider, provider)
+      Syrus::PluginRegistry.register_direct(:chat_identity_provider, provider)
 
       result = response_payload(call_tool("search_chats", query: "badgeneedle")).fetch(:results).first
 

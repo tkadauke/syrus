@@ -40,11 +40,11 @@ module AdminPluginsSpec
   end
 
   def self.register_factory_agent_providers!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "claude_agent_stub", version: "1.0.0",
       provides: { agent_provider: ClaudeStubProvider }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "codex_agent_stub", version: "1.0.0",
       provides: { agent_provider: CodexStubProvider }
     )

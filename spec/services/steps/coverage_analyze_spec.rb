@@ -815,7 +815,7 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
           +covered
         DIFF
       )
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "go_coverage_integration", version: "1.0.0",
         family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
           family: :ecosystem, provider: "Go::Ecosystem", implements: %i[analyze_coverage]

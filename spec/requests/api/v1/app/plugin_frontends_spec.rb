@@ -25,7 +25,7 @@ RSpec.describe "API: external plugin frontends", type: :request do
   end
 
   def manifest(enabled: true, frontend: { bundle: "dist/plugin.js", css: "dist/plugin.css", i18n: [ "app/frontend/i18n/locales/*/*.json" ] })
-    Syrus::Plugin::Manifest.new(
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "external_fixture",
       version: "1.0.0",
       provides: {},
