@@ -1,12 +1,14 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Button, Checkbox, Input, Notice, Page, Select, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
+import { loadPluginLocales } from "@app/i18n"
 import { getJson, patchJson } from "@app/api/client"
 
 type Config = Record<string, string | string[] | boolean>
 type ProviderConfig = Config & {
   provider_key: string
+  plugin_name: string
   display_name: string
   managed_settings: boolean
   settings_notice?: string | null
@@ -15,11 +17,23 @@ type ProviderConfig = Config & {
 type ConfigPayload = { provider_config: ProviderConfig }
 type ConfigsPayload = { providers: ProviderConfig[] }
 
-export function ProviderSettingsNotice({ notice, i18nKey }: { notice: string; i18nKey?: string | null }) {
-  const namespace = i18nKey?.split(":", 1)[0] || "connected_accounts"
-  const { t } = useT(namespace)
+export function ProviderSettingsNotice({ notice, i18nKey, pluginName }: { notice: string; i18nKey?: string | null; pluginName: string }) {
+  const { i18n } = useT("connected_accounts")
+  const [localeState, setLocaleState] = useState<"loading" | "loaded" | "failed">(i18nKey ? "loading" : "loaded")
 
-  return <Notice>{i18nKey ? t(i18nKey, { defaultValue: notice }) : notice}</Notice>
+  useEffect(() => {
+    if (!i18nKey) return
+
+    let current = true
+    void loadPluginLocales(pluginName).then(
+      () => { if (current) setLocaleState("loaded") },
+      () => { if (current) setLocaleState("failed") }
+    )
+    return () => { current = false }
+  }, [i18nKey, pluginName])
+
+  if (localeState === "loading") return null
+  return <Notice>{i18nKey && localeState === "loaded" ? i18n.t(i18nKey, { defaultValue: notice }) : notice}</Notice>
 }
 
 export default function ConnectedAccountsAdmin() {
@@ -60,7 +74,8 @@ export default function ConnectedAccountsAdmin() {
           </Select>
         </label>
         {current?.settings_notice && (
-          <ProviderSettingsNotice notice={current.settings_notice} i18nKey={current.settings_notice_i18n_key} />
+          <ProviderSettingsNotice key={`${current.plugin_name}:${current.settings_notice_i18n_key || "fallback"}`}
+            notice={current.settings_notice} i18nKey={current.settings_notice_i18n_key} pluginName={current.plugin_name} />
         )}
         {save.isSuccess && <Notice tone="success">{t("settings.saved")}</Notice>}
         {save.isError && <Notice tone="danger">{save.error.message || t("settings.save_failed")}</Notice>}
