@@ -2,7 +2,7 @@ module AgentMemory
   # One durable fact an agent remembers between runs. This was core's
   # `ChatMemory`; the table is `agent_memory_entries` now, and the model name
   # follows the store/entry shape the `memory_store` extension point uses.
-  class Entry < ApplicationRecord
+  class Entry < Syrus::Host::Record
     self.table_name = "agent_memory_entries"
 
     KIND = %w[ user_pref project_fact feedback reference decision ].freeze

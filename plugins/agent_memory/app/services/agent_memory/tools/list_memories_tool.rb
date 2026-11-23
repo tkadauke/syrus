@@ -21,7 +21,7 @@ module AgentMemory
 
       class << self
         def call(server_context:, scope: nil, kind: nil, limit: nil)
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
 
           memories = visible_memories_for(context)
 

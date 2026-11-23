@@ -49,14 +49,14 @@ class AgyCredentialProbe
       agy_home = File.join(workspace, ".agy")
       FileUtils.mkdir_p(agy_home)
       output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(
-          AgentInvocation::ENV_FORWARD,
+      result = Syrus::Host::ProcessRunner.new(
+        env: Syrus::Host::ProcessRunner.forwarded_env(
+          Syrus::Host::AgentRuntime.forwarded_env_keys,
           extra: agy_env(agy_home)
         ),
         command: agy_command,
         stdin_data: stdin_event,
-        mounts: ProcessRunner.mounts(workspace),
+        mounts: Syrus::Host::ProcessRunner.mounts(workspace),
         network: "agent",
         timeout: CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,

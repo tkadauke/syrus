@@ -223,7 +223,7 @@ module ChatProviders
     def ensure_provider_session_on_disk!(workspace_path:, session_id:)
       return if session_id.blank?
 
-      PerformanceLogging.phase("chat_startup.session_restore", chat_session_id: chat.id, capture_host_pressure: true) do
+      Syrus::Host::PerformanceLogging.phase("chat_startup.session_restore", chat_session_id: chat.id, capture_host_pressure: true) do
         path = ProviderSession.canonical_path_for(
           home: ENV.fetch("HOME"),
           cwd: workspace_path,

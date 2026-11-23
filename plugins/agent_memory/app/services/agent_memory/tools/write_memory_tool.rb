@@ -30,7 +30,7 @@ module AgentMemory
 
       class << self
         def call(content:, kind:, server_context:, scope: nil, scope_id: nil)
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
           content = content.to_s.strip
           kind    = kind.to_s
 

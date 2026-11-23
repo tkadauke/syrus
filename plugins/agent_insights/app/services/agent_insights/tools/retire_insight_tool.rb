@@ -22,7 +22,7 @@ module AgentInsights
         def call(target_insight_id: nil, insight_ids: nil, reason:, server_context:, superseded_by_insight_id: nil,
                  superseded_by_job_id: nil, superseded_by_insight_ids: {}, superseded_by_job_ids: {}, retire_accepted: false)
           ids, error = Mutations::Base.validate_ids(id: target_insight_id, ids: insight_ids, singular_name: "target_insight_id")
-          return Mcp::Tools.invalid(error) if error
+          return Syrus::Host::McpTools.invalid(error) if error
 
           insight_refs = references(ids, superseded_by_insight_id, superseded_by_insight_ids)
           job_refs = references(ids, superseded_by_job_id, superseded_by_job_ids)
@@ -54,7 +54,7 @@ module AgentInsights
           retirements << { "id" => insight.id, "title" => insight.title, "reason" => insight.retired_reason,
             "superseded_by_insight_id" => insight.superseded_by_insight_id, "superseded_by_job_id" => insight.superseded_by_job_id }
           run.workflow.set_artifact!("insight_retirements", retirements)
-          Mcp::Tools.write_log(run, "[mcp] retire_insight: ##{insight.id} #{insight.title.truncate(80)}")
+          Syrus::Host::McpTools.write_log(run, "[mcp] retire_insight: ##{insight.id} #{insight.title.truncate(80)}")
         end
       end
     end
