@@ -56,6 +56,7 @@ import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
+const EXPANDED_COWORKER_THREADS_KEY = "syrus.recent_chats_sidebar.expanded_coworker_threads"
 const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
 const GROUP_BY_OPTIONS: Array<{ value: ChatSidebarGroupBy; label: string }> = [
   { value: "date", label: "recent_chats_options.group_by.date" },
@@ -121,6 +122,25 @@ function writeSidebarSettings(settings: ChatSidebarSettings) {
     window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify(settings))
   } catch {
     // Sidebar settings are a convenience preference; the default view still works.
+  }
+}
+
+function readExpandedCoworkerIds(): Set<number> {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(EXPANDED_COWORKER_THREADS_KEY) || "[]")
+    if (!Array.isArray(parsed)) return new Set()
+
+    return new Set(parsed.filter((id): id is number => Number.isSafeInteger(id) && id > 0))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeExpandedCoworkerIds(ids: Set<number>) {
+  try {
+    window.localStorage.setItem(EXPANDED_COWORKER_THREADS_KEY, JSON.stringify([...ids]))
+  } catch {
+    // Coworker thread expansion is a convenience preference; collapsed remains the safe default.
   }
 }
 
@@ -200,7 +220,7 @@ export function RecentChatsSidebar({
   const codingModeEnabled = featureFlags.coding_mode === true
   const localModeEnabled = featureFlags.local_mode === true
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
-  const [expandedCoworkerIds, setExpandedCoworkerIds] = useState<Set<number>>(() => new Set())
+  const [expandedCoworkerIds, setExpandedCoworkerIds] = useState<Set<number>>(readExpandedCoworkerIds)
   const [expandedCoworkerChatIds, setExpandedCoworkerChatIds] = useState<Set<number>>(() => new Set())
   const [loadedCoworkerSideChats, setLoadedCoworkerSideChats] = useState<Record<number, ChatNavRecord[]>>({})
   const [loadingMoreGroups, setLoadingMoreGroups] = useState(false)
@@ -235,6 +255,10 @@ export function RecentChatsSidebar({
   })
   const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
+
+  useEffect(() => {
+    writeExpandedCoworkerIds(expandedCoworkerIds)
+  }, [expandedCoworkerIds])
 
   function toggleCoworker(coworkerId: number, mainChat: ChatNavRecord) {
     if (!expandedCoworkerIds.has(coworkerId) && loadedCoworkerSideChats[coworkerId] === undefined) {

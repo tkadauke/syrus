@@ -10,6 +10,7 @@ import { updateChatUnread } from "../../lib/chatCache"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
+const EXPANDED_COWORKER_THREADS_KEY = "syrus.recent_chats_sidebar.expanded_coworker_threads"
 
 function LocationProbe() {
   const location = useLocation()
@@ -195,6 +196,41 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(showFewerSideChats).toHaveClass("whitespace-nowrap")
     fireEvent.click(showFewerSideChats)
     expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10)
+  })
+
+  it("remembers each coworker main thread's collapsed state in the browser", () => {
+    const appearance = {
+      name: "Maya",
+      accent_hex: "#B6492E",
+      avatar_key: null,
+      avatar_url: null,
+      coworker_id: 7,
+      coworker_chat_role: "main" as const,
+      side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+    }
+    const chats = [
+      chatNav({ id: 1, title: "Maya", agent_appearance: appearance }),
+      chatNav({
+        id: 2,
+        title: "Release research",
+        agent_appearance: { ...appearance, coworker_chat_role: "side" }
+      })
+    ]
+    window.localStorage.setItem(EXPANDED_COWORKER_THREADS_KEY, JSON.stringify([7]))
+
+    const firstView = renderSidebar(chats)
+    expect(screen.getByRole("link", { name: "Release research" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse chats with Maya" }))
+    expect(screen.queryByRole("link", { name: "Release research" })).not.toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem(EXPANDED_COWORKER_THREADS_KEY) || "null")).toEqual([])
+
+    firstView.unmount()
+    renderSidebar(chats)
+    expect(screen.getByRole("button", { name: "Expand chats with Maya" })).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("link", { name: "Release research" })).not.toBeInTheDocument()
+
+    window.localStorage.removeItem(EXPANDED_COWORKER_THREADS_KEY)
   })
 
   it("replaces a lazily loaded pending title with the refreshed sidebar title", async () => {
