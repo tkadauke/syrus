@@ -192,7 +192,8 @@
       ],
       "status": "done",
       "done_by": "by construction · work_unit_workflow_ownership_spec",
-      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved. Prevention holds by construction: Launcher#instantiate creates the unit, its locks and its Workflow in one WorkIntent.transaction (a raising template rolls the unit back), nothing in the app destroys a Workflow or nils a unit's workflow, and the architecture spec confines WorkUnit creation to the launcher."
+      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved. Prevention holds by construction: Launcher#instantiate creates the unit, its locks and its Workflow in one WorkIntent.transaction (a raising template rolls the unit back), nothing in the app destroys a Workflow or nils a unit's workflow, and the architecture spec confines WorkUnit creation to the launcher.",
+      "expected": "never"
     },
     {
       "id": "unit-intent-outcome-agreement",
@@ -264,7 +265,8 @@
       ],
       "status": "done",
       "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks) · M39",
-      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered. M39: no production writer bypasses mark_terminal!/preempt!; pinned by an architecture spec."
+      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered. M39: no production writer bypasses mark_terminal!/preempt!; pinned by an architecture spec.",
+      "expected": "never"
     },
     {
       "id": "active-unit-terminal-workflow-locks",
@@ -288,7 +290,8 @@
       ],
       "status": "done",
       "done_by": "by construction · work_unit_workflow_ownership_spec",
-      "notes": "Every terminal Workflow transition is an AASM event whose after-callback (Workflows::LifecyclePropagation succeeded!/failed!/cancelled!/blocked!) runs sync_work_unit_terminal! inside the event's transaction, so the unit ends and releases its locks with the Workflow, or neither commits. The only column write of a Workflow's state, RunCompletionReconciler#force_state!, calls Workflows::LifecyclePropagation.succeeded! explicitly afterwards. The architecture spec now fails on any other Workflow state column write. Residual producers are outside the app: TerminalWorkflowSync and retire_terminal_work_unit remain the repairs for legacy rows."
+      "notes": "Every terminal Workflow transition is an AASM event whose after-callback (Workflows::LifecyclePropagation succeeded!/failed!/cancelled!/blocked!) runs sync_work_unit_terminal! inside the event's transaction, so the unit ends and releases its locks with the Workflow, or neither commits. The only column write of a Workflow's state, RunCompletionReconciler#force_state!, calls Workflows::LifecyclePropagation.succeeded! explicitly afterwards. The architecture spec now fails on any other Workflow state column write. Residual producers are outside the app: TerminalWorkflowSync and retire_terminal_work_unit remain the repairs for legacy rows.",
+      "expected": "never"
     },
     {
       "id": "terminal-parent-active-children",
@@ -311,7 +314,8 @@
       ],
       "status": "done",
       "done_by": "F29 (NY5: A)",
-      "notes": "Decided NY5: A. A succeeded parent's LandingValidationChild prefetches keep running for the next landing to reuse (6 of 7 production cancellations were these); children of failed or cancelled parents are still cancelled. Agreement.prefetch_of_landed_parent_kept / other_children_of_terminal_parents_stale."
+      "notes": "Decided NY5: A. A succeeded parent's LandingValidationChild prefetches keep running for the next landing to reuse (6 of 7 production cancellations were these); children of failed or cancelled parents are still cancelled. Agreement.prefetch_of_landed_parent_kept / other_children_of_terminal_parents_stale.",
+      "expected": "never"
     },
     {
       "id": "one-unit-per-workflow",
@@ -1162,7 +1166,8 @@
       "simulator": [],
       "status": "done",
       "done_by": "F42 · F95 (ClosedIntent.lean)",
-      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close. F95: an intent whose unit was still active at close is now cancelled when that unit is cancelled for any reason after the close (production had one, cancelled 50 s after close for epic_wide_workflow_active); ClosedIntent.lean proves a closed Job's open intent always has an active unit. Member-scoped intents remain covered by F42's reason list."
+      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close. F95: an intent whose unit was still active at close is now cancelled when that unit is cancelled for any reason after the close (production had one, cancelled 50 s after close for epic_wide_workflow_active); ClosedIntent.lean proves a closed Job's open intent always has an active unit. Member-scoped intents remain covered by F42's reason list.",
+      "expected": "never"
     },
     {
       "id": "queued-job-after-cancelled-workflow",
@@ -1589,7 +1594,8 @@
       ],
       "status": "done",
       "done_by": "NY7 (A) · PrestartSlot.option_a_never_starves",
-      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7. Decided NY7 (A) and implemented: WorkUnit#block! releases the landing slot whenever the Workflow is a queued landing before its first Run (prestart_landing_block?), replacing the urgent-only case; WorkflowLifecycle.started! (mark_running!) and resume_for_workflow! re-acquire every key before the first Run, so mutual exclusion is unchanged."
+      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7. Decided NY7 (A) and implemented: WorkUnit#block! releases the landing slot whenever the Workflow is a queued landing before its first Run (prestart_landing_block?), replacing the urgent-only case; WorkflowLifecycle.started! (mark_running!) and resume_for_workflow! re-acquire every key before the first Run, so mutual exclusion is unchanged.",
+      "expected": "never"
     },
     {
       "id": "stranded-landing-job",

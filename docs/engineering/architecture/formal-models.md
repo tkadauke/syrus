@@ -36,6 +36,7 @@ as the Ruby changes. How to build and extend them is in
 | Conformance fixtures | `spec/formal/`, `formal/fixtures/`, formal CI | the Ruby and the model answer differently on the same input, or a committed fixture is stale |
 | Inventory completeness | `spec/architecture/formal_coverage_completeness_spec.rb` | the reconciler emits an issue kind the inventory lacks, or the inventory names one it no longer emits |
 | Row-lock order | `spec/support/lock_order.rb`, `lib/syrus/lock_order.rb` | a transaction takes row locks out of `Syrus::LockOrder::MODELS` |
+| Production alarms | `Formal::ProvedUnreachableAlarm`, `bin/rails formal:alarms` | an issue kind marked `"expected": "never"` in `coverage.json` occurred in production |
 
 ## When a check fails
 
