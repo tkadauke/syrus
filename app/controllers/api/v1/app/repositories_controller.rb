@@ -419,6 +419,7 @@ module Api
             provider_routing_rules: repository.persisted? ? provider_routing_rules_json(scope_type: "repository", scope_id: repository.id) : [],
             inherited_provider_routing_context: repository.persisted? ? provider_routing_inherited_context_json(scope_type: "repository", scope_id: repository.id, user_id: repository.user_id || Current.user.id) : [],
             provider_routing_options: provider_routing_options_json(Current.user),
+            ui_settings: ::App::UiSlotsPayload.panels_for(slot: "repository.settings", context: { repository: repository, user: Current.user }),
             input_source_types: input_source_types_json(repository),
             auto_approve_modes: auto_approve_modes_json,
             repositories_path: repositories_path,
