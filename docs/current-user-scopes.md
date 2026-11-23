@@ -177,6 +177,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_ref_movement_actions_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
+  - plugins/syrus_coverage/app/controllers/api/v1/app/coverage_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/job_test_results_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
@@ -450,6 +451,7 @@ instead of broader model scopes.
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/accounts_controller.rb` | per-user/private | Lists, updates, and disconnects only accounts owned by the signed-in user. |
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/oauth_controller.rb` | per-user/private | Binds OAuth state and completed connections to the signed-in user and their current session. |
 | `plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb` | admin-only with current-user scope | Worker Timeline queries are admin-only; macro results and smart-folder counts are additionally constrained to Jobs accessible to `Current.user`, and smart-folder navigation uses that user as its ownership context. |
+| `plugins/syrus_coverage/app/controllers/api/v1/app/coverage_controller.rb` | per-user/private | The coverage trend resolves the repository through `Repository.accessible_to(Current.user)`, and a workflow's hit map through the same visibility-scoped Job lookup the workflow endpoints use, so a user only reads coverage for repositories and Jobs they can already see. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private and repository-write affordance | Job-less repository preview show/logs resolve through the readable repository helper; create/destroy then require repository write access. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |

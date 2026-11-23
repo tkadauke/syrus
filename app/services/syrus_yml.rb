@@ -32,10 +32,6 @@ class SyrusYml
   # promotion config would silently start running during promotions too.
   DEFAULT_GRADE_PHASES = %w[review landing ci].freeze
 
-  COVERAGE_VALID_FORMATS = %w[lcov cobertura go-cover].freeze
-  COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
-  COVERAGE_DEFAULT_ON_MISS = "warn".freeze
-  COVERAGE_DEFAULT_HITMAP_TTL_DAYS = 7
 
   DEPLOY_MODES = %w[manual continuous].freeze
   DEFAULT_DEPLOY_MODE = "manual".freeze
@@ -79,7 +75,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
     def initialize(security_review: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
       super(security_review: security_review, plugin_configurations: plugin_configurations, **rest)
     end
@@ -272,12 +268,6 @@ class SyrusYml
     end
   end
   AgentInsightConfig = Data.define(:prepare)
-  # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
-  # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
-  CoverageSource    = RepoCoveragePlan::Source
-  CoverageThreshold = RepoCoveragePlan::Threshold
-  CoverageConfig    = RepoCoveragePlan
-
   def self.load_file(path, project_path: nil)
     new(Pathname.new(path).read, project_path: project_path).parse
   end
@@ -312,7 +302,6 @@ class SyrusYml
       security_review: parse_security_review(raw["security_review"]),
       review_notes: parse_review_notes(raw["review_notes"]),
       agent_insight: parse_agent_insight(raw["agent_insight"]),
-      coverage: parse_coverage(raw["coverage"]),
       formatters: parse_formatters(raw["formatters"]),
       generated: parse_generated(raw["generated"]),
       deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
@@ -1144,60 +1133,6 @@ class SyrusYml
     raise ParseError, "grade.rerun_only_failed: must be a boolean" unless [ true, false ].include?(raw)
 
     raw
-  end
-
-  def parse_coverage(raw)
-    return nil if raw.nil?
-    raise ParseError, "coverage: must be a mapping" unless raw.is_a?(Hash)
-
-    sources = parse_coverage_sources(raw["sources"])
-    threshold = parse_coverage_threshold(raw["threshold"])
-
-    on_miss = (raw["on_miss"] || COVERAGE_DEFAULT_ON_MISS).to_s.strip
-    unless COVERAGE_VALID_ON_MISS.include?(on_miss)
-      raise ParseError, "coverage.on_miss: must be one of #{COVERAGE_VALID_ON_MISS.join(', ')}"
-    end
-
-    hitmap_ttl_days = raw.key?("hitmap_ttl_days") ? Integer(raw["hitmap_ttl_days"]) : COVERAGE_DEFAULT_HITMAP_TTL_DAYS
-    raise ParseError, "coverage.hitmap_ttl_days: must be positive" unless hitmap_ttl_days > 0
-
-    RepoCoveragePlan.new(
-      sources: sources,
-      threshold: threshold,
-      on_miss: on_miss,
-      hitmap_ttl_days: hitmap_ttl_days,
-      pr_comment: ActiveModel::Type::Boolean.new.cast(raw["pr_comment"]) || false,
-      schedule_prompt: raw["schedule_prompt"].to_s.strip.presence
-    )
-  rescue ArgumentError, TypeError
-    raise ParseError, "coverage.hitmap_ttl_days: must be an integer"
-  end
-
-  def parse_coverage_sources(raw)
-    raise ParseError, "coverage.sources: must be an array" unless raw.is_a?(Array)
-    raise ParseError, "coverage.sources: must not be empty" if raw.empty?
-
-    raw.each_with_index.map do |item, index|
-      label = "coverage.sources[#{index}]"
-      raise ParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
-
-      artifact = item["artifact"].to_s.strip
-      raise ParseError, "#{label}.artifact: is required" if artifact.empty?
-
-      format = item["format"].to_s.strip.downcase
-      raise ParseError, "#{label}.format: must be one of #{COVERAGE_VALID_FORMATS.join(', ')}" unless COVERAGE_VALID_FORMATS.include?(format)
-
-      RepoCoveragePlan::Source.new(artifact: artifact, format: format)
-    end
-  end
-
-  # Delegates to RepoCoveragePlan's shared parser so this primary parse path
-  # (reading the workspace's own .syrus.yml) and .from_config's GitHub-content
-  # parse path can't silently diverge on lines/branches/pr_lines validation.
-  # ConfigError is a subclass of ParseError, so callers that rescue ParseError
-  # see no behavior change.
-  def parse_coverage_threshold(raw)
-    RepoCoveragePlan.parse_threshold(raw, label_prefix: "coverage.threshold")
   end
 
   def parse_adversarial_review_criteria(raw)

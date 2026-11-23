@@ -76,6 +76,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `input_source` — Polls an external system for new work and converts stable source records into Syrus inputs. Implement `Syrus::Plugin::InputSource`; interface contract: `lib/syrus/plugin/input_source.rb`.
 - `job_origin` — Describes and renders a plugin-owned source from which Jobs may originate. Implement `Syrus::Plugin::JobOrigin`; interface contract: `lib/syrus/plugin/job_origin.rb`.
 - `job_visibility_restriction` — Applies an additional plugin-owned visibility restriction when users query Jobs. Implement `Syrus::Plugin::JobVisibilityRestriction`; interface contract: `lib/syrus/plugin/job_visibility_restriction.rb`.
+- `line_coverage_provider` — Supplies per-line coverage evidence for reviewed diffs, the latest default-branch file coverage, and agent-prompt context. Implement `Syrus::Plugin::LineCoverageProvider`; interface contract: `lib/syrus/plugin/line_coverage_provider.rb`.
 - `mcp_run_context_contributor` — Adds bounded plugin-owned context to the MCP sidecar environment for a workflow run. Implement `Syrus::Plugin::McpRunContextContributor`; interface contract: `lib/syrus/plugin/mcp_run_context_contributor.rb`.
 - `mcp_tool_set` — Adds MCP tools available to workflow agents, subject to the host's run context and authorization checks. Implement `Syrus::Plugin::McpToolSet`; interface contract: `lib/syrus/plugin/mcp_tool_set.rb`.
 - `memory_store` — Stores and retrieves durable agent memory through a plugin-owned backend. Implement `Syrus::Plugin::MemoryStore`; interface contract: `lib/syrus/plugin/memory_store.rb`.
@@ -100,6 +101,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `reviewer_target_provider` — Selects and describes plugin-owned targets that a review provider can evaluate. Implement `Syrus::Plugin::ReviewerTargetProvider`; interface contract: `lib/syrus/plugin/reviewer_target_provider.rb`.
 - `runtime_session_provider` — Creates and manages a long-lived plugin-owned runtime session used by agent work. Implement `Syrus::Plugin::RuntimeSessionProvider`; interface contract: `lib/syrus/plugin/runtime_session_provider.rb`.
 - `sidebar_page` — Registers a plugin-owned application page and its sidebar navigation entry. Implement `Syrus::Plugin::SidebarPage`; interface contract: `lib/syrus/plugin/sidebar_page.rb`.
+- `skill` — Contributes built-in skills, each a named instruction set resolved like the host's own built-in skills. Implement `Syrus::Plugin::Skill`; interface contract: `lib/syrus/plugin/skill.rb`.
 - `slug_type` — Defines parsing, lookup, and presentation for a plugin-owned canonical identifier type. Implement `Syrus::Plugin::SlugType`; interface contract: `lib/syrus/plugin/slug_type.rb`.
 - `source_control_provider` — Implements repository-host operations such as issues, pull requests, reviews, and credentials for one source-control service. Implement `Syrus::Plugin::SourceControlProvider`; interface contract: `lib/syrus/plugin/source_control_provider.rb`.
 - `speech_to_text_provider` — Transcribes supported audio input and returns normalized text and metadata. Implement `Syrus::Plugin::SpeechToTextProvider`; interface contract: `lib/syrus/plugin/speech_to_text_provider.rb`.
@@ -135,11 +137,14 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::BackgroundJob` (since 0.1.16) — Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised. Only the listed members are supported. Supported members: `operational_log_context`, `queue_as`.
 - `Syrus::Host::BackupArtifactSource` (since 0.1.16) — Defines the sealed backup-artifact source operations plugins may provide; replication orchestration is not promised. Only the listed members are supported. Supported members: `checksum`, `describe`, `list`, `open`, `pin`, `record_replication`, `release_pin`.
 - `Syrus::Host::BackupDestination` (since 0.1.16) — Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised. Only the listed members are supported. Supported members: `delete`, `health`, `materialize_local`, `upload`, `verify`.
+- `Syrus::Host::BotIdentity` (since 0.1.16) — Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments. Only the listed members are supported. Supported members: `authored_github_comment?`, `for`.
 - `Syrus::Host::Callbacks` (since 0.1.16) — Defines plugin lifecycle callbacks; callback scheduling and storage are not promised. Only the listed members are supported. Supported members: `effect`, `on_boot`, `on_disable`, `on_enable`, `on_metrics_scrape`, `on_shutdown`, `on_tick`.
 - `Syrus::Host::CapabilityValidationError` (since 0.1.16) — Reports a deliberate caller-visible capability validation problem without counting it as a provider crash. Only the listed members are supported. Supported members: `code`, `details`, `message`, `new`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
 - `Syrus::Host::ChatTitles` (since 0.1.16) — Queues automatic title generation for a chat; job implementation and queue details are not promised. Supported members: `enqueue`.
 - `Syrus::Host::CliCommandHandler` (since 0.1.16) — Bases server-backed plugin CLI handlers; transport internals are not promised. Only the listed members are supported. Supported members: `call`, `json`, `raw_text`, `table`, `text`.
+- `Syrus::Host::CodePathNormalizer` (since 0.1.16) — Normalizes tool-reported source paths to repository-relative paths. Only the listed members are supported. Supported members: `normalize`.
+- `Syrus::Host::CoverageParsers` (since 0.1.16) — Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract. Only the listed members are supported. Supported members: `for`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::DiskUsage` (since 0.1.16) — Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised. Supported members: `read`.
 - `Syrus::Host::EcosystemDependencyAuditPlan` (since 0.1.16) — Carries one ecosystem's immutable dependency-audit lockfiles and command. Only the listed members are supported. Supported members: `command`, `label`, `lockfiles`, `new`.
@@ -159,6 +164,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::PerformanceLogging` (since 0.1.16) — Times named plugin phases; event storage and thresholds are not promised. Only the listed members are supported. Supported members: `phase`.
 - `Syrus::Host::PermissionProvider` (since 0.1.16) — Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported. Supported members: `migrate_permission_scope`, `register_authorization_adapter`, `register_capability`, `register_permission_preset`, `register_resource_scope`, `retire_permission_identifier`.
 - `Syrus::Host::PluginApi` (since 0.1.16) — Declares and installs plugin manifests; Definition internals are not promised. Only the listed members are supported. Supported members: `enabled?`, `register!`, `syrus_plugin`, `syrus_plugin_definition`.
+- `Syrus::Host::PluginDispatch` (since 0.1.16) — Asks ecosystem capability providers a question and composes their answers. Only the listed members are supported. Supported members: `call`.
 - `Syrus::Host::PluginInvocation` (since 0.1.16) — Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported. Supported members: `call`.
 - `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `capability_providers`, `extension_point?`, `providers_for`, `providers_with_owner_for`, `register`.
 - `Syrus::Host::PreviewPreparation` (since 0.1.16) — Prepares a preview for visual review. Only the listed members are supported. Supported members: `call`, `new`.
@@ -167,9 +173,12 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::Repository` (since 0.1.16) — Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised. Supported members: `accessible_to`, `active`, `archived_at`, `find`, `id`, `jobs`, `name`, `owner`, `writable_by`.
 - `Syrus::Host::RepositoryContentProvider` (since 0.1.16) — Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised. Only the listed members are supported. Supported members: `available_for?`, `build`, `changes`, `children`, `commits`, `display_name`, `divergence`, `history`, `provider_key`, `read`, `refs`, `relation`, `resolve`, `role`, `tree`, `tree_sha`.
 - `Syrus::Host::RepositoryGlob` (since 0.1.16) — Matches repository paths against configured globs. Only the listed members are supported. Supported members: `match?`.
+- `Syrus::Host::RetainedGraderCoverageOutputs` (since 0.1.16) — Reads the coverage files graders declared and the Run retained. Only the listed members are supported. Supported members: `for`.
 - `Syrus::Host::ReviewExecutionPolicy` (since 0.1.16) — Shares review-step skip and failure policy. Only the listed members are supported.
 - `Syrus::Host::ReviewFindingEvents` (since 0.1.16) — Records structured review findings. Only the listed members are supported. Supported members: `record`.
 - `Syrus::Host::Run` (since 0.1.16) — Reads a run's identity, state, workflow, and job through find; dispatch, lifecycle transitions, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `state`, `workflow`.
+- `Syrus::Host::SkillBase` (since 0.1.16) — Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported. Supported members: `definition`.
+- `Syrus::Host::StepFailed` (since 0.1.16) — Signals a deliberate, retry-classified step failure from a plugin-owned step. Only the listed members are supported. Supported members: `message`, `new`.
 - `Syrus::Host::SystemAlert` (since 0.1.16) — Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised. Supported members: `build`.
 - `Syrus::Host::SystemAlertProvider` (since 0.1.16) — Defines the system-alert contribution plugins may provide; alert aggregation and delivery are not promised. Only the listed members are supported. Supported members: `system_alerts`.
 - `Syrus::Host::TargetGraphCompiler` (since 0.1.16) — Compiles repository target configuration. Only the listed members are supported. Supported members: `compile`.
@@ -181,6 +190,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::VisualReviewRuntimeSession` (since 0.1.16) — Manages a visual review runtime session. Only the listed members are supported. Supported members: `new`, `start!`, `stop!`.
 - `Syrus::Host::VisualReviewRuntimeTargets` (since 0.1.16) — Resolves runtime targets for a plugin-owned visual review step. Only the listed members are supported. Supported members: `call`.
 - `Syrus::Host::Workflow` (since 0.1.16) — Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `runs`, `state`.
+- `Syrus::Host::WorkspaceContext` (since 0.1.16) — Carries the workspace path and format hint passed to ecosystem capability providers. Only the listed members are supported. Supported members: `new`.
 
 The compatibility scanner also recognizes 476 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
@@ -196,4 +206,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 35397 bytes (UTF-8, including this line).
+Size: 37508 bytes (UTF-8, including this line).

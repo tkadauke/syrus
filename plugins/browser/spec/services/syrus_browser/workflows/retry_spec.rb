@@ -23,11 +23,11 @@ RSpec.describe Workflows::Retry do
     )
   end
 
-  it "materializes the standard chain with coverage_analyze always present" do
+  it "materializes the standard chain with always present" do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+      %w[ prepare implement format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
     )
   end
 
@@ -42,7 +42,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement dependency_audit summarize test_plan pr_open ]
       )
     end
   end
@@ -61,7 +61,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement visual_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -78,7 +78,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -111,7 +111,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end

@@ -708,7 +708,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
     it "does not call the provider classifier or enqueue feedback for Syrus coverage report comments" do
       stub_issue_comments([
         { id: 1,
-          body: "#{CoverageReport::PrCommentFormatter::MARKER}\n## Test Coverage Report\n\nLines: 91%",
+          body: "<!-- syrus-coverage -->\n## Test Coverage Report\n\nLines: 91%",
           user: { login: "operator" },
           created_at: t1.iso8601 }
       ])
@@ -723,7 +723,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(PrCommentClassifier).not_to have_received(:call)
       record = PrReviewComment.last
       expect(record.actionable).to be false
-      expect(record.body).to include(CoverageReport::PrCommentFormatter::MARKER)
+      expect(record.body).to include("<!-- syrus-coverage -->")
       expect(job.reload.last_seen_comment_at).to be_nil
     end
 
@@ -733,7 +733,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       )
       stub_issue_comments([
         { id: 1,
-          body: "#{CoverageReport::PrCommentFormatter::MARKER}\nPlease explain this report",
+          body: "<!-- syrus-coverage -->\nPlease explain this report",
           user: { login: "reviewer" },
           created_at: t1.iso8601 }
       ])
@@ -742,7 +742,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       described_class.perform_now(job.id)
 
       expect(PrCommentClassifier).to have_received(:call).with(
-        body: include(CoverageReport::PrCommentFormatter::MARKER),
+        body: include("<!-- syrus-coverage -->"),
         user: user,
         agent_provider: job.agent_provider
       )

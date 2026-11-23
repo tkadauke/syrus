@@ -1,0 +1,65 @@
+module SyrusCoverage
+  # Non-agentic step that posts or updates the coverage report comment on an
+  # existing PR. Inserted after coverage_analyze in subsequent-workflow chains
+  # (pr_comment, chat_feedback) where the PR already exists. For initial
+  # workflows the same posting logic lives in Steps::PrOpen, which already
+  # has the PR number in hand.
+  #
+  # No-ops gracefully when:
+  #   - coverage was not configured or artifacts are unavailable
+  #   - pr_comment: false in the coverage plan
+  #   - the Job has no PR yet (shouldn't happen here, but safe to guard)
+  class PrCommentStep < Steps::Base
+    def call
+      pr_comment_body = workflow.artifact("coverage")&.[]("pr_comment_body")
+
+      unless pr_comment_body.present?
+        log("[coverage_pr_comment] no PR comment body in coverage artifact — skipping")
+        return
+      end
+
+      pr_number = job.pr_number
+      unless pr_number.present?
+        log("[coverage_pr_comment] no PR number for job — skipping")
+        return
+      end
+
+      pr_repo   = job.effective_pr_repository
+      client    = GithubClient.for_authorship(repository: pr_repo, job: job)
+      repo_slug = pr_repo.slug
+
+      upsert_coverage_comment(client, repo_slug, pr_number, pr_comment_body)
+    end
+
+    private
+
+    def upsert_coverage_comment(client, repo_slug, pr_number, body)
+      existing = find_existing_coverage_comment(client, repo_slug, pr_number)
+
+      if existing
+        update_coverage_comment(client, repo_slug, pr_number, existing, body)
+      else
+        client.add_issue_comment(repo_slug, pr_number, body)
+        log("[coverage_pr_comment] posted coverage comment on #{repo_slug}##{pr_number}")
+      end
+    end
+
+    def find_existing_coverage_comment(client, repo_slug, pr_number)
+      client.pr_issue_comments(repo_slug, pr_number).find do |comment|
+        Syrus::Host::BotIdentity.for(job).authored_github_comment?(comment) &&
+          comment.body.to_s.include?(SyrusCoverage::PrCommentFormatter::MARKER)
+      end
+    rescue => e
+      log("[coverage_pr_comment] failed to list PR comments: #{e.class}: #{e.message} — will post new comment")
+      nil
+    end
+
+    def update_coverage_comment(client, repo_slug, pr_number, existing, body)
+      client.update_issue_comment(repo_slug, existing.id, body)
+      log("[coverage_pr_comment] updated coverage comment ##{existing.id} on #{repo_slug}##{pr_number}")
+    rescue => e
+      log("[coverage_pr_comment] failed to update coverage comment ##{existing.id}: #{e.class}: #{e.message} — posting new comment")
+      client.add_issue_comment(repo_slug, pr_number, body)
+    end
+  end
+end

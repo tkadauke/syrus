@@ -43,7 +43,7 @@ RSpec.describe "Browser workflow tool policy" do
     expect(tool_names_for(visual_context)).to contain_exactly(
       *%w[
         read_live_state
-        get_coverage_report read_run_worker_health start_preview stop_preview
+        read_run_worker_health start_preview stop_preview
         read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
         submit_visual_review submit_visual_artifact
         list_artifacts read_artifact

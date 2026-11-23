@@ -1431,13 +1431,13 @@ RSpec.describe Workflow, :ci_only do
     end
 
     # Active Storage's attach only saves a record with no other pending
-    # changes, so a dirty instance used to drop the coverage hit map.
+    # changes, so a dirty instance used to drop a later attachment.
     it "leaves the instance clean, so a later attach still saves" do
-      wf.set_artifact!("coverage", { "summary" => {} })
+      wf.set_artifact!("a", { "summary" => {} })
 
       expect(wf).not_to be_changed
-      wf.attach_coverage_hit_map!("app/a.rb" => { "1" => 1 })
-      expect(described_class.find(wf.id).coverage_hit_map).to be_attached
+      wf.visual_artifacts.attach(io: StringIO.new("png"), filename: "a.png", content_type: "image/png")
+      expect(described_class.find(wf.id).visual_artifacts).to be_attached
     end
 
     it "returns the merged hash for several artifacts and an empty hash for none" do
@@ -1794,55 +1794,6 @@ RSpec.describe Workflow, :ci_only do
       expect(comment.handling_state).to eq("active")
       expect(comment.handling_failure_reason).to be_nil
       expect(comment.actioned_at).to be_nil
-    end
-  end
-
-  describe "coverage hit map blob helpers" do
-    let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
-
-    let(:hit_map) do
-      {
-        "app/models/user.rb" => { "1" => 3, "2" => 0, "5" => 1 },
-        "app/models/post.rb" => { "10" => 1 }
-      }
-    end
-
-    describe "#attach_coverage_hit_map!" do
-      it "attaches a gzip-compressed JSON blob" do
-        wf.attach_coverage_hit_map!(hit_map)
-        expect(wf.coverage_hit_map).to be_attached
-        expect(wf.coverage_hit_map.filename.to_s).to eq("coverage_hit_map.json.gz")
-        expect(wf.coverage_hit_map.content_type).to eq("application/gzip")
-      end
-    end
-
-    describe "#coverage_hit_map_data" do
-      it "returns nil when no blob is attached" do
-        expect(wf.coverage_hit_map_data).to be_nil
-      end
-
-      it "decompresses and parses the stored hit map" do
-        wf.attach_coverage_hit_map!(hit_map)
-        result = wf.coverage_hit_map_data
-        expect(result).to eq(hit_map)
-      end
-
-      it "round-trips integer hit counts faithfully" do
-        wf.attach_coverage_hit_map!(hit_map)
-        result = wf.reload.coverage_hit_map_data
-        expect(result.dig("app/models/user.rb", "1")).to eq(3)
-        expect(result.dig("app/models/user.rb", "2")).to eq(0)
-      end
-    end
-
-    describe "#purge_coverage_hit_map!" do
-      it "removes the attachment" do
-        wf.attach_coverage_hit_map!(hit_map)
-        expect(wf.coverage_hit_map).to be_attached
-
-        wf.purge_coverage_hit_map!
-        expect(wf.reload.coverage_hit_map).not_to be_attached
-      end
     end
   end
 

@@ -136,7 +136,7 @@ module App
     end
 
     def coverage_annotations_json
-      App::CoverageDiffAnnotationsPayload.build(
+      LineCoverageSource.diff_line_statuses(
         job: @job,
         version: @version,
         files: Array(@version.files_snapshot)

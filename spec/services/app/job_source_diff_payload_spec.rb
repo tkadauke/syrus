@@ -144,7 +144,7 @@ RSpec.describe App::JobSourceDiffPayload do
 
   it "includes filtered coverage annotations for the active source diff version" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
-    Workflow::CoverageArtifact.write!(workflow, {
+    workflow.set_artifact!("coverage", {
       "diff_annotations" => {
         "app/models/user.rb" => {
           "1" => "covered",
@@ -176,7 +176,7 @@ RSpec.describe App::JobSourceDiffPayload do
 
   it "does not attach unrelated workflow coverage to explicit ranges without version provenance" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
-    Workflow::CoverageArtifact.write!(workflow, {
+    workflow.set_artifact!("coverage", {
       "diff_annotations" => {
         "app/models/widget.rb" => { "1" => "uncovered" }
       }

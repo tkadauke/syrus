@@ -42,7 +42,6 @@ RSpec.describe Steps::PrOpen, :ci_only do
     end
 
     {
-      coverage: [ CoverageReport::PrCommentFormatter::MARKER, :post_coverage_comment_if_present ],
       dependency_audit: [ DependencyAuditReport::PrCommentFormatter::MARKER, :post_dependency_audit_comment_if_present ]
     }.each do |artifact, (marker, method_name)|
       it "does not update a foreign #{artifact} comment containing the marker" do

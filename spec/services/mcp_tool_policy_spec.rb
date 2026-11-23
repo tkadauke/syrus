@@ -32,7 +32,6 @@ RSpec.describe McpToolPolicy do
 
       expect(tools).to include(
         Mcp::Tools::ReadLiveStateTool,
-        Mcp::Tools::GetCoverageReportTool,
         Mcp::Tools::ReadRunWorkerHealthTool,
         Mcp::Tools::StartPreviewTool,
         Mcp::Tools::StopPreviewTool,
@@ -58,7 +57,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitJobMetadataTool,
         Mcp::Tools::SubmitReportTool
       )
-      expect(tools.size).to eq(24)
+      expect(tools.size).to eq(23)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
@@ -76,7 +75,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
-      expect(tools.size).to eq(14)
+      expect(tools.size).to eq(13)
     end
 
     it "returns only the dedicated submission tool to the security reviewer" do
@@ -122,7 +121,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitArtifactTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
-      expect(tools.size).to eq(17)
+      expect(tools.size).to eq(16)
     end
 
     it "excludes report_main_concern from the visual_reviewer role" do

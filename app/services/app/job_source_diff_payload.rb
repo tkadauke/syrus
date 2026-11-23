@@ -489,7 +489,7 @@ module App
     end
 
     def coverage_annotations_json(version:, files:)
-      App::CoverageDiffAnnotationsPayload.build(job: @job, version: version, files: files)
+      LineCoverageSource.diff_line_statuses(job: @job, version: version, files: files)
     end
   end
 end

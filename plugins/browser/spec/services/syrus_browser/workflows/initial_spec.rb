@@ -23,11 +23,11 @@ RSpec.describe Workflows::Initial do
     )
   end
 
-  it "materializes the standard chain with coverage_analyze always present" do
+  it "materializes the standard chain with always present" do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+      %w[ prepare implement format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
     )
   end
 
@@ -67,7 +67,7 @@ RSpec.describe Workflows::Initial do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement dependency_audit summarize test_plan pr_open ]
       )
     end
   end
@@ -83,7 +83,7 @@ RSpec.describe Workflows::Initial do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement format grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement format grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
     end
   end
@@ -99,7 +99,7 @@ RSpec.describe Workflows::Initial do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
     end
   end
@@ -121,7 +121,7 @@ RSpec.describe Workflows::Initial do
       # own iteration 1 is review-only, reviewing the top-level implement
       # directly, so there's only ever the one top-level implement.
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement visual_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -148,7 +148,7 @@ RSpec.describe Workflows::Initial do
         workflow = described_class.instantiate(job: job)
 
         expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-          %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+          %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
         )
         expect(workflow.steps.where(kind: "implement").count).to eq(1)
       end
@@ -176,7 +176,7 @@ RSpec.describe Workflows::Initial do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ]
       )
     end
 
@@ -224,7 +224,7 @@ RSpec.describe Workflows::Initial do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review coverage_analyze dependency_audit summarize test_plan pr_open ]
+        %w[ prepare implement adversarial_review dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -294,14 +294,6 @@ RSpec.describe Workflows::Initial do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.where(kind: "review_plan")).to be_empty
-  end
-
-  it "places coverage_analyze outside the retry_until loop" do
-    workflow = described_class.instantiate(job: job)
-
-    steps = workflow.steps.order(:position).index_by(&:kind)
-    expect(steps["coverage_analyze"].loop_id).to be_nil
-    expect(steps["grader_collect"].loop_id).not_to be_nil
   end
 
   it "pins the provider from the job provider setting when created" do

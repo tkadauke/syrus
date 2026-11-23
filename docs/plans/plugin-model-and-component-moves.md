@@ -1391,6 +1391,22 @@ the hardest part: a judge is half a loop, not a step.
 plus `RepoCoveragePlanReader` moving into the plugin. Straightforward once the
 anchor exists; it is a step that runs once after the loops, not a judge.
 
+*Built* as the `syrus_coverage` plugin (not `coverage`: a plugin's `lib/` is on
+`$LOAD_PATH` and `lib/coverage.rb` would shadow Ruby's own `coverage` library).
+`coverage_analyze` sits at `post_implementation` and `coverage_pr_comment` at
+`post_pr`; `coverage_snapshots` was renamed to `syrus_coverage_snapshots` and the
+hit map moved from a `Workflow` attachment to a plugin table. The `.syrus.yml`
+`coverage:` block is the plugin's legacy alias for a namespaced
+`repository_configuration`. Consumers that merely display coverage (review gutter,
+agent environment snapshot, cognitive debt) read it through the new
+`line_coverage_provider` point, and the gap-report skill through the new `skill`
+point. Disableable: coverage is advisory, so disabling omits the steps from new
+workflows without an error and keeps recorded data. What stays in core: the
+ecosystem `analyze_coverage` contract and `CoverageAnalysis::Parsers`, the
+grader-side capture of declared coverage outputs, and the web UI's coverage
+components, which still render the artifact and are a follow-up to move behind a
+UI slot.
+
 **`review_plan`** — a new candidate this design surfaces. It is already the
 only step after `pr_open`, is opt-in per repository, and must never fail the
 parent workflow. That makes it the natural first `post_pr` plugin and a useful

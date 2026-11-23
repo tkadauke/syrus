@@ -272,7 +272,7 @@ class RunFailureClassifier
 
   # "existing workflow workspace at X has no valid HEAD; recloning from <ref>"
   # is workspace setup reporting that it healed itself, and it is routine --
-  # 102 runs emitted it in one production day, across coverage_analyze,
+  # 102 runs emitted it in one production day, across analysis,
   # summarize, format, implement and merge_train_land alike, almost all of
   # which then succeeded.
   #

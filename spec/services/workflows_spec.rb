@@ -55,7 +55,7 @@ RSpec.describe Workflows do
       expect(wf.artifact("agent_provider_selection")).to eq("default")
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "prepare", 0 ], [ "implement", 1 ], [ "format", 2 ], [ "generate", 3 ], [ "grader_fanout", 4 ], [ "grader_collect", 5 ],
-        [ "coverage_analyze", 6 ], [ "dependency_audit", 7 ], [ "summarize", 8 ], [ "test_plan", 9 ], [ "pr_open", 10 ]
+        [ "dependency_audit", 6 ], [ "summarize", 7 ], [ "test_plan", 8 ], [ "pr_open", 9 ]
       ])
       expect(wf.chain_template).to include(
         {
@@ -208,11 +208,10 @@ RSpec.describe Workflows do
         [ "generate", 4, 1, grade_loop_id ],
         [ "grader_fanout", 5, 1, grade_loop_id ],
         [ "grader_collect", 6, 1, grade_loop_id ],
-        [ "coverage_analyze", 7, 1, nil ],
-        [ "dependency_audit", 8, 1, nil ],
-        [ "summarize", 9, 1, nil ],
-        [ "test_plan", 10, 1, nil ],
-        [ "pr_open", 11, 1, nil ]
+        [ "dependency_audit", 7, 1, nil ],
+        [ "summarize", 8, 1, nil ],
+        [ "test_plan", 9, 1, nil ],
+        [ "pr_open", 10, 1, nil ]
       ])
       expect(wf.chain_template).to match([
         { "type" => "step", "kind" => "prepare" },
@@ -229,7 +228,6 @@ RSpec.describe Workflows do
           "check" => %w[ format generate grader_fanout grader_collect ],
           "repair_first" => false
         },
-        { "type" => "step", "kind" => "coverage_analyze" },
         { "type" => "step", "kind" => "dependency_audit" },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
@@ -265,7 +263,7 @@ RSpec.describe Workflows do
 
       expect(wf.steps.pluck(:kind)).to eq(%w[
         prepare implement adversarial_review security_review coworker_review security_review
-        format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open
+        format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open
       ])
       expect(wf.chain_template).to include(
         { "type" => "loop", "max_iterations" => 2, "steps" => %w[implement coworker_review] }
@@ -324,11 +322,10 @@ RSpec.describe Workflows do
         [ "generate", 3, 1 ],
         [ "grader_fanout", 4, 1 ],
         [ "grader_collect", 5, 1 ],
-        [ "coverage_analyze", 6, 1 ],
-        [ "dependency_audit", 7, 1 ],
-        [ "summarize", 8, 1 ],
-        [ "test_plan", 9, 1 ],
-        [ "pr_open", 10, 1 ]
+        [ "dependency_audit", 6, 1 ],
+        [ "summarize", 7, 1 ],
+        [ "test_plan", 8, 1 ],
+        [ "pr_open", 9, 1 ]
       ])
       expect(wf.chain_template).to match([
         { "type" => "step", "kind" => "prepare" },
@@ -340,7 +337,6 @@ RSpec.describe Workflows do
           "check" => %w[ format generate grader_fanout grader_collect ],
           "repair_first" => false
         },
-        { "type" => "step", "kind" => "coverage_analyze" },
         { "type" => "step", "kind" => "dependency_audit" },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
@@ -365,11 +361,10 @@ RSpec.describe Workflows do
         [ "generate", 4, 1, grade_loop_id ],
         [ "grader_fanout", 5, 1, grade_loop_id ],
         [ "grader_collect", 6, 1, grade_loop_id ],
-        [ "coverage_analyze", 7, 1, nil ],
-        [ "dependency_audit", 8, 1, nil ],
-        [ "summarize", 9, 1, nil ],
-        [ "test_plan", 10, 1, nil ],
-        [ "pr_open", 11, 1, nil ]
+        [ "dependency_audit", 7, 1, nil ],
+        [ "summarize", 8, 1, nil ],
+        [ "test_plan", 9, 1, nil ],
+        [ "pr_open", 10, 1, nil ]
       ])
       expect(review_loop_id).not_to eq(grade_loop_id)
       expect(wf.chain_template).to include(
@@ -403,7 +398,7 @@ RSpec.describe Workflows do
       expect(wf.trigger_kind).to eq("retry")
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "prepare", 0 ], [ "implement", 1 ], [ "format", 2 ], [ "generate", 3 ], [ "grader_fanout", 4 ], [ "grader_collect", 5 ],
-        [ "coverage_analyze", 6 ], [ "dependency_audit", 7 ], [ "summarize", 8 ], [ "test_plan", 9 ], [ "pr_open", 10 ]
+        [ "dependency_audit", 6 ], [ "summarize", 7 ], [ "test_plan", 8 ], [ "pr_open", 9 ]
       ])
     end
 
@@ -468,7 +463,7 @@ RSpec.describe Workflows do
 
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "implement", 0 ], [ "format", 1 ], [ "generate", 2 ], [ "grader_fanout", 3 ], [ "grader_collect", 4 ],
-        [ "coverage_analyze", 5 ], [ "dependency_audit", 6 ], [ "summarize", 7 ], [ "test_plan", 8 ], [ "pr_open", 9 ]
+        [ "dependency_audit", 5 ], [ "summarize", 6 ], [ "test_plan", 7 ], [ "pr_open", 8 ]
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.artifacts).to include("prepare_skipped" => true)
@@ -479,7 +474,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Retry.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.trigger_kind).to eq("retry")
     end
@@ -497,7 +492,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Initial.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ])
       expect(wf.artifact("prepare_skipped_reason")).to eq("repository_configuration")
     end
 
@@ -506,7 +501,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Initial.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect dependency_audit summarize test_plan pr_open ])
       expect(wf.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 
@@ -539,7 +534,7 @@ RSpec.describe Workflows do
 
     it "wires next_step_id top-down (linear chain)" do
       wf = Workflows::Initial.instantiate(job: job)
-      a, b, c, d, e, f, g, h, i, j, k = wf.steps.order(:position)
+      a, b, c, d, e, f, g, h, i, j = wf.steps.order(:position)
       expect(a.next_step).to eq(b)
       expect(b.next_step).to eq(c)
       expect(c.next_step).to eq(d)
@@ -549,8 +544,7 @@ RSpec.describe Workflows do
       expect(g.next_step).to eq(h)
       expect(h.next_step).to eq(i)
       expect(i.next_step).to eq(j)
-      expect(j.next_step).to eq(k)
-      expect(k.next_step).to be_nil
+      expect(j.next_step).to be_nil
     end
 
     it "materializes only the review step for iteration 1 of a loop node inside the chain" do
@@ -749,7 +743,7 @@ RSpec.describe Workflows do
       allow(RepoAdversarialReviewPlan).to receive(:for_job).with(job)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       wf = Workflows::PrFeedback.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond format generate grader_fanout grader_collect dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {
@@ -775,7 +769,7 @@ RSpec.describe Workflows do
       expect(wf.trigger_kind).to eq("chat_feedback")
       expect(wf.agent_provider).to eq("codex")
       expect(wf.artifact("chat_feedback")).to eq("Please tighten the dashboard copy.")
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond format generate grader_fanout grader_collect dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {

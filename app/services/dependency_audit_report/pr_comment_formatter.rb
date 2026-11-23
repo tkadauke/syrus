@@ -2,8 +2,7 @@ module DependencyAuditReport
   # Formats a dependency_audit artifact into the markdown body for a GitHub
   # PR comment. Used by Steps::DependencyAudit (to pre-render and store the
   # body) and by Steps::DependencyAuditPrComment / Steps::PrOpen (to post or
-  # update the comment). Mirrors CoverageReport::PrCommentFormatter's
-  # marker+upsert shape.
+  # update the comment). Mirrors the marker+upsert shape other Syrus report comments use.
   class PrCommentFormatter
     MARKER = "<!-- syrus-dependency-audit -->".freeze
     OUTPUT_LINES = 40

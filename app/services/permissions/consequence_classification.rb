@@ -50,7 +50,7 @@ module Permissions
     ].freeze
 
     RUN_OBSERVATION = %w[
-      read_live_state get_coverage_report read_run_worker_health read_preview_log runtime_inspect runtime_wait
+      read_live_state read_run_worker_health read_preview_log runtime_inspect runtime_wait
     ].freeze
 
     ESSENTIAL = {

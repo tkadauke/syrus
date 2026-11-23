@@ -126,6 +126,17 @@ Supported members:
 - `upload`
 - `verify`
 
+### `Syrus::Host::BotIdentity`
+
+Since: `0.1.16`
+
+Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments. Only the listed members are supported.
+
+Supported members:
+
+- `authored_github_comment?`
+- `for`
+
 ### `Syrus::Host::Callbacks`
 
 Since: `0.1.16`
@@ -192,6 +203,26 @@ Supported members:
 - `raw_text`
 - `table`
 - `text`
+
+### `Syrus::Host::CodePathNormalizer`
+
+Since: `0.1.16`
+
+Normalizes tool-reported source paths to repository-relative paths. Only the listed members are supported.
+
+Supported members:
+
+- `normalize`
+
+### `Syrus::Host::CoverageParsers`
+
+Since: `0.1.16`
+
+Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::Current`
 
@@ -465,6 +496,16 @@ Supported members:
 - `syrus_plugin`
 - `syrus_plugin_definition`
 
+### `Syrus::Host::PluginDispatch`
+
+Since: `0.1.16`
+
+Asks ecosystem capability providers a question and composes their answers. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::PluginInvocation`
 
 Since: `0.1.16`
@@ -579,6 +620,16 @@ Supported members:
 
 - `match?`
 
+### `Syrus::Host::RetainedGraderCoverageOutputs`
+
+Since: `0.1.16`
+
+Reads the coverage files graders declared and the Run retained. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
 ### `Syrus::Host::ReviewExecutionPolicy`
 
 Since: `0.1.16`
@@ -608,6 +659,27 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::SkillBase`
+
+Since: `0.1.16`
+
+Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `definition`
+
+### `Syrus::Host::StepFailed`
+
+Since: `0.1.16`
+
+Signals a deliberate, retry-classified step failure from a plugin-owned step. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::SystemAlert`
 
@@ -742,6 +814,16 @@ Supported members:
 - `job`
 - `runs`
 - `state`
+
+### `Syrus::Host::WorkspaceContext`
+
+Since: `0.1.16`
+
+Carries the workspace path and format hint passed to ecosystem capability providers. Only the listed members are supported.
+
+Supported members:
+
+- `new`
 
 ## Legacy compatibility APIs
 
