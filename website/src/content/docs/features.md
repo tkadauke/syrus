@@ -2202,7 +2202,9 @@ Telegram's next poll uses it. Disconnecting the account stops that platform's
 connector. Bot tokens are not OAuth, so Syrus cannot revoke them at the
 platform: reset the token in the Discord developer portal or with @BotFather
 when it should stop working. Instances that had a token configured as an
-application setting have it carried over automatically on upgrade. Every configured platform's connector job
+application setting have it carried over automatically on upgrade (the upgrade
+also enables Connected accounts and beta mode for them, since both platform
+plugins now rely on that experimental plugin). Every configured platform's connector job
 (`Telegram::PollUpdatesJob`, `Discord::GatewayConnectionJob`, etc.) can be
 started from its own section's **Start polling** button, or it starts
 automatically on application boot when `SYRUS_ROLE` is set. Under the hood
