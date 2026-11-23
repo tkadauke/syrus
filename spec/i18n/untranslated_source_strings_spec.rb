@@ -131,7 +131,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/components/AdminEventActions.tsx
     app/frontend/components/AdminEventLogPanel.tsx
     app/frontend/components/Checkbox.tsx
-    app/frontend/components/ColumnVisibilityMenu.tsx
     app/frontend/components/ConfirmDialog.tsx
     app/frontend/components/GeminiSetupSheet.tsx
     app/frontend/components/Input.tsx
