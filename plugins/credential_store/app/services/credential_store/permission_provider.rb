@@ -2,7 +2,7 @@ require "digest"
 
 module CredentialStore
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
     ASK_DEFAULTS = ROLES.index_with { :ask }.freeze

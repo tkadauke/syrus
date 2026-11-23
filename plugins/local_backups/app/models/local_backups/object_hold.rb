@@ -1,5 +1,5 @@
 module LocalBackups
-  class ObjectHold < ApplicationRecord
+  class ObjectHold < Syrus::Host::Record
     self.table_name = "local_backups_object_holds"
 
     belongs_to :backup, class_name: "LocalBackups::Backup", inverse_of: :object_holds

@@ -4,7 +4,7 @@ module PluginRuntime
   # wanted, remove what is not. Ensure is idempotent on the manager's side, so
   # a tick that finds nothing to do changes nothing.
   class Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     def self.on_tick
       Services.reconcile!
