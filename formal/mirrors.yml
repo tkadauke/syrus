@@ -113,3 +113,9 @@ models:
     owner: AutoApprovalRule
     method: approve_after_grader_success!
     sha: 557fec8f25925e84
+- model: EpicTurn.lean
+  mirrors:
+  - path: app/services/step_dispatcher.rb
+    owner: StepDispatcher
+    method: self.epic_sibling_blocking?
+    sha: 4714cf715a495c34

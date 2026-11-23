@@ -50,7 +50,30 @@ def trainEvidence : String :=
       ", \"landed\": " ++ jsonBool (TrainEvidence.landed m) ++ "}"
   "{\n  \"model\": \"TrainEvidence.landed\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
-def all : List (String × String) := [("auto_approval", autoApproval), ("train_evidence", trainEvidence)]
+def workflowState : EpicTurn.W → String
+  | .queued => "queued"
+  | .running => "running"
+  | .failed => "failed"
+  | .done => "succeeded"
+
+/-- `StepDispatcher.epic_sibling_blocking?` as `!EpicTurn.mayStart`, for a
+linear Epic of three children in creation order, every state of each child's
+implementation Workflow, and every queued candidate. No Job dependencies: the
+Ruby's skip of a queued child that waits on a queued sibling is not modelled,
+and the "at most one running" proof holds for any single winner. -/
+def epicTurn : String :=
+  let states : List EpicTurn.W := [.queued, .running, .failed, .done]
+  let cases := states.flatMap fun a => states.flatMap fun b => states.flatMap fun c =>
+    let s : Fin 3 → EpicTurn.W := fun i => if i.val = 0 then a else if i.val = 1 then b else c
+    (List.finRange 3).filterMap fun i =>
+      if s i = .queued then
+        some ("    {\"states\": [" ++ ", ".intercalate ([a, b, c].map (jsonString ∘ workflowState)) ++
+          "], \"candidate\": " ++ toString i.val ++ ", \"may_start\": " ++ jsonBool (EpicTurn.mayStart s i) ++ "}")
+      else none
+  "{\n  \"model\": \"EpicTurn.mayStart\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+
+def all : List (String × String) :=
+  [("auto_approval", autoApproval), ("train_evidence", trainEvidence), ("epic_turn", epicTurn)]
 
 end Fixtures
 
