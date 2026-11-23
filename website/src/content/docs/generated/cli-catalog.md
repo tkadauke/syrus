@@ -15,7 +15,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus chat CHAT_ID MESSAGE` | Send one streaming chat turn | `--debug`, `--profile` | no |
 | `syrus chat list` | List chat sessions | `--all`, `--debug`, `--json`, `--profile`, `--repo` | yes |
 | `syrus chat new` | Create a chat session | `--debug`, `--json`, `--no-repo`, `--profile`, `--repo` | yes |
-| `syrus checkout JOB-ID\|EPIC-ID\|BRANCH` | Check out a Syrus Job branch, Epic branch, or plain git branch | `--complete`, `--debug`, `--no-hooks`, `--profile` | no |
+| `syrus checkout JOB-ID\|EPIC-ID\|BRANCH` | Check out a Syrus Job branch, Epic branch, or plain git branch | `--complete`, `--debug`, `--hooks`, `--no-hooks`, `--profile` | no |
 | `syrus epic` | Inspect and manage Syrus epics | `--debug`, `--profile` | no |
 | `syrus epic create` | Create an epic in the current repository | `--body`, `--body-file`, `--debug`, `--epic-dependency-policy`, `--file`, `--github-issue-url`, `--profile`, `--prompt`, `--repo`, `--start`, `--title`, `--yes` | no |
 | `syrus epic list` | List epics | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo` | yes |
@@ -29,7 +29,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus job approve JOB-ID` | Approve a job for landing | `--debug`, `--profile` | no |
 | `syrus job cancel JOB-ID` | Cancel a job | `--debug`, `--profile` | no |
 | `syrus job check-mergeability JOB-ID` | Check a job pull request's mergeability | `--debug`, `--profile` | no |
-| `syrus job checkout JOB-ID` | Check out a job branch locally | `--debug`, `--no-hooks`, `--profile` | no |
+| `syrus job checkout JOB-ID` | Check out a job branch locally | `--debug`, `--hooks`, `--no-hooks`, `--profile` | no |
 | `syrus job close-investigation JOB-ID` | Close a completed investigation job | `--debug`, `--profile` | no |
 | `syrus job create` | Create a direct Syrus job | `--agent`, `--body`, `--body-file`, `--debug`, `--depends-on`, `--epic`, `--file`, `--owner`, `--priority`, `--profile`, `--prompt`, `--repo`, `--title`, `--yes` | no |
 | `syrus job diagnose JOB-ID --run RUN-ID` | Diagnose an active run | `--debug`, `--profile`, `--run` | no |

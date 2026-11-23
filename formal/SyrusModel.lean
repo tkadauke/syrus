@@ -86,6 +86,7 @@ import SyrusModel.ApprovalEffectBacking
 import SyrusModel.SupersededCiRepair
 import SyrusModel.AbandonedReplication
 import SyrusModel.RecoveryPreflight
+import SyrusModel.CheckoutHooks
 import SyrusModel.DispatchOrder
 import SyrusModel.Kernel.Basic
 import SyrusModel.Kernel.Reconcile

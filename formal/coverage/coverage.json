@@ -3211,6 +3211,23 @@
       "producer": "Mcp::Tools::ScheduleWakeupTool; ChatWakeup; Permissions::EffectActions",
       "done_by": "M68 (NY34 open)",
       "notes": "Since main's 11d8bc436c, schedule_wakeup is essential and nothing bounds the number or rate of self-scheduled wakeups per chat."
+    },
+    {
+      "id": "checkout-hooks-trusted",
+      "area": "cli",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A post-checkout hook runs unasked only for a known Job kind and a command already on the base branch",
+      "producer": "cli/cmd/checkout.go (postCheckoutHooksAllowed, runPostCheckoutHooks, withPostCheckoutHookPolicy)",
+      "done_by": "F113 (NY23)",
+      "notes": "CheckoutHooks.lean: an agent-added hook needs consent, and unknown kinds never run hooks."
     }
   ],
   "needs_you": [
@@ -3511,7 +3528,7 @@
         "C. Keep as is: hooks are a convenience for trusted repositories, and --no-hooks is the escape hatch."
       ],
       "recommendation": "A. It keeps the convenience for hooks the repository already trusts on its base branch, and stops the one path where text from outside becomes code running on the operator's machine without anyone reading it.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed. Implemented as F113."
     },
     {
       "id": "NY24",

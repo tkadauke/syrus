@@ -4190,6 +4190,48 @@ with only one of two flags, ready with both. Local Backups specs: 94 examples,
 
 ---
 
+## F113. A hook the Job's branch added ran on the reviewer's machine — fixed (NY23)
+
+**Decision (NY23, A).** Run a hook without asking only if the same command is
+already in the `.syrus.yml` on the Job's base branch; show any new or changed
+hook and ask, refusing without a terminal unless `--hooks` is passed; and gate
+on an allow-list of kinds (issue, direct, cron).
+
+**Before.** `syrus checkout` ran every `hooks.post_checkout` command from the
+checked-out branch's `.syrus.yml` files, unless `--no-hooks` was passed or the
+Job was an `external_pr` (a deny-list). Every other branch is written by an
+agent working from issue text, so on a repository that accepts outside issues
+the issue author could steer the agent into adding a hook that ran on the
+reviewer's machine before the diff was read. An unknown or missing kind ran
+hooks too (`CheckoutHooks.before_runs_agent_hook`, `before_runs_unknown_kind`).
+
+**Fix (Go CLI).**
+
+- `postCheckoutHooksAllowed` is an allow-list of `issue`, `direct` and `cron`.
+- `runPostCheckoutHooks` resolves and fetches the base branch once
+  (`postCheckoutBaseRef`), and for each `.syrus.yml` reads the same file on it
+  (`git show`) to get the trusted commands. A command not among them is asked
+  about on a terminal and skipped without one, with a message naming `--hooks`.
+  When the base branch cannot be read, every hook counts as new.
+- `--hooks` on `syrus checkout` and `syrus job checkout` runs new and changed
+  hooks without asking and skips the lookup. The Epic paths get the same policy.
+- Docs: the website's configuration page, `config/syrus_docs/syrus_yml.md`, and
+  the regenerated CLI catalog.
+
+**Proof.** `CheckoutHooks.lean`: `after_unasked_only_if_on_base` and
+`after_unknown_kind_never_runs`.
+
+**Tests.** `cli/cmd/checkout_hook_trust_test.go` (new, red before: the options
+did not exist): a hook already on the base runs unasked, a new one is refused
+without a terminal, a changed one counts as new, the prompt decides on a
+terminal, `--hooks` runs it, an unreadable base trusts nothing, the kind
+allow-list, and the command-level default. Thirty-five existing fixtures sent a
+Job with no `kind`, which the allow-list now refuses; they declare
+`"kind":"issue"`, as the API does. Four tests that exist to run hooks now pass
+`--hooks` (or `allowUntrusted`). All CLI packages pass, and `go vet` is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

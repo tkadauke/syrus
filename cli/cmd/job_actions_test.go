@@ -588,7 +588,7 @@ func TestJobCheckoutRunsProjectHooksAgainstEffectiveBaseBranch(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{
-			"job":{"id":456,"branch_name":"syrus/issue-42","effective_base_branch":"release/4.2"},
+			"job":{"kind":"issue","id":456,"branch_name":"syrus/issue-42","effective_base_branch":"release/4.2"},
 			"repository":{"slug":"acme/widgets","default_branch":"main"}
 		}`)
 	}))
@@ -642,7 +642,7 @@ func TestJobCheckoutRunsProjectHooksAgainstEffectiveBaseBranch(t *testing.T) {
 	command := NewRootCommand()
 	command.SetOut(&bytes.Buffer{})
 	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"job", "checkout", "456"})
+	command.SetArgs([]string{"job", "checkout", "456", "--hooks"})
 
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -87,11 +88,11 @@ func NewCheckoutCommand() *cobra.Command {
 				return err
 			}
 			if !noHooks && postCheckoutHooksAllowed(job.Job) {
-				hookOptions := postCheckoutHookOptions{
+				hookOptions := withPostCheckoutHookPolicy(cmd, postCheckoutHookOptions{
 					baseBranch:    job.Job.EffectiveBaseBranch,
 					defaultBranch: job.Repository.DefaultBranch,
 					headRef:       "HEAD",
-				}
+				})
 				if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), hookOptions); err != nil {
 					return err
 				}
@@ -101,6 +102,7 @@ func NewCheckoutCommand() *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&noHooks, "no-hooks", false, "skip .syrus.yml hooks.post_checkout commands")
+	command.Flags().Bool("hooks", false, "run hooks.post_checkout commands this branch added or changed without asking")
 	command.Flags().BoolVar(&complete, "complete", false, "automatically select the single branch containing all epic changes (Epic refs only)")
 	return command
 }
@@ -149,7 +151,7 @@ func runEpicCheckout(cmd *cobra.Command, input string, noHooks bool) error {
 		return err
 	}
 	if !noHooks && postCheckoutHooksAllowed(*selected) {
-		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), withPostCheckoutHookPolicy(cmd, postCheckoutHookOptions{})); err != nil {
 			return err
 		}
 	}
@@ -181,7 +183,7 @@ func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) err
 			return err
 		}
 		if !noHooks && postCheckoutHooksAllowedForEpic(epic.Jobs) {
-			if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+			if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), withPostCheckoutHookPolicy(cmd, postCheckoutHookOptions{})); err != nil {
 				return err
 			}
 		}
@@ -220,7 +222,7 @@ func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) err
 		return err
 	}
 	if !noHooks && postCheckoutHooksAllowedForEpic(epic.Jobs) {
-		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), withPostCheckoutHookPolicy(cmd, postCheckoutHookOptions{})); err != nil {
 			return err
 		}
 	}
@@ -502,11 +504,16 @@ func runPlainBranchCheckout(cmd *cobra.Command, branchName string) error {
 	return nil
 }
 
+// postCheckoutHooksAllowedKinds are the Job kinds whose branches Syrus wrote
+// itself. Hooks are an allow-list, so an outside contributor's branch, a
+// plugin-contributed kind and a response without a kind all fail closed.
+var postCheckoutHooksAllowedKinds = map[string]bool{"issue": true, "direct": true, "cron": true}
+
 // postCheckoutHooksAllowed prevents configuration from an outside contributor's
 // branch from becoming local code execution. Plain branch checkouts are handled
 // separately and never run hooks because they have no trusted Job metadata.
 func postCheckoutHooksAllowed(job api.JobItem) bool {
-	return job.Kind != "external_pr"
+	return postCheckoutHooksAllowedKinds[job.Kind]
 }
 
 func postCheckoutHooksAllowedForEpic(jobs []api.JobItem) bool {
@@ -603,6 +610,12 @@ type postCheckoutHookOptions struct {
 	baseBranch    string
 	defaultBranch string
 	headRef       string
+	// allowUntrusted (--hooks) runs hooks that are new or changed on this
+	// branch without asking.
+	allowUntrusted bool
+	// confirm asks the operator about one new or changed hook; nil when there
+	// is no terminal to ask on, and such a hook is then refused.
+	confirm func(question string) (bool, error)
 }
 
 type postCheckoutHookConfig struct {
@@ -632,14 +645,23 @@ func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hook
 		return nil
 	}
 
+	hookOptions := postCheckoutHookOptions{}
+	if len(options) > 0 {
+		hookOptions = options[0]
+	}
+	baseRef, baseErr := postCheckoutBaseRef(ctx, runner, hookOptions)
+	if baseErr != nil {
+		fmt.Fprintf(stderr, "warning: could not read the base branch, so every post-checkout hook counts as new: %v\n", baseErr)
+	}
+
 	affectedFiles := []string(nil)
 	diffKnown := true
 	if postCheckoutHasNestedConfig(configs) {
-		hookOptions := postCheckoutHookOptions{}
-		if len(options) > 0 {
-			hookOptions = options[0]
+		if baseErr != nil {
+			err = baseErr
+		} else {
+			affectedFiles, err = postCheckoutAffectedFiles(ctx, runner, baseRef, hookOptions)
 		}
-		affectedFiles, err = postCheckoutAffectedFiles(ctx, runner, hookOptions)
 		if err != nil {
 			diffKnown = false
 			fmt.Fprintf(stderr, "warning: could not determine affected projects for post-checkout hooks; running all discovered project hooks: %v\n", err)
@@ -650,7 +672,20 @@ func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hook
 		if config.relDir != "" && diffKnown && !postCheckoutProjectAffected(config.relDir, affectedFiles) {
 			continue
 		}
+		trusted := map[string]bool{}
+		if baseErr == nil && !hookOptions.allowUntrusted {
+			trusted = postCheckoutTrustedCommands(ctx, runner, baseRef, config.configPath)
+		}
 		for _, command := range config.commands {
+			if !trusted[command] && !hookOptions.allowUntrusted {
+				run, err := postCheckoutConfirmUntrusted(hookOptions, config, command, stderr)
+				if err != nil {
+					return err
+				}
+				if !run {
+					continue
+				}
+			}
 			fmt.Fprintf(stderr, "running post-checkout hook from %s (%s): %s\n", config.configPath, postCheckoutProjectDescription(config), command)
 			if err := hookRunner(ctx, config.dir, command, stdout, stderr); err != nil {
 				if exitCode, ok := exitCodeFromError(err); ok {
@@ -783,7 +818,9 @@ func postCheckoutProjectDescription(config postCheckoutHookConfig) string {
 	return fmt.Sprintf("project %s (%s)", config.label, config.relDir)
 }
 
-func postCheckoutAffectedFiles(ctx context.Context, runner gitRunner, options postCheckoutHookOptions) ([]string, error) {
+// postCheckoutBaseRef resolves the Job's base branch (falling back to the
+// default branch) and fetches it, so hooks can be compared against it.
+func postCheckoutBaseRef(ctx context.Context, runner gitRunner, options postCheckoutHookOptions) (string, error) {
 	base := strings.TrimSpace(options.baseBranch)
 	if base == "" {
 		base = strings.TrimSpace(options.defaultBranch)
@@ -791,19 +828,76 @@ func postCheckoutAffectedFiles(ctx context.Context, runner gitRunner, options po
 	if base == "" {
 		baseOutput, err := runner(ctx, "", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 		if err != nil {
-			return nil, fmt.Errorf("could not determine default branch: %w", err)
+			return "", fmt.Errorf("could not determine default branch: %w", err)
 		}
 		base = strings.TrimPrefix(strings.TrimSpace(baseOutput), "origin/")
 	}
 	if base == "" {
-		return nil, errors.New("could not determine default branch")
+		return "", errors.New("could not determine default branch")
 	}
 
 	baseRef := "refs/remotes/origin/" + base
 	if _, err := runner(ctx, "", "fetch", "origin", "+refs/heads/"+base+":"+baseRef); err != nil {
-		return nil, fmt.Errorf("could not fetch origin/%s: %w", base, err)
+		return "", fmt.Errorf("could not fetch origin/%s: %w", base, err)
 	}
+	return baseRef, nil
+}
 
+// postCheckoutTrustedCommands are the post_checkout commands the same
+// .syrus.yml declares on the base branch. A missing or unreadable file
+// trusts nothing.
+func postCheckoutTrustedCommands(ctx context.Context, runner gitRunner, baseRef string, configPath string) map[string]bool {
+	trusted := map[string]bool{}
+	contents, err := runner(ctx, "", "show", baseRef+":"+configPath)
+	if err != nil {
+		return trusted
+	}
+	var config checkoutSyrusYml
+	if err := yaml.Unmarshal([]byte(contents), &config); err != nil {
+		return trusted
+	}
+	for _, command := range config.Hooks.PostCheckout {
+		if command = strings.TrimSpace(command); command != "" {
+			trusted[command] = true
+		}
+	}
+	return trusted
+}
+
+// withPostCheckoutHookPolicy adds the operator's trust policy to hook options:
+// --hooks runs new or changed hooks, otherwise they are asked about on a
+// terminal and refused without one.
+func withPostCheckoutHookPolicy(cmd *cobra.Command, options postCheckoutHookOptions) postCheckoutHookOptions {
+	if flag := cmd.Flags().Lookup("hooks"); flag != nil && flag.Value.String() == "true" {
+		options.allowUntrusted = true
+	}
+	if terminalReader(cmd.InOrStdin()) {
+		reader := bufio.NewReader(cmd.InOrStdin())
+		stderr := cmd.ErrOrStderr()
+		options.confirm = func(question string) (bool, error) {
+			fmt.Fprintf(stderr, "%s [y/N] ", question)
+			answer, err := reader.ReadString('\n')
+			if err != nil && !errors.Is(err, io.EOF) {
+				return false, err
+			}
+			answer = strings.ToLower(strings.TrimSpace(answer))
+			return answer == "y" || answer == "yes", nil
+		}
+	}
+	return options
+}
+
+// postCheckoutConfirmUntrusted decides a hook this branch added or changed:
+// ask when there is a terminal, otherwise refuse and say how to run it.
+func postCheckoutConfirmUntrusted(options postCheckoutHookOptions, config postCheckoutHookConfig, command string, stderr io.Writer) (bool, error) {
+	if options.confirm == nil {
+		fmt.Fprintf(stderr, "skipping post-checkout hook from %s that is new or changed on this branch: %s (review it, then rerun with --hooks to run it)\n", config.configPath, command)
+		return false, nil
+	}
+	return options.confirm(fmt.Sprintf("This branch adds or changes a post-checkout hook in %s:\n  %s\nRun it?", config.configPath, command))
+}
+
+func postCheckoutAffectedFiles(ctx context.Context, runner gitRunner, baseRef string, options postCheckoutHookOptions) ([]string, error) {
 	headRef := strings.TrimSpace(options.headRef)
 	if headRef == "" {
 		headRef = "HEAD"
