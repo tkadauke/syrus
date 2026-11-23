@@ -185,9 +185,46 @@ string and resolved only when it is used.
   accepts it, and a spec covers the declaration path), so the delete-the-bridge
   step for that point waits for the first user.
 
+## What closing the Epic taught us
+
+- Deleting the bridge is not only deleting adapters. Direct registrations of
+  absorbed points (`PluginRegistry.register(:point, provider)` from core
+  initializers, the simulation runner and many specs) and specs that fake a
+  legacy-shaped provider are the last users. Give them a family-native direct
+  registration first, then delete `EXTENSION_POINTS` entries, `INTERFACE_FOR`
+  wiring, `LegacyBridge` and the duplicate report together.
+- A removed point already fails closed: `validate_provides!` rejects it as an
+  unknown extension point, the loader isolates that, and plugin health shows
+  `Unknown extension point :<point>` while the host keeps booting (pinned for
+  Ecosystem in `plugin_loader_spec.rb`; add one per family when it is removed).
+- Decide standalone points from interface and ownership, never from the name;
+  the reasons are recorded above and pinned by an architecture spec.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.
+
+## Standalone points: decided
+
+The design audit left nine points unclassified. Each was checked against its
+real interface, its core lookup sites and its bundled registrants; none was
+absorbed by name. A point stays standalone only when a family would add
+machinery without adding a contract. The facts below were read from the code.
+
+| Point | Interface and composition (as read) | Bundled registrants | Why it stays standalone |
+| --- | --- | --- | --- |
+| `preview_provider` | Stateful object protocol (`detect?`, `start_command`, seed/setup commands, health check). First provider whose `detect?(repo_path)` is true wins. Core also asks a context-free `configured?` ("is any provider installed?") in four places. | django, javascript, rails | Dispatch needs a typed context and cannot answer `configured?`. Repository facts are already declared through `.syrus.yml` preview projects, so the provider is the fallback of a selection owned by `PreviewCommandSource`, not a language contribution. It also keeps an in-process `PreviewProvider.register` registry. |
+| `memory_store` | Singleton: core takes `providers_for(:memory_store).first` and probes each optional method with `respond_to?`. | agent_memory | It is not a composition (no collect, broadcast, keyed or first-claim over many); it is one optional backend behind the `Syrus::Memory` facade, and the interface module is empty by design. |
+| `platform_delivery` | Keyed service (`platform_key`) that also owns a connector job class and a platform configuration class; core reads it by manifest to start connectors. | discord | One implementation, so a service family could only be provisional. Ownership is the plugin's connector lifecycle, which `PlatformDelivery::Registry` and the polling job already own. |
+| `repository_recommendation` | Collect: each provider returns recommendation hashes; core adds the dismissal key and skips a provider that raises. | scheduled_tasks | The result shape belongs to `RepositoryFeatureRecommendations`, the failure rule is already local, and there is a single contributor. |
+| `workflow_artifact_contributor` | Collect-and-merge of hashes from `for_job(job)`, each call already wrapped in `PluginInvocation` with an empty-hash decline. | container_execution | Single contributor; the merge rule is owned by `Workflows::Base` artifact assembly. |
+| `grader_failure_summarizer`, `grader_input_materializer`, `test_evidence` | Seams between core grader steps and Test Insights: summaries per grader step, materialized grader inputs, failed-test cases. Each is a collect with a local failure rule. | test_insights (all three) | Test Insights is a core feature that happens to ship as a plugin, so these are core-owned seams with exactly one implementer. A family would promise third-party extensibility that is not intended. |
+| `approval_provider` | Class-level protocol (`provider_key`, `display_name`, `data_sharing`, `default_guidance`, `decide(evidence)`), selected by key and gated by the Permissions design. | none bundled | No in-tree implementation exists, and its disclosure and delegation semantics belong to Permissions rather than a plugin facet. |
+
+Reopen one of these only when a second independent in-tree implementation
+exists *and* its core callers can supply a typed context; until then keep the
+standalone registration, its interface module and its `PluginInvocation`
+isolation. `spec/architecture/standalone_plugin_points_spec.rb` pins the list.
 
 ## Extension-point target inventory
 
@@ -224,13 +261,11 @@ interface again when beginning that family.
   `slug_type`, `problem_provider`, `repository_configuration`,
   `step_environment`, and `worker_capability_probe` are data rather than
   provider classes; see the manifest-declaration section above.
-- **Standalone pending a verified family contract:** `preview_provider`,
-  `memory_store`, `platform_delivery`, `repository_recommendation`,
+- **Standalone (decided):** `preview_provider`, `memory_store`,
+  `platform_delivery`, `repository_recommendation`,
   `workflow_artifact_contributor`, `grader_failure_summarizer`,
-  `grader_input_materializer`, `test_evidence`, and `approval_provider`.
-  These remain standalone because their lifecycle or
-  ownership was unresolved in the audited design; do not absorb them by name
-  alone.
+  `grader_input_materializer`, `test_evidence`, and `approval_provider`; see
+  the next section for the verified reason each stays a registry point.
 
 Non-registry APIs also have targets: `Filters.register_subject` and
 `Filters.register_chips` go to Surface; `CredentialProbe.register_probe` and
