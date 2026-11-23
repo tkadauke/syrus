@@ -17,10 +17,8 @@ RSpec.describe WhisperStt::RuntimeService do
     expect(manifest.default_enabled).to be(false)
     expect(manifest.disableable).to be(true)
     expect(manifest.depends_on).to eq([ "plugin_runtime" ])
-    expect(manifest.provides).to eq(
-      "plugin_runtime:service" => described_class,
-      speech_to_text_provider: WhisperStt::Provider
-    )
+    expect(manifest.provides).to eq("plugin_runtime:service" => described_class)
+    expect(Syrus::Plugin::ServiceProvider.for_manifest(manifest, :speech_to_text_provider)).to eq([ WhisperStt::Provider ])
   end
 
   it "declares a service Plugin Runtime can run" do

@@ -17,7 +17,10 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
 
   def providers_for(extension_point, providers)
     capability = Syrus::Plugin::ChatIntegration::CAPABILITY_FOR_LEGACY[extension_point]
-    if capability
+    if Syrus::Plugin::ServiceProvider::FAMILY_FOR.key?(extension_point)
+      allow(Syrus::Plugin::ServiceProvider).to receive(:providers).and_call_original
+      allow(Syrus::Plugin::ServiceProvider).to receive(:providers).with(extension_point).and_return(providers)
+    elsif capability
       allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
       allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(capability).and_return(providers)
     else

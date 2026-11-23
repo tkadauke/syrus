@@ -6,6 +6,24 @@ Families are defined by core and implementations are read from plugin manifests.
 A stable capability requires at least two independent in-tree implementations
 and a generated contract test; all other capabilities are provisional.
 
+## `agent_runtime`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `agent_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `chat_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `agy_agent` | `SyrusAgyAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+| `claude_agent` | `SyrusClaudeAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+| `codex_agent` | `SyrusCodexAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+| `muse_agent` | `SyrusMuseAgent::AgentRuntimeServices` | - | `agent_provider`, `chat_provider` | - |
+
 ## `chat_integration`
 
 Shape: `facet`. Required core: `key`, `display_name`.
@@ -78,6 +96,20 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
 | `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |
 
+## `execution_backend`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `execution_backend` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `container_execution` | `ContainerExecution::ExecutionBackendServices` | - | - | `execution_backend` |
+
 ## `policy`
 
 Shape: `facet`. Required core: `key`, `display_name`.
@@ -116,6 +148,55 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 |---|---|---|---|---|
 | `cognitive_review` | `CognitiveReview::ReviewContributions` | - | - | `post_implementation_review_providers`, `diff_review_annotation_providers` |
 | `coworkers` | `Coworkers::ReviewContributions` | - | - | `reviewer_target_providers`, `review_context_contributors`, `review_presentation_contributors`, `review_gates` |
+
+## `runtime_session`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `runtime_session_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `browser` | `SyrusBrowser::RuntimeSessionServices` | - | `runtime_session_provider` | - |
+| `runtime_terminal` | `RuntimeTerminal::RuntimeSessionServices` | - | `runtime_session_provider` | - |
+
+## `source_host`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `input_source` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `repository_content_provider` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `source_control_provider` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+| `workspace_git_transport` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `git_mirror` | `GitMirror::SourceHostServices` | - | `repository_content_provider` | `workspace_git_transport` |
+| `github_host` | `GithubHost::SourceHostServices` | - | `repository_content_provider` | - |
+| `github_source` | `SyrusGithubSource::SourceHostServices` | - | `input_source` | `source_control_provider` |
+| `linear_source` | `SyrusLinearSource::SourceHostServices` | - | `input_source` | - |
+
+## `speech_to_text`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `speech_to_text_provider` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ServiceContext` | `Service class or instance, Array of them, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `whisper_stt` | `WhisperStt::SpeechToTextServices` | - | - | `speech_to_text_provider` |
 
 ## `surface`
 
