@@ -3,6 +3,7 @@ module WorkGates
     def pass? = vetoes.empty?
     def veto? = !pass?
     def first = vetoes.first
+    def veto_for(reason) = vetoes.find { |veto| veto.reason == reason.to_s }
   end
 
   def self.evaluate(workflow: nil, work_unit: nil, job: nil, landing: false)
