@@ -57,14 +57,14 @@ RSpec.describe Deploy::Migrations do
     { "kind" => "Job", "status" => { "active" => active, "conditions" => conditions } }
   end
 
-  def pods(phase: "Running", waiting: nil, unschedulable: false)
+  def pods(phase: "Running", waiting: nil, unschedulable: false, message: nil)
     status = { "status" => { "phase" => phase } }
     if waiting
       status["status"]["containerStatuses"] = [ { "state" => { "waiting" => { "reason" => waiting } } } ]
     end
     if unschedulable
       status["status"]["conditions"] = [
-        { "type" => "PodScheduled", "status" => "False", "reason" => "Unschedulable" }
+        { "type" => "PodScheduled", "status" => "False", "reason" => "Unschedulable", "message" => message }.compact
       ]
     end
     { "items" => [ status ] }
@@ -213,6 +213,22 @@ RSpec.describe Deploy::Migrations do
       expect(clock.now).to eq(0)
     end
 
+    # A staging node went unreachable mid-deploy, stranding the search volume
+    # the migration pod mounts. The failure printed `describe job` -- the pod
+    # template's literal secrets plus a lone "Created pod" event -- instead of
+    # the scheduler's reason.
+    it "reports the scheduler's reason without describing the Job" do
+      message = "0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 node(s) didn't match PersistentVolume's node affinity."
+      _, fake = run!(
+        { /^job / => job(complete: false, active: 0), /^pods / => pods(phase: "Pending", unschedulable: true, message: message) },
+        env: { "MIGRATION_START_TIMEOUT" => "10m" }
+      )
+
+      expect(@failure.message).to include("didn't match PersistentVolume's node affinity")
+      expect(@failure.detail).to include("PodScheduled=False Unschedulable")
+      expect(@failure.detail).not_to include("describe output")
+    end
+
     it "names an unschedulable pod rather than timing out silently" do
       run!(
         { /^job / => job(complete: false, active: 0), /^pods / => pods(phase: "Pending", unschedulable: true) },
@@ -321,12 +337,13 @@ RSpec.describe Deploy::Migrations do
 
     # Not the lock race. One attempt, then stop, with everything an operator
     # needs to see.
-    it "fails on the first attempt and reports the Job and its logs" do
+    it "fails on the first attempt and reports the pod's state and its logs" do
       run!({ /^job / => [ job(complete: false), job(failed: true) ], /^pods / => pods },
         env: { "DB_PREPARE_ATTEMPTS" => "4" })
 
       expect(@failure.message).to include("database migration job failed")
-      expect(@failure.detail).to include("describe output")
+      expect(@failure.detail).to include("phase Running")
+      expect(@failure.detail).not_to include("describe output")
       expect(@failure.detail).to include("PG::UndefinedColumn")
     end
   end
