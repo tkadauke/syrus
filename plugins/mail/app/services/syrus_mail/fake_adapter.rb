@@ -1,4 +1,4 @@
-module Mail
+module SyrusMail
   class FakeAdapter
     class_attribute :messages, default: []
 
