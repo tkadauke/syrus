@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_170223) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3464,6 +3464,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
     t.index ["session_id"], name: "index_provider_sessions_on_session_id"
+  end
+
+  create_table "push_devices", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "session_id"
+    t.string "platform", default: "ios", null: false
+    t.string "environment", default: "production", null: false
+    t.string "token", limit: 191, null: false
+    t.string "bundle_id"
+    t.string "device_name"
+    t.string "app_version"
+    t.datetime "last_registered_at", null: false
+    t.datetime "last_delivered_at"
+    t.datetime "disabled_at"
+    t.string "disabled_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["platform", "token"], name: "idx_push_devices_platform_token", unique: true
+    t.index ["session_id"], name: "index_push_devices_on_session_id"
+    t.index ["user_id"], name: "index_push_devices_on_user_id"
   end
 
   create_table "ref_movement_actions", force: :cascade do |t|

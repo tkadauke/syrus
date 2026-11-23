@@ -292,6 +292,10 @@ en:
       stacked_children: "Live stacked children depend on this branch: %{slugs}; reset or land them first."
       state: "%{slug} cannot be reset from %{state}; retry or reopen it first."
   api:
+    push_devices:
+      errors:
+        invalid: "The device registration is invalid."
+        token_required: "A device token is required."
     cli_commands:
       errors:
         plugin_not_found: "That plugin is not installed."

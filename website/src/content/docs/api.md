@@ -988,6 +988,16 @@ and returns the updated notification plus `unread_count`.
 `POST /api/v1/app/notifications/mark_all_read` marks every unread
 notification for the authenticated user read and returns the refreshed list.
 
+`POST /api/v1/app/push_devices` registers a native client for push
+notifications (used by the iOS app). It accepts `token` (hex APNs device token),
+`environment` (`sandbox` or `production`), and optional `bundle_id`,
+`device_name` and `app_version`, and is idempotent per token: registering an
+existing token moves it to the authenticated user. `DELETE
+/api/v1/app/push_devices/:id` or `DELETE
+/api/v1/app/push_devices/destroy_by_token` (with `token`) removes a device.
+Delivery requires the `SYRUS_APNS_KEY_ID`, `SYRUS_APNS_TEAM_ID`,
+`SYRUS_APNS_BUNDLE_ID` and `SYRUS_APNS_PRIVATE_KEY` environment variables.
+
 `GET /api/v1/app/notification_preferences` returns the authenticated user's
 merged notification category preferences. `PATCH
 /api/v1/app/notification_preferences` accepts a partial

@@ -258,6 +258,10 @@ de:
       stacked_children: "Aktive gestapelte Kind-Jobs hängen von diesem Branch ab: %{slugs}; setze sie zurück oder lande sie zuerst."
       state: "%{slug} kann im Status %{state} nicht zurückgesetzt werden; wiederhole oder öffne ihn zuerst erneut."
   api:
+    push_devices:
+      errors:
+        invalid: "Die Geräteregistrierung ist ungültig."
+        token_required: "Ein Gerätetoken ist erforderlich."
     cli_commands:
       errors:
         plugin_not_found: "Dieses Plugin ist nicht installiert."

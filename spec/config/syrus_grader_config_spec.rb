@@ -355,6 +355,18 @@ RSpec.describe "Syrus grader configuration" do
     expect(run.runtime_sessions).to be_empty
   end
 
+  it "declares the iOS project with a macOS-only simulator grader in ios/.syrus.yml" do
+    config = SyrusYml.new(Rails.root.join("ios/.syrus.yml").read).parse
+
+    expect(config.project).to have_attributes(id: "ios-app", label: "iOS App", kind: "ios_app")
+    expect(config.prepare).to eq([])
+
+    grader = config.grade.steps.find { |step| step.name == "ios-unit-tests" }
+    expect(grader.run).to include("xcodebuild test", "CODE_SIGNING_ALLOWED=NO")
+    expect(grader.when_files_changed).to include("Syrus/**/*", "SyrusTests/**/*", "project.yml")
+    expect(root_graph.target("//ios:grade/ios-unit-tests")).to be_present
+  end
+
   it "declares the desktop project and scoped desktop validation targets in desktop/.syrus.yml" do
     config = SyrusYml.new(Rails.root.join("desktop/.syrus.yml").read).parse
 

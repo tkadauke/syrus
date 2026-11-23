@@ -42,6 +42,8 @@ class NotificationService
     )
     return nil unless notification
 
+    PushNotificationDeliveryJob.enqueue_for(notification)
+
     ActionCable.server.broadcast(
       AppUserChannel.broadcasting_for(user),
       {

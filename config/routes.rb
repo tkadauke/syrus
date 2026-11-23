@@ -81,6 +81,10 @@ Rails.application.routes.draw do
         get "notifications", to: "notifications#index"
         post "notifications/mark_all_read", to: "notifications#mark_all_read"
         patch "notifications/:id/mark_read", to: "notifications#mark_read", constraints: { id: /\d+/ }
+        resources :push_devices, only: %i[ create ] do
+          collection { delete :destroy_by_token }
+        end
+        delete "push_devices/:id", to: "push_devices#destroy", constraints: { id: /\d+/ }
         get "notification_preferences", to: "notification_preferences#show"
         patch "notification_preferences", to: "notification_preferences#update"
         patch "user_time_zone", to: "user_time_zones#update"

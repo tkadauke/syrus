@@ -1,0 +1,45 @@
+project:
+  id: ios-app
+  label: iOS App
+  kind: ios_app
+  capabilities:
+    os: macos
+
+# No dependency installation: the app has no third-party packages.
+prepare: []
+
+targets:
+  - name: app
+    kind: application
+    sources:
+      - "Syrus/**/*"
+      - "project.yml"
+      - "Syrus.xcodeproj/**/*"
+
+  - name: tests
+    kind: library
+    sources:
+      - "SyrusTests/**/*"
+    deps:
+      - ":app"
+
+grade:
+  - name: ios-unit-tests
+    description: |
+      Builds the app and runs the XCTest unit tests on an iOS simulator. Needs
+      a macOS worker with Xcode; no signing or Apple credentials are used.
+    run: >-
+      xcodebuild test -project Syrus.xcodeproj -scheme Syrus
+      -destination "platform=iOS Simulator,name=iPhone 17,OS=latest"
+      -derivedDataPath .syrus/DerivedData/ios CODE_SIGNING_ALLOWED=NO
+    capabilities:
+      os: macos
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "Syrus/**/*"
+      - "SyrusTests/**/*"
+      - "project.yml"
+      - "Syrus.xcodeproj/**/*"
+    deps:
+      - ":tests"
+    timeout_minutes: 30

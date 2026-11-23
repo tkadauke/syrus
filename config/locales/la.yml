@@ -258,6 +258,10 @@ la:
       stacked_children: "Filii Job strati vivi ab hoc ramo pendent: %{slugs}; eos prius repone vel terrae affer."
       state: "%{slug} ex statu %{state} reponi non potest; prius iterum conare vel reaperi."
   api:
+    push_devices:
+      errors:
+        invalid: "Registratio instrumenti invalida est."
+        token_required: "Signum instrumenti requiritur."
     cli_commands:
       errors:
         plugin_not_found: "Hoc plugin non installatum est."

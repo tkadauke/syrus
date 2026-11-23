@@ -1,0 +1,540 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0BF6ACD68865572A98FA5A2A /* PushCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164E76CFE5FF0B2EA2DCB3EF /* PushCoordinator.swift */; };
+		126A386A6B72871D5BC57169 /* WebController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8231594BE17046CA348DA3E /* WebController.swift */; };
+		19ADFD44993BA39A193C6F7A /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72185A9E1FA4C906C0696281 /* ServerStore.swift */; };
+		1D36AA26DC4507106CE8D753 /* PushCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D1AE01F8125F63A8F908A9 /* PushCoordinatorTests.swift */; };
+		41CCF06268BFDEAFB287B237 /* ServerStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06C0F31092BFEEC9A19F6DC /* ServerStoreTests.swift */; };
+		4AD0F7C3E64F244BAC76432C /* SyrusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2936FDE9538D08CD023139F1 /* SyrusApp.swift */; };
+		4D4C2145A7E1959E844152D7 /* ServerSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3881DB6E4D71136B2CC6AF03 /* ServerSelectionView.swift */; };
+		59822B6706C90B44B84E663E /* NavigationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D99AB48AF7303E01DE1D01 /* NavigationPolicy.swift */; };
+		6705E57AFC66E83948794F7D /* SyrusWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E822716C6A96E9F1123A32D3 /* SyrusWebView.swift */; };
+		681DC3B1CE9CA0B34D52EBAE /* ServerURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136A4E7B7144F7D58799C0E6 /* ServerURLTests.swift */; };
+		8E1BB59B4FFD064126A24EEA /* PushPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD7063D5D8D2FD1E729B714 /* PushPayload.swift */; };
+		985DAE2A022E08C29F08F79E /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982289A048E24EF64B0352DB /* RootView.swift */; };
+		AB66F3A308AFCCA415EC3F61 /* WebScriptRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C27F0C9C1ABF114EDB8D046 /* WebScriptRunner.swift */; };
+		B03ABDBD36D3C0C9B64CD034 /* PushTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65321D430D83DCE6DDE5854E /* PushTests.swift */; };
+		C8616AD61EE7C9EBDEF4FA9A /* NavigationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C5CA572C111E33F7C10A38 /* NavigationPolicyTests.swift */; };
+		D1F9F1705A19BAB130717644 /* WebContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C022EBC8663DC09EB3B81E13 /* WebContainerView.swift */; };
+		D6D353B0183C496E5F5C4D17 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 34056C98648E3E00EE0B7F2B /* PrivacyInfo.xcprivacy */; };
+		E08E006C924F0C44769EA0E9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46DA675CC2DA546DA5B972A9 /* AppDelegate.swift */; };
+		F266CEBF336B86081A6A30EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1D267B80C802BD72B3FFCE3 /* Assets.xcassets */; };
+		F65F6BC1BF90EFBFD0A299A3 /* ServerURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17A86B33E7721087B9B70F2 /* ServerURL.swift */; };
+		F6C021AFFA88DF0502343D64 /* PushRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFA8E280921176BA77BDD82 /* PushRegistration.swift */; };
+		F88ACB3CBB9701DF905B4B9A /* WebLoadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E6ADD4FE733987D6A18B59 /* WebLoadState.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F02002CBB9C78EACAB1C0E54 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6B662B70A0E906E262347827 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 49235551959A14AFAFFA12C9;
+			remoteInfo = Syrus;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		06E6ADD4FE733987D6A18B59 /* WebLoadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoadState.swift; sourceTree = "<group>"; };
+		0C27F0C9C1ABF114EDB8D046 /* WebScriptRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebScriptRunner.swift; sourceTree = "<group>"; };
+		136A4E7B7144F7D58799C0E6 /* ServerURLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerURLTests.swift; sourceTree = "<group>"; };
+		164E76CFE5FF0B2EA2DCB3EF /* PushCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushCoordinator.swift; sourceTree = "<group>"; };
+		28DFC33FACC6CEAF73264B07 /* SyrusTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SyrusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2936FDE9538D08CD023139F1 /* SyrusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyrusApp.swift; sourceTree = "<group>"; };
+		34056C98648E3E00EE0B7F2B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		3881DB6E4D71136B2CC6AF03 /* ServerSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSelectionView.swift; sourceTree = "<group>"; };
+		3AD7063D5D8D2FD1E729B714 /* PushPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushPayload.swift; sourceTree = "<group>"; };
+		46DA675CC2DA546DA5B972A9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		65321D430D83DCE6DDE5854E /* PushTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushTests.swift; sourceTree = "<group>"; };
+		72185A9E1FA4C906C0696281 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
+		85DBB8F2A7052B8F9EF99321 /* Syrus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Syrus.entitlements; sourceTree = "<group>"; };
+		89C5CA572C111E33F7C10A38 /* NavigationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationPolicyTests.swift; sourceTree = "<group>"; };
+		982289A048E24EF64B0352DB /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A7D99AB48AF7303E01DE1D01 /* NavigationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationPolicy.swift; sourceTree = "<group>"; };
+		A8231594BE17046CA348DA3E /* WebController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebController.swift; sourceTree = "<group>"; };
+		C022EBC8663DC09EB3B81E13 /* WebContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebContainerView.swift; sourceTree = "<group>"; };
+		D17A86B33E7721087B9B70F2 /* ServerURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerURL.swift; sourceTree = "<group>"; };
+		DFFA8E280921176BA77BDD82 /* PushRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistration.swift; sourceTree = "<group>"; };
+		E06C0F31092BFEEC9A19F6DC /* ServerStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStoreTests.swift; sourceTree = "<group>"; };
+		E1D267B80C802BD72B3FFCE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E552899AF503560FAE7D5861 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E5EAE2478D503FC7F230B6FB /* Syrus.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Syrus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E822716C6A96E9F1123A32D3 /* SyrusWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyrusWebView.swift; sourceTree = "<group>"; };
+		F0D1AE01F8125F63A8F908A9 /* PushCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushCoordinatorTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0F83FBF39516341593E0A486 /* Push */ = {
+			isa = PBXGroup;
+			children = (
+				164E76CFE5FF0B2EA2DCB3EF /* PushCoordinator.swift */,
+				3AD7063D5D8D2FD1E729B714 /* PushPayload.swift */,
+				DFFA8E280921176BA77BDD82 /* PushRegistration.swift */,
+			);
+			path = Push;
+			sourceTree = "<group>";
+		};
+		14925AAFA9CA095373E69B1D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E5EAE2478D503FC7F230B6FB /* Syrus.app */,
+				28DFC33FACC6CEAF73264B07 /* SyrusTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5C798B83B3911A6ED6C5B08F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				46DA675CC2DA546DA5B972A9 /* AppDelegate.swift */,
+				982289A048E24EF64B0352DB /* RootView.swift */,
+				2936FDE9538D08CD023139F1 /* SyrusApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		7EC1219895162CCE3E4ECAB1 /* Web */ = {
+			isa = PBXGroup;
+			children = (
+				A7D99AB48AF7303E01DE1D01 /* NavigationPolicy.swift */,
+				E822716C6A96E9F1123A32D3 /* SyrusWebView.swift */,
+				C022EBC8663DC09EB3B81E13 /* WebContainerView.swift */,
+				A8231594BE17046CA348DA3E /* WebController.swift */,
+				06E6ADD4FE733987D6A18B59 /* WebLoadState.swift */,
+				0C27F0C9C1ABF114EDB8D046 /* WebScriptRunner.swift */,
+			);
+			path = Web;
+			sourceTree = "<group>";
+		};
+		B1F670E142D56A009667F823 /* Syrus */ = {
+			isa = PBXGroup;
+			children = (
+				5C798B83B3911A6ED6C5B08F /* App */,
+				0F83FBF39516341593E0A486 /* Push */,
+				E770528C98EEA9B2151A4935 /* Resources */,
+				C1C70A9D91599303EC50FEFD /* Server */,
+				7EC1219895162CCE3E4ECAB1 /* Web */,
+			);
+			path = Syrus;
+			sourceTree = "<group>";
+		};
+		BBF81659A9DD20E9F126E84F = {
+			isa = PBXGroup;
+			children = (
+				B1F670E142D56A009667F823 /* Syrus */,
+				F33AD1F190E0F38415D19CC9 /* SyrusTests */,
+				14925AAFA9CA095373E69B1D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C1C70A9D91599303EC50FEFD /* Server */ = {
+			isa = PBXGroup;
+			children = (
+				3881DB6E4D71136B2CC6AF03 /* ServerSelectionView.swift */,
+				72185A9E1FA4C906C0696281 /* ServerStore.swift */,
+				D17A86B33E7721087B9B70F2 /* ServerURL.swift */,
+			);
+			path = Server;
+			sourceTree = "<group>";
+		};
+		E770528C98EEA9B2151A4935 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E1D267B80C802BD72B3FFCE3 /* Assets.xcassets */,
+				E552899AF503560FAE7D5861 /* Info.plist */,
+				34056C98648E3E00EE0B7F2B /* PrivacyInfo.xcprivacy */,
+				85DBB8F2A7052B8F9EF99321 /* Syrus.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		F33AD1F190E0F38415D19CC9 /* SyrusTests */ = {
+			isa = PBXGroup;
+			children = (
+				89C5CA572C111E33F7C10A38 /* NavigationPolicyTests.swift */,
+				F0D1AE01F8125F63A8F908A9 /* PushCoordinatorTests.swift */,
+				65321D430D83DCE6DDE5854E /* PushTests.swift */,
+				E06C0F31092BFEEC9A19F6DC /* ServerStoreTests.swift */,
+				136A4E7B7144F7D58799C0E6 /* ServerURLTests.swift */,
+			);
+			path = SyrusTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		49235551959A14AFAFFA12C9 /* Syrus */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1E335026C1B844E29072E62D /* Build configuration list for PBXNativeTarget "Syrus" */;
+			buildPhases = (
+				084D3B712C5939CB3C23EB48 /* Sources */,
+				32911032CE094C7C54BFFFEE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Syrus;
+			packageProductDependencies = (
+			);
+			productName = Syrus;
+			productReference = E5EAE2478D503FC7F230B6FB /* Syrus.app */;
+			productType = "com.apple.product-type.application";
+		};
+		94B9663F8466BD87B054D9B5 /* SyrusTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C34681192F7BEC62D99CABC9 /* Build configuration list for PBXNativeTarget "SyrusTests" */;
+			buildPhases = (
+				0BDFD41C7D5DFF39659DB167 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				55AC343B7531F57FEFF79BCD /* PBXTargetDependency */,
+			);
+			name = SyrusTests;
+			packageProductDependencies = (
+			);
+			productName = SyrusTests;
+			productReference = 28DFC33FACC6CEAF73264B07 /* SyrusTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6B662B70A0E906E262347827 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					49235551959A14AFAFFA12C9 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					94B9663F8466BD87B054D9B5 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DDA0C8939F386A7CA87EF043 /* Build configuration list for PBXProject "Syrus" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = BBF81659A9DD20E9F126E84F;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 14925AAFA9CA095373E69B1D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				49235551959A14AFAFFA12C9 /* Syrus */,
+				94B9663F8466BD87B054D9B5 /* SyrusTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		32911032CE094C7C54BFFFEE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F266CEBF336B86081A6A30EC /* Assets.xcassets in Resources */,
+				D6D353B0183C496E5F5C4D17 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		084D3B712C5939CB3C23EB48 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E08E006C924F0C44769EA0E9 /* AppDelegate.swift in Sources */,
+				59822B6706C90B44B84E663E /* NavigationPolicy.swift in Sources */,
+				0BF6ACD68865572A98FA5A2A /* PushCoordinator.swift in Sources */,
+				8E1BB59B4FFD064126A24EEA /* PushPayload.swift in Sources */,
+				F6C021AFFA88DF0502343D64 /* PushRegistration.swift in Sources */,
+				985DAE2A022E08C29F08F79E /* RootView.swift in Sources */,
+				4D4C2145A7E1959E844152D7 /* ServerSelectionView.swift in Sources */,
+				19ADFD44993BA39A193C6F7A /* ServerStore.swift in Sources */,
+				F65F6BC1BF90EFBFD0A299A3 /* ServerURL.swift in Sources */,
+				4AD0F7C3E64F244BAC76432C /* SyrusApp.swift in Sources */,
+				6705E57AFC66E83948794F7D /* SyrusWebView.swift in Sources */,
+				D1F9F1705A19BAB130717644 /* WebContainerView.swift in Sources */,
+				126A386A6B72871D5BC57169 /* WebController.swift in Sources */,
+				F88ACB3CBB9701DF905B4B9A /* WebLoadState.swift in Sources */,
+				AB66F3A308AFCCA415EC3F61 /* WebScriptRunner.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0BDFD41C7D5DFF39659DB167 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8616AD61EE7C9EBDEF4FA9A /* NavigationPolicyTests.swift in Sources */,
+				1D36AA26DC4507106CE8D753 /* PushCoordinatorTests.swift in Sources */,
+				B03ABDBD36D3C0C9B64CD034 /* PushTests.swift in Sources */,
+				41CCF06268BFDEAFB287B237 /* ServerStoreTests.swift in Sources */,
+				681DC3B1CE9CA0B34D52EBAE /* ServerURLTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		55AC343B7531F57FEFF79BCD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 49235551959A14AFAFFA12C9 /* Syrus */;
+			targetProxy = F02002CBB9C78EACAB1C0E54 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0F1080DD758F302DE84B95DB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.syrus.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Syrus.app/Syrus";
+			};
+			name = Release;
+		};
+		12CDDB839CDB620EA98361AD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Syrus/Resources/Syrus.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Syrus/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.syrus.ios;
+				SDKROOT = iphoneos;
+				SYRUS_APNS_ENVIRONMENT = production;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5CF6CD914C7B8F578876B1C1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.syrus.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Syrus.app/Syrus";
+			};
+			name = Debug;
+		};
+		65E3D272F025465B785C03B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Syrus/Resources/Syrus.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Syrus/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.syrus.ios;
+				SDKROOT = iphoneos;
+				SYRUS_APNS_ENVIRONMENT = sandbox;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E826FA147E1E834F7325BBDE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E9D2393BD56AC5A2A2B6F96C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1E335026C1B844E29072E62D /* Build configuration list for PBXNativeTarget "Syrus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				65E3D272F025465B785C03B9 /* Debug */,
+				12CDDB839CDB620EA98361AD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C34681192F7BEC62D99CABC9 /* Build configuration list for PBXNativeTarget "SyrusTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5CF6CD914C7B8F578876B1C1 /* Debug */,
+				0F1080DD758F302DE84B95DB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DDA0C8939F386A7CA87EF043 /* Build configuration list for PBXProject "Syrus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9D2393BD56AC5A2A2B6F96C /* Debug */,
+				E826FA147E1E834F7325BBDE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6B662B70A0E906E262347827 /* Project object */;
+}
