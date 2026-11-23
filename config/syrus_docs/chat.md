@@ -305,7 +305,9 @@ count for concurrent Jobs); landing and CI-repair workflows are excluded.
 Fresh terminal failures and implemented/PR-ready results show failure or
 success glyphs until that participant opens the chat. Hovering or focusing a
 row's indicator cluster opens a portaled breakdown of agent, Job, Epic, goal,
-pending-action, and scratch-pad activity. Collapsed groups roll up Job activity
+pending-action, and scratch-pad activity. On touch devices, tapping the
+indicator cluster toggles that breakdown; touching elsewhere in the row opens
+the chat without opening the breakdown. Collapsed groups roll up Job activity
 so work remains visible. Within each running, failed, or PR-ready section, Jobs
 from the same Epic share one compact Epic summary with its title, segmented
 state progress, and current-step counts. Healthy and finished Epics start
