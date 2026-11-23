@@ -24,6 +24,13 @@ RSpec.describe "Plugin family migration architecture" do
     post_implementation_review_provider diff_review_annotation_provider adjudicator
   ].freeze
   POLICY_POINTS = %i[job_visibility_restriction repository_filter].freeze
+  SERVICE_FAMILIES = {
+    agent_runtime: %i[agent_provider chat_provider],
+    execution_backend: %i[execution_backend],
+    runtime_session: %i[runtime_session_provider],
+    source_host: %i[source_control_provider input_source repository_content_provider workspace_git_transport],
+    speech_to_text: %i[speech_to_text_provider]
+  }.freeze
 
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
@@ -36,7 +43,7 @@ RSpec.describe "Plugin family migration architecture" do
     chat_integration: CHAT_INTEGRATION_POINTS,
     review: REVIEW_POINTS,
     policy: POLICY_POINTS
-  }.freeze
+  }.merge(SERVICE_FAMILIES).freeze
 
   it "keeps Toolkit's compatibility allowlist explicit" do
     definition = Syrus::Plugin::Family.fetch(:toolkit)
@@ -94,6 +101,24 @@ RSpec.describe "Plugin family migration architecture" do
         [ point, plugins.sort ]
       end
       expect(actual).to eq(points.index_with { [] })
+    end
+  end
+
+  SERVICE_FAMILIES.each do |family, points|
+    it "keeps #{family}'s compatibility allowlist explicit" do
+      definition = Syrus::Plugin::Family.fetch(family)
+      expect(definition.shape).to eq(:service)
+      expect(definition.legacy_mappings.keys).to contain_exactly(*points)
+      expect(Syrus::PluginRegistry::EXTENSION_POINTS & points).to contain_exactly(*points)
+    end
+
+    it "allows no bundled plugin to register a legacy point absorbed by #{family}" do
+      # The service capability names equal the legacy point names, so inspect
+      # the manifests' legacy `provides` rather than scanning for `point:`.
+      registered = Syrus::PluginRegistry.all_plugins.select { |manifest| manifest.plugin_root && !manifest.external }.flat_map do |manifest|
+        (manifest.provides.keys.map(&:to_sym) & points).map { |point| "#{manifest.name}: #{point}" }
+      end
+      expect(registered).to be_empty
     end
   end
 

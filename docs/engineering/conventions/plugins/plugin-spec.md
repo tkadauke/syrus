@@ -7,6 +7,7 @@ Paste this whole file into an LLM context when authoring a plugin.
 
 A plugin is a gem loaded as trusted in-process code and requires a Syrus restart after installation or upgrade. Its gemspec must set a requirement string such as `metadata["requires_syrus"] = ">= 0.1.16"`; Syrus parses it as a `Gem::Requirement`. The requirement must cover the oldest tested Syrus release and be no lower than the newest host API `since` version the plugin uses. The entry file extends `Syrus::PluginApi` and declares one `syrus_plugin` block. Accepted keys:
 
+- `agent_runtime` — AgentRuntime service-family agent and chat providers.
 - `always` — Reversible effects retained after a previously enabled plugin is disabled.
 - `author` — Plugin author.
 - `category` — Catalog category.
@@ -24,6 +25,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `display_name` — Human-readable plugin name.
 - `display_name_i18n_key` — Translation key for the display name.
 - `events` — Domain events published by the plugin.
+- `execution_backend` — ExecutionBackend service-family command execution backends.
 - `experimental` — Marks an instance-local experimental plugin.
 - `frontend` — Prebuilt frontend entry and i18n locale-file patterns.
 - `home_queue` — Default Solid Queue queue.
@@ -43,6 +45,9 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `review_contributions` — Review-family gates, reviewer targets, review context and presentation, post-implementation review, diff annotation, and adjudicator contributions.
 - `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
+- `runtime_session` — RuntimeSession service-family long-lived runtime session providers.
+- `source_host` — SourceHost service-family source-control, input-source, repository-content, and git-transport services.
+- `speech_to_text` — SpeechToText service-family transcription providers.
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
 - `surface` — Surface-family pages, tabs, slots, artifact and preview renderers, and filter registrations.
 - `tick_interval` — Optional control-plane tick interval.
@@ -122,10 +127,15 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 
 Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing literal plugin and provider strings plus call and decline contexts. The kit derives the full capability list from that exact manifest declaration, and the literal identifiers let isolated and sharded suite runs verify coverage from source.
 
+- `agent_runtime` (service; required core: `key`, `display_name`, `available_for?`) — `agent_provider` (stable, collect, Service class or instance, Array of them, or nil), `chat_provider` (stable, collect, Service class or instance, Array of them, or nil)
 - `chat_integration` (facet; required core: `key`, `display_name`) — `identity_providers` (provisional, collect, Module, Array<Module>, or nil), `job_status_extensions` (provisional, collect, Module, Array<Module>, or nil), `media_sources` (provisional, collect, Module, Array<Module>, or nil), `mentionables` (provisional, collect, Module, Array<Module>, or nil), `payload_contributors` (provisional, collect, Module, Array<Module>, or nil), `prompt_injectors` (provisional, collect, Module, Array<Module>, or nil), `turn_finalizers` (provisional, collect, Module, Array<Module>, or nil), `turn_lifecycles` (provisional, collect, Module, Array<Module>, or nil), `turn_orientations` (provisional, collect, Module, Array<Module>, or nil), `workspace_lifecycles` (provisional, collect, Module, Array<Module>, or nil)
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
+- `execution_backend` (service; required core: `key`, `display_name`, `available_for?`) — `execution_backend` (provisional, collect, Service class or instance, Array of them, or nil)
 - `policy` (facet; required core: `key`, `display_name`) — `job_visibility_restrictions` (provisional, collect, Module, Array<Module>, or nil), `repository_filters` (provisional, collect, Module, Array<Module>, or nil)
 - `review` (facet; required core: `key`, `display_name`) — `adjudicators` (provisional, collect, Module, Array<Module>, or nil), `diff_review_annotation_providers` (provisional, collect, Module, Array<Module>, or nil), `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer), `post_implementation_review_providers` (provisional, collect, Module, Array<Module>, or nil), `review_context_contributors` (provisional, collect, Module, Array<Module>, or nil), `review_gates` (provisional, collect, Module, Array<Module>, or nil), `review_presentation_contributors` (provisional, collect, Module, Array<Module>, or nil), `reviewer_target_providers` (provisional, collect, Module, Array<Module>, or nil)
+- `runtime_session` (service; required core: `key`, `display_name`, `available_for?`) — `runtime_session_provider` (stable, collect, Service class or instance, Array of them, or nil)
+- `source_host` (service; required core: `key`, `display_name`, `available_for?`) — `input_source` (stable, collect, Service class or instance, Array of them, or nil), `repository_content_provider` (stable, collect, Service class or instance, Array of them, or nil), `source_control_provider` (provisional, collect, Service class or instance, Array of them, or nil), `workspace_git_transport` (provisional, collect, Service class or instance, Array of them, or nil)
+- `speech_to_text` (service; required core: `key`, `display_name`, `available_for?`) — `speech_to_text_provider` (provisional, collect, Service class or instance, Array of them, or nil)
 - `surface` (facet; required core: `key`, `display_name`) — `admin_pages` (stable, collect, Module, Array<Module>, or nil), `artifact_renderers` (stable, collect, Module, Array<Module>, or nil), `filter_chips` (stable, collect, Array<FilterChips>), `filter_subjects` (stable, collect, Array<FilterSubject>), `preview_panel_viewers` (provisional, collect, Module, Array<Module>, or nil), `repo_page_tabs` (stable, collect, Module, Array<Module>, or nil), `sidebar_pages` (stable, collect, Module, Array<Module>, or nil), `ui_slots` (stable, collect, Module, Array<Module>, or nil), `workspace_tabs` (stable, collect, Module, Array<Module>, or nil)
 - `toolkit` (facet; required core: `key`, `display_name`) — `chat_tools` (stable, collect, Module or nil), `credential_probes` (stable, collect, Array<ProbeRegistration>), `permissions` (stable, collect, Module or nil), `run_context` (provisional, collect, Hash), `secret_extractors` (stable, collect, Array<secret extractor>), `workflow_tools` (stable, collect, Module or nil)
 
@@ -190,4 +200,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 35920 bytes (UTF-8, including this line).
+Size: 37658 bytes (UTF-8, including this line).

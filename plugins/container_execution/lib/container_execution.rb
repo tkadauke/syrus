@@ -15,8 +15,8 @@ module ContainerExecution
     default_enabled false
     disableable true
 
-    provides execution_backend: "ContainerExecution::Backend",
-             workflow_artifact_contributor: "ContainerExecution::WorkflowArtifactContributor",
+    execution_backend execution_backend: "ContainerExecution::Backend"
+    provides workflow_artifact_contributor: "ContainerExecution::WorkflowArtifactContributor",
              worker_capability_probe: "ContainerExecution::CoworkerCapabilityProbe"
   end
 end

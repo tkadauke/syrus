@@ -3,7 +3,7 @@ module AgentProviders
 
   def self.for(provider)
     klass = PerformanceLogging.phase("agent_providers.lookup", provider: provider) do
-      Syrus::PluginRegistry.providers_for(:agent_provider)
+      Syrus::Plugin::ServiceProvider.providers(:agent_provider)
         .find do |p|
           Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
             extension_point: :agent_provider, provider: p, operation: :provider_key, on_decline: false

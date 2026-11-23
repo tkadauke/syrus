@@ -13,8 +13,8 @@ module SyrusCodexAgent
     category "agent_provider"
     default_enabled false
     disableable true
-    provides agent_provider: "AgentProviders::Codex",
-             chat_provider: "ChatProviders::Codex"
+    agent_runtime agent_provider: "AgentProviders::Codex",
+                  chat_provider: "ChatProviders::Codex"
     toolkit credential_probes: {
       "codex_api_key" => "CodexCredentialProbe",
       "codex_auth_json" => "CodexCredentialProbe"

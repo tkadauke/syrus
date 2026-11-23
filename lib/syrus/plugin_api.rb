@@ -87,7 +87,8 @@ module Syrus
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types toolkit surface chat_integration review_contributions policy while_enabled metrics always suggests_enabling on_boot
+        credential_types toolkit surface chat_integration review_contributions policy
+        agent_runtime execution_backend runtime_session source_host speech_to_text while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
       attr_reader :name, :namespace, :lib_dir
@@ -255,6 +256,33 @@ module Syrus
         declare_contribution_family(:policy, :Policy, Syrus::Plugin::Policy, contributions)
       end
 
+      # Declares services for the service families. Services keep their own
+      # interface modules; the declaration only names the plugin's service
+      # classes (strings, resolved lazily) per capability.
+      #
+      #   agent_runtime agent_provider: "AgentProviders::Acme", chat_provider: "ChatProviders::Acme"
+      def agent_runtime(agent_provider: nil, chat_provider: nil)
+        declare_service_family(:agent_runtime, :AgentRuntimeServices, { agent_provider:, chat_provider: })
+      end
+
+      def execution_backend(execution_backend: nil)
+        declare_service_family(:execution_backend, :ExecutionBackendServices, { execution_backend: })
+      end
+
+      def runtime_session(runtime_session_provider: nil)
+        declare_service_family(:runtime_session, :RuntimeSessionServices, { runtime_session_provider: })
+      end
+
+      def source_host(source_control_provider: nil, input_source: nil, repository_content_provider: nil,
+        workspace_git_transport: nil)
+        declare_service_family(:source_host, :SourceHostServices,
+          { source_control_provider:, input_source:, repository_content_provider:, workspace_git_transport: })
+      end
+
+      def speech_to_text(speech_to_text_provider: nil)
+        declare_service_family(:speech_to_text, :SpeechToTextServices, { speech_to_text_provider: })
+      end
+
       def route(verb, path, to:)
         @routes << { verb: verb.to_s.upcase, path: path, controller: to }
       end
@@ -269,6 +297,25 @@ module Syrus
         )
       end
       private :declare_contribution_family
+
+      def declare_service_family(family, constant, services)
+        services = services.compact
+        return if services.empty?
+
+        definition = Syrus::Plugin::Family.fetch(family)
+        provider = Syrus::Plugin::ServiceProvider.build(
+          key: name, display_name: @scalars[:display_name] || name.humanize, **services
+        )
+        namespace.send(:remove_const, constant) if namespace.const_defined?(constant, false)
+        namespace.const_set(constant, provider)
+        @family_provides.reject! { |entry| entry.family == family && entry.provider == "#{namespace.name}::#{constant}" }
+        tiers = services.keys.group_by { |capability| definition.capabilities.fetch(capability).tier }
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family:, provider: "#{namespace.name}::#{constant}",
+          implements: tiers.fetch(:stable, []), provisional: tiers.fetch(:provisional, [])
+        )
+      end
+      private :declare_service_family
 
       def frontend(pairs = {})
         return @frontend if pairs.empty?

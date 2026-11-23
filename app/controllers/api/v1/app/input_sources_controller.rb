@@ -62,7 +62,7 @@ module Api
 
         def available_input_source_providers
           PerformanceLogging.phase("input_sources.providers") do
-            Syrus::PluginRegistry.providers_for(:input_source)
+            Syrus::Plugin::ServiceProvider.providers(:input_source)
           end
         end
 

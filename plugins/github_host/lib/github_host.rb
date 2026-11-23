@@ -11,6 +11,6 @@ module GithubHost
     category "connectivity"
     default_enabled true
     disableable true
-    provides repository_content_provider: "GithubHost::ContentProvider"
+    source_host repository_content_provider: "GithubHost::ContentProvider"
   end
 end

@@ -738,7 +738,7 @@ class User < ApplicationRecord
   end
 
   def self.agent_providers
-    Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)
+    Syrus::Plugin::ServiceProvider.providers(:agent_provider).map(&:provider_key)
   end
 
   def self.search(query)

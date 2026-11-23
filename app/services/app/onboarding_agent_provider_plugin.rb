@@ -50,11 +50,10 @@ module App
     end
 
     def agent_provider_key_for(manifest)
-      # Manifest.provides is already resolved to the actual class by
-      # Syrus::PluginApi::Definition#resolved_provides at registration time,
-      # not the string the plugin's `provides agent_provider: "..."` DSL call
-      # used to name it.
-      klass = manifest.provides[:agent_provider]
+      # The service class comes from the plugin's AgentRuntime declaration
+      # (or a legacy `provides agent_provider:` registration), already
+      # resolved to the actual class.
+      klass = Syrus::Plugin::ServiceProvider.for_manifest(manifest, :agent_provider).first
       return nil unless klass
 
       klass.provider_key
