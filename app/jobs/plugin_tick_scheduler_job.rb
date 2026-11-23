@@ -27,7 +27,7 @@ class PluginTickSchedulerJob < ApplicationJob
       next if interval.blank?
       next unless manifest.enabled?
       next unless Syrus::PluginRegistry.health.healthy?(manifest.name)
-      next if Array(manifest.provides[:callbacks]).empty?
+      next if Syrus::Plugin::Lifecycle.callback_providers_for(manifest).empty?
 
       enqueue_tick(manifest, interval)
     end

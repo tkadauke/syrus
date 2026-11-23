@@ -16,14 +16,14 @@ module TestInsights
     disableable true
     optionally_depends_on [ "global_search" ]
     hosts [ :parser ]
-    provides domain_subscriber: "TestInsights::Subscribers",
-             test_evidence: "TestInsights::TestEvidence",
+    lifecycle domain_subscribers: "TestInsights::Subscribers"
+    data_policy retention_policies: "TestInsights::RetentionPolicy"
+    provides test_evidence: "TestInsights::TestEvidence",
              grader_input_materializer: "TestInsights::GraderRuntimeProfileProvider",
              grader_failure_summarizer: "TestInsights::GraderFailureSummarizer",
              "global_search:source" => "TestInsights::SearchSource",
              repo_page_tabs: "TestInsights::RepoPageTabs",
-             ui_slots: "TestInsights::UiSlots",
-             retention_policy: "TestInsights::RetentionPolicy"
+             ui_slots: "TestInsights::UiSlots"
     toolkit workflow_tools: "TestInsights::McpToolSet", chat_tools: "TestInsights::ChatToolSet", permissions: "TestInsights::PermissionProvider"
     surface filter_subjects: { test_case: { model: "TestInsights::TestIdentity", chips: {
       "repository_id" => "Filters::Chips::RepositoryId",

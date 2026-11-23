@@ -87,7 +87,7 @@ module Syrus
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types toolkit surface chat_integration review_contributions policy
+        credential_types toolkit surface chat_integration review_contributions policy lifecycle data_policy
         agent_runtime execution_backend runtime_session source_host speech_to_text while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
@@ -281,6 +281,26 @@ module Syrus
 
       def speech_to_text(speech_to_text_provider: nil)
         declare_service_family(:speech_to_text, :SpeechToTextServices, { speech_to_text_provider: })
+      end
+
+      # Declares lifecycle hooks: plugin lifecycle callbacks and domain-event
+      # subscribers. Hooks are broadcast; every enabled plugin's hook runs and a
+      # failing one is isolated from the rest.
+      def lifecycle(callback_providers: nil, domain_subscribers: nil)
+        contributions = { callback_providers:, domain_subscribers: }.compact
+        return if contributions.empty?
+
+        declare_contribution_family(:lifecycle, :Lifecycle, Syrus::Plugin::Lifecycle, contributions)
+      end
+
+      # Declares data-governance hooks: retention definitions, purge
+      # contributors, and retained-preview-panel decisions. A contributor that
+      # fails is reported and never silently skipped.
+      def data_policy(retention_policies: nil, purge_contributors: nil, preview_panel_retentions: nil)
+        contributions = { retention_policies:, purge_contributors:, preview_panel_retentions: }.compact
+        return if contributions.empty?
+
+        declare_contribution_family(:data_policy, :DataPolicy, Syrus::Plugin::DataPolicy, contributions)
       end
 
       def route(verb, path, to:)
@@ -629,7 +649,7 @@ module Syrus
           # wrote; a plugin that was never enabled here wrote none.
           requires = effect[:scoped] ? :enabled : :ever_enabled
 
-          Syrus::Installer.define(label, plugin: name, requires: requires, &effect[:block])
+          Syrus::Plugin::Lifecycle.define_effect(label, plugin: name, requires: requires, &effect[:block])
         end
       end
     end

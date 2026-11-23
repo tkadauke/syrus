@@ -21,8 +21,8 @@ module VideoWalkthroughs
     home_queue :videos
     optionally_depends_on [ "metrics_dashboard" ]
 
-    provides callbacks: "VideoWalkthroughs::Callbacks",
-             slug_type: "VideoWalkthroughs::SlugType",
+    lifecycle callback_providers: "VideoWalkthroughs::Callbacks"
+    provides slug_type: "VideoWalkthroughs::SlugType",
              "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
     chat_integration payload_contributors: "VideoWalkthroughs::PayloadContributor",
                      turn_orientations: "VideoWalkthroughs::TurnOrientation"

@@ -107,7 +107,7 @@ RSpec.describe PluginTickSchedulerJob, :reset_plugin_registry do
 
   it "fires the plugin's on_tick callback when the tick job runs" do
     register
-    provider = Syrus::PluginRegistry.providers_for(:callbacks).last
+    provider = Syrus::Plugin::Lifecycle.callback_providers.last
 
     perform_enqueued_jobs { described_class.perform_now }
 

@@ -268,7 +268,7 @@ class PreviewProxyMiddleware
   end
 
   def retained_preview_panel?(panel)
-    Syrus::PluginRegistry.providers_for(:preview_panel_retention).any? do |provider|
+    Syrus::Plugin::DataPolicy.preview_panel_retentions.any? do |provider|
       provider.retained_preview_panel?(panel)
     end
   end

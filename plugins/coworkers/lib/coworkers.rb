@@ -18,11 +18,11 @@ module Coworkers
     disableable true
     depends_on [ "scheduled_tasks" ]
     optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
-    provides callbacks: "Coworkers::Callbacks",
-             workflow_kinds: "Coworkers::WorkflowKinds",
+    lifecycle callback_providers: "Coworkers::Callbacks"
+    data_policy retention_policies: "Coworkers::ReviewContextRetentionPolicy"
+    provides workflow_kinds: "Coworkers::WorkflowKinds",
              sidebar_pages: "Coworkers::SidebarPages",
              repository_configuration: "Coworkers::RepositoryConfiguration",
-             retention_policy: "Coworkers::ReviewContextRetentionPolicy",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
     review_contributions reviewer_target_providers: "Coworkers::ReviewerTargetProvider",

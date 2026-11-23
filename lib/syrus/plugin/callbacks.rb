@@ -37,13 +37,13 @@ module Syrus
       private
 
       def effect_plugin_name
-        manifest = Syrus::PluginRegistry.all_plugins.find { |m| Array(m.provides[:callbacks]).include?(self) }
-        unless manifest
-          raise "Unable to resolve plugin name for #{self} — is it registered via " \
-                "Syrus::PluginRegistry.register(provides: { callbacks: #{self} })?"
+        name = Syrus::PluginRegistry.plugin_name_for(self)
+        unless name
+          raise "Unable to resolve plugin name for #{self} — is it declared through " \
+                "`lifecycle callback_providers: #{self}` in the plugin manifest?"
         end
 
-        manifest.name
+        name
       end
     end
   end
