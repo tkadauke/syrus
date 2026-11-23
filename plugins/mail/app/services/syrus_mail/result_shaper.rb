@@ -26,10 +26,13 @@ module SyrusMail
       if message["body"].bytesize > MAX_INLINE_BODY_BYTES
         message["body_file"] = write_file("body.txt", message.delete("body"))
       end
-      attachments = Array(message.delete("attachments"))
-      message["attachment_files"] = attachments.map.with_index do |attachment, index|
+      attachments = Array(message["attachments"])
+      fetched, metadata = attachments.partition { |attachment| attachment.key?("content") }
+      message["attachments"] = metadata.presence
+      message.compact!
+      message["attachment_files"] = fetched.map.with_index do |attachment, index|
         write_file("attachment-#{index + 1}-#{safe_name(attachment["filename"])}", attachment["content"].to_s)
-      end if attachments.any?
+      end if fetched.any?
       message
     end
 
