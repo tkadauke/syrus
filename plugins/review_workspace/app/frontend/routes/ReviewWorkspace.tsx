@@ -202,8 +202,14 @@ function useDesktopReviewLayout() {
 }
 
 const SWIPE_THRESHOLD = 72
-const DIRECTION_SLOP = 12
+// Touch intent needs enough travel to absorb finger jitter, while this ratio
+// lets deliberate diagonal swipes resolve without requiring a straight line.
+const GESTURE_ACTIVATION_DISTANCE = 16
+const GESTURE_AXIS_DOMINANCE = 1.25
 const LONG_PRESS_MS = 550
+
+type GestureDirection = "left" | "right" | "up" | "down"
+type GestureMode = "pending" | "gesture" | "scroll" | "invalid"
 
 function MobileGestureSurface({
   children,
@@ -226,7 +232,9 @@ function MobileGestureSurface({
     pointerId: number
     pointerType: string
     edge: boolean
-    mode?: "gesture" | "scroll"
+    mode: GestureMode
+    direction?: GestureDirection
+    armed: boolean
     scroller: HTMLElement | null
   }>()
   const longPress = useRef<number>()
@@ -254,6 +262,8 @@ function MobileGestureSurface({
       pointerId: event.pointerId,
       pointerType: event.pointerType,
       edge,
+      mode: "pending",
+      armed: false,
       scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
     }
     setDragging(true)
@@ -269,41 +279,53 @@ function MobileGestureSurface({
     if (!origin || origin.pointerId !== event.pointerId) return
     const x = event.clientX - origin.x
     const y = event.clientY - origin.y
-    if (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP) clearLongPress()
-    if (origin.edge && x > 0) return
-    if (!origin.mode && (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP)) {
-      if (origin.pointerType !== "touch" || Math.abs(x) > Math.abs(y)) origin.mode = "gesture"
-      else {
+    const absoluteX = Math.abs(x)
+    const absoluteY = Math.abs(y)
+    if (absoluteX > GESTURE_ACTIVATION_DISTANCE || absoluteY > GESTURE_ACTIVATION_DISTANCE) clearLongPress()
+    if (origin.mode === "pending" && (absoluteX >= GESTURE_ACTIVATION_DISTANCE || absoluteY >= GESTURE_ACTIVATION_DISTANCE)) {
+      const horizontal = absoluteX >= absoluteY * GESTURE_AXIS_DOMINANCE
+      const vertical = absoluteY >= absoluteX * GESTURE_AXIS_DOMINANCE
+      if (!horizontal && !vertical) return
+
+      origin.direction = horizontal ? (x > 0 ? "right" : "left") : y > 0 ? "down" : "up"
+      if (origin.edge && origin.direction === "right") {
+        origin.mode = "invalid"
+        clearLongPress()
+        return
+      }
+
+      if (vertical && origin.pointerType === "touch") {
         const scroller = origin.scroller
         const atTop = !scroller || scroller.scrollTop <= 0
         const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
-        origin.mode = (y > 0 && atTop) || (y < 0 && atBottom) ? "gesture" : "scroll"
-      }
+        origin.mode = (origin.direction === "down" && atTop) || (origin.direction === "up" && atBottom) ? "gesture" : "scroll"
+      } else origin.mode = "gesture"
     }
     if (origin.mode === "scroll" && origin.scroller) {
       origin.scroller.scrollTop += origin.lastY - event.clientY
       origin.lastY = event.clientY
       return
     }
-    setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
+    if (origin.mode !== "gesture" || !origin.direction) return
+    event.preventDefault()
+    const horizontal = origin.direction === "left" || origin.direction === "right"
+    const signedDistance = horizontal
+      ? origin.direction === "right" ? x : -x
+      : origin.direction === "down" ? y : -y
+    if (signedDistance >= SWIPE_THRESHOLD) origin.armed = true
+    const distance = Math.max(0, signedDistance)
+    setOffset(horizontal
+      ? { x: Math.min(120, distance) * (origin.direction === "right" ? 1 : -1), y: 0 }
+      : { x: 0, y: Math.min(80, distance) * (origin.direction === "down" ? 1 : -1) })
   }
   function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
     if (!origin || origin.pointerId !== event.pointerId) return
-    const x = event.clientX - origin.x
-    const y = event.clientY - origin.y
-    if (!origin.mode && origin.pointerType === "touch" && Math.abs(y) > Math.abs(x)) {
-      const scroller = origin.scroller
-      const atTop = !scroller || scroller.scrollTop <= 0
-      const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
-      origin.mode = (y > 0 && atTop) || (y < 0 && atBottom) ? "gesture" : "scroll"
-    }
     reset()
-    if (origin.mode === "scroll") return
-    if (Math.abs(x) > Math.abs(y) && Math.abs(x) >= SWIPE_THRESHOLD) {
-      if (x > 0 && !origin.edge) onApprove()
-      else if (x < 0) onDefer()
-    } else if (Math.abs(y) >= SWIPE_THRESHOLD) onMove(y < 0 ? 1 : -1)
+    if (origin.mode !== "gesture" || !origin.armed) return
+    if (origin.direction === "right") onApprove()
+    else if (origin.direction === "left") onDefer()
+    else onMove(origin.direction === "up" ? 1 : -1)
   }
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   const horizontal = Math.abs(offset.x) > Math.abs(offset.y)
@@ -350,6 +372,7 @@ function MobileGestureSurface({
         data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
+        onLostPointerCapture={reset}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
