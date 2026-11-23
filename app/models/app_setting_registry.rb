@@ -242,11 +242,10 @@ class AppSettingRegistry
       min: nil,
       max: nil,
       category: "External platforms",
-      operational_meaning: "Public Telegram bot handle shown by Connected Platforms when Telegram is configured.",
+      operational_meaning: "Legacy Telegram bot handle. The handle is now resolved from the bot itself through its connected account; this value is only shown while an unmigrated legacy token is still in use.",
       zero_means: nil,
-      admin_editable: true,
-      secret: false,
-      surface: :admin_settings
+      admin_editable: false,
+      secret: false
     ),
     Definition.new(
       key: :plugin_manifest_signing_key,
@@ -267,9 +266,9 @@ class AppSettingRegistry
       min: nil,
       max: nil,
       category: "External platforms",
-      operational_meaning: "Encrypted Telegram bot token used by the long-polling Telegram adapter.",
+      operational_meaning: "Legacy encrypted Telegram bot token. The token now lives in an instance-owned connected account; this column is only read to migrate an existing token and is cleared once the account is verified.",
       zero_means: nil,
-      admin_editable: true,
+      admin_editable: false,
       secret: true
     ),
     Definition.new(
@@ -291,9 +290,9 @@ class AppSettingRegistry
       min: nil,
       max: nil,
       category: "External platforms",
-      operational_meaning: "Encrypted Discord bot token used by the Discord plugin's Gateway connector and outbound adapter.",
+      operational_meaning: "Legacy encrypted Discord bot token. The token now lives in an instance-owned connected account; this column is only read to migrate an existing token and is cleared once the account is verified.",
       zero_means: nil,
-      admin_editable: true,
+      admin_editable: false,
       secret: true
     ),
     Definition.new(

@@ -19,6 +19,11 @@ module Discord
     module_function
 
     def configured?
+      if connected_account
+        TokenMigration.retire_legacy_once
+        return true
+      end
+
       TokenMigration.call_if_due
       connected_account.present? || legacy_pending?
     end

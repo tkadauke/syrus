@@ -316,6 +316,31 @@ RSpec.describe ConnectedAccounts::AccountClient do
     }.to raise_error(described_class::Denied, "connected account not found")
   end
 
+  it "keeps a registered system binding valid across garbage collection" do
+    account
+    credential.update!(scope_type: "instance", scope_id: nil, owner_user: nil, allowed_surfaces: [ "api" ])
+    account.update!(owner_kind: "instance", owner_user: nil, acting_modes: [ "as_service" ])
+    attributes = {
+      provider: "ConnectedAccounts::FakeProvider", key: "example", display_name: "Example",
+      capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
+      callback_route: "/unused", supports_read_only: false,
+      system_service_identities: [ "provider.delivery" ],
+      scopes: [ { key: "mail.read", label: "Read mail", risk: "low", syrus_capabilities: [ "mail.read@v1" ] } ]
+    }
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:contributions).and_return([ [ "example_plugin", attributes ] ])
+    ConnectedAccounts::ProviderRegistry.all
+
+    # Registrations used to live in an ObjectSpace::WeakMap, which holds its
+    # values weakly too: a collection between registration and use dropped the
+    # binding and the call failed with "connected account not found".
+    GC.start(full_mark: true, immediate_sweep: true)
+
+    expect(
+      ConnectedAccounts::FakeProvider.with_system_access(identity: "provider.delivery", account:, scopes: [ "mail.read" ],
+        purpose: "deliver", target: { url: "https://api.example.com/messages" }, input: { message_id: 7 })
+    ).to eq(authorization: "Bearer [credential redacted]", input: { message_id: 7 })
+  end
+
   it "refuses the system path for user-owned accounts" do
     declaration = ConnectedAccounts::ProviderDeclaration.build(plugin_name: "example_plugin", attributes: {
       provider: "ConnectedAccounts::FakeProvider", key: "example", display_name: "Example",

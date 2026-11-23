@@ -51,7 +51,21 @@ module Telegram
       fail_with(error.message, secret: legacy)
     end
 
-    def reset! = (@last_attempt = nil)
+    # Once an account is connected the setting is dead weight: nothing reads
+    # it, and a leftover value (a crash between copy and clear, or an operator
+    # who connected an account by hand) is an unaudited second copy of the
+    # secret. Wipe it without reading it, at most once per process.
+    def retire_legacy_once
+      return if @retired
+
+      @retired = true
+      AppSetting.where.not(telegram_bot_token: nil).update_all(telegram_bot_token: nil)
+    end
+
+    def reset!
+      @last_attempt = nil
+      @retired = false
+    end
 
     def due?
       now = Process.clock_gettime(Process::CLOCK_MONOTONIC)

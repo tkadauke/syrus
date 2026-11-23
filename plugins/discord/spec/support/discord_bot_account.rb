@@ -9,13 +9,16 @@ module DiscordBotAccountHelpers
   end
 
   # Connects an instance-owned discord_bot account holding +token+ without
-  # touching the network: the provider's validate/identity calls are stubbed.
-  def connect_discord_bot!(token: "discord-bot-token", label: "Syrus bot")
+  # touching the network unless +stub_http+ is false (then the caller stubs
+  # the HTTP requests with WebMock).
+  def connect_discord_bot!(token: "discord-bot-token", label: "Syrus bot", stub_http: true)
     enable_discord_plugin!
     admin = User.where(global_role: "admin").first || Factories.user(global_role: "admin")
-    # Stub the HTTP client rather than the provider: the registry re-checks
-    # the provider's method signatures, which an rspec double would break.
-    allow_any_instance_of(Discord::Client).to receive(:current_user).and_return("username" => label)
+    if stub_http
+      # Stub the HTTP client rather than the provider: the registry re-checks
+      # the provider's method signatures, which an rspec double would break.
+      allow_any_instance_of(Discord::Client).to receive(:current_user).and_return("username" => label)
+    end
     ConnectedAccounts::TokenBroker.connect!(provider: Discord::Provider::KEY, token: token, label: label, admin: admin)
   end
 end

@@ -4,10 +4,9 @@ class AppSetting < ApplicationRecord
 
   self.ignored_columns += %w[user_daily_spend_budget_usd]
 
-  CLEARABLE_SECRETS = {
-    "telegram_bot_token" => "Telegram bot token",
-    "discord_bot_token" => "Discord bot token"
-  }.freeze
+  # Bot tokens used to be clearable here; they are now instance-owned connected
+  # accounts, managed on the connected accounts page. No secret remains.
+  CLEARABLE_SECRETS = {}.freeze
 
   WORKFLOW_ADMISSION_POLICIES = %w[whole_workflow phase_aware].freeze
   # How a worker decides whether it can take more work.
