@@ -276,5 +276,16 @@ RSpec.describe "essential operations" do
       expect(Permissions::Catalog.essential_for?(descriptor.operation, role: AgentRole::COWORKER_CHAT)).to be(true)
       expect(Permissions::Catalog.essential_for?(memory_descriptor("write_memory").operation, role: AgentRole::COWORKER_CHAT)).to be(true)
     end
+
+    it "classifies every descriptor from one registry snapshot when given a cache" do
+      descriptors = Permissions::Catalog.descriptors.first(5)
+      uncached = descriptors.map { |descriptor| Permissions::Catalog.essential_everywhere?(descriptor) }
+
+      expect(McpToolRegistry).to receive(:entries).at_most(4).times.and_call_original
+      cache = {}
+      cached = descriptors.map { |descriptor| Permissions::Catalog.essential_everywhere?(descriptor, cache:) }
+
+      expect(cached).to eq(uncached)
+    end
   end
 end
