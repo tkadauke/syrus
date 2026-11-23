@@ -68,6 +68,7 @@ RSpec.describe TestInsights::Ingester do
     expect(tr.test_cases.passed.count).to eq(2)
     expect(tr.test_cases.failed.count).to eq(1)
     expect(tr.test_cases.find_by!(name: "fail_0").failure_message).to eq("assertion 0")
+    expect(tr.test_cases.pluck(:grader_name).uniq).to eq([ "rspec" ])
   end
 
   it "creates durable test identities and links executions to them" do
@@ -157,6 +158,7 @@ RSpec.describe TestInsights::Ingester do
     expect(trs.sole.id).not_to eq(first_id)
     expect(trs.sole.failed_count).to eq(1)
     expect(trs.sole.passed_count).to eq(0)
+    expect(trs.sole.test_cases.pluck(:grader_name).uniq).to eq([ "rspec" ])
   end
 
   it "destroys associated TestCases when replacing a TestInsights::TestRun" do
