@@ -29,7 +29,7 @@ module SyrusRails
       end
     end
 
-    def initialize(workspace:, workflow:, git: GitRunner.new(workflow: workflow), runner: ProcessRunner)
+    def initialize(workspace:, workflow:, git: Syrus::Host::GitRunner.new(workflow: workflow), runner: Syrus::Host::ProcessRunner)
       @workspace = Pathname.new(workspace)
       @workflow = workflow
       @git = git
@@ -37,7 +37,7 @@ module SyrusRails
     end
 
     def generate(file_path)
-      base = @git.run("merge-base", "HEAD", WorkflowWorkspace.new(@workflow).base_ref, chdir: @workspace.to_s).strip
+      base = @git.run("merge-base", "HEAD", Syrus::Host::WorkflowWorkspace.new(@workflow).base_ref, chdir: @workspace.to_s).strip
       requested = clean_relative_path(file_path)
       application = resolve_application(requested)
       migrations = added_migrations(base, application)
@@ -102,7 +102,7 @@ module SyrusRails
         File.write(runner_path, runner_source)
         database_urls = isolated_database_urls(dir)
         env = process_env(database_urls, schema_path, schema_kind, migrations, requested)
-        mounts = ProcessRunner.mounts(@workspace.join(application.root).to_s, read_write: @workspace.to_s, read_only: dir)
+        mounts = Syrus::Host::ProcessRunner.mounts(@workspace.join(application.root).to_s, read_write: @workspace.to_s, read_only: dir)
         capture = nil
         cleanup = nil
         begin
@@ -163,7 +163,7 @@ module SyrusRails
       %w[db/schema.rb db/structure.sql].each do |path|
         content = @git.run("show", "#{base}:#{application.join(path)}", chdir: @workspace.to_s)
         return [ path.end_with?(".rb") ? :ruby : :structure, content ]
-      rescue GitRunner::GitError
+      rescue Syrus::Host::GitRunner::GitError
         next
       end
       raise GenerationError, "base revision has neither db/schema.rb nor db/structure.sql"
