@@ -293,10 +293,6 @@ class AppSetting < ApplicationRecord
     current.telegram_bot_handle.presence
   end
 
-  def self.telegram_configured?
-    telegram_bot_handle.present?
-  end
-
   def self.discord_bot_token
     current.discord_bot_token.presence
   end
