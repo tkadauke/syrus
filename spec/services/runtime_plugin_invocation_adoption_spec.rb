@@ -20,6 +20,22 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(extension_point).and_return(providers)
   end
 
+  def failing_family_provider(family, capability, message)
+    provider_name = "Failing#{family.to_s.camelize}#{capability.to_s.camelize}Provider"
+    stub_const(provider_name, Class.new do
+      define_singleton_method(capability) { |_| raise message }
+    end)
+    provider = Syrus::Plugin::CapabilityProvider.new(
+      plugin_name: "failing_#{family}", family:, capability:,
+      provider_name:, key: nil, priority: 0
+    )
+    allow(Syrus::PluginRegistry).to receive(:capability_providers).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:capability_providers)
+      .with(family, capability).and_return([ provider ])
+  end
+
+  def failing_surface_provider(capability, message) = failing_family_provider(:surface, capability, message)
+
   def expect_failure(extension_point, operation)
     expect(health.failures.last).to have_attributes(
       extension_point: extension_point.to_s, operation: operation.to_s
@@ -136,38 +152,28 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
   end
 
   it "omits a failing permission provider" do
-    provider = Class.new do
-      def self.permission_authorization_adapters = raise("permission failed")
-    end
-    providers_for(:permission_provider, [ provider ])
+    failing_family_provider(:toolkit, :permissions, "permission failed")
     allow(Rails.logger).to receive(:warn)
 
     expect(Permissions::AuthorizationAdapters.resolve("plugin.action")).to be_nil
-    expect_failure(:permission_provider, :permission_authorization_adapters)
+    expect_failure(:toolkit, :permissions)
   end
 
   it "omits failing workflow MCP tool discovery" do
-    provider = Class.new do
-      def self.available_for?(_) = true
-      def self.tool_definitions = raise(NotImplementedError, "tools unavailable")
-    end
-    providers_for(:mcp_tool_set, [ provider ])
+    failing_family_provider(:toolkit, :workflow_tools, "tools unavailable")
     allow(McpToolRegistry).to receive(:summaries).and_return([])
 
     expect(McpToolUsageRecorder.workflow_tool_names).to eq([])
-    expect_failure(:mcp_tool_set, :tool_definitions)
+    expect_failure(:toolkit, :workflow_tools)
   end
 
   it "omits failing MCP run-context contributions" do
-    provider = Class.new do
-      def self.context_attributes(**) = raise("context failed")
-    end
-    providers_for(:mcp_run_context_contributor, [ provider ])
+    failing_family_provider(:toolkit, :run_context, "context failed")
 
     attributes = McpToolContext.send(:run_context_attributes, double, AgentRole::WORKFLOW_IMPLEMENT)
 
     expect(attributes).to eq({})
-    expect_failure(:mcp_run_context_contributor, :context_attributes)
+    expect_failure(:toolkit, :run_context)
   end
 
   it "isolates a failing inline domain subscriber" do
@@ -217,33 +223,24 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
   end
 
   it "omits a failing admin page provider" do
-    provider = Class.new do
-      def self.admin_pages = raise("admin pages failed")
-    end
-    providers_for(:admin_page, [ provider ])
+    failing_surface_provider(:admin_pages, "admin pages failed")
 
     expect(Admin::PluginPagesPayload.new.as_json).to eq(pages: [])
-    expect_failure(:admin_page, :admin_pages)
+    expect_failure(:surface, :admin_pages)
   end
 
   it "omits a failing sidebar page provider" do
-    provider = Class.new do
-      def self.sidebar_pages = raise("sidebar pages failed")
-    end
-    providers_for(:sidebar_page, [ provider ])
+    failing_surface_provider(:sidebar_pages, "sidebar pages failed")
 
     expect(App::SidebarPagesPayload.new.as_json).to eq(pages: [])
-    expect_failure(:sidebar_page, :sidebar_pages)
+    expect_failure(:surface, :sidebar_pages)
   end
 
   it "omits a failing UI slot provider" do
-    provider = Class.new do
-      def self.ui_slots(**) = raise("UI slots failed")
-    end
-    providers_for(:ui_slot, [ provider ])
+    failing_surface_provider(:ui_slots, "UI slots failed")
 
     expect(App::UiSlotsPayload.panels_for(slot: "repository.detail")).to eq([])
-    expect_failure(:ui_slot, :ui_slots)
+    expect_failure(:surface, :ui_slots)
   end
 
   it "falls back to the provider key when presentation lookup fails" do
@@ -257,25 +254,19 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
   end
 
   it "omits a failing repository page-tab provider" do
-    provider = Class.new do
-      def self.repo_page_tabs(**) = raise("repository tabs failed")
-    end
-    providers_for(:repo_page_tab, [ provider ])
+    failing_surface_provider(:repo_page_tabs, "repository tabs failed")
 
     tabs = Repositories::PluginRepoTabsPayload.plugin_tabs_for(repository: double, user: double)
 
     expect(tabs).to eq([])
-    expect_failure(:repo_page_tab, :repo_page_tabs)
+    expect_failure(:surface, :repo_page_tabs)
   end
 
   it "omits a failing workspace-tab provider" do
-    provider = Class.new do
-      def self.workspace_tabs(_) = raise("workspace tabs failed")
-    end
-    providers_for(:workspace_tab, [ provider ])
+    failing_surface_provider(:workspace_tabs, "workspace tabs failed")
 
     expect(WorkspaceTabsPayload.new(double).as_json).to eq([])
-    expect_failure(:workspace_tab, :workspace_tabs)
+    expect_failure(:surface, :workspace_tabs)
   end
 
   it "omits a failing chat job-status extension" do
