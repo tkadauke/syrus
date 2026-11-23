@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(43)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(43)
+    expect(Syrus::Host.apis.size).to eq(44)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(44)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -22,6 +22,7 @@ RSpec.describe Syrus::Host::PublicApis do
     expect(Syrus::Host::SystemAlertProvider).to equal(Syrus::Plugin::SystemAlertProvider)
     expect(Syrus::Host::ExternalReviewer).to equal(Syrus::Plugin::ExternalReviewer)
     expect(Syrus::Host::ExternalReviewContext).to equal(Syrus::Plugin::ExternalReviewContext)
+    expect(Syrus::Host::Toolkit).to equal(Syrus::Plugin::Toolkit)
   end
 
   it "queues chat title generation without exposing the job to plugins" do

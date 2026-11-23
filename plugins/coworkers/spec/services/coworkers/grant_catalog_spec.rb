@@ -9,7 +9,7 @@ RSpec.describe Coworkers::GrantCatalog do
     provider = Class.new do
       define_singleton_method(:coworker_grants) { [ descriptor ] }
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([ provider ])
+    allow(Syrus::Host::Toolkit).to receive(:chat_tool_sets).and_return([ provider ])
 
     expect(described_class.fetch("example.read")).to eq(descriptor)
     expect(described_class.policy_allowed?(descriptor, "auto")).to be(false)
@@ -17,7 +17,7 @@ RSpec.describe Coworkers::GrantCatalog do
   end
 
   it "does not collect declarations absent from enabled providers" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::Host::Toolkit).to receive(:chat_tool_sets).and_return([])
     expect(described_class.names).not_to include("example.read")
   end
 
