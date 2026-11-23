@@ -27,6 +27,8 @@ RSpec.describe WorkGates do
 
     expect(result.vetoes).to include(first, second)
     expect(result).to be_veto
+    expect(result.veto_for(:maintenance)).to eq(first)
+    expect(result.veto_for(:unrelated)).to be_nil
   end
 
   it "fails open and reports a provider error to plugin health" do

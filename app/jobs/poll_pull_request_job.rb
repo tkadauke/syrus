@@ -602,7 +602,8 @@ class PollPullRequestJob < ApplicationJob
   # Do not blame the Job's own diff when a work-policy provider says the base
   # is unavailable. Repair work remains exempt through the provider itself.
   def main_health_broken?
-    return false unless WorkGates.evaluate(job: @job).veto?
+    veto = WorkGates.evaluate(job: @job).veto_for(MainBranchHealthProvider::REASON)
+    return false unless veto
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while main branch is broken")
     true
