@@ -85,6 +85,13 @@ module Syrus
       ].freeze
 
       PROCESS_ROLES = %w[web worker preview sidecar].freeze
+
+      # Spelled out rather than read from Syrus::Plugin::Declarations: this file
+      # loads before the autoloader exists. A spec pins the two lists together.
+      DECLARATION_POINTS = %i[
+        workflow_kinds job_origin slug_type problem_provider
+        repository_configuration step_environment worker_capability_probe
+      ].freeze
       LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands roles].freeze
 
       # Kept next to the DSL that accepts these keys so generated authoring
@@ -93,7 +100,7 @@ module Syrus
         provides route frontend events link links credential_type_names
         credential_types toolkit surface chat_integration review_contributions policy lifecycle data_policy
         agent_runtime execution_backend runtime_session source_host speech_to_text while_enabled metrics always suggests_enabling on_boot
-      ]).freeze
+      ] + DECLARATION_POINTS + %i[declare]).freeze
 
       attr_reader :name, :namespace, :lib_dir
 
@@ -105,6 +112,7 @@ module Syrus
         @lists = {}
         @provides = {}
         @family_provides = []
+        @declarations = {}
         @routes = []
         @links = []
         @metric_blocks = []
@@ -306,6 +314,34 @@ module Syrus
 
         declare_contribution_family(:data_policy, :DataPolicy, Syrus::Plugin::DataPolicy, contributions)
       end
+
+      # Manifest declarations. Each is plain data validated here, while the
+      # manifest is being parsed, so a malformed one fails with a message naming
+      # this plugin and the field instead of surfacing later at the first call
+      # site. Behavior a declaration cannot express as data is named by constant
+      # string and loaded only when used; see Syrus::Plugin::Declarations.
+      #
+      #   workflow_kinds trigger_kinds: [ { kind: "briefing", template: "Briefing::Workflow", label: "Briefing", style: "bg-sky-100" } ],
+      #                  step_kinds:    [ { kind: "briefing_run", handler: "Briefing::RunStep", label: "Briefing", style: "bg-sky-100", agentic: false } ],
+      #                  job_kinds:     [ { kind: "briefing", infrastructure: true, issueless: true } ],
+      #                  work_definitions: [ "Briefing::WorkDefinition" ]
+      #   job_origin key: "nightly", provider: "Nightly::JobOrigin"
+      #   slug_type prefix: "DOC", display_label: "Design Doc", resolver: "Docs::SlugResolver", client_path: "/docs/:id"
+      #   problem_provider namespace: "briefing", kinds: [ { code: "briefing.stale", scope: "run", retryable: true, default_remediation: "restart_workflow" } ]
+      #   repository_configuration key: "briefing.review", provider: "Briefing::RepositoryConfiguration", legacy_keys: [ "briefing" ]
+      #   step_environment forwarded_env_keys: %w[BRIEFING_BUCKET], extra_env: "Briefing::RuntimeEnv"
+      #   worker_capability_probe dimension: "runtime", token: "briefing_vm", probe: "Briefing::CapabilityProbe"
+      DECLARATION_POINTS.each do |point|
+        define_method(point) { |**attrs| declare(point, **attrs) }
+      end
+
+      def declare(point, **attrs)
+        entry = Syrus::Plugin::Declarations.normalize!(name, point, attrs)
+        (@declarations[point.to_sym] ||= []) << entry
+        entry
+      end
+
+      def declarations = @declarations
 
       def route(verb, path, to:)
         @routes << { verb: verb.to_s.upcase, path: path, controller: to }
@@ -547,6 +583,7 @@ module Syrus
           version: version || Syrus::PluginApi.default_version,
           provides: resolved_provides,
           family_provides: @family_provides,
+          declarations: @declarations,
           events: events,
           routes: (routes if routes.any?),
           links: (links if links.any?),

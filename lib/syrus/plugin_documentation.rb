@@ -40,7 +40,15 @@ module Syrus
       data_policy: "DataPolicy-family retention policies, purge contributors, and retained preview-panel decisions (every contributor participates; failures are reported).",
       while_enabled: "Reversible installation effects active only while enabled.", metrics: "Plugin-owned metric declarations.",
       always: "Reversible effects retained after a previously enabled plugin is disabled.",
-      suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback."
+      suggests_enabling: "Evidence callback for suggesting a disabled plugin.", on_boot: "Idempotent process-level boot callback.",
+      declare: "Generic form of the data declarations below: `declare :slug_type, prefix: ...`.",
+      workflow_kinds: "Data declaration of plugin-owned Job, Workflow trigger, Step kinds and WorkDefinition constant names; no provider class.",
+      job_origin: "Data declaration of a Job origin key, with an optional constant name for label, link and prompt behavior.",
+      slug_type: "Data declaration of a canonical identifier prefix, label and link template, with a resolver constant name for record lookup.",
+      problem_provider: "Data declaration of a problem namespace and its stable problem kinds.",
+      repository_configuration: "Data declaration of a namespaced `.syrus.yml` key, schema version and legacy keys, with a parser constant name.",
+      step_environment: "Data declaration of ENV names forwarded into step subprocesses, with an optional per-scope extra_env constant name.",
+      worker_capability_probe: "Data declaration of the worker capability dimension and token a probe may report, with a probe constant name."
     }.freeze
 
     class << self

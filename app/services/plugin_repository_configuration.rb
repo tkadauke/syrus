@@ -117,7 +117,7 @@ class PluginRepositoryConfiguration
       manifests = Syrus::PluginRegistry.all_plugins
       health = Syrus::PluginRegistry.health
       registrations = manifests.flat_map do |manifest|
-        Array(manifest.provides[:repository_configuration]).map do |provider|
+        Syrus::PluginRegistry.manifest_providers_for(manifest, :repository_configuration).map do |provider|
           status = if !manifest.enabled?
             "disabled"
           elsif health.healthy?(manifest.name)

@@ -1,15 +1,8 @@
 module AgentInsights
+  # Behavior for the `slug_type` manifest declaration in agent_insights.rb,
+  # which owns the prefix, label and preview flag.
   class SlugType
-    include Syrus::Plugin::SlugType
-
-    def self.prefix = "INSIGHT"
-    def self.display_label = "Insight"
-    def self.preview_available? = true
     def self.page_size = 20
-
-    def self.client_path(id)
-      "/s/#{canonical_slug(id)}"
-    end
 
     def self.record_for(id, user:)
       return nil unless user
@@ -21,7 +14,7 @@ module AgentInsights
     end
 
     def self.web_path(record)
-      "/repositories/#{record.repository_id}/plugin/insights?state=all&page=#{page_for(record)}##{canonical_slug(record.id)}"
+      "/repositories/#{record.repository_id}/plugin/insights?state=all&page=#{page_for(record)}#INSIGHT-#{record.id}"
     end
 
     def self.api_preview_path(record)

@@ -1,15 +1,7 @@
 module VideoWalkthroughs
+  # Behavior for the `slug_type` manifest declaration in video_walkthroughs.rb,
+  # which owns the prefix and label.
   class SlugType
-    include Syrus::Plugin::SlugType
-
-    def self.prefix = "WALKTHROUGH"
-    def self.display_label = "Walkthrough"
-    def self.preview_available? = false
-
-    def self.client_path(id)
-      "/s/#{canonical_slug(id)}"
-    end
-
     def self.record_for(id, user:)
       return nil unless user
 

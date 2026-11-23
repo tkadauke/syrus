@@ -1,12 +1,7 @@
 module DesignDocs
+  # Behavior for the `slug_type` manifest declaration in design_docs.rb, which
+  # owns the prefix, label and client path.
   class SlugType
-    include Syrus::Plugin::SlugType
-
-    def self.prefix = "DOC"
-    def self.display_label = "Design Doc"
-    def self.preview_available? = true
-    def self.client_path(id) = "/design_docs/#{id}"
-
     def self.record_for(id, user:)
       return nil unless user
 
@@ -14,7 +9,7 @@ module DesignDocs
     end
 
     def self.web_path(record)
-      client_path(record.id)
+      "/design_docs/#{record.id}"
     end
 
     def self.api_preview_path(record)

@@ -152,7 +152,7 @@ module Admin
         return Syrus::Plugin::ServiceProvider.for_manifest(manifest, extension_point)
       end
 
-      Array(manifest.provides[extension_point])
+      Syrus::PluginRegistry.manifest_providers_for(manifest, extension_point)
     end
 
     def blocker(kind, label, count)
