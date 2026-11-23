@@ -175,7 +175,7 @@ class McpToolUsageRecorder
   CHAT_TOOL_TIERS = %i[essential deferred].freeze
 
   def self.plugin_chat_tool_names(chat_session:)
-    Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
+    Syrus::Plugin::Toolkit.chat_tool_sets.flat_map do |tool_set|
       CHAT_TOOL_TIERS.flat_map do |tier|
         next [] unless plugin_chat_tool_set_available?(tool_set, chat_session: chat_session, tier: tier)
 
@@ -193,7 +193,7 @@ class McpToolUsageRecorder
   private_class_method :plugin_chat_tool_set_available?
 
   def self.plugin_workflow_tool_names(repository:)
-    Syrus::PluginRegistry.providers_for(:mcp_tool_set).flat_map do |tool_set|
+    Syrus::Plugin::Toolkit.workflow_tool_sets.flat_map do |tool_set|
       next [] unless plugin_workflow_tool_set_available?(tool_set, repository: repository)
 
       tool_definitions(tool_set, extension_point: :mcp_tool_set)

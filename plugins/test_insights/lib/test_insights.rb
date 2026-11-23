@@ -18,15 +18,13 @@ module TestInsights
     hosts [ :parser ]
     provides domain_subscriber: "TestInsights::Subscribers",
              test_evidence: "TestInsights::TestEvidence",
-             permission_provider: "TestInsights::PermissionProvider",
              grader_input_materializer: "TestInsights::GraderRuntimeProfileProvider",
              grader_failure_summarizer: "TestInsights::GraderFailureSummarizer",
              "global_search:source" => "TestInsights::SearchSource",
              repo_page_tab: "TestInsights::RepoPageTabs",
              ui_slot: "TestInsights::UiSlots",
-             mcp_tool_set: "TestInsights::McpToolSet",
-             chat_mcp_tool_set: "TestInsights::ChatToolSet",
              retention_policy: "TestInsights::RetentionPolicy"
+    toolkit workflow_tools: "TestInsights::McpToolSet", chat_tools: "TestInsights::ChatToolSet", permissions: "TestInsights::PermissionProvider"
     route :get, "/api/v1/app/jobs/:job_id/test_results", to: "api/v1/app/job_test_results#index"
     route :get, "/api/v1/app/repositories/:repository_id/flaky_tests", to: "api/v1/app/repository_flaky_tests#index"
     route :get, "/api/v1/app/repositories/:repository_id/tests", to: "api/v1/app/repository_tests#index"

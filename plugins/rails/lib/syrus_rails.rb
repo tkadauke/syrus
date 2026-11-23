@@ -38,9 +38,9 @@ module SyrusRails
     category "language"
     depends_on [ "ruby" ]
 
-    provides mcp_tool_set: "SyrusRails::McpToolSet",
-             artifact_renderer: [ "SyrusRails::SchemaErdRenderer", "SyrusRails::MigrationDiffRenderer" ],
+    provides artifact_renderer: [ "SyrusRails::SchemaErdRenderer", "SyrusRails::MigrationDiffRenderer" ],
              preview_provider: "SyrusRails::PreviewProvider"
+    toolkit workflow_tools: "SyrusRails::McpToolSet"
     provides ecosystem: "SyrusRails::Ecosystem", implements: %i[prompt_context]
 
     frontend i18n: [ "app/frontend/i18n/locales/*/syrus_rails.json" ]

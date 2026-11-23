@@ -25,13 +25,12 @@ module ScheduledTasks
     provides callbacks: "ScheduledTasks::Callbacks",
              job_origin: "ScheduledTasks::JobOrigin",
              domain_subscriber: "ScheduledTasks::Subscribers",
-             chat_mcp_tool_set: "ScheduledTasks::ChatToolSet",
-             permission_provider: "ScheduledTasks::PermissionProvider",
              sidebar_page: "ScheduledTasks::SidebarPages",
              repo_page_tab: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",
              "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs",
              "calendar:event_source" => "ScheduledTasks::CalendarEventSource"
+    toolkit chat_tools: "ScheduledTasks::ChatToolSet", permissions: "ScheduledTasks::PermissionProvider"
 
     cli_commands [
       {

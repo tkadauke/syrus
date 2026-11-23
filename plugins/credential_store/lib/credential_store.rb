@@ -40,10 +40,8 @@ module CredentialStore
     ]
     provides admin_page: "CredentialStore::AdminPages",
              sidebar_page: "CredentialStore::SidebarPages",
-             mcp_tool_set: "CredentialStore::WorkflowToolSet",
-             chat_mcp_tool_set: "CredentialStore::ChatToolSet",
-             permission_provider: "CredentialStore::PermissionProvider",
              purge_contributor: "CredentialStore::PurgeContributor"
+    toolkit workflow_tools: "CredentialStore::WorkflowToolSet", chat_tools: "CredentialStore::ChatToolSet", permissions: "CredentialStore::PermissionProvider"
     route :get, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#index"
     route :post, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#create"
     route :get, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#show"

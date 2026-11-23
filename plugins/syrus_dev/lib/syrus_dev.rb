@@ -17,10 +17,8 @@ module SyrusDev
       signals.syrus_repositories
     end
 
-    provides admin_page: "SyrusDev::AdminPages",
-             mcp_tool_set: "SyrusDev::WorkflowToolSet",
-             chat_mcp_tool_set: "SyrusDev::ChatToolSet",
-             permission_provider: "SyrusDev::PermissionProvider"
+    provides admin_page: "SyrusDev::AdminPages"
+    toolkit workflow_tools: "SyrusDev::WorkflowToolSet", chat_tools: "SyrusDev::ChatToolSet", permissions: "SyrusDev::PermissionProvider"
     route :get, "/api/v1/app/admin/performance", to: "api/v1/app/admin/performance#show"
     route :get, "/api/v1/app/admin/performance/events", to: "api/v1/app/admin/performance#events"
     route :post, "/api/v1/app/admin/performance/explain", to: "api/v1/app/admin/performance#explain"

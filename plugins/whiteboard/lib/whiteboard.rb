@@ -13,11 +13,11 @@ module Whiteboard
     category "agent_capability"
     default_enabled true
     disableable true
-    provides chat_mcp_tool_set: "Whiteboard::ChatToolSet",
-             workspace_tab: "Whiteboard::WorkspaceTabs",
+    provides workspace_tab: "Whiteboard::WorkspaceTabs",
              chat_media_source: "Whiteboard::MediaSource",
              chat_payload_contributor: "Whiteboard::PayloadContributor",
              chat_prompt_injector: "Whiteboard::PromptSection"
+    toolkit chat_tools: "Whiteboard::ChatToolSet"
     route :get, "/api/v1/app/chats/:id/whiteboard", to: "api/v1/app/chat_whiteboards#show"
     route :get, "/api/v1/app/chats/:id/whiteboard/files", to: "api/v1/app/chat_whiteboards#files"
     route :patch, "/api/v1/app/chats/:id/whiteboard", to: "api/v1/app/chat_whiteboards#update"

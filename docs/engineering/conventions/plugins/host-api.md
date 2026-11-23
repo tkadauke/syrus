@@ -595,6 +595,17 @@ Supported members:
 - `user`
 - `workflow`
 
+### `Syrus::Host::Toolkit`
+
+Since: `0.1.16`
+
+Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition. Only the listed members are supported.
+
+Supported members:
+
+- `chat_tool_set_for`
+- `chat_tool_sets`
+
 ### `Syrus::Host::User`
 
 Since: `0.1.16`
