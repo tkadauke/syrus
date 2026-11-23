@@ -132,6 +132,7 @@ function readExpandedCoworkerIds(): Set<number> {
 
     return new Set(parsed.filter((id): id is number => Number.isSafeInteger(id) && id > 0))
   } catch {
+    // handled-error-expected: Browser storage may be unavailable or contain an invalid preference.
     return new Set()
   }
 }
@@ -140,7 +141,7 @@ function writeExpandedCoworkerIds(ids: Set<number>) {
   try {
     window.localStorage.setItem(EXPANDED_COWORKER_THREADS_KEY, JSON.stringify([...ids]))
   } catch {
-    // Coworker thread expansion is a convenience preference; collapsed remains the safe default.
+    // handled-error-expected: Browser storage may be unavailable; collapsed remains the safe default.
   }
 }
 
