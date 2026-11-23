@@ -3,39 +3,36 @@ require "rails_helper"
 RSpec.describe Syrus::Plugin::ReviewContributions, :reset_plugin_registry do
   before { described_class.restore_definition! }
 
-  it "keeps the external reviewer capability and adds every review contribution with a legacy mapping" do
+  it "keeps the external reviewer capability and adds every review contribution without a legacy bridge" do
     definition = Syrus::Plugin::Family.fetch(:review)
-    expect(definition.capabilities.keys).to include(:external_reviewer, *described_class::CAPABILITY_FOR_LEGACY.values)
-    expect(definition.legacy_mappings.keys).to eq(described_class::CAPABILITY_FOR_LEGACY.keys)
-    described_class::CAPABILITY_FOR_LEGACY.each_value do |capability|
+    expect(definition.capabilities.keys).to include(:external_reviewer, *described_class::CAPABILITIES)
+    expect(definition).to be_migrated
+    expect(definition.legacy_mappings).to be_empty
+    described_class::CAPABILITIES.each do |capability|
       expect(definition.capabilities.fetch(capability)).to have_attributes(composition: :collect, absent: [], tier: :provisional)
     end
   end
 
-  it "adapts legacy registrations into family dispatch for every point" do
-    described_class::CAPABILITY_FOR_LEGACY.each do |point, capability|
-      interface = Syrus::PluginRegistry::INTERFACE_FOR.fetch(point).call
-      legacy = Class.new { include interface }
-      Syrus::PluginRegistry.register(name: "legacy_#{point}", version: "1", provides: { point => legacy })
+  it "dispatches a family declaration for every contribution kind" do
+    described_class::CAPABILITIES.each do |capability|
+      contribution = Class.new
+      register_family_review("family_#{capability}", capability, contribution)
 
-      expect(described_class.contributions(capability)).to include(legacy)
+      expect(described_class.contributions(capability)).to include(contribution)
     end
   end
 
-  it "expands family declarations for legacy bridge readers" do
-    gate = Class.new
+  def register_family_review(name, capability, contribution)
     provider = Class.new do
-      define_singleton_method(:key) { "family_review" }
-      define_singleton_method(:display_name) { "Family review" }
-      define_singleton_method(:review_gates) { |_context| gate }
+      define_singleton_method(:key) { name }
+      define_singleton_method(:display_name) { name }
+      define_singleton_method(capability) { |_context| contribution }
     end
-    stub_const("FamilyReview", provider)
-    Syrus::PluginRegistry.register(name: "family_review", version: "1", provides: {}, family_provides: [
-      Syrus::Plugin::FamilyDeclaration.build(family: :review, provider: "FamilyReview", provisional: %i[review_gates])
+    constant = "#{name.camelize}Provider"
+    stub_const(constant, provider)
+    Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+      Syrus::Plugin::FamilyDeclaration.build(family: :review, provider: constant, provisional: [ capability ])
     ])
-
-    expect(Syrus::PluginRegistry.providers_for(:review_gate)).to include(gate)
-    expect(described_class.contributions(:review_gates)).to include(gate)
   end
 
   it "does not let a failing gate provider disturb a healthy one, matching legacy gate behavior" do

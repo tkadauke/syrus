@@ -75,42 +75,34 @@ RSpec.describe Syrus::PluginRegistry do
       expect(described_class::EXTENSION_POINTS).to include(
         :agent_provider, :chat_provider, :mcp_tool_set, :input_source,
         :artifact_renderer, :preview_provider,
-        :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider,
-        :post_implementation_review_provider, :diff_review_annotation_provider
+        :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider
+      )
+    end
+
+    it "no longer lists the Review and Policy points, which are family capabilities" do
+      expect(described_class::EXTENSION_POINTS).not_to include(
+        :review_gate, :reviewer_target_provider, :review_context_contributor,
+        :review_presentation_contributor, :post_implementation_review_provider,
+        :diff_review_annotation_provider, :adjudicator, :job_visibility_restriction, :repository_filter
       )
     end
   end
 
-  describe "review extension point validation" do
-    it "requires post-implementation review providers to include the interface" do
-      provider = Class.new
+  describe "removed Review and Policy extension points" do
+    %i[
+      review_gate reviewer_target_provider review_context_contributor review_presentation_contributor
+      post_implementation_review_provider diff_review_annotation_provider adjudicator
+      job_visibility_restriction repository_filter
+    ].each do |point|
+      it "rejects a legacy registration of #{point} with a clear error" do
+        expect {
+          described_class.register(name: "obsolete_#{point}", version: "1.0.0", provides: { point => Class.new })
+        }.to raise_error(Syrus::PluginRegistry::RegistrationError, /Unknown extension point :#{point}/)
+      end
 
-      expect {
-        described_class.register(name: "bad_review_provider", version: "1.0.0", provides: { post_implementation_review_provider: provider })
-      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::PostImplementationReviewProvider/)
-    end
-
-    it "requires diff review annotation providers to include the interface" do
-      provider = Class.new
-
-      expect {
-        described_class.register(name: "bad_annotation_provider", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
-      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::DiffReviewAnnotationProvider/)
-    end
-  end
-
-  describe "Job visibility restriction validation" do
-    it "requires providers to include the restriction interface" do
-      expect {
-        described_class.register(
-          name: "bad_job_visibility",
-          version: "1.0.0",
-          provides: { job_visibility_restriction: Class.new }
-        )
-      }.to raise_error(
-        Syrus::PluginRegistry::RegistrationError,
-        /must include Syrus::Plugin::JobVisibilityRestriction/
-      )
+      it "refuses to look up #{point} through the legacy registry" do
+        expect { described_class.providers_for(point) }.to raise_error(ArgumentError, /Unknown extension point/)
+      end
     end
   end
 

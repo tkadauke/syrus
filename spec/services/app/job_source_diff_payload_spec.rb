@@ -218,7 +218,7 @@ RSpec.describe App::JobSourceDiffPayload do
         }
       end
     end
-    Syrus::PluginRegistry.register(name: "annotation_provider", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
+    register_contributions(name: "annotation_provider", version: "1.0.0", contributes: { diff_review_annotation_provider: provider })
 
     stub_repository_history(repo, base: "main", head: "syrus/issue-42",
       commits: [ { sha: "deadbeef12345678", message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],

@@ -39,7 +39,7 @@ RSpec.describe JobVisibility do
     provider.define_singleton_method(:visible_origin_ids) { |user:| [] }
 
     with_job_visibility_restriction(origin: "private_tasks", visible_origin_ids: []) do
-      Syrus::PluginRegistry.register(:job_visibility_restriction, provider)
+      JobVisibilityRestrictionSpecHelper.register_job_visibility_restriction(provider, name: "second_job_visibility_restriction")
       expect { Job.visible_to(member).load }.to raise_error(described_class::DuplicateRestriction)
     end
   end

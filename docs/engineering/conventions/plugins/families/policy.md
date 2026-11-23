@@ -29,8 +29,12 @@ Use `it_behaves_like "a valid policy provider"` from `syrus/plugin/test_kit`, pa
 
 ## Migration from legacy extension points
 
-The Policy family holds authorization-adjacent restrictions:
-`job_visibility_restriction` and `repository_filter`.
+The Policy family holds authorization-adjacent restrictions. It
+replaces the `job_visibility_restriction` and `repository_filter`
+extension points, which are no longer registered: a plugin that still
+declares one fails registration with `Unknown extension point`, which
+the loader turns into a failed plugin-health finding while the host
+keeps booting.
 
 Before:
 

@@ -30,9 +30,11 @@ RSpec.describe Syrus::Plugin::Policy, :reset_plugin_registry do
     end
   end
 
-  it "defines both capabilities as fail-closed collections with legacy mappings" do
+  it "defines both capabilities as fail-closed collections without a legacy bridge" do
     definition = Syrus::Plugin::Family.fetch(:policy)
-    expect(definition.legacy_mappings.keys).to eq(described_class::CAPABILITY_FOR_LEGACY.keys)
+    expect(definition).to be_migrated
+    expect(definition.legacy_mappings).to be_empty
+    expect(definition.capabilities.keys).to eq(described_class::CAPABILITIES)
     definition.capabilities.each_value do |capability|
       expect(capability).to have_attributes(composition: :collect, decline: nil, tier: :provisional)
       expect(capability.failure.call).to eq([ described_class::FAIL_CLOSED ])
@@ -107,13 +109,6 @@ RSpec.describe Syrus::Plugin::Policy, :reset_plugin_registry do
     register_family_policy("two_policy", :job_visibility_restrictions, ->(_ctx) { two })
 
     expect { Job.visible_to(member).load }.to raise_error(JobVisibility::DuplicateRestriction)
-  end
-
-  it "adapts legacy job visibility and repository filter registrations" do
-    legacy = restriction("legacy", [])
-    legacy.include(Syrus::Plugin::JobVisibilityRestriction)
-    Syrus::PluginRegistry.register(name: "legacy_policy", version: "1", provides: { job_visibility_restriction: legacy })
-    expect(described_class.restrictions(:job_visibility_restrictions)).to include(legacy)
   end
 
   describe ".filter_repositories" do

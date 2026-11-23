@@ -142,8 +142,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(
         :chat_provider,
         :mentionable,
-        :chat_identity_provider,
-        :repository_filter
+        :chat_identity_provider
       )
     end
 
@@ -232,10 +231,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   describe "INTERFACE_FOR" do
     it "maps :chat_provider to Syrus::Plugin::ChatProvider" do
       expect(described_class::INTERFACE_FOR[:chat_provider].call).to eq(Syrus::Plugin::ChatProvider)
-    end
-
-    it "maps :repository_filter to Syrus::Plugin::RepositoryFilter" do
-      expect(described_class::INTERFACE_FOR[:repository_filter].call).to eq(Syrus::Plugin::RepositoryFilter)
     end
 
     it "maps :preview_provider to Syrus::Plugin::PreviewProvider" do

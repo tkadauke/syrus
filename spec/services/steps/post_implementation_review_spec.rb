@@ -52,10 +52,10 @@ RSpec.describe Steps::PostImplementationReview do
         [ "submit_review_notes" ]
       end
     end
-    Syrus::PluginRegistry.register(
+    register_contributions(
       name: "post_implementation_review_spec_provider",
       version: "1.0.0",
-      provides: { post_implementation_review_provider: provider }
+      contributes: { post_implementation_review_provider: provider }
     )
 
     expect(handler).to receive(:run_agent) do |prompt:, max_turns:, required_mcp_tools:, enforce_required_mcp_tools:, **|
@@ -77,10 +77,10 @@ RSpec.describe Steps::PostImplementationReview do
       def self.review_needed?(job:, trigger_kind:) = true
       def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
     end
-    Syrus::PluginRegistry.register(
+    register_contributions(
       name: "post_implementation_review_failure_spec_provider",
       version: "1.0.0",
-      provides: { post_implementation_review_provider: provider }
+      contributes: { post_implementation_review_provider: provider }
     )
 
     allow(handler).to receive(:run_agent).and_raise(Steps::Base::StepFailed, "agent didn't call submit_review_notes")
@@ -93,10 +93,10 @@ RSpec.describe Steps::PostImplementationReview do
       include Syrus::Plugin::PostImplementationReviewProvider
       def self.review_needed?(job:, trigger_kind:) = true
     end
-    Syrus::PluginRegistry.register(
+    register_contributions(
       name: "post_implementation_review_retry_spec_provider",
       version: "1.0.0",
-      provides: { post_implementation_review_provider: provider }
+      contributes: { post_implementation_review_provider: provider }
     )
     warning = WorkflowWarning.create!(
       job: job, workflow: workflow, step: step,
