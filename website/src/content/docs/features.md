@@ -142,6 +142,15 @@ plugin-contributed findings stay identical to Job detail. Keyboard controls
 mirror the visible actions for selecting Jobs, browsing evidence, approving,
 giving feedback, and exiting.
 
+On phones, each Review card shows a compact decision brief containing only
+signals actually recorded for the Job, such as approval readiness, change scope,
+check state, adversarial and security review findings, test plan, screenshot
+count, and Epic. Missing data is omitted rather than guessed, and a Job without
+screenshots shows a one-line "No visual evidence submitted" status. Touch
+friendly links open the Job, its Epic, its pull request on GitHub, and the full
+diff. A dismissible gesture coach appears on first use and can be reopened from
+the Job details sheet.
+
 Review links are safe to bookmark. If a selected Job is no longer actionable,
 the workspace selects the first current item or shows an all-caught-up state.
 Defer is session-only; the plugin stores no read, unread, inbox, or durable
