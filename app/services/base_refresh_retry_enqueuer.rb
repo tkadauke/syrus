@@ -65,6 +65,10 @@ class BaseRefreshRetryEnqueuer
   def instantiate_retry!(source, checkpoint, base_ref, base_sha)
     job.with_lock do
       job.reload
+      # Lock the source Workflow before instantiating the retry: provisioning
+      # may take a User lock, and the source's artifacts are written after, so
+      # taking the Workflow lock late would invert the row lock order.
+      source.lock!
       if (existing = reserved_retry_for(source, checkpoint))
         return [ existing, true ]
       end

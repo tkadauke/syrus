@@ -319,14 +319,24 @@ module ProviderRouting
       return if workflow.provider_account_id == account.id
       return if workflow.runs.exists?
 
-      workflow.update!(
+      # This runs while the User row lock is held, and the row lock order puts
+      # Workflow before User, so write the pin without locking the Workflow
+      # row. The User lock already serializes pinning, and the pin only
+      # touches provider columns and two artifact rows.
+      workflow.update_columns(
         agent_provider: account.provider_key,
-        provider_account: account,
-        artifacts: workflow.artifacts.to_h.merge(
-          "provider_account_selection" => account.safe_reference.stringify_keys,
-          "provider_account_selected_at" => now.utc.iso8601
-        )
+        provider_account_id: account.id,
+        updated_at: Time.current
       )
+      {
+        "provider_account_selection" => account.safe_reference.stringify_keys,
+        "provider_account_selected_at" => now.utc.iso8601
+      }.each do |key, value|
+        entry = WorkflowArtifactValue.find_or_initialize_by(workflow_id: workflow.id, key: key)
+        entry.value = value
+        entry.new_record? ? entry.save! : entry.update_column(:value, value)
+      end
+      workflow.workflow_artifact_values.reset
     end
 
     # Basic availability (actively erroring/rate-limited/exhausted/paused)

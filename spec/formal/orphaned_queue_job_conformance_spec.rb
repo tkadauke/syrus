@@ -21,7 +21,10 @@ RSpec.describe "QueueExecution model conformance" do
     set = flags.select { |flag| example.fetch(flag) }
 
     it "calls a job with #{set.empty? ? 'no execution row' : set.join(' and ')} #{example.fetch('orphaned') ? 'orphaned' : 'not orphaned'}" do
-      snapshot = flags.to_h { |flag| [ flag.to_sym, example.fetch(flag) ] }
+      # The flags are the model's `orphanedAfter`; the grace period is its
+      # separate `settled` input, so give the job a timestamp well past it.
+      long_ago = 1.day.ago
+      snapshot = flags.to_h { |flag| [ flag.to_sym, example.fetch(flag) ] }.merge(created_at: long_ago, updated_at: long_ago)
 
       expect(reconciler.send(:orphaned_queue_job?, snapshot)).to eq(example.fetch("orphaned"))
     end
