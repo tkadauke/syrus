@@ -74,7 +74,7 @@ module Syrus
     def subscribers_for(name)
       name = name.to_s
 
-      Syrus::PluginRegistry.providers_for(:domain_subscriber).filter_map do |provider|
+      Syrus::Plugin::Lifecycle.domain_subscribers.filter_map do |provider|
         method_name = subscriptions_for(provider)[name]
         next if method_name.blank?
 
@@ -111,9 +111,8 @@ module Syrus
     end
 
     def queue_for(provider)
-      manifest = Syrus::PluginRegistry.all_plugins.find do |candidate|
-        Array(candidate.provides[:domain_subscriber]).include?(provider)
-      end
+      plugin_name = Syrus::PluginRegistry.plugin_name_for(provider)
+      manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == plugin_name } if plugin_name
       home = manifest&.home_queue
       home.nil? || home == :default ? DomainEventJob.queue_name : home.to_s
     end

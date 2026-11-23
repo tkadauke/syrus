@@ -30,19 +30,24 @@ module Syrus
         end
       end
 
-      def self.build(key:, display_name:, **contributions)
+      # +interfaces+ maps a capability to a lambda returning the interface module
+      # every contribution for it must include, exactly as the legacy `provides`
+      # DSL did for its extension point.
+      def self.build(key:, display_name:, interfaces: {}, **contributions)
         implementations = contributions.values.flatten.compact.freeze
         Class.new do
           define_singleton_method(:key) { key.to_s }
           define_singleton_method(:display_name) { display_name.to_s }
           define_singleton_method(:owns_implementation?) do |candidate|
-            candidate_class = candidate.is_a?(Class) ? candidate : candidate.class
+            candidate_class = candidate.is_a?(Module) ? candidate : candidate.class
             implementations.any? { |item| item.is_a?(String) ? item == candidate_class.name : item.equal?(candidate_class) }
           end
           contributions.each do |capability, names|
             define_singleton_method(capability) do |context|
               next nil unless context.enabled
               resolved = Array(names).map { |name| name.is_a?(String) ? Object.const_get(name) : name }
+              interface = interfaces[capability]&.call
+              resolved.each { |item| item.include(interface) unless item.include?(interface) } if interface
               names.is_a?(Array) ? resolved : resolved.first
             end
           end

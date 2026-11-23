@@ -97,7 +97,7 @@ class MetricsController < Api::BaseController
   # no-op; a plugin sampling a global metric on its own tick overrides it.
   # One plugin's failure must not blank every other plugin's metrics.
   def refresh_plugin_gauges
-    Syrus::PluginRegistry.providers_for(:callbacks).each do |provider|
+    Syrus::Plugin::Lifecycle.callback_providers.each do |provider|
       provider.on_metrics_scrape
     rescue StandardError => e
       Rails.logger.warn("[MetricsController] plugin metrics refresh failed for #{provider}: #{e.class}: #{e.message}")

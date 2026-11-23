@@ -10,7 +10,7 @@ class PluginLifecycleJob < ApplicationJob
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == plugin_name }
     return unless manifest
 
-    providers = Array(manifest.provides[:callbacks])
+    providers = Syrus::Plugin::Lifecycle.callback_providers_for(manifest)
     return if providers.empty?
     return if stale?(manifest, event)
 
