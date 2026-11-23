@@ -5254,6 +5254,19 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M73. Main through `0cf53b1982`
+
+- **"Find Claude sessions under the cwd Claude Code actually reports"**
+  (`0cf53b1982`). `ClaudeAgent::SessionPaths` encodes the cwd with symlinks
+  resolved, as Claude Code does: macOS's `/var` is `/private/var`. *Relied-on
+  invariant:* the encoded project is the same before and after the workspace
+  directory is created, because resume restores a transcript before the run
+  and captures one after. Holds: only the deepest existing ancestor is resolved,
+  and the missing tail is appended verbatim. That tail would differ only if a
+  later component were created as a symlink, and workspace directories are
+  created as real directories. Relative paths are returned unresolved, and
+  workspace cwds are always absolute.
+
 ## M72. Main through `987b8f4389`
 
 A merge train for the Google Workspace Epic: read-only mail and calendar concept
@@ -7134,7 +7147,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `987b8f4389`. Each loop iteration continues from there:
+Checked through main `0cf53b1982`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
