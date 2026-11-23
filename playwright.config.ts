@@ -102,7 +102,11 @@ export default defineConfig({
       name: "core-webkit-screenshot",
       testDir: "./e2e",
       testMatch: "screenshot-capture-parity.spec.ts",
-      use: { browserName: "webkit", launchOptions: {} }
+      // The app registers a service worker on every page load. Once it
+      // controls the page, WebKit routes the page's requests through it and
+      // page.route never sees them, so this project's stubbed review diff was
+      // silently replaced by the seeded one. Nothing here tests the worker.
+      use: { browserName: "webkit", launchOptions: {}, serviceWorkers: "block" }
     },
     ...pluginProjects
   ]
