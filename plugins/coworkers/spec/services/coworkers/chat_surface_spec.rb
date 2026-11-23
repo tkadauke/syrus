@@ -19,10 +19,16 @@ RSpec.describe "Coworker chat surface" do
     Coworkers::ChatExtension.install_into(scope)
     PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
     Syrus::PluginRegistry.clear_plugin_record_cache!
+    surface_provider = Syrus::Plugin::CapabilityProvider.new(
+      plugin_name: "coworkers", family: :surface, capability: :filter_chips,
+      provider_name: "Coworkers::Surface", key: nil, priority: 0
+    )
+    allow(Syrus::PluginRegistry).to receive(:capability_providers).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:capability_providers)
+      .with(:surface, :filter_chips).and_return([ surface_provider ])
     assigned_coworker = coworker
     chat.define_singleton_method(:coworker) { assigned_coworker }
     Filters.subject(:chat_message)
-    Coworkers::SearchExtension.install_into(scope)
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_lifecycle)
       .and_return([ Coworkers::ChatTurnLifecycle ])

@@ -258,5 +258,6 @@ RSpec.configure do |config|
     Syrus::PluginRegistry.restore(snapshot) if snapshot
     Syrus::Plugin::Ecosystem.restore_definition! if defined?(Syrus::Plugin::Ecosystem)
     Syrus::Plugin::Toolkit.restore_definition! if defined?(Syrus::Plugin::Toolkit)
+    Syrus::Plugin::Surface.restore_definition! if defined?(Syrus::Plugin::Surface)
   end
 end
