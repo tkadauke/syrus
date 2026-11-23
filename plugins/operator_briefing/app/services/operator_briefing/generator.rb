@@ -130,7 +130,7 @@ module OperatorBriefing
     end
 
     def launch_generation!(job)
-      WorkUnits::Launcher.create_and_start!(
+      Syrus::Host::WorkLauncher.create_and_start!(
         kind: "briefing_generate",
         job: job,
         agent_provider: settings.agent_provider.presence

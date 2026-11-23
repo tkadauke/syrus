@@ -56,7 +56,7 @@ module AttentionReport
       return 0 if grouped_proposals.empty?
 
       last_confirmation = grouped_proposals.values.flatten.filter_map(&:confirmed_at).max
-      messages = ChatMessage.where(
+      messages = Syrus::Host::ChatMessages.where(
         chat_session_id: grouped_proposals.keys,
         sender_user_id: @user.id,
         role: "user",
@@ -153,7 +153,7 @@ module AttentionReport
 
       approvals = approval_scope.where(subject_id: job_ids, created_at: ..@to)
         .order(:subject_id, :created_at, :id).to_a
-      versions = DiffReviewVersion.where(job_id: job_ids, reason: "source_diff", created_at: ..@to)
+      versions = Syrus::Host::DiffReviews.versions.where(job_id: job_ids, reason: "source_diff", created_at: ..@to)
         .order(:job_id, :created_at, :id).group_by(&:job_id)
 
       approvals.group_by(&:subject_id).flat_map do |job_id, transitions|

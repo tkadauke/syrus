@@ -1,4 +1,4 @@
 module Permissions
   # Compatibility name for the original coworker-specific API.
-  CoworkerPermissionRequest = PermissionRequest
+  CoworkerPermissionRequest = Syrus::Host::PermissionRequest
 end

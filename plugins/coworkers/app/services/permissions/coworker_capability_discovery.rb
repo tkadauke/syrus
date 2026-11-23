@@ -65,8 +65,8 @@ module Permissions
       if tool.tool
         McpToolRegistry.entry_for(tool.tool)&.descriptor
       elsif tool.definition
-        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(
-          tool.definition.merge(requestable_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        Syrus::Host::PermissionCapabilityAdapter.for_plugin_definition(
+          tool.definition.merge(requestable_roles: [ Syrus::Host::AgentRoles::COWORKER_CHAT, Syrus::Host::AgentRoles::COWORKER ])
         )
       end
     end
@@ -203,9 +203,9 @@ module Permissions
       return false unless descriptor.requestable_roles.include?(context.role)
       return false if grant && descriptor.capability.sub(/@v\d+\z/, "") != capability
 
-      Permissions::Catalog.find!(capability: descriptor.capability, operation: descriptor.operation)
+      Syrus::Host::PermissionCatalog.find!(capability: descriptor.capability, operation: descriptor.operation)
         .requestable_roles.include?(context.role)
-    rescue Permissions::Catalog::UnknownCapability
+    rescue Syrus::Host::PermissionCatalog::UnknownCapability
       false
     end
 
@@ -244,7 +244,7 @@ module Permissions
       rescue ArgumentError
         descriptor.defaults.fetch(context.role, :deny)
       end
-      policies.min_by { |policy| Permissions::PolicyEvaluator::POLICY_RANK.fetch(policy) } || :deny
+      policies.min_by { |policy| Syrus::Host::PermissionPolicies.rank(policy) } || :deny
     end
 
     def state_and_reason(availability:, eligible:, policy:)
@@ -289,7 +289,7 @@ module Permissions
     end
 
     def permission_management
-      @permission_management ||= Permissions::Management.new(context.user)
+      @permission_management ||= Syrus::Host::PermissionManagement.new(context.user)
     end
 
     def required_scope(descriptors)

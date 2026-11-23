@@ -1,12 +1,12 @@
 module PendingActions
-  class EscalateCoworkerGrants < Base
+  class EscalateCoworkerGrants < Syrus::Host::PendingActionBase
     action_key "escalate_coworker_grants"
     requires_chat_session!
 
     def execute
       progress!("Updating coworker grants...")
       coworker = Coworkers::OwnerResolver.new(owner: user).find!(id: payload.fetch("coworker_id"))
-      PermissionRule.transaction do
+      Syrus::Host::PermissionRules.transaction do
         payload.fetch("grants").each do |change|
           scope = change.key?("scope") ? { scope: change["scope"] } : {}
           Coworkers::GrantUpdate.call(owner: user, coworker: coworker, capability: change.fetch("capability"),

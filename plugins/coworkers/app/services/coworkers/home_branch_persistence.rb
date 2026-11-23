@@ -21,15 +21,15 @@ class Coworkers::HomeBranchPersistence
     repository = @coworker.workspace_repository
     raise ArgumentError, "coworker workspace repository is unavailable" unless repository
 
-    path = ChatWorkspace.repo_path_for(@chat_session, repository)
+    path = Syrus::Host::ChatWorkspaces.repo_path_for(@chat_session, repository)
     branch = "coworkers/#{@coworker.handle}"
 
-    if ChatWorkspace.rebase_in_progress?(path)
+    if Syrus::Host::ChatWorkspaces.rebase_in_progress?(path)
       continue_rebase!(path)
       return save(repository, path, branch, schedule_background:)
     end
 
-    commit_changes!(path) if ChatWorkspace.uncommitted_changes?(path)
+    commit_changes!(path) if Syrus::Host::ChatWorkspaces.uncommitted_changes?(path)
     return unless unpublished_commits?(path, branch)
 
     save(repository, path, branch, schedule_background:)

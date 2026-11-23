@@ -9,12 +9,12 @@ module Permissions
 
     def call(lease_id)
       coworker = context.agent_actor
-      unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) && coworker &&
+      unless context.role.in?([ Syrus::Host::AgentRoles::COWORKER_CHAT, Syrus::Host::AgentRoles::COWORKER ]) && coworker &&
           coworker.owner_user_id == context.user.id
         raise CoworkerPermissionRequest::Rejected.new(:not_a_coworker, "only a coworker can surrender its own lease")
       end
 
-      lease = PermissionLease.where(owner_user: context.user, subject_selector_type: "agent",
+      lease = Syrus::Host::PermissionLeases.where(owner_user: context.user, subject_selector_type: "agent",
         subject_selector_id: coworker.id.to_s).not_revoked.not_expired.find_by(id: lease_id)
       raise CoworkerPermissionRequest::Rejected.new(:lease_not_found, "no active lease of yours has that id") unless lease
 

@@ -1,4 +1,4 @@
-class Coworkers::WorkspaceSaveRetryJob < PluginJob
+class Coworkers::WorkspaceSaveRetryJob < Syrus::Host::PluginJob
   plugin :coworkers
 
   def perform(link_id, token)

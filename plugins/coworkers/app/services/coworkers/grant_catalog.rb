@@ -63,11 +63,11 @@ module Coworkers
             if tool.tool
               McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool.tool }&.descriptor
             elsif tool.definition
-              Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
+              Syrus::Host::PermissionCapabilityAdapter.for_plugin_definition(tool.definition)
             end
           end
           default_policy = descriptors.all? do |descriptor|
-            descriptor.defaults.values_at(AgentRole::COWORKER_CHAT, AgentRole::COWORKER).all?(:allow)
+            descriptor.defaults.values_at(Syrus::Host::AgentRoles::COWORKER_CHAT, Syrus::Host::AgentRoles::COWORKER).all?(:allow)
           end ? "auto" : "confirm"
           grant = tools.filter_map(&:grant).first&.symbolize_keys
           if grant

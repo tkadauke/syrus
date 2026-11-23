@@ -19,7 +19,7 @@ class Coworkers::Coworker < ApplicationRecord
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
-  normalizes :handle, with: ->(value) { HandleRegistry.normalize(value) }
+  normalizes :handle, with: ->(value) { Syrus::Host::Handles.normalize(value) }
 
   validates :name, :workspace_repo, presence: true
   validates :handle, presence: true, format: { with: Handle::FORMAT }, uniqueness: { case_sensitive: false }
@@ -84,7 +84,7 @@ class Coworkers::Coworker < ApplicationRecord
   def finalize_review_memory!(run:, key_learning:, verdict:)
     Coworkers::ReviewMemoryLifecycle.persist!(coworker: self, run:, key_learning:, verdict:)
   rescue Coworkers::ReviewMemoryLifecycle::PersistenceError
-    raise Steps::AdversarialReview::MemoryPersistenceFailed.new("coworker review memory was not persisted",
+    raise Syrus::Host::AdversarialReviewStep::MemoryPersistenceFailed.new("coworker review memory was not persisted",
       evidence: { review_evidence_id: run.review_evidence&.id, persistence_state: "failed" })
   end
 
@@ -94,9 +94,9 @@ class Coworkers::Coworker < ApplicationRecord
     used = self.class.where(owner_user_id: owner_user_id).where.not(id: id).pluck(:accent_hex)
     self.accent_hex = Appearance::ColorPalette.next_default_color(used) || Appearance::ColorPalette.default_agent_order.first
   end
-  def claim_handle! = HandleRegistry.claim!(handle: handle, owner: self)
-  def rename_handle! = HandleRegistry.rename!(owner: self, handle: handle)
-  def release_handle! = HandleRegistry.release!(owner: self)
+  def claim_handle! = Syrus::Host::Handles.claim!(handle: handle, owner: self)
+  def rename_handle! = Syrus::Host::Handles.rename!(owner: self, handle: handle)
+  def release_handle! = Syrus::Host::Handles.release!(owner: self)
 
   def avatar_is_image
     return unless avatar.attached?

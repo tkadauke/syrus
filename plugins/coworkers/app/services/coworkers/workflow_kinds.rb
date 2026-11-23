@@ -16,7 +16,7 @@ module Coworkers
         {
           kind: "coworker_run", handler: "Coworkers::RunStep",
           label: "Coworker run", style: "bg-violet-100 text-violet-700",
-          agentic: true, agent_role: AgentRole::COWORKER
+          agentic: true, agent_role: Syrus::Host::AgentRoles::COWORKER
         },
         {
           kind: "post_to_chat", handler: "Coworkers::PostToChat",
@@ -26,7 +26,7 @@ module Coworkers
         {
           kind: "coworker_review", handler: "Coworkers::ReviewStep",
           label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
-          agent_role: AgentRole::WORKFLOW_COWORKER_REVIEWER, panel_capable: true,
+          agent_role: Syrus::Host::AgentRoles::WORKFLOW_COWORKER_REVIEWER, panel_capable: true,
           reviewer_target_required: true, required_mcp_tools: %w[submit_coworker_review],
           resource_profile_fallback_step_kinds: %w[implement],
           review_gate: {

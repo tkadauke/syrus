@@ -13,7 +13,7 @@ class Coworkers::Workspace
     repository = link&.coworker&.workspace_repository
     raise InvalidPath, "coworker workspace is unavailable" unless repository
 
-    @root = (root || ChatWorkspace.repo_path_for(chat_session, repository)).expand_path
+    @root = (root || Syrus::Host::ChatWorkspaces.repo_path_for(chat_session, repository)).expand_path
   end
 
   def write(path, content)
