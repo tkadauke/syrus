@@ -425,6 +425,7 @@ de:
       select_job: "Wähle mindestens einen Job aus."
       select_epic: "Wähle mindestens ein Epic aus."
       choose_bulk_action: "Wähle eine Sammelaktion aus."
+      bulk_lock_conflict: "Die ausgewählten Jobs wurden gleichzeitig geändert. Versuche die Sammelaktion erneut."
       epic_auto_approval_forbidden: "Nur Repository-Mitglieder mit Schreibzugriff oder Admins können die automatische Epic-Genehmigung ändern."
       epic_auto_approval_updated: "Automatische Epic-Genehmigung aktualisiert."
       retry_agent_unavailable: "Dieser Agent ist für einen erneuten Versuch nicht verfügbar."

@@ -459,6 +459,7 @@ en:
       select_job: "Select at least one job."
       select_epic: "Select at least one Epic."
       choose_bulk_action: "Choose a bulk action."
+      bulk_lock_conflict: "The selected jobs changed concurrently. Retry the bulk action."
       epic_auto_approval_forbidden: "Only a repository member with write access, or an admin, can update Epic auto-approval."
       epic_auto_approval_updated: "Epic auto-approval updated."
       retry_agent_unavailable: "That agent is not available for retry."

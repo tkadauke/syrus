@@ -147,6 +147,16 @@ module Api
           else
             render_error("validation_failed", dashboard_t("choose_bulk_action"), status: :unprocessable_content)
           end
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked => error
+          Rails.logger.warn({
+            event: "dashboard_bulk_jobs_persistence_contention",
+            operation: params[:bulk_action].to_s,
+            job_ids: job_ids,
+            user_id: Current.user&.id,
+            error_class: error.class.name,
+            error_message: error.message
+          }.to_json)
+          render_error("bulk_jobs_lock_conflict", dashboard_t("bulk_lock_conflict"), status: :conflict)
         end
 
         def bulk_epics

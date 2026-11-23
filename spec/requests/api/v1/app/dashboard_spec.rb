@@ -2343,6 +2343,24 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(parse_body.dig("error", "message")).to eq("Select at least one job.")
     end
 
+    it "returns a stable retryable conflict when a bulk persistence write hits a lock wait" do
+      job = Factories.job_record(repository: repo, issue_number: 1)
+      allow_any_instance_of(Job).to receive(:cancel_active_runs_and_close!)
+        .and_raise(ActiveRecord::LockWaitTimeout, "lock wait timeout")
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ job.id ], bulk_action: "close" },
+           as: :json
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body).to include(
+        "error" => {
+          "code" => "bulk_jobs_lock_conflict",
+          "message" => "The selected jobs changed concurrently. Retry the bulk action."
+        }
+      )
+    end
+
     it "retries eligible jobs" do
       first = Factories.job(repository: repo, issue_number: 1, agent_provider: "claude")
       second = Factories.job(repository: repo, issue_number: 2, agent_provider: "codex")

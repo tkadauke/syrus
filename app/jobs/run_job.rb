@@ -33,6 +33,11 @@ class RunJob < ApplicationJob
   ].freeze
   LIFECYCLE_LOCK_RETRY_ATTEMPTS = 3
 
+  Syrus::Metrics.declare do
+    counter :run_lifecycle_lock_retries_total, tags: %i[kind queue outcome], cluster: true,
+            comment: "Run lifecycle persistence lock conflicts, including recovered and exhausted retries"
+  end
+
   # Test seam — let specs swap in a fake runner without exec'ing claude.
   class << self
     attr_accessor :agent_runner
@@ -658,7 +663,7 @@ class RunJob < ApplicationJob
   end
 
   def record_successful_step!
-    with_lifecycle_lock_retry("record success for Run ##{@run.id}") do
+    with_lifecycle_lock_retry("record_success") do
       @run.reload
       @step.reload
       @workflow.reload
@@ -692,15 +697,18 @@ class RunJob < ApplicationJob
     attempts = 0
 
     begin
-      yield
+      result = yield
+      record_lifecycle_lock_outcome(operation, "recovered") if attempts.positive?
+      result
     rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
       attempts += 1
-      raise if attempts >= LIFECYCLE_LOCK_RETRY_ATTEMPTS
+      exhausted = attempts >= LIFECYCLE_LOCK_RETRY_ATTEMPTS
+      log_lifecycle_lock_conflict(operation, e, attempts:, exhausted:)
+      if exhausted
+        record_lifecycle_lock_outcome(operation, "exhausted")
+        raise
+      end
 
-      Rails.logger.warn(
-        "[RunJob] #{operation} hit #{e.class}; " \
-        "retrying lifecycle write #{attempts}/#{LIFECYCLE_LOCK_RETRY_ATTEMPTS - 1}"
-      )
       sleep(0.05 * attempts) unless Rails.env.test?
       @run&.reload
       @step&.reload
@@ -709,11 +717,37 @@ class RunJob < ApplicationJob
     end
   end
 
+  def log_lifecycle_lock_conflict(operation, error, attempts:, exhausted:)
+    Rails.logger.warn({
+      event: "run_lifecycle_persistence_contention",
+      operation: operation,
+      queue: queue_name.to_s,
+      job_id: @job&.id || @run&.job_id,
+      workflow_id: @workflow&.id,
+      step_id: @step&.id,
+      run_id: @run&.id,
+      attempt: attempts,
+      max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS,
+      exhausted: exhausted,
+      error_class: error.class.name,
+      error_message: error.message,
+      error_backtrace: (error.backtrace if exhausted)
+    }.compact.to_json)
+  end
+
+  def record_lifecycle_lock_outcome(operation, outcome)
+    Syrus::Metrics.counter(:syrus_run_lifecycle_lock_retries_total).increment(tags: {
+      kind: operation,
+      queue: queue_name.to_s,
+      outcome: outcome
+    })
+  end
+
   def acquire_run_execution!
     stale_reentry = false
     acquired = false
 
-    with_lifecycle_lock_retry("acquire execution for Run ##{@run.id}") do
+    with_lifecycle_lock_retry("acquire_execution") do
       @run.with_lock do
         @run.reload
         @step = @run.step
@@ -939,7 +973,7 @@ class RunJob < ApplicationJob
 
     record_landing_failure!(exception)
     if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
-      with_lifecycle_lock_retry("record failure for Workflow ##{@workflow.id}") do
+      with_lifecycle_lock_retry("record_failure") do
         @workflow.record_run_failure!
       end
     end
