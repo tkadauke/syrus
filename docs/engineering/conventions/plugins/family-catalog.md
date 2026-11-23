@@ -167,6 +167,39 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `throughput` | `Throughput::Lifecycle` | - | - | `callback_providers` |
 | `video_walkthroughs` | `VideoWalkthroughs::Lifecycle` | - | - | `callback_providers` |
 
+## `lifecycle`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `callback_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+| `domain_subscribers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::HookContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `agent_insights` | `AgentInsights::Lifecycle` | - | - | `domain_subscribers` |
+| `alertmanager_investigations` | `AlertmanagerInvestigations::Lifecycle` | - | - | `callback_providers` |
+| `build_cache` | `BuildCache::Lifecycle` | - | - | `domain_subscribers` |
+| `coworkers` | `Coworkers::Lifecycle` | - | - | `callback_providers` |
+| `design_docs` | `DesignDocs::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `git_mirror` | `GitMirror::Lifecycle` | - | - | `callback_providers` |
+| `global_search` | `GlobalSearch::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `k8s_cluster` | `K8sCluster::Lifecycle` | - | - | `callback_providers` |
+| `local_backups` | `LocalBackups::Lifecycle` | - | - | `callback_providers` |
+| `metrics_dashboard` | `MetricsDashboard::Lifecycle` | - | - | `callback_providers` |
+| `operator_briefing` | `OperatorBriefing::Lifecycle` | - | - | `callback_providers` |
+| `plugin_runtime` | `PluginRuntime::Lifecycle` | - | - | `callback_providers` |
+| `s3_backup_destination` | `S3BackupDestination::Lifecycle` | - | - | `domain_subscribers` |
+| `scheduled_tasks` | `ScheduledTasks::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
+| `tailscale` | `Tailscale::Lifecycle` | - | - | `callback_providers` |
+| `terminal` | `Terminal::Lifecycle` | - | - | `callback_providers` |
+| `test_insights` | `TestInsights::Lifecycle` | - | - | `domain_subscribers` |
+| `throughput` | `Throughput::Lifecycle` | - | - | `callback_providers` |
+| `video_walkthroughs` | `VideoWalkthroughs::Lifecycle` | - | - | `callback_providers` |
+
 ## `policy`
 
 Shape: `facet`. Required core: `key`, `display_name`.
