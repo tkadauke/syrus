@@ -14,6 +14,7 @@ module ConnectedAccounts
     IdentityContext = Data.define(:access_token)
     ValidateContext = Data.define(:access_token)
     EventsContext = Data.define(:headers, :body)
+    SystemInvocationContext = Data.define(:access, :identity, :purpose, :target, :input)
 
     REQUIRED_CAPABILITIES = %w[authorization exchange_code refresh revoke identity validate].freeze
     OPTIONAL_CAPABILITIES = %w[events].freeze
