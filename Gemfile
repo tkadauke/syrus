@@ -64,6 +64,11 @@ gem "bcrypt", "~> 3.1.7"
 # Detached signatures for pre-boot plugin desired-state manifests.
 gem "ed25519", "~> 1.4"
 
+# Pulled in by kamal through net-ssh. The precompiled darwin builds only
+# support Ruby < 3.4, and a frozen install on an arm64 Mac worker refuses to
+# fall back to the source gem, so always build it from source.
+gem "bcrypt_pbkdf", "~> 1.1", force_ruby_platform: true
+
 # WebAuthn server-side ceremony verification for passkey support
 gem "webauthn", "~> 3.0"
 

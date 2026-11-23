@@ -73,6 +73,37 @@ RSpec.describe GitRunner, :allow_host_execution do
     expect(streamed).to eq(described_class::OUTPUT_TAIL_BYTES * 3 + final.bytesize)
   end
 
+  # Regression: on a macOS worker git runs with a cleared environment, so an
+  # inherited credential helper (Xcode's osxkeychain) tried to store the URL
+  # token after every authenticated call and printed "fatal: failed to
+  # store: ..." into the output of a command that had succeeded.
+  describe "credential helpers" do
+    def repo_with_helper(dir)
+      system("git", "init", "-q", dir, exception: true)
+      system("git", "-C", dir, "config", "credential.helper", "inherited-helper", exception: true)
+    end
+
+    it "resets the helper list for #run so no inherited helper is consulted" do
+      Dir.mktmpdir do |dir|
+        repo_with_helper(dir)
+
+        helpers = described_class.new.run("config", "--get-all", "credential.helper", chdir: dir).lines.map(&:chomp)
+
+        expect(helpers.last).to eq("")
+      end
+    end
+
+    it "resets the helper list for #capture too" do
+      Dir.mktmpdir do |dir|
+        repo_with_helper(dir)
+
+        capture = described_class.new.capture("config", "--get-all", "credential.helper", chdir: dir)
+
+        expect(capture.stdout.lines.map(&:chomp).last).to eq("")
+      end
+    end
+  end
+
   it "honors chdir" do
     Dir.mktmpdir do |dir|
       described_class.new.run("init", chdir: dir)

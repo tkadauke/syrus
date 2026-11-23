@@ -83,8 +83,22 @@ class GitRunner
     end.first
   end
 
+  # Prepended to every git invocation. ProcessRunner starts git with a
+  # cleared environment, so neither HOME's ~/.gitconfig nor a worker's
+  # GIT_CONFIG_* overrides apply. On macOS, Xcode's system gitconfig then
+  # enables the osxkeychain helper, which tries to store the token from
+  # every authenticated URL, fails for a service account, and prints
+  # "fatal: failed to store: ..." into the merged output of a command that
+  # succeeded. Syrus authenticates with URL tokens or extra headers, never
+  # a helper, so the helper list is always reset to empty.
+  CREDENTIAL_HELPER_RESET = [ "-c", "credential.helper=" ].freeze
+
+  def self.command(args)
+    [ "git", *CREDENTIAL_HELPER_RESET, *args.map(&:to_s) ]
+  end
+
   def run(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT, workflow: nil, stdin_data: nil)
-    cmd = [ "git", *args.map(&:to_s) ]
+    cmd = self.class.command(args)
     output = +""
     log_sink = @log_sink
     current_run = Thread.current[:syrus_current_run]
@@ -145,7 +159,7 @@ class GitRunner
     current_run = Thread.current[:syrus_current_run]
     process_workflow = workflow || @workflow || current_run&.workflow
     ProcessRunner.new(
-      env: @env.merge(env), command: [ "git", *args.map(&:to_s) ],
+      env: @env.merge(env), command: self.class.command(args),
       mounts: ProcessRunner.mounts(chdir || Dir.pwd), network: network_profile_for(args),
       timeout: timeout.to_i, stdin_data: stdin_data, kind: "git",
       run: current_run, workflow: process_workflow
