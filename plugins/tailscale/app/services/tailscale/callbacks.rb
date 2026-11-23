@@ -7,7 +7,7 @@ module Tailscale
   # reports, so requests arriving over `tailscale serve` with the tailnet
   # hostname pass host authorization.
   class Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     class << self
       def on_boot

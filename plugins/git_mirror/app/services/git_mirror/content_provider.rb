@@ -1,9 +1,9 @@
 module GitMirror
   # The mirror as a repository content replica: asked before the hosting
   # platform, and falling through to it whenever it cannot answer. See
-  # Syrus::Plugin::RepositoryContentProvider for the contract.
+  # Syrus::Host::RepositoryContentProvider for the contract.
   class ContentProvider
-    include Syrus::Plugin::RepositoryContentProvider
+    include Syrus::Host::RepositoryContentProvider
 
     class << self
       def provider_key = "git_mirror"
@@ -42,24 +42,24 @@ module GitMirror
 
     def resolve(ref, max_age:)
       result = registered { @client.resolve(mirror_id, ref, max_age: max_age) }
-      RepositoryContent::Revision.new(id: result.fetch("id"), ref: ref, observed_at: Time.zone.parse(result.fetch("observed_at")))
+      Syrus::Host::ContentRevision.new(id: result.fetch("id"), ref: ref, observed_at: Time.zone.parse(result.fetch("observed_at")))
     end
 
     def tree(revision_id)
       registered { @client.tree(mirror_id, revision_id) }.map do |entry|
-        RepositoryContent::Entry.new(path: entry.fetch("path"), type: entry.fetch("type"), size: entry["size"], content_id: entry["content_id"])
+        Syrus::Host::ContentEntry.new(path: entry.fetch("path"), type: entry.fetch("type"), size: entry["size"], content_id: entry["content_id"])
       end
     end
 
     def children(revision_id, path)
       registered { @client.children(mirror_id, revision_id, path) }.map do |entry|
-        RepositoryContent::Entry.new(path: entry.fetch("path"), type: entry.fetch("type"), size: entry["size"], content_id: entry["content_id"])
+        Syrus::Host::ContentEntry.new(path: entry.fetch("path"), type: entry.fetch("type"), size: entry["size"], content_id: entry["content_id"])
       end
     end
 
     def read(revision_id, path)
       bytes, content_id = registered { @client.blob(mirror_id, revision_id, path) }
-      RepositoryContent::Blob.new(path: path, bytes: bytes, content_id: content_id)
+      Syrus::Host::ContentBlob.new(path: path, bytes: bytes, content_id: content_id)
     end
 
     def workspace_files(revision_id, paths:, max_bytes:, last_modified:, history_limit:)
@@ -68,7 +68,7 @@ module GitMirror
           last_modified: last_modified, history_limit: history_limit)
       end
       blobs = result.fetch("blobs").to_h do |path, blob|
-        [ path, RepositoryContent::Blob.new(path: path, bytes: Base64.strict_decode64(blob.fetch("bytes") || ""),
+        [ path, Syrus::Host::ContentBlob.new(path: path, bytes: Base64.strict_decode64(blob.fetch("bytes") || ""),
           size: blob.fetch("size"), truncated: blob.fetch("truncated"), content_id: blob["content_id"]) ]
       end
       dates = result.fetch("last_modified", {}).transform_values { |value| Time.zone.parse(value) }
@@ -77,7 +77,7 @@ module GitMirror
 
     def changes(base_id, head_id, patch: false)
       registered { @client.changes(mirror_id, base_id, head_id, patch: patch) }.map do |change|
-        RepositoryContent::Change.new(
+        Syrus::Host::ContentChange.new(
           path: change.fetch("path"),
           status: change.fetch("status"),
           previous_path: change["previous_path"],
@@ -100,7 +100,7 @@ module GitMirror
 
     def refs(pattern:, max_age:)
       registered { @client.refs(mirror_id, pattern: pattern, max_age: max_age) }.map do |ref|
-        RepositoryContent::Ref.new(
+        Syrus::Host::ContentRef.new(
           name: ref.fetch("name"),
           revision_id: ref.fetch("revision_id"),
           observed_at: Time.zone.parse(ref.fetch("observed_at"))
@@ -116,18 +116,18 @@ module GitMirror
     def history(base_id, head_id)
       result = registered { @client.history(mirror_id, base_id, head_id) }
       commits = result.fetch("commits").map do |commit|
-        RepositoryContent::Commit.new(
+        Syrus::Host::ContentCommit.new(
           sha: commit.fetch("sha"),
           message: commit["message"],
           authored_at: commit["authored_at"] && Time.zone.parse(commit["authored_at"])
         )
       end
-      RepositoryContent::CommitHistory.new(commits: commits, merge_base_id: result["merge_base_id"])
+      Syrus::Host::ContentCommitHistory.new(commits: commits, merge_base_id: result["merge_base_id"])
     end
 
     def divergence(base_id, head_id)
       result = registered { @client.divergence(mirror_id, base_id, head_id) }
-      RepositoryContent::Divergence.new(ahead: result.fetch("ahead"), behind: result.fetch("behind"))
+      Syrus::Host::ContentDivergence.new(ahead: result.fetch("ahead"), behind: result.fetch("behind"))
     end
 
     def tree_sha(revision_id)

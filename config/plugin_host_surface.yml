@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 393
+legacy_baseline: 384
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -78,6 +78,7 @@ constants:
 - name: ChatSpeechToText::Providers::TranscriptionTimeout
 - name: ChatSpeechToText::Providers::TranscriptionUnavailable
 - name: ChatSpeechToText::Telemetry
+- name: ChatSessions::Creator
 - name: ChatSpendEntry
 - name: ChatWakeup
 - name: ChatWorkEvents
@@ -102,6 +103,7 @@ constants:
 - name: Epics::Filter
 - name: Execution::Backend
 - name: Execution::Local
+- name: Execution::ChatWorkloadPolicy
 - name: Feature
 - name: Filters::Ast
 - name: Filters::Ast::AndNode
@@ -253,18 +255,8 @@ constants:
   reason: The coworkers, review and briefing plugins use Syrus::Host::Repositories; other plugin groups (agent_insights, test_insights, design_docs, credential_store) still query repositories and their jobs directly.
 - name: RepositoryBareClone
 - name: RepositoryContent
-- name: RepositoryContent::Blob
-- name: RepositoryContent::Change
-- name: RepositoryContent::Commit
-- name: RepositoryContent::CommitHistory
-- name: RepositoryContent::Divergence
-- name: RepositoryContent::Entry
 - name: RepositoryContent::Error
 - name: RepositoryContent::NotFound
-- name: RepositoryContent::Ref
-- name: RepositoryContent::Revision
-- name: RepositoryContent::Source
-- name: RepositoryContent::TooLarge
 - name: RepositoryContent::Truncated
 - name: RepositoryContent::Unavailable
 - name: RepositoryContent::UnknownRevision
@@ -317,7 +309,6 @@ constants:
 - name: Syrus::Plugin::AdminPage
 - name: Syrus::Plugin::AgentProvider
 - name: Syrus::Plugin::AgentProvider::ModelInfo
-- name: Syrus::Plugin::AgenticConnection
 - name: Syrus::Plugin::Callbacks
 - name: Syrus::Plugin::ChatJobStatusExtension
 - name: Syrus::Plugin::ChatMcpToolSet
@@ -329,7 +320,6 @@ constants:
 - name: Syrus::Plugin::CliCommandHandler
 - name: Syrus::Plugin::DomainSubscriber
 - name: Syrus::Plugin::ExecutionBackend
-- name: Syrus::Plugin::GatedToolSet
 - name: Syrus::Plugin::GraderFailureSummarizer
 - name: Syrus::Plugin::InputSource
 - name: Syrus::Plugin::JobOrigin
@@ -342,6 +332,7 @@ constants:
 - name: Syrus::Plugin::RepoPageTab
 - name: Syrus::Plugin::RepositoryConfiguration
 - name: Syrus::Plugin::RepositoryContentProvider
+- name: Syrus::Plugin::RepositoryFilter
 - name: Syrus::Plugin::RepositoryRecommendation
 - name: Syrus::Plugin::RetentionPolicy
 - name: Syrus::Plugin::RuntimeSessionProvider

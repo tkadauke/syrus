@@ -31,7 +31,7 @@ module ContainerExecution
         return Result.new(config: config, source: path, revision: revision.id) if usable?(config)
       end
       nil
-    rescue RepositoryContent::Error, JSON::ParserError => e
+    rescue Syrus::Host::ContentError, JSON::ParserError => e
       Rails.logger.warn("[ContainerExecution::DevcontainerSpec] unavailable for #{repository.slug}: #{e.class}: #{e.message}")
       nil
     end

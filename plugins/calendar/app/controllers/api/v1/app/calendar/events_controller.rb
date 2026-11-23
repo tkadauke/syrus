@@ -8,7 +8,7 @@ module Api
           def index
             starts_at = parse_bound!(:starts_at)
             ends_at = parse_bound!(:ends_at)
-            render json: ::Calendar::EventQuery.call(user: Current.user, starts_at:, ends_at:)
+            render json: ::Calendar::EventQuery.call(user: Syrus::Host::Current.user, starts_at:, ends_at:)
           rescue ::Calendar::EventQuery::InvalidRange => error
             render_error("invalid_calendar_range", error.message, status: :unprocessable_content)
           end

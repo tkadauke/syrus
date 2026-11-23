@@ -6,7 +6,7 @@ module PluginRuntime
       # Contributions from plugins that are enabled *and* healthy, with the
       # plugin that made each one. Reading manifests with enabled? alone kept
       # a degraded or failed plugin's service running (NY18).
-      entries = Syrus::PluginRegistry.providers_with_owner_for(point).filter_map do |plugin_name, ref|
+      entries = Syrus::Host::PluginRegistry.providers_with_owner_for(point).filter_map do |plugin_name, ref|
         next unless eligible_plugin?(plugin_name)
 
         entry_for(plugin_name, ref)

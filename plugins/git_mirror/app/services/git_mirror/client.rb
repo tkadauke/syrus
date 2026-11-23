@@ -8,7 +8,7 @@ module GitMirror
     # The mirror has the repository on disk but no credential since it last
     # started. An Unavailable, so anything that does not handle it falls
     # through to the host as before; ContentProvider registers and retries.
-    class Unregistered < RepositoryContent::Unavailable; end
+    class Unregistered < Syrus::Host::ContentUnavailable; end
 
     OPEN_TIMEOUT = 2
     READ_TIMEOUT = 30
@@ -38,7 +38,7 @@ module GitMirror
     def remove(id)
       request(Net::HTTP::Delete, "/v1/repositories/#{id}")
       true
-    rescue RepositoryContent::UnknownRevision
+    rescue Syrus::Host::ContentUnknownRevision
       true
     end
 
@@ -140,7 +140,7 @@ module GitMirror
         end
       end
     rescue *NETWORK_ERRORS => e
-      raise RepositoryContent::Unavailable, "git mirror: #{e.class}: #{e.message}"
+      raise Syrus::Host::ContentUnavailable, "git mirror: #{e.class}: #{e.message}"
     end
 
     def request(klass, path, query: nil, body: nil, read_timeout: READ_TIMEOUT)
@@ -159,28 +159,28 @@ module GitMirror
       raise_for(response) unless response.is_a?(Net::HTTPSuccess)
       response
     rescue *NETWORK_ERRORS => e
-      raise RepositoryContent::Unavailable, "git mirror: #{e.class}: #{e.message}"
+      raise Syrus::Host::ContentUnavailable, "git mirror: #{e.class}: #{e.message}"
     end
 
     def raise_for(response)
       error = JSON.parse(response.body.to_s)["error"] || {} rescue {}
       message = "git mirror: #{error['message'] || response.code}"
       case error["code"]
-      when "not_found" then raise RepositoryContent::NotFound, message
-      when "unknown_revision" then raise RepositoryContent::UnknownRevision, message
-      when "unsupported" then raise RepositoryContent::Unsupported, message
+      when "not_found" then raise Syrus::Host::ContentNotFound, message
+      when "unknown_revision" then raise Syrus::Host::ContentUnknownRevision, message
+      when "unsupported" then raise Syrus::Host::ContentUnsupported, message
       when "unregistered" then raise Unregistered, message
       # A repository the mirror has not been told about yet (it is registered
       # on the next tick) is not something it can answer; let the host.
-      when "patch_too_large" then raise RepositoryContent::TooLarge, message
-      else raise RepositoryContent::Unavailable, message
+      when "patch_too_large" then raise Syrus::Host::ContentTooLarge, message
+      else raise Syrus::Host::ContentUnavailable, message
       end
     end
 
     def json(response)
       JSON.parse(response.body.to_s)
     rescue JSON::ParserError => e
-      raise RepositoryContent::Unavailable, "git mirror: unreadable response: #{e.message}"
+      raise Syrus::Host::ContentUnavailable, "git mirror: unreadable response: #{e.message}"
     end
   end
 end

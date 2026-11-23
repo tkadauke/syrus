@@ -1,5 +1,5 @@
 module LocalBackups
-  class Backup < ApplicationRecord
+  class Backup < Syrus::Host::Record
     self.table_name = "local_backups_backups"
 
     STATES = %w[pending snapshotting exporting_objects validating completed failed deleting deleted].freeze
