@@ -129,6 +129,18 @@ RSpec.describe Coworkers::SpawnChatTool do
 
     expect(described_class.call(prompt: "Reserve the last slot", server_context: context)).not_to be_error
     expect(actor).to have_received(:with_lock).once
-    expect(chat.pending_actions.where(action: "coworker_tool_call")).to contain_exactly(an_object_having_attributes(state: "pending"))
+    expect(chat.pending_actions.where(action: "spawn_coworker_chat")).to contain_exactly(an_object_having_attributes(state: "pending"))
+  end
+
+  # NY12 (decided A): approval_effect is honoured because this tool's card is
+  # a registered pending action, named after the tool.
+  it "creates its card as its own registered pending action" do
+    expect(PendingActions.for("spawn_coworker_chat")).to be < PendingActions::AuthorizedToolCall
+
+    response = described_class.call(prompt: "Investigate", server_context: context)
+    action = chat.pending_actions.find(payload(response).fetch("pending_action_id"))
+
+    expect(action.action).to eq("spawn_coworker_chat")
+    expect(action.payload).to include("tool_name" => "spawn_coworker_chat")
   end
 end

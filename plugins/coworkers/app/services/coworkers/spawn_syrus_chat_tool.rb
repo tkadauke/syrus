@@ -48,7 +48,8 @@ module Coworkers
 
           arguments = { repository_id: repository.id, prompt:, title: }
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
-            tool_name, "syrus.spawn_chat", server_context, arguments, always_pending: true
+            tool_name, "syrus.spawn_chat", server_context, arguments, always_pending: true,
+            action: PendingActions::SpawnSyrusChat.action_key
           )
           next pending if pending
 

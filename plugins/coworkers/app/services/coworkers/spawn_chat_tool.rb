@@ -38,7 +38,8 @@ module Coworkers
           next Mcp::Tools.invalid(limiter.refusal) unless limiter.allowed?
 
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
-            tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title }, always_pending: true
+            tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title },
+            always_pending: true, action: PendingActions::SpawnCoworkerChat.action_key
           )
           next pending if pending
 

@@ -3106,6 +3106,23 @@
       "producer": "Steps::PrOpen#ensure_stack_base_fresh!; Workflows::Base.stack_aware_pr_open; Steps::StackBaseAgentRebase",
       "done_by": "F106 (NY29)",
       "notes": "StackConflictRecovery.lean: a resolved conflict publishes; every path ends within two pr_open attempts, never as an exhausted retry budget."
+    },
+    {
+      "id": "approval-effect-backed",
+      "area": "permissions",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "title": "A tool skips the generic approval only when its effect is backed by a core registration or a registered confirmation card",
+      "producer": "Mcp::Tools::AuthorizationSupport.approval_effect_backed?; PendingActions.registered?; Coworkers spawn tools",
+      "done_by": "F108 (NY12)",
+      "notes": "ApprovalEffectBacking.lean: a skipped ask implies a backed effect; backed claims still skip, so the spawn tools keep one card."
     }
   ],
   "needs_you": [
@@ -3263,7 +3280,7 @@
         "C. Keep as is: plugins are trusted code reviewed like core."
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
-      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two. Follow-up answered A (2026-11-22, answered on the lean-plan site): give the Coworkers spawn tools pending-action classes, so approval_effect is derived from a registered pending action. To implement."
+      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two. Follow-up answered A (2026-11-22, answered on the lean-plan site): give the Coworkers spawn tools pending-action classes, so approval_effect is derived from a registered pending action. Implemented as F108."
     },
     {
       "id": "NY13",

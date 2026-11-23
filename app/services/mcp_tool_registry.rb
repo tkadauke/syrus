@@ -627,10 +627,7 @@ class McpToolRegistry
     end
 
     def pending_action_tool?(tool)
-      PendingActions.for(tool_name_for(tool))
-      true
-    rescue PendingActions::UnknownAction
-      false
+      PendingActions.registered?(tool_name_for(tool))
     end
 
     def lifecycle_chat(tool, **metadata)

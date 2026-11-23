@@ -3987,6 +3987,53 @@ landing order and Job specs (533 examples), and the dependency request specs
 
 ---
 
+## F108. A plugin tool could skip the generic approval with a bare approval_effect claim — fixed (NY12)
+
+**Decision (NY12, A; follow-up A).** Honour `approval_effect` only for core
+tools and for tools whose confirmation card is a registered pending action.
+Give the Coworkers spawn tools pending-action classes.
+
+**Before.** `approval_effect` skips the generic "ask" request because the
+tool's only mutation is creating the owner's confirmation card; policy still
+runs and a deny still refuses it. A plugin tool-set definition could set the
+flag (`Mcp::CoworkerToolCatalog`), and nothing checked that the tool creates a
+card, so a plugin tool could declare it and run on "ask" with no confirmation
+(`ApprovalEffectBacking.before_bare_claim_skips`). Only the Coworkers spawn
+tools used it, and they created a generic `coworker_tool_call` card.
+
+**Fix.**
+
+- `AuthorizationSupport.approval_effect_backed?`: a core tool's flag stands;
+  a plugin descriptor's flag counts only when `PendingActions.registered?`
+  finds a pending action under the tool's name.
+- `PendingActions::SpawnCoworkerChat` and `PendingActions::SpawnSyrusChat`
+  (subclasses of `CoworkerToolCall`) are registered under the tool names, and
+  both spawn tools create their cards under those keys. The card's approved
+  re-run is unchanged, so there is still exactly one card.
+- Everything that keyed on `coworker_tool_call` now takes the family: the
+  pending-action whitelist, smart decisions, the outcome notification, the
+  admin capability inventory (core, `ChatPendingAction::COWORKER_TOOL_CALL_ACTIONS`),
+  and the approval inbox and spawn caps (plugin,
+  `PendingActions::CoworkerToolCall.family_action_keys`). The caps still count
+  cards created before the change.
+- Docs: the Coworkers docs and the plugin authoring guide.
+
+**Proof.** `ApprovalEffectBacking.lean`: `after_skip_implies_backed` (the ask
+is skipped only for a backed effect) and `after_backed_claim_skips` (the
+spawn tools keep one card).
+
+**Specs.** Red before: `authorization_support_spec.rb` "still asks through the
+generic request when no pending action is registered for the tool" and "leaves
+the card to the tool when the plugin registers its pending action";
+`spawn_chat_tool_spec.rb` "creates its card as its own registered pending
+action" and the reservation pin; `spawn_syrus_chat_tool_spec.rb`'s one-card
+pin. New: the outcome notification for each card kind. Run and green, CI-only
+included: the Coworkers plugin, pending actions, permissions, MCP registry,
+chat MCP, admin, chats request and architecture specs (3,147 examples), and
+`bin/check-plugin-boundaries`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

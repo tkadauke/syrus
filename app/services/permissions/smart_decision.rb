@@ -5,7 +5,7 @@ module Permissions
   # name). Shared by the chat card and the approval inbox so both render the
   # same payload and apply it through the same code path.
   class SmartDecision
-    SUPPORTED_ACTIONS = %w[ authorized_tool_call coworker_tool_call coworker_permission_request ].freeze
+    SUPPORTED_ACTIONS = ([ "authorized_tool_call", "coworker_permission_request" ] + ChatPendingAction::COWORKER_TOOL_CALL_ACTIONS).freeze
     DURATION_RANK = { "chat_session" => 0, "job" => 1, "permanent" => 2 }.freeze
     # Strongest first. Permanent authority is only ever offered for the exact
     # coworker that asked; "similar" never widens to a role or chat type.

@@ -37,6 +37,17 @@ RSpec.describe ChatPendingActionOutcomeNotification do
     )
   end
 
+  # NY12: the Coworkers spawn tools create their cards under their own action
+  # keys; an approved one reports the tool's result like the generic card.
+  %w[ coworker_tool_call spawn_coworker_chat spawn_syrus_chat ].each do |kind|
+    it "reports the executed coworker tool's result for a confirmed #{kind} card" do
+      action = build_action(action: kind, payload: { "tool_name" => kind, "tool_result" => "chat 12 opened" })
+
+      expect(described_class.new(action).acknowledgment(outcome: :confirmed))
+        .to start_with("Coworker tool approved and executed:").and end_with("Result: chat 12 opened")
+    end
+  end
+
   it "builds a rejected message for a job-scoped action" do
     action = build_action(action: "retry_job", payload: { "job_id" => 7 })
 

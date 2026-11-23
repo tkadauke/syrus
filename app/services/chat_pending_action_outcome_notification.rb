@@ -11,7 +11,7 @@ class ChatPendingActionOutcomeNotification
 
     case outcome.to_sym
     when :confirmed
-      if kind == "coworker_tool_call"
+      if ChatPendingAction::COWORKER_TOOL_CALL_ACTIONS.include?(kind)
         result = pending_action.payload.to_h["tool_result"].to_s
         return "Coworker tool approved and executed: #{detail}. Result: #{result}"
       end
