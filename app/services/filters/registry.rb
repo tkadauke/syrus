@@ -325,7 +325,15 @@ module Filters
 
   def self.subjects
     Syrus::Installer.sync!
-    SUBJECTS.merge(@registered_subjects)
+    family_subjects = Syrus::Plugin::Surface.filter_subjects.index_by(&:name).transform_values do |entry|
+      Subject.new(name: entry.name, model: entry.model, chips: entry.chips)
+    end
+    subjects = SUBJECTS.merge(family_subjects).merge(@registered_subjects)
+    Syrus::Plugin::Surface.filter_chips.each do |entry|
+      existing = subjects.fetch(entry.subject)
+      subjects[entry.subject] = Subject.new(name: existing.name, model: existing.model, chips: existing.chips.merge(entry.chips))
+    end
+    subjects
   end
 
   def self.subject(name)

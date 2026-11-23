@@ -31,7 +31,7 @@ class PreviewPanel::EntryMetadata
   # Never lets a misbehaving plugin break the panel: a provider that raises or
   # returns nonsense is skipped, and the entry falls back to source text.
   def self.plugin_viewer_kind(extension, content_type)
-    Syrus::PluginRegistry.providers_for(:preview_panel_viewer).each do |provider|
+    Syrus::Plugin::Surface.contributions(:preview_panel_viewers).each do |provider|
       Array(provider.viewer_kinds).each do |entry|
         entry = entry.to_h.symbolize_keys
         kind = entry[:kind].to_s

@@ -20,7 +20,7 @@ module OperatorBriefing
     depends_on [ "agent_memory", "design_docs" ]
 
     provides workflow_kinds: "OperatorBriefing::WorkflowKinds",
-             sidebar_page: "OperatorBriefing::SidebarPages",
+             sidebar_pages: "OperatorBriefing::SidebarPages",
              callbacks: "OperatorBriefing::Callbacks"
     toolkit workflow_tools: "OperatorBriefing::McpToolSet", permissions: "OperatorBriefing::PermissionProvider"
     tick_interval 1.minute

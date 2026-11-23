@@ -182,6 +182,7 @@ module WeatherTools
     author "Your name"
     description "Weather Tools plugin for Syrus."
     provides callbacks: "WeatherTools::Callbacks"
+    surface admin_pages: "WeatherTools::AdminPages"
     frontend bundle: "dist/frontend/plugin.js",
              i18n: [ "app/frontend/i18n/locales/*/weather_tools.json" ]
   end
@@ -201,6 +202,13 @@ resolved after autoload paths exist. `route` mounts a plugin controller.
 non-interactive server-backed commands whose handlers subclass
 `Syrus::Plugin::CliCommandHandler`. Consult the generated plugin specification
 for the complete key list and extension-point contracts.
+
+Browser surfaces are declared with the `surface` helper using class-name
+strings (`admin_pages`, `sidebar_pages`, `repo_page_tabs`, `workspace_tabs`,
+`ui_slots`, `artifact_renderers`, or provisional `preview_panel_viewers`). The
+declaration is manifest data and does not import the frontend bundle or load
+plugin application constants. The bundle separately registers its React
+components at runtime as described below.
 
 For a real browser contribution, create `frontend/entry.tsx`, register it with
 `registerPluginContribution` from `@syrus/plugin-sdk`, and run:

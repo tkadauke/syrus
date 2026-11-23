@@ -13,7 +13,7 @@ module GitHistory
     category "observability"
     default_enabled false
     disableable true
-    provides repo_page_tab: "GitHistory::RepoPageTabs"
+    provides repo_page_tabs: "GitHistory::RepoPageTabs"
     route :get, "/api/v1/app/repositories/:repository_id/git_history/commits", to: "api/v1/app/git_history#index"
 
     # Start the internal-only relay that serves bare-clone reads to web pods

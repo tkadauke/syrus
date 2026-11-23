@@ -16,7 +16,6 @@ module SdlcPipeline
     module_function
 
     def install_into(scope)
-      scope.effect("pipeline filter subject") { Filters.register_subject(name: SUBJECT, model: Job, chips: CHIPS) }
       scope.effect("pipeline smart folders") do
         SmartFolder.register_subject!(
           SUBJECT, builtins: BUILTINS, label: "Pipeline",

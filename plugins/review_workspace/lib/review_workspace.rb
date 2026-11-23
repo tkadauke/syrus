@@ -14,8 +14,8 @@ module ReviewWorkspacePlugin
     disableable true
 
     link "Open Review", "/review", description: "Review Jobs that can receive your decision now."
-    provides sidebar_page: "ReviewWorkspacePlugin::SidebarPages",
-             ui_slot: "ReviewWorkspacePlugin::UiSlots"
+    provides sidebar_pages: "ReviewWorkspacePlugin::SidebarPages",
+             ui_slots: "ReviewWorkspacePlugin::UiSlots"
 
     route :get, "/api/v1/app/review_workspace", to: "api/v1/app/review_workspace#index"
     route :get, "/api/v1/app/review_workspace/count", to: "api/v1/app/review_workspace#count"

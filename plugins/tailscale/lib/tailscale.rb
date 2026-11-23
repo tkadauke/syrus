@@ -25,7 +25,7 @@ module Tailscale
           required: false, default: false }
       ]
     provides callbacks: "Tailscale::Callbacks",
-             admin_page: "Tailscale::AdminPages",
+             admin_pages: "Tailscale::AdminPages",
              "plugin_runtime:privileged_service" => "Tailscale::RuntimeService"
     route :get, "/api/v1/app/admin/tailscale/status", to: "api/v1/app/admin/tailscale#status"
     route :get, "/api/v1/admin/tailscale/status", to: "api/v1/admin/tailscale#status"
