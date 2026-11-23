@@ -22,4 +22,3 @@ RSpec.describe SyrusCodexAgent::Toolkit do
     plugin: "codex_agent", provider: "SyrusCodexAgent::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

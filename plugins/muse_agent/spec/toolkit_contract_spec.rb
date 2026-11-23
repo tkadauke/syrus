@@ -22,4 +22,3 @@ RSpec.describe SyrusMuseAgent::Toolkit do
     plugin: "muse_agent", provider: "SyrusMuseAgent::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

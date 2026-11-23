@@ -22,4 +22,3 @@ RSpec.describe CognitiveReview::Toolkit do
     plugin: "cognitive_review", provider: "CognitiveReview::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-
