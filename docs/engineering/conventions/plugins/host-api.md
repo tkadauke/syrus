@@ -1543,6 +1543,7 @@ Times named plugin phases; event storage and thresholds are not promised. Only t
 Supported members:
 
 - `phase`
+- `report_duration`
 
 ### `Syrus::Host::PermissionAuthorizationDecision`
 
@@ -1807,6 +1808,7 @@ Runs managed plugin subprocesses with host cancellation and confinement; backend
 
 Supported members:
 
+- `agent_mounts`
 - `capture`
 - `forwarded_env`
 - `mounts`
@@ -1888,6 +1890,7 @@ Supported members:
 
 - `belongs_to`
 - `has_many`
+- `transaction`
 
 ### `Syrus::Host::RepairClassifier`
 
@@ -3242,7 +3245,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::PathJail`
 - `Syrus::PathJail::PathEscape`
 - `Syrus::Plugin::AdminPage`
-- `Syrus::Plugin::AgentProvider`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
 - `Syrus::Plugin::Callbacks`
 - `Syrus::Plugin::ChatJobStatusExtension`
