@@ -94,6 +94,21 @@ RSpec.describe MainHealthChangedService, :ci_only do
         )
       end
 
+      it "does not record an unrelated work-gate veto as a main-health block" do
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+        workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+        unrelated = Syrus::Plugin::WorkPolicy::Veto.new(
+          reason: :maintenance,
+          message: "Maintenance is in progress."
+        )
+        allow(WorkGates).to receive(:evaluate).and_return(WorkGates::Result.new(vetoes: [ unrelated ]))
+
+        described_class.on_health_change!(repository)
+
+        expect(workflow.work_unit.reload).to be_queued
+        expect(workflow.work_unit.blocked_details).to be_blank
+      end
+
       it "stamps active running workflows with main_broken artifact" do
         job = Factories.job(repository: repository)
         workflow = job.latest_workflow
