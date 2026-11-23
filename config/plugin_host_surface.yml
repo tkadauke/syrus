@@ -304,7 +304,6 @@ constants:
 - name: Syrus::PathJail
 - name: Syrus::PathJail::PathEscape
 - name: Syrus::Plugin::AdminPage
-- name: Syrus::Plugin::AgentProvider
 - name: Syrus::Plugin::AgentProvider::ModelInfo
 - name: Syrus::Plugin::Callbacks
 - name: Syrus::Plugin::ChatJobStatusExtension

@@ -273,7 +273,7 @@ module Syrus
         InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
         ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive from_server_context from_run] ],
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],
-        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many] ],
+        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many transaction] ],
         BackgroundJob: [ "Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised.", %w[queue_as operational_log_context] ],
         PluginJob: [ "Bases plugin-owned background jobs with a per-plugin queue, concurrency lease, and retry policy; DEFAULT_ATTEMPTS is the retry budget. Queue topology and health bookkeeping are not promised.", %w[plugin_slug plugin_queue_concurrency DEFAULT_ATTEMPTS] ],
         ReviewerTargets: [ "Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised.", %w[resolve TargetRequired TargetUnavailable] ],
