@@ -8,12 +8,9 @@ module Kotlin
       src/test/kotlin
     ].freeze
 
-    KOTLIN_FILE_GLOBS = %w[
-      *.kt
-      *.kts
-      **/*.kt
-      **/*.kts
-    ].freeze
+    # `**/` matches zero directories, so this one pattern also covers the
+    # top level; a single walk replaces four.
+    KOTLIN_FILE_GLOB = "**/*.{kt,kts}".freeze
 
     GRADLE_KOTLIN_DSL_FILES = %w[
       build.gradle.kts
@@ -77,14 +74,14 @@ module Kotlin
     private_class_method :gradle_kotlin_dsl_file?
 
     def self.kotlin_file?(path)
-      KOTLIN_FILE_GLOBS.any? { |pattern| any_file_matching?(path, pattern) }
+      # The block form lets us stop at the first match instead of
+      # materializing every path in the tree.
+      Dir.glob(path.join(KOTLIN_FILE_GLOB).to_s, File::FNM_DOTMATCH) do |file|
+        return true if File.file?(file)
+      end
+      false
     end
     private_class_method :kotlin_file?
-
-    def self.any_file_matching?(path, pattern)
-      Dir.glob(path.join(pattern).to_s, File::FNM_DOTMATCH).any? { |file| File.file?(file) }
-    end
-    private_class_method :any_file_matching?
 
     def self.kotlin_jvm_gradle_plugin?(path)
       gradle_files(path).any? do |file|
