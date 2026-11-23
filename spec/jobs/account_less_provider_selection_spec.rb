@@ -37,14 +37,20 @@ RSpec.describe "account-less provider selection at job entry points" do
   end
 
   describe RunJob do
-    it "admits the Run and succeeds instead of raising NoMethodError" do
+    it "admits the successor Step through account-less provider selection instead of raising NoMethodError" do
+      # Build the first Run directly so nothing routes a provider before
+      # RunJob starts; the selector must first be reached from inside RunJob.
+      first_step = workflow.first_step
+      run = first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+      workflow.update_columns(state: "running", started_at: Time.current)
+      clear_enqueued_jobs
+
       expect(ProviderRouting::AvailabilitySelector).to receive(:call).at_least(:once).and_call_original
-      run = StepDispatcher.start_workflow(workflow)
-      expect(run).to be_present
 
       expect { described_class.perform_now(run.id) }.not_to raise_error
 
       expect(run.reload.state).to eq("succeeded")
+      expect(workflow.steps.where.not(id: first_step.id).joins(:runs).count).to be >= 1
     end
   end
 end
