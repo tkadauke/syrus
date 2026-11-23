@@ -8,3 +8,7 @@ name = "SyrusModel"
 [[lean_exe]]
 name = "syrus_oracle"
 root = "Oracle"
+
+[[lean_exe]]
+name = "syrus_fixtures"
+root = "Fixtures"

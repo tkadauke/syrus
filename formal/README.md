@@ -39,6 +39,24 @@ that mirrors Ruby, add its methods to `mirrors.yml`. Models of Go or TypeScript
 code (the CLI's checkout hooks, the desktop's rollback image) are not covered:
 the hashing reads Ruby only.
 
+## Checking a model against the code
+
+For a pure decision function, `formal/Fixtures.lean` writes the model's answer
+over every small input to `formal/fixtures/<name>.json`, and a spec under
+`spec/formal/` runs the real Ruby on the same inputs and compares. That is the
+check a proof cannot make: that the model is the code.
+
+```sh
+lake build syrus_fixtures
+lake exe syrus_fixtures                 # lists the fixtures
+lake exe syrus_fixtures auto_approval > fixtures/auto_approval.json
+```
+
+Formal CI regenerates every fixture and fails if a committed one differs, so a
+model change regenerates its fixture in the same change. To add one, write a
+function in `Fixtures.lean` that prints the cases, add it to `Fixtures.all`,
+generate the file, and add the spec.
+
 ## What is modelled
 
 The ownership layer: `WorkIntent`, `WorkUnit`, `WorkUnitLock`,
