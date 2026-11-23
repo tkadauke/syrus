@@ -4,6 +4,10 @@ Connected Accounts is an experimental, default-disabled plugin that stores safe 
 
 Tool plugins request block-scoped access through `ConnectedAccounts::AccountClient`. Access is refused unless the account is connected, belongs to the invoking user, permits the requested acting mode and scopes, and the permission system supplied an authorized invocation reference. Tokens are held in memory only and are redacted from results and errors.
 
+Administrators can also manage instance-owned accounts for providers that declare token entry. The secret is validated before it is stored by Credential Store and is never displayed again; administrators see only its safe label and status and can rotate or disconnect it. Instance accounts have no user owner, allow only `as_service`, and are hidden from non-administrators and permission authoring.
+
+Named platform services can use an instance account without an agent invocation only through the broker's system path. The provider (or core) must explicitly allowlist the exact service identity, the caller must supply a non-empty purpose, and every lease records that identity and purpose. This path does not accept user-owned accounts, coworker calls, arbitrary plugin identities, interactive agents, other acting modes, or direct Credential Store access.
+
 Users manage their accounts under **Settings → Connected accounts**. The page shows connection status, granted scopes, the read-only ceiling, last use, disconnect, and reauthorization controls. The administrator can enable `as_owner` separately in the Connected Accounts provider configuration; it is off by default. `as_self` and `as_service` remain the normal acting modes.
 
 Coworker access has an additional instance-wide `coworker_connected_accounts` feature gate, off by default. Enabling it is appropriate only after coworker sandboxing, confirmation for edits to standing instruction files, and unified permission enforcement for coworkers are deployed. The broker checks this gate at credential-use time, so a direct or plugin caller cannot bypass it.

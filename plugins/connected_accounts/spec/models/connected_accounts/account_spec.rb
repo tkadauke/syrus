@@ -77,4 +77,15 @@ RSpec.describe ConnectedAccounts::Account do
     expect(invalid).not_to be_valid
     expect(invalid.errors[:scope_ceiling]).to include("must be a subset of granted scopes")
   end
+
+  it "requires instance accounts to have no user and only as_service access" do
+    credential.assign_attributes(scope_type: "instance", scope_id: nil, owner_user: nil)
+    credential.save!
+    account = build_account(owner_kind: "instance", owner_user: nil, acting_modes: [ "as_service" ])
+
+    expect(account).to be_valid
+    account.acting_modes = [ "as_self" ]
+    expect(account).not_to be_valid
+    expect(account.errors[:acting_modes]).to include("must contain only as_service for an instance-owned account")
+  end
 end
