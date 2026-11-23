@@ -1,7 +1,7 @@
 module GitMirror
   # Ticks once a minute while the plugin is enabled.
   class Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     def self.on_tick
       Sync.run!

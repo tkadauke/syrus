@@ -2,7 +2,7 @@
 
 module K8sCluster
   module Cli
-    class Base < Syrus::Plugin::CliCommandHandler
+    class Base < Syrus::Host::CliCommandHandler
       private
 
       def authorize!(user)
@@ -20,7 +20,7 @@ module K8sCluster
       end
 
       def service(type, cluster, user)
-        type.new(cluster, context: McpToolContext.new(surface: :admin, role: nil, user: user), tool_name: ClusterCredential::ADMIN_TOOL_NAME)
+        type.new(cluster, context: Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: user), tool_name: ClusterCredential::ADMIN_TOOL_NAME)
       end
 
       def value_or_dash(value) = value.to_s.strip.presence || "-"

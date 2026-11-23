@@ -360,7 +360,7 @@ module MysqlDbBrowser
     end
 
     def credential_context
-      context || McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
+      context || Syrus::Host::ToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user)
     end
 
     def run_select(client, statement, limit)

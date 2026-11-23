@@ -24,10 +24,10 @@ module Api
             password = params.dig(:mysql_connection, :password).presence
 
             if connection.valid?
-              scope = requested_scope(default_type: "user", default_id: Current.user.id)
+              scope = requested_scope(default_type: "user", default_id: Syrus::Host::Current.user.id)
               MysqlConnection.transaction do
                 connection.save!
-                ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user, **scope) if password
+                ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Syrus::Host::Current.user, **scope) if password
               end
               render json: { mysql_connection: connection_json(connection) }, status: :created
             else
@@ -48,14 +48,14 @@ module Api
               credential = ::MysqlDbBrowser::CredentialMaterial.credential_for(connection)
               scope = requested_scope(
                 default_type: credential&.scope_type || "user",
-                default_id: credential&.scope_id || Current.user.id
+                default_id: credential&.scope_id || Syrus::Host::Current.user.id
               )
               MysqlConnection.transaction do
                 connection.save!
                 if password
-                  ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user, **scope)
+                  ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Syrus::Host::Current.user, **scope)
                 else
-                  ::MysqlDbBrowser::CredentialMaterial.sync_metadata!(connection, user: Current.user, **scope)
+                  ::MysqlDbBrowser::CredentialMaterial.sync_metadata!(connection, user: Syrus::Host::Current.user, **scope)
                 end
               end
               render json: { mysql_connection: connection_json(connection) }
@@ -124,8 +124,8 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(
-              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user,
+            Syrus::Host::ToolContext.new(
+              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
               allowed_repository_ids: Repository.ids
             )
           end
@@ -148,7 +148,7 @@ module Api
             elsif scope_type == default_type
               default_id
             elsif scope_type == "user"
-              Current.user.id
+              Syrus::Host::Current.user.id
             end
             unless management_authorization.can_manage_scope?(scope_type, scope_id)
               raise ArgumentError, "credential scope is not manageable by the current user"
@@ -158,7 +158,7 @@ module Api
           end
 
           def management_authorization
-            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
+            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Syrus::Host::Current.user)
           end
 
           def connection_json(connection, credential: ::MysqlDbBrowser::CredentialMaterial.credential_for(connection))

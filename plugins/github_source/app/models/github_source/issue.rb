@@ -1,5 +1,5 @@
 module GithubSource
-  class Issue < ApplicationRecord
+  class Issue < Syrus::Host::Record
     self.table_name = "github_source_issues"
 
     belongs_to :repository
