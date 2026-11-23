@@ -2,6 +2,7 @@ module K8sCluster
   extend Syrus::PluginApi
 
   syrus_plugin "k8s_cluster" do
+    requires_syrus nil
     experimental true
     display_name "Kubernetes Cluster Viewer"
     description "Register Kubernetes/k3s clusters and browse them read-only from an admin sidebar page."

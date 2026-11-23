@@ -1070,8 +1070,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     end
 
     it "enables the connected provider plugin's dependencies through the cascade-aware path" do
-      Syrus::PluginRegistry.register(name: "onboarding-runtime", version: "1.0.0", default_enabled: false)
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "onboarding-runtime", version: "1.0.0", default_enabled: false)
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
         name: "onboarding-provider",
         version: "1.0.0",
         default_enabled: false,
@@ -1090,13 +1090,13 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     end
 
     it "blocks an onboarding cascade with an experimental dependency without partially enabling it" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil,
         name: "onboarding-experimental-runtime",
         version: "1.0.0",
         default_enabled: false,
         experimental: true
       )
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
         name: "onboarding-beta-blocked-provider",
         version: "1.0.0",
         default_enabled: false,

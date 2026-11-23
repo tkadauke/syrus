@@ -12,7 +12,7 @@ RSpec.describe Django::Engine do
       # the manifest. Interface modules were included during after_initialize
       # and are permanent on the classes.
       unless Syrus::PluginRegistry.registered_names.include?("django")
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name:        "django",
           version:     Syrus::PluginApi.default_version,
           description: "Django framework intelligence: preview hosting via manage.py runserver, " \

@@ -19,7 +19,7 @@ RSpec.describe ChatTurnLifecycles, :reset_plugin_registry do
       def self.applies_to?(chat_session:, **) = chat_session.title == "claimed"
       def initialize(**) = nil
     end
-    Syrus::PluginRegistry.register(:chat_turn_lifecycle, provider)
+    Syrus::PluginRegistry.register_direct(:chat_turn_lifecycle, provider)
     chat.update!(title: "claimed")
 
     expect(described_class.for(chat_session: chat, user_message: message)).to be_a(provider)

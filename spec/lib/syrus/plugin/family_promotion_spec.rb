@@ -15,7 +15,7 @@ RSpec.describe Syrus::Plugin::FamilyPromotion do
     declaration = Syrus::Plugin::FamilyDeclaration.build(
       family: :promotion_fixture, provider: "#{name.camelize}::Provider", implements: %i[items]
     )
-    Syrus::Plugin::Manifest.new(name:, version: "1.0.0", provides: {}, family_provides: [ declaration ], metadata: {})
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1.0.0", provides: {}, family_provides: [ declaration ], metadata: {})
   end
 
   it "permits stable capabilities with two independent implementations and a contract" do
@@ -36,7 +36,7 @@ RSpec.describe Syrus::Plugin::FamilyPromotion do
     adapter = Module.new
     definition.legacy(:legacy_items, capability: :items, adapter:)
     legacy = ->(name) do
-      Syrus::Plugin::Manifest.new(name:, version: "1.0.0", provides: { legacy_items: Object.new },
+      Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1.0.0", provides: { legacy_items: Object.new },
         family_provides: [], metadata: {})
     end
 

@@ -307,7 +307,7 @@ RSpec.describe CredentialStore::Broker do
   end
 
   it "discovers plugin-declared typed consumers without allowing runtime mutation", :reset_plugin_registry do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "mail_plugin",
       version: "1.0.0",
       credential_types: [

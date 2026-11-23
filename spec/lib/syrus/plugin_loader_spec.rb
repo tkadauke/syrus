@@ -26,6 +26,10 @@ RSpec.describe Syrus::PluginLoader do
       module ExternalLoaderFixture
         extend Syrus::PluginApi
         syrus_plugin #{plugin_name.inspect} do
+          default_enabled true
+          disableable true
+          experimental false
+          requires_syrus #{requires_syrus.inspect}
           #{dependency_declaration}
           #{role_declaration}
           provides callbacks: "ExternalLoaderFixture::Provider"
@@ -396,13 +400,17 @@ RSpec.describe Syrus::PluginLoader do
             extend Syrus::PluginApi
             class Provider; end
             syrus_plugin "standard_fixture" do
+              default_enabled true
+              disableable true
+              experimental false
+              requires_syrus nil
               provides callbacks: "StandardFixture::Provider"
               route :get, "/failed-require", to: "failed_require#show"
             end
             raise "broken standard"
           end
         RUBY
-        overwrite_entry(load_error, "load_error_fixture", "module LoadErrorFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"load_error_fixture\" do; end\n  raise LoadError, \"missing helper\"\nend\n")
+        overwrite_entry(load_error, "load_error_fixture", "module LoadErrorFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"load_error_fixture\" do\n    default_enabled true\n    disableable true\n    experimental false\n    requires_syrus nil\n  end\n  raise LoadError, \"missing helper\"\nend\n")
         overwrite_entry(syntax, "syntax_fixture", "module SyntaxFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"syntax_fixture\" do; end\n  def broken(\nend\n")
 
         expect { described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)).load! }
@@ -447,6 +455,10 @@ RSpec.describe Syrus::PluginLoader do
           module AtomicFixture
             extend Syrus::PluginApi
             syrus_plugin "atomic_fixture" do
+              default_enabled true
+              disableable true
+              experimental false
+              requires_syrus nil
               on_boot { raise "after registry write" }
             end
           end
@@ -478,6 +490,10 @@ RSpec.describe Syrus::PluginLoader do
           module AtomicFixture
             extend Syrus::PluginApi
             syrus_plugin "atomic_fixture" do
+              default_enabled true
+              disableable true
+              experimental false
+              requires_syrus nil
               provides callbacks: "AtomicFixture::Provider"
               route :get, "/atomic", to: "atomic#show"
               on_boot { raise "after registry write" }

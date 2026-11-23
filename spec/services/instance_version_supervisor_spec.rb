@@ -14,7 +14,7 @@ RSpec.describe InstanceVersionSupervisor do
 
   it "reports the active plugin versions and local load states in the existing heartbeat payload" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "weather", version: "1.2.3", provides: {})
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "weather", version: "1.2.3", provides: {})
     sp = InstanceVersion.create!(hostname: "syrus-web-plugins", role: "web", version: "abc",
       started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
 

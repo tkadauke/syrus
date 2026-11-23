@@ -16,7 +16,7 @@ RSpec.describe DomainEventJob do
   it "delivers the event to the named subscriber" do
     klass = subscriber
     stub_const("DeliveredSubscriber", klass)
-    Syrus::PluginRegistry.register(name: "delivery_plugin", version: "1.0.0", provides: { domain_subscriber: klass })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "delivery_plugin", version: "1.0.0", provides: { domain_subscriber: klass })
 
     described_class.perform_now("job.closed", { "job_id" => 5 }, "DeliveredSubscriber")
 
@@ -26,7 +26,7 @@ RSpec.describe DomainEventJob do
   it "drops the event when the plugin was disabled between publish and delivery" do
     klass = subscriber
     stub_const("DisabledSubscriber", klass)
-    Syrus::PluginRegistry.register(name: "delivery_plugin", version: "1.0.0", provides: { domain_subscriber: klass })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "delivery_plugin", version: "1.0.0", provides: { domain_subscriber: klass })
     PluginRecord.find_or_create_by!(name: "delivery_plugin").update!(enabled: false, disableable: true)
 
     expect { described_class.perform_now("job.closed", { "job_id" => 5 }, "DisabledSubscriber") }.not_to raise_error

@@ -4,6 +4,8 @@ module SyrusGithubSource
   extend Syrus::PluginApi
 
   syrus_plugin "github_source" do
+    experimental false
+    requires_syrus nil
     display_name "GitHub Source"
     description "Ingests GitHub issues and provides GitHub PR operations."
     long_description "GitHub Source is Syrus' built-in GitHub integration. It polls issues and pull requests, opens and updates PRs, reads check state, performs landing operations, and supplies the source-control primitives other workflows rely on.\n\nFor most Syrus installations this is the default path for issue-to-PR automation, so it is enabled out of the box. It can be disabled once nothing depends on it: the disable guard blocks the attempt while any input source or active repository still uses it. Future source plugins can follow the same extension points."

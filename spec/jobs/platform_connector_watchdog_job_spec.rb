@@ -37,7 +37,7 @@ RSpec.describe PlatformConnectorWatchdogJob do
 
   describe "#perform" do
     it "re-enqueues a missing configured plugin connector and logs a recovery warning" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -48,7 +48,7 @@ RSpec.describe PlatformConnectorWatchdogJob do
     end
 
     it "skips a connector that already has an unfinished job (no duplicate session, no log)" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -65,7 +65,7 @@ RSpec.describe PlatformConnectorWatchdogJob do
     end
 
     it "re-enqueues a connector whose unfinished job has a failed execution" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -83,7 +83,7 @@ RSpec.describe PlatformConnectorWatchdogJob do
     end
 
     it "does not enqueue and does not log when the plugin is disabled" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0", default_enabled: false,
         provides: { platform_delivery: discord_adapter_class }
       )
@@ -94,7 +94,7 @@ RSpec.describe PlatformConnectorWatchdogJob do
     end
 
     it "does not enqueue and does not log when the connector reports itself unconfigured" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: discord_adapter_class }
       )

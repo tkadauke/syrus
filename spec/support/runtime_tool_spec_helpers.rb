@@ -12,7 +12,7 @@ module RuntimeToolSpecHelpers
   # (see spec/services/runtime_session_providers_spec.rb for the same
   # pattern) -- no bundled plugin gem or real dev server/browser required.
   def register_stub_runtime_provider!
-    Syrus::PluginRegistry.register(:runtime_session_provider, stub_runtime_provider_class)
+    Syrus::PluginRegistry.register_direct(:runtime_session_provider, stub_runtime_provider_class)
   end
 
   def stub_runtime_provider_class

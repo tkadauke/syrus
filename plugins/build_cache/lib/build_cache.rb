@@ -4,6 +4,8 @@ module BuildCache
   extend Syrus::PluginApi
 
   syrus_plugin "build_cache" do
+    experimental false
+    requires_syrus nil
     display_name "Build Cache"
     description "Shared sccache compiler cache: forwards its credentials into step subprocesses, records hit/miss stats, and offers audited bucket clears."
     long_description "Build Cache wires the shared sccache compiler cache into the subprocesses workflow steps run, captures a hit/miss snapshot after each command, and gives operators an audited way to inspect and clear the bucket.\n\nIt is a no-op until SCCACHE_BUCKET is configured, which is a supported state: sccache falls back to a local per-worker cache on its own. Clearing the bucket is expensive for build times, so it requires an explicit reason and a separate confirmation step."

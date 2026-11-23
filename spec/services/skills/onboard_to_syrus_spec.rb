@@ -100,7 +100,7 @@ RSpec.describe Skills::OnboardToSyrus do
     # Gemfile-detection example below exercises production wiring.
     before do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
           family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
             family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare grade_candidates]

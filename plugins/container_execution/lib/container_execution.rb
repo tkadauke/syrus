@@ -2,6 +2,7 @@ module ContainerExecution
   extend Syrus::PluginApi
 
   syrus_plugin "container_execution" do
+    requires_syrus nil
     experimental true
     display_name "Container Execution"
     description "Runs configured grader commands inside a constrained container execution backend."

@@ -22,7 +22,7 @@ RSpec.describe RuntimeSessionProviders do
   end
 
   before do
-    Syrus::PluginRegistry.register(:runtime_session_provider, stub_provider)
+    Syrus::PluginRegistry.register_direct(:runtime_session_provider, stub_provider)
   end
 
   after { Syrus::PluginRegistry.reset! }

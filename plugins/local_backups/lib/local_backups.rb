@@ -2,6 +2,8 @@ module LocalBackups
   extend Syrus::PluginApi
 
   syrus_plugin "local_backups" do
+    experimental false
+    requires_syrus nil
     display_name "Local Backups"
     description "Creates and inventories sealed, portable recovery bundles on installation-local storage."
     long_description "Local Backups creates consistent SQLite or MySQL recovery bundles with streamed Active Storage objects, provides scheduled retention and validation, and offers audited downloads from an inventory reconstructed from sealed artifacts. Restore is delivered separately."

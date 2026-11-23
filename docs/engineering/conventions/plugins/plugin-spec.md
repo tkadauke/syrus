@@ -38,12 +38,15 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `optionally_depends_on` — Optional plugin names.
 - `prepare_priority` — Ordering priority for prepare contributions.
 - `provides` — Extension-point classes, or one family provider with implements/provisional capabilities and an optional key.
+- `requires_syrus` — Compatibility requirement, or nil when intentionally unbounded.
 - `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
 - `tick_interval` — Optional control-plane tick interval.
 - `version` — Plugin version; normally read from the gem.
 - `while_enabled` — Reversible installation effects active only while enabled.
+
+Every manifest must explicitly declare `default_enabled`, `disableable`, `experimental`, and `requires_syrus`. Use literal booleans for the first three and `requires_syrus nil` only when the plugin is intentionally unbounded. There are no compatibility defaults for older plugin manifests; omitting any release-posture field is an error.
 
 `frontend` declares the prebuilt browser entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
 
@@ -154,7 +157,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::PermissionProvider` (since 0.1.16) — Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported. Supported members: `migrate_permission_scope`, `register_authorization_adapter`, `register_capability`, `register_permission_preset`, `register_resource_scope`, `retire_permission_identifier`.
 - `Syrus::Host::PluginApi` (since 0.1.16) — Declares and installs plugin manifests; Definition internals are not promised. Only the listed members are supported. Supported members: `enabled?`, `register!`, `syrus_plugin`, `syrus_plugin_definition`.
 - `Syrus::Host::PluginInvocation` (since 0.1.16) — Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported. Supported members: `call`.
-- `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `capability_providers`, `extension_point?`, `providers_for`, `providers_with_owner_for`, `register`.
+- `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `capability_providers`, `extension_point?`, `providers_for`, `providers_with_owner_for`, `register`, `register_direct`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `capture`, `forwarded_env`, `mounts`, `new`, `run`, `start`.
 - `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`.
 - `Syrus::Host::Repository` (since 0.1.16) — Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised. Supported members: `accessible_to`, `active`, `archived_at`, `find`, `id`, `jobs`, `name`, `owner`, `writable_by`.
@@ -180,4 +183,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32407 bytes (UTF-8, including this line).
+Size: 32852 bytes (UTF-8, including this line).

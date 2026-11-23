@@ -43,6 +43,12 @@ minimum Syrus release required by the host APIs in use. Computed dynamic
 constant names cannot be detected. The tested release may be
 newer, but must not be older than that derived floor.
 
+Every plugin manifest must explicitly declare `default_enabled`, `disableable`,
+and `experimental` as booleans, plus `requires_syrus`. Use
+`requires_syrus nil` only when compatibility is intentionally unbounded. This
+is a breaking authoring contract: manifests that omit any of these four fields
+are rejected instead of receiving implicit defaults.
+
 ## Validate and test a plugin
 
 Plugin Ruby may use only public `Syrus::Host::*` APIs, the plugin DSL and

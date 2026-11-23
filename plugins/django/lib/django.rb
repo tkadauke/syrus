@@ -4,6 +4,9 @@ module Django
   extend Syrus::PluginApi
 
   syrus_plugin "django" do
+
+    disableable true
+    requires_syrus nil
     experimental true
     default_enabled false
     description "Django framework intelligence: preview hosting via manage.py runserver, " \

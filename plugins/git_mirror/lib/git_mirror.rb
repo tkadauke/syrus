@@ -2,6 +2,7 @@ module GitMirror
   extend Syrus::PluginApi
 
   syrus_plugin "git_mirror" do
+    requires_syrus nil
     experimental true
     display_name "Git Mirror"
     description "Keeps local mirrors of your git repositories so Syrus reads them without asking the host."

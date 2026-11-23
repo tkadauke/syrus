@@ -19,6 +19,7 @@ module Syrus
     #   end
     #
     #   Syrus::PluginRegistry.register(
+#     default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
     #     name: "my-plugin", version: "1.0.0",
     #     provides: { platform_delivery: MyPlugin::PlatformAdapter }
     #   )

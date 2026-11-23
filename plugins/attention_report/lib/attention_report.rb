@@ -2,6 +2,8 @@ module AttentionReport
   extend Syrus::PluginApi
 
   syrus_plugin "attention_report" do
+    experimental false
+    requires_syrus nil
     display_name "Attention Report"
     category "observability"
     author "Thomas Kadauke"

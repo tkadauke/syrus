@@ -4,6 +4,8 @@ module SyrusCodexAgent
   extend Syrus::PluginApi
 
   syrus_plugin "codex_agent" do
+    experimental false
+    requires_syrus nil
     display_name "Codex Agent"
     description "Runs workflow and chat turns through Codex."
     long_description "Codex Agent connects Syrus workflows and chats to Codex. It provides the provider adapter used for implementation, review, repair, coding handoff, and interactive chat sessions, while feeding provider availability and failure classification back into Syrus' admission and retry systems.\n\nEnable this plugin when a Syrus instance should offer Codex-backed automation. It is independent from the Claude plugin, so operators can run either provider or both."

@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe PluginRouteResolver do
   def register_plugin(name, routes)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name,
       version: "0.1.0",
       routes: routes,

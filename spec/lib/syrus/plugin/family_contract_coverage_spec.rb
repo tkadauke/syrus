@@ -21,7 +21,7 @@ RSpec.describe Syrus::Plugin::FamilyContractCoverage do
         family: :coverage_fixture, provider:, provisional: %i[items]
       )
     end
-    Syrus::Plugin::Manifest.new(
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name:, version: "1.0.0", provides: {}, family_provides: declarations, metadata: {}, plugin_root:
     )
   end

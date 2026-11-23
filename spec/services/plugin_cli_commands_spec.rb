@@ -14,7 +14,7 @@ RSpec.describe PluginCliCommands, :reset_plugin_registry do
   end
 
   def register(name, *paths)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name, version: "1.0.0",
       cli_commands: paths.map { |path| { path: path, summary: "Run #{path.join(' ')}", handler: "PluginCliFixture::Handler" } }
     )

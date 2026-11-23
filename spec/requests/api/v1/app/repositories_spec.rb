@@ -1112,7 +1112,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
           [ { id: "git_history.git_history", label: "Git History", path: "/repositories/#{repository.id}/plugin/git_history" } ]
         end
       end
-      Syrus::PluginRegistry.register(name: "tab-plugin", version: "0.1.0", provides: { repo_page_tab: provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tab-plugin", version: "0.1.0", provides: { repo_page_tab: provider })
     end
 
     it "includes a registered repo_page_tab provider's tabs for the repository owner" do

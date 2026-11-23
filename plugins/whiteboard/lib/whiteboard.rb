@@ -2,6 +2,8 @@ module Whiteboard
   extend Syrus::PluginApi
 
   syrus_plugin "whiteboard" do
+    experimental false
+    requires_syrus nil
     display_name "Whiteboard"
     description "Excalidraw-based chat whiteboard: workspace sidebar tab plus draw/move/delete/read/" \
       "save/clear/load MCP tools so agents and operators can sketch together on a shared " \

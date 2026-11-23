@@ -86,7 +86,7 @@ RSpec.describe Syrus::PluginRegistry do
       provider = Class.new
 
       expect {
-        described_class.register(name: "bad_review_provider", version: "1.0.0", provides: { post_implementation_review_provider: provider })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "bad_review_provider", version: "1.0.0", provides: { post_implementation_review_provider: provider })
       }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::PostImplementationReviewProvider/)
     end
 
@@ -94,7 +94,7 @@ RSpec.describe Syrus::PluginRegistry do
       provider = Class.new
 
       expect {
-        described_class.register(name: "bad_annotation_provider", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "bad_annotation_provider", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
       }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::DiffReviewAnnotationProvider/)
     end
   end
@@ -102,7 +102,7 @@ RSpec.describe Syrus::PluginRegistry do
   describe "Job visibility restriction validation" do
     it "requires providers to include the restriction interface" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_job_visibility",
           version: "1.0.0",
           provides: { job_visibility_restriction: Class.new }
@@ -117,7 +117,7 @@ RSpec.describe Syrus::PluginRegistry do
   describe "chat identity provider validation" do
     it "requires manifest providers to include the identity interface" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_chat_identity",
           version: "1.0.0",
           provides: { chat_identity_provider: Class.new }

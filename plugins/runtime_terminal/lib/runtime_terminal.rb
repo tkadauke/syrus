@@ -4,6 +4,7 @@ module RuntimeTerminal
   extend Syrus::PluginApi
 
   syrus_plugin "runtime_terminal" do
+    requires_syrus nil
     experimental true
     display_name "Runtime Terminal"
     description "Runtime Session adapter for Coding Mode CLI/TUI terminal sessions."

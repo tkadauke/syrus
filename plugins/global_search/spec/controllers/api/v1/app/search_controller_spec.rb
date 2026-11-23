@@ -35,7 +35,7 @@ RSpec.describe Api::V1::App::SearchController do
         def self.search_rows(query:, user:, limit:) = []
         def self.result_json(row:, user:) = { id: 1 }
       end
-      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
 
       expect(described_class.types.last).to eq("widget")
       expect(described_class.filter_subjects["widget"]).to eq(:job)
@@ -50,7 +50,7 @@ RSpec.describe Api::V1::App::SearchController do
         def self.search_rows(query:, user:, limit:) = []
         def self.result_json(row:, user:) = { id: 1 }
       end
-      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
       PluginRecord.find_or_create_by!(name: "search_plugin").update!(enabled: false, disableable: true)
 
       expect(described_class.types).not_to include("widget")
@@ -64,7 +64,7 @@ RSpec.describe Api::V1::App::SearchController do
         def self.search_rows(query:, user:, limit:) = []
         def self.result_json(row:, user:) = { id: 1 }
       end
-      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
       PluginRecord.find_or_create_by!(name: "global_search").update!(enabled: false, disableable: true)
 
       expect(described_class.types).not_to include("widget")

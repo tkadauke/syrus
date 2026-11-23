@@ -18,7 +18,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "returns registered plugins" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-plugin",
       version: "2.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
@@ -41,7 +41,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     declaration = Syrus::Plugin::FamilyDeclaration.build(
       family: :api_family, provider: "UnloadedApiPlugin::Provider", implements: %i[items]
     )
-    Syrus::PluginRegistry.register(name: "api-family-plugin", version: "1", family_provides: [ declaration ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-family-plugin", version: "1", family_provides: [ declaration ])
 
     get "/api/v1/admin/plugins", headers: auth
 
@@ -59,7 +59,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "falls back to the SPQR eagle icon when the manifest has no icon_url" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "api-iconless-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-iconless-plugin", version: "1.0.0")
 
     get "/api/v1/admin/plugins", headers: auth
 
@@ -70,14 +70,14 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "filters plugins by a full text search query" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-search-target-plugin",
       display_name: "Weather Radar",
       version: "1.0.0",
       description: "Watches storms roll in.",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-search-other-plugin",
       display_name: "Ticket Sync",
       version: "1.0.0",
@@ -93,7 +93,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "toggles installed plugins through the token admin API" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-toggle-plugin",
       version: "2.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
@@ -111,8 +111,8 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "cascades enabling a plugin's dependencies through the token admin API" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "api-ruby-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "api-rails-plugin", version: "1.0.0", depends_on: [ "api-ruby-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-ruby-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-rails-plugin", version: "1.0.0", depends_on: [ "api-ruby-plugin" ])
     PluginRecord.find_by!(name: "api-ruby-plugin").update!(enabled: false)
     PluginRecord.find_by!(name: "api-rails-plugin").update!(enabled: false)
 
@@ -126,8 +126,8 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "blocks experimental dependency cascades through the token admin API" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "api-experimental-dependency", version: "1.0.0", experimental: true, default_enabled: false)
-    Syrus::PluginRegistry.register(name: "api-stable-plugin", version: "1.0.0", default_enabled: false, depends_on: [ "api-experimental-dependency" ])
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "api-experimental-dependency", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(disableable: true, experimental: false, requires_syrus: nil, name: "api-stable-plugin", version: "1.0.0", default_enabled: false, depends_on: [ "api-experimental-dependency" ])
 
     post "/api/v1/admin/plugins/api-stable-plugin/enable", headers: auth
 
@@ -143,8 +143,8 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "warns instead of disabling when other enabled plugins depend on the target" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "api-ruby-dep-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "api-rails-dep-plugin", version: "1.0.0", depends_on: [ "api-ruby-dep-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-ruby-dep-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-rails-dep-plugin", version: "1.0.0", depends_on: [ "api-ruby-dep-plugin" ])
 
     post "/api/v1/admin/plugins/api-ruby-dep-plugin/disable", headers: auth
 
@@ -159,8 +159,8 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "cascades disabling a plugin's dependents once confirmed" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "api-ruby-confirm-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "api-rails-confirm-plugin", version: "1.0.0", depends_on: [ "api-ruby-confirm-plugin" ])
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-ruby-confirm-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "api-rails-confirm-plugin", version: "1.0.0", depends_on: [ "api-ruby-confirm-plugin" ])
 
     post "/api/v1/admin/plugins/api-ruby-confirm-plugin/disable",
          params: { confirm_cascade: true }, headers: auth
@@ -177,7 +177,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "rejects disabling a plugin through the token admin API while it is in use" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-used-plugin",
       version: "2.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
@@ -191,7 +191,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   end
 
   it "401s GET config without a token" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-config-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -206,7 +206,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "returns config_schema and current config via bearer token" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-schema-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider },
@@ -231,7 +231,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   it "persists non-secret config values via PATCH and ignores secret keys" do
     admin_token
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "api-writable-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider },

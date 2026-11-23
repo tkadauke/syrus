@@ -4,6 +4,7 @@ module SyrusAgyAgent
   extend Syrus::PluginApi
 
   syrus_plugin "agy_agent" do
+    requires_syrus nil
     experimental true
     display_name "Antigravity Agent"
     description "Runs workflow and chat turns through Antigravity."

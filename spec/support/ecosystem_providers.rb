@@ -18,7 +18,7 @@ module EcosystemProviderHelpers
     declaration = Syrus::Plugin::FamilyDeclaration.build(
       family: :ecosystem, provider: constant_name, key:, implements:, provisional:
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name.to_s, version: "1.0.0", family_provides: [ declaration ], **manifest
     )
     provider

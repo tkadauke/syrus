@@ -49,7 +49,7 @@ RSpec.describe RetentionSweepJob do
       def self.name = "BrokenRetentionSweepPlugin::Policy"
       def self.retention_definitions = raise("broken provider")
     end
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(experimental: false, requires_syrus: nil,
       name: "broken-retention-sweep-plugin",
       version: "1.0.0",
       default_enabled: true,

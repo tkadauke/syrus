@@ -126,7 +126,7 @@ RSpec.describe "App API unified search", type: :request do
       def self.search_rows(query:, user:, limit:) = raise("controls-only requests must not search")
       def self.result_json(row:, user:) = raise("controls-only requests must not serialize")
     end
-    Syrus::PluginRegistry.register(name: "controls_only_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "controls_only_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
 
     get "/api/v1/app/search", params: { query: "deploy", types: [ "controls_test" ], controls: "only" }
 
@@ -155,7 +155,7 @@ RSpec.describe "App API unified search", type: :request do
       end
       def self.result_json(row:, user:) = { id: row.fetch(:widget_id) }
     end
-    Syrus::PluginRegistry.register(name: "syntax_error_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "syntax_error_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
 
     get "/api/v1/app/search", params: { query: "deploy", types: [ "widget" ] }
 
@@ -609,7 +609,7 @@ RSpec.describe "App API unified search", type: :request do
       end
     end
     allow(provider).to receive(:chat_status_contributions).and_call_original
-    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
+    Syrus::PluginRegistry.register_direct(:chat_identity_provider, provider)
 
     get "/api/v1/app/search", params: { query: "badgeneedle", types: [ "chat" ] }
 

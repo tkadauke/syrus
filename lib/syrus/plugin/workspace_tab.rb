@@ -26,6 +26,7 @@ module Syrus
     #   end
     #
     #   Syrus::PluginRegistry.register(
+#     default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
     #     name: "my_plugin", version: "1.0.0",
     #     provides: { workspace_tab: MyPlugin::WorkspaceTabs }
     #   )

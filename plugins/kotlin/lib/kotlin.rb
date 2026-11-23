@@ -8,6 +8,9 @@ module Kotlin
   extend Syrus::PluginApi
 
   syrus_plugin "kotlin" do
+
+    disableable true
+    requires_syrus nil
     experimental true
     default_enabled false
     description "Kotlin/JVM intelligence: Kotlin source and Gradle Kotlin DSL detection, JVM prepare reuse, and Kotlin-aware review guidance"

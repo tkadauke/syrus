@@ -48,7 +48,7 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
         ]
       end
     end
-    Syrus::PluginRegistry.register(name: "page-plugin", version: "0.1.0", provides: { admin_page: page_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "page-plugin", version: "0.1.0", provides: { admin_page: page_provider })
 
     get "/api/v1/app/admin/plugin_pages"
 
@@ -133,7 +133,7 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
       include Syrus::Plugin::AdminPage
       def self.admin_pages = [ { id: "hidden", label: "Hidden", path: "/admin/hidden" } ]
     end
-    Syrus::PluginRegistry.register(name: "page-plugin", version: "0.1.0", provides: { admin_page: page_provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "page-plugin", version: "0.1.0", provides: { admin_page: page_provider })
     PluginRecord.find_by!(name: "page-plugin").update!(enabled: false)
 
     get "/api/v1/app/admin/plugin_pages"
