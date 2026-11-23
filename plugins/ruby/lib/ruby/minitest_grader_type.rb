@@ -67,7 +67,7 @@ module Ruby
       raw = config["phases"]
       phases =
         case raw
-        when nil then SyrusYml::DEFAULT_GRADE_PHASES
+        when nil then Syrus::Host::GraderDefaults.default_phases
         when String then [ raw ]
         else Array(raw)
         end
@@ -87,7 +87,7 @@ module Ruby
       minutes = Integer(raw)
       raise ArgumentError, "timeout_minutes must be positive" unless minutes.positive?
 
-      [ minutes, SyrusYml::MAX_GRADE_TIMEOUT_MINUTES ].min
+      [ minutes, Syrus::Host::GraderDefaults.max_timeout_minutes ].min
     rescue ArgumentError
       raise ArgumentError, "timeout_minutes must be a positive integer"
     end
@@ -160,7 +160,7 @@ module Ruby
     end
 
     def base_retry
-      SyrusYml::BaseRetry.new(strategy: "full_command", command: nil)
+      Syrus::Host::GraderBaseRetry.new(strategy: "full_command", command: nil)
     end
 
     def junit_output(mode, name)
@@ -326,7 +326,7 @@ module Ruby
     end
 
     def grade_step(name:, run:, phases:, mode:, junit_output:, when_files_changed: nil)
-      SyrusYml::GradeStep.new(
+      Syrus::Host::GraderStep.new(
         name: name,
         display_name: display_name_for(mode),
         run: run,
