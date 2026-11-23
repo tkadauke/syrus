@@ -9,6 +9,7 @@ module PersonalCalendar
       tier: :provisional, context: PersonalCalendar::Context, returns: Hash
   end
   syrus_plugin "personal_calendar" do
+    requires_syrus nil
     experimental true
     display_name "Personal Calendar"
     description "Provider-neutral, read-only calendar access through connected accounts."

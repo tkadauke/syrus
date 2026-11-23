@@ -5,6 +5,7 @@ module GoogleWorkspace
   MAIL_SCOPE = "mail.read".freeze
 
   syrus_plugin "google_workspace" do
+    requires_syrus nil
     experimental true
     display_name "Google Workspace"
     display_name_i18n_key "google_workspace:plugin.display_name"
