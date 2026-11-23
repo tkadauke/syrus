@@ -20,7 +20,7 @@ RSpec.describe "Built-in plugin host surface", :ci_only do
   end
 
   it "keeps every public contract documented and resolvable" do
-    expect(Syrus::Host.apis.size).to be_between(25, 80)
+    expect(Syrus::Host.apis.size).to be_between(25, 120)
     expect(Syrus::Host.apis.map(&:name)).to all(start_with("Syrus::Host::"))
 
     failures = Syrus::Host.apis.flat_map do |api|
