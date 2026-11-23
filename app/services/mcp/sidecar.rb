@@ -168,12 +168,16 @@ module Mcp
       end
     end
 
+    # Each tool-exposure policy contributes one definition predicate. A policy
+    # without an entry (including nil) exposes every definition.
+    DEFINITION_POLICY_FILTERS = {
+      evaluator: ->(defn) { defn[:evaluator] || defn["evaluator"] },
+      coworker: ->(defn) { Mcp::CoworkerToolExposure.plugin_definition?(defn) }
+    }.freeze
+
     def self.filter_by_policy(definitions, policy)
-      case policy
-      when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
-      when :coworker   then definitions.select { |defn| Mcp::CoworkerToolExposure.plugin_definition?(defn) }
-      else definitions
-      end
+      predicate = DEFINITION_POLICY_FILTERS[policy]
+      predicate ? definitions.select(&predicate) : definitions
     end
 
     def self.plugin_tools_for(chat_session, tier:, policy: nil, agent_actor: nil)
