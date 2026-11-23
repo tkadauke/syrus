@@ -46,12 +46,12 @@ RSpec.describe WorkflowPatch do
     implement_step = workflow.steps.find_by!(kind: "implement")
     original_continuation = implement_step.next_step
 
-    result = patch(nodes: [ "adversarial_review", "visual_review" ], after_kind: "implement")
+    result = patch(nodes: [ "adversarial_review", "security_review" ], after_kind: "implement")
 
     expect(result).to be_applied
     inserted_positions = implement_step.reload.position + 1..implement_step.position + 2
     inserted = workflow.steps.where(position: inserted_positions).order(:position).to_a
-    expect(inserted.map(&:kind)).to eq(%w[adversarial_review visual_review])
+    expect(inserted.map(&:kind)).to eq(%w[adversarial_review security_review])
     expect(implement_step.reload.next_step).to eq(inserted.first)
     expect(inserted.first.next_step).to eq(inserted.second)
     expect(inserted.second.next_step).to eq(original_continuation)

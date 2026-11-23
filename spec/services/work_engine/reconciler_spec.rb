@@ -5547,7 +5547,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     create = lambda do |kind, position, state, details = {}|
       workflow.steps.create!(kind: kind, position: position, state: state, details: details, created_at: 3.hours.ago)
     end
-    review = create.call("visual_review", 0, "succeeded")
+    review = create.call("adversarial_review", 0, "succeeded")
     review.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded",
       started_at: 2.hours.ago, finished_at: 2.hours.ago)
     repair = create.call("implement", 1, "cancelled", {
@@ -5556,7 +5556,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     })
     repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "cancelled",
       started_at: 2.hours.ago, finished_at: 2.hours.ago)
-    next_review = create.call("visual_review", 2, "queued")
+    next_review = create.call("adversarial_review", 2, "queued")
     [ review, repair, next_review ].each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
 
     result = reconcile_and_execute(workflow_id: workflow.id)
@@ -7922,7 +7922,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "recovers from a retryable failure hidden by a terminal-cleanup-cancelled replacement Run" do
     failed_at = 5.minutes.ago
-    step.update_columns(kind: "visual_review", state: "failed", finished_at: failed_at)
+    step.update_columns(kind: "adversarial_review", state: "failed", finished_at: failed_at)
     workflow.update_columns(state: "failed", finished_at: 3.minutes.ago, cleaned_up_at: nil)
     job.update_columns(state: "failed")
     run.update_columns(
@@ -7972,7 +7972,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "keeps a deliberate replacement cancellation authoritative over an older retryable failure" do
-    step.update_columns(kind: "visual_review", state: "failed", finished_at: 5.minutes.ago)
+    step.update_columns(kind: "adversarial_review", state: "failed", finished_at: 5.minutes.ago)
     workflow.update_columns(state: "failed", finished_at: 3.minutes.ago)
     run.update_columns(state: "failed", agent_outcome: "turn_failed", finished_at: 5.minutes.ago, created_at: 5.minutes.ago)
     RunFailureClassification.create!(
