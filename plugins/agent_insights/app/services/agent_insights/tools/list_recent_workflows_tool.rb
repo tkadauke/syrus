@@ -35,7 +35,7 @@ module AgentInsights
         MAX_LIMIT = 50
 
         def call(server_context:, since: nil, limit: nil, page: nil)
-          context_run = Mcp::Tools.run_from_context(server_context)
+          context_run = Syrus::Host::McpTools.run_from_context(server_context)
           repository = context_run.job.repository
           cutoff = parse_since(since) || default_cutoff(context_run)
           per_page = normalized_limit(limit)
@@ -72,7 +72,7 @@ module AgentInsights
             }
           ])
         rescue ArgumentError => e
-          Mcp::Tools.invalid(e.message)
+          Syrus::Host::McpTools.invalid(e.message)
         rescue StandardError => e
           Rails.logger.error("[AgentInsights::ListRecentWorkflowsTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)

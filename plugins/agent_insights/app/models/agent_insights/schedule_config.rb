@@ -1,5 +1,5 @@
 module AgentInsights
-  class ScheduleConfig < ApplicationRecord
+  class ScheduleConfig < Syrus::Host::Record
     self.table_name = "agent_insight_schedule_configs"
 
     belongs_to :repository
