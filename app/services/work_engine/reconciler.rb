@@ -1072,6 +1072,7 @@ module WorkEngine
         # agreement, formal/SyrusModel/Agreement.lean `Actionable`).
         next if workflow.work_unit&.deliberate_wait?
         next if grader_admission_holding?(workflow, step)
+        next if retry_backoff_pending?(step)
 
         previous = step.previous_step
         dependencies = step.depends_on_steps
@@ -1106,6 +1107,18 @@ module WorkEngine
     # that were progressing. A deferral whose last decision has gone stale
     # means the recheck chain stopped, and the reconciler is the net again.
     GRADER_ADMISSION_STALE_AFTER = 5.minutes
+
+    # A Step reopened after a transient provider error waits out a backoff
+    # before its rerun (StepDispatcher#retry_step_after_provider_backoff!);
+    # resuming it early would only rerun into the same outage.
+    def retry_backoff_pending?(step)
+      value = step.details.to_h[StepDispatcher::RETRY_NOT_BEFORE_DETAIL]
+      return false if value.blank?
+
+      Time.zone.parse(value.to_s)&.future? || false
+    rescue ArgumentError
+      false
+    end
 
     def grader_admission_holding?(workflow, step)
       return false unless step.kind.in?(%w[grader preflight_grader])

@@ -2426,6 +2426,23 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(reconcile(job_id: held_job.id).issues.map(&:kind)).to include("queued_step_without_run")
   end
 
+  # A Step reopened after a transient provider error waits out its backoff;
+  # resuming it early would rerun it into the same outage.
+  it "does not flag a step waiting out a provider retry backoff until the backoff passes" do
+    held_job = Factories.job_record(state: "running")
+    held = WorkUnits::Launcher.instantiate(kind: "initial", job: held_job)
+    held.update_columns(state: "running", started_at: 2.hours.ago)
+    first, second = held.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago,
+                          details: second.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => 2.minutes.from_now.iso8601))
+
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).not_to include("queued_step_without_run")
+
+    second.update_columns(details: second.details.to_h.merge(StepDispatcher::RETRY_NOT_BEFORE_DETAIL => 1.minute.ago.iso8601))
+    expect(reconcile(job_id: held_job.id).issues.map(&:kind)).to include("queued_step_without_run")
+  end
+
   # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
   # Job lock (materialize_behind_active_lock?) and wait their turn. That is two
   # active Workflows by design; the newer one is waiting, not superseding.

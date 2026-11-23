@@ -1538,9 +1538,39 @@ class StepDispatcher
     return false unless retryable_infrastructure_failure?(step)
     return false if step.runs.count > INFRASTRUCTURE_STEP_RETRY_LIMIT
 
+    if (delay = provider_transient_retry_delay(step))
+      return retry_step_after_provider_backoff!(step, delay)
+    end
+
     step.reopen!
     step.save!
     self.class.create_run_and_enqueue(step, @workflow)
+    true
+  end
+
+  # A provider error that is transient usually means an outage, and an outage
+  # outlives an immediate rerun: a main-branch repair's implement step burned
+  # all three attempts inside a four-minute burst of provider server errors,
+  # failing the workflow right after a completed preflight. Wait before each
+  # rerun instead, and say when, so the reconciler does not start it early.
+  PROVIDER_TRANSIENT_RETRY_DELAYS = [ 1.minute, 3.minutes ].freeze
+  RETRY_NOT_BEFORE_DETAIL = "retry_not_before".freeze
+
+  def provider_transient_retry_delay(step)
+    classification = step.runs.reorder(id: :desc).first&.run_failure_classification&.classification
+    return nil unless classification == "provider_transient"
+
+    PROVIDER_TRANSIENT_RETRY_DELAYS[step.runs.count - 1] || PROVIDER_TRANSIENT_RETRY_DELAYS.last
+  end
+
+  def retry_step_after_provider_backoff!(step, delay)
+    not_before = Time.current + delay
+    step.reopen!
+    step.details = step.details.to_h.merge(RETRY_NOT_BEFORE_DETAIL => not_before.iso8601)
+    step.save!
+    WorkflowPhaseAdmissionJob.enqueue_once(
+      @workflow.id, step.id, wait_until: not_before, priority: @workflow.solid_queue_priority, force: true
+    )
     true
   end
 
