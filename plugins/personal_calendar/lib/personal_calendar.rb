@@ -11,6 +11,7 @@ module PersonalCalendar
   syrus_plugin "personal_calendar" do
     experimental true
     requires_syrus nil
+    icon_url "/plugin-icons/personal_calendar.svg"
     display_name "Personal Calendar"
     description "Provider-neutral, read-only calendar access through connected accounts."
     category "tooling"

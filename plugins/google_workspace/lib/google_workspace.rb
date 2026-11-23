@@ -7,6 +7,7 @@ module GoogleWorkspace
   syrus_plugin "google_workspace" do
     experimental true
     requires_syrus nil
+    icon_url "/plugin-icons/google_workspace.svg"
     display_name "Google Workspace"
     display_name_i18n_key "google_workspace:plugin.display_name"
     description "Read Gmail and Google Calendar through a connected Google account."
