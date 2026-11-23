@@ -13,6 +13,7 @@ module PersonalCalendar
     experimental true
     display_name "Personal Calendar"
     description "Provider-neutral, read-only calendar access through connected accounts."
+    icon_url "/plugin-icons/personal_calendar.svg"
     category "tooling"
     author "Thomas Kadauke"
     default_enabled false

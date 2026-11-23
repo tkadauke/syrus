@@ -1,0 +1,9 @@
+project:
+  id: google_workspace
+  label: "google_workspace plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

@@ -51,6 +51,38 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
 | `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |
 
+## `mail`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `read_message` | `keyed` | `:configuration_error` | `nil` | `provisional` | `SyrusMail::Context` | `Hash` |
+| `search` | `keyed` | `:configuration_error` | `nil` | `provisional` | `SyrusMail::Context` | `Hash` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `google_workspace` | `GoogleWorkspace::MailAdapter` | `google_workspace` | - | `search`, `read_message` |
+| `mail` | `SyrusMail::FakeAdapter` | `fake` | - | `search`, `read_message` |
+
+## `personal_calendar`
+
+Shape: `service`. Required core: `key`, `display_name`, `available_for?`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `get_event` | `keyed` | `:configuration_error` | `nil` | `provisional` | `PersonalCalendar::Context` | `Hash` |
+| `list_events` | `keyed` | `:configuration_error` | `nil` | `provisional` | `PersonalCalendar::Context` | `Hash` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `google_workspace` | `GoogleWorkspace::CalendarAdapter` | `google_workspace` | - | `list_events`, `get_event` |
+| `personal_calendar` | `PersonalCalendar::FakeAdapter` | `fake` | - | `list_events`, `get_event` |
+
 ## `review`
 
 Shape: `facet`. Required core: `key`, `display_name`.
