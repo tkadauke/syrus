@@ -4,7 +4,7 @@ module K8sCluster
 
     def self.sidebar_pages
       return [] unless K8sCluster.enabled?
-      return [] unless Current.user&.admin?
+      return [] unless Syrus::Host::Current.user&.admin?
 
       [
         {

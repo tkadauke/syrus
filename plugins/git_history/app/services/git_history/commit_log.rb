@@ -22,7 +22,7 @@ module GitHistory
 
     def initialize(repository:, git: nil)
       @repository = repository
-      @git = git || GitRunner.new
+      @git = git || Syrus::Host::GitRunner.new
     end
 
     def available?
@@ -52,7 +52,7 @@ module GitHistory
       end
 
       Page.new(entries: visible_entries, has_more: entries.size > limit, next_cursor: next_cursor)
-    rescue GitRunner::GitError
+    rescue Syrus::Host::GitRunner::GitError
       Page.new(entries: [], has_more: false)
     end
 

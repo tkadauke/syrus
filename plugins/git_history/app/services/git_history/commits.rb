@@ -2,7 +2,7 @@ module GitHistory
   # Top-level facade the controller calls: pages through the web pod's
   # RelayClient (proxying to a worker pod's RelayServer/CommitLog) and
   # attributes each entry via CommitAttributor, which stays local since it
-  # needs DB/Current.user access the relay doesn't have.
+  # needs DB/Syrus::Host::Current.user access the relay doesn't have.
   class Commits
     DEFAULT_LIMIT = 30
     MAX_LIMIT = 100

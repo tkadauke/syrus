@@ -119,7 +119,7 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+            Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: Syrus::Host::Current.user)
           end
 
           # Cluster-scoped kinds (Namespace, Node): `name` alone selects

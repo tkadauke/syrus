@@ -8,7 +8,7 @@ module LocalBackups
     DumpFailed = Class.new(StandardError)
 
     def initialize(connection: ActiveRecord::Base.connection, config: ActiveRecord::Base.connection_db_config.configuration_hash,
-      runner: ProcessRunner, executable: "mysqldump")
+      runner: Syrus::Host::ProcessRunner, executable: "mysqldump")
       @connection = connection
       @config = config.symbolize_keys
       @runner = runner
@@ -66,13 +66,13 @@ module LocalBackups
 
     def run_dump(raw)
       @runner.new(env: dump_environment, command: dump_command(raw), display_command: redacted_command(raw),
-        mounts: ProcessRunner.mounts(raw.dirname), network: "prepare", timeout: 2.hours,
+        mounts: Syrus::Host::ProcessRunner.mounts(raw.dirname), network: "prepare", timeout: 2.hours,
         kind: "backup_database_snapshot").run
     end
 
     def capture_client_version(directory)
       capture = @runner.new(env: {}, command: [@executable, "--version"],
-        mounts: ProcessRunner.mounts(directory), network: "grader", timeout: 30,
+        mounts: Syrus::Host::ProcessRunner.mounts(directory), network: "grader", timeout: 30,
         kind: "backup_database_probe").capture(stdout_limit: 4096, stderr_limit: 4096)
       raise DumpFailed, "mysqldump is unavailable" unless capture.success?
 
