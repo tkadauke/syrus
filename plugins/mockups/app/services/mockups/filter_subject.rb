@@ -10,6 +10,5 @@ module Mockups
       "created_at" => "Filters::Chips::CreatedAt",
       "updated_at" => "Filters::Chips::UpdatedAt"
     }.freeze
-
   end
 end
