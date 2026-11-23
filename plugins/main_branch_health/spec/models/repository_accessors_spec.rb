@@ -20,6 +20,25 @@ RSpec.describe MainBranchHealth::RepositoryAccessors do
     expect(repository.reload).to have_attributes(ci_health: "broken", last_health_checked_sha: "abc123")
   end
 
+  it "preserves assigned health state when creation skips validation" do
+    repository = Repository.new(
+      user: Factories.user,
+      owner: "acme",
+      name: "validation-bypass",
+      main_branch_health_enabled: true,
+      ci_health: "broken",
+      last_health_checked_sha: "bypass123"
+    )
+
+    repository.save!(validate: false)
+
+    expect(MainBranchHealth::RepositoryState.find_by!(repository_id: repository.id)).to have_attributes(
+      main_branch_health_enabled: true,
+      ci_health: "broken",
+      last_health_checked_sha: "bypass123"
+    )
+  end
+
   it "supports low-level state writes used by polling and workflow services" do
     repository = Factories.repository
 

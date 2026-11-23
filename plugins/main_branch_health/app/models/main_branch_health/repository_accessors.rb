@@ -100,7 +100,7 @@ module MainBranchHealth
       return if names.empty?
 
       state = MainBranchHealth::RepositoryState.find_or_initialize_by(repository_id: id)
-      state.assign_attributes(names.index_with { |name| public_send(name) })
+      state.assign_attributes(names.index_with { |name| self[name] })
       state.save!
       clear_attribute_changes(names)
     end
