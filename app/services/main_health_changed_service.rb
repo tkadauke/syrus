@@ -74,6 +74,10 @@ class MainHealthChangedService
       workflow = job.latest_workflow
       next unless workflow&.trigger_kind == "main_branch_repair" && (workflow.running? || workflow.queued?)
       next if repair_implementation_started?(workflow)
+      # A repair whose own preflight found main healthy is how main became
+      # healthy here; it closes itself as preflight_passed, and superseding
+      # it first would erase that verdict.
+      next if workflow.artifact("preflight_passed") || workflow.artifact("preflight_inconclusive")
 
       yield job, workflow
     end
