@@ -1,9 +1,9 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
-import i18n from "../../../i18n"
-import { MediaPreviewShell } from "../mediaPreviewShell"
-import { MarkdownPreview } from "../toolCardMarkdown"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
-import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
+import i18n from "@app/i18n"
+import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
+import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "@app/routes/chat/pendingActionToolCard"
+import { displayValue, EmptyState, EntityReference, Row } from "@app/routes/chat/toolCardUi"
 
 type ReviewMedia = { key: string; src: string; title: string; detail: string | null }
 

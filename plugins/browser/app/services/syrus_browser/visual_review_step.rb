@@ -1,6 +1,6 @@
-module Steps
-  class VisualReview < Base
-    include ReviewExecutionPolicy
+module SyrusBrowser
+  class VisualReviewStep < Steps::Base
+    include Syrus::Host::ReviewExecutionPolicy
 
     def call
       workspace.setup
@@ -54,7 +54,7 @@ module Steps
 
         record_blocked_evidence_warning!(review_iterations.last)
 
-        VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
+        Syrus::Host::VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
       ensure
         begin
           discard_reviewer_workspace_changes
@@ -67,7 +67,7 @@ module Steps
     private
 
     def record_blocked_evidence_warning!(iteration)
-      reason = iteration["blocked_evidence_reason"].presence || VisualReviewEvidenceGuard.blocked_evidence_reason(
+      reason = iteration["blocked_evidence_reason"].presence || Syrus::Host::VisualReviewEvidenceGuard.blocked_evidence_reason(
         job: job,
         artifacts: Array(iteration["artifacts"]),
         verdict: iteration["verdict"],
@@ -103,7 +103,7 @@ module Steps
       preparations = visual_review_projects.to_a.map do |project|
         project_id = project["id"] || project[:id]
         log("[visual_review] preparing preview project #{project_id}")
-        PreviewPreparation.new(
+        Syrus::Host::PreviewPreparation.new(
           workspace.path,
           project_id: project_id,
           run: run,
@@ -114,7 +114,7 @@ module Steps
       end
       workflow.set_artifact!("visual_review_preview_preparations", preparations)
       true
-    rescue PreviewPreparation::Error => e
+    rescue Syrus::Host::PreviewPreparation::Error => e
       failure = e.details.merge(
         "run_id" => run.id,
         "step_id" => step.id,
@@ -144,7 +144,7 @@ module Steps
     end
 
     def reviewer_prompt
-      Prompts::VisualReview.new(
+      SyrusBrowser::Prompts::VisualReview.new(
         issue: review_issue,
         diff: review_diff,
         prior_findings: review_iterations,
@@ -178,14 +178,14 @@ module Steps
     end
 
     def visual_review_projects
-      @visual_review_projects ||= App::VisualReviewProjects.call(
+      @visual_review_projects ||= Syrus::Host::VisualReviewProjects.call(
         workspace_path: workspace.path,
         changed_files: changed_files
       )
     end
 
     def visual_review_runtime_targets
-      @visual_review_runtime_targets ||= App::VisualReviewRuntimeTargets.call(
+      @visual_review_runtime_targets ||= Syrus::Host::VisualReviewRuntimeTargets.call(
         workspace_path: workspace.path,
         changed_files: changed_files,
         preview_projects: visual_review_projects
@@ -195,7 +195,7 @@ module Steps
     def start_runtime_sessions!
       @runtime_session_lifecycles = []
       visual_review_runtime_targets.reject(&:legacy_browser).each do |target|
-        lifecycle = VisualReviewRuntimeSession.new(run: run, target: target)
+        lifecycle = Syrus::Host::VisualReviewRuntimeSession.new(run: run, target: target)
         @runtime_session_lifecycles << lifecycle
         lifecycle.start!
       end
@@ -239,13 +239,13 @@ module Steps
     end
 
     def changed_files_match?(patterns)
-      changed_files.any? { |file| RepositoryContent::Glob.match?(patterns, file) }
+      changed_files.any? { |file| Syrus::Host::RepositoryGlob.match?(patterns, file) }
     end
 
     def configured_when_files_changed
       @configured_when_files_changed ||= [
         *Array(visual_review_config&.when_files_changed),
-        *App::VisualReviewProjects.configured_when_files_changed(workspace_path: workspace.path)
+        *Syrus::Host::VisualReviewProjects.configured_when_files_changed(workspace_path: workspace.path)
       ].compact_blank.uniq
     end
 
@@ -300,7 +300,7 @@ module Steps
         "verdict" => "skipped"
       }
       workflow.set_artifact!("visual_review_iterations", iterations)
-      ReviewFindingEvents.record(
+      Syrus::Host::ReviewFindingEvents.record(
         workflow: workflow,
         step: step,
         run: run,
@@ -382,7 +382,7 @@ module Steps
     end
 
     def feedback_context_text
-      Workflow::FeedbackKind.for(workflow)&.review_text
+      Syrus::Host::FeedbackKind.for(workflow)&.review_text
     end
 
     def review_iterations

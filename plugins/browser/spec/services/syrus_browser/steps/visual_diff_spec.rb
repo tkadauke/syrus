@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Steps::VisualDiff do
+RSpec.describe SyrusBrowser::VisualDiffStep do
   def visual_diff_run_for(job, artifacts:)
     workflow = Workflow.create!(
       job: job,

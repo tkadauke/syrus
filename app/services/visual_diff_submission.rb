@@ -75,7 +75,7 @@ class VisualDiffSubmission
     end
 
     return failure("Before/after comparison can only be run on implemented, approved, or landing Jobs with no active run.") unless runnable?
-    return failure("Visual review is not configured for this repository.") unless RepoVisualReviewPlan.for_job(job).enabled?
+    return failure("Visual review is not configured for this repository.") unless visual_review_configured?(job)
     return failure("No visual review screenshots are available to compare.") if raw_after_artifacts.empty?
     if reject_invalid_after_artifacts && after_artifact_validation.accepted_artifacts.empty?
       reasons = after_artifact_validation.rejected_artifacts.filter_map { |artifact| artifact["rejected_reason"] }.join(" ")
@@ -93,6 +93,11 @@ class VisualDiffSubmission
       before_start: ->(workflow) { workflow.update!(priority: "low") }
     )
     Result.new(workflow: result.workflow, run: result.run, error: nil)
+  end
+
+  def self.visual_review_configured?(job)
+    Workflows::CompositionAnchors.judges(job:, trigger_kind: "initial", agent_step: "implement")
+      .any? { |loop| loop.steps.last == "visual_review" }
   end
 
   def self.cancel_obsolete_automatic_work!(jobs)

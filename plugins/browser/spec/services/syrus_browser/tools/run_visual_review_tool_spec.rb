@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::RunVisualReviewTool do
+RSpec.describe SyrusBrowser::Tools::RunVisualReviewTool do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
@@ -30,8 +30,8 @@ RSpec.describe Mcp::Tools::RunVisualReviewTool do
   end
 
   def stub_visual_review_plan(enabled:)
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
     )
   end
 
