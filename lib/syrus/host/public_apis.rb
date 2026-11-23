@@ -50,7 +50,18 @@ module Syrus
         EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
         EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan",
-        Toolkit: "Syrus::Plugin::Toolkit"
+        Toolkit: "Syrus::Plugin::Toolkit",
+        GraderStep: "SyrusYml::GradeStep",
+        GraderBaseRetry: "SyrusYml::BaseRetry",
+        GraderDefaults: "Syrus::Plugin::Ecosystem::GraderDefaults",
+        GraderResourceRequest: "GraderResourceRequest",
+        GraderExecutionCapabilities: "TargetGraph::ExecutionCapabilities",
+        TestRunResult: "JunitXmlParser::ParsedRun",
+        TestCaseResult: "JunitXmlParser::ParsedCase",
+        CoverageParseResult: "CoverageAnalysis::Parsers::Base::ParseResult",
+        WorkflowWorkspace: "WorkflowWorkspace",
+        GitRunner: "GitRunner",
+        CapabilityDescriptor: "Permissions::CapabilityDescriptorAdapter"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -73,7 +84,7 @@ module Syrus
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],
         Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many] ],
         BackgroundJob: [ "Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised.", %w[queue_as operational_log_context] ],
-        McpTools: [ "Provides database-connection and MCP response helpers; core tool implementations are not promised.", %w[with_database_connection success invalid] ],
+        McpTools: [ "Provides database-connection and MCP response helpers; core tool implementations are not promised.", %w[with_database_connection success invalid run_from_context] ],
         AdminController: [ "Bases admin-token plugin API controllers; core filters and implementation details are not promised.", %w[params render] ],
         AppController: [ "Bases authenticated plugin application API controllers; core filters are not promised.", %w[params render] ],
         AppAdminController: [ "Bases authenticated plugin admin API controllers; core filters are not promised.", %w[params render] ],
@@ -87,7 +98,18 @@ module Syrus
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
         EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ],
-        Toolkit: [ "Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition.", %w[chat_tool_sets chat_tool_set_for] ]
+        Toolkit: [ "Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition.", %w[chat_tool_sets chat_tool_set_for] ],
+        GraderStep: [ "Describes one grader step an ecosystem grader-type provider returns; configuration parsing and plan expansion are not promised.", %w[new name display_name run ci phases description required timeout_minutes when_files_changed junit_output failures base_retry deps metadata capabilities resources] ],
+        GraderBaseRetry: [ "Names how a grader reruns against the base branch (strategy and optional command); retry orchestration is not promised.", %w[new strategy command] ],
+        GraderDefaults: [ "Supplies the default grading phases and the grader timeout ceiling that ecosystem grader types share; the values may change between releases.", %w[default_phases max_timeout_minutes] ],
+        GraderResourceRequest: [ "Declares the CPU and memory a grader can productively use; grant resolution against the host is not promised.", %w[new parse cpu cpu_min memory_bytes empty?] ],
+        GraderExecutionCapabilities: [ "Normalizes the execution capabilities (os, arch, toolchain, runtime) a grader target requires; worker routing is not promised.", %w[new to_h] ],
+        TestRunResult: [ "Carries one parsed test-suite run returned by a test-result parser; the XML parser that produces it is not promised.", %w[new] ],
+        TestCaseResult: [ "Carries one parsed test case inside a TestRunResult; the XML parser that produces it is not promised.", %w[new] ],
+        CoverageParseResult: [ "Carries a parsed coverage report (raw data and line percentage) returned by a coverage analyzer; the report parsers are not promised.", %w[new raw lines_pct] ],
+        WorkflowWorkspace: [ "Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised.", %w[new path_for base_ref] ],
+        GitRunner: [ "Runs git inside a workflow workspace and reports failures as GitError; command construction and logging are not promised.", %w[new run GitError] ],
+        CapabilityDescriptor: [ "Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised.", %w[for_plugin_definition] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

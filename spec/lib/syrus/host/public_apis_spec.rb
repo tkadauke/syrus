@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(44)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(44)
+    expect(Syrus::Host.apis.size).to eq(55)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(55)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -23,6 +23,28 @@ RSpec.describe Syrus::Host::PublicApis do
     expect(Syrus::Host::ExternalReviewer).to equal(Syrus::Plugin::ExternalReviewer)
     expect(Syrus::Host::ExternalReviewContext).to equal(Syrus::Plugin::ExternalReviewContext)
     expect(Syrus::Host::Toolkit).to equal(Syrus::Plugin::Toolkit)
+  end
+
+  it "aliases the ecosystem grader and workspace facades onto their core values" do
+    {
+      PluginApi: Syrus::PluginApi, GraderStep: SyrusYml::GradeStep, GraderBaseRetry: SyrusYml::BaseRetry,
+      GraderResourceRequest: GraderResourceRequest, GraderExecutionCapabilities: TargetGraph::ExecutionCapabilities,
+      TestRunResult: JunitXmlParser::ParsedRun, TestCaseResult: JunitXmlParser::ParsedCase,
+      CoverageParseResult: CoverageAnalysis::Parsers::Base::ParseResult, WorkflowWorkspace: WorkflowWorkspace,
+      GitRunner: GitRunner, CapabilityDescriptor: Permissions::CapabilityDescriptorAdapter
+    }.each { |name, core| expect(Syrus::Host.const_get(name)).to equal(core), name.to_s }
+  end
+
+  it "exposes the shared grader defaults without the SyrusYml constants" do
+    expect(Syrus::Host::GraderDefaults.default_phases).to equal(SyrusYml::DEFAULT_GRADE_PHASES)
+    expect(Syrus::Host::GraderDefaults.max_timeout_minutes).to eq(SyrusYml::MAX_GRADE_TIMEOUT_MINUTES)
+  end
+
+  it "declares contracts for every promoted ecosystem facade" do
+    names = %w[GraderStep GraderBaseRetry GraderDefaults GraderResourceRequest GraderExecutionCapabilities
+               TestRunResult TestCaseResult CoverageParseResult WorkflowWorkspace GitRunner CapabilityDescriptor]
+    names.each { |name| expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name }
+    expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::McpTools" }.members).to include("run_from_context")
   end
 
   it "queues chat title generation without exposing the job to plugins" do

@@ -26,7 +26,7 @@ module SyrusRails
   # Direct (instance rather than class) registration of the preview provider,
   # kept because it is a different registration path from the manifest's.
   def self.register!
-    Syrus::PluginRegistry.register(:preview_provider, PreviewProvider.new)
+    Syrus::Host::PluginRegistry.register(:preview_provider, PreviewProvider.new)
   end
 
   syrus_plugin "syrus-rails" do

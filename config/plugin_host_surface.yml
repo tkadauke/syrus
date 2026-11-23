@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 470
+legacy_baseline: 459
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -102,7 +102,6 @@ constants:
 - name: ClaudeTranscript::Event
 - name: CodexAccountScope
 - name: CommandRedactor
-- name: CoverageAnalysis::Parsers::Base::ParseResult
 - name: CredentialProbe
 - name: CredentialProbe::Result
 - name: CredentialProbe::TIMEOUT_SECONDS
@@ -156,8 +155,6 @@ constants:
 - name: GithubAuthenticatedGit
 - name: GithubClient
 - name: GithubIssueJobAttributes
-- name: GraderResourceRequest
-- name: GraderResourceRequest::ALL
 - name: Handle
 - name: Handle::FORMAT
 - name: HandleRegistry
@@ -186,8 +183,6 @@ constants:
 - name: Jobs::Filter
 - name: JunitXmlParser
 - name: JunitXmlParser::ParseError
-- name: JunitXmlParser::ParsedCase
-- name: JunitXmlParser::ParsedRun
 - name: KubernetesCluster
 - name: LandedCommit
 - name: LandingFailureHandler
@@ -422,19 +417,13 @@ constants:
 - name: Syrus::PluginApi
 - name: Syrus::PluginRegistry
 - name: Syrus::PluginSettings
-- name: SyrusMcp
 - name: SyrusMcp::TypedArtifactProvenance
 - name: SyrusSearchDatabaseTasks
 - name: SyrusVersion
 - name: SyrusYml
-- name: SyrusYml::BaseRetry
 - name: SyrusYml::CONFIG_FILE
-- name: SyrusYml::DEFAULT_GRADE_PHASES
-- name: SyrusYml::GradeStep
-- name: SyrusYml::MAX_GRADE_TIMEOUT_MINUTES
 - name: SyrusYml::ParseError
 - name: SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV
-- name: TargetGraph::ExecutionCapabilities
 - name: Team
 - name: TeamMembership
 - name: TeamRepository

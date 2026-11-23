@@ -142,6 +142,16 @@ Supported members:
 - `on_shutdown`
 - `on_tick`
 
+### `Syrus::Host::CapabilityDescriptor`
+
+Since: `0.1.16`
+
+Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_plugin_definition`
+
 ### `Syrus::Host::CapabilityValidationError`
 
 Since: `0.1.16`
@@ -192,6 +202,18 @@ Supported members:
 - `raw_text`
 - `table`
 - `text`
+
+### `Syrus::Host::CoverageParseResult`
+
+Since: `0.1.16`
+
+Carries a parsed coverage report (raw data and line percentage) returned by a coverage analyzer; the report parsers are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `lines_pct`
+- `new`
+- `raw`
 
 ### `Syrus::Host::Current`
 
@@ -335,6 +357,93 @@ Supported members:
 - `refresh`
 - `submit`
 
+### `Syrus::Host::GitRunner`
+
+Since: `0.1.16`
+
+Runs git inside a workflow workspace and reports failures as GitError; command construction and logging are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `GitError`
+- `new`
+- `run`
+
+### `Syrus::Host::GraderBaseRetry`
+
+Since: `0.1.16`
+
+Names how a grader reruns against the base branch (strategy and optional command); retry orchestration is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `command`
+- `new`
+- `strategy`
+
+### `Syrus::Host::GraderDefaults`
+
+Since: `0.1.16`
+
+Supplies the default grading phases and the grader timeout ceiling that ecosystem grader types share; the values may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `default_phases`
+- `max_timeout_minutes`
+
+### `Syrus::Host::GraderExecutionCapabilities`
+
+Since: `0.1.16`
+
+Normalizes the execution capabilities (os, arch, toolchain, runtime) a grader target requires; worker routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `to_h`
+
+### `Syrus::Host::GraderResourceRequest`
+
+Since: `0.1.16`
+
+Declares the CPU and memory a grader can productively use; grant resolution against the host is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `cpu`
+- `cpu_min`
+- `empty?`
+- `memory_bytes`
+- `new`
+- `parse`
+
+### `Syrus::Host::GraderStep`
+
+Since: `0.1.16`
+
+Describes one grader step an ecosystem grader-type provider returns; configuration parsing and plan expansion are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `base_retry`
+- `capabilities`
+- `ci`
+- `deps`
+- `description`
+- `display_name`
+- `failures`
+- `junit_output`
+- `metadata`
+- `name`
+- `new`
+- `phases`
+- `required`
+- `resources`
+- `run`
+- `timeout_minutes`
+- `when_files_changed`
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -385,6 +494,7 @@ Provides database-connection and MCP response helpers; core tool implementations
 Supported members:
 
 - `invalid`
+- `run_from_context`
 - `success`
 - `with_database_connection`
 
@@ -575,6 +685,26 @@ Supported members:
 
 - `system_alerts`
 
+### `Syrus::Host::TestCaseResult`
+
+Since: `0.1.16`
+
+Carries one parsed test case inside a TestRunResult; the XML parser that produces it is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::TestRunResult`
+
+Since: `0.1.16`
+
+Carries one parsed test-suite run returned by a test-result parser; the XML parser that produces it is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::ToolContext`
 
 Since: `0.1.16`
@@ -635,6 +765,18 @@ Supported members:
 - `job`
 - `runs`
 - `state`
+
+### `Syrus::Host::WorkflowWorkspace`
+
+Since: `0.1.16`
+
+Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `base_ref`
+- `new`
+- `path_for`
 
 ## Legacy compatibility APIs
 
@@ -741,7 +883,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ClaudeTranscript::Event`
 - `CodexAccountScope`
 - `CommandRedactor`
-- `CoverageAnalysis::Parsers::Base::ParseResult`
 - `CredentialProbe`
 - `CredentialProbe::Result`
 - `CredentialProbe::TIMEOUT_SECONDS`
@@ -795,8 +936,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `GithubAuthenticatedGit`
 - `GithubClient`
 - `GithubIssueJobAttributes`
-- `GraderResourceRequest`
-- `GraderResourceRequest::ALL`
 - `Handle`
 - `Handle::FORMAT`
 - `HandleRegistry`
@@ -825,8 +964,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Jobs::Filter`
 - `JunitXmlParser`
 - `JunitXmlParser::ParseError`
-- `JunitXmlParser::ParsedCase`
-- `JunitXmlParser::ParsedRun`
 - `KubernetesCluster`
 - `LandedCommit`
 - `LandingFailureHandler`
@@ -1061,19 +1198,13 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::PluginApi`
 - `Syrus::PluginRegistry`
 - `Syrus::PluginSettings`
-- `SyrusMcp`
 - `SyrusMcp::TypedArtifactProvenance`
 - `SyrusSearchDatabaseTasks`
 - `SyrusVersion`
 - `SyrusYml`
-- `SyrusYml::BaseRetry`
 - `SyrusYml::CONFIG_FILE`
-- `SyrusYml::DEFAULT_GRADE_PHASES`
-- `SyrusYml::GradeStep`
-- `SyrusYml::MAX_GRADE_TIMEOUT_MINUTES`
 - `SyrusYml::ParseError`
 - `SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV`
-- `TargetGraph::ExecutionCapabilities`
 - `Team`
 - `TeamMembership`
 - `TeamRepository`
