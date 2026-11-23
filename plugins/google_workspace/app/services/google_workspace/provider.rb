@@ -3,6 +3,7 @@ require "net/http"
 module GoogleWorkspace
   class Provider < ConnectedAccounts::GenericOauth2Provider
     GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly".freeze
+    GOOGLE_MAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly".freeze
 
     class << self
       def authorization(context)
@@ -41,15 +42,16 @@ module GoogleWorkspace
       def config! = ConnectedAccounts::ProviderConfig.find_by!(provider_key: "google_workspace")
 
       def oauth_scopes(scopes)
-        Array(scopes).map { |scope| scope.to_s == CALENDAR_SCOPE ? GOOGLE_CALENDAR_SCOPE : scope.to_s }
+        Array(scopes).map do |scope|
+          { CALENDAR_SCOPE => GOOGLE_CALENDAR_SCOPE, MAIL_SCOPE => GOOGLE_MAIL_SCOPE }.fetch(scope.to_s, scope.to_s)
+        end
       end
 
       def normalize_tokens(tokens)
         value = tokens.stringify_keys
         granted = value["scope"].to_s.split
-        if granted.include?(GOOGLE_CALENDAR_SCOPE)
-          value["scope"] = ((granted - [ GOOGLE_CALENDAR_SCOPE ]) + [ CALENDAR_SCOPE ]).join(" ")
-        end
+        normalized = granted.map { |scope| { GOOGLE_CALENDAR_SCOPE => CALENDAR_SCOPE, GOOGLE_MAIL_SCOPE => MAIL_SCOPE }.fetch(scope, scope) }
+        value["scope"] = normalized.join(" ")
         value
       end
     end

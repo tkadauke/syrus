@@ -63,6 +63,14 @@ RSpec.describe "Mail concept tools" do
     expect(shaped).to include("trust" => "external_untrusted")
   end
 
+  it "keeps metadata-only attachments in context without creating empty files" do
+    attachment = { "filename" => "invoice.pdf", "content_type" => "application/pdf", "size" => 4312 }
+    shaped = SyrusMail::ResultShaper.call({ "id" => "metadata", "attachments" => [ attachment ] }, context:)
+
+    expect(shaped.fetch("attachments")).to eq([ attachment ])
+    expect(shaped).not_to have_key("attachment_files")
+  end
+
   it "registers account-scoped read/search descriptors" do
     descriptors = SyrusMail::PermissionProvider.permission_capability_descriptors
     expect(descriptors.map(&:operation)).to contain_exactly("mail/search@v1", "mail.message/read@v1")
