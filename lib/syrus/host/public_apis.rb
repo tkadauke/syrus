@@ -49,7 +49,19 @@ module Syrus
         CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError",
         EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
-        EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan"
+        EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan",
+        VisualReviewProjects: "App::VisualReviewProjects",
+        VisualReviewRuntimeTargets: "App::VisualReviewRuntimeTargets",
+        PreviewPreparation: "PreviewPreparation",
+        ReviewExecutionPolicy: "Steps::ReviewExecutionPolicy",
+        GithubContentTrust: "Prompts::GithubContentTrust",
+        RepositoryGlob: "RepositoryContent::Glob",
+        ReviewFindingEvents: "ReviewFindingEvents",
+        VisualDiffSubmission: "VisualDiffSubmission",
+        VisualReviewEvidenceGuard: "VisualReviewEvidenceGuard",
+        VisualReviewRuntimeSession: "VisualReviewRuntimeSession",
+        FeedbackKind: "Workflow::FeedbackKind",
+        TargetGraphCompiler: "TargetGraph::Compiler"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -85,7 +97,19 @@ module Syrus
         CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ],
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
-        EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ]
+        EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ],
+        VisualReviewProjects: [ "Resolves preview projects for a plugin-owned visual review step.", %w[call configured_when_files_changed] ],
+        VisualReviewRuntimeTargets: [ "Resolves runtime targets for a plugin-owned visual review step.", %w[call] ],
+        PreviewPreparation: [ "Prepares a preview for visual review.", %w[new call] ],
+        ReviewExecutionPolicy: [ "Shares review-step skip and failure policy.", %w[] ],
+        GithubContentTrust: [ "Shares the GitHub-content prompt trust boundary.", %w[] ],
+        RepositoryGlob: [ "Matches repository paths against configured globs.", %w[match?] ],
+        ReviewFindingEvents: [ "Records structured review findings.", %w[record] ],
+        VisualDiffSubmission: [ "Coordinates deferred before/after visual comparisons.", %w[enqueue_deferred_for_visual_review] ],
+        VisualReviewEvidenceGuard: [ "Validates visual review evidence.", %w[blocked_evidence_reason validate_visual_diff_after_artifacts] ],
+        VisualReviewRuntimeSession: [ "Manages a visual review runtime session.", %w[new start! stop!] ],
+        FeedbackKind: [ "Resolves feedback text for a workflow.", %w[for review_text] ],
+        TargetGraphCompiler: [ "Compiles repository target configuration.", %w[compile] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

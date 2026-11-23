@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Steps::VisualReview do
+RSpec.describe SyrusBrowser::VisualReviewStep do
   let(:job) { Factories.job(issue_title: "Add a dashboard banner", issue_body: "Show a banner on the dashboard.") }
   let(:workflow) { job.workflows.last }
   let(:implement_step) { workflow.steps.find_by!(kind: "implement") }

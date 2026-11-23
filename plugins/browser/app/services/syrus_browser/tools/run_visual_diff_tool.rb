@@ -1,9 +1,9 @@
 require "mcp"
 
-module Mcp::Tools
+module SyrusBrowser::Tools
   class RunVisualDiffTool < MCP::Tool
-    extend ProposalToolSupport
-    extend PendingActionToolSupport
+    extend ::Mcp::Tools::ProposalToolSupport
+    extend ::Mcp::Tools::PendingActionToolSupport
 
     tool_name "run_visual_diff"
 

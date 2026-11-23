@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Prompts::VisualDiff do
+RSpec.describe SyrusBrowser::Prompts::VisualDiff do
   it "shows after-artifact provenance and explains invalid captures are prefiltered" do
     job = Factories.job_record(branch_name: "syrus/direct-123")
     prompt = described_class.new(

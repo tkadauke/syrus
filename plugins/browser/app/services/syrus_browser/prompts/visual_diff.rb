@@ -1,4 +1,4 @@
-module Prompts
+module SyrusBrowser::Prompts
   class VisualDiff
     def initialize(job:, after_artifacts:, baseline_type:, base_branch:)
       @job = job

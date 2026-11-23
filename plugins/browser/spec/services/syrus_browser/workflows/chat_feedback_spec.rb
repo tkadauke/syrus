@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Workflows::PrFeedback do
+RSpec.describe Workflows::ChatFeedback do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "open") }
@@ -9,8 +9,8 @@ RSpec.describe Workflows::PrFeedback do
     allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
       RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
@@ -66,7 +66,7 @@ RSpec.describe Workflows::PrFeedback do
   context "when adversarial review is enabled" do
     before do
       allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
-        RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: [])
+        RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
       )
     end
 
@@ -80,22 +80,14 @@ RSpec.describe Workflows::PrFeedback do
       expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
 
-    it "gives the adversarial_review loop its own loop_id, separate from the bare leading respond" do
+    it "gives adversarial_review its own loop_id, distinct from the grader retry chain's and from the bare leading respond" do
       workflow = described_class.instantiate(job: job)
 
       bare_respond = workflow.steps.find_by!(kind: "respond")
       review_step  = workflow.steps.find_by!(kind: "adversarial_review")
+      grader_step  = workflow.steps.find_by!(kind: "grader_collect")
 
       expect(bare_respond.loop_id).to be_nil
-      expect(review_step.loop_id).to be_present
-    end
-
-    it "uses a different loop_id for the adversarial loop vs the grader retry chain" do
-      workflow = described_class.instantiate(job: job)
-
-      review_step = workflow.steps.find_by!(kind: "adversarial_review")
-      grader_step = workflow.steps.find_by!(kind: "grader_collect")
-
       expect(review_step.loop_id).to be_present
       expect(grader_step.loop_id).to be_present
       expect(review_step.loop_id).not_to eq(grader_step.loop_id)
@@ -104,8 +96,8 @@ RSpec.describe Workflows::PrFeedback do
 
   context "when visual review is enabled" do
     before do
-      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
     end
 
@@ -119,7 +111,7 @@ RSpec.describe Workflows::PrFeedback do
       expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
 
-    it "uses a different loop_id for the visual review loop vs the grader retry chain" do
+    it "gives visual_review its own loop_id, distinct from the grader retry chain's" do
       workflow = described_class.instantiate(job: job)
 
       review_step = workflow.steps.find_by!(kind: "visual_review")

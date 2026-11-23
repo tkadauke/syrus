@@ -12,11 +12,11 @@ RSpec.describe Workflows::Retry do
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
       RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
-    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
@@ -49,11 +49,11 @@ RSpec.describe Workflows::Retry do
 
   context "when visual review is enabled" do
     before do
-      allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
-      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
     end
 
@@ -99,11 +99,11 @@ RSpec.describe Workflows::Retry do
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
         RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: [])
       )
-      allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
-      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       )
     end
 
