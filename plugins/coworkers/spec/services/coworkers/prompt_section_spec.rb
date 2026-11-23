@@ -26,8 +26,7 @@ RSpec.describe Coworkers::PromptSection do
 
   it "loads the three identity files under the cap into fresh and resumed prompts" do
     described_class::FILES.each { |name| @root.join(name).write("content from #{name}\n") }
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_prompt_injector).and_return([ described_class ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:prompt_injectors).and_return([ described_class ])
 
     fresh = Prompts::ChatSystem.new(repository: repository, chat_session: chat).to_s
     resumed = Prompts::ChatSystem.new(repository: repository, chat_session: chat).elaboration_guidance

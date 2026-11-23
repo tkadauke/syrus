@@ -22,11 +22,11 @@ module VideoWalkthroughs
     home_queue :videos
     optionally_depends_on [ "metrics_dashboard" ]
 
-    provides chat_payload_contributor: "VideoWalkthroughs::PayloadContributor",
-             chat_turn_orientation: "VideoWalkthroughs::TurnOrientation",
-             callbacks: "VideoWalkthroughs::Callbacks",
+    provides callbacks: "VideoWalkthroughs::Callbacks",
              slug_type: "VideoWalkthroughs::SlugType",
              "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
+    chat_integration payload_contributors: "VideoWalkthroughs::PayloadContributor",
+                     turn_orientations: "VideoWalkthroughs::TurnOrientation"
     toolkit chat_tools: "VideoWalkthroughs::ChatToolSet",
             credential_probes: { "gemini_api_key" => "VideoWalkthroughs::CredentialProbe" }
 

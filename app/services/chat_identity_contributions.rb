@@ -44,7 +44,7 @@ class ChatIdentityContributions
     private
 
     def providers
-      Syrus::PluginRegistry.providers_for(:chat_identity_provider)
+      Syrus::Plugin::ChatIntegration.contributions(:identity_providers)
     end
 
     def invoke(provider, operation, decline, &block)

@@ -29,8 +29,8 @@ RSpec.describe "Coworker chat surface" do
     assigned_coworker = coworker
     chat.define_singleton_method(:coworker) { assigned_coworker }
     Filters.subject(:chat_message)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_lifecycle)
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:turn_lifecycles)
       .and_return([ Coworkers::ChatTurnLifecycle ])
   end
 
@@ -625,7 +625,7 @@ RSpec.describe "Coworker chat surface" do
     lifecycle = class_double(Coworkers::ChatWorkspaceLifecycle, applies_to?: true)
     allow(lifecycle).to receive(:prepare!).with(chat_session: chat).and_return(Pathname("/tmp/coworker-chat"))
     allow(lifecycle).to receive(:finalize!).with(chat_session: chat)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_workspace_lifecycle).and_return([ lifecycle ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:workspace_lifecycles).and_return([ lifecycle ])
 
     expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/coworker-chat"))
     job.send(:finalize_plugin_workspace!)
@@ -679,9 +679,9 @@ RSpec.describe "Coworker chat surface" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
     job.instance_variable_set(:@user_message, message)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).and_call_original
     job.instance_variable_set(:@turn_completed_successfully, true)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer).and_return([ Coworkers::HomeBranchPersistence ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:turn_finalizers).and_return([ Coworkers::HomeBranchPersistence ])
     allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn)
 
     job.send(:finalize_plugin_turns!)
@@ -699,7 +699,7 @@ RSpec.describe "Coworker chat surface" do
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     following_provider = class_double(Coworkers::MessageReply)
     allow(following_provider).to receive(:after_chat_turn)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_finalizer)
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:turn_finalizers)
       .and_return([ Coworkers::HomeBranchPersistence, following_provider ])
     allow(Coworkers::HomeBranchPersistence).to receive(:after_chat_turn).and_raise("push conflict")
 

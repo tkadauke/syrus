@@ -259,5 +259,6 @@ RSpec.configure do |config|
     Syrus::Plugin::Ecosystem.restore_definition! if defined?(Syrus::Plugin::Ecosystem)
     Syrus::Plugin::Toolkit.restore_definition! if defined?(Syrus::Plugin::Toolkit)
     Syrus::Plugin::Surface.restore_definition! if defined?(Syrus::Plugin::Surface)
+    Syrus::Plugin::ChatIntegration.restore_definition! if defined?(Syrus::Plugin::ChatIntegration)
   end
 end

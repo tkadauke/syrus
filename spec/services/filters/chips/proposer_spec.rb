@@ -33,8 +33,7 @@ RSpec.describe Filters::Chips::Proposer do
     provider = Class.new do
       define_singleton_method(:share_candidates) { |user:| [ coworker ] }
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mentionable).and_return([ provider ])
+    allow(Syrus::Plugin::ChatIntegration).to receive(:contributions).with(:mentionables).and_return([ provider ])
 
     values = described_class.schema_values(user)
 
