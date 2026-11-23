@@ -11,7 +11,7 @@ RSpec.describe ReviewPresentationContributions do
     end
   end
 
-  before { allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_presentation_contributor).and_return([ provider ]) }
+  before { allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_presentation_contributors).and_return([ provider ]) }
 
   it "publishes editor, audit, settings, translation, and accessibility metadata" do
     payload = described_class.payload
@@ -24,7 +24,8 @@ RSpec.describe ReviewPresentationContributions do
   end
 
   it "preserves a historical snapshot when its renderer is absent" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_presentation_contributor).and_return([])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_presentation_contributors).and_return([])
     snapshot = { "renderer" => "synthetic.audit", "payload" => { "label" => "Past review" } }
     expect(described_class.render_audit(snapshot)).to eq(snapshot)
   end

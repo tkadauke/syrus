@@ -19,7 +19,8 @@ RSpec.describe ReviewerTargets do
 
   before do
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:reviewer_target_providers).and_return([ provider ])
   end
 
   it "stores only an opaque reference, uniqueness key, and audit-safe snapshot" do
@@ -38,7 +39,8 @@ RSpec.describe ReviewerTargets do
   end
 
   it "fails closed when the provider is absent" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:reviewer_target_providers).and_return([])
     expect { described_class.resolve({ type: "synthetic", reference: "one" }, owner:, repository:) }
       .to raise_error(ReviewerTargets::PluginUnavailable)
   end

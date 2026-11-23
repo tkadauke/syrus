@@ -207,7 +207,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       second_filter = Class.new
       second_filter.define_singleton_method(:apply) { |scope:, user:| scope.where.not(id: second_excluded_repo.id) }
       allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:repository_filter).and_return([ first_filter, second_filter ])
+      allow(Syrus::Plugin::Policy).to receive(:restrictions).with(:repository_filters).and_return([ first_filter, second_filter ])
 
       get "/api/v1/app/chats/new"
 
