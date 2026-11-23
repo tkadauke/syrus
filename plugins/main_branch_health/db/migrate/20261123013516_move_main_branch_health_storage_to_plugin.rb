@@ -34,12 +34,12 @@ class MoveMainBranchHealthStorageToPlugin < ActiveRecord::Migration[8.1]
     add_column :app_settings, :main_concern_report_threshold, :integer, default: 2, null: false unless column_exists?(:app_settings, :main_concern_report_threshold)
 
     if table_exists?(:main_branch_health_repository_states)
-      columns = REPOSITORY_COLUMNS.keys.join(", ")
+      assignments = REPOSITORY_COLUMNS.keys.map do |column|
+        "#{column} = (SELECT #{column} FROM main_branch_health_repository_states " \
+          "WHERE main_branch_health_repository_states.repository_id = repositories.id)"
+      end.join(", ")
       execute <<~SQL.squish
-        UPDATE repositories SET (#{columns}) = (
-          SELECT #{columns} FROM main_branch_health_repository_states
-          WHERE main_branch_health_repository_states.repository_id = repositories.id
-        ) WHERE EXISTS (
+        UPDATE repositories SET #{assignments} WHERE EXISTS (
           SELECT 1 FROM main_branch_health_repository_states
           WHERE main_branch_health_repository_states.repository_id = repositories.id
         )
@@ -116,7 +116,11 @@ class MoveMainBranchHealthStorageToPlugin < ActiveRecord::Migration[8.1]
   end
 
   def verify_copy!
-    return unless REPOSITORY_COLUMNS.keys.all? { |column| column_exists?(:repositories, column) }
+    verify_repository_copy! if REPOSITORY_COLUMNS.keys.all? { |column| column_exists?(:repositories, column) }
+    verify_instance_copy! if column_exists?(:app_settings, :main_concern_report_threshold)
+  end
+
+  def verify_repository_copy!
 
     source_count = select_value("SELECT COUNT(*) FROM repositories").to_i
     copied_count = select_value("SELECT COUNT(*) FROM main_branch_health_repository_states").to_i
@@ -130,6 +134,15 @@ class MoveMainBranchHealthStorageToPlugin < ActiveRecord::Migration[8.1]
       SQL
       raise ActiveRecord::MigrationError, "main-branch health #{column} copy did not verify" if mismatch.positive?
     end
+  end
+
+  def verify_instance_copy!
+    source_count = select_value("SELECT COUNT(*) FROM app_settings").to_i
+    return if source_count.zero?
+
+    source = select_value("SELECT main_concern_report_threshold FROM app_settings ORDER BY id LIMIT 1")
+    copied = select_value("SELECT main_concern_report_threshold FROM main_branch_health_settings ORDER BY id LIMIT 1")
+    raise ActiveRecord::MigrationError, "main-branch health instance setting copy did not verify" unless copied.to_s == source.to_s
   end
 
   def rename_plugin_tables
