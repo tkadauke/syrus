@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_013516) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -205,7 +205,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
-    t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 3, null: false
     t.integer "chat_coding_workspace_budget_mb", default: 10240, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
@@ -2402,7 +2401,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.index ["worker_storage_key"], name: "index_macos_worker_drains_on_worker_storage_key", unique: true
   end
 
-  create_table "main_branch_health_checks", force: :cascade do |t|
+  create_table "main_branch_health_concern_reports", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.integer "job_id", null: false
+    t.integer "workflow_id", null: false
+    t.integer "run_id", null: false
+    t.text "reason", null: false
+    t.json "failing_tests"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "observed_sha"
+    t.index ["job_id"], name: "index_main_branch_health_concern_reports_on_job_id"
+    t.index ["repository_id", "created_at"], name: "idx_on_repository_id_created_at_6d590816fb"
+    t.index ["repository_id"], name: "index_main_branch_health_concern_reports_on_repository_id"
+    t.index ["run_id"], name: "index_main_branch_health_concern_reports_on_run_id"
+    t.index ["workflow_id"], name: "index_main_branch_health_concern_reports_on_workflow_id"
+  end
+
+  create_table "main_branch_health_health_checks", force: :cascade do |t|
     t.integer "repository_id", null: false
     t.string "sha", null: false
     t.datetime "checked_at", null: false
@@ -2420,25 +2436,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.index ["repository_id", "sha", "ci_health"], name: "idx_mbhc_repo_sha_ci_health"
     t.index ["repository_id", "sha", "grader_health"], name: "idx_mbhc_repo_sha_grader_health"
     t.index ["repository_id", "sha", "source", "checked_at"], name: "idx_mbhc_repo_sha_source_checked_at"
-    t.index ["repository_id"], name: "index_main_branch_health_checks_on_repository_id"
-    t.index ["workflow_id"], name: "index_main_branch_health_checks_on_workflow_id"
+    t.index ["repository_id"], name: "index_main_branch_health_health_checks_on_repository_id"
+    t.index ["workflow_id"], name: "index_main_branch_health_health_checks_on_workflow_id"
   end
 
-  create_table "main_concern_reports", force: :cascade do |t|
-    t.integer "repository_id", null: false
-    t.integer "job_id", null: false
-    t.integer "workflow_id", null: false
-    t.integer "run_id", null: false
-    t.text "reason", null: false
-    t.json "failing_tests"
+  create_table "main_branch_health_repository_states", force: :cascade do |t|
+    t.bigint "repository_id", null: false
+    t.string "ci_health", default: "unknown", null: false
+    t.string "grader_health", default: "unknown", null: false
+    t.string "last_health_checked_sha"
+    t.boolean "landing_paused", default: false, null: false
+    t.boolean "main_branch_health_enabled", default: false, null: false
+    t.boolean "main_branch_repair_enabled", default: false, null: false
+    t.string "last_graded_sha"
+    t.string "last_ci_evaluated_sha"
+    t.boolean "main_branch_repair_auto_approve", default: false, null: false
+    t.integer "main_health_poll_error_streak", default: 0, null: false
+    t.datetime "last_main_health_poll_error_at"
+    t.boolean "main_branch_repair_blocks_work", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "observed_sha"
-    t.index ["job_id"], name: "index_main_concern_reports_on_job_id"
-    t.index ["repository_id", "created_at"], name: "index_main_concern_reports_on_repository_id_and_created_at"
-    t.index ["repository_id"], name: "index_main_concern_reports_on_repository_id"
-    t.index ["run_id"], name: "index_main_concern_reports_on_run_id"
-    t.index ["workflow_id"], name: "index_main_concern_reports_on_workflow_id"
+    t.index ["repository_id"], name: "index_main_branch_health_repository_states_on_repository_id", unique: true
+  end
+
+  create_table "main_branch_health_settings", force: :cascade do |t|
+    t.integer "main_concern_report_threshold", default: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "maintenance_task_events", force: :cascade do |t|
@@ -3522,24 +3546,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.string "feedback_policy", default: "confirm", null: false
     t.integer "fork_pr_grace_period_hours", default: 24, null: false
     t.integer "upstream_pr_grace_period_days", default: 7, null: false
-    t.string "ci_health", default: "unknown", null: false
-    t.string "grader_health", default: "unknown", null: false
-    t.string "last_health_checked_sha"
-    t.boolean "landing_paused", default: false, null: false
-    t.boolean "main_branch_health_enabled", default: false, null: false
-    t.boolean "main_branch_repair_enabled", default: false, null: false
     t.boolean "treat_grader_timeouts_as_failures", default: false, null: false
-    t.string "last_graded_sha"
-    t.string "last_ci_evaluated_sha"
     t.boolean "fork_auto_sync_enabled", default: false, null: false
-    t.boolean "main_branch_repair_auto_approve", default: false, null: false
     t.string "epic_dependency_policy", default: "linear", null: false
     t.boolean "external_pr_ingestion_enabled", default: false, null: false
     t.integer "untagged_open_issue_count", default: 0, null: false
     t.datetime "untagged_open_issues_checked_at"
-    t.integer "main_health_poll_error_streak", default: 0, null: false
-    t.datetime "last_main_health_poll_error_at"
-    t.boolean "main_branch_repair_blocks_work", default: false, null: false
     t.string "risk_profile", default: "production", null: false
     t.json "plugin_signals"
     t.datetime "plugin_signals_observed_at"
@@ -3562,7 +3574,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
     t.index ["installation_id"], name: "index_repositories_on_installation_id"
-    t.index ["landing_paused"], name: "index_repositories_on_landing_paused"
     t.index ["owner", "name"], name: "index_repositories_on_owner_and_name", unique: true
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
