@@ -34,6 +34,33 @@ RSpec.describe Syrus::Plugin::ChatIntegration, :reset_plugin_registry do
     expect(Syrus::PluginRegistry.providers_for(:chat_turn_finalizer)).to include(first, second)
   end
 
+  it "isolates a failing family expansion from healthy legacy providers" do
+    bad = Class.new do
+      def self.key = "bad_family_chat"
+      def self.display_name = "Bad family chat"
+      def self.turn_finalizers(_context) = raise("broken finalizers")
+    end
+    healthy_finalizer = Class.new
+    good = Class.new do
+      define_singleton_method(:key) { "good_family_chat" }
+      define_singleton_method(:display_name) { "Good family chat" }
+      define_singleton_method(:turn_finalizers) { |_context| healthy_finalizer }
+    end
+    stub_const("BadFamilyChatIntegration", bad)
+    stub_const("GoodFamilyChatIntegration", good)
+    [ [ "bad_family_chat", "BadFamilyChatIntegration" ], [ "good_family_chat", "GoodFamilyChatIntegration" ] ].each do |name, provider|
+      Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+        Syrus::Plugin::FamilyDeclaration.build(
+          family: :chat_integration, provider:, provisional: %i[turn_finalizers]
+        )
+      ])
+    end
+
+    providers = nil
+    expect { providers = Syrus::PluginRegistry.providers_for(:chat_turn_finalizer) }.not_to raise_error
+    expect(providers).to include(healthy_finalizer)
+  end
+
   it "isolates a failing family provider at every chat capability" do
     described_class::CAPABILITY_FOR_LEGACY.each_value do |capability|
       bad = Class.new do
