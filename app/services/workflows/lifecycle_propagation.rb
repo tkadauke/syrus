@@ -39,7 +39,14 @@ module Workflows
       JobClosure.apply_pending!(workflow)
       workflow.propagate_fail_to_job!
       dispatch_hook(:after_fail)
-      workflow.cleanup_workspace_after_commit! if workflow.infrastructure_workflow?
+      # Infrastructure workflows nobody resumes (main-branch graders) free
+      # their workspace on failure. One whose retry policy resumes the failed
+      # Step keeps it, as every ordinary failed workflow does: deleting it made
+      # retry_available? false, so each automatic retry of a main-branch repair
+      # -- even one the reconciler planned as a resume -- started a fresh
+      # workflow and re-ran the whole preflight. The prune job still removes
+      # it after the failed-workflow retention window.
+      workflow.cleanup_workspace_after_commit! if workflow.infrastructure_workflow? && !workflow.resumes_failed_steps?
     end
 
     def cancelled!

@@ -1009,6 +1009,15 @@ class Workflow < ApplicationRecord
     work_definition.manages_own_job_lifecycle?
   end
 
+  # Whether an automatic retry of this workflow continues the failed Step in
+  # place, which needs the workspace to still be on disk.
+  def resumes_failed_steps?
+    policy = work_definition.retry_policy
+    policy.automatic? && policy.continuation?(steps.where(state: "failed").order(:position).last)
+  rescue WorkDefinitions::UnknownKind
+    false
+  end
+
   # An existing Workflow resolves its definition even when the plugin that
   # owns its kind is disabled or unhealthy, so it can still be finished or
   # cancelled; launching new work uses WorkDefinitions.for (NY14).
