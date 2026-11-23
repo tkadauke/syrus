@@ -114,6 +114,20 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(App::ProviderAvailability).not_to have_received(:for_user)
     end
 
+    it "selects an available candidate without an account when the user has no enabled provider accounts" do
+      allow_any_instance_of(User).to receive(:enabled_provider_accounts).and_return(ProviderAccount.none)
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(job: job, task_key: "initial")
+
+      expect(decision.candidate.provider).to eq("claude")
+      expect(decision.candidate.account_id).to be_nil
+      expect(decision.provider_account).to be_nil
+      expect(decision).not_to be_exhausted
+    end
+
     it "flags a sole candidate as exhausted when it is actively rate-limited, even though pause opt-in is off and no ProviderRoutingRule is configured" do
       user.update!(provider_availability_pause_thresholds: { "claude" => 0 })
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
