@@ -16,8 +16,8 @@ SKIP_SERVICES=0
 # Ruby is not a Homebrew formula here: each release runs the Ruby its
 # .ruby-version pins, installed by mise (see bin/macos-ruby-env).
 BREW_FORMULAE=(node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)
-CLAUDE_CODE_VERSION="2.1.325"
-CODEX_CLI_VERSION="0.169.0"
+CLAUDE_CODE_VERSION="2.1.330"
+CODEX_CLI_VERSION="0.171.0"
 
 usage() {
   cat <<'USAGE'
