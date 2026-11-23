@@ -502,9 +502,9 @@ RSpec.describe RunFailureClassifier, :ci_only do
   end
 
   it "classifies Codex context-window exhaustion before MCP sidecar failures" do
-    run.step.update!(kind: "visual_review")
+    run.step.update!(kind: "adversarial_review")
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "mcp_sidecar_failed")
-    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_visual_review")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_adversarial_review")
     JobLog.append!(
       run: run,
       chunk: "[codex error] Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
@@ -1532,10 +1532,10 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
-  it "classifies a missing submit_visual_review tool call as retryable" do
-    run.step.update!(kind: "visual_review")
+  it "classifies a missing submit_adversarial_review tool call as retryable" do
+    run.step.update!(kind: "adversarial_review")
     run.update!(state: "failed")
-    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_visual_review")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_adversarial_review")
 
     result = classification
 

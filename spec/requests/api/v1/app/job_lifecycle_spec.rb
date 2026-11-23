@@ -537,7 +537,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     run = job.initial_run
     step = run.step
     run.update!(state: "failed", agent_outcome: "workspace_recovery_failed", finished_at: 1.minute.ago)
-    step.update!(kind: "visual_review", state: "failed", finished_at: 1.minute.ago)
+    step.update!(kind: "adversarial_review", state: "failed", finished_at: 1.minute.ago)
     job.latest_workflow.update!(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
     classification = run.run_failure_classification || run.build_run_failure_classification
     classification.update!(

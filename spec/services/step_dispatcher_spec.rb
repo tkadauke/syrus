@@ -210,7 +210,7 @@ RSpec.describe StepDispatcher, :ci_only do
         capabilities: { "os" => [ "macos" ] }
       )
 
-      %w[implement visual_review adversarial_review].each do |step_kind|
+      %w[implement security_review adversarial_review].each do |step_kind|
         pinned_workflow = Workflow.create!(
           job: job,
           trigger_kind: "initial",
@@ -3667,13 +3667,13 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(review_workflow.reload.steps.where(kind: "adversarial_review", iteration: 3)).to be_empty
     end
 
-    it "retargets grader dependencies after a final visual-review repair-only iteration" do
-      review_workflow = workflow_with_visual_review_loop(max_iterations: 1)
-      review = review_workflow.steps.find_by!(kind: "visual_review", iteration: 1)
+    it "retargets grader dependencies after a final security-review repair-only iteration" do
+      review_workflow = workflow_with_security_review_loop(max_iterations: 1)
+      review = review_workflow.steps.find_by!(kind: "security_review", iteration: 1)
       grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
       grader_fanout.update!(depends_on_ids: [ review.id ])
 
-      review_workflow.set_artifact!("visual_review_iterations", [
+      review_workflow.set_artifact!("security_review_iterations", [
         { "iteration" => 1, "critique" => "The provider selector is missing.", "verdict" => "needs_work" }
       ])
 
@@ -3706,10 +3706,10 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "still skips a genuinely redundant agent step when one follows the loop (defensive: no live call site does this today)" do
-      review_workflow = workflow_with_adversarial_review_loop_followed_by_visual_review_loop(max_iterations: 2)
+      review_workflow = workflow_with_adversarial_review_loop_followed_by_security_review_loop(max_iterations: 2)
       review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
       visual_implement = review_workflow.steps.find_by!(kind: "implement", loop_id: "visual-loop")
-      visual_review = review_workflow.steps.find_by!(kind: "visual_review")
+      security_review = review_workflow.steps.find_by!(kind: "security_review")
 
       review_workflow.set_artifact!("adversarial_review_iterations", [
         { "iteration" => 1, "critique" => "LGTM", "verdict" => "approved" }
@@ -3717,7 +3717,7 @@ RSpec.describe StepDispatcher, :ci_only do
 
       expect {
         described_class.advance_from(review)
-      }.to change { visual_review.reload.runs.count }.by(1)
+      }.to change { security_review.reload.runs.count }.by(1)
 
       expect(visual_implement.reload).to be_skipped
       expect(visual_implement.details).to include("skip_reason" => "adversarial_review_approved")
@@ -3733,11 +3733,11 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "exits an approved visual review loop straight to grading" do
-      review_workflow = workflow_with_visual_review_loop(max_iterations: 2)
-      review = review_workflow.steps.find_by!(kind: "visual_review", iteration: 1)
+      review_workflow = workflow_with_security_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "security_review", iteration: 1)
       grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
 
-      review_workflow.set_artifact!("visual_review_iterations", [
+      review_workflow.set_artifact!("security_review_iterations", [
         { "iteration" => 1, "critique" => "Looks correct.", "verdict" => "approved" }
       ])
 
@@ -3749,11 +3749,11 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "treats a skipped visual review verdict the same as approved" do
-      review_workflow = workflow_with_visual_review_loop(max_iterations: 2)
-      review = review_workflow.steps.find_by!(kind: "visual_review", iteration: 1)
+      review_workflow = workflow_with_security_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "security_review", iteration: 1)
       grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
 
-      review_workflow.set_artifact!("visual_review_iterations", [
+      review_workflow.set_artifact!("security_review_iterations", [
         { "iteration" => 1, "critique" => "Backend-only change, not visually testable.", "verdict" => "skipped" }
       ])
 
@@ -3765,10 +3765,10 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "always inserts a repair implement after a visual review needs_work verdict, even with the budget exhausted" do
-      review_workflow = workflow_with_visual_review_loop(max_iterations: 1)
-      review = review_workflow.steps.find_by!(kind: "visual_review", iteration: 1)
+      review_workflow = workflow_with_security_review_loop(max_iterations: 1)
+      review = review_workflow.steps.find_by!(kind: "security_review", iteration: 1)
 
-      review_workflow.set_artifact!("visual_review_iterations", [
+      review_workflow.set_artifact!("security_review_iterations", [
         { "iteration" => 1, "critique" => "The banner overlaps the nav.", "verdict" => "needs_work" }
       ])
 
@@ -3782,10 +3782,10 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "pairs the repair with another visual review when budget remains after a needs_work verdict" do
-      review_workflow = workflow_with_visual_review_loop(max_iterations: 2)
-      review = review_workflow.steps.find_by!(kind: "visual_review", iteration: 1)
+      review_workflow = workflow_with_security_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "security_review", iteration: 1)
 
-      review_workflow.set_artifact!("visual_review_iterations", [
+      review_workflow.set_artifact!("security_review_iterations", [
         { "iteration" => 1, "critique" => "The banner overlaps the nav.", "verdict" => "needs_work" }
       ])
 
@@ -3794,7 +3794,7 @@ RSpec.describe StepDispatcher, :ci_only do
       }.to change { review_workflow.steps.count }.by(2)
 
       new_steps = review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).order(:position).to_a
-      expect(new_steps.map(&:kind)).to eq(%w[ implement visual_review ])
+      expect(new_steps.map(&:kind)).to eq(%w[ implement security_review ])
     end
 
     # Fixes a `needs_work` verdict on the last review round used to
@@ -3838,30 +3838,30 @@ RSpec.describe StepDispatcher, :ci_only do
       end
 
       it "rounds: #{rounds} -- visual review, always-approved exits after the first review with no repair" do
-        review_workflow = workflow_with_visual_review_loop(max_iterations: rounds)
+        review_workflow = workflow_with_security_review_loop(max_iterations: rounds)
 
         sequence = drive_review_loop!(
-          review_workflow, review_kind: "visual_review", agent_kind: "implement",
-          artifact_key: "visual_review_iterations", verdicts: %w[ approved ]
+          review_workflow, review_kind: "security_review", agent_kind: "implement",
+          artifact_key: "security_review_iterations", verdicts: %w[ approved ]
         )
 
-        expect(sequence).to eq([ [ "visual_review", 1 ] ])
+        expect(sequence).to eq([ [ "security_review", 1 ] ])
       end
 
       it "rounds: #{rounds} -- visual review, always-needs_work seeks exactly #{rounds} review opinions, each reacted to with a repair" do
-        review_workflow = workflow_with_visual_review_loop(max_iterations: rounds)
+        review_workflow = workflow_with_security_review_loop(max_iterations: rounds)
 
         sequence = drive_review_loop!(
-          review_workflow, review_kind: "visual_review", agent_kind: "implement",
-          artifact_key: "visual_review_iterations", verdicts: Array.new(rounds, "needs_work")
+          review_workflow, review_kind: "security_review", agent_kind: "implement",
+          artifact_key: "security_review_iterations", verdicts: Array.new(rounds, "needs_work")
         )
 
-        expect(sequence).to eq((1..rounds).flat_map { |n| [ [ "visual_review", n ], [ "implement", n + 1 ] ] })
+        expect(sequence).to eq((1..rounds).flat_map { |n| [ [ "security_review", n ], [ "implement", n + 1 ] ] })
       end
     end
   end
 
-  # Drives an adversarial_review or visual_review loop to completion, one
+  # Drives an adversarial_review or security_review loop to completion, one
   # round at a time: appends the given round's verdict to the workflow's
   # review-iterations artifact, advances from the review step, and (unless
   # the verdict was an exit verdict) advances the freshly-inserted repair
@@ -3889,7 +3889,7 @@ RSpec.describe StepDispatcher, :ci_only do
     workflow.reload.steps.where(loop_id: loop_id).order(:position).pluck(:kind, :iteration)
   end
 
-  def workflow_with_adversarial_review_loop_followed_by_visual_review_loop(max_iterations:)
+  def workflow_with_adversarial_review_loop_followed_by_security_review_loop(max_iterations:)
     Workflow.create!(
       job: job,
       trigger_kind: "initial",
@@ -3897,7 +3897,7 @@ RSpec.describe StepDispatcher, :ci_only do
         { "type" => "step", "kind" => "prepare" },
         { "type" => "step", "kind" => "implement" },
         { "type" => "loop", "max_iterations" => max_iterations, "steps" => %w[ implement adversarial_review ] },
-        { "type" => "loop", "max_iterations" => 1, "steps" => %w[ implement visual_review ] },
+        { "type" => "loop", "max_iterations" => 1, "steps" => %w[ implement security_review ] },
         {
           "type" => "retry_until",
           "max_iterations" => 1,
@@ -3911,19 +3911,19 @@ RSpec.describe StepDispatcher, :ci_only do
       implement = Step.create!(workflow: wf, kind: "implement", position: 1, state: "succeeded")
       review = Step.create!(workflow: wf, kind: "adversarial_review", position: 2, iteration: 1, loop_id: "review-loop")
       # This visual loop is deliberately built in the old, non-review-first
-      # shape (a full [implement, visual_review] pair at iteration 1) even
+      # shape (a full [implement, security_review] pair at iteration 1) even
       # though no real call site produces that shape anymore -- it's a
       # regression test for exit_review_loop!'s defensive redundant-step
       # skip, in case a future loop shape reintroduces it.
       visual_implement = Step.create!(workflow: wf, kind: "implement", position: 3, iteration: 1, loop_id: "visual-loop")
-      visual_review = Step.create!(workflow: wf, kind: "visual_review", position: 4, iteration: 1, loop_id: "visual-loop")
+      security_review = Step.create!(workflow: wf, kind: "security_review", position: 4, iteration: 1, loop_id: "visual-loop")
       grader_fanout = Step.create!(workflow: wf, kind: "grader_fanout", position: 5, iteration: 1, loop_id: "grade-loop")
       grader_collect = Step.create!(workflow: wf, kind: "grader_collect", position: 6, iteration: 1, loop_id: "grade-loop")
       prepare.update!(next_step_id: implement.id)
       implement.update!(next_step_id: review.id)
       review.update!(next_step_id: visual_implement.id)
-      visual_implement.update!(next_step_id: visual_review.id)
-      visual_review.update!(next_step_id: grader_fanout.id)
+      visual_implement.update!(next_step_id: security_review.id)
+      security_review.update!(next_step_id: grader_fanout.id)
       grader_fanout.update!(next_step_id: grader_collect.id)
     end
   end
@@ -3957,14 +3957,14 @@ RSpec.describe StepDispatcher, :ci_only do
     end
   end
 
-  def workflow_with_visual_review_loop(max_iterations:)
+  def workflow_with_security_review_loop(max_iterations:)
     Workflow.create!(
       job: job,
       trigger_kind: "initial",
       chain_template: [
         { "type" => "step", "kind" => "prepare" },
         { "type" => "step", "kind" => "implement" },
-        { "type" => "loop", "max_iterations" => max_iterations, "steps" => %w[ implement visual_review ] },
+        { "type" => "loop", "max_iterations" => max_iterations, "steps" => %w[ implement security_review ] },
         {
           "type" => "retry_until",
           "max_iterations" => 1,
@@ -3976,7 +3976,7 @@ RSpec.describe StepDispatcher, :ci_only do
     ).tap do |wf|
       prepare = Step.create!(workflow: wf, kind: "prepare", position: 0)
       implement = Step.create!(workflow: wf, kind: "implement", position: 1, state: "succeeded")
-      review = Step.create!(workflow: wf, kind: "visual_review", position: 2, iteration: 1, loop_id: "visual-review-loop")
+      review = Step.create!(workflow: wf, kind: "security_review", position: 2, iteration: 1, loop_id: "security-review-loop")
       grader_fanout = Step.create!(workflow: wf, kind: "grader_fanout", position: 3, iteration: 1, loop_id: "grade-loop")
       grader_collect = Step.create!(workflow: wf, kind: "grader_collect", position: 4, iteration: 1, loop_id: "grade-loop")
       prepare.update!(next_step_id: implement.id)

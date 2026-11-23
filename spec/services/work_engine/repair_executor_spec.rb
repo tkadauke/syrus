@@ -218,7 +218,7 @@ RSpec.describe WorkEngine::RepairExecutor do
       workflow.update_columns(state: "running", started_at: 5.minutes.ago)
       causal_run = workflow.runs.last
       causal_step = causal_run.step
-      causal_step.update_columns(kind: "visual_review", state: "running", started_at: 4.minutes.ago)
+      causal_step.update_columns(kind: "adversarial_review", state: "running", started_at: 4.minutes.ago)
       causal_run.update_columns(state: "running", started_at: 4.minutes.ago)
       grade_fanout = workflow.steps.create!(kind: "grader_fanout", position: causal_step.position + 1, state: "queued", loop_id: "grade-loop")
       grade_collect = workflow.steps.create!(kind: "grader_collect", position: causal_step.position + 2, state: "queued", loop_id: "grade-loop")

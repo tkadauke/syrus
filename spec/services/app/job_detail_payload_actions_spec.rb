@@ -122,7 +122,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.dig(:actions, :can_manage_tags)).to be(false)
       expect(payload.dig(:actions, :can_start_preview)).to be(false)
       expect(payload.dig(:actions, :can_deploy)).to be(false)
-      expect(payload.dig(:actions, :can_run_visual_review)).to be(false)
+      expect(payload.dig(:actions, :can_run_adversarial_review)).to be(false)
       expect(payload.dig(:actions, :can_run_visual_diff)).to be(false)
       expect(payload.dig(:actions, :can_send_job_upstream)).to be(false)
       expect(payload.dig(:job, :creator_user)).to include(id: user.id, email_address: user.email_address)
@@ -934,7 +934,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
     it "serializes workspace recovery failure as fresh retry only" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")
-      workflow = create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "visual_review")
+      workflow = create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "adversarial_review")
       step = workflow.steps.last
       run = step.runs.create!(job: job, trigger_kind: "initial", state: "failed", agent_outcome: "workspace_recovery_failed")
       run.create_run_failure_classification!(

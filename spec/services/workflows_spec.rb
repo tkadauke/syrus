@@ -259,12 +259,12 @@ RSpec.describe Workflows do
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_call_original
       allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_call_original
       allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_call_original
-      stub_workflow_judge(step_kind: "visual_review")
+      stub_workflow_judge(step_kind: "security_review")
 
       wf = Workflows::Initial.instantiate(job: job)
 
       expect(wf.steps.pluck(:kind)).to eq(%w[
-        prepare implement adversarial_review security_review coworker_review visual_review
+        prepare implement adversarial_review security_review coworker_review security_review
         format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open
       ])
       expect(wf.chain_template).to include(
