@@ -43,8 +43,12 @@ module ConnectedAccounts
         system_access_bindings[identity.to_s] = binding
       end
 
-      def with_system_access(identity:, **options, &block)
-        AccountClient.with_system_access(service_binding: system_access_bindings.fetch(identity.to_s), **options, &block)
+      def with_system_access(identity:, **options)
+        AccountClient.with_system_access(service_binding: system_access_bindings.fetch(identity.to_s), **options)
+      end
+
+      def system_invoke(context)
+        { authorization: context.access.authorization_header, input: context.input }
       end
 
       private

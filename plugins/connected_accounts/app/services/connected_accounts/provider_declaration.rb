@@ -22,10 +22,7 @@ module ConnectedAccounts
         settings_notice_i18n_key: values["settings_notice_i18n_key"].presence,
         authorization_kind: values.fetch("authorization_kind", "oauth").to_s,
         system_service_identities: Array(values["system_service_identities"]).map(&:to_s).freeze
-      ).tap do |declaration|
-        declaration.validate!
-        SystemInvocation.send(:register_provider!, declaration)
-      end
+      ).tap(&:validate!)
     end
 
     def validate!
@@ -48,6 +45,9 @@ module ConnectedAccounts
       klass = provider.constantize
       if system_service_identities.any? && !klass.respond_to?(:register_system_access)
         errors << "#{provider} must implement .register_system_access(identity, binding)"
+      end
+      if system_service_identities.any? && !accepts_context?(klass, "system_invoke")
+        errors << "#{provider} must implement .system_invoke(context)"
       end
       capabilities.each do |capability|
         errors << "#{provider} must implement .#{capability}(context)" unless accepts_context?(klass, capability)
