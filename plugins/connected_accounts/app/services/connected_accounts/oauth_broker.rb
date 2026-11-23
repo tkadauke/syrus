@@ -14,7 +14,7 @@ module ConnectedAccounts
       config = ProviderConfig.find_by(provider_key: provider)
 
       Account.transaction do
-        account = Account.find_or_initialize_by(owner_user: user, provider: provider, display_label: identity.fetch("label"))
+        account = Account.find_or_initialize_by(owner_kind: "user", owner_user: user, provider: provider, display_label: identity.fetch("label"))
         credential = account.credential_store_credential || CredentialStore::Credential.new
         credential.assign_attributes(name: "connected-account-#{provider}-#{user.id}-#{OauthState.digest(identity.fetch('label'))[0, 12]}",
           credential_type: AccountClient::CREDENTIAL_TYPE, scope_type: "user", scope_id: user.id, owner_user: user,

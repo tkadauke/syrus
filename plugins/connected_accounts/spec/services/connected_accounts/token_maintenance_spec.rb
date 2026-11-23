@@ -33,4 +33,14 @@ RSpec.describe ConnectedAccounts::TokenMaintenance do
     allow(declaration).to receive(:call).with("refresh", anything).and_raise(ConnectedAccounts::Provider::TransientError, "try later")
     expect { described_class.call(account) }.to raise_error(ConnectedAccounts::Provider::TransientError, "try later")
   end
+
+  it "validates a non-expiring provider token without trying to refresh it" do
+    credential.update!(payload: { access_token: "static-secret" }.to_json, safe_metadata: { "refreshable" => false })
+    expect(declaration).not_to receive(:call).with("refresh", anything)
+    expect(declaration).to receive(:call).with("validate", anything).and_return(healthy: true)
+
+    described_class.call(account)
+
+    expect(account.reload).to be_connected
+  end
 end

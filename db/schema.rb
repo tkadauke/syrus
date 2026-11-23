@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_040450) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1117,11 +1117,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.boolean "read_only", null: false
     t.json "scope_ceiling"
     t.json "acting_modes", null: false
-    t.integer "owner_user_id", null: false
+    t.integer "owner_user_id"
     t.integer "credential_store_credential_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "owner_kind", null: false
     t.index ["credential_store_credential_id"], name: "idx_on_credential_store_credential_id_7b6d26bf18"
+    t.index ["owner_kind"], name: "index_connected_accounts_accounts_on_owner_kind"
     t.index ["owner_user_id", "provider"], name: "idx_connected_accounts_owner_provider"
     t.index ["owner_user_id"], name: "index_connected_accounts_accounts_on_owner_user_id"
   end

@@ -45,7 +45,8 @@ module Api::V1::App::ConnectedAccounts
       value.as_json(only: %i[authorize_url token_url revoke_url identity_url validate_url client_id scope_catalog read_only_scopes api_origins allow_as_owner])
         .merge(provider_key: declaration.key, plugin_name: declaration.plugin_name, display_name: declaration.display_name,
           managed_settings: declaration.configuration.fetch("managed", false), client_secret_configured: value.client_secret.present?,
-          settings_notice: declaration.settings_notice, settings_notice_i18n_key: declaration.settings_notice_i18n_key)
+          settings_notice: declaration.settings_notice, settings_notice_i18n_key: declaration.settings_notice_i18n_key,
+          authorization_kind: declaration.authorization_kind)
     end
   end
 end
