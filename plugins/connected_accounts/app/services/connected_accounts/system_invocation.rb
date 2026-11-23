@@ -55,7 +55,9 @@ module ConnectedAccounts
 
       def authorized_registration?(registration, declaration)
         if registration.provider_key.present?
-          return registration.provider_key == declaration.key && registration.service.equal?(declaration.provider.constantize)
+          return declaration.system_service_identities.include?(registration.identity) &&
+            registration.provider_key == declaration.key &&
+            registration.service.equal?(declaration.provider.constantize)
         end
 
         CORE_SERVICES[registration.identity].equal?(registration.service)
