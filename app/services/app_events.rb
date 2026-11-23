@@ -48,10 +48,11 @@ class AppEvents
       type: type.to_s,
       resource: resource.to_s,
       id: id,
-      sequence: next_sequence(user),
+      sequence: sequence_or_nil(user, type),
       changed: Array(changed).map(&:to_s),
       occurred_at: occurred_at.iso8601(3)
     }
+    event.delete(:sequence) if event[:sequence].nil?
     event[:revision] = revision unless revision.nil?
     event[:payload] = payload if payload
 
@@ -147,6 +148,21 @@ class AppEvents
   # duplicate (see trackAppEventSequence in app/frontend/lib/appEvents.ts),
   # that would silently discard one of the two broadcasts instead of
   # merely mis-detecting a duplicate.
+  # A broadcast is a UI hint; the work that triggered it must not fail
+  # because the user's sequence counter is contended. A grader Run failed on
+  # exactly that: its checkout committed, the after-commit progress broadcast
+  # waited out the lock timeout on the user's row, and the exception escaped
+  # into the step. Deliver such an event unsequenced instead -- the frontend
+  # applies an event without `sequence` directly, the same way it treats the
+  # per-resource Job and Chat streams.
+  def self.sequence_or_nil(user, type)
+    next_sequence(user)
+  rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked => e
+    Rails.logger.warn("[AppEvents] delivering #{type} unsequenced for user ##{user.id}: #{e.class}")
+    nil
+  end
+  private_class_method :sequence_or_nil
+
   def self.next_sequence(user)
     User.transaction do
       User.where(id: user.id).update_all("app_event_sequence = app_event_sequence + 1")

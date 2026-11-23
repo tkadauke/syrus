@@ -34,6 +34,27 @@ RSpec.describe AppEvents do
     )
   end
 
+  # Production: a grader Run failed because its after-commit progress
+  # broadcast timed out waiting for the user's sequence row.
+  it "delivers the event unsequenced instead of raising when the sequence row is locked" do
+    user = Factories.user
+    allow(AppUserChannel).to receive(:broadcast_to)
+    allow(User).to receive(:where).and_call_original
+    allow(User).to receive(:where).with(id: user.id).and_raise(
+      ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded; try restarting transaction"
+    )
+
+    expect {
+      described_class.broadcast(user: user, type: "job.progress", resource: "job", id: 7)
+    }.not_to raise_error
+
+    expect(AppUserChannel).to have_received(:broadcast_to) do |target, event|
+      expect(target).to eq(user)
+      expect(event).to include("type" => "job.progress", "id" => 7)
+      expect(event).not_to have_key("sequence")
+    end
+  end
+
   it "omits revision when the caller doesn't pass one" do
     user = Factories.user
     allow(AppUserChannel).to receive(:broadcast_to)
