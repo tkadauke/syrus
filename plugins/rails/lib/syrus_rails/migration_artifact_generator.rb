@@ -197,10 +197,20 @@ module SyrusRails
 
     def database_configuration
       path = @workspace.join(@application&.root.to_s, "config/database.yml")
-      raw = path.read.gsub(/<%=.*?%>/m, "")
-      YAML.safe_load(raw, aliases: true) || {}
+      YAML.safe_load(strip_erb(path.read), aliases: true) || {}
     rescue Psych::Exception => e
       raise GenerationError, "cannot read database configuration: #{e.message}"
+    end
+
+    # Repository-controlled ERB is never evaluated. Execution/comment tags that
+    # sit on their own lines (including multiline ones) are dropped entirely and
+    # any remaining tag, such as an inline `<%= ... %>` interpolation, is
+    # removed so the surrounding YAML structure stays intact.
+    ERB_TAG = /<%(?!%).*?%>/m
+    ERB_STANDALONE_TAG = /^[ \t]*<%(?![%=]).*?%>[ \t]*\r?\n/m
+
+    def strip_erb(raw)
+      raw.gsub(ERB_STANDALONE_TAG, "").gsub(ERB_TAG, "")
     end
 
     def configured_adapter
