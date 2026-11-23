@@ -11,8 +11,16 @@ module MainBranchHealth
 
     def self.included(base)
       FIELDS.each { |name, (type, default)| base.attribute(name, type, default: default) }
+      base.has_one :main_branch_health_state,
+        class_name: "MainBranchHealth::RepositoryState",
+        foreign_key: :repository_id,
+        inverse_of: :repository
+      base.send(:default_scope, -> { includes(:main_branch_health_state) })
       base.enum :ci_health, base::CI_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
       base.enum :grader_health, base::GRADER_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
+      install_attribute_readers(base)
+      install_enum_predicates(base, :ci_health, base::CI_HEALTH_STATES)
+      install_enum_predicates(base, :grader_health, base::GRADER_HEALTH_STATES)
       base.scope :with_main_branch_health_enabled, -> {
         where(id: MainBranchHealth::RepositoryState.where(main_branch_health_enabled: true).select(:repository_id))
       }
@@ -32,9 +40,34 @@ module MainBranchHealth
         states = MainBranchHealth::RepositoryState.where(main_branch_health_enabled: true, main_branch_repair_enabled: true)
         where(id: states.select(:repository_id))
       }
-      base.after_find :load_main_branch_health_state
       base.after_save :persist_main_branch_health_state
       base.after_destroy :destroy_main_branch_health_state
+    end
+
+    def self.install_attribute_readers(base)
+      FIELDS.each_key do |name|
+        base.define_method(name) do
+          load_main_branch_health_state
+          super()
+        end
+        base.define_method("#{name}?") do
+          load_main_branch_health_state
+          super()
+        end
+        base.define_method("#{name}=") do |value|
+          load_main_branch_health_state if persisted?
+          super(value)
+        end
+      end
+    end
+
+    def self.install_enum_predicates(base, name, values)
+      values.each do |value|
+        base.define_method("#{name}_#{value}?") do
+          load_main_branch_health_state
+          super()
+        end
+      end
     end
 
     def update_columns(attributes)
@@ -44,15 +77,21 @@ module MainBranchHealth
     end
 
     def reload(...)
-      super.tap { load_main_branch_health_state }
+      @main_branch_health_state_loaded = false
+      super
     end
 
     private
 
     def load_main_branch_health_state
-      state = MainBranchHealth::RepositoryState.find_by(repository_id: id)
+      return if @main_branch_health_state_loaded
+
+      @main_branch_health_state_loaded = true
+      return unless persisted?
+
+      state = main_branch_health_state
       values = FIELDS.to_h { |name, (_, default)| [ name, state ? state.public_send(name) : default ] }
-      assign_attributes(values)
+      values.each { |name, value| self[name] = value }
       clear_attribute_changes(FIELDS.keys)
     end
 
