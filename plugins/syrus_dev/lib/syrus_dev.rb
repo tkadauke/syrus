@@ -2,6 +2,7 @@ module SyrusDev
   extend Syrus::PluginApi
 
   syrus_plugin "syrus_dev" do
+    requires_syrus nil
     experimental true
     display_name "Syrus Dev"
     description "Syrus development diagnostics and internal tooling."

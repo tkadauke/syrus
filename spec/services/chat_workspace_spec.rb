@@ -134,7 +134,7 @@ RSpec.describe ChatWorkspace, :ci_only do
       transport.define_singleton_method(:url) { "http://mirror/v1/repositories/7" }
       transport.define_singleton_method(:env) { { "GIT_MIRROR" => "1" } }
       transport.define_singleton_method(:register!) { nil }
-      Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, Class.new do
         include Syrus::Plugin::WorkspaceGitTransport
         define_singleton_method(:available_for?) { |_repository| true }
         define_singleton_method(:build) { |repository:, user:| transport }
@@ -192,7 +192,7 @@ RSpec.describe ChatWorkspace, :ci_only do
     after { FileUtils.rm_rf(mirror_bare_dir) }
 
     def register_transport(url:, register_calls: nil, register_error: nil)
-      Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, Class.new do
         include Syrus::Plugin::WorkspaceGitTransport
 
         define_singleton_method(:available_for?) { |_repository| true }

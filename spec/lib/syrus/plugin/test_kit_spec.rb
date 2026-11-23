@@ -2,7 +2,7 @@ require "rails_helper"
 require "syrus/plugin/test_kit"
 
 RSpec.describe Syrus::Plugin::TestKit do
-  let(:manifest) { Syrus::Plugin::Manifest.new(name: "broken", version: "1.0.0", provides: {}, metadata: {}) }
+  let(:manifest) { Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken", version: "1.0.0", provides: {}, metadata: {}) }
   let(:plugin) { instance_double(Syrus::Plugin::TestKit::PluginUnderTest, name: "broken", manifest:, root: Pathname.new(Dir.tmpdir)) }
 
   class ValidCallbacks
@@ -55,6 +55,10 @@ RSpec.describe Syrus::Plugin::TestKit do
         module IsolatedTestKitPlugin
           extend Syrus::PluginApi
           syrus_plugin "isolated_test_kit_plugin" do
+            default_enabled true
+            disableable true
+            experimental false
+            requires_syrus ">= 0.1.0"
             provides callbacks: "IsolatedTestKitPlugin::Callbacks"
           end
           class Callbacks; end
@@ -97,6 +101,10 @@ RSpec.describe Syrus::Plugin::TestKit do
         module HostileProbeTestKitPlugin
           extend Syrus::PluginApi
           syrus_plugin "hostile_probe_test_kit_plugin" do
+            default_enabled true
+            disableable true
+            experimental false
+            requires_syrus ">= 0.1.0"
             provides callbacks: "HostileProbeTestKitPlugin::Callbacks"
           end
           class Callbacks; end

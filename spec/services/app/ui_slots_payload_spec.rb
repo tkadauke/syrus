@@ -20,7 +20,7 @@ RSpec.describe App::UiSlotsPayload do
   end
 
   def register(provider_class, name: "slot_plugin")
-    Syrus::PluginRegistry.register(name: name, version: "1.0.0", provides: { ui_slot: provider_class })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: name, version: "1.0.0", provides: { ui_slot: provider_class })
   end
 
   it "returns nothing when no plugin contributes to the slot" do

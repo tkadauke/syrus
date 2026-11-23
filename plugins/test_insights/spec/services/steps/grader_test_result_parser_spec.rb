@@ -57,7 +57,7 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
   end
 
   def register_parser(name, provider)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name,
       version: "1.0.0",
       provides: { "test_insights:parser" => provider }

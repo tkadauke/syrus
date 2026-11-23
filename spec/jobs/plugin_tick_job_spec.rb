@@ -18,7 +18,7 @@ RSpec.describe PluginTickJob, :reset_plugin_registry do
   end
 
   before do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "tick_plugin",
       version: "1.0.0",
       tick_interval: 5.minutes,
@@ -42,7 +42,7 @@ RSpec.describe PluginTickJob, :reset_plugin_registry do
   end
 
   it "does not tick a plugin that turned unhealthy after the tick was enqueued" do
-    Syrus::PluginRegistry.register(name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes,
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes,
       depends_on: [ "missing_dependency" ], provides: { callbacks: callbacks_class })
 
     described_class.perform_now("tick_plugin")
@@ -51,7 +51,7 @@ RSpec.describe PluginTickJob, :reset_plugin_registry do
   end
 
   it "does nothing when the plugin has no callback provider" do
-    Syrus::PluginRegistry.register(name: "no_callbacks_plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "no_callbacks_plugin", version: "1.0.0")
 
     expect { described_class.perform_now("no_callbacks_plugin") }.not_to raise_error
   end

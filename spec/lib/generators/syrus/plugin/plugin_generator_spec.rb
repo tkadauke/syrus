@@ -16,6 +16,12 @@ RSpec.describe Syrus::Plugin::PluginGenerator do
     manifest = read("plugins/sample_plugin/lib/sample_plugin.rb")
     expect(gemspec).to include('spec.name = "sample_plugin"', 'spec.metadata["requires_syrus"] = ">= 0.1.0"')
     expect(manifest).to include("extend Syrus::PluginApi", 'provides callbacks: "SamplePlugin::Callbacks"')
+    expect(manifest).to include(
+      "default_enabled true",
+      "disableable true",
+      "experimental false",
+      'requires_syrus ">= 0.1.0"'
+    )
     expect(manifest).to include('frontend bundle: "dist/frontend/plugin.js"')
     expect(path("plugins/sample_plugin/spec/sample_plugin_spec.rb")).to exist
     expect(path("plugins/sample_plugin/.github/workflows/test.yml")).to exist

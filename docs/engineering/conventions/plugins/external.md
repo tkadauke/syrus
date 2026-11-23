@@ -173,6 +173,10 @@ module WeatherTools
 
   syrus_plugin "weather_tools" do
     version "0.1.0"
+    default_enabled true
+    disableable true
+    experimental false
+    requires_syrus ">= 0.1.0"
     display_name "Weather Tools"
     category "tooling"
     author "Your name"
@@ -183,6 +187,12 @@ module WeatherTools
   end
 end
 ```
+
+All four release-posture fields are mandatory. The first three accept explicit
+booleans. Use `requires_syrus nil` only for an intentionally unbounded plugin;
+otherwise declare its tested compatibility requirement. Older manifests that
+omit these fields must be updated and are rejected rather than receiving
+compatibility defaults.
 
 `depends_on`, `optionally_depends_on`, and `conflicts_with` name plugin
 manifests. `provides` maps a registered extension point to a class-name string,

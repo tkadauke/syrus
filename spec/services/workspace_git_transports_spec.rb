@@ -21,14 +21,14 @@ RSpec.describe WorkspaceGitTransports do
     it "returns the first available provider's built instance" do
       built = Object.new
       provider = stub_transport(available: true, instance: built)
-      Syrus::PluginRegistry.register(:workspace_git_transport, provider)
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, provider)
 
       expect(described_class.for(repository, user: user)).to equal(built)
     end
 
     it "skips a provider that declares itself unavailable for the repository" do
       unavailable = stub_transport(available: false, instance: Object.new)
-      Syrus::PluginRegistry.register(:workspace_git_transport, unavailable)
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, unavailable)
 
       expect(described_class.for(repository, user: user)).to be_nil
     end
@@ -37,8 +37,8 @@ RSpec.describe WorkspaceGitTransports do
       nothing_to_build = stub_transport(available: true, instance: nil)
       built = Object.new
       fallback = stub_transport(available: true, instance: built)
-      Syrus::PluginRegistry.register(:workspace_git_transport, nothing_to_build)
-      Syrus::PluginRegistry.register(:workspace_git_transport, fallback)
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, nothing_to_build)
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, fallback)
 
       expect(described_class.for(repository, user: user)).to equal(built)
     end
@@ -52,8 +52,8 @@ RSpec.describe WorkspaceGitTransports do
       end
       built = Object.new
       fallback = stub_transport(available: true, instance: built)
-      Syrus::PluginRegistry.register(:workspace_git_transport, broken)
-      Syrus::PluginRegistry.register(:workspace_git_transport, fallback)
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, broken)
+      Syrus::PluginRegistry.register_direct(:workspace_git_transport, fallback)
 
       expect(described_class.for(repository, user: user)).to equal(built)
     end

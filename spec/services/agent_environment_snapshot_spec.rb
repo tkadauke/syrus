@@ -108,7 +108,7 @@ RSpec.describe AgentEnvironmentSnapshot do
         def self.review_needed?(job:, trigger_kind:) = trigger_kind == "initial"
         def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
       end
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "agent_environment_snapshot_review_notes_provider",
         version: "1.0.0",
         provides: { post_implementation_review_provider: provider }
@@ -242,7 +242,7 @@ RSpec.describe AgentEnvironmentSnapshot do
 
     def register_real_ruby_and_javascript_plugins
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
           family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
             family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
@@ -251,7 +251,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       end
 
       unless Syrus::PluginRegistry.registered_names.include?("javascript")
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
           family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
             family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
@@ -291,7 +291,7 @@ RSpec.describe AgentEnvironmentSnapshot do
 
     it "includes Python and Go signals once those plugins are registered and enabled", requires_plugin: %w[ruby javascript python go] do
       unless Syrus::PluginRegistry.registered_names.include?("python")
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "python", version: Syrus::PluginApi.default_version, prepare_priority: 30,
           family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
             family: :ecosystem, provider: "Python::Ecosystem", implements: %i[detect_prepare]
@@ -300,7 +300,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       end
 
       unless Syrus::PluginRegistry.registered_names.include?("go")
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "go", version: Syrus::PluginApi.default_version, prepare_priority: 40,
           family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
             family: :ecosystem, provider: "Go::Ecosystem", implements: %i[detect_prepare]

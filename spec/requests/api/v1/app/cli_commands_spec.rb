@@ -5,7 +5,7 @@ RSpec.describe "API: /api/v1/app/cli_commands", type: :request do
   let(:user) { Factories.user(email_address: "cli@example.com") }
 
   def register_fixture_plugin(name: "fixture_cli", enabled: true)
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: name, version: "1.0.0",
       cli_commands: [
         { path: %w[fixture greet], summary: "Greet someone", handler: "PluginCliFixture::Handler", arguments: [ { name: "name", type: "string", required: true } ], flags: [ { name: "loud", type: "boolean", default: false } ] },

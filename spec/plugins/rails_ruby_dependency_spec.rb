@@ -21,7 +21,7 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
     # Mirrors plugins/ruby/lib/ruby/engine.rb's after_initialize registration
     # (the in-memory registry is reset for every test example; see
     # config/initializers/plugin_registry.rb).
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name:             "ruby",
       version:          Syrus::PluginApi.default_version,
       description:      "Ruby-generic intelligence: RSpec grader detail, RSpec output parsing, " \
@@ -38,7 +38,7 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
     )
 
     # Mirrors plugins/rails/lib/syrus_rails/engine.rb's after_initialize registration.
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name:        "syrus-rails",
       version:     Syrus::PluginApi.default_version,
       description: "Ruby on Rails intelligence",

@@ -17,7 +17,7 @@ RSpec.describe "Job domain events" do
   end
 
   def register(klass)
-    Syrus::PluginRegistry.register(name: "job_event_plugin", version: "1.0.0", provides: { domain_subscriber: klass })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "job_event_plugin", version: "1.0.0", provides: { domain_subscriber: klass })
   end
 
   it "publishes job.created when a Job is created" do

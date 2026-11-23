@@ -253,7 +253,7 @@ RSpec.describe PlatformPollingJob do
       after  { clear_solid_queue_test_tables! }
 
       it "excludes it so PlatformDelivery::Registry.start_connectors! is the one that starts it" do
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "discord_plugin", version: "1.0.0",
           provides: { platform_delivery: plugin_adapter_class }
         )

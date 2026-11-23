@@ -17,7 +17,7 @@ RSpec.describe SlugRefs::Resolver, :reset_plugin_registry do
       define_singleton_method(:preview_available?) { true }
     end
 
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "notes_slug_fixture",
       version: "1.0.0",
       provides: { slug_type: plugin_slug_type }

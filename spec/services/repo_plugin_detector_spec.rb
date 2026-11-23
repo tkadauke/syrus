@@ -18,7 +18,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
   # RepoPluginDetector-local fixture.
   before do
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
         family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
           family: :ecosystem, provider: "Ruby::Ecosystem",
@@ -29,7 +29,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("javascript")
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
         family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
           family: :ecosystem, provider: "JavaScript::Ecosystem",
@@ -39,7 +39,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("syrus-rails")
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "syrus-rails", version: Syrus::PluginApi.default_version, depends_on: [ "ruby" ],
         provides: { preview_provider: SyrusRails::PreviewProvider }
       )
@@ -88,7 +88,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
       declaration = Syrus::Plugin::FamilyDeclaration.build(
         family: :detector_family, provider: "DetectorFamilySpecProvider", implements: %i[detect_prepare]
       )
-      Syrus::PluginRegistry.register(name: "family-language", version: "1", family_provides: [ declaration ])
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "family-language", version: "1", family_provides: [ declaration ])
     end
 
     after do
@@ -116,7 +116,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
       declaration = Syrus::Plugin::FamilyDeclaration.build(
         family: :detector_family, provider: "NonConformingDetectorProvider", implements: %i[detect_prepare]
       )
-      Syrus::PluginRegistry.register(name: "non-conforming", version: "1", family_provides: [ declaration ])
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "non-conforming", version: "1", family_provides: [ declaration ])
       write("family.lock")
 
       expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
@@ -133,7 +133,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
       declaration = Syrus::Plugin::FamilyDeclaration.build(
         family: :detector_family, provider: "UnloadableDetectorProvider", implements: %i[detect_prepare]
       )
-      Syrus::PluginRegistry.register(name: "unloadable", version: "1", family_provides: [ declaration ])
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "unloadable", version: "1", family_provides: [ declaration ])
       write("family.lock")
 
       expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])

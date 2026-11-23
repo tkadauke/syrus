@@ -18,8 +18,8 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the enabled chip" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "enabled-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "disabled-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "enabled-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "disabled-plugin", version: "1.0.0")
     PluginRecord.find_by!(name: "disabled-plugin").update!(enabled: false)
 
     tree = { "and" => [ { "field" => "enabled", "op" => "is", "value" => "disabled" } ] }
@@ -30,8 +30,8 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the experimental chip" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "stable-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(disableable: true, requires_syrus: nil, name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
     tree = { "and" => [ { "field" => "experimental", "op" => "is", "value" => "experimental" } ] }
 
@@ -41,8 +41,8 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the author chip" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "ada-plugin", version: "1.0.0", author: "Ada Lovelace")
-    Syrus::PluginRegistry.register(name: "grace-plugin", version: "1.0.0", author: "Grace Hopper")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "ada-plugin", version: "1.0.0", author: "Ada Lovelace")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "grace-plugin", version: "1.0.0", author: "Grace Hopper")
 
     tree = { "and" => [ { "field" => "author", "op" => "contains", "value" => "Ada" } ] }
 
@@ -52,12 +52,12 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the extension point chip" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "agent-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsFilterSpec::Provider }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "input-plugin",
       version: "1.0.0",
       provides: { input_source: AdminPluginsFilterSpec::InputSource }
@@ -71,12 +71,12 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "finds plugins without extension points with is_unset" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "provider-plugin",
       version: "1.0.0",
       provides: { agent_provider: AdminPluginsFilterSpec::Provider }
     )
-    Syrus::PluginRegistry.register(name: "metadata-only-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "metadata-only-plugin", version: "1.0.0")
 
     tree = { "and" => [ { "field" => "extension_point", "op" => "is_unset" } ] }
 
@@ -86,8 +86,8 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the category chip" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "observability-plugin", version: "1.0.0", category: "observability")
-    Syrus::PluginRegistry.register(name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "observability-plugin", version: "1.0.0", category: "observability")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
 
     tree = { "and" => [ { "field" => "category", "op" => "is", "value" => "observability" } ] }
 
@@ -97,9 +97,9 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the category chip with is_one_of" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "observability-plugin", version: "1.0.0", category: "observability")
-    Syrus::PluginRegistry.register(name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
-    Syrus::PluginRegistry.register(name: "tooling-plugin", version: "1.0.0", category: "tooling")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "observability-plugin", version: "1.0.0", category: "observability")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tooling-plugin", version: "1.0.0", category: "tooling")
 
     tree = { "and" => [ { "field" => "category", "op" => "is_one_of", "value" => %w[observability connectivity] } ] }
 
@@ -109,8 +109,8 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "finds uncategorized plugins with is_unset" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "categorized-plugin", version: "1.0.0", category: "observability")
-    Syrus::PluginRegistry.register(name: "uncategorized-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "categorized-plugin", version: "1.0.0", category: "observability")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "uncategorized-plugin", version: "1.0.0")
 
     tree = { "and" => [ { "field" => "category", "op" => "is_unset" } ] }
 
@@ -120,13 +120,13 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "filters by the search chip across name, display_name, description, and category" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "search-target-plugin",
       display_name: "Weather Radar",
       version: "1.0.0",
       description: "Watches storms roll in."
     )
-    Syrus::PluginRegistry.register(name: "search-other-plugin", version: "1.0.0", description: "Keeps issues in sync.")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "search-other-plugin", version: "1.0.0", description: "Keeps issues in sync.")
 
     tree = { "and" => [ { "field" => "search", "op" => "contains", "value" => "storms" } ] }
 
@@ -136,8 +136,8 @@ RSpec.describe Admin::Plugins::Filter do
 
   it "combines category and search chips with AND semantics" do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "both-match-plugin", version: "1.0.0", category: "observability", description: "Watches storms roll in.")
-    Syrus::PluginRegistry.register(name: "category-only-plugin", version: "1.0.0", category: "observability", description: "Nothing weather related here.")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "both-match-plugin", version: "1.0.0", category: "observability", description: "Watches storms roll in.")
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "category-only-plugin", version: "1.0.0", category: "observability", description: "Nothing weather related here.")
 
     tree = {
       "and" => [

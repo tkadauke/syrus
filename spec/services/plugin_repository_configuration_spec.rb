@@ -37,7 +37,7 @@ RSpec.describe PluginRepositoryConfiguration do
   end
 
   it "parses, safely serializes, and selects affected projects through a versioned provider" do
-    Syrus::PluginRegistry.register(:repository_configuration, SyntheticRepositoryConfiguration)
+    Syrus::PluginRegistry.register_direct(:repository_configuration, SyntheticRepositoryConfiguration)
 
     config = SyrusYml.new(<<~YAML).parse
       plugins:
@@ -63,8 +63,8 @@ RSpec.describe PluginRepositoryConfiguration do
     second = Class.new(SyntheticRepositoryConfiguration) do
       def self.key = "synthetic.alpha"
     end
-    Syrus::PluginRegistry.register(:repository_configuration, SyntheticRepositoryConfiguration)
-    Syrus::PluginRegistry.register(:repository_configuration, second)
+    Syrus::PluginRegistry.register_direct(:repository_configuration, SyntheticRepositoryConfiguration)
+    Syrus::PluginRegistry.register_direct(:repository_configuration, second)
 
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, ".syrus.yml"), <<~YAML)
@@ -95,7 +95,7 @@ RSpec.describe PluginRepositoryConfiguration do
   end
 
   it "reports absent and disabled providers without materializing their configuration" do
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "synthetic", version: "1", provides: { repository_configuration: SyntheticRepositoryConfiguration }
     )
     PluginRecord.find_by!(name: "synthetic").update!(enabled: false)
@@ -115,7 +115,7 @@ RSpec.describe PluginRepositoryConfiguration do
   end
 
   it "rejects invalid envelopes and provider schemas" do
-    Syrus::PluginRegistry.register(:repository_configuration, SyntheticRepositoryConfiguration)
+    Syrus::PluginRegistry.register_direct(:repository_configuration, SyntheticRepositoryConfiguration)
 
     expect { SyrusYml.new("plugins: []").parse }.to raise_error(SyrusYml::ParseError, /plugins: must be a mapping/)
     expect do
@@ -127,7 +127,7 @@ RSpec.describe PluginRepositoryConfiguration do
   end
 
   it "uses the replacement provider after a registry reload" do
-    Syrus::PluginRegistry.register(:repository_configuration, SyntheticRepositoryConfiguration)
+    Syrus::PluginRegistry.register_direct(:repository_configuration, SyntheticRepositoryConfiguration)
     first = SyrusYml.new("plugins:\n  synthetic.rules: { version: 2, config: {} }").parse
     expect(first.plugin_configurations["synthetic.rules"]).to include("scope" => "root")
 
@@ -135,7 +135,7 @@ RSpec.describe PluginRepositoryConfiguration do
       def self.parse(value:, version:, scope:) = { "reloaded" => true }
     end
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(:repository_configuration, replacement)
+    Syrus::PluginRegistry.register_direct(:repository_configuration, replacement)
 
     reloaded = SyrusYml.new("plugins:\n  synthetic.rules: { version: 2, config: {} }").parse
     expect(reloaded.plugin_configurations["synthetic.rules"]).to eq("reloaded" => true)

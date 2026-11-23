@@ -2,6 +2,7 @@ module CognitiveReview
   extend Syrus::PluginApi
 
   syrus_plugin "cognitive_review" do
+    requires_syrus nil
     experimental true
     display_name "Review Notes"
     description "Agent-authored review notes for changed diff ranges, surfaced in the Job review tab."

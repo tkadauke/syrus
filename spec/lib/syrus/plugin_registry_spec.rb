@@ -25,6 +25,53 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::InputSource }
   end
 
+  describe "release posture" do
+    it "requires every release-posture keyword" do
+      expect { described_class.register(name: "incomplete", version: "1.0.0") }
+        .to raise_error(ArgumentError, /missing keywords: :default_enabled, :disableable, :experimental, :requires_syrus/)
+    end
+
+    it "accepts explicit false values and an unbounded compatibility declaration" do
+      described_class.register(
+        name: "explicit",
+        version: "1.0.0",
+        default_enabled: false,
+        disableable: false,
+        experimental: false,
+        requires_syrus: nil
+      )
+
+      expect(described_class.all_plugins.first).to have_attributes(
+        default_enabled: false,
+        disableable: false,
+        experimental: false,
+        requires_syrus: nil
+      )
+    end
+
+    it "does not replace an explicit unbounded declaration with earlier metadata" do
+      posture = { default_enabled: true, disableable: true, experimental: false }
+      described_class.register(name: "explicit", version: "1.0.0", requires_syrus: ">= 1.0", **posture)
+      described_class.register(name: "explicit", version: "1.0.0", requires_syrus: nil, **posture)
+
+      expect(described_class.all_plugins.first.requires_syrus).to be_nil
+    end
+
+    it "rejects non-boolean release flags" do
+      expect do
+        described_class.register(
+          name: "invalid", version: "1.0.0", default_enabled: nil,
+          disableable: true, experimental: false, requires_syrus: nil
+        )
+      end.to raise_error(described_class::RegistrationError, "default_enabled must be true or false")
+    end
+
+    it "requires the same metadata when constructing a manifest directly" do
+      expect { Syrus::Plugin::Manifest.new(name: "incomplete", version: "1.0.0") }
+        .to raise_error(ArgumentError, /missing keywords: :default_enabled, :disableable, :experimental, :requires_syrus/)
+    end
+  end
+
   describe "CLI command declarations" do
     let(:valid_command) do
       {
@@ -35,7 +82,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "stores a valid declaration without resolving its handler" do
-      described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command ])
 
       command = described_class.all_plugins.find { |plugin| plugin.name == "cli_plugin" }.cli_commands.first
       expect(command.catalog_payload).to include(plugin: "cli_plugin", path: %w[docs list], summary: "List documents")
@@ -44,28 +91,28 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "reports a missing handler as degraded plugin health without raising" do
       expect do
-        described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command.except(:handler) ])
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command.except(:handler) ])
       end.not_to raise_error
 
       expect(described_class.health.status("cli_plugin")).to have_attributes(state: :degraded, reasons: include("CLI command handler is required"))
     end
 
     it "reports duplicate command paths as degraded plugin health" do
-      described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command, valid_command ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command, valid_command ])
 
       expect(described_class.health.status("cli_plugin").reasons).to include("duplicate CLI command path: docs list")
     end
 
     it "reports an unsupported flag type as degraded plugin health" do
       invalid = valid_command.merge(flags: [ { name: "limit", type: "float" } ])
-      described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ invalid ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "cli_plugin", version: "1.0.0", cli_commands: [ invalid ])
 
       expect(described_class.health.status("cli_plugin").reasons).to include("unsupported CLI command type: float")
     end
   end
 
   it "records a host-surface scan without replacing manifest registration" do
-    described_class.register(name: "external", version: "1.0.0", external: true, custom: "value")
+    described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external", version: "1.0.0", external: true, custom: "value")
     scan = instance_double(Syrus::PluginHostSurface::Scanner::Result)
 
     described_class.record_host_surface_scan("external", scan)
@@ -334,7 +381,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns only classes registered for the requested extension point" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "multi_plugin", version: "1.0.0",
         provides: { agent_provider: agent_provider_class, chat_provider: chat_provider_class, mcp_tool_set: mcp_tool_set_class }
       )
@@ -348,8 +395,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     # and actually declares it — otherwise any "<plugin>:<anything>" would
     # silently resolve and the declared surface would stop meaning anything.
     it "returns providers for a point another plugin hosts" do
-      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "contributor_plugin", version: "1.0.0",
         provides: { "host_plugin:thing" => test_result_parser_class }
       )
@@ -362,8 +409,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     # contribution through add_validation_error degrades the contributor, which
     # must then stop contributing (formal/SyrusModel/EffectHealth.lean).
     it "withholds a hosted point's providers from an unhealthy contributor" do
-      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "contributor_plugin", version: "1.0.0",
         provides: { "host_plugin:thing" => test_result_parser_class }
       )
@@ -373,8 +420,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "withholds every provider of a point whose host is unhealthy" do
-      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ], depends_on: [ "missing_dependency" ])
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1.0.0", hosts: [ :thing ], depends_on: [ "missing_dependency" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "contributor_plugin", version: "1.0.0",
         provides: { "host_plugin:thing" => test_result_parser_class }
       )
@@ -386,24 +433,24 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     # and used to read manifests with enabled? alone, skipping health (NY18).
     describe ".providers_with_owner_for" do
       it "pairs each provider with its owning plugin, from healthy enabled contributors only" do
-        described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
-        described_class.register(name: "healthy_contributor", version: "1.0.0", provides: { "host_plugin:thing" => test_result_parser_class })
-        described_class.register(name: "broken_contributor", version: "1.0.0", provides: { "host_plugin:thing" => { "key" => "broken" } })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "healthy_contributor", version: "1.0.0", provides: { "host_plugin:thing" => test_result_parser_class })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "broken_contributor", version: "1.0.0", provides: { "host_plugin:thing" => { "key" => "broken" } })
         described_class.add_validation_error("broken_contributor", "invalid thing")
 
         expect(described_class.providers_with_owner_for("host_plugin:thing")).to eq([ [ "healthy_contributor", test_result_parser_class ] ])
       end
 
       it "returns nothing while the host is unhealthy" do
-        described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ], depends_on: [ "missing_dependency" ])
-        described_class.register(name: "contributor", version: "1.0.0", provides: { "host_plugin:thing" => test_result_parser_class })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1.0.0", hosts: [ :thing ], depends_on: [ "missing_dependency" ])
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "contributor", version: "1.0.0", provides: { "host_plugin:thing" => test_result_parser_class })
 
         expect(described_class.providers_with_owner_for("host_plugin:thing")).to eq([])
       end
     end
 
     it "returns nothing for a point no registered plugin hosts" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "contributor_plugin", version: "1.0.0",
         provides: { "absent_host:thing" => test_result_parser_class }
       )
@@ -412,8 +459,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns nothing for a point its host does not declare" do
-      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "contributor_plugin", version: "1.0.0",
         provides: { "host_plugin:undeclared" => test_result_parser_class }
       )
@@ -422,7 +469,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns preview providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "preview_plugin", version: "1.0.0",
         provides: { preview_provider: preview_provider_class }
       )
@@ -431,7 +478,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns slug type providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "slug_plugin", version: "1.0.0",
         provides: { slug_type: slug_type_class }
       )
@@ -440,7 +487,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns admin page and chat MCP providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "ui_plugin", version: "1.0.0",
         provides: { admin_page: admin_page_class, chat_mcp_tool_set: chat_mcp_tool_set_class }
       )
@@ -450,7 +497,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns sidebar page providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "sidebar_ui_plugin", version: "1.0.0",
         provides: { sidebar_page: sidebar_page_class }
       )
@@ -459,7 +506,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns workspace tab providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "workspace_tab_plugin", version: "1.0.0",
         provides: { workspace_tab: workspace_tab_class }
       )
@@ -468,7 +515,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns speech-to-text providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "speech_to_text_plugin", version: "1.0.0",
         provides: { speech_to_text_provider: speech_to_text_provider_class }
       )
@@ -477,7 +524,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns execution backend providers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "execution_backend_plugin", version: "1.0.0",
         provides: { execution_backend: execution_backend_class }
       )
@@ -486,7 +533,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns an empty array when no plugin provides the requested extension point" do
-      described_class.register(name: "plugin", version: "1.0.0", provides: { mcp_tool_set: mcp_tool_set_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin", version: "1.0.0", provides: { mcp_tool_set: mcp_tool_set_class })
 
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
@@ -496,14 +543,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "excludes providers from plugins where PluginRecord.enabled is false" do
-      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
       PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
 
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
 
     it "includes non-disableable providers even if a stale row says disabled" do
-      described_class.register(
+      described_class.register(default_enabled: true, experimental: false, requires_syrus: nil,
         name: "required_plugin",
         version: "1.0.0",
         disableable: false,
@@ -518,8 +565,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       enabled_provider  = Class.new { include Syrus::Plugin::AgentProvider }
       disabled_provider = Class.new { include Syrus::Plugin::AgentProvider }
 
-      described_class.register(name: "enabled_plugin",  version: "1.0.0", provides: { agent_provider: enabled_provider })
-      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: disabled_provider })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "enabled_plugin",  version: "1.0.0", provides: { agent_provider: enabled_provider })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: disabled_provider })
       PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
 
       expect(described_class.providers_for(:agent_provider)).to eq([ enabled_provider ])
@@ -527,7 +574,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "reuses plugin record snapshots briefly across provider lookups" do
       stub_const("Syrus::PluginRegistry::PLUGIN_RECORD_CACHE_TTL", 60.seconds)
-      described_class.register(name: "cached_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "cached_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
       described_class.clear_plugin_record_cache!
 
       queries = []
@@ -546,7 +593,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "clears the cached plugin record snapshot when plugin state changes" do
       stub_const("Syrus::PluginRegistry::PLUGIN_RECORD_CACHE_TTL", 60.seconds)
-      described_class.register(name: "toggle_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "toggle_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
 
       expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
       PluginRecord.find_by!(name: "toggle_plugin").update!(enabled: false)
@@ -564,8 +611,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       before do
         allow(described_class).to receive(:enablement_retry_sleep)
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-        described_class.register(name: "plugin_off", version: "1.0.0", default_enabled: false, provides: { agent_provider: off_by_default })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+        described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "plugin_off", version: "1.0.0", default_enabled: false, provides: { agent_provider: off_by_default })
       end
 
       it "uses the declared defaults when the plugin_records table does not exist yet" do
@@ -622,7 +669,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".credential_types" do
     it "registers a typed consumer owned by the declaring credential type" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "mail_plugin",
         version: "1.0.0",
         credential_types: [
@@ -641,20 +688,20 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects invalid and duplicate typed credential consumers at registration" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "invalid_consumer",
           version: "1.0.0",
           credential_types: [ { name: "invalid_consumer.oauth", typed_consumer: { name: "Invalid consumer", description: "Bad." } } ]
         )
       }.to raise_error(Syrus::PluginRegistry::RegistrationError, /consumer name.*invalid/i)
 
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "first_consumer",
         version: "1.0.0",
         credential_types: [ { name: "first_consumer.oauth", typed_consumer: { name: "accounts.access", description: "First." } } ]
       )
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "second_consumer",
           version: "1.0.0",
           credential_types: [ { name: "second_consumer.oauth", typed_consumer: { name: "accounts.access", description: "Second." } } ]
@@ -664,7 +711,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects typed credential consumers that collide with raw wrappers" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "wrapper_collision",
           version: "1.0.0",
           credential_types: [
@@ -678,7 +725,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "returns credential type declarations from enabled healthy plugins" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "credential_plugin",
         version: "1.0.0",
         credential_types: [
@@ -702,7 +749,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "excludes credential types from disabled plugins" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "disabled_credential_plugin",
         version: "1.0.0",
         credential_type_names: [ "disabled_credential_plugin.kubeconfig" ]
@@ -714,7 +761,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "lists every registered credential type only for an asset build when plugin_records is unavailable" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "fallback_credential_plugin",
         version: "1.0.0",
         credential_type_names: [ "fallback_credential_plugin.kubeconfig" ]
@@ -731,7 +778,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".register" do
     it "stores the plugin manifest" do
-      described_class.register(name: "test_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0")
       manifests = described_class.all_plugins
       expect(manifests.size).to eq(1)
       expect(manifests.first.name).to eq("test_plugin")
@@ -739,50 +786,50 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "stores extra metadata on the manifest" do
-      described_class.register(name: "test_plugin", version: "1.0.0", author: "Alice")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0", author: "Alice")
       expect(described_class.all_plugins.first.metadata[:author]).to eq("Alice")
     end
 
     it "raises RegistrationError when the author is \"Syrus\"" do
       expect {
-        described_class.register(name: "test_plugin", version: "1.0.0", author: "Syrus")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0", author: "Syrus")
       }.to raise_error(described_class::RegistrationError, /"Syrus" is not a valid plugin author/)
     end
 
     it "raises RegistrationError when the author is \"Syrus\" regardless of case or whitespace" do
       expect {
-        described_class.register(name: "test_plugin", version: "1.0.0", author: "  syrus  ")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0", author: "  syrus  ")
       }.to raise_error(described_class::RegistrationError, /"Syrus" is not a valid plugin author/)
     end
 
     it "allows registering without an author" do
       expect {
-        described_class.register(name: "test_plugin", version: "1.0.0")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0")
       }.not_to raise_error
     end
 
     it "raises RegistrationError for an unrecognized category" do
       expect {
-        described_class.register(name: "test_plugin", version: "1.0.0", category: "not_a_real_category")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0", category: "not_a_real_category")
       }.to raise_error(described_class::RegistrationError, /Unknown plugin category "not_a_real_category"/)
     end
 
     it "allows registering without a category" do
       expect {
-        described_class.register(name: "test_plugin", version: "1.0.0")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin", version: "1.0.0")
       }.not_to raise_error
     end
 
     it "accepts every canonical Syrus::Plugin::Category key" do
       Syrus::Plugin::Category.values.each do |category|
         expect {
-          described_class.register(name: "test_plugin_#{category}", version: "1.0.0", category: category)
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "test_plugin_#{category}", version: "1.0.0", category: category)
         }.not_to raise_error
       end
     end
 
     it "stores description, homepage, and icon_url on the manifest" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:        "rich_plugin",
         version:     "2.0.0",
         description: "A richly annotated plugin.",
@@ -797,7 +844,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "stores experimental status on the manifest and PluginRecord" do
       expect {
-        described_class.register(name: "experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+        described_class.register(disableable: true, requires_syrus: nil, name: "experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
       }.not_to change(AppSetting, :count)
 
       manifest = described_class.all_plugins.first
@@ -811,17 +858,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects experimental plugins declared default-enabled" do
       expect {
-        described_class.register(name: "unsafe_default", version: "1.0.0", experimental: true)
+        described_class.register(default_enabled: true, disableable: true, requires_syrus: nil, name: "unsafe_default", version: "1.0.0", experimental: true)
       }.to raise_error(described_class::RegistrationError, /must be default-disabled/)
     end
 
     it "preserves a disabled plugin when it is promoted from experimental" do
-      described_class.register(name: "promoted_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+      described_class.register(disableable: true, requires_syrus: nil, name: "promoted_plugin", version: "1.0.0", experimental: true, default_enabled: false)
       record = PluginRecord.find_by!(name: "promoted_plugin")
       expect(record.enabled).to be(false)
       expect(record.ever_enabled).to be(false)
 
-      described_class.register(name: "promoted_plugin", version: "1.0.1", experimental: false)
+      described_class.register(default_enabled: true, disableable: true, requires_syrus: nil, name: "promoted_plugin", version: "1.0.1", experimental: false)
 
       manifest = described_class.all_plugins.first
       expect(record.reload.experimental).to be(false)
@@ -832,7 +879,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "treats experimental plugins as enabled after the instance opts in" do
       AppSetting.current.update!(beta_mode_enabled: true)
 
-      described_class.register(name: "opted_in_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+      described_class.register(disableable: true, requires_syrus: nil, name: "opted_in_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
       manifest = described_class.all_plugins.first
       record = PluginRecord.find_by!(name: "opted_in_experimental_plugin")
@@ -841,7 +888,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "stores plugin-provided links on the manifest" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "linked_plugin",
         version: "1.0.0",
         links: [
@@ -861,7 +908,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "stores credential type names on the manifest" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "k8s_cluster",
         version: "1.0.0",
         credential_type_names: [ "k8s_cluster.kubeconfig" ]
@@ -873,7 +920,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "accepts credential type display metadata" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "k8s_cluster",
         version: "1.0.0",
         credential_types: {
@@ -898,6 +945,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         namespace: Module.new,
         lib_dir: Rails.root.to_s
       )
+      definition.default_enabled true
+      definition.disableable true
+      definition.experimental false
+      definition.requires_syrus nil
       definition.credential_type_names "k8s_cluster.token"
       definition.credential_types(
         name: "k8s_cluster.kubeconfig",
@@ -920,7 +971,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         extend Syrus::PluginApi
 
         syrus_plugin "dsl_experimental_plugin" do
+          default_enabled true
+          disableable true
           experimental true
+          requires_syrus nil
         end
       end
 
@@ -933,6 +987,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         namespace: Module.new,
         lib_dir: Rails.root.to_s
       )
+      definition.default_enabled true
+      definition.disableable true
+      definition.experimental false
+      definition.requires_syrus nil
       definition.display_name_i18n_key "localized_plugin:plugin.display_name"
       definition.description_i18n_key "localized_plugin:plugin.description"
       definition.long_description_i18n_key "localized_plugin:plugin.long_description"
@@ -946,7 +1004,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects invalid credential type names" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "k8s_cluster",
           version: "1.0.0",
           credential_type_names: [ "K8S Cluster" ]
@@ -956,7 +1014,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects credential type names that are not namespaced to the declaring plugin" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "k8s_cluster",
           version: "1.0.0",
           credential_type_names: [ "other_plugin.kubeconfig" ]
@@ -966,7 +1024,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects duplicate credential type names within one plugin" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "k8s_cluster",
           version: "1.0.0",
           credential_type_names: [ "k8s_cluster.kubeconfig", "k8s_cluster.kubeconfig" ]
@@ -981,7 +1039,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "allows credential_store to declare reserved default credential type names" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "credential_store",
         version: "1.0.0",
         credential_type_names: [ "ssh_private_key", "token", "credential_store.generic" ]
@@ -993,7 +1051,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects unnamespaced credential type names from other plugins" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "other_plugin",
           version: "1.0.0",
           credential_type_names: [ "ssh_private_key" ]
@@ -1002,12 +1060,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "replaces a plugin's prior credential type declaration when it re-registers" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "replace_credential_plugin",
         version: "1.0.0",
         credential_type_names: [ "replace_credential_plugin.token" ]
       )
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "replace_credential_plugin",
         version: "1.0.1",
         credential_type_names: [ "replace_credential_plugin.kubeconfig" ]
@@ -1018,7 +1076,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects plugin-provided links without a label or href" do
       expect {
-        described_class.register(name: "bad_link_plugin", version: "1.0.0", links: [ { label: "Broken" } ])
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "bad_link_plugin", version: "1.0.0", links: [ { label: "Broken" } ])
       }.to raise_error(described_class::RegistrationError, /links require label and href/)
     end
 
@@ -1028,6 +1086,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         namespace: Module.new,
         lib_dir: Rails.root.to_s
       )
+      definition.default_enabled true
+      definition.disableable true
+      definition.experimental false
+      definition.requires_syrus nil
       definition.link "Open Linked Plugin", "/linked", description: "Primary surface"
 
       expect(definition.manifest_arguments.fetch(:links)).to eq([
@@ -1043,12 +1105,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "accepts an empty provides hash" do
       expect {
-        described_class.register(name: "empty_plugin", version: "0.1.0", provides: {})
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "empty_plugin", version: "0.1.0", provides: {})
       }.not_to raise_error
     end
 
     it "stores declared plugin event types on the manifest" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "event_plugin", version: "1.0.0",
         events: { "event_plugin.changed" => :async }
       )
@@ -1058,7 +1120,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "rejects plugin event names that collide with core events" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           events: { "job.closed" => :inline }
         )
@@ -1066,13 +1128,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "rejects duplicate event names across plugins" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "first_plugin", version: "1.0.0",
         events: { "shared.changed" => :async }
       )
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "second_plugin", version: "1.0.0",
           events: { "shared.changed" => :async }
         )
@@ -1081,7 +1143,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "accepts valid extension points with correct interface modules" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "full_plugin", version: "1.0.0",
           provides: {
             agent_provider:     agent_provider_class,
@@ -1107,7 +1169,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       second_renderer = Class.new { include Syrus::Plugin::ArtifactRenderer }
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "multi_renderer_plugin", version: "1.0.0",
           provides: { artifact_renderer: [ artifact_renderer_class, second_renderer ] }
         )
@@ -1121,7 +1183,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { artifact_renderer: plain_class }
         )
@@ -1130,7 +1192,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "raises RegistrationError for unknown extension point keys" do
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { unknown_point: agent_provider_class }
         )
@@ -1147,7 +1209,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       removed.each do |extension_point|
         expect {
-          described_class.register(
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
             name: "legacy_#{extension_point}", version: "1.0.0",
             provides: { extension_point => agent_provider_class }
           )
@@ -1159,7 +1221,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { agent_provider: plain_class }
         )
@@ -1170,7 +1232,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { mcp_tool_set: plain_class }
         )
@@ -1181,7 +1243,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { chat_provider: plain_class }
         )
@@ -1192,7 +1254,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { input_source: plain_class }
         )
@@ -1205,7 +1267,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { "test_insights:parser" => plain_class }
         )
@@ -1216,7 +1278,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { preview_provider: plain_class }
         )
@@ -1227,7 +1289,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { slug_type: plain_class }
         )
@@ -1238,7 +1300,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { platform_delivery: plain_class }
         )
@@ -1249,7 +1311,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { workspace_tab: plain_class }
         )
@@ -1260,7 +1322,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       plain_class = Class.new
 
       expect {
-        described_class.register(
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "bad_plugin", version: "1.0.0",
           provides: { speech_to_text_provider: plain_class }
         )
@@ -1270,14 +1332,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "allows the same extension point to be provided by multiple plugins" do
       second_provider = Class.new { include Syrus::Plugin::AgentProvider }
 
-      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      described_class.register(name: "plugin_b", version: "1.0.0", provides: { agent_provider: second_provider })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { agent_provider: second_provider })
 
       expect(described_class.providers_for(:agent_provider)).to contain_exactly(agent_provider_class, second_provider)
     end
 
     it "resolves a registered platform_delivery provider by its platform_key" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0",
         provides: { platform_delivery: platform_delivery_class }
       )
@@ -1288,7 +1350,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "excludes a disabled plugin's platform_delivery provider from providers_for" do
-      described_class.register(
+      described_class.register(disableable: true, experimental: false, requires_syrus: nil,
         name: "discord_plugin", version: "1.0.0", default_enabled: false,
         provides: { platform_delivery: platform_delivery_class }
       )
@@ -1332,10 +1394,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set_a = make_tool_set("tool_one", "tool_two")
         set_b = make_tool_set("tool_three", "tool_one")
 
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
 
         expect {
-          described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
         }.to raise_error(described_class::RegistrationError, /MCP tool name collision.*tool_one/)
       end
 
@@ -1343,7 +1405,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set = make_tool_set("read_live_state")
 
         expect {
-          described_class.register(name: "shadow_core", version: "1.0.0", provides: { mcp_tool_set: set })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "shadow_core", version: "1.0.0", provides: { mcp_tool_set: set })
         }.to raise_error(described_class::RegistrationError, /MCP tool name collision.*read_live_state/)
       end
 
@@ -1351,10 +1413,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set_a = make_tool_set("tool_alpha")
         set_b = make_tool_set("tool_beta")
 
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
 
         expect {
-          described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
         }.not_to raise_error
       end
 
@@ -1362,10 +1424,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set_a = make_tool_set("colliding_tool")
         set_b = make_tool_set("colliding_tool")
 
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
 
         begin
-          described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
         rescue described_class::RegistrationError
           nil
         end
@@ -1387,10 +1449,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set_a = make_tab_set("plugin_a.status")
         set_b = make_tab_set("plugin_a.status")
 
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
 
         expect {
-          described_class.register(name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
         }.to raise_error(described_class::RegistrationError, /Workspace tab id collision.*plugin_a\.status/)
       end
 
@@ -1398,10 +1460,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set_a = make_tab_set("plugin_a.status")
         set_b = make_tab_set("plugin_b.status")
 
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
 
         expect {
-          described_class.register(name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
         }.not_to raise_error
       end
 
@@ -1409,10 +1471,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         set_a = make_tab_set("colliding_tab")
         set_b = make_tab_set("colliding_tab")
 
-        described_class.register(name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
 
         begin
-          described_class.register(name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
+          described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
         rescue described_class::RegistrationError
           nil
         end
@@ -1423,12 +1485,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "creates a PluginRecord using the plugin default when none exists" do
       expect {
-        described_class.register(name: "new_plugin", version: "1.0.0", default_enabled: false)
+        described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "new_plugin", version: "1.0.0", default_enabled: false)
       }.to change { PluginRecord.where(name: "new_plugin", enabled: false, default_enabled: false).count }.by(1)
     end
 
     it "reconstructs all raw and localized metadata when a PluginRecord is missing" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "localized_plugin",
         version: "1.0.0",
         display_name: "Raw name",
@@ -1452,13 +1514,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "does not flip enabled on an existing PluginRecord" do
       PluginRecord.create!(name: "existing_plugin", enabled: false, default_enabled: false)
-      described_class.register(name: "existing_plugin", version: "1.0.0", default_enabled: true)
+      described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "existing_plugin", version: "1.0.0", default_enabled: true)
       expect(PluginRecord.find_by!(name: "existing_plugin").enabled).to be(false)
     end
 
     it "preserves enabled on an existing PluginRecord when the default changes to false" do
       PluginRecord.create!(name: "existing_plugin", enabled: true, default_enabled: true)
-      described_class.register(name: "existing_plugin", version: "1.0.0", default_enabled: false)
+      described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "existing_plugin", version: "1.0.0", default_enabled: false)
 
       expect(PluginRecord.find_by!(name: "existing_plugin")).to have_attributes(
         enabled: true,
@@ -1467,7 +1529,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "forces non-disableable plugin records enabled" do
-      described_class.register(name: "required_plugin", version: "1.0.0", default_enabled: false, disableable: false)
+      described_class.register(experimental: false, requires_syrus: nil, name: "required_plugin", version: "1.0.0", default_enabled: false, disableable: false)
 
       record = PluginRecord.find_by!(name: "required_plugin")
       expect(record).to have_attributes(enabled: true, default_enabled: false, disableable: false)
@@ -1477,7 +1539,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       allow(PluginRecord).to receive(:find_or_initialize_by).and_raise(ActiveRecord::StatementInvalid)
       allow(PluginRecord).to receive(:table_exists?).and_return(false)
       expect {
-        described_class.register(name: "resilient_plugin", version: "1.0.0")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "resilient_plugin", version: "1.0.0")
       }.not_to raise_error
       expect(described_class.all_plugins.map(&:name)).to include("resilient_plugin")
     end
@@ -1488,7 +1550,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "is resilient when the database is unavailable during boot" do
       allow(PluginRecord).to receive(:find_or_initialize_by).and_raise(ActiveRecord::ConnectionNotEstablished)
       expect {
-        described_class.register(name: "boot_plugin", version: "1.0.0")
+        described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "boot_plugin", version: "1.0.0")
       }.not_to raise_error
       expect(described_class.registered_names).to include("boot_plugin")
     end
@@ -1496,20 +1558,20 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     context "direct registration (register(:extension_point, provider))" do
       it "registers a provider for a known extension point" do
         provider = double("provider")
-        described_class.register(:callbacks, provider)
+        described_class.register_direct(:callbacks, provider)
         expect(described_class.providers_for(:callbacks)).to eq([ provider ])
       end
 
       it "accumulates multiple providers in registration order" do
         first  = double("first")
         second = double("second")
-        described_class.register(:callbacks, first)
-        described_class.register(:callbacks, second)
+        described_class.register_direct(:callbacks, first)
+        described_class.register_direct(:callbacks, second)
         expect(described_class.providers_for(:callbacks)).to eq([ first, second ])
       end
 
       it "raises ArgumentError for unknown extension points" do
-        expect { described_class.register(:unknown_point, double) }
+        expect { described_class.register_direct(:unknown_point, double) }
           .to raise_error(ArgumentError, /Unknown extension point/)
       end
     end
@@ -1517,7 +1579,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".reset!" do
     it "clears all registered plugins" do
-      described_class.register(name: "plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin", version: "1.0.0")
       expect(described_class.all_plugins).not_to be_empty
 
       described_class.reset!
@@ -1526,14 +1588,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "clears providers so providers_for returns an empty array" do
-      described_class.register(name: "plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
       described_class.reset!
 
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
 
     it "clears all registered providers" do
-      described_class.register(:callbacks, double("provider"))
+      described_class.register_direct(:callbacks, double("provider"))
       described_class.reset!
       expect(described_class.providers_for(:callbacks)).to eq([])
     end
@@ -1541,7 +1603,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe "Manifest" do
     it "is a Data object with registration metadata and enabled state" do
-      described_class.register(
+      described_class.register(requires_syrus: nil,
         name:        "manifest_plugin",
         display_name: "Manifest Plugin",
         display_name_i18n_key: "manifest_plugin:plugin.display_name",
@@ -1578,7 +1640,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "exposes enabled? as a boolean predicate" do
-      described_class.register(name: "pred_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "pred_plugin", version: "1.0.0")
       manifest = described_class.all_plugins.first
       expect(manifest.enabled?).to be(true)
     end
@@ -1586,52 +1648,52 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe "Manifest home_queue and tick_interval" do
     it "defaults home_queue to :default" do
-      described_class.register(name: "tick_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tick_plugin", version: "1.0.0")
       expect(described_class.all_plugins.first.home_queue).to eq(:default)
     end
 
     it "stores a custom home_queue on the manifest" do
-      described_class.register(name: "tick_plugin", version: "1.0.0", home_queue: :control_plane)
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tick_plugin", version: "1.0.0", home_queue: :control_plane)
       expect(described_class.all_plugins.first.home_queue).to eq(:control_plane)
     end
 
     it "defaults tick_interval to nil" do
-      described_class.register(name: "tick_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tick_plugin", version: "1.0.0")
       expect(described_class.all_plugins.first.tick_interval).to be_nil
     end
 
     it "stores a tick_interval on the manifest" do
-      described_class.register(name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes)
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes)
       expect(described_class.all_plugins.first.tick_interval).to eq(5.minutes)
     end
   end
 
   describe "Manifest depends_on" do
     it "defaults to an empty array" do
-      described_class.register(name: "no_deps_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "no_deps_plugin", version: "1.0.0")
       expect(described_class.all_plugins.first.depends_on).to eq([])
     end
 
     it "stores declared dependency names on the manifest" do
-      described_class.register(name: "base_plugin", version: "1.0.0")
-      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "base_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
 
       manifest = described_class.all_plugins.find { |m| m.name == "dependent_plugin" }
       expect(manifest.depends_on).to eq([ "base_plugin" ])
     end
 
     it "stringifies symbol dependency names" do
-      described_class.register(name: "base_plugin", version: "1.0.0")
-      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ :base_plugin ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "base_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "dependent_plugin", version: "1.0.0", depends_on: [ :base_plugin ])
 
       manifest = described_class.all_plugins.find { |m| m.name == "dependent_plugin" }
       expect(manifest.depends_on).to eq([ "base_plugin" ])
     end
 
     it "supports multiple dependencies" do
-      described_class.register(name: "ruby", version: "1.0.0")
-      described_class.register(name: "javascript", version: "1.0.0")
-      described_class.register(name: "rails", version: "1.0.0", depends_on: [ "ruby", "javascript" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "ruby", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "javascript", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "rails", version: "1.0.0", depends_on: [ "ruby", "javascript" ])
 
       manifest = described_class.all_plugins.find { |m| m.name == "rails" }
       expect(manifest.depends_on).to eq([ "ruby", "javascript" ])
@@ -1640,12 +1702,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe "Manifest prepare_priority" do
     it "defaults to 100" do
-      described_class.register(name: "no_priority_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "no_priority_plugin", version: "1.0.0")
       expect(described_class.all_plugins.first.prepare_priority).to eq(100)
     end
 
     it "stores a declared priority on the manifest" do
-      described_class.register(name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10)
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10)
       expect(described_class.all_plugins.first.prepare_priority).to eq(10)
     end
   end
@@ -1655,17 +1717,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     let(:high_provider) { Class.new { include Syrus::Plugin::Callbacks } }
 
     it "orders manifest-registered providers by ascending prepare_priority, not registration order" do
-      described_class.register(name: "low_priority_plugin", version: "1.0.0", prepare_priority: 200,
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "low_priority_plugin", version: "1.0.0", prepare_priority: 200,
                                 provides: { callbacks: low_provider })
-      described_class.register(name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10,
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10,
                                 provides: { callbacks: high_provider })
 
       expect(described_class.providers_for(:callbacks)).to eq([ high_provider, low_provider ])
     end
 
     it "keeps registration order among equal (default) priorities" do
-      described_class.register(name: "first_plugin", version: "1.0.0", provides: { callbacks: low_provider })
-      described_class.register(name: "second_plugin", version: "1.0.0", provides: { callbacks: high_provider })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "first_plugin", version: "1.0.0", provides: { callbacks: low_provider })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "second_plugin", version: "1.0.0", provides: { callbacks: high_provider })
 
       expect(described_class.providers_for(:callbacks)).to eq([ low_provider, high_provider ])
     end
@@ -1673,28 +1735,28 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".validate_dependencies!" do
     it "does not raise when every depends_on name resolves to a registered plugin" do
-      described_class.register(name: "base_plugin", version: "1.0.0")
-      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "base_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
 
       expect { described_class.validate_dependencies! }.not_to raise_error
     end
 
     it "does not raise when no plugin declares depends_on" do
-      described_class.register(name: "solo_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "solo_plugin", version: "1.0.0")
 
       expect { described_class.validate_dependencies! }.not_to raise_error
     end
 
     it "raises RegistrationError naming the dependent plugin and the unresolved dependency" do
-      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "missing_plugin" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "dependent_plugin", version: "1.0.0", depends_on: [ "missing_plugin" ])
 
       expect { described_class.validate_dependencies! }
         .to raise_error(described_class::RegistrationError, /dependent_plugin.*missing_plugin/)
     end
 
     it "is resilient to registration order - a dependency registered after its dependent still resolves" do
-      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
-      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "base_plugin", version: "1.0.0")
 
       expect { described_class.validate_dependencies! }.not_to raise_error
     end
@@ -1710,7 +1772,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "calls on_boot on enabled callback providers" do
-      described_class.register(name: "boot_plugin", version: "1.0.0", provides: { callbacks: callbacks_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "boot_plugin", version: "1.0.0", provides: { callbacks: callbacks_class })
 
       described_class.fire_boot_callbacks!
 
@@ -1724,7 +1786,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         def self.booted? = @booted
       end
 
-      described_class.register(name: "disabled_boot_plugin", version: "1.0.0", provides: { callbacks: disabled_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "disabled_boot_plugin", version: "1.0.0", provides: { callbacks: disabled_callbacks })
       PluginRecord.find_by!(name: "disabled_boot_plugin").update!(enabled: false)
 
       described_class.fire_boot_callbacks!
@@ -1738,7 +1800,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         def self.on_boot = raise "boot error"
       end
 
-      described_class.register(name: "raising_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "raising_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
       allow(Rails.logger).to receive(:warn)
 
       expect { described_class.fire_boot_callbacks! }.not_to raise_error
@@ -1758,7 +1820,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         end
       end
 
-      described_class.register(name: "raising_effect_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "raising_effect_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
       allow(Rails.logger).to receive(:warn)
 
       described_class.fire_boot_callbacks!
@@ -1773,7 +1835,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       end
       succeeding_callbacks.define_singleton_method(:on_boot) { effect { cleaned_up = true } }
 
-      described_class.register(name: "succeeding_effect_plugin", version: "1.0.0", provides: { callbacks: succeeding_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "succeeding_effect_plugin", version: "1.0.0", provides: { callbacks: succeeding_callbacks })
 
       described_class.fire_boot_callbacks!
 
@@ -1795,7 +1857,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "calls on_shutdown on enabled callback providers" do
-      described_class.register(name: "shutdown_plugin", version: "1.0.0", provides: { callbacks: callbacks_class })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "shutdown_plugin", version: "1.0.0", provides: { callbacks: callbacks_class })
 
       described_class.fire_shutdown_callbacks!
 
@@ -1808,7 +1870,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         def self.on_shutdown = raise "shutdown error"
       end
 
-      described_class.register(name: "raising_shutdown_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "raising_shutdown_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
       allow(Rails.logger).to receive(:warn)
 
       expect { described_class.fire_shutdown_callbacks! }.not_to raise_error
@@ -1818,7 +1880,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "drains effects left over from an earlier on_enable/on_boot even when on_shutdown itself is a no-op" do
       noop_shutdown_callbacks = Class.new { include Syrus::Plugin::Callbacks }
 
-      described_class.register(name: "noop_shutdown_plugin", version: "1.0.0", provides: { callbacks: noop_shutdown_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "noop_shutdown_plugin", version: "1.0.0", provides: { callbacks: noop_shutdown_callbacks })
 
       cleaned_up = false
       Syrus::Plugin::EffectRegistry.register("noop_shutdown_plugin") { cleaned_up = true }
@@ -1834,7 +1896,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         def self.on_shutdown = raise "shutdown error"
       end
 
-      described_class.register(name: "raising_shutdown_effect_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "raising_shutdown_effect_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
       allow(Rails.logger).to receive(:warn)
 
       cleaned_up = false
@@ -1848,7 +1910,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".registered_names" do
     it "returns registered plugin names without consulting PluginRecord state" do
-      described_class.register(name: "plugin_a", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0")
       allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
 
       expect(described_class.registered_names).to eq([ "plugin_a" ])
@@ -1857,16 +1919,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".all_plugins" do
     it "returns a snapshot that is not affected by subsequent registrations" do
-      described_class.register(name: "plugin_a", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_a", version: "1.0.0")
       snapshot = described_class.all_plugins
-      described_class.register(name: "plugin_b", version: "2.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "plugin_b", version: "2.0.0")
 
       expect(snapshot.size).to eq(1)
       expect(described_class.all_plugins.size).to eq(2)
     end
 
     it "reflects current enabled state from DB" do
-      described_class.register(name: "toggled_plugin", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "toggled_plugin", version: "1.0.0")
       PluginRecord.find_by!(name: "toggled_plugin").update!(enabled: false)
 
       manifest = described_class.all_plugins.find { |m| m.name == "toggled_plugin" }
@@ -1875,8 +1937,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "reports the declared default for plugins without a PluginRecord (table missing guard)" do
-      described_class.register(name: "unrecorded", version: "1.0.0")
-      described_class.register(name: "unrecorded_off", version: "1.0.0", default_enabled: false)
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "unrecorded", version: "1.0.0")
+      described_class.register(disableable: true, experimental: false, requires_syrus: nil, name: "unrecorded_off", version: "1.0.0", default_enabled: false)
       allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
       allow(PluginRecord).to receive(:table_exists?).and_return(false)
 
@@ -1892,7 +1954,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "withholds providers from a plugin whose hard dependency is missing" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "dependent", version: "1.0.0", depends_on: [ "absent" ],
         provides: { callbacks: provider }
       )
@@ -1902,31 +1964,31 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "activates providers once the dependency is registered" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "dependent", version: "1.0.0", depends_on: [ "base" ],
         provides: { callbacks: provider }
       )
       expect(described_class.providers_for(:callbacks)).not_to include(provider)
 
-      described_class.register(name: "base", version: "1.0.0")
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "base", version: "1.0.0")
 
       expect(described_class.providers_for(:callbacks)).to include(provider)
       expect(described_class.health.status("dependent").state).to eq(:ok)
     end
 
     it "withholds providers from plugins in a dependency cycle" do
-      described_class.register(
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "a", version: "1.0.0", depends_on: [ "b" ],
         provides: { callbacks: provider }
       )
-      described_class.register(name: "b", version: "1.0.0", depends_on: [ "a" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "b", version: "1.0.0", depends_on: [ "a" ])
 
       expect(described_class.providers_for(:callbacks)).not_to include(provider)
       expect(described_class.health.status("a").state).to eq(:cycle)
     end
 
     it "reports unhealthy plugins without raising" do
-      described_class.register(name: "dependent", version: "1.0.0", depends_on: [ "absent" ])
+      described_class.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "dependent", version: "1.0.0", depends_on: [ "absent" ])
       logger = instance_double(Logger, error: nil)
 
       expect { described_class.report_health!(logger: logger) }.not_to raise_error
@@ -2004,11 +2066,11 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "gates an experimental plugin on the current flag after the cache was warmed" do
       AppSetting.current.update!(beta_mode_enabled: false)
-      described_class.register(name: "cold_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+      described_class.register(disableable: true, requires_syrus: nil, name: "cold_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
       expect(PluginRecord.find_by!(name: "cold_experimental_plugin").enabled).to be(false)
 
       AppSetting.current.update!(beta_mode_enabled: true)
-      described_class.register(name: "warm_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+      described_class.register(disableable: true, requires_syrus: nil, name: "warm_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
       expect(PluginRecord.find_by!(name: "warm_experimental_plugin").enabled).to be(false)
     end

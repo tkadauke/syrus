@@ -270,7 +270,7 @@ RSpec.describe ProviderRouting::Resolver do
     end
 
     it "matches plugin-provided agentic step kinds" do
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "provider_routing_resolver_spec",
         version: "1.0.0",
         provides: {

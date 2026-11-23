@@ -11,6 +11,12 @@ module AgentActivity
   }.freeze
 
   syrus_plugin "agent_activity" do
+
+    default_enabled true
+
+    disableable true
+    experimental false
+    requires_syrus nil
     display_name "Agent Activity"
     description "Live feed of agent sessions -- one card per agentic Run, headlined by what it actually decided."
     long_description "Agent Activity surfaces workflow, chat, and design-doc agents as session cards: role and label come structurally from each Agent's resumable, never from scanning transcript text, and each card's headline is the one-line outcome the session itself submitted. An operator-scoped page shows sessions across the repositories they can see; an admin-wide page shows every workflow/design-doc session on the instance while chat sessions stay self-scoped. Both are live, sessions-only feeds -- no checks, no triggers -- workflow cards open an inline transcript drawer, while chat cards link to the live chat."

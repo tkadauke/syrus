@@ -764,7 +764,7 @@ module WorkEngine
           define_singleton_method(:display_name) { provider.to_s.humanize }
           define_singleton_method(:available?) { true }
         end
-        Syrus::PluginRegistry.register(:agent_provider, provider_class)
+        Syrus::PluginRegistry.register_direct(:agent_provider, provider_class)
         provider
       end
 

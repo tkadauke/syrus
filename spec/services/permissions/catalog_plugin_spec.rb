@@ -9,7 +9,7 @@ RSpec.describe Permissions::Catalog, :reset_plugin_registry do
 
   it "collects capabilities and resource schemas from enabled permission providers" do
     provider = permission_provider
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "permission_example", version: "1.0.0", provides: { permission_provider: provider }
     )
 
@@ -27,7 +27,7 @@ RSpec.describe Permissions::Catalog, :reset_plugin_registry do
       rules: [ { capability: "example.observe@v1", operation: "example.observe/read@v1",
         role: "chat_planner", policy: :allow, resource_scope: {}, constraints: {} } ]
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "permission_example", version: "1.0.0", provides: { permission_provider: provider }
     )
 
@@ -38,10 +38,10 @@ RSpec.describe Permissions::Catalog, :reset_plugin_registry do
   it "rejects ambiguous resource type ownership across providers" do
     first = permission_provider
     second = permission_provider
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "permission_one", version: "1.0.0", provides: { permission_provider: first }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "permission_two", version: "1.0.0", provides: { permission_provider: second }
     )
 
@@ -51,10 +51,10 @@ RSpec.describe Permissions::Catalog, :reset_plugin_registry do
   it "rejects conflicting capability contracts across providers" do
     first = permission_provider
     second = permission_provider(effects: [ :external_write ])
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "permission_one", version: "1.0.0", provides: { permission_provider: first }
     )
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "permission_two", version: "1.0.0", provides: { permission_provider: second }
     )
 

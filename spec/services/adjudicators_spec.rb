@@ -18,7 +18,7 @@ RSpec.describe Adjudicators do
   end
 
   def register(mod)
-    Syrus::PluginRegistry.register(name: "adjudicator_plugin", version: "1.0.0", provides: { adjudicator: mod })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "adjudicator_plugin", version: "1.0.0", provides: { adjudicator: mod })
   end
 
   it "returns the first decided verdict from an authorized adjudicator" do

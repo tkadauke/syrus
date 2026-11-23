@@ -9,7 +9,7 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
   end
 
   def register(name, depends_on: [], provides: {})
-    Syrus::PluginRegistry.register(name: name, version: "1.0.0", depends_on: depends_on, provides: provides)
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: name, version: "1.0.0", depends_on: depends_on, provides: provides)
   end
 
   def manifest_for(name)

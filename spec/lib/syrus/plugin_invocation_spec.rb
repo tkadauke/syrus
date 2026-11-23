@@ -9,7 +9,7 @@ RSpec.describe Syrus::PluginInvocation do
 
   before do
     described_class.runtime_health = health
-    Syrus::PluginRegistry.register(name: "invocation_spec", version: "1.0", provides: { callbacks: Provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "invocation_spec", version: "1.0", provides: { callbacks: Provider })
   end
 
   after do

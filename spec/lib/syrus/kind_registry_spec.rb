@@ -15,7 +15,7 @@ RSpec.describe Syrus::KindRegistry do
   end
 
   def register(klass, name: "workflow_plugin")
-    Syrus::PluginRegistry.register(name: name, version: "1.0.0", provides: { workflow_kinds: klass })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: name, version: "1.0.0", provides: { workflow_kinds: klass })
   end
 
   describe "trigger kinds" do

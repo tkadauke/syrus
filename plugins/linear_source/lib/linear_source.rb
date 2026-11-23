@@ -2,6 +2,7 @@ module SyrusLinearSource
   extend Syrus::PluginApi
 
   syrus_plugin "linear_source" do
+    requires_syrus nil
     experimental true
     display_name "Linear Source"
     description "Ingests Linear issues as Syrus jobs and epics."

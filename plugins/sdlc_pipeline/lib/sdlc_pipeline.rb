@@ -2,6 +2,7 @@ module SdlcPipeline
   extend Syrus::PluginApi
 
   syrus_plugin "sdlc_pipeline" do
+    requires_syrus nil
     experimental true
     display_name "SDLC Pipeline"
     category "collaboration"

@@ -18,7 +18,7 @@ RSpec.describe Mcp::CoworkerToolCatalog do
     end
   end
   let(:manifest) do
-    Syrus::Plugin::Manifest.new(
+    Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "example", version: "1", provides: { chat_mcp_tool_set: [ provider ] }, metadata: {}, enabled: enabled
     )
   end
@@ -63,7 +63,7 @@ RSpec.describe Mcp::CoworkerToolCatalog do
   end
 
   it "resolves provider availability once per catalog build and again for the next build" do
-    enabled_manifest = Syrus::Plugin::Manifest.new(
+    enabled_manifest = Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "example", version: "1", provides: { chat_mcp_tool_set: [ provider ] }, metadata: {}, enabled: true
     )
     allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ enabled_manifest ])
@@ -85,7 +85,7 @@ RSpec.describe Mcp::CoworkerToolCatalog do
 
   it "observes plugin lifecycle changes on the next catalog build" do
     disabled_manifest = manifest
-    enabled_manifest = Syrus::Plugin::Manifest.new(
+    enabled_manifest = Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "example", version: "1", provides: { chat_mcp_tool_set: [ provider ] }, metadata: {}, enabled: true
     )
     allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return(

@@ -12,6 +12,10 @@ RSpec.describe "bin/plugin-boundary-audit" do
     synthetic_root.join("app/services").mkpath
     synthetic_root.join("plugins/weather/lib/weather.rb").write(<<~RUBY)
       syrus_plugin "weather" do
+        default_enabled true
+        disableable true
+        experimental false
+        requires_syrus nil
       end
     RUBY
     synthetic_root.join("plugins/weather/config/plugin_ownership.yml").write(<<~YAML)

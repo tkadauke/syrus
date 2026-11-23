@@ -220,27 +220,15 @@ module Syrus
     @plugin_record_cache_mutex = Mutex.new
 
     class << self
-      # Two call forms:
-      #
-      # Manifest form — called by plugin gem engine initializers:
-      #   register(name:, version:, provides: {}, ...)
-      #
-      # Direct form — registers a provider instance for a lightweight extension
-      # point (e.g. :agent_provider) without a full gem manifest:
-      #   register(:agent_provider, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
-        if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
-          register_direct(args[0], args[1])
-          bump_generation!
-          return
-        end
-
-
+      # Called by plugin gem engine initializers. Release posture is deliberately
+      # required so an omission cannot silently acquire a product default.
+      def register(name: nil, version: nil, default_enabled:, disableable:, experimental:, requires_syrus:, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         validate_provides!(provides)
         events = normalize_events!(events)
         validate_core_event_name_uniqueness!(events)
         validate_author!(metadata[:author])
         validate_category!(category)
+        validate_release_posture!(default_enabled:, disableable:, experimental:)
         validate_experimental_default!(name, experimental, default_enabled)
         links = normalize_links!(links)
         credential_types = normalize_credential_types!(
@@ -258,7 +246,6 @@ module Syrus
 
         @mutex.synchronize do
           previous = @plugins.find { |manifest| manifest.name == name }
-          requires_syrus ||= previous&.requires_syrus
           external = previous&.external if external.nil?
           plugin_root ||= previous&.plugin_root
           if previous&.external && previous.metadata.to_h.key?(:plugin_host_surface_scan)
@@ -342,6 +329,17 @@ module Syrus
           # db:schema:load in progress). Ignore - the registry operates in
           # memory; the DB record will be created on first boot with DB access.
         end
+      end
+
+      # Registers a provider instance for a lightweight extension point without
+      # creating a plugin manifest.
+      def register_direct(extension_point, provider)
+        ep = extension_point.to_sym
+        unless EXTENSION_POINTS.include?(ep)
+          raise ArgumentError, "Unknown extension point: #{extension_point.inspect}. Valid: #{EXTENSION_POINTS.inspect}"
+        end
+        @mutex.synchronize { @direct_providers[ep] << provider }
+        bump_generation!
       end
 
       # Returns provider classes (manifest) and provider instances (direct) for
@@ -701,7 +699,7 @@ module Syrus
         details = { load_state: state.to_s, load_message: message.to_s, load_backtrace: Array(backtrace).first(12) }
         register(name: name, version: version.to_s, provides: {}, external: external,
           requires_syrus: requires_syrus, depends_on: dependencies, loaded: false,
-          default_enabled: false, disableable: false, **details)
+          default_enabled: false, disableable: false, experimental: false, **details)
       end
 
       def record_host_surface_scan(name, scan)
@@ -921,6 +919,14 @@ module Syrus
         raise RegistrationError, "Experimental plugin #{name.inspect} must be default-disabled"
       end
 
+      def validate_release_posture!(default_enabled:, disableable:, experimental:)
+        { default_enabled:, disableable:, experimental: }.each do |name, value|
+          next if value.equal?(true) || value.equal?(false)
+
+          raise RegistrationError, "#{name} must be true or false"
+        end
+      end
+
       def extension_points_token_list(points)
         tokens = Array(points).map(&:to_s).reject(&:blank?).sort
         tokens.any? ? "\n#{tokens.join("\n")}\n" : nil
@@ -1063,14 +1069,6 @@ module Syrus
         else
           yield
         end
-      end
-
-      def register_direct(extension_point, provider)
-        ep = extension_point.to_sym
-        unless EXTENSION_POINTS.include?(ep)
-          raise ArgumentError, "Unknown extension point: #{extension_point.inspect}. Valid: #{EXTENSION_POINTS.inspect}"
-        end
-        @mutex.synchronize { @direct_providers[ep] << provider }
       end
 
       # "Syrus" is not a real author - it's the product itself. Plugins must

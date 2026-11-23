@@ -5,7 +5,7 @@ RSpec.describe "Spending Insights CLI commands", type: :request do
 
   before do
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "spending_insights", version: "1.0.0",
       cli_commands: [
         { path: %w[insights spending], summary: "Summarize agent spend", handler: "SpendingInsights::Cli::Spending", flags: [

@@ -115,7 +115,7 @@ RSpec.describe PreviewCommandSource do
           def start_command(port:) = "node server.js --port #{port}"
         end
 
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "preview_plugin", version: "1.0.0",
           provides: { preview_provider: provider_class }
         )
@@ -133,7 +133,7 @@ RSpec.describe PreviewCommandSource do
           def start_command(port:) = "node server.js --port #{port}"
         end
 
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "disabled_preview_plugin", version: "1.0.0",
           provides: { preview_provider: provider_class }
         )
@@ -232,7 +232,7 @@ RSpec.describe PreviewCommandSource do
         Syrus::PluginRegistry.reset!
         expect(Syrus::Plugin::PreviewProvider.configured?).to be(false)
 
-        Syrus::PluginRegistry.register(
+        Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
           name: "configured_preview_plugin", version: "1.0.0",
           provides: { preview_provider: provider_class }
         )

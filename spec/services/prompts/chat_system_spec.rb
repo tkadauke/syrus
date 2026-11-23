@@ -736,7 +736,7 @@ RSpec.describe Prompts::ChatSystem do
     end
 
     def register(klass)
-      Syrus::PluginRegistry.register(
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name: "chat_prompt_plugin", version: "1.0.0", provides: { chat_prompt_injector: klass }
       )
     end

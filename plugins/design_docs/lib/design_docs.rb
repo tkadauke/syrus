@@ -4,6 +4,8 @@ module DesignDocs
   extend Syrus::PluginApi
 
   syrus_plugin "design_docs" do
+    experimental false
+    requires_syrus nil
     display_name "Design Docs"
     description "First-party collaborative Markdown design documents with repository links, versions, comments, and suggestions."
     long_description "Design Docs adds database-backed collaborative Markdown documents to Syrus. Documents have canonical DOC identifiers, auditable versions, repository associations, explicit collaborators for private drafts, inline discussion anchors, and owner-reviewed suggestions.\n\nThis is first-party authoring data, separate from attachment-oriented repository and job Documents."

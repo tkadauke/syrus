@@ -24,7 +24,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
         ]
       end
     end
-    Syrus::PluginRegistry.register(name: "tab-plugin", version: "0.1.0", provides: { repo_page_tab: provider })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "tab-plugin", version: "0.1.0", provides: { repo_page_tab: provider })
   end
 
   after { Syrus::PluginRegistry.reset! }

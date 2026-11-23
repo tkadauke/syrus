@@ -6,6 +6,7 @@ module AdminMysql
   end
 
   syrus_plugin "admin_mysql" do
+    requires_syrus nil
     experimental true
     display_name "Admin MySQL"
     description "Live MySQL diagnostics for production operators."

@@ -4,6 +4,7 @@ module AgentInsights
   extend Syrus::PluginApi
 
   syrus_plugin "agent_insights" do
+    requires_syrus nil
     experimental true
     display_name "Agent Insights"
     description "Periodic read-only agent surveys of a repository that propose follow-up work."

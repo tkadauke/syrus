@@ -4,6 +4,7 @@ module SyrusMuseAgent
   extend Syrus::PluginApi
 
   syrus_plugin "muse_agent" do
+    requires_syrus nil
     experimental true
     display_name "Muse Agent"
     description "Runs workflow and chat turns through Muse Code."
