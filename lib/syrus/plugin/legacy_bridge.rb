@@ -58,7 +58,12 @@ module Syrus
             capability: mapping.capability, provider_name: declaration.provider,
             key: declaration.key, priority: manifest.prepare_priority)
           if mapping.adapter.class.public_instance_methods(false).include?(:legacy_providers)
-            next reference.invoke { |implementation| mapping.adapter.legacy_providers(implementation) }
+            next reference.invoke do |implementation|
+              Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+                extension_point: mapping.extension_point, provider: implementation,
+                operation: mapping.capability, on_decline: []
+              ) { mapping.adapter.legacy_providers(implementation) })
+            end
           end
           [ Provider.new(reference, mapping.adapter) ]
         end.compact
