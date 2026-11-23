@@ -4,7 +4,7 @@ repository:
   name: terminal-cleanup-cancelled-retry-recovers
 jobs:
   review:
-    title: Recover a transient visual review failure
+    title: Recover a transient adversarial review failure
     state: failed
     agent_provider: codex
     workflow:
@@ -17,7 +17,7 @@ jobs:
           state: succeeded
           run:
             state: succeeded
-        - kind: visual_review
+        - kind: adversarial_review
           state: failed
           runs:
             - state: failed

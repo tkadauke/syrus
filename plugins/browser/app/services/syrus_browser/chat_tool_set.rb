@@ -32,7 +32,17 @@ module SyrusBrowser
       return definitions if tier && tier.to_sym != :deferred
 
       definitions + VISUAL_REVIEW_TOOLS.map do |klass|
-        { name: klass.tool_name, description: klass.description_value, input_schema: klass.input_schema_value.to_h }
+        definition = {
+          name: klass.tool_name,
+          description: klass.description_value,
+          input_schema: klass.input_schema_value.to_h,
+          # These tools only create an operator confirmation card; confirming
+          # that card is the decision that schedules real workflow work.
+          essential: true
+        }
+        definition.merge(
+          capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition)
+        )
       end
     end
 
