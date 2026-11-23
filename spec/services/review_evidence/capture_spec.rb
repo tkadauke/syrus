@@ -55,7 +55,8 @@ RSpec.describe ReviewEvidence::Capture do
     allow(target_provider).to receive(:audit_snapshot).and_return(name: "Maya")
     allow(target_provider).to receive(:uniqueness_key).and_return("coworker:opaque")
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ target_provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:reviewer_target_providers).and_return([ target_provider ])
 
     evidence = described_class.call(
       run: run, workspace_path: "/workspace", review_kind: "adversarial", base_ref: "origin/main"

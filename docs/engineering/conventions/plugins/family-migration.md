@@ -50,6 +50,23 @@ family registrations themselves.
   guide still needs an explicit before/after migration example and reasons for
   every capability that remains provisional.
 
+## What the Review and Policy migration taught us
+
+- Dispatch's `decline` is what a provider returns when it has nothing to add;
+  the capability's `failure` is what the dispatcher substitutes when a provider
+  raises, times out, trips its circuit breaker, or returns an invalid value. It
+  defaults to `decline`. Authorization-adjacent families set it apart: Policy
+  uses `failure: -> { [Policy::FAIL_CLOSED] }` so callers (`JobVisibility`,
+  `Policy.filter_repositories`) show non-admins nothing instead of widening
+  visibility. Every restriction applies; none may drop out silently.
+- Moving the provider list for review gates must not change gate semantics:
+  core still wraps each gate operation in `PluginInvocation`, so a failing
+  `review_gates` operation declines exactly as before, and the immutable-HEAD
+  barrier and definition validation are untouched.
+- Modules-returning capabilities share `Syrus::Plugin::ContributionProvider`
+  (lazy provider constants plus the legacy adapter); reuse it for facets whose
+  interfaces are still multi-operation.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.

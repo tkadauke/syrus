@@ -53,7 +53,7 @@ module ReviewerTargets
     snapshots
   end
 
-  def providers = Syrus::PluginRegistry.providers_for(:reviewer_target_provider)
+  def providers = Syrus::Plugin::ReviewContributions.contributions(:reviewer_target_providers)
   def provider_for(type)
     providers.find do |candidate|
       invoke(candidate, :target_type, nil) { candidate.target_type } == type

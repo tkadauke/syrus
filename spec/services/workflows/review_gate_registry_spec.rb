@@ -32,7 +32,8 @@ RSpec.describe Workflows::ReviewGateRegistry do
   before do
     fake_provider.gate_enabled = true
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_gate).and_return([ fake_provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_gates).and_return([ fake_provider ])
     allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
@@ -77,13 +78,15 @@ RSpec.describe Workflows::ReviewGateRegistry do
   it "re-resolves providers after registry reload or plugin disablement" do
     expect(described_class.active_for_step_kind("synthetic_review")).to be_present
 
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_gate).and_return([])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_gates).and_return([])
 
     expect(described_class.active_for_step_kind("synthetic_review")).to be_nil
   end
 
   it "preserves the repair but removes the next review when a plugin is disabled between iterations" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_gate).and_return([])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_gates).and_return([])
 
     expect(
       described_class.continuation_steps(
@@ -122,7 +125,8 @@ RSpec.describe Workflows::ReviewGateRegistry do
         end
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_gate).and_return([ cyclic_provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:review_gates).and_return([ cyclic_provider ])
 
     expect { described_class.ordered(:after_agent) }.to raise_error(
       described_class::InvalidContribution, /ordering cycle/

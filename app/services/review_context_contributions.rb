@@ -41,7 +41,7 @@ module ReviewContextContributions
 
   def provider_for(target)
     type = target.to_h.deep_stringify_keys.fetch("type")
-    Syrus::PluginRegistry.providers_for(:review_context_contributor).find do |candidate|
+    Syrus::Plugin::ReviewContributions.contributions(:review_context_contributors).find do |candidate|
       invoke(candidate, :target_type, nil) { candidate.target_type } == type
     end ||
       raise(Unavailable, "review context provider is unavailable")

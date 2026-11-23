@@ -7,6 +7,24 @@ Use `it_behaves_like "a valid review provider"` from `syrus/plugin/test_kit`, pa
 
 ## Capabilities
 
+### `adjudicators`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
+### `diff_review_annotation_providers`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
 ### `external_reviewer`
 
 - Composition: `first_claim`
@@ -15,3 +33,83 @@ Use `it_behaves_like "a valid review provider"` from `syrus/plugin/test_kit`, pa
 - Tier: `provisional`
 - Context: `Syrus::Plugin::ExternalReviewContext`
 - Return shape: `Syrus::Plugin::ExternalReviewer`
+
+### `post_implementation_review_providers`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
+### `review_context_contributors`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
+### `review_gates`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
+### `review_presentation_contributors`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
+### `reviewer_target_providers`
+
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `nil`
+- Tier: `provisional`
+- Context: `Syrus::Plugin::Context::ReviewContributionContext`
+- Return shape: `Module, Array<Module>, or nil`
+
+## Migration from legacy extension points
+
+The Review family keeps the `external_reviewer` service capability and
+also absorbs the review-step extension points: `review_gate`,
+`reviewer_target_provider`, `review_context_contributor`,
+`review_presentation_contributor`, `post_implementation_review_provider`,
+`diff_review_annotation_provider`, and `adjudicator`.
+
+Before:
+
+```ruby
+provides review_gate: "Acme::ReviewGate",
+         review_context_contributor: "Acme::ReviewContext"
+```
+
+After:
+
+```ruby
+review_contributions review_gates: "Acme::ReviewGate",
+                     review_context_contributors: "Acme::ReviewContext"
+```
+
+Review gates are evidence about one exact implementation HEAD and fail
+closed. Migrating the provider list changed no gate semantics: core
+still invokes each gate operation through `PluginInvocation`, a
+provider whose operation fails declines with the same value as before,
+and the immutable-HEAD barrier, ordering validation, and unique-key
+validation are untouched.
+
+Every contribution capability is provisional: the family currently
+returns the established multi-operation behavior modules while their
+interfaces are decomposed. No capability has two independent in-tree
+implementations, and `adjudicators` has no bundled plugin
+implementation at all.

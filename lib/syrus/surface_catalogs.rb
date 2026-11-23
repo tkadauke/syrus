@@ -124,6 +124,11 @@ module Syrus
         capability_rows = family.capabilities.values.sort_by(&:name).map do |capability|
           "| `#{capability.name}` | `#{capability.composition}` | `#{capability.absent.inspect}` | `#{capability.decline.inspect}` | `#{capability.tier}` | `#{context_label(capability.context)}` | `#{capability.return_contract.description}` |"
         end
+        fail_closed = family.capabilities.values.sort_by(&:name).reject { |capability| capability.failure == capability.decline }.map do |capability|
+          failure = capability.failure.respond_to?(:call) ? capability.failure.call : capability.failure
+          "`#{capability.name}` (a failed provider contributes `#{failure.inspect}`)"
+        end
+        fail_closed_note = fail_closed.any? ? "Fail-closed capabilities: #{fail_closed.join(', ')}. These differ from the usual decline-on-error rule.\n\n" : ""
         provider_rows = declarations.filter_map do |plugin, declaration|
           next unless declaration.family == family.name
           stable = declaration.implements.map { |name| "`#{name}`" }.join(", ").presence || "-"
@@ -141,7 +146,7 @@ module Syrus
 
           For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
 
-          | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+          #{fail_closed_note}| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
           |---|---|---|---|---|
           #{provider_rows.any? ? provider_rows.join("\n") : "| - | - | - | - | - |"}
         MD

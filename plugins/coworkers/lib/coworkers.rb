@@ -21,17 +21,17 @@ module Coworkers
     optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
     provides callbacks: "Coworkers::Callbacks",
              workflow_kinds: "Coworkers::WorkflowKinds",
-             job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
-             repository_filter: "Coworkers::RepositoryFilter",
              sidebar_pages: "Coworkers::SidebarPages",
-             reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
-             review_context_contributor: "Coworkers::ReviewContextContributor",
-             review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
              repository_configuration: "Coworkers::RepositoryConfiguration",
-             review_gate: "Coworkers::ReviewGate",
              retention_policy: "Coworkers::ReviewContextRetentionPolicy",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
+    review_contributions reviewer_target_providers: "Coworkers::ReviewerTargetProvider",
+                         review_context_contributors: "Coworkers::ReviewContextContributor",
+                         review_presentation_contributors: "Coworkers::ReviewPresentationContributor",
+                         review_gates: "Coworkers::ReviewGate"
+    policy job_visibility_restrictions: "Coworkers::JobVisibilityRestriction",
+           repository_filters: "Coworkers::RepositoryFilter"
     chat_integration mentionables: "Coworkers::MentionableProvider",
                      identity_providers: "Coworkers::ChatIdentityProvider",
                      prompt_injectors: "Coworkers::PromptSection",

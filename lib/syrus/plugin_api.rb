@@ -91,7 +91,7 @@ module Syrus
       # documentation cannot acquire a parallel manifest vocabulary.
       MANIFEST_KEYS = (SCALARS + LISTS + %i[
         provides route frontend events link links credential_type_names
-        credential_types toolkit surface chat_integration while_enabled metrics always suggests_enabling on_boot
+        credential_types toolkit surface chat_integration review_contributions policy while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
       attr_reader :name, :namespace, :lib_dir
@@ -240,9 +240,39 @@ module Syrus
         )
       end
 
+      # Declares review-family contributions (gates, reviewer targets, review
+      # context and presentation, post-implementation review, diff annotations,
+      # adjudicators) without resolving application constants at load time.
+      def review_contributions(**contributions)
+        contributions.compact!
+        return if contributions.empty?
+
+        declare_contribution_family(:review, :ReviewContributions, Syrus::Plugin::ReviewContributions, contributions)
+      end
+
+      # Declares policy-family restrictions. Policy composition is fail-closed:
+      # a restriction that cannot be evaluated hides rather than reveals.
+      def policy(**contributions)
+        contributions.compact!
+        return if contributions.empty?
+
+        declare_contribution_family(:policy, :Policy, Syrus::Plugin::Policy, contributions)
+      end
+
       def route(verb, path, to:)
         @routes << { verb: verb.to_s.upcase, path: path, controller: to }
       end
+
+      def declare_contribution_family(family, constant, owner, contributions)
+        provider = owner.provider(key: name, display_name: @scalars[:display_name] || name.humanize, **contributions)
+        namespace.send(:remove_const, constant) if namespace.const_defined?(constant, false)
+        namespace.const_set(constant, provider)
+        @family_provides.reject! { |entry| entry.family == family && entry.provider == "#{namespace.name}::#{constant}" }
+        @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+          family:, provider: "#{namespace.name}::#{constant}", provisional: contributions.keys
+        )
+      end
+      private :declare_contribution_family
 
       def frontend(pairs = {})
         return @frontend if pairs.empty?

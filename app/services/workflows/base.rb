@@ -370,7 +370,7 @@ module Workflows
     end
 
     def self.post_implementation_review_requested?(job, trigger_kind:)
-      Syrus::PluginRegistry.providers_for(:post_implementation_review_provider).any? do |provider|
+      Syrus::Plugin::ReviewContributions.contributions(:post_implementation_review_providers).any? do |provider|
         result = Syrus::PluginInvocation.call(
           extension_point: :post_implementation_review_provider, provider:, operation: :review_needed?, on_decline: false
         ) { provider.review_needed?(job: job, trigger_kind: trigger_kind.to_s) }

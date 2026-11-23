@@ -232,7 +232,8 @@ RSpec.describe ProviderRoutingRule do
       { type: "coworker", reference: reference, display: { "name" => "Reviewer #{reference}" }, record: record }
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:reviewer_target_providers).and_return([ provider ])
     panel = {
       strategy: "panel",
       candidates: [
@@ -268,7 +269,8 @@ RSpec.describe ProviderRoutingRule do
       { type: "coworker", reference: reference, display: { "name" => name }, record: record }
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ provider ])
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::ReviewContributions).to receive(:contributions).with(:reviewer_target_providers).and_return([ provider ])
     record = rule(trigger: { type: "step", kind: "coworker_review" }, action: { strategy: "fallback_order", candidates: [
       { provider: "codex", reviewer_target: { type: "coworker", reference: "opaque" } }
     ] })

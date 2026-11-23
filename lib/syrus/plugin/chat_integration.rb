@@ -4,13 +4,7 @@ module Syrus
   module Plugin
     # Contributions used while composing and executing an interactive chat turn.
     module ChatIntegration
-      ReturnShape = Data.define(:description, :validator) do
-        def valid?(value) = validator.call(value)
-      end
-      OPTIONAL_PROVIDER = ReturnShape.new(
-        description: "Module, Array<Module>, or nil",
-        validator: ->(value) { value.nil? || value.is_a?(Module) || (value.is_a?(Array) && value.all? { |item| item.is_a?(Module) }) }
-      )
+      OPTIONAL_PROVIDER = ContributionProvider::OPTIONAL_PROVIDER
 
       CAPABILITY_FOR_LEGACY = {
         chat_payload_contributor: :payload_contributors,
@@ -49,24 +43,8 @@ module Syrus
         def respond_to_missing?(name, _private = false) = DELEGATED_METHODS.include?(name.to_sym)
       end
 
-      def self.provider(key:, display_name:, **contributions)
-        implementations = contributions.values.flatten.compact.freeze
-        Class.new do
-          define_singleton_method(:key) { key.to_s }
-          define_singleton_method(:display_name) { display_name.to_s }
-          define_singleton_method(:owns_implementation?) do |candidate|
-            candidate_class = candidate.is_a?(Class) ? candidate : candidate.class
-            implementations.any? { |item| item.is_a?(String) ? item == candidate_class.name : item.equal?(candidate_class) }
-          end
-          contributions.each do |capability, names|
-            define_singleton_method(capability) do |context|
-              next nil unless context.enabled
-              resolved = Array(names).map { |name| name.is_a?(String) ? Object.const_get(name) : name }
-              names.is_a?(Array) ? resolved : resolved.first
-            end
-          end
-        end
-      end
+      def self.provider(key:, display_name:, **contributions) =
+        ContributionProvider.build(key:, display_name:, **contributions)
 
       def self.contributions(capability)
         Dispatch.call(:chat_integration, capability, Context::ChatIntegrationContext.new).flatten.compact

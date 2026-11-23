@@ -78,19 +78,44 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
 | `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |
 
+## `policy`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `job_visibility_restrictions` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::PolicyContext` | `Module, Array<Module>, or nil` |
+| `repository_filters` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::PolicyContext` | `Module, Array<Module>, or nil` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+Fail-closed capabilities: `job_visibility_restrictions` (a failed provider contributes `[Syrus::Plugin::Policy::FAIL_CLOSED]`), `repository_filters` (a failed provider contributes `[Syrus::Plugin::Policy::FAIL_CLOSED]`). These differ from the usual decline-on-error rule.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `coworkers` | `Coworkers::Policy` | - | - | `job_visibility_restrictions`, `repository_filters` |
+
 ## `review`
 
 Shape: `facet`. Required core: `key`, `display_name`.
 
 | Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
 |---|---|---|---|---|---|---|
+| `adjudicators` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `diff_review_annotation_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
 | `external_reviewer` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
+| `post_implementation_review_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `review_context_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `review_gates` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `review_presentation_contributors` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
+| `reviewer_target_providers` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::ReviewContributionContext` | `Module, Array<Module>, or nil` |
 
 For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
 
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
-| - | - | - | - | - |
+| `cognitive_review` | `CognitiveReview::ReviewContributions` | - | - | `post_implementation_review_providers`, `diff_review_annotation_providers` |
+| `coworkers` | `Coworkers::ReviewContributions` | - | - | `reviewer_target_providers`, `review_context_contributors`, `review_presentation_contributors`, `review_gates` |
 
 ## `surface`
 
