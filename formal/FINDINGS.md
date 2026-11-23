@@ -4486,6 +4486,41 @@ any Step" asserts that the checker records no violation, so the pending entry
 cannot mask a regression. It was red without the pre-lock. The `auto_merge_spec.rb`
 examples pass.
 
+## F122. A chat's self-scheduled wakeups are bounded without approval (NY34: B)
+
+**Before.** Main's `11d8bc436c` made `schedule_wakeup` essential, so it never
+asks. Each wakeup starts a full, paid agent turn, and that turn could schedule
+the next wakeup with no limit on count or chain. A chat could wake itself once a
+minute indefinitely, with no approval anywhere.
+
+**Fix.** Each `ChatWakeup` records `chain_depth` and `source_wakeup_id`. A turn
+that a wakeup started (its message carries `requested_by: "wakeup"`) links its
+follow-up to that wakeup, one level deeper. A human turn starts at depth 1.
+`ScheduleWakeupTool#chain_refusal` refuses a second follow-up from the same
+wakeup turn. It also refuses once the source wakeup's depth reaches
+`AppSetting#wakeup_chain_limit`: the operator chose 100, configurable from
+Admin → Settings (range 1–10,000).
+
+The decision says a chain past the limit "asks". The tool is essential, so the
+approval gate never sees it. The refusal tells the agent to ask the user in
+chat whether to continue, and the user's reply starts a new chain. That is the
+ask, without a new pending-action type. A cross-chat message starts a turn whose
+message is not a wakeup, so it also starts a new chain; that is not bounded here.
+
+**Proof.** `WakeupChain.lean`. `depth_bounded`: every created wakeup has depth at
+most `limit`. `one_child`: a wakeup turn schedules at most one follow-up.
+`chain_length_bounded`: the chain from one human turn is at most `limit`
+wakeups. `default_chain` checks the limit of 100. `chain_refusal` is in
+`formal/mirrors.yml`.
+
+**Specs.** `spec/services/syrus_chat_mcp/schedule_wakeup_tool_spec.rb` "chain
+bound" (six examples; the four that need the new logic were red without it).
+`AdminSettings.test.tsx` "saves the wakeup chain limit". The settings registry
+and admin page fixtures include the new key.
+
+**Docs.** `config/syrus_docs/chat.md`, `app_settings.md`, `permission_authority.md`,
+and the website's features page.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)

@@ -749,6 +749,8 @@
     "repository_full_poll_interval_hours_help": "Maximales Alter des letzten erfolgreichen vollständigen Issue-Polls eines Repositorys, bevor der nächste automatische Issue-Poll ohne GitHubs updated_at-Cursor läuft. Muss mindestens 1 sein.",
     "rebase_failure_cooldown_label": "Cooldown nach Rebase-Fehler (Minuten)",
     "rebase_failure_cooldown_help": "Wie lange das automatische Merge-State-Polling wartet, bevor es nach wiederholten fehlgeschlagenen Agent-Rebases bei unverändertem PR-Head und unveränderter Basis erneut versucht. Vom Operator angeforderte Rebases, Ablauf des Cooldowns und PR-Head-/Basisänderungen umgehen dies. 0 deaktiviert den Cooldown.",
+    "wakeup_chain_limit_label": "Grenze für Weckketten",
+    "wakeup_chain_limit_help": "Wie viele selbst geplante Chat-Weckrufe aufeinander folgen dürfen, jeder vom Zug des vorherigen geplant, bevor der Agent im Chat fragen muss, ob er weitermachen soll. Jeder Weckruf-Zug darf nur einen Folgeweckruf planen, und eine Nachricht des Benutzers beginnt eine neue Kette.",
     "workflow_admission_control_label": "Workflow-Zulassung",
     "workflow_admission_control_help": "Optionale weiche Kapazitätssteuerung für stark genutzte, gemeinsam verwendete Instanzen. Umfasst Workflow- und hostlokale Zulassung, das globale Agentenlimit und faire Benutzeranteile. Harte Worker-Sicherheit, Provider-Verfügbarkeit, manuelle Pausen und Landing-Korrektheit bleiben aktiv.",
     "workflow_admission_control_warning": "Deaktiviert (Standard): Weiche Kapazitätssteuerung wird umgangen; neue Einzelhost- und Docker-Compose-Installationen benötigen keine Abstimmung.",

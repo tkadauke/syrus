@@ -406,7 +406,7 @@ The evaluator decides whether the invocation may proceed. It does not replace th
 
 Core chat tools whose effects persist or leave the conversation use explicit capabilities:
 
-- `syrus.schedules@v1`: `schedule_wakeup` and `cancel_wakeup` are essential operations scoped to wakeups owned by the current chat. Broader recurring, repository, and cross-chat scheduling remains separately gated.
+- `syrus.schedules@v1`: `schedule_wakeup` and `cancel_wakeup` are essential operations scoped to wakeups owned by the current chat. Broader recurring, repository, and cross-chat scheduling remains separately gated. Since `schedule_wakeup` never asks, its chains are bounded instead: one follow-up per wakeup turn, and at most `wakeup_chain_limit` wakeups in a row without a user message (`chat.md`).
 - `syrus.communication@v1`: `send_chat_message` (`ask`, up to chat-session authority) and `spawn_chats` (`ask`, exact invocation only).
 - `syrus.documents@v1`: `create` (`ask`) and `delete` (destructive, `ask`, exact invocation only) for repository documents.
 - `syrus.artifacts@v1`: `submit`, a low-risk edit of an artifact the caller owns, which stays automatic (`allow`).

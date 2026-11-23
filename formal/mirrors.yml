@@ -143,6 +143,12 @@ models:
     owner: LifecyclePropagation
     method: cancelled!
     sha: fa9aba46c06f4a57
+- model: WakeupChain.lean
+  mirrors:
+  - path: app/services/mcp/tools/schedule_wakeup_tool.rb
+    owner: ScheduleWakeupTool
+    method: chain_refusal
+    sha: 55658a63dc4d0d36
 - model: QueueExecution.lean
   mirrors:
   - path: app/services/work_engine/reconciler.rb

@@ -135,6 +135,19 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :wakeup_chain_limit,
+      type: :integer,
+      default: 100,
+      min: 1,
+      max: 10_000,
+      category: "Chat",
+      operational_meaning: "Longest chain of self-scheduled chat wakeups, each scheduled by the previous wakeup's turn, before the agent must ask the user to continue. A human message starts a new chain.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :contained_chat_execution,
       type: :string,
       default: "off",

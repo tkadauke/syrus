@@ -25,6 +25,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       proactive_rebase_commit_threshold: 1,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      wakeup_chain_limit: 100,
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       workflow_admission_control_changed_at: null,
@@ -125,6 +126,31 @@ describe("AdminSettings numeric fields", () => {
         expect.objectContaining({
           method: "PATCH",
           body: expect.stringContaining('"max_in_flight_workflows":24')
+        })
+      )
+    })
+  })
+
+  it("saves the wakeup chain limit", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+    const input = await screen.findByLabelText("Wakeup chain limit")
+    expect(input).toHaveValue(100)
+    fireEvent.change(input, { target: { value: "250" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"wakeup_chain_limit":250')
         })
       )
     })

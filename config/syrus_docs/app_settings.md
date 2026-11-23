@@ -102,6 +102,12 @@ Splitting a failed train — landing the clean members while the rest re-train
 — is not offered. It needs a rule for attributing a failure to a particular
 member, and an unattributable failure would split the train arbitrarily.
 
+### wakeup_chain_limit
+
+**Type:** integer · **Default:** 100 · **Range:** 1–10000
+
+Longest chain of self-scheduled chat wakeups, each scheduled by the previous wakeup's turn, before the agent must ask in chat whether to continue. A message from the user starts a new chain. Wakeups need no confirmation, so this, together with the rule that a wakeup's turn may schedule only one follow-up, is what bounds a chat that keeps waking itself. See `chat.md`.
+
 ### merge_train_max_size
 
 **Type:** integer · **Default:** 20 · **Min:** 1

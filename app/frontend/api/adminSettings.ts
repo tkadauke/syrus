@@ -26,6 +26,7 @@ export type AdminSettingsPayload = {
     proactive_rebase_commit_threshold: number
     show_work_unit_debug: boolean
     rebase_failure_cooldown_minutes: number
+    wakeup_chain_limit: number
     workflow_admission_control_enabled: boolean
     workflow_admission_policy: "whole_workflow" | "phase_aware"
     host_admission_policy: "prediction" | "usage"
@@ -60,6 +61,7 @@ export type AdminSettingsUpdate = {
   proactive_rebase_commit_threshold?: number
   show_work_unit_debug?: boolean
   rebase_failure_cooldown_minutes?: number
+  wakeup_chain_limit?: number
   workflow_admission_control_enabled?: boolean
   workflow_admission_policy?: "whole_workflow" | "phase_aware"
   host_admission_policy?: "prediction" | "usage"

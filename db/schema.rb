@@ -267,6 +267,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
     t.string "host_admission_policy", default: "prediction", null: false
     t.boolean "permissions_enforced", default: true, null: false
     t.text "plugin_manifest_signing_key"
+    t.integer "wakeup_chain_limit", default: 100, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1014,7 +1015,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.json "metadata"
+    t.integer "chain_depth", default: 1, null: false
+    t.integer "source_wakeup_id"
     t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
+    t.index ["source_wakeup_id"], name: "index_chat_wakeups_on_source_wakeup_id"
     t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
   end

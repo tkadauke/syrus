@@ -959,6 +959,7 @@ describe("App admin pages", () => {
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      wakeup_chain_limit: 100,
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       workflow_admission_control_changed_at: null,
@@ -985,6 +986,7 @@ describe("App admin pages", () => {
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      wakeup_chain_limit: 100,
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       chat_coding_workspace_budget_mb: 0

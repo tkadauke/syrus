@@ -140,6 +140,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
   const [showWorkUnitDebug, setShowWorkUnitDebug] = useState(payload.settings.show_work_unit_debug)
   const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
+  const [wakeupChainLimit, setWakeupChainLimit] = useState(String(payload.settings.wakeup_chain_limit))
   const [workflowAdmissionControlEnabled, setWorkflowAdmissionControlEnabled] = useState(payload.settings.workflow_admission_control_enabled)
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
   const [hostAdmissionPolicy, setHostAdmissionPolicy] = useState<"prediction" | "usage">(payload.settings.host_admission_policy)
@@ -165,6 +166,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         proactive_rebase_commit_threshold: optionalNumber(proactiveRebaseThreshold),
         show_work_unit_debug: showWorkUnitDebug,
         rebase_failure_cooldown_minutes: optionalNumber(rebaseFailureCooldown),
+        wakeup_chain_limit: optionalNumber(wakeupChainLimit),
         workflow_admission_control_enabled: workflowAdmissionControlEnabled,
         workflow_admission_policy: workflowAdmissionPolicy,
         host_admission_policy: hostAdmissionPolicy,
@@ -196,6 +198,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
     setShowWorkUnitDebug(payload.settings.show_work_unit_debug)
     setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
+    setWakeupChainLimit(String(payload.settings.wakeup_chain_limit))
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setHostAdmissionPolicy(payload.settings.host_admission_policy)
@@ -219,6 +222,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     payload.settings.proactive_rebase_commit_threshold,
     payload.settings.show_work_unit_debug,
     payload.settings.rebase_failure_cooldown_minutes,
+    payload.settings.wakeup_chain_limit,
     payload.settings.workflow_admission_control_enabled,
     payload.settings.workflow_admission_policy,
     payload.settings.host_admission_policy,
@@ -527,6 +531,22 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setRebaseFailureCooldown(event.target.value)}
           type="number"
           value={rebaseFailureCooldown}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-text-primary" htmlFor="admin-settings-wakeup-chain-limit">
+          {t("settings.wakeup_chain_limit_label")}
+        </label>
+        <span className="mt-1 block text-xs text-text-secondary">{t("settings.wakeup_chain_limit_help")}</span>
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
+          id="admin-settings-wakeup-chain-limit"
+          min={1}
+          onChange={(event) => setWakeupChainLimit(event.target.value)}
+          type="number"
+          value={wakeupChainLimit}
         />
       </div>
 

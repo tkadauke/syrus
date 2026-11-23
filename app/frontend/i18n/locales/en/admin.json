@@ -908,6 +908,8 @@
     "show_work_unit_debug_help": "When off, WorkIntent and WorkUnit internals stay hidden from normal job pages. Admin Work Units remains available for diagnosis.",
     "rebase_failure_cooldown_label": "Rebase failure cooldown (minutes)",
     "rebase_failure_cooldown_help": "How long autonomous merge-state polling waits before retrying after repeated failed agent rebases for an unchanged PR head and base. Operator-requested rebases, cooldown expiry, and PR head/base changes bypass this. 0 disables the cooldown.",
+    "wakeup_chain_limit_label": "Wakeup chain limit",
+    "wakeup_chain_limit_help": "How many self-scheduled chat wakeups may follow one another, each scheduled by the previous wakeup's turn, before the agent must ask in chat whether to continue. Each wakeup turn may schedule only one follow-up, and a message from the user starts a new chain.",
     "workflow_admission_control_label": "Workflow admission control",
     "workflow_admission_control_help": "Opt-in soft capacity pacing for busy shared, multi-user instances. Covers workflow and host-local admission, the global agent-run cap, and per-user fair share. Hard worker safety, provider availability, manual pauses, and landing correctness remain active.",
     "workflow_admission_control_warning": "Disabled (default): soft capacity pacing is bypassed; fresh single-host and Docker Compose installs need no tuning.",

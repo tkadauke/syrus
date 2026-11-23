@@ -1567,6 +1567,11 @@ cards: cancelled wakeups link back to their chat and retain the original prompt
 and fire time for context, while missing or already-completed wakeups appear as
 clear cancellation errors.
 
+A chat cannot keep waking itself indefinitely. A turn that a wakeup started may
+schedule one follow-up, and after a chain of 100 wakeups in a row (the
+operator's **Wakeup chain limit** setting) with no message from you in between,
+the agent stops and asks whether to continue. Your reply starts a new chain.
+
 Wakeups do not create repository Jobs and do not require confirmation. Use
 them for “remind me here,” “wake this chat,” conditional follow-ups, and
 chained rechecks. Cadence alone does not make a request repository automation:

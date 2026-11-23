@@ -3212,11 +3212,11 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "design",
+      "status": "done",
       "title": "Approval-free self-scheduled work is bounded",
-      "producer": "Mcp::Tools::ScheduleWakeupTool; ChatWakeup; Permissions::EffectActions",
-      "done_by": "M68 (NY34 open)",
-      "notes": "Since main's 11d8bc436c, schedule_wakeup is essential and nothing bounds the number or rate of self-scheduled wakeups per chat."
+      "producer": "Mcp::Tools::ScheduleWakeupTool#chain_refusal; ChatWakeup (chain_depth, source_wakeup_id); AppSetting#wakeup_chain_limit",
+      "done_by": "F122 (NY34)",
+      "notes": "WakeupChain.lean: depth_bounded, one_child, chain_length_bounded. A cross-chat message starts a new chain (not bounded here)."
     },
     {
       "id": "checkout-hooks-trusted",
@@ -3733,7 +3733,7 @@
         "C. Keep as is: self-scheduling is owned, scoped and audited, and an operator can cancel a runaway chat."
       ],
       "recommendation": "A. Two counters on the chat keep every legitimate use (reminders, polling a slow job) free while a runaway loop hits approval within a day; B models chains, which is more precise but more machinery, and C leaves cost unbounded.",
-      "decision": "B (2026-11-23, answered on the lean-plan site): Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks. Operator note: N should be large but bounded. Let's make it 100 and let's make it configurable. To implement."
+      "decision": "B (2026-11-23, answered on the lean-plan site): Keep wakeups essential, but bound the chain: a turn started by a wakeup may schedule at most one follow-up, and a chain longer than N wakeups without a human message in between asks. Operator note: N should be large but bounded. Let's make it 100 and let's make it configurable. Implemented as F122. Past the limit the tool refuses and tells the agent to ask the user in chat, whose reply starts a new chain; the limit is the wakeup_chain_limit setting."
     },
     {
       "id": "NY35",

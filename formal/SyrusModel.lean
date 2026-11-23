@@ -89,6 +89,7 @@ import SyrusModel.RecoveryPreflight
 import SyrusModel.CheckoutHooks
 import SyrusModel.RollbackImage
 import SyrusModel.ReopenedStepLiveness
+import SyrusModel.WakeupChain
 import SyrusModel.DispatchOrder
 import SyrusModel.Kernel.Basic
 import SyrusModel.Kernel.Reconcile

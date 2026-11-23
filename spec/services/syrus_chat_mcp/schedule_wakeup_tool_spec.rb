@@ -156,4 +156,87 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool, :full_chat_access do
     expect(response_text(response)).to match(/fire_at must be an ISO 8601 timestamp/)
     expect(ChatWakeup.count).to eq(0)
   end
+
+  # NY34: schedule_wakeup is essential (it never asks), so the chain it forms
+  # is bounded. A turn a wakeup started may schedule one follow-up, and a chain
+  # of more than AppSetting#wakeup_chain_limit wakeups with no human message in
+  # between stops and the agent asks in chat. The next human turn starts over.
+  describe "chain bound" do
+    def wakeup_turn_server(wakeup)
+      message = chat_session.messages.create!(
+        role: "system", content: { "text" => wakeup.prompt, "requested_by" => "wakeup", "wakeup_id" => wakeup.id }
+      )
+      MCP::Server.new(
+        name: "syrus-chat-sidecar", tools: [ described_class ],
+        server_context: { chat_session: chat_session, current_message: message }
+      )
+    end
+
+    def human_turn_server
+      message = chat_session.messages.create!(role: "user", content: { "text" => "keep an eye on it" })
+      MCP::Server.new(
+        name: "syrus-chat-sidecar", tools: [ described_class ],
+        server_context: { chat_session: chat_session, current_message: message }
+      )
+    end
+
+    def schedule(server)
+      jsonrpc(server, "tools/call", params: { name: "schedule_wakeup", arguments: { prompt: "Check again.", delay_minutes: 5 } })
+    end
+
+    def fired_wakeup(depth:)
+      ChatWakeup.create!(chat_session: chat_session, user: user, prompt: "Check again.", fire_at: 1.minute.ago,
+                         state: "fired", chain_depth: depth)
+    end
+
+    it "starts a chain at depth 1 from a human turn" do
+      response = schedule(human_turn_server)
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(ChatWakeup.sole).to have_attributes(chain_depth: 1, source_wakeup_id: nil)
+    end
+
+    it "links a follow-up to the wakeup whose turn scheduled it, one deeper" do
+      source = fired_wakeup(depth: 3)
+
+      response = schedule(wakeup_turn_server(source))
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(ChatWakeup.where.not(id: source.id).sole).to have_attributes(chain_depth: 4, source_wakeup_id: source.id)
+    end
+
+    it "lets a wakeup turn schedule only one follow-up" do
+      server = wakeup_turn_server(fired_wakeup(depth: 1))
+      schedule(server)
+
+      response = schedule(server)
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response_text(response)).to match(/already scheduled its follow-up/)
+      expect(ChatWakeup.count).to eq(2)
+    end
+
+    it "stops the chain at the configured limit and asks the human" do
+      AppSetting.current.update!(wakeup_chain_limit: 5)
+      response = schedule(wakeup_turn_server(fired_wakeup(depth: 5)))
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response_text(response)).to match(/5 wakeups in a row/)
+      expect(response_text(response)).to match(/ask the user/i)
+      expect(ChatWakeup.count).to eq(1)
+    end
+
+    it "allows the chain up to the limit" do
+      AppSetting.current.update!(wakeup_chain_limit: 5)
+
+      response = schedule(wakeup_turn_server(fired_wakeup(depth: 4)))
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(ChatWakeup.maximum(:chain_depth)).to eq(5)
+    end
+
+    it "defaults the limit to 100" do
+      expect(AppSetting.current.wakeup_chain_limit).to eq(100)
+    end
+  end
 end

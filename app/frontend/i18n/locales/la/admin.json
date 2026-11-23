@@ -749,6 +749,8 @@
     "repository_full_poll_interval_hours_help": "Aetas maxima ultimi pleni scrutinii quaestionum felicis pro receptaculo antequam proximum scrutinium automaticum sine cursore updated_at GitHub currat. Minimum 1 esse debet.",
     "rebase_failure_cooldown_label": "Mora post rebase defectum (minuta)",
     "rebase_failure_cooldown_help": "Quamdiu scrutinium automaticum status fusionis exspectet antequam post repetitos defectus rebase agentis iterum temptet, capite et basi petitionis tractus non mutatis. Rebase ab operatore petitum, finis morae, et mutationes capitis/basis hoc praetereunt. 0 moram exstinguit.",
+    "wakeup_chain_limit_label": "Limes catenae excitationum",
+    "wakeup_chain_limit_help": "Quot excitationes colloquii ab ipso agente constitutae se invicem sequi possint, quaeque ab actu prioris constituta, antequam agens in colloquio quaerere debeat an pergat. Quisque actus excitationis unam tantum sequentem constituere potest, et nuntius usoris novam catenam incipit.",
     "workflow_admission_control_label": "Admissio cursuum",
     "workflow_admission_control_help": "Moderatio mollis facultatis, optione activa, exemplis communibus multorum usorum destinatur. Admissionem cursuum et hospitum, modum globalem agentium, atque aequam partem usorum continet. Tutela dura, provisorum copia, morae manuales, et recta fusio manent.",
     "workflow_admission_control_warning": "Exstinctum (praedefinitum): moderatio mollis praeteritur; nova institutio unius hospitis vel Docker Compose nulla temperatione eget.",

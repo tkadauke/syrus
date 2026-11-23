@@ -41,11 +41,17 @@ module Mcp::Tools
         fire_at = resolve_fire_at(delay_minutes: delay_minutes, fire_at: fire_at)
         return fire_at if fire_at.is_a?(MCP::Tool::Response)
 
+        source = source_wakeup(chat_session, server_context[:current_message])
+        refusal = chain_refusal(source)
+        return refusal if refusal
+
         wakeup = ChatWakeup.create!(
           chat_session: chat_session,
           user: chat_session.user,
           prompt: prompt,
-          fire_at: fire_at
+          fire_at: fire_at,
+          source_wakeup: source,
+          chain_depth: source ? source.chain_depth + 1 : 1
         )
 
         Mcp::Tools.success(
@@ -61,6 +67,36 @@ module Mcp::Tools
       end
 
       private
+
+      # This tool is essential: it never asks for approval (NY34). What bounds
+      # self-perpetuating work instead is the chain. A turn a wakeup started may
+      # schedule one follow-up, and a chain of AppSetting#wakeup_chain_limit
+      # wakeups, each scheduled by the previous one's turn, ends there: the
+      # agent asks in chat, and the user's reply starts a new chain.
+      def source_wakeup(chat_session, current_message)
+        content = current_message&.content.to_h
+        return unless content["requested_by"] == "wakeup"
+
+        chat_session.wakeups.find_by(id: content["wakeup_id"])
+      end
+
+      def chain_refusal(source)
+        return unless source
+
+        if ChatWakeup.where(source_wakeup_id: source.id).exists?
+          return Mcp::Tools.invalid(
+            "This wakeup's turn already scheduled its follow-up; a wakeup turn may schedule only one."
+          )
+        end
+
+        limit = AppSetting.current.wakeup_chain_limit
+        return if source.chain_depth < limit
+
+        Mcp::Tools.invalid(
+          "This chat has run #{limit} wakeups in a row without a message from the user. " \
+          "Do not schedule another: ask the user whether to continue. Their reply starts a new chain."
+        )
+      end
 
       def resolve_fire_at(delay_minutes:, fire_at:)
         delay_provided = delay_minutes.present?

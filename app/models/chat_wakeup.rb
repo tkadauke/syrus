@@ -1,6 +1,8 @@
 class ChatWakeup < ApplicationRecord
   belongs_to :chat_session
   belongs_to :user
+  # The wakeup whose turn scheduled this one (NY34); nil when a human turn did.
+  belongs_to :source_wakeup, class_name: "ChatWakeup", optional: true
 
   enum :state, { pending: "pending", fired: "fired", cancelled: "cancelled" }
 

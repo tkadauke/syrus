@@ -415,6 +415,15 @@ rechecks. For example, “check every other day; if blocked, set a new reminder
 here” is a chain of one-shot wakeups: each turn checks the condition and, only
 when needed, schedules the next wakeup.
 
+Because wakeups need no confirmation, the chain is bounded instead. A turn that
+a wakeup started may schedule only one follow-up wakeup; a second
+`schedule_wakeup` in the same turn is refused. A chain of more than
+`wakeup_chain_limit` wakeups in a row (default 100), each scheduled by the
+previous one's turn with no message from the user in between, is refused too:
+the agent asks in chat whether to continue, and the user's reply starts a new
+chain. A turn the user started can schedule as many wakeups as it needs; each
+starts a chain of its own.
+
 `schedule_recurring` is unattended repository automation. It proposes a
 recurring task for operator confirmation; once confirmed, every fire creates a
 new `cron` Job and Workflow against the repository. It never wakes or resumes
