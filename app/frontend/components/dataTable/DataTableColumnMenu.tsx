@@ -8,7 +8,8 @@ import { menuColumnsForKeys, reorderColumnKeys, visibleOptionalColumnKeys } from
 import type { DataTableColumnDef } from "./types"
 import { useDragReorder } from "./useDragReorder"
 
-const MOVE_BUTTON_CLASS = "rounded px-1 text-[length:var(--text-caption)] text-text-secondary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+const MOVE_BUTTON_CLASS =
+  "rounded px-1 text-[length:var(--text-caption)] text-text-secondary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
 
 // Built on the shared DataTableColumnDef model (sort metadata, responsive classes,
 // required/pinned columns) so new
@@ -55,7 +56,7 @@ export function DataTableColumnMenu<TRow>({
   upLabel: string
   visibleLabel: string
 }) {
-  const [ open, setOpen ] = useState(false)
+  const [open, setOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
 
   const { dragProps, order: liveVisibleKeys } = useDragReorder({
@@ -68,7 +69,7 @@ export function DataTableColumnMenu<TRow>({
 
   function toggleColumn(key: string, checked: boolean) {
     const current = visibleOptionalColumnKeys({ columns, order })
-    const next = checked ? [ ...current, key ].filter((value, index, values) => values.indexOf(value) === index) : current.filter((value) => value !== key)
+    const next = checked ? [...current, key].filter((value, index, values) => values.indexOf(value) === index) : current.filter((value) => value !== key)
     onChange(next)
   }
 
@@ -109,11 +110,7 @@ export function DataTableColumnMenu<TRow>({
                 >
                   {checked ? <GripIcon /> : <span aria-hidden="true" className="w-4" />}
                   <label className="flex min-w-0 items-center gap-2">
-                    <Checkbox
-                      checked={checked}
-                      disabled={pending}
-                      onChange={(event) => toggleColumn(column.key, event.target.checked)}
-                    />
+                    <Checkbox checked={checked} disabled={pending} onChange={(event) => toggleColumn(column.key, event.target.checked)} />
                     <span className="truncate">{column.label}</span>
                   </label>
                   <button
@@ -138,7 +135,11 @@ export function DataTableColumnMenu<TRow>({
               )
             })}
           </fieldset>
-          {error ? <p className="mt-2 text-[length:var(--text-caption)] text-danger-text" role="alert">{errorMessage(error, errorFallback ?? "")}</p> : null}
+          {error ? (
+            <p className="mt-2 text-[length:var(--text-caption)] text-danger-text" role="alert">
+              {errorMessage(error, errorFallback ?? "")}
+            </p>
+          ) : null}
         </Surface>
       ) : null}
     </div>
