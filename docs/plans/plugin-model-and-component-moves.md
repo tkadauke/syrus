@@ -325,7 +325,9 @@ phases:
   plugin-owned; the host must not be.
 - delivery tracks (promotion, hotfix sync, upstream export) — these are part of
   the core workflow model, not an integration
-- main branch health and repair — see Deferred
+- main branch health and repair is **not** a core feature any more: the operator
+  decided it becomes the `main_branch_health` plugin (see Main branch health
+  below). Core keeps only the generic gate, alert and classifier points.
 
 ## Platform Gaps
 
@@ -1394,17 +1396,32 @@ test that the anchor honours `fail_policy: :advance`.
 
 ### Deferred
 
-**`main_branch_health`** — skipped for now by decision, and the analysis
-supports it. It is not a feature, it is a *gate*: `StepDispatcher.main_health_blocking?`
-blocks every workflow start, `LandingQueueProcessor` pauses landing on it,
-`WorkEngine::Reconciler` references it 26 times, and `SystemAlerts`,
-`PollPullRequestJob`, and `RunJob`'s concurrency exemption all branch on it. It
-also added eleven columns to `repositories` and two to `app_settings`, all of
-which "plugins must not add columns to core tables" would require inverting.
+**`main_branch_health`** — no longer deferred; it is moving into the plugin.
+It was never a feature but a *gate*, which is why it waited for generic
+`work_gate`, `system_alert` and repair-classifier extension points (now built:
+the `work_policy` family). Progress:
 
-Revisit only behind generic `work_gate`, `system_alert`, and repair-classifier
-extension points — i.e. after core can express "something can veto a workflow
-start" without knowing what that something is.
+- Done: storage is inverted into plugin-owned tables (the former `repositories`
+  and `app_settings` columns, checks and concern reports), and a spec proves
+  that with the work-gate, alert and classifier providers absent core has no
+  gate, raises no alerts and claims no classification.
+- Ordering constraint found while moving: the provider cannot move first. It
+  calls `MainHealthChangedService`, `MainBranchFailureClassifier`,
+  `SystemAlerts` internals and `StepDispatcher` constants, and plugins may only
+  use `Syrus::Host`. The provider therefore moves together with, or after, the
+  services it wraps, and `WorkGate`, `RepairClassifier` and `WorkPolicy::Veto`
+  need `Syrus::Host` facades.
+- Remaining: the provider registration, the health poll job and its schedule, the check/concern models,
+  `MainBranchFailureClassifier`, `MainHealthChangedService`, the `main_grader`
+  and `main_repair` kinds and their WorkDefinitions, the MCP tool and the
+  dashboard banner. Core call sites that name these directly (landing,
+  reconciler, `Job`, repositories controller) must first be pointed at generic
+  seams.
+- Disableable: **no, for now** (`disableable false`). While the poll job, the
+  Job kinds and `report_main_concern` still live in core, disabling would drop
+  the gate while the repair machinery kept running. Once those move, the plugin
+  becomes disableable under the refuse-with-reason policy: disabling is
+  refused while any `main_grader` or `main_repair` workflow is in flight.
 
 **`delivery_tracks`** — promotion, hotfix sync, and upstream export are part of
 the core workflow model. Not a move candidate.
@@ -1445,7 +1462,6 @@ just a code move, and each should land with its plugin.
 | `app_settings` | `discord_bot_token` | discord |
 | `app_settings` | `telegram_bot_token`, `telegram_bot_handle`, `telegram_update_offset` | telegram — still a core `PlatformDelivery` adapter; should follow `discord` into a plugin |
 | `app_settings` | `github_app_*` (8 columns) | github_source, eventually |
-| `repositories` | 11 `main_branch_*` / health columns | deferred with main health |
 
 New plugins must not add to this list.
 
@@ -1552,7 +1568,7 @@ Consequences worth stating:
 - Answer the `disableable` question the stress test raised (see Open
   Questions). It gates the wider GitHub extraction, the agent-provider
   plugins, and G12's mid-run disable case — three problems, one decision.
-- Revisit `main_branch_health`.
+- Finish moving `main_branch_health` (see its section above).
 
 ### Ordering note
 
@@ -1564,7 +1580,8 @@ Of what is left, the queue by readiness rather than by phase number:
 | `visual_review`, `coverage`, `review_plan` | G12, now designed |
 | `scheduled_tasks` | G8, an open design question, not code |
 | `github_source`, `claude_agent`, `codex_agent` | G13 for the mechanism, then the data half of the `disableable` decision |
-| `main_branch_health`, `delivery_tracks` | deferred by decision |
+| `main_branch_health` | moving; remaining blockers listed in its section |
+| `delivery_tracks` | deferred by decision |
 
 ## Open Questions
 
