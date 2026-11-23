@@ -2,7 +2,7 @@ module OperatorBriefing
   class PermissionProvider
     include Syrus::Plugin::PermissionProvider
 
-    ROLES = (AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT ]).uniq.freeze
+    ROLES = (Syrus::Host::AgentRoles::WORKFLOW_ROLES + [ Syrus::Host::AgentRoles::AGENT_INSIGHT ]).uniq.freeze
     CAPABILITY = "operator_briefing.evidence@v1"
     MUTATIONS = %w[submit_briefing_block submit_dive_report].freeze
     TOOLS = (MUTATIONS + %w[read_briefing_git_diff list_briefing_recent_workflows read_briefing list_briefing_topics read_briefing_topic]).freeze
@@ -18,7 +18,7 @@ module OperatorBriefing
       mutation = MUTATIONS.include?(name)
       effects = mutation ? %i[internal_write] : %i[confidential_read]
       register_capability(
-        capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        capability: CAPABILITY, operation:, presentation: Syrus::Host::PermissionCapabilityPresentation.for(capability: CAPABILITY, operation:),
         # The briefing agent's evidence reads and its own briefing output are
         # bounded workflow work with no consequence outside the briefing.
         essential: true,

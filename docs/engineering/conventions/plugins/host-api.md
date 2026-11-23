@@ -28,6 +28,18 @@ Supported members:
 
 - `admin_pages`
 
+### `Syrus::Host::AdversarialReviewStep`
+
+Since: `0.1.16`
+
+Bases plugin review steps that reuse the adversarial-review loop and raises MemoryPersistenceFailed; the loop internals and overridable hooks beyond call are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `MemoryPersistenceFailed`
+- `call`
+- `new`
+
 ### `Syrus::Host::AgentProvider`
 
 Since: `0.1.16`
@@ -50,6 +62,23 @@ Supported members:
 - `usage_snapshot`
 - `usage_status`
 - `usage_windows`
+
+### `Syrus::Host::AgentRoles`
+
+Since: `0.1.16`
+
+Names the agent role identifiers plugins may compare against or declare; role-to-tool exposure is not promised.
+
+Supported members:
+
+- `AGENT_INSIGHT`
+- `CHAT_PLANNER`
+- `COWORKER`
+- `COWORKER_CHAT`
+- `WORKFLOW_COWORKER_REVIEWER`
+- `WORKFLOW_MANUAL`
+- `WORKFLOW_ROLES`
+- `WORKFLOW_SUMMARY_TEST_PLAN`
 
 ### `Syrus::Host::AppAdminController`
 
@@ -189,6 +218,44 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::ChatDelivery`
+
+Since: `0.1.16`
+
+Delivers the next queued chat message when the chat is idle and names the internal-role metadata key; queue ordering and batching are not promised.
+
+Supported members:
+
+- `deliver_next_if_idle!`
+- `internal_role_key`
+
+### `Syrus::Host::ChatMessages`
+
+Since: `0.1.16`
+
+Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised.
+
+Supported members:
+
+- `active`
+- `find`
+- `find_by`
+- `install_after_commit_on_create`
+- `none`
+- `remove_after_commit_on_create`
+- `where`
+
+### `Syrus::Host::ChatPendingActions`
+
+Since: `0.1.16`
+
+Reads chat pending actions; creation, confirmation, and state transitions are not promised.
+
+Supported members:
+
+- `pending`
+- `where`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
@@ -212,6 +279,29 @@ Queues automatic title generation for a chat; job implementation and queue detai
 Supported members:
 
 - `enqueue`
+
+### `Syrus::Host::ChatTurns`
+
+Since: `0.1.16`
+
+Enqueues an agent turn for a chat message; turn execution is not promised.
+
+Supported members:
+
+- `enqueue`
+
+### `Syrus::Host::ChatWorkspaces`
+
+Since: `0.1.16`
+
+Resolves a chat's repository checkout path and reports its git state; workspace layout beyond the returned paths is not promised.
+
+Supported members:
+
+- `ensure_root!`
+- `rebase_in_progress?`
+- `repo_path_for`
+- `uncommitted_changes?`
 
 ### `Syrus::Host::CliCommandHandler`
 
@@ -257,6 +347,19 @@ Supported members:
 
 - `api_user`
 - `user`
+
+### `Syrus::Host::DiffReviews`
+
+Since: `0.1.16`
+
+Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.
+
+Supported members:
+
+- `best_match_version`
+- `comments`
+- `final_review_version`
+- `versions`
 
 ### `Syrus::Host::DiskUsage`
 
@@ -405,6 +508,19 @@ Since: `0.1.16`
 
 Shares the GitHub-content prompt trust boundary. Only the listed members are supported.
 
+### `Syrus::Host::Handles`
+
+Since: `0.1.16`
+
+Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised.
+
+Supported members:
+
+- `claim!`
+- `normalize`
+- `release!`
+- `rename!`
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -480,6 +596,36 @@ Supported members:
 
 - `ingest`
 
+### `Syrus::Host::PendingActionAuthorizedToolCall`
+
+Since: `0.1.16`
+
+Bases pending actions that replay an authorized tool call; replay internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PendingActionBase`
+
+Since: `0.1.16`
+
+Bases plugin pending-action handlers confirmed by an operator; queueing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PendingActionPermissionManagement`
+
+Since: `0.1.16`
+
+Bases pending actions that change durable permissions; permission storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::PerformanceLogging`
 
 Since: `0.1.16`
@@ -489,6 +635,124 @@ Times named plugin phases; event storage and thresholds are not promised. Only t
 Supported members:
 
 - `phase`
+
+### `Syrus::Host::PermissionAuthorizationDecision`
+
+Since: `0.1.16`
+
+Bases plugin authorization decisions returned by the permission engine; persistence is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PermissionAuthorizationRequest`
+
+Since: `0.1.16`
+
+Bases plugin authorization requests evaluated by the permission engine; evaluation is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PermissionCapabilityAdapter`
+
+Since: `0.1.16`
+
+Builds capability descriptors from plugin tool definitions, registry entries, and coworker-parity entries; the descriptor schema beyond essential? is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_coworker_parity`
+- `for_plugin_definition`
+- `for_registry_entry`
+
+### `Syrus::Host::PermissionCapabilityDescriptor`
+
+Since: `0.1.16`
+
+Describes one permission capability's policy defaults and authority durations; descriptor construction and storage are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `AUTHORITY_DURATIONS`
+- `POLICIES`
+
+### `Syrus::Host::PermissionCapabilityPresentation`
+
+Since: `0.1.16`
+
+Looks up the user-facing presentation of a capability operation; wording is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
+### `Syrus::Host::PermissionCapabilityRegistryValidator`
+
+Since: `0.1.16`
+
+Lists the application's registered capabilities; validation rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_application`
+
+### `Syrus::Host::PermissionCatalog`
+
+Since: `0.1.16`
+
+Looks up a capability and operation in the permission catalog and raises UnknownCapability when absent; catalog contents are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `UnknownCapability`
+- `find!`
+
+### `Syrus::Host::PermissionCoworkerDefaultPolicy`
+
+Since: `0.1.16`
+
+Applies the default policy for coworker roles to capability descriptors; the rule table is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ROLES`
+- `descriptor_auto_allowable?`
+- `requestable?`
+- `verdict`
+- `violations`
+
+### `Syrus::Host::PermissionLeases`
+
+Since: `0.1.16`
+
+Queries permission leases; issuance and expiry are not promised.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::PermissionManagement`
+
+Since: `0.1.16`
+
+Reads and manages one user's durable permissions; storage and authorization checks are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PermissionPolicies`
+
+Since: `0.1.16`
+
+Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.
+
+Supported members:
+
+- `rank`
 
 ### `Syrus::Host::PermissionProvider`
 
@@ -504,6 +768,29 @@ Supported members:
 - `register_permission_preset`
 - `register_resource_scope`
 - `retire_permission_identifier`
+
+### `Syrus::Host::PermissionRequest`
+
+Since: `0.1.16`
+
+Bases plugin permission requests carried through pending actions; routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::PermissionRules`
+
+Since: `0.1.16`
+
+Queries durable permission rules and groups changes in a transaction; evaluation and audit behavior are not promised.
+
+Supported members:
+
+- `active`
+- `create!`
+- `transaction`
+- `where`
 
 ### `Syrus::Host::PluginApi`
 
@@ -537,6 +824,18 @@ Contains plugin provider failures behind the shared runtime health boundary; run
 Supported members:
 
 - `call`
+
+### `Syrus::Host::PluginJob`
+
+Since: `0.1.16`
+
+Bases plugin-owned background jobs with a per-plugin queue, concurrency lease, and retry policy; DEFAULT_ATTEMPTS is the retry budget. Queue topology and health bookkeeping are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `DEFAULT_ATTEMPTS`
+- `plugin_queue_concurrency`
+- `plugin_slug`
 
 ### `Syrus::Host::PluginRegistry`
 
@@ -653,6 +952,54 @@ Supported members:
 
 - `for`
 
+### `Syrus::Host::RetentionDefinition`
+
+Since: `0.1.16`
+
+Declares one retention policy (key, model, age column, setting, default, executor); registry storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `key`
+- `model_class`
+- `new`
+- `retention_window`
+- `scope_name`
+
+### `Syrus::Host::RetentionExecutor`
+
+Since: `0.1.16`
+
+Bases plugin retention executors that prune one declared policy; batching, scheduling, and archival are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+- `new`
+
+### `Syrus::Host::RetentionLimits`
+
+Since: `0.1.16`
+
+Names the default batch limits for retention executors; scheduling is not promised.
+
+Supported members:
+
+- `default_batch_size`
+- `default_max_batches`
+
+### `Syrus::Host::RetentionResult`
+
+Since: `0.1.16`
+
+Reports how many records an executor deleted and whether a backlog remains. Only the listed members are supported.
+
+Supported members:
+
+- `backlog`
+- `deleted_count`
+- `new`
+
 ### `Syrus::Host::ReviewExecutionPolicy`
 
 Since: `0.1.16`
@@ -668,6 +1015,18 @@ Records structured review findings. Only the listed members are supported.
 Supported members:
 
 - `record`
+
+### `Syrus::Host::ReviewerTargets`
+
+Since: `0.1.16`
+
+Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `TargetRequired`
+- `TargetUnavailable`
+- `resolve`
 
 ### `Syrus::Host::Run`
 
@@ -835,6 +1194,45 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::WorkDefinition`
+
+Since: `0.1.16`
+
+Bases plugin work definitions that declare retry, lock, and landing policy for a workflow kind; the scheduling engine is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::WorkGateResult`
+
+Since: `0.1.16`
+
+Carries a start-gate verdict: pass, or block with a reason and optional retry time. Only the listed members are supported.
+
+Supported members:
+
+- `block`
+- `blocked?`
+- `details`
+- `pass`
+- `pass?`
+- `reason`
+- `retry_at`
+
+### `Syrus::Host::WorkLauncher`
+
+Since: `0.1.16`
+
+Instantiates and starts a workflow of a registered kind for a job, raising LockConflict when another unit holds the lock; ownership records, locks, and landing policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `LockConflict`
+- `create_and_start!`
+- `instantiate`
+- `start!`
+
 ### `Syrus::Host::Workflow`
 
 Since: `0.1.16`
@@ -892,9 +1290,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentRole::COWORKER`
 - `AgentRole::COWORKER_CHAT`
 - `AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER`
-- `AgentRole::WORKFLOW_COWORKER_REVIEWER`
 - `AgentRole::WORKFLOW_IMPLEMENT`
-- `AgentRole::WORKFLOW_MANUAL`
 - `AgentRole::WORKFLOW_ROLES`
 - `AgentRole::WORKFLOW_VISUAL_REVIEWER`
 - `AgentSidecarEnvironment`
@@ -935,7 +1331,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatProviderOptions`
 - `ChatProviders::Base`
 - `ChatProviders::ConfigurationError`
-- `ChatQueuedMessage::INTERNAL_ROLE_KEY`
 - `ChatQueuedMessagePromoter`
 - `ChatResultBadges`
 - `ChatSession`
@@ -955,7 +1350,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatSpeechToText::Providers::TranscriptionUnavailable`
 - `ChatSpeechToText::Telemetry`
 - `ChatSpendEntry`
-- `ChatTurnJob`
 - `ChatWakeup`
 - `ChatWorkEvents`
 - `ChatWorkspace`
@@ -969,9 +1363,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `CredentialProbe::Result`
 - `CredentialProbe::TIMEOUT_SECONDS`
 - `Current`
-- `DiffReviewComment`
-- `DiffReviewVersion`
-- `DiffReviewVersions::FinalReviewVersion`
 - `DirectJobs::Creator`
 - `DirectJobs::Creator::Attachment`
 - `Document::MAX_ATTACHMENTS_PER_JOB`
@@ -1022,7 +1413,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `GraderResourceRequest::ALL`
 - `Handle`
 - `Handle::FORMAT`
-- `HandleRegistry`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
 - `IngestIssueImagesJob`
@@ -1087,9 +1477,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `OperationalLogging`
 - `Paginatable`
 - `PendingActionItem`
-- `PendingActions::AuthorizedToolCall`
 - `PendingActions::Base`
-- `PendingActions::PermissionManagement`
 - `PerformanceLogEvent`
 - `PerformanceLogging`
 - `PerformanceLogging::BROWSER_TRACE_EVENT`
@@ -1102,22 +1490,14 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PerformanceLogging::Store::MAX_EVENTS`
 - `PermissionLease`
 - `PermissionRule`
-- `Permissions::AuthorizationDecision`
-- `Permissions::AuthorizationRequest`
 - `Permissions::CapabilityDescriptor`
 - `Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS`
-- `Permissions::CapabilityDescriptor::POLICIES`
 - `Permissions::CapabilityDescriptorAdapter`
 - `Permissions::CapabilityPresentation`
-- `Permissions::CapabilityRegistryValidator`
-- `Permissions::Catalog`
-- `Permissions::Catalog::UnknownCapability`
 - `Permissions::CoworkerDefaultPolicy`
 - `Permissions::CoworkerDefaultPolicy::ROLES`
 - `Permissions::Management`
 - `Permissions::Management::PROFILE_SOURCE_PREFIX`
-- `Permissions::PermissionRequest`
-- `Permissions::PolicyEvaluator::POLICY_RANK`
 - `PersistentMcpDaemon`
 - `PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER`
 - `PersistentMcpDaemon::MCP_PATH`
@@ -1126,7 +1506,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PlatformPollingJob`
 - `PluginDataCleanup`
 - `PluginJob`
-- `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
 - `PrReviewComment`
 - `PreviewCommandSource`
@@ -1185,9 +1564,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RetentionPruner::DEFAULT_BATCH_SIZE`
 - `RetentionPruner::DEFAULT_MAX_BATCHES`
 - `ReviewEvidence::VerdictSubmission`
-- `ReviewerTargets`
-- `ReviewerTargets::TargetRequired`
-- `ReviewerTargets::TargetUnavailable`
 - `Run`
 - `Run::ACTIVE_STATES`
 - `RunDiff`
@@ -1217,8 +1593,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Step::AGENTIC_KINDS`
 - `Step::Kind`
 - `StepWorkspace`
-- `Steps::AdversarialReview`
-- `Steps::AdversarialReview::MemoryPersistenceFailed`
 - `Steps::Base`
 - `Steps::MergeTrainLand::STALE_BASE_ARTIFACT`
 - `Syrus::DataCleanup`
@@ -1316,9 +1690,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `User::DASHBOARD_REQUIRED_COLUMNS`
 - `ValidatesAgentProvider`
 - `WorkDefinitions::Base`
-- `WorkUnits::GateResult`
 - `WorkUnits::Launcher`
-- `WorkUnits::Launcher::LockConflict`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`

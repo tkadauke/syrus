@@ -3,7 +3,7 @@ class Coworkers::ReviewContextRetentionPolicy
 
   def self.retention_definitions
     [
-      RetentionPolicyRegistry::Definition.new(
+      Syrus::Host::RetentionDefinition.new(
         key: :coworker_review_context,
         model: "Coworkers::ReviewContext",
         table_name: "coworker_review_contexts",

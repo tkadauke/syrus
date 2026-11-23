@@ -3,7 +3,7 @@ module PendingActions
   # coworker. The coworker only asks; the confirming owner revokes, and the
   # rule is re-resolved against the owner's store and the exact coworker subject
   # at confirmation time.
-  class CoworkerPermissionRevocation < PermissionManagement
+  class CoworkerPermissionRevocation < Syrus::Host::PendingActionPermissionManagement
     action_key "coworker_permission_revocation"
     requires_chat_session!
 

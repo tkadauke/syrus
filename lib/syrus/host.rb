@@ -35,6 +35,15 @@ module Syrus
         end
       end
 
+      # Plugins resolve their classes while the app boots, before the
+      # to_prepare hook installs the aliases, so materialize one on first use.
+      def const_missing(name)
+        target = PublicApis::ALIASES[name] if const_defined?(:PublicApis, false)
+        return super unless target
+
+        const_set(name, target.constantize)
+      end
+
       private
 
       def api_name(name)

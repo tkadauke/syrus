@@ -63,7 +63,7 @@ module Coworkers
     end
 
     # Explicit descriptors so each default policy is justified by classified
-    # effects (see Permissions::CoworkerDefaultPolicy), never inherited.
+    # effects (see Syrus::Host::PermissionCoworkerDefaultPolicy), never inherited.
     def self.coworker_descriptor(klass)
       name = klass.tool_name
       if WORKSPACE_TOOLS.include?(klass)

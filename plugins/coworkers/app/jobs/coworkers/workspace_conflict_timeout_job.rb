@@ -1,4 +1,4 @@
-class Coworkers::WorkspaceConflictTimeoutJob < PluginJob
+class Coworkers::WorkspaceConflictTimeoutJob < Syrus::Host::PluginJob
   plugin :coworkers
   discard_on ActiveRecord::RecordNotFound
 

@@ -22,7 +22,7 @@ module Coworkers
         sender = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat.id)&.coworker
         return Mcp::Tools.invalid("message_coworker is only available from a coworker's chat") unless sender
 
-        normalized_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@"))
+        normalized_handle = Syrus::Host::Handles.normalize(handle.to_s.delete_prefix("@"))
         body = text.to_s.strip
         return Mcp::Tools.invalid("handle is required") if normalized_handle.blank?
         return Mcp::Tools.invalid("text is required") if body.blank?
