@@ -213,6 +213,7 @@ export function RecentChatsSidebar({
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
   const [openActionChatId, setOpenActionChatId] = useState<number | null>(null)
   const [hoveredChatId, setHoveredChatId] = useState<number | null>(null)
+  const canHover = useMediaQuery("(hover: hover) and (pointer: fine)", true)
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
@@ -698,7 +699,7 @@ export function RecentChatsSidebar({
                             className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                             data-testid="recent-chat-marker-slot"
                           >
-                            <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
+                            <IndicatorPopover canHover={canHover} chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
                               <span className="flex items-center gap-1">
                                 <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
                                 <JobStateMarkers summary={chat.job_summary} />
@@ -1288,7 +1289,19 @@ function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   return { active_count, outcome, jobs, epics }
 }
 
-function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNavRecord; children: ReactNode; prefix: string; rowHovered: boolean }) {
+function IndicatorPopover({
+  canHover,
+  chat,
+  children,
+  prefix,
+  rowHovered
+}: {
+  canHover: boolean
+  chat: ChatNavRecord
+  children: ReactNode
+  prefix: string
+  rowHovered: boolean
+}) {
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
   const { floatingStyles, refs } = useFloating({
@@ -1315,13 +1328,13 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
   }
   useEffect(() => () => cancelClose(), [])
   useEffect(() => {
-    if (rowHovered) {
+    if (canHover && rowHovered) {
       cancelClose()
       setOpen(true)
     } else {
       scheduleClose()
     }
-  }, [rowHovered])
+  }, [canHover, rowHovered])
   const replying = Boolean(chat.turn_in_flight || chat.agent_busy)
   const jobs = chat.job_summary?.jobs.filter((job) => job.group) || []
   const goal = chat.active_goal && ["active", "paused"].includes(chat.active_goal.status) ? chat.active_goal : null
@@ -1387,6 +1400,14 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
   return (
     <>
       <span
+        aria-expanded={open}
+        onClick={(event) => {
+          if (canHover) return
+          event.preventDefault()
+          event.stopPropagation()
+          cancelClose()
+          setOpen((current) => !current)
+        }}
         onBlur={(event) => {
           if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose()
         }}

@@ -1040,6 +1040,36 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(within(popover).getByText("3 entries")).toBeInTheDocument()
   })
 
+  it("opens the indicator only from its marker on touch devices", () => {
+    const restoreMatchMedia = withMatchMedia(false)
+    try {
+      renderSidebar([
+        chatNav({
+          job_summary: {
+            active_count: 1,
+            outcome: "ready",
+            epics: {},
+            jobs: [{ id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }]
+          }
+        })
+      ])
+
+      const marker = screen.getByTestId("job-running-marker")
+      const row = screen.getByTitle("Chat").parentElement!
+      fireEvent.mouseEnter(row)
+      expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
+
+      fireEvent.click(marker)
+      expect(screen.getByTestId("recent-chat-indicator-popover")).toBeInTheDocument()
+      expect(screen.getByTestId("location")).toHaveTextContent("/")
+
+      fireEvent.click(marker)
+      expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("keeps the portaled popover interactive across pointer and focus transitions", () => {
     vi.useFakeTimers()
     try {
