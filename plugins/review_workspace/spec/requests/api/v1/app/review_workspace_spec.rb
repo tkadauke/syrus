@@ -105,6 +105,24 @@ RSpec.describe "API: review workspace", type: :request do
       expect(response.parsed_body).to include("current_head_sha" => "c" * 40)
     end
 
+    it "resolves the head across many workflows with a bounded number of queries" do
+      job = Factories.job_with_run(
+        user:, repository:, state: "implemented", issue_title: "History",
+        step_attrs: { state: "succeeded" }, run_attrs: { state: "succeeded", head_sha: "d" * 40 }
+      )
+      5.times do
+        workflow = Workflow.create!(job:, user:, trigger_kind: "pr_comment", agent_provider: job.agent_provider, priority: job.priority, state: "succeeded")
+        Step.create!(workflow:, kind: "grader", position: 0, state: "succeeded")
+      end
+
+      queries = []
+      callback = ->(*, payload) { queries << payload[:sql] unless %w[SCHEMA TRANSACTION].include?(payload[:name]) }
+      head = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { ReviewWorkspacePlugin::CurrentHead.call(job) }
+
+      expect(head).to eq("d" * 40)
+      expect(queries.size).to be <= 2
+    end
+
     it "returns a null change scope when no diff was stored" do
       job = Factories.job_record(user:, repository:, state: "implemented", issue_title: "No diff")
 

@@ -1,18 +1,23 @@
 module ReviewWorkspacePlugin
   # The implementation commit the Job's review evidence must cover: the head
-  # recorded by the newest succeeded implement/respond step. Mirrors how review
-  # gates stamp `reviewed_head_sha`, so the brief can tell current review
-  # evidence from evidence superseded by a later repair. Nil when unknown.
+  # recorded by the newest succeeded implement/respond step across the Job's
+  # workflows (newest workflow, then latest step). Mirrors how review gates
+  # stamp `reviewed_head_sha`. Nil when unknown.
+  #
+  # Uses a fixed number of queries (one joined step query plus one run
+  # preload) regardless of how many workflows the Job has accumulated.
   class CurrentHead
     MUTATION_KINDS = %w[implement respond].freeze
+    CANDIDATE_LIMIT = 50
 
     def self.call(job)
-      job.workflows.reorder(id: :desc).each do |workflow|
-        sha = workflow.steps.where(kind: MUTATION_KINDS, state: "succeeded").reorder(position: :desc, id: :desc)
-          .includes(:runs).filter_map { |step| step.runs.last&.head_sha.presence }.first
-        return sha if sha
-      end
-      nil
+      Step.joins(:workflow)
+        .where(workflows: { job_id: job.id }, kind: MUTATION_KINDS, state: "succeeded")
+        .reorder("workflows.id DESC, steps.position DESC, steps.id DESC")
+        .limit(CANDIDATE_LIMIT)
+        .includes(:runs)
+        .filter_map { |step| step.runs.max_by(&:id)&.head_sha.presence }
+        .first
     end
   end
 end
