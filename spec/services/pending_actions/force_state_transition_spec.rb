@@ -155,5 +155,4 @@ RSpec.describe PendingActions::ForceStateTransition do
     expect(result.job).to be_coding
     expect(result.job.linked_chat_id).to eq(coding_chat.id)
   end
-
 end
