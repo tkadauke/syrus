@@ -61,7 +61,7 @@ module OperatorBriefing
         private
 
         def workflow_scope(briefing)
-          ::Workflow
+          Syrus::Host::WorkflowRecord
             .joins(:job)
             .includes(:job, :workflow_artifact_values, :workflow_warnings, steps: :runs)
             .where(jobs: { repository_id: briefing.repository_id, user_id: briefing.owner_user_id })

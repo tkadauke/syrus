@@ -18,14 +18,14 @@ module Coworkers
       unsaved = Coworkers::Chat.where(coworker_id: ids).where.not(unsaved_workspace_first_failed_at: nil)
         .group(:coworker_id).pluck(:coworker_id, Arel.sql("MIN(unsaved_workspace_first_failed_at)"), Arel.sql("SUM(unsaved_workspace_attempt_count)"))
         .to_h { |id, oldest, attempts| [ id, [ oldest, attempts ] ] }
-      chat_spend = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+      chat_spend = Syrus::Host::ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
         .where(coworker_chats: { coworker_id: ids }).group("coworker_chats.coworker_id").sum(:cost_usd)
-      run_spend = Run.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) })
+      run_spend = Syrus::Host::RunRecord.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) })
         .group("jobs.origin_id").sum(:cost_usd)
       seven_days_ago = now - 7.days
-      weekly_chat_spend = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+      weekly_chat_spend = Syrus::Host::ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
         .where(coworker_chats: { coworker_id: ids }, incurred_at: seven_days_ago..now).group("coworker_chats.coworker_id").sum(:cost_usd)
-      weekly_run_spend = Run.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) }, finished_at: seven_days_ago..now)
+      weekly_run_spend = Syrus::Host::RunRecord.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) }, finished_at: seven_days_ago..now)
         .group("jobs.origin_id").sum(:cost_usd)
 
       coworkers.each do |id, handle|

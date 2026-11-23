@@ -32,7 +32,7 @@ module OperatorBriefing
       return skipped("budget") if scheduled? && budget.skip
 
       window_start = activity_anchor_at || FALLBACK_WINDOW.ago(now)
-      Job.transaction do
+      Syrus::Host::JobRecord.transaction do
         close_current_live_briefings!
         create_briefing_job!(window_start: window_start)
       end

@@ -15,7 +15,7 @@ module Api
         private
 
         def reviewable_job_scope
-          policy_scope(Job)
+          policy_scope(Syrus::Host::JobRecord)
         end
 
         def require_review_workspace_enabled

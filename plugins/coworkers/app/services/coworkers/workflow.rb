@@ -44,7 +44,7 @@ module Coworkers
     end
 
     private_class_method def self.close_anchor_job!(workflow)
-      StateTransition.with_source("system") do
+      Syrus::Host::StateTransition.with_source("system") do
         workflow.job.close_with_reason!(workflow.job.kind) if workflow.job.may_close?
       end
     end

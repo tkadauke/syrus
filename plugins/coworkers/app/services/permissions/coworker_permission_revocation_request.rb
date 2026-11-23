@@ -59,7 +59,7 @@ module Permissions
     def coworker = context.agent_actor
 
     def open_requests
-      @open_requests ||= ChatPendingAction.where(user: context.user, action: ACTION, state: "pending",
+      @open_requests ||= Syrus::Host::ChatPendingAction.where(user: context.user, action: ACTION, state: "pending",
         subject_type: coworker.class.name, subject_id: coworker.id).to_a
     end
   end

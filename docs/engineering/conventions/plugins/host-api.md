@@ -7,6 +7,17 @@ unlisted members are internal.
 
 ## Public APIs
 
+### `Syrus::Host::AdminAction`
+
+Since: `0.1.16`
+
+Exposes the AdminAction record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `log!`
+- `where`
+
 ### `Syrus::Host::AdminController`
 
 Since: `0.1.16`
@@ -205,6 +216,16 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::AppSetting`
+
+Since: `0.1.16`
+
+Exposes the AppSetting record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ui_engagement_telemetry_enabled?`
+
 ### `Syrus::Host::AppearanceColorPalette`
 
 Since: `0.1.16`
@@ -326,6 +347,17 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::ChatBridgeThread`
+
+Since: `0.1.16`
+
+Exposes the ChatBridgeThread record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `create!`
+- `find_by`
+
 ### `Syrus::Host::ChatIdentityProvider`
 
 Since: `0.1.16`
@@ -354,6 +386,31 @@ Since: `0.1.16`
 
 Marks a class as a chat-surface MCP tool set; chat tool exposure and rendering are not promised. Only the listed members are supported.
 
+### `Syrus::Host::ChatMessage`
+
+Since: `0.1.16`
+
+Exposes the ChatMessage record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `active`
+- `find`
+- `find_by`
+- `none`
+- `where`
+
+### `Syrus::Host::ChatMessageSearchIndex`
+
+Since: `0.1.16`
+
+Exposes the ChatMessageSearchIndex record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `matching_chat_session_page`
+- `top_matches_by_chat_session`
+
 ### `Syrus::Host::ChatPayloadContributor`
 
 Since: `0.1.16`
@@ -365,6 +422,27 @@ Supported members:
 - `chat_message_payload`
 - `chat_payload_counts`
 - `chat_payload_paths`
+
+### `Syrus::Host::ChatPendingAction`
+
+Since: `0.1.16`
+
+Exposes the ChatPendingAction record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `pending`
+- `where`
+
+### `Syrus::Host::ChatProposal`
+
+Since: `0.1.16`
+
+Exposes the ChatProposal record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `joins`
 
 ### `Syrus::Host::ChatProviderOptions`
 
@@ -430,6 +508,19 @@ Since: `0.1.16`
 
 Exposes ChatSessionLifecycle to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
 
+### `Syrus::Host::ChatSessionRecord`
+
+Since: `0.1.16`
+
+Exposes the ChatSession record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `active`
+- `create!`
+- `fallback_title_for`
+- `where`
+
 ### `Syrus::Host::ChatSessionsCreator`
 
 Since: `0.1.16`
@@ -439,6 +530,17 @@ Exposes ChatSessions::Creator to plugins; only the listed members are supported 
 Supported members:
 
 - `enqueue_turn`
+
+### `Syrus::Host::ChatSpendEntry`
+
+Since: `0.1.16`
+
+Exposes the ChatSpendEntry record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `joins`
+- `where`
 
 ### `Syrus::Host::ChatTitles`
 
@@ -767,6 +869,27 @@ Supported members:
 
 - `review_annotations`
 
+### `Syrus::Host::DiffReviewComment`
+
+Since: `0.1.16`
+
+Exposes the DiffReviewComment record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `none`
+
+### `Syrus::Host::DiffReviewVersion`
+
+Since: `0.1.16`
+
+Exposes the DiffReviewVersion record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `best_match_for`
+- `where`
+
 ### `Syrus::Host::DiffReviewVersionsFinalReviewVersion`
 
 Since: `0.1.16`
@@ -825,6 +948,16 @@ Supported members:
 - `new`
 - `span_labels`
 - `version_file`
+
+### `Syrus::Host::Epic`
+
+Since: `0.1.16`
+
+Exposes the Epic record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
 
 ### `Syrus::Host::EpicArchivedState`
 
@@ -943,6 +1076,16 @@ Supported members:
 - `provider_key`
 - `refresh`
 - `submit`
+
+### `Syrus::Host::Feature`
+
+Since: `0.1.16`
+
+Exposes the Feature record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `public_send`
 
 ### `Syrus::Host::FiltersChipsBase`
 
@@ -1089,6 +1232,16 @@ Supported members:
 - `timeout_minutes`
 - `when_files_changed`
 
+### `Syrus::Host::Handle`
+
+Since: `0.1.16`
+
+Exposes the Handle record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `exists?`
+
 ### `Syrus::Host::HandleFormat`
 
 Since: `0.1.16`
@@ -1113,6 +1266,16 @@ Supported members:
 Since: `0.1.16`
 
 Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
+
+### `Syrus::Host::InstanceVersion`
+
+Since: `0.1.16`
+
+Exposes the InstanceVersion record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `fresh`
 
 ### `Syrus::Host::InvestigationJobsCreator`
 
@@ -1165,6 +1328,16 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::JobApproval`
+
+Since: `0.1.16`
+
+Exposes the JobApproval record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
 ### `Syrus::Host::JobKind`
 
 Since: `0.1.16`
@@ -1174,6 +1347,34 @@ Exposes Job::Kind to plugins; only the listed members are supported and its othe
 Supported members:
 
 - `user_facing_values`
+
+### `Syrus::Host::JobLog`
+
+Since: `0.1.16`
+
+Exposes the JobLog record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::JobRecord`
+
+Since: `0.1.16`
+
+Exposes the Job record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `all`
+- `approval_blocking_job_ids`
+- `create!`
+- `none`
+- `open_threads`
+- `priority_rank`
+- `transaction`
+- `visible_to`
+- `where`
 
 ### `Syrus::Host::JobTerminalStates`
 
@@ -1411,6 +1612,16 @@ Supported members:
 - `phase`
 - `report_duration`
 
+### `Syrus::Host::PermissionLease`
+
+Since: `0.1.16`
+
+Exposes the PermissionLease record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
 ### `Syrus::Host::PermissionProvider`
 
 Since: `0.1.16`
@@ -1425,6 +1636,19 @@ Supported members:
 - `register_permission_preset`
 - `register_resource_scope`
 - `retire_permission_identifier`
+
+### `Syrus::Host::PermissionRule`
+
+Since: `0.1.16`
+
+Exposes the PermissionRule record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `active`
+- `create!`
+- `transaction`
+- `where`
 
 ### `Syrus::Host::PermissionsAuthorizationDecision`
 
@@ -1601,6 +1825,17 @@ Since: `0.1.16`
 
 Exposes PluginJob::DEFAULT_ATTEMPTS to plugins; only the listed members are supported and its other behavior is not promised. Only the listed members are supported.
 
+### `Syrus::Host::PluginRecord`
+
+Since: `0.1.16`
+
+Exposes the PluginRecord record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find_by`
+- `find_or_create_by!`
+
 ### `Syrus::Host::PluginRegistry`
 
 Since: `0.1.16`
@@ -1628,6 +1863,16 @@ Supported members:
 - `prompt_sections`
 - `required_mcp_tools`
 - `review_needed?`
+
+### `Syrus::Host::PrReviewComment`
+
+Since: `0.1.16`
+
+Exposes the PrReviewComment record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
 
 ### `Syrus::Host::ProcessRunner`
 
@@ -1781,6 +2026,23 @@ Exposes RepositoryPolicy to plugins; only the listed members are supported and i
 Supported members:
 
 - `new`
+
+### `Syrus::Host::RepositoryRecord`
+
+Since: `0.1.16`
+
+Exposes the Repository record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `accessible_repository_ids_for`
+- `accessible_to`
+- `active`
+- `arel_table`
+- `create!`
+- `new`
+- `where`
+- `writable_by`
 
 ### `Syrus::Host::RetentionPolicy`
 
@@ -1941,6 +2203,17 @@ Supported members:
 
 - `agent_runner`
 
+### `Syrus::Host::RunRecord`
+
+Since: `0.1.16`
+
+Exposes the Run record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `joins`
+- `where`
+
 ### `Syrus::Host::SidebarPage`
 
 Since: `0.1.16`
@@ -1959,6 +2232,16 @@ Supported members:
 - `client_for`
 - `display_name`
 - `provider_key`
+
+### `Syrus::Host::SpawnedProcess`
+
+Since: `0.1.16`
+
+Exposes the SpawnedProcess record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `live_agent`
 
 ### `Syrus::Host::SpeechToTextBase`
 
@@ -2061,6 +2344,17 @@ Supported members:
 
 - `message`
 - `new`
+
+### `Syrus::Host::StateTransition`
+
+Since: `0.1.16`
+
+Exposes the StateTransition record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+- `with_source`
 
 ### `Syrus::Host::StepWorkspace`
 
@@ -2192,6 +2486,16 @@ Supported members:
 
 - `enrich`
 
+### `Syrus::Host::UiEngagementSample`
+
+Since: `0.1.16`
+
+Exposes the UiEngagementSample record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
 ### `Syrus::Host::UiSlot`
 
 Since: `0.1.16`
@@ -2218,6 +2522,21 @@ Supported members:
 - `id`
 - `jobs`
 - `repositories`
+
+### `Syrus::Host::UserRecord`
+
+Since: `0.1.16`
+
+Exposes the User record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_providers`
+- `count`
+- `find`
+- `limit`
+- `order`
+- `where`
 
 ### `Syrus::Host::ValidatesAgentProvider`
 
@@ -2304,6 +2623,18 @@ Lets a plugin contribute workflow artifacts; artifact storage is not promised. O
 Supported members:
 
 - `for_job`
+
+### `Syrus::Host::WorkflowRecord`
+
+Since: `0.1.16`
+
+Exposes the Workflow record class to plugins for the listed class-level queries and constructors; its schema, callbacks, scopes and associations beyond them are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `joins`
+- `resume_queue_name`
+- `where`
 
 ### `Syrus::Host::WorkflowWorkspace`
 
@@ -2397,7 +2728,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `BugReports::Router`
 - `ChatAssociatedJobs`
 - `ChatAttachment`
-- `ChatBridgeThread`
 - `ChatContextCompactor`
 - `ChatHistoryTranscriptRenderer`
 - `ChatLockErrors`
@@ -2406,7 +2736,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatMessageSearchIndex`
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
-- `ChatProposal`
 - `ChatProviders::Base`
 - `ChatProviders::ConfigurationError`
 - `ChatQueuedMessagePromoter`
@@ -2428,8 +2757,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `CredentialProbe::Result`
 - `CredentialProbe::TIMEOUT_SECONDS`
 - `Current`
-- `DiffReviewComment`
-- `DiffReviewVersion`
 - `DirectJobs::Creator`
 - `DirectJobs::Creator::Attachment`
 - `Document::MAX_ATTACHMENTS_PER_JOB`
@@ -2468,7 +2795,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `GithubApiUsageRollup`
 - `GithubClient`
 - `GithubIssueJobAttributes`
-- `Handle`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
 - `IngestIssueImagesJob`
@@ -2681,7 +3007,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ToolPayloadRedactor`
 - `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`
-- `UiEngagementSample`
 - `User`
 - `User::DASHBOARD_OPTIONAL_COLUMNS`
 - `User::DASHBOARD_REQUIRED_COLUMNS`

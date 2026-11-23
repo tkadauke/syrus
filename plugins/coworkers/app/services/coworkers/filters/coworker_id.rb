@@ -35,8 +35,8 @@ module Coworkers
         linked = Coworkers::Chat.where(coworker_id: coworker_ids).select(:chat_session_id)
         return linked unless requested.include?(SYRUS_VALUE)
 
-        unlinked = ChatSession.where.not(id: Coworkers::Chat.select(:chat_session_id))
-        unlinked.or(ChatSession.where(id: linked)).select(:id)
+        unlinked = Syrus::Host::ChatSessionRecord.where.not(id: Coworkers::Chat.select(:chat_session_id))
+        unlinked.or(Syrus::Host::ChatSessionRecord.where(id: linked)).select(:id)
       end
     end
   end

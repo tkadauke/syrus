@@ -12,7 +12,7 @@ module Api
           def history
             archived = ::OperatorBriefing::Briefing
               .joins(:job)
-              .where(owner_user: Syrus::Host::Current.user, repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
+              .where(owner_user: Syrus::Host::Current.user, repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(Syrus::Host::Current.user))
               .where(jobs: { state: "closed" })
               .includes(:job)
               .find(params.require(:briefing_id))
@@ -21,7 +21,7 @@ module Api
           end
 
           def regenerate
-            repository = Repository.where(id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user)).find(params[:repository_id])
+            repository = Syrus::Host::RepositoryRecord.where(id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(Syrus::Host::Current.user)).find(params[:repository_id])
             ::OperatorBriefing::BriefingSubscription.find_or_create_by!(user: Syrus::Host::Current.user, repository: repository)
             result = ::OperatorBriefing::Generator.generate!(user: Syrus::Host::Current.user, repository: repository, mode: :on_demand)
 
@@ -74,7 +74,7 @@ module Api
 
           def briefing
             @briefing ||= ::OperatorBriefing::Briefing
-              .where(owner_user: Syrus::Host::Current.user, repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
+              .where(owner_user: Syrus::Host::Current.user, repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(Syrus::Host::Current.user))
               .find(params[:id])
           end
 

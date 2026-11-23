@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(221)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(221)
+    expect(Syrus::Host.apis.size).to eq(250)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(250)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -58,6 +58,16 @@ RSpec.describe Syrus::Host::PublicApis do
     expect(Syrus::Host::McpToolsAuthorizationSupport).to equal(Mcp::Tools::AuthorizationSupport)
     expect(Syrus::Host::PendingActionsBase).to equal(PendingActions::Base)
     expect(Syrus::Host::PermissionsCatalog).to equal(Permissions::Catalog)
+  end
+
+  it "keeps the read-only domain wrappers distinct from the record-class facades" do
+    { JobRecord: ::Job, RepositoryRecord: ::Repository, UserRecord: ::User, RunRecord: ::Run,
+      WorkflowRecord: ::Workflow, ChatSessionRecord: ::ChatSession, ChatMessage: ::ChatMessage,
+      PermissionRule: ::PermissionRule, ChatPendingAction: ::ChatPendingAction }.each do |name, record|
+      expect(Syrus::Host.const_get(name)).to equal(record), name.to_s
+    end
+    expect(Syrus::Host::Job).not_to equal(::Job)
+    expect(Syrus::Host::Job.record_class).to equal(::Job)
   end
 
   it "exposes the shared grader defaults without the SyrusYml constants" do

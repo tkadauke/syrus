@@ -54,14 +54,14 @@ class Coworkers::Coworker < Syrus::Host::Record
     match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
     return unless match
 
-    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
+    Syrus::Host::RepositoryRecord.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
   end
 
   # Coworker chat reads are capability-gated and resource-scoped: native
   # coworker sessions plus chats explicitly shared with this coworker.
   def readable_chat_session_ids
-    ChatSession.active.where(id: chats.select(:id)).or(
-      ChatSession.active.where(id: received_chat_shares.select(:chat_session_id))
+    Syrus::Host::ChatSessionRecord.active.where(id: chats.select(:id)).or(
+      Syrus::Host::ChatSessionRecord.active.where(id: received_chat_shares.select(:chat_session_id))
     ).distinct.ids
   end
 

@@ -64,7 +64,7 @@ module Api
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
+          Syrus::Host::AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -76,7 +76,7 @@ module Api
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
+          Syrus::Host::AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -86,7 +86,7 @@ module Api
           coworker = authorized_review_coworker
           return unless coworker
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
+          Syrus::Host::AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -101,7 +101,7 @@ module Api
           revision = reader.resolve("coworkers/#{coworker.handle}")
           path = "reviews/journal/evidence-#{context.review_evidence_id}.md"
           journal = reader.read(revision, path, max_bytes: 64.kilobytes)
-          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_journal_read",
+          Syrus::Host::AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_journal_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id, "review_evidence_id" => context.review_evidence_id })
           render json: { run_id: context.run_id, review_evidence_id: context.review_evidence_id, path:, content: journal.text,
                          truncated: journal.truncated, persisted_commit_sha: context.persisted_commit_sha }
@@ -113,7 +113,7 @@ module Api
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
+          Syrus::Host::AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -125,7 +125,7 @@ module Api
             return head :forbidden
           end
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
-          AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
+          Syrus::Host::AdminAction.log!(user: Syrus::Host::Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
                          persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
@@ -386,7 +386,7 @@ module Api
         end
 
         def owned_chat
-          ChatSession.active.find_by!(id: params[:chat_id], user_id: Syrus::Host::Current.user.id)
+          Syrus::Host::ChatSessionRecord.active.find_by!(id: params[:chat_id], user_id: Syrus::Host::Current.user.id)
         end
 
         def find_approval
@@ -523,7 +523,7 @@ module Api
 
         def message_traffic_json(coworker)
           main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
-          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : ChatMessage.none
+          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : Syrus::Host::ChatMessage.none
           status_sql = "content ->> '$.coworker_message.status'"
           delivered = messages.where("(#{status_sql} IS NULL OR #{status_sql} IN ('', 'null'))")
           sent = delivered.where("content ->> '$.coworker_message.direction' = ?", "outgoing").count
@@ -557,7 +557,7 @@ module Api
           match = coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
           raise ActiveRecord::RecordNotFound unless match
 
-          Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
+          Syrus::Host::RepositoryRecord.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
         end
 
         def syrus_json

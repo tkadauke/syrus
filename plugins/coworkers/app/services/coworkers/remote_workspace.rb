@@ -16,7 +16,7 @@ class Coworkers::RemoteWorkspace
   end
 
   def initialize(owner:, name:, user:, git: Syrus::Host::GitRunner.new, authenticated_url: nil)
-    @repository = Repository.new(owner: owner, name: name, user: user)
+    @repository = Syrus::Host::RepositoryRecord.new(owner: owner, name: name, user: user)
     @user = user
     @git = git
     @authenticated_url = authenticated_url

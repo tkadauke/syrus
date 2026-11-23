@@ -15,7 +15,7 @@ class Coworkers::GrantUpdate
   end
 
   def call
-    raise Pundit::NotAuthorizedError unless @owner.is_a?(User) && @coworker.owner_user_id == @owner.id
+    raise Pundit::NotAuthorizedError unless @owner.is_a?(Syrus::Host::UserRecord) && @coworker.owner_user_id == @owner.id
     descriptor = Coworkers::GrantCatalog.fetch(@capability)
     Coworkers::PrivilegedGrantGate.ensure_available!(descriptor) unless @approval_policy == "off"
     raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}" unless Coworkers::GrantCatalog.policy_allowed?(descriptor, @approval_policy)

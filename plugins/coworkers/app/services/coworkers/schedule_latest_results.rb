@@ -19,7 +19,7 @@ module Coworkers
       ordinary_task_ids = tasks.reject { |task| targets.key?(task.id) }.map(&:id)
       ids = visible_jobs.where(scheduled_task_id: ordinary_task_ids).group(:scheduled_task_id).maximum(:id).values
       candidates = jobs_for_targets(targets)
-      jobs = Job.where(id: ids | candidates.map(&:id)).includes(workflows: :workflow_artifact_values).to_a
+      jobs = Syrus::Host::JobRecord.where(id: ids | candidates.map(&:id)).includes(workflows: :workflow_artifact_values).to_a
 
       jobs.select { |job| ordinary_task_ids.include?(job.scheduled_task_id) }
         .index_by(&:scheduled_task_id)
@@ -27,7 +27,7 @@ module Coworkers
     end
 
     def visible_jobs
-      Job.visible_to(user, scope: Job.where(scheduled_task_id: tasks.map(&:id)))
+      Syrus::Host::JobRecord.visible_to(user, scope: Syrus::Host::JobRecord.where(scheduled_task_id: tasks.map(&:id)))
     end
 
     def system_targets
@@ -38,7 +38,7 @@ module Coworkers
     end
 
     def jobs_for_targets(targets)
-      return Job.none if targets.empty?
+      return Syrus::Host::JobRecord.none if targets.empty?
 
       visible_jobs.where(scheduled_task_id: targets.keys).joins(workflows: :workflow_artifact_values)
         .where(workflow_artifact_values: { key: "journaling_target_on", value: targets.values })

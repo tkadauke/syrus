@@ -20,7 +20,7 @@ module Coworkers
       end
       if background_jobs.exists?
         lines = background_jobs.order(:created_at).limit(100).map do |job|
-          summary = Run.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
+          summary = Syrus::Host::RunRecord.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
           "- JOB-#{job.id}: #{text(job.issue_title)}#{": #{text(summary).truncate(1_000)}" if summary.present?}"
         end
         sections << "### Background runs\n\n#{lines.join("\n")}"
@@ -59,10 +59,10 @@ module Coworkers
       ).uniq
     end
 
-    def messages = ChatMessage.where(chat_session_id: chat_ids, created_at: range)
+    def messages = Syrus::Host::ChatMessage.where(chat_session_id: chat_ids, created_at: range)
 
     def background_jobs
-      Job.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
+      Syrus::Host::JobRecord.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
     end
 
     def daily_memory

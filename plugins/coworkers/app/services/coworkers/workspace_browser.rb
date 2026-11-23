@@ -200,7 +200,7 @@ class Coworkers::WorkspaceBrowser
 
   def source_runs(commits)
     shas = commits.map(&:sha)
-    candidates = Run.joins(:job)
+    candidates = Syrus::Host::RunRecord.joins(:job)
       .where(user_id: @coworker.owner_user_id, jobs: { repository_id: @repository.id })
       .where(head_sha: shas + shas.map { |sha| sha.first(12) })
       .where.not(head_sha: [ nil, "" ])
@@ -224,7 +224,7 @@ class Coworkers::WorkspaceBrowser
 
   def conflict_records
     chat_ids = @coworker.coworker_chats.select(:chat_session_id)
-    @coworker.chat_agents.select(:chat_session_id).then { |rostered| chat_ids = ChatSession.where(id: chat_ids).or(ChatSession.where(id: rostered)).select(:id) }
+    @coworker.chat_agents.select(:chat_session_id).then { |rostered| chat_ids = Syrus::Host::ChatSessionRecord.where(id: chat_ids).or(Syrus::Host::ChatSessionRecord.where(id: rostered)).select(:id) }
     Coworkers::WorkspaceConflict.unresolved.where(chat_session_id: chat_ids, repository: @repository).order(created_at: :desc).map do |conflict|
       { "branch" => conflict.source_branch, "files" => conflict.files, "detail" => conflict.detail }
     end

@@ -14,7 +14,7 @@ module Permissions
         raise CoworkerPermissionRequest::Rejected.new(:not_a_coworker, "only a coworker can surrender its own lease")
       end
 
-      lease = PermissionLease.where(owner_user: context.user, subject_selector_type: "agent",
+      lease = Syrus::Host::PermissionLease.where(owner_user: context.user, subject_selector_type: "agent",
         subject_selector_id: coworker.id.to_s).not_revoked.not_expired.find_by(id: lease_id)
       raise CoworkerPermissionRequest::Rejected.new(:lease_not_found, "no active lease of yours has that id") unless lease
 

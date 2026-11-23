@@ -71,7 +71,7 @@ module Api
         private
 
         def find_job
-          find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
+          find_job_by_ref(policy_scope(Syrus::Host::JobRecord).includes(:repository), params[:job_id])
         end
 
         def find_note(job)
@@ -105,7 +105,7 @@ module Api
         end
 
         def discussion_chat_for(job)
-          chat_session = job.discussion_chat || ChatSession.create!(user: Syrus::Host::Current.user, repository: job.repository)
+          chat_session = job.discussion_chat || Syrus::Host::ChatSessionRecord.create!(user: Syrus::Host::Current.user, repository: job.repository)
           chat_session.chat_attachments.find_or_create_by!(attachable: job)
           chat_session.pin_chat_provider!
           chat_session

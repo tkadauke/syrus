@@ -11,7 +11,7 @@ module Coworkers
     end
 
     def rules(active: true)
-      relation = PermissionRule.where(
+      relation = Syrus::Host::PermissionRule.where(
         owner_user: coworker.owner_user, subject_selector_type: "agent",
         subject_selector_id: coworker.id.to_s
       )
@@ -51,14 +51,14 @@ module Coworkers
       descriptors = canonical_descriptors(capability)
       raise ArgumentError, "no canonical permission descriptors for #{capability}" if descriptors.empty?
 
-      PermissionRule.transaction do
+      Syrus::Host::PermissionRule.transaction do
         rules.where(capability: descriptors.map(&:capability)).find_each { |rule| rule.revoke!(actor:) }
         return nil if approval_policy.to_s == "off" && !preserve_denial
 
         policy = POLICY.fetch(approval_policy.to_s)
         descriptors.flat_map do |descriptor|
           scopes_for(descriptor, scope).map do |resource_scope|
-            PermissionRule.create!(
+            Syrus::Host::PermissionRule.create!(
               owner_user: coworker.owner_user, created_by_user: actor, updated_by_user: actor,
               subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
               subject_role_keys: [], dynamic_future_roles: false,

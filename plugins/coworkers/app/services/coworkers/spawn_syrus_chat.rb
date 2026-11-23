@@ -13,10 +13,10 @@ class Coworkers::SpawnSyrusChat
     chat = nil
     thread = nil
     Syrus::Host::Record.transaction do
-      chat = ChatSession.create!(
+      chat = Syrus::Host::ChatSessionRecord.create!(
         user: @coworker.owner_user,
         repository: @repository,
-        title: @title || ChatSession.fallback_title_for(@repository),
+        title: @title || Syrus::Host::ChatSessionRecord.fallback_title_for(@repository),
         last_message_at: Time.current,
         conversation_kind: "direct",
         artifacts: {
@@ -27,7 +27,7 @@ class Coworkers::SpawnSyrusChat
           }
         }
       )
-      thread = ChatBridgeThread.create!(
+      thread = Syrus::Host::ChatBridgeThread.create!(
         origin_chat_session: @origin_chat,
         target_chat_session: chat,
         opened_by_user: @coworker.owner_user

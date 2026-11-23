@@ -9,7 +9,7 @@ module AlertmanagerInvestigations
 
     def self.repository_for(url)
       location = RunbookLocation.candidates(url).first
-      Repository.active.find_by(owner: location&.owner, name: location&.name) if location
+      Syrus::Host::RepositoryRecord.active.find_by(owner: location&.owner, name: location&.name) if location
     end
 
     def initialize(url, configuration: Configuration.current)
@@ -29,7 +29,7 @@ module AlertmanagerInvestigations
     private
 
     def resolve_location(location)
-      repository = Repository.active.find_by(owner: location.owner, name: location.name)
+      repository = Syrus::Host::RepositoryRecord.active.find_by(owner: location.owner, name: location.name)
       return nil unless repository
       return nil unless location.ref == repository.default_branch
       return nil unless safe_path?(location.path)

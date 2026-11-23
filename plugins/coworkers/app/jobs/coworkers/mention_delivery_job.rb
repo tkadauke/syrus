@@ -6,7 +6,7 @@ class Coworkers::MentionDeliveryJob < Syrus::Host::PluginJob
 
   def perform(source_message_id, coworker_id)
     source_message = nil
-    source_message = ChatMessage.find(source_message_id)
+    source_message = Syrus::Host::ChatMessage.find(source_message_id)
     coworker = Coworkers::Coworker.find(coworker_id)
     source_chat = source_message.chat_session
     return unless Coworkers::ChatAgent.exists?(chat_session: source_chat, coworker: coworker)

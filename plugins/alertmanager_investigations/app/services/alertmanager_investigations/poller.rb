@@ -136,7 +136,7 @@ module AlertmanagerInvestigations
     end
 
     def plugin_record
-      PluginRecord.find_or_create_by!(name: "alertmanager_investigations")
+      Syrus::Host::PluginRecord.find_or_create_by!(name: "alertmanager_investigations")
     end
   end
 end

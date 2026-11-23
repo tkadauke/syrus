@@ -1,14 +1,13 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
-# Remaining entries used by the coworkers, review and briefing group:
-# - ActiveRecord models (ChatMessage, PermissionRule, Job, Repository, ...) need
-#   contracted query facades, not wholesale promotion; Job, Repository, User, Run,
-#   Workflow and ChatSession are read-only wrapper facades the plugins outgrow.
-# - Syrus::PluginApi cannot move: plugin manifests load before host aliases install.
-# - Permissions::CapabilityDescriptorAdapter is called through private deep_redact and
-#   deep_normalize helpers; those are not a public contract.
+# Entries that cannot become public, with the reason:
+# - ChatSession, ChatMessage: the coworkers chat extension mutates these core models
+#   (prepend, has_one, define_method, callbacks); extending a model is not a contract.
+# - Syrus::PluginApi: plugin manifests load before host aliases install.
+# - Permissions::CapabilityDescriptorAdapter: coworkers calls its private deep_redact
+#   and deep_normalize helpers; those are not a public contract.
 ---
-legacy_baseline: 346
+legacy_baseline: 340
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -52,7 +51,6 @@ constants:
 - name: BugReports::Router
 - name: ChatAssociatedJobs
 - name: ChatAttachment
-- name: ChatBridgeThread
 - name: ChatContextCompactor
 - name: ChatHistoryTranscriptRenderer
 - name: ChatLockErrors
@@ -61,7 +59,6 @@ constants:
 - name: ChatMessageSearchIndex
 - name: ChatPendingAction
 - name: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES
-- name: ChatProposal
 - name: ChatProviders::Base
 - name: ChatProviders::ConfigurationError
 - name: ChatQueuedMessagePromoter
@@ -83,8 +80,6 @@ constants:
 - name: CredentialProbe::Result
 - name: CredentialProbe::TIMEOUT_SECONDS
 - name: Current
-- name: DiffReviewComment
-- name: DiffReviewVersion
 - name: DirectJobs::Creator
 - name: DirectJobs::Creator::Attachment
 - name: Document::MAX_ATTACHMENTS_PER_JOB
@@ -123,7 +118,6 @@ constants:
 - name: GithubApiUsageRollup
 - name: GithubClient
 - name: GithubIssueJobAttributes
-- name: Handle
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
 - name: IngestIssueImagesJob
@@ -336,7 +330,6 @@ constants:
 - name: ToolPayloadRedactor
 - name: ToolPayloadRedactor::REDACTED
 - name: TracksFinishedAt
-- name: UiEngagementSample
 - name: User
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
 - name: User::DASHBOARD_REQUIRED_COLUMNS

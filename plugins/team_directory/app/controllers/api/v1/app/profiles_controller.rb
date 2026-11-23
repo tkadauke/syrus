@@ -8,7 +8,7 @@ module Api
         PER_PAGE = 50
 
         def index
-          relation = User.order(Arel.sql("LOWER(email_address) ASC"), :id)
+          relation = Syrus::Host::UserRecord.order(Arel.sql("LOWER(email_address) ASC"), :id)
           if params[:q].present?
             term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].strip)}%"
             relation = relation.where("LOWER(first_name) LIKE LOWER(:term) OR LOWER(last_name) LIKE LOWER(:term) OR LOWER(name) LIKE LOWER(:term) OR LOWER(github_handle) LIKE LOWER(:term)", term: term)
@@ -27,10 +27,10 @@ module Api
         end
 
         def show
-          user = User.find(params[:id])
+          user = Syrus::Host::UserRecord.find(params[:id])
 
           render json: {
-            team_user_count: User.count,
+            team_user_count: Syrus::Host::UserRecord.count,
             profile: profile_json(user)
           }
         end
@@ -76,9 +76,9 @@ module Api
 
         def directory_counts(users)
           user_ids = users.map(&:id)
-          repository_counts = Repository.active.where(user_id: user_ids).group(:user_id).count
-          epic_counts = Epic.where(user_id: user_ids).where.not(state: Syrus::Host::EpicArchivedState).group(:user_id).count
-          visible_jobs = Job.visible_to(Syrus::Host::Current.user, scope: Job.where(user_id: user_ids))
+          repository_counts = Syrus::Host::RepositoryRecord.active.where(user_id: user_ids).group(:user_id).count
+          epic_counts = Syrus::Host::Epic.where(user_id: user_ids).where.not(state: Syrus::Host::EpicArchivedState).group(:user_id).count
+          visible_jobs = Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: Syrus::Host::JobRecord.where(user_id: user_ids))
           job_counts = visible_jobs.group(:user_id).count
           open_job_counts = visible_jobs.where.not(state: "closed").group(:user_id).count
 
@@ -138,11 +138,11 @@ module Api
         end
 
         def visible_jobs_for(profile_user)
-          Job.visible_to(Syrus::Host::Current.user, scope: profile_user.jobs)
+          Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: profile_user.jobs)
         end
 
         def show_owner_labels_for?(profile_user)
-          Syrus::Host::Current.user.id != profile_user.id && User.where.not(id: Syrus::Host::Current.user.id).exists?
+          Syrus::Host::Current.user.id != profile_user.id && Syrus::Host::UserRecord.where.not(id: Syrus::Host::Current.user.id).exists?
         end
       end
     end
