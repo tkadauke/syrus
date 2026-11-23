@@ -15,7 +15,7 @@ RSpec.describe "main-health extension-point boundary" do
       app/services/repositories/plugin_repo_tabs_payload.rb
       app/services/step_dispatcher.rb
       app/services/work_engine/reconciler.rb
-      app/services/work_units/gates/main_branch_health.rb
+      app/services/work_units/gates/main_health.rb
       app/services/work_units/start_block.rb
       app/jobs/poll_main_branch_health_job.rb
       app/services/workflows/main_branch_repair.rb
