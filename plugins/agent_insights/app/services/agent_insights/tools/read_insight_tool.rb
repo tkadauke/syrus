@@ -28,7 +28,7 @@ module AgentInsights
 
       class << self
         def call(id:, server_context:)
-          context = McpToolContext.from_server_context(server_context)
+          context = Syrus::Host::ToolContext.from_server_context(server_context)
           insight = visible_scope(context).find_by(id: id)
 
           unless insight
