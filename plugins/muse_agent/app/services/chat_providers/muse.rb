@@ -110,7 +110,7 @@ module ChatProviders
 
     def held_session_result(session_id)
       detail = "The previous Muse turn is still running and holds this chat session. Your message was not sent; retry after that turn finishes."
-      AgentInvocation::Result.new(
+      Syrus::Host::InvocationResult.new(
         turns: 0,
         exit_status: nil,
         timed_out: false,

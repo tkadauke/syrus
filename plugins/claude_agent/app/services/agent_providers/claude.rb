@@ -2,7 +2,7 @@ require "tempfile"
 
 module AgentProviders
   class Claude < Base
-    include Syrus::Plugin::AgentProvider
+    include Syrus::Host::AgentProvider
 
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
     DEFAULT_MODEL = "claude-sonnet-4-6".freeze
