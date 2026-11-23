@@ -4271,6 +4271,33 @@ desktop typecheck is clean.
 
 ---
 
+## F115. The merge-train evidence model had drifted from the code — model fixed
+
+Found by the first conformance fixtures (formal/INTEGRATION.md, layer 3).
+
+**Before.** `TrainEvidence.lean` mirrors `Steps::MergeTrainLand#member_landed?`.
+When a member's last recorded commit is not an ancestor of the integration SHA,
+the model accepted only patch equivalence to the base. The Ruby had since
+gained a second piece of evidence there, `rebased_into_integration?`: a
+rebased train gives every integrated commit a new SHA, so a commit with the
+same patch-id in what the train integrated counts as landed. The model's
+theorem, "marked merged implies evidence", was about a function the code no
+longer was. The code was right; the model was stale.
+
+**Fix.** The model gains `rebasedIntoIntegration` in its `notAncestor` case and
+in `evidence`; `after_merged_has_evidence` still holds over every member.
+
+**Conformance.** `formal/fixtures/train_evidence.json` holds the model's verdict
+for all 48 combinations of the evidence inputs, and
+`spec/formal/train_evidence_conformance_spec.rb` runs the real `member_landed?`
+on each (the git-backed leaves stubbed) and agrees on all 48. Run against the
+old model's answers, it fails on exactly the two cases the old model missed.
+`spec/formal/auto_approval_conformance_spec.rb` does the same for
+`AutoApproval.approveNew` and `AutoApprovalRule#approve_after_grader_success!`
+(8 cases, all agree). Both methods are now in `formal/mirrors.yml`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

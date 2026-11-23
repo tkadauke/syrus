@@ -101,3 +101,15 @@ models:
     owner: PluginRegistry
     method: enablement_records
     sha: 2c29ccc42890fb99
+- model: TrainEvidence.lean
+  mirrors:
+  - path: app/services/steps/merge_train_land.rb
+    owner: MergeTrainLand
+    method: member_landed?
+    sha: 000f2bbfe666a040
+- model: AutoApproval.lean
+  mirrors:
+  - path: app/services/auto_approval_rule.rb
+    owner: AutoApprovalRule
+    method: approve_after_grader_success!
+    sha: 557fec8f25925e84

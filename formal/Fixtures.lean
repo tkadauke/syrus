@@ -35,7 +35,22 @@ def autoApproval : String :=
       ", \"job_state_after\": " ++ jsonString (jobState after.job) ++ "}"
   "{\n  \"model\": \"AutoApproval.approveNew\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
-def all : List (String × String) := [("auto_approval", autoApproval)]
+def ancestry : TrainEvidence.Anc → String
+  | .ancestor => "ancestor"
+  | .notAncestor => "not_ancestor"
+  | .indeterminate => "indeterminate"
+
+/-- `Steps::MergeTrainLand#member_landed?` as `TrainEvidence.landed`, over every
+combination of its evidence inputs. -/
+def trainEvidence : String :=
+  let cases := TrainEvidence.allMembers.map fun m =>
+    "    {\"recorded\": " ++ jsonBool m.recorded ++ ", \"ancestry\": " ++ jsonString (ancestry m.anc) ++
+      ", \"recent_build\": " ++ jsonBool m.recentBuild ++ ", \"patch_equivalent\": " ++ jsonBool m.patchEquivalent ++
+      ", \"rebased_into_integration\": " ++ jsonBool m.rebasedIntoIntegration ++
+      ", \"landed\": " ++ jsonBool (TrainEvidence.landed m) ++ "}"
+  "{\n  \"model\": \"TrainEvidence.landed\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+
+def all : List (String × String) := [("auto_approval", autoApproval), ("train_evidence", trainEvidence)]
 
 end Fixtures
 
