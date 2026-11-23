@@ -235,6 +235,7 @@ function MobileGestureSurface({
     mode: GestureMode
     direction?: GestureDirection
     armed: boolean
+    scrollOnly: boolean
     scroller: HTMLElement | null
   }>()
   const longPress = useRef<number>()
@@ -253,7 +254,10 @@ function MobileGestureSurface({
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (window.innerWidth >= 1024) return
     if (event.pointerType === "mouse" && event.button !== 0) return
-    if ((event.target as HTMLElement).closest("button, a, input, textarea, [role='button'], [data-review-gesture-exempt]")) return
+    const target = event.target as HTMLElement
+    if (target.closest("[data-review-gesture-exempt]")) return
+    const scrollOnly = Boolean(target.closest("button, a, input, textarea, [role='button']"))
+    if (scrollOnly && event.pointerType !== "touch") return
     const edge = event.clientX < 28 || event.clientX > window.innerWidth - 28
     start.current = {
       x: event.clientX,
@@ -264,15 +268,18 @@ function MobileGestureSurface({
       edge,
       mode: "pending",
       armed: false,
+      scrollOnly,
       scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
     }
     setDragging(true)
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    longPress.current = window.setTimeout(() => {
-      if (!start.current) return
-      reset()
-      onDetails()
-    }, LONG_PRESS_MS)
+    target.setPointerCapture?.(event.pointerId)
+    if (!scrollOnly) {
+      longPress.current = window.setTimeout(() => {
+        if (!start.current) return
+        reset()
+        onDetails()
+      }, LONG_PRESS_MS)
+    }
   }
   function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
@@ -288,13 +295,13 @@ function MobileGestureSurface({
       if (!horizontal && !vertical) return
 
       origin.direction = horizontal ? (x > 0 ? "right" : "left") : y > 0 ? "down" : "up"
-      if (origin.edge && origin.direction === "right") {
+      if (origin.scrollOnly) {
+        origin.mode = vertical ? "scroll" : "invalid"
+      } else if (origin.edge && origin.direction === "right") {
         origin.mode = "invalid"
         clearLongPress()
         return
-      }
-
-      if (vertical && origin.pointerType === "touch") {
+      } else if (vertical && origin.pointerType === "touch") {
         const scroller = origin.scroller
         const atTop = !scroller || scroller.scrollTop <= 0
         const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
@@ -302,6 +309,7 @@ function MobileGestureSurface({
       } else origin.mode = "gesture"
     }
     if (origin.mode === "scroll" && origin.scroller) {
+      event.preventDefault()
       origin.scroller.scrollTop += origin.lastY - event.clientY
       origin.lastY = event.clientY
       return
