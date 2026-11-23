@@ -22,4 +22,3 @@ RSpec.describe SyrusAgyAgent::Toolkit do
     plugin: "agy_agent", provider: "SyrusAgyAgent::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

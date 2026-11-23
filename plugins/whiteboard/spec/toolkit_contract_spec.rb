@@ -22,4 +22,3 @@ RSpec.describe Whiteboard::Toolkit do
     plugin: "whiteboard", provider: "Whiteboard::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

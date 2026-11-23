@@ -22,4 +22,3 @@ RSpec.describe SyrusDev::Toolkit do
     plugin: "syrus_dev", provider: "SyrusDev::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-

@@ -22,4 +22,3 @@ RSpec.describe OperatorBriefing::Toolkit do
     plugin: "operator_briefing", provider: "OperatorBriefing::Toolkit",
     contexts: -> { contexts }, decline_contexts: -> { contexts }
 end
-
