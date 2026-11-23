@@ -3,7 +3,6 @@
     "title": "Rationes conexae",
     "description": "Praebitores rationum coniunctarum totius instantiae configura. Ambitus et origines API mutabiles commatibus separa.",
     "provider": "Praebitor",
-    "google_notice": "Clientem Google OAuth proprium registra et rationem verificationis Google hodiernam inspice. Solum ID et secretum clientis configurantur; Syrus fines Google et ambitum Calendarii solae lectionis figit.",
     "authorize_url": "URL auctoritatis",
     "token_url": "URL tesserae",
     "revoke_url": "URL revocationis",

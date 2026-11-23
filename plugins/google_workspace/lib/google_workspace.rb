@@ -20,6 +20,8 @@ module GoogleWorkspace
       provider: "GoogleWorkspace::Provider",
       key: "google_workspace",
       display_name: "Google",
+      settings_notice: "Register your own Google OAuth client and check Google's current verification policy. Only the client id and secret are configurable; Syrus pins Google's endpoints and the read-only Calendar scope.",
+      settings_notice_i18n_key: "google_workspace:settings.provider_notice",
       capabilities: %w[authorization exchange_code refresh revoke identity validate],
       callback_route: "/api/v1/app/connected_accounts/callback/google_workspace",
       supports_read_only: true,
