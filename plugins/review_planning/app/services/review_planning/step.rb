@@ -76,7 +76,7 @@ module ReviewPlanning
       return if workflow.artifact("review_plan").present?
 
       capture_mcp_sidecar_stderr
-      raise StepFailed, "agent didn't call submit_review_plan"
+      fail_with!(:missing_required_tool_call, "agent didn't call submit_review_plan")
     end
 
     def parent_session_id
