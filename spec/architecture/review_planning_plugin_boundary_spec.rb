@@ -1,7 +1,7 @@
 require "rails_helper"
 
-# The retired review_plan step, its handler and its `.syrus.yml` key belong to
-# the review_plan plugin. Core must not name them.
+# The review_plan step, its handler, prompt, tool and `.syrus.yml` key belong to
+# the review_planning plugin. Core must not name them.
 RSpec.describe "Review plan plugin boundary" do
   OWNED_REVIEW_PLAN_NAMES = /\breview_plan\b|(?<![A-Za-z])ReviewPlan\b/
 
