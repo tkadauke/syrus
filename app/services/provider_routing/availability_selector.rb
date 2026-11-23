@@ -163,7 +163,11 @@ module ProviderRouting
           next
         end
 
-        selected_candidate = candidate.with(account_id: account.public_id)
+        # The user-level availability path (no enabled account rows for the
+        # provider, credentials configured on the user) answers "available"
+        # without an account. Grader admission crashed on that nil here and
+        # stopped creating grader Runs; panels already tolerate it.
+        selected_candidate = candidate.with(account_id: account&.public_id || candidate.account_id)
         return decision(selected_candidate, candidate_availability: candidate_availability, exhausted: false, provider_account: account)
       end
 

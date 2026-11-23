@@ -139,6 +139,22 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(decision).not_to be_exhausted
     end
 
+    # Production: grader fan-out admission raised NoMethodError (public_id
+    # for nil) on every attempt and stopped creating grader Runs.
+    it "selects an available provider that has no enabled account rows without raising" do
+      user.provider_accounts.where(provider_key: "claude").update_all(enabled: false)
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = call
+
+      expect(decision.candidate.provider).to eq("claude")
+      expect(decision.candidate.account_id).to be_nil
+      expect(decision.provider_account).to be_nil
+      expect(decision).not_to be_exhausted
+    end
+
     it "fails over to a healthy candidate ahead of one that is actively erroring, regardless of per-provider pause opt-in" do
       user.update!(provider_availability_pause_thresholds: { "claude" => 0, "codex" => 0 })
       ProviderRoutingRule.create!(
