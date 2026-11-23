@@ -62,9 +62,18 @@ module Syrus
       # resolved only when the capability is invoked.
       def self.provider(key:, display_name:, workflow_tools: nil, chat_tools: nil,
         permissions: nil, run_context: nil, credential_probes: {}, secret_extractors: [])
+        implementations = [ workflow_tools, chat_tools, permissions, run_context,
+          *credential_probes.values, *secret_extractors ].compact.freeze
         Class.new do
           define_singleton_method(:key) { key.to_s }
           define_singleton_method(:display_name) { display_name.to_s }
+          define_singleton_method(:owns_implementation?) do |candidate|
+            candidate_class = candidate.is_a?(Class) ? candidate : candidate.class
+            implementations.any? do |implementation|
+              implementation.is_a?(String) ? implementation == candidate_class.name :
+                implementation.equal?(candidate) || implementation == candidate_class
+            end
+          end
           define_singleton_method(:workflow_tools) do |context|
             context.enabled && workflow_tools ? Object.const_get(workflow_tools) : nil
           end
