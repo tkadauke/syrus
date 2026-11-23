@@ -109,4 +109,31 @@ RSpec.describe Syrus::Plugin::Toolkit, :reset_plugin_registry do
     expect(described_class.run_context_attributes(run: double, role: AgentRole::COWORKER)).to eq([ attributes ])
     expect(McpToolContext.send(:run_context_attributes, double, AgentRole::COWORKER)).to eq(attributes)
   end
+
+  it "attributes implementation failures to the declaring toolkit plugin" do
+    permission_provider = Class.new do
+      def self.permission_authorization_adapters = raise("inventory unavailable")
+    end
+    stub_const("ToolkitFailingPermissionProvider", permission_provider)
+    stub_const("ToolkitFailingProvider", described_class.provider(
+      key: "failing", display_name: "Failing", permissions: "ToolkitFailingPermissionProvider"
+    ))
+    Syrus::PluginRegistry.register(
+      name: "failing_toolkit", version: "1", provides: {},
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :toolkit, provider: "ToolkitFailingProvider", implements: %i[permissions]
+      ) ]
+    )
+    health = Syrus::PluginRuntimeHealth.new
+    Syrus::PluginInvocation.runtime_health = health
+    allow(Rails.logger).to receive(:warn)
+
+    expect(Permissions::AuthorizationAdapters.resolve("missing.action")).to be_nil
+    expect(health.failures(plugin: "failing_toolkit").sole).to have_attributes(
+      extension_point: "toolkit", operation: "permission_authorization_adapters"
+    )
+    expect(health.failures(plugin: "ToolkitFailingPermissionProvider")).to be_empty
+  ensure
+    Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new
+  end
 end
