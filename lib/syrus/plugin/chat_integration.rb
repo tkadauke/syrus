@@ -37,6 +37,9 @@ module Syrus
         ].freeze
         def initialize(capability) = @capability = capability
         def dispatch(provider, _context) = provider
+        def legacy_providers(provider)
+          Array(provider.public_send(@capability, Context::ChatIntegrationContext.new)).compact
+        end
         def method_missing(name, provider, ...)
           selected = provider.public_send(@capability, Context::ChatIntegrationContext.new)
           selected = selected.first if selected.is_a?(Array)
