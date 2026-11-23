@@ -18,6 +18,9 @@ module Syrus
     PENDING_DECISION = [
       # Provider-account reservation locks the User row as a mutex mid-transaction.
       { held_site: "app/services/provider_routing/availability_selector.rb", site: "app/services/step_dispatcher.rb" },
+      # The same reservation, then a base-refresh retry records itself on its
+      # source Workflow (set_artifact!). Part of NY35.
+      { held_site: "app/services/provider_routing/availability_selector.rb", site: "app/models/workflow.rb" },
       # Cancelling a Workflow cascades to its descendants: A, A's Steps, then B.
       { held_site: "app/models/workflow.rb", site: "app/services/work_units/workflow_cancellation.rb" }
     ].freeze
