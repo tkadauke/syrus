@@ -1064,11 +1064,16 @@ describe("RecentChatsSidebar action and marker slot", () => {
       fireEvent.mouseEnter(reference)
       expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
 
+      fireEvent.pointerDown(reference)
+      fireEvent.focus(reference)
+      expect(screen.getByTestId("recent-chat-indicator-popover")).toBeInTheDocument()
+
       fireEvent.click(marker)
       expect(screen.getByTestId("recent-chat-indicator-popover")).toBeInTheDocument()
       expect(reference).toHaveAttribute("aria-expanded", "true")
       expect(screen.getByTestId("location")).toHaveTextContent("/")
 
+      fireEvent.pointerDown(reference)
       fireEvent.click(marker)
       expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
     } finally {

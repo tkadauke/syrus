@@ -1312,6 +1312,7 @@ function IndicatorPopover({
   const referenceRef = useRef<HTMLSpanElement>(null)
   const floatingRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchClickStartedOpenRef = useRef<boolean | null>(null)
   const mergedReferenceRef = useMergeRefs([referenceRef, refs.setReference])
   const mergedFloatingRef = useMergeRefs([floatingRef, refs.setFloating])
   const cancelClose = () => {
@@ -1407,7 +1408,9 @@ function IndicatorPopover({
           event.preventDefault()
           event.stopPropagation()
           cancelClose()
-          setOpen((current) => !current)
+          const startedOpen = touchClickStartedOpenRef.current
+          touchClickStartedOpenRef.current = null
+          setOpen((current) => (startedOpen === null ? !current : !startedOpen))
         }}
         onBlur={(event) => {
           if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose()
@@ -1424,6 +1427,9 @@ function IndicatorPopover({
         onMouseLeave={() => {
           if (!canHover) return
           scheduleClose()
+        }}
+        onPointerDown={() => {
+          if (!canHover) touchClickStartedOpenRef.current = open
         }}
         ref={mergedReferenceRef}
         tabIndex={0}
