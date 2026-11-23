@@ -5,7 +5,7 @@ module Discord
   # registered through the :platform_delivery extension point.
   class PlatformConfig < PlatformIdentity::PlatformConfig::Base
     def configured?
-      AppSetting.discord_bot_token.present?
+      Discord::BotAccess.configured?
     end
 
     def instructions(token)

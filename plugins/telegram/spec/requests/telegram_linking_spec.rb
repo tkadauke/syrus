@@ -1,11 +1,12 @@
 require "rails_helper"
+require_relative "../support/telegram_bot_account"
 
 RSpec.describe "Telegram account linking", type: :request do
   let(:user) { Factories.user }
 
   def parse_body = JSON.parse(response.body)
 
-  before { PluginRecord.find_by!(name: "telegram").update!(enabled: true) }
+  before { enable_telegram_plugin! }
 
   it "lists telegram among the available platforms" do
     sign_in_as(user)
@@ -17,7 +18,6 @@ RSpec.describe "Telegram account linking", type: :request do
 
   it "422s when the platform is not configured" do
     sign_in_as(user)
-    allow(AppSetting).to receive(:telegram_configured?).and_return(false)
 
     post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
 
@@ -27,8 +27,8 @@ RSpec.describe "Telegram account linking", type: :request do
 
   it "returns a signed token and instructions when configured" do
     sign_in_as(user)
-    allow(AppSetting).to receive(:telegram_configured?).and_return(true)
-    allow(AppSetting).to receive(:telegram_bot_handle).and_return("MyBot")
+    connect_telegram_bot!
+    allow_any_instance_of(Telegram::Client).to receive(:get_me).and_return("username" => "MyBot")
 
     post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
 

@@ -11,8 +11,9 @@ module ConnectedAccounts
 
       validation = declaration.call("validate", Provider::ValidateContext.new(access_token: secret)).to_h.stringify_keys
       raise Error, validation["message"].presence || "provider rejected the token" unless validation["healthy"]
-      config = ProviderConfig.find_by(provider_key: provider)
-      raise Error, "provider API origins are not configured" if Array(config&.api_origins).empty?
+      origins = declaration.api_origins.presence || Array(ProviderConfig.find_by(provider_key: provider)&.api_origins)
+      raise Error, "provider API origins are not configured" if origins.empty?
+      label = label.to_s.strip.presence || identity_label(declaration, secret)
 
       Account.transaction do
         account = Account.find_or_initialize_by(owner_kind: "instance", owner_user_id: nil, provider: provider)
@@ -21,7 +22,7 @@ module ConnectedAccounts
         credential = CredentialStore::Credential.create!(name: "connected-account-#{provider}-instance-#{SecureRandom.hex(6)}",
           credential_type: AccountClient::CREDENTIAL_TYPE, scope_type: "instance", scope_id: nil, owner_user: nil,
           created_by: admin, payload: JSON.generate(access_token: secret), safe_metadata: { "refreshable" => false },
-          target_constraints: { "allowed_url_prefixes" => Array(config.api_origins) }, allowed_surfaces: [ "api" ],
+          target_constraints: { "allowed_url_prefixes" => origins }, allowed_surfaces: [ "api" ],
           allowed_tools: [ AccountClient::BROKER_TOOL_NAME ],
           last_rotated_at: Time.current)
         account.update!(display_label: label.to_s.strip.presence || declaration.display_name,
@@ -36,6 +37,21 @@ module ConnectedAccounts
     rescue StandardError => error
       raise Error, CredentialStore::Broker.redact(error.message, extra_secrets: [ token.to_s ])
     end
+
+    # The single instance-owned account for a token provider, if any.
+    def self.instance_account(provider)
+      Account.find_by(owner_kind: "instance", owner_user_id: nil, provider: provider.to_s)
+    end
+
+    def self.identity_label(declaration, secret)
+      return unless declaration.capabilities.include?("identity")
+
+      label = declaration.call("identity", Provider::IdentityContext.new(access_token: secret)).to_h.stringify_keys["label"]
+      CredentialStore::Broker.redact(label.to_s, extra_secrets: [ secret ]).presence
+    rescue StandardError
+      nil
+    end
+    private_class_method :identity_label
 
     def self.revoke_previous(declaration, credential)
       return unless credential

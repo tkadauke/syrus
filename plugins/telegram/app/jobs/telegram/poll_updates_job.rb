@@ -10,12 +10,12 @@ module Telegram
     private
 
     def configured?
-      AppSetting.telegram_bot_token.present?
+      Telegram::BotAccess.configured?
     end
 
     def poll_once
       offset = AppSetting.telegram_update_offset
-      updates = telegram_client.get_updates(offset: offset, timeout: 25)
+      updates = Telegram::BotAccess.get_updates(offset: offset, timeout: 25)
       updates.each do |update|
         begin
           process_update(update)
@@ -27,9 +27,7 @@ module Telegram
       end
     end
 
-    def telegram_client
-      @telegram_client ||= Telegram::Client.new
-    end
+    def telegram_client = Telegram::BotAccess
 
     def process_update(update)
       message = update["message"] or return

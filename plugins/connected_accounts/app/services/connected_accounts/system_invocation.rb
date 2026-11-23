@@ -63,7 +63,10 @@ module ConnectedAccounts
         CORE_SERVICES[registration.identity].equal?(registration.service)
       end
 
-      def registrations = (@registrations ||= ObjectSpace::WeakMap.new)
+      # Keys weak, values strong: an ObjectSpace::WeakMap also holds its values
+      # weakly, so a Registration nothing else references would be collected
+      # and a valid binding would suddenly stop resolving.
+      def registrations = (@registrations ||= ObjectSpace::WeakKeyMap.new)
       def registrations_mutex = (@registrations_mutex ||= Mutex.new)
       def binding_proof = (@binding_proof ||= Object.new.freeze)
 

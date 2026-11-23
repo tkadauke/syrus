@@ -72,7 +72,8 @@ module ConnectedAccounts
     attr_reader :account_ref, :acting_mode, :scopes, :purpose, :context, :target
 
     def default_target(account)
-      origin = ProviderConfig.find_by(provider_key: account.provider)&.api_origins&.first
+      declared = ProviderRegistry.all.find { |declaration| declaration.key == account.provider }&.api_origins&.first
+      origin = declared || ProviderConfig.find_by(provider_key: account.provider)&.api_origins&.first
       origin.present? ? { url: origin } : {}
     end
 

@@ -1,10 +1,8 @@
 require "rails_helper"
+require_relative "../../support/discord_bot_account"
 
 RSpec.describe Discord::PlatformAdapter do
-  around do |ex|
-    PluginRecord.find_by!(name: "discord").update!(enabled: true)
-    ex.run
-  end
+  before { connect_discord_bot! }
 
   let(:identity) { Factories.platform_identity(platform: "discord", external_id: "42") }
   let(:session) { ChatSession.create!(user: identity.user) }
