@@ -118,6 +118,8 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing literal plugin and provider strings plus call and decline contexts. The kit derives the full capability list from that exact manifest declaration, and the literal identifiers let isolated and sharded suite runs verify coverage from source.
 
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
+- `mail` (service; required core: `key`, `display_name`, `available_for?`) — `read_message` (provisional, keyed, Hash), `search` (provisional, keyed, Hash)
+- `personal_calendar` (service; required core: `key`, `display_name`, `available_for?`) — `get_event` (provisional, keyed, Hash), `list_events` (provisional, keyed, Hash)
 - `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
 
 ## Public host surface
@@ -132,6 +134,8 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::BackupArtifactSource` (since 0.1.16) — Defines the sealed backup-artifact source operations plugins may provide; replication orchestration is not promised. Only the listed members are supported. Supported members: `checksum`, `describe`, `list`, `open`, `pin`, `record_replication`, `release_pin`.
 - `Syrus::Host::BackupDestination` (since 0.1.16) — Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised. Only the listed members are supported. Supported members: `delete`, `health`, `materialize_local`, `upload`, `verify`.
 - `Syrus::Host::Callbacks` (since 0.1.16) — Defines plugin lifecycle callbacks; callback scheduling and storage are not promised. Only the listed members are supported. Supported members: `effect`, `on_boot`, `on_disable`, `on_enable`, `on_metrics_scrape`, `on_shutdown`, `on_tick`.
+- `Syrus::Host::CapabilityDispatch` (since 0.1.16) — Invokes declared capability providers through their composition and health boundaries. Only the listed members are supported. Supported members: `call`.
+- `Syrus::Host::CapabilityFamily` (since 0.1.16) — Defines provider-neutral capability families and their composition contracts; registry internals are not promised. Only the listed members are supported. Supported members: `define`, `fetch`.
 - `Syrus::Host::CapabilityValidationError` (since 0.1.16) — Reports a deliberate caller-visible capability validation problem without counting it as a provider crash. Only the listed members are supported. Supported members: `code`, `details`, `message`, `new`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
 - `Syrus::Host::ChatTitles` (since 0.1.16) — Queues automatic title generation for a chat; job implementation and queue details are not promised. Supported members: `enqueue`.
@@ -180,4 +184,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32407 bytes (UTF-8, including this line).
+Size: 33191 bytes (UTF-8, including this line).

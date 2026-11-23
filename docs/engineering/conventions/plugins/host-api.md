@@ -142,6 +142,27 @@ Supported members:
 - `on_shutdown`
 - `on_tick`
 
+### `Syrus::Host::CapabilityDispatch`
+
+Since: `0.1.16`
+
+Invokes declared capability providers through their composition and health boundaries. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::CapabilityFamily`
+
+Since: `0.1.16`
+
+Defines provider-neutral capability families and their composition contracts; registry internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `define`
+- `fetch`
+
 ### `Syrus::Host::CapabilityValidationError`
 
 Since: `0.1.16`
