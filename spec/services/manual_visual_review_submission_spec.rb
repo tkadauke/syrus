@@ -9,9 +9,7 @@ RSpec.describe ManualVisualReviewSubmission do
   before { clear_enqueued_jobs }
 
   def stub_visual_review_plan(enabled:)
-    allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
-      SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
-    )
+    enabled ? stub_workflow_judge(step_kind: "visual_review") : stub_no_workflow_judges
   end
 
   it "dispatches a manual_visual_review workflow for an implemented job" do
