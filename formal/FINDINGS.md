@@ -3956,6 +3956,37 @@ engine and the throughput plugin (697); the docs architecture specs; and
 
 ---
 
+## F107. A dependency could make an Epic wait for itself through an outside Job — fixed (NY28)
+
+**Decision (NY28, A).** Reject it when the dependency is created, treating
+each Epic as one node, with an error naming the Epic and the outside Job.
+
+**Before.** `JobDependency#no_cycle` rejected cycles between Jobs only, and
+`EpicDependency#no_cycle` between Epics only. So Epic child A <- outside Job B
+<- Epic child C (B needs A, C needs B) was accepted. The Epic's train waits for
+B, and B waits for A, which only lands with that train, so neither ever lands
+(`LandingUnitCycle.lean`, which also proves that rejecting cycles in the
+Epic-contracted graph is exactly what guarantees progress).
+
+**Fix.** `JobDependency::LandingUnitGraph` is the dependency graph with each
+Epic contracted to one node, with edges from resolved JobDependency rows
+(to a Job or an Epic) and EpicDependency rows. Edges inside one Epic are left
+to `linear_chain_within_epic`. `JobDependency#no_cycle` now also rejects a new
+edge between two different units when its target already reaches its
+source, including a dependency on an Epic itself. The row being changed is
+left out of the search. Public and searchable merge-train docs say so.
+
+**Specs.** `job_dependency_spec.rb` "cycles through an Epic as one landing
+unit": three rejections red before (child -> outside -> child, in either
+creation order, and an outside Job depending on the Epic itself); two
+acceptances pin that an outside Job between children the Epic does not wait
+for, and the Epic's own chain, stay valid. Run and green, CI-only included:
+the dependency and Epic models, Epic services, proposal materializer, parser,
+landing order and Job specs (533 examples), and the dependency request specs
+(394).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

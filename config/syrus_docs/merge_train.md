@@ -105,6 +105,14 @@ trim an Epic train the way it trims a job bundle; it can only refuse the Epic,
 leaving every child waiting until an operator raises the number or splits the
 Epic by hand.
 
+## Cycles through an Epic
+
+An Epic lands as one unit, after every prerequisite outside it has landed. A
+dependency that makes the Epic wait for itself through an outside Job (one
+child depends on an outside Job that depends on another child, or an outside
+Job depends on the Epic while one of its children waits for that Job) is
+rejected when it is created, with an error naming the Epic and the outside Job.
+
 ## Same-Epic dependency satisfaction
 
 Within an Epic, a child Job's dependency on a sibling is considered satisfied once the sibling is `approved` or `landing` (not just after it merges). This allows the full stack to flow into the landing queue together rather than waiting for sequential merges.

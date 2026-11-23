@@ -66,6 +66,71 @@ RSpec.describe JobDependency do
     expect(dependency.errors[:depends_on_job]).to include("would create a cycle")
   end
 
+  # NY28 (decided A): an Epic lands as one unit, after every prerequisite
+  # outside it has landed. A cycle through the Epic as a whole deadlocks even
+  # when the Job graph alone has none (LandingUnitCycle.lean).
+  describe "cycles through an Epic as one landing unit" do
+    let(:epic) { Factories.epic(user: user, repository: repository) }
+
+    def epic_job(number)
+      Job.create!(user: user, repository: repository, issue_number: number, epic: epic)
+    end
+
+    it "rejects an Epic child depending on an outside Job that depends on another child" do
+      a = epic_job(1)
+      c = epic_job(3)
+      b = issue_job(2)
+      described_class.create!(job: c, depends_on_job: a, source: "manual")
+      described_class.create!(job: b, depends_on_job: a, source: "manual")
+
+      dependency = described_class.new(job: c, depends_on_job: b, source: "manual")
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:depends_on_job].join).to include(epic.slug, b.slug)
+    end
+
+    it "rejects an outside Job depending on an Epic child when the Epic already waits for it" do
+      a = epic_job(1)
+      c = epic_job(3)
+      b = issue_job(2)
+      described_class.create!(job: c, depends_on_job: a, source: "manual")
+      described_class.create!(job: c, depends_on_job: b, source: "manual")
+
+      dependency = described_class.new(job: b, depends_on_job: a, source: "manual")
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:depends_on_job].join).to include(epic.slug, b.slug)
+    end
+
+    it "rejects an outside Job depending on the Epic itself when the Epic waits for it" do
+      c = epic_job(3)
+      b = issue_job(2)
+      described_class.create!(job: c, depends_on_job: b, source: "manual")
+
+      dependency = described_class.new(job: b, depends_on_epic: epic, source: "manual")
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:depends_on_epic].join).to include(epic.slug, b.slug)
+    end
+
+    it "accepts an outside Job between two Epic children when the Epic does not wait for it" do
+      a = epic_job(1)
+      c = epic_job(3)
+      b = issue_job(2)
+      described_class.create!(job: c, depends_on_job: a, source: "manual")
+
+      expect(described_class.new(job: b, depends_on_job: a, source: "manual")).to be_valid
+      expect(described_class.new(job: b, depends_on_job: c, source: "manual")).to be_valid
+    end
+
+    it "keeps accepting the linear chain inside one Epic" do
+      a = epic_job(1)
+      c = epic_job(3)
+
+      expect(described_class.new(job: c, depends_on_job: a, source: "manual")).to be_valid
+    end
+  end
+
   describe "pending (unresolved) rows" do
     it "accepts a row with unresolved fields and no depends_on_job" do
       job = issue_job(1)

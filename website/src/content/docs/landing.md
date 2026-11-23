@@ -46,6 +46,12 @@ integration branch.
 The goal is atomicity: either the whole Epic lands together, or no child lands.
 This keeps a feature from being half-present on the base branch.
 
+Because the Epic lands as one unit, Syrus refuses a dependency that would make
+the Epic wait for itself through an outside Job: for example, one child
+depending on an outside Job that depends on another child. Neither the Epic nor
+that Job could ever land, so the error names both, and the dependency is not
+saved.
+
 The integration branch is pushed to your repository as soon as it is built, so
 the rest of the landing attempt can continue on any worker. It is temporary
 bookkeeping under a `syrus/` name unique to that train, and Syrus deletes it

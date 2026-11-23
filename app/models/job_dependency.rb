@@ -167,11 +167,39 @@ class JobDependency < ApplicationRecord
   end
 
   def no_cycle
+    no_landing_unit_cycle
     return if depends_on_epic_id.present?
     return if job_id.blank? || depends_on_job_id.blank?
     return if job_id == depends_on_job_id
 
     errors.add(:depends_on_job, "would create a cycle") if reaches_job?(depends_on_job_id, job_id, Set.new)
+  end
+
+  # The same check with each Epic as one node: an Epic lands as one unit, so
+  # a cycle through it deadlocks its train even when the Job graph has none.
+  def no_landing_unit_cycle
+    return unless job
+    return if depends_on_job.nil? && depends_on_epic.nil?
+
+    from = LandingUnitGraph.node_for_job(job)
+    to = depends_on_epic ? [ :epic, depends_on_epic.id ] : LandingUnitGraph.node_for_job(depends_on_job)
+    return if from == to
+
+    path = LandingUnitGraph.new.path(to, from, except: id)
+    return unless path
+
+    attribute = depends_on_epic ? :depends_on_epic : :depends_on_job
+    errors.add(attribute, landing_unit_cycle_message([ from ] + path))
+  end
+
+  def landing_unit_cycle_message(cycle)
+    epic_id = cycle.find { |kind, _| kind == :epic }&.last
+    outside_id = cycle.find { |kind, _| kind == :job }&.last
+    epic = Epic.find_by(id: epic_id)
+    outside = Job.find_by(id: outside_id)
+    return "would create a cycle between Epics that land as units" unless epic && outside
+
+    "would make #{epic.slug} wait for #{outside.slug}, which waits for #{epic.slug}; an Epic lands as one unit, so neither could land"
   end
 
   def reaches_job?(current_id, target_id, seen)
