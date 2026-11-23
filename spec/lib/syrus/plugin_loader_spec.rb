@@ -417,6 +417,37 @@ RSpec.describe Syrus::PluginLoader do
       end
     end
 
+    it "turns an obsolete external Surface declaration into health evidence and keeps booting" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        write_plugin(external_root, directory_name: "healthy_surface", gem_name: "healthy_surface_fixture")
+        obsolete = write_plugin(external_root, directory_name: "obsolete_surface", gem_name: "obsolete_surface_fixture")
+        overwrite_entry(obsolete, "obsolete_surface_fixture", <<~RUBY)
+          module ObsoleteSurfaceFixture
+            extend Syrus::PluginApi
+            syrus_plugin "obsolete_surface_fixture" do
+              provides surface: "ObsoleteSurfaceFixture::Provider", implements: %i[removed_surface_api]
+            end
+          end
+        RUBY
+
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        expect { loader.load! }.not_to raise_error
+
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        status = Syrus::PluginRegistry.health.status("obsolete_surface_fixture")
+        expect(status.state).to eq(:failed)
+        expect(status.reasons.join).to include("removed_surface_api")
+        expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to include("healthy_surface_fixture")
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :ObsoleteSurfaceFixture) if defined?(ObsoleteSurfaceFixture)
+      end
+    end
+
     it "isolates StandardError, LoadError, and syntax failures while loading healthy plugins" do
       Dir.mktmpdir do |temporary|
         snapshot = Syrus::PluginRegistry.snapshot

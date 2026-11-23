@@ -35,7 +35,7 @@ module PluginRuntime
     # disabling this plugin stops it touching containers at all.
     tick_interval 1.minute
     provides callbacks: "PluginRuntime::Callbacks",
-             admin_page: "PluginRuntime::AdminPages",
+             admin_pages: "PluginRuntime::AdminPages",
              purge_contributor: "PluginRuntime::PurgeContributor"
 
     # Admin -> Plugin Services: every plugin container, with stop, start,

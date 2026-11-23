@@ -1,6 +1,5 @@
 require "coworkers/data_cleanup"
 require "coworkers/chat_extension"
-require "coworkers/search_extension"
 require "coworkers/schedule_extension"
 
 module Coworkers
@@ -30,7 +29,7 @@ module Coworkers
              chat_turn_orientation: "Coworkers::MessageReply",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
              chat_turn_lifecycle: "Coworkers::ChatTurnLifecycle",
-             sidebar_page: "Coworkers::SidebarPages",
+             sidebar_pages: "Coworkers::SidebarPages",
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
@@ -42,6 +41,7 @@ module Coworkers
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
     toolkit workflow_tools: "Coworkers::ReviewToolSet", chat_tools: "Coworkers::ChatToolSet", run_context: "Coworkers::RunContextContributor"
+    surface filter_chips: { chat_message: { "coworker_id" => "Coworkers::Filters::CoworkerId" } }
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"
@@ -103,7 +103,6 @@ module Coworkers
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
     while_enabled do |scope|
       Coworkers::ChatExtension.install_into(scope)
-      Coworkers::SearchExtension.install_into(scope)
       Coworkers::ScheduleExtension.install_into(scope)
     end
   end

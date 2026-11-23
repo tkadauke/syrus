@@ -14,7 +14,7 @@ module Calendar
     default_enabled true
     disableable true
     hosts :event_source
-    provides sidebar_page: "Calendar::SidebarPages",
+    provides sidebar_pages: "Calendar::SidebarPages",
       "calendar:event_source": [ "Calendar::Sources::RecurringMaintenance", "Calendar::Sources::ChatWakeups" ]
     route :get, "/api/v1/app/calendar/events", to: "api/v1/app/calendar/events#index"
     frontend routes: { "calendar/Calendar" => "app/frontend/routes/Calendar.tsx" },

@@ -19,7 +19,7 @@ class TypedArtifactRenderer
     private
 
     def artifact_renderer_map
-      Syrus::PluginRegistry.providers_for(:artifact_renderer)
+      Syrus::Plugin::Surface.contributions(:artifact_renderers)
         .each_with_object({}) do |renderer, map|
           map[renderer.artifact_type] = renderer.renderer_type.to_s
         end

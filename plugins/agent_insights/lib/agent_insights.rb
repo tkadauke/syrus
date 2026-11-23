@@ -24,10 +24,11 @@ module AgentInsights
 
     provides workflow_kinds: "AgentInsights::WorkflowKinds",
              domain_subscriber: "AgentInsights::Subscribers",
-             repo_page_tab: "AgentInsights::RepoPageTabs",
-             admin_page: "AgentInsights::AdminPages",
+             repo_page_tabs: "AgentInsights::RepoPageTabs",
+             admin_pages: "AgentInsights::AdminPages",
              slug_type: "AgentInsights::SlugType"
     toolkit workflow_tools: "AgentInsights::McpToolSet", chat_tools: "AgentInsights::ChatToolSet", permissions: "AgentInsights::PermissionProvider"
+    surface filter_subjects: { agent_insight: { model: "AgentInsights::Suggestion", chips: "AgentInsights::SmartFolders::CHIPS" } }
     route :get, "/api/v1/app/repositories/:repository_id/insight_suggestions", to: "api/v1/app/insight_suggestions#index"
     route :get, "/api/v1/app/insight_suggestions/:id/preview", to: "api/v1/app/insight_suggestions#preview"
     route :get, "/api/v1/app/insight_suggestions/:id", to: "api/v1/app/insight_suggestions#show"

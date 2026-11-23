@@ -12,8 +12,8 @@ RSpec.describe PreviewPanel::EntryMetadata do
   end
 
   def with_providers(providers)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:preview_panel_viewer).and_return(providers)
+    allow(Syrus::Plugin::Surface).to receive(:contributions).and_call_original
+    allow(Syrus::Plugin::Surface).to receive(:contributions).with(:preview_panel_viewers).and_return(providers)
   end
 
   it "keeps core's built-in kinds" do

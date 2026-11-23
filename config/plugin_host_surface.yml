@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 476
+legacy_baseline: 475
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -124,7 +124,6 @@ constants:
 - name: Execution::ChatWorkloadPolicy
 - name: Execution::Local
 - name: Feature
-- name: Filters
 - name: Filters::Ast
 - name: Filters::Ast::AndNode
 - name: Filters::Ast::Chip

@@ -10,7 +10,7 @@ module App
         raise ArgumentError, "Unknown UI slot: #{slot.inspect}. Valid: #{Syrus::Plugin::UiSlot::SLOTS.inspect}"
       end
 
-      Syrus::PluginRegistry.providers_for(:ui_slot)
+      Syrus::Plugin::Surface.contributions(:ui_slots)
         .flat_map { |provider| panels_from_provider(provider, slot: slot, context: context, cacheable: cacheable) }
         .each_with_index.sort_by { |panel, index| [ panel[:order].to_i, index ] }
         .map(&:first)
