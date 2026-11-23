@@ -51,3 +51,23 @@ and design idempotent, rollout-compatible changes.
 a poller updated state without its durable seen/handled watermark, or compared
 only one timestamp. **Prevention:** make discovery idempotent and update the
 owning watermark atomically with accepted work.
+
+## Retrying an entire Run after a lifecycle lock wait
+
+**Symptom:** an agent, push, review, grader, or merge side effect runs twice
+after MySQL reports a lock-wait timeout. **Cause:** retry was attached to the
+whole `RunJob` instead of the persistence operation following the side effect.
+**Prevention:** retry only the idempotent lifecycle transaction. Execution
+acquisition locks the `runs` row and then advances its Workflow, Step, Run, and
+Job timestamps; completion atomically advances the Run and Step and invokes
+their propagation callbacks. Concurrent lifecycle propagation and operator
+actions can therefore contend on those rows on both the `runs` and `merges`
+queues. `RunJob#with_lifecycle_lock_retry` is the bounded boundary for those
+writes. Its MySQL concurrency spec holds the Run row from another connection
+to reproduce the contention. Never replace it with `retry_on` around
+`perform`, because handlers contain external and expensive side effects.
+
+Dashboard bulk mutations deliberately return the stable
+`bulk_jobs_lock_conflict` response when a lock conflict escapes their
+per-Job operation. The client may retry the request; actions must remain
+idempotent or skip Jobs already moved to the requested state.

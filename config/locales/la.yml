@@ -425,6 +425,7 @@ la:
       select_job: "Elige saltem unum Job."
       select_epic: "Elige saltem unum Epic."
       choose_bulk_action: "Elige actionem collectivam."
+      bulk_lock_conflict: "Jobs electa simul mutata sunt. Actionem collectivam iterum tenta."
       epic_auto_approval_forbidden: "Solum membrum Repository cum potestate scribendi vel administrator approbationem automaticam Epic mutare potest."
       epic_auto_approval_updated: "Approbatio automatica Epic renovata est."
       retry_agent_unavailable: "Ille agens ad iterandum praesto non est."
