@@ -12,8 +12,8 @@ RSpec.describe Permissions::EffectActions do
     end
   end
 
-  it "keeps safe owned-artifact edits automatic" do
-    %w[submit_artifact cancel_wakeup].each do |name|
+  it "keeps safe owned-artifact and self-wakeup edits automatic" do
+    %w[submit_artifact schedule_wakeup cancel_wakeup].each do |name|
       descriptor = chat_entries.fetch(name).descriptor
 
       expect(descriptor.defaults.values.uniq).to eq([ :allow ])
@@ -21,11 +21,12 @@ RSpec.describe Permissions::EffectActions do
     end
   end
 
-  it "asks before persistent autonomy, communication, and document changes" do
-    %w[schedule_wakeup send_chat_message spawn_chats create_repo_document delete_repo_document].each do |name|
+  it "asks before cross-boundary autonomy, communication, and document changes" do
+    %w[send_chat_message spawn_chats create_repo_document delete_repo_document].each do |name|
       expect(chat_entries.fetch(name).descriptor.defaults.values.uniq).to eq([ :ask ])
     end
-    expect(chat_entries.fetch("schedule_wakeup").descriptor.classify({})[:effects]).to include(:persistent_autonomy)
+    expect(chat_entries.fetch("schedule_wakeup").descriptor).to be_essential
+    expect(chat_entries.fetch("schedule_wakeup").descriptor.barrier_effects).to be_empty
     expect(chat_entries.fetch("send_chat_message").descriptor.classify({})[:effects]).to include(:communication)
   end
 

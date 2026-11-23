@@ -95,6 +95,32 @@ RSpec.describe "essential operations" do
       expect { expect(gate(entry.tool)).to be_nil }.not_to change { requests.count }
     end
 
+    it "creates a self-owned wakeup directly and returns its durable receipt" do
+      entry = chat_entry("schedule_wakeup")
+      deny_rule!(entry.descriptor)
+      request_count = requests.count
+
+      response = nil
+      expect {
+        response = entry.tool.call(
+          prompt: "Recheck release readiness.", delay_minutes: 60,
+          server_context:
+        )
+      }.to change(ChatWakeup, :count).by(1)
+      expect(requests.count).to eq(request_count)
+
+      wakeup = ChatWakeup.sole
+      payload = JSON.parse(response.content.first[:text])
+      expect(payload).to include(
+        "wakeup_id" => wakeup.id,
+        "chat_id" => chat_session.id,
+        "owner_user_id" => user.id,
+        "fire_at" => wakeup.fire_at.utc.iso8601,
+        "state" => "pending"
+      )
+      expect(wakeup).to have_attributes(chat_session:, user:, prompt: "Recheck release readiness.")
+    end
+
     it "audits the essential invocation through the permission system" do
       entry = chat_entry("rename_chat")
       allow(Permissions::DecisionAudit).to receive(:record)
@@ -150,7 +176,7 @@ RSpec.describe "essential operations" do
     # Coworkers have their own rules, separate from chat and from each
     # other, but the same essentials.
     it "shares the chat essentials, including research reads and plugin essentials" do
-      %w[ask_user_question rename_chat list_jobs search_jobs read_job propose_job].each do |name|
+      %w[ask_user_question rename_chat list_jobs search_jobs read_job propose_job schedule_wakeup list_wakeups cancel_wakeup].each do |name|
         expect(coworker_entry(name).descriptor).to be_essential, name
         expect(coworker_entry(name).ungated).to be(true), name
       end
