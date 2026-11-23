@@ -374,7 +374,9 @@ module ChatIndexPayload
   end
 
   def chat_repository_preloads
-    [ :chat_participants, { repository_attachments: :attachable } ]
+    preloads = [ :chat_participants, { repository_attachments: :attachable } ]
+    preloads << { coworker_chat: :coworker } if ChatSession.reflect_on_association(:coworker_chat)
+    preloads
   end
 
   def chat_index_initial_group_rows

@@ -24,7 +24,7 @@ class ChatJobSummary
 
     read_at = participant_read_times
     jobs = Job.where(id: associations.values.flatten.uniq)
-      .includes(:auto_retry_attempts)
+      .includes(:auto_retry_attempts, :epic)
       .index_by(&:id)
     workflows_by_job = summary_workflows_by_job(jobs.keys)
     steps_by_workflow = summary_steps_by_workflow(workflows_by_job.values.flatten.map(&:id))
