@@ -16,7 +16,7 @@ models:
   - path: app/services/step_dispatcher.rb
     owner: StepDispatcher
     method: retry_step_after_infrastructure_failure!
-    sha: 1ffbf382c1af2d83
+    sha: 9df071daaad1a546
 - model: BranchBound.lean
   mirrors:
   - path: app/services/step_dispatcher.rb
@@ -124,7 +124,7 @@ models:
   - path: app/services/work_engine/reconciler.rb
     owner: Reconciler
     method: orphaned_queue_job?
-    sha: e1ed75fe809ac577
+    sha: 8f915f7a928d2740
 - model: ReviewBarrier.lean
   mirrors:
   - path: app/services/workflows/immutable_review_head_barrier.rb

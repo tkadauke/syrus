@@ -73,6 +73,11 @@ class BaseRefreshRetryEnqueuer
       raise ArgumentError, eligibility.message unless eligibility.eligible?
       raise ArgumentError, "Job is not ready to retry after failure." unless job.may_retry_after_failure?
 
+      # Instantiating the retry can lock the User (provider-account
+      # reservation), which ranks last in the row-lock order. Lock the source
+      # Workflow first so recording the retry on it afterwards is a re-lock.
+      Workflow.lock.find(source.id)
+
       job.retry_after_failure!
       job.save!
       workflow = WorkUnits::Launcher.instantiate(
