@@ -5,6 +5,11 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
   # putting them back would leave the rest of the process with no installers at
   # all — every plugin contribution silently absent from that point on.
   around do |example|
+    # Step::Kind installs its plugin-backed registry lazily. Materialize it
+    # before taking the snapshot so an example that first touches step kinds
+    # cannot register it inside the cleared sandbox and then have teardown
+    # discard that registration with the sandbox's probes.
+    Step::Kind.entries
     installers = described_class.snapshot
     Syrus::PluginRegistry.reset!
     described_class.clear_registrations!
