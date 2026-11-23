@@ -11,16 +11,16 @@ RSpec.describe Syrus::PluginRegistry do
   before { described_class.reset! }
   after  { described_class.reset! }
 
-  describe ".register / .providers_for" do
+  describe ".register_direct / .providers_for" do
     let(:provider) { double("provider") }
 
     it "registers a provider under a valid extension point" do
-      described_class.register(:preview_provider, provider)
+      described_class.register_direct(:preview_provider, provider)
       expect(described_class.providers_for(:preview_provider)).to eq([provider])
     end
 
     it "accepts extension point as a string" do
-      described_class.register("preview_provider", provider)
+      described_class.register_direct("preview_provider", provider)
       expect(described_class.providers_for("preview_provider")).to eq([provider])
     end
 
@@ -29,7 +29,7 @@ RSpec.describe Syrus::PluginRegistry do
     end
 
     it "returns a dup so mutations do not corrupt the registry" do
-      described_class.register(:preview_provider, provider)
+      described_class.register_direct(:preview_provider, provider)
       described_class.providers_for(:preview_provider) << double("intruder")
       expect(described_class.providers_for(:preview_provider)).to eq([provider])
     end
@@ -37,18 +37,18 @@ RSpec.describe Syrus::PluginRegistry do
     it "accumulates multiple providers for the same extension point" do
       a = double("a")
       b = double("b")
-      described_class.register(:preview_provider, a)
-      described_class.register(:preview_provider, b)
+      described_class.register_direct(:preview_provider, a)
+      described_class.register_direct(:preview_provider, b)
       expect(described_class.providers_for(:preview_provider)).to eq([a, b])
     end
 
     it "keeps extension points isolated from each other" do
-      described_class.register(:preview_provider, provider)
+      described_class.register_direct(:preview_provider, provider)
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
 
     it "raises ArgumentError for an unknown extension point on register" do
-      expect { described_class.register(:nonexistent, provider) }
+      expect { described_class.register_direct(:nonexistent, provider) }
         .to raise_error(ArgumentError, /Unknown extension point: :nonexistent/)
     end
 
@@ -60,7 +60,7 @@ RSpec.describe Syrus::PluginRegistry do
 
   describe ".reset!" do
     it "clears all registered providers" do
-      described_class.register(:preview_provider, double("provider"))
+      described_class.register_direct(:preview_provider, double("provider"))
       described_class.reset!
       expect(described_class.providers_for(:preview_provider)).to eq([])
     end

@@ -93,12 +93,7 @@ CI that runs `syrus plugin test`. `--frontend`, `--model`, and `--cli` add the
 corresponding examples; `--syrus-version` overrides the generated
 `requires_syrus` requirement.
 
-Plugin manifests must explicitly declare boolean `default_enabled`,
-`disableable`, and `experimental` values and a `requires_syrus` value. Use
-`requires_syrus nil` only when compatibility is intentionally unbounded.
-Omitting any release-posture declaration is an error; older external manifests
-must be updated rather than relying on compatibility defaults.
-
+Plugin manifests must explicitly declare boolean `default_enabled`, `disableable`, and `experimental` values plus `requires_syrus`; use `nil` only when compatibility is intentionally unbounded. Older external manifests must add all four declarations because there are no defaults.
 `syrus plugin dev [DIR]` runs one plugin in a throwaway, release-matched Syrus
 container backed by SQLite. It prints the local URL and the seeded sign-in
 (`demo@syrus.local` / `password`), enables the mounted plugin, and reports its
