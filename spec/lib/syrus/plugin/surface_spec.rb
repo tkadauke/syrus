@@ -20,7 +20,7 @@ RSpec.describe Syrus::Plugin::Surface, :reset_plugin_registry do
 
   it "adapts legacy-only registrations into family dispatch" do
     pages = Class.new { include Syrus::Plugin::SidebarPage }
-    Syrus::PluginRegistry.register(name: "legacy_surface", version: "1", provides: { sidebar_page: pages })
+    Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_surface", version: "1", provides: { sidebar_page: pages })
 
     expect(described_class.contributions(:sidebar_pages)).to include(pages)
   end
@@ -31,7 +31,7 @@ RSpec.describe Syrus::Plugin::Surface, :reset_plugin_registry do
       key: "family", display_name: "Family", sidebar_pages: "SurfaceFamilyPages"
     ))
     Syrus::PluginRegistry.register(
-      name: "family_surface", version: "1", provides: {},
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "family_surface", version: "1", provides: {},
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :surface, provider: "SurfaceFamilyProvider", implements: %i[sidebar_pages]
       ) ]
@@ -49,7 +49,7 @@ RSpec.describe Syrus::Plugin::Surface, :reset_plugin_registry do
       key: "doubled", display_name: "Doubled", sidebar_pages: "DoubledSurfacePages"
     ))
     Syrus::PluginRegistry.register(
-      name: "doubled_surface", version: "1", provides: { sidebar_page: DoubledSurfacePages },
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "doubled_surface", version: "1", provides: { sidebar_page: DoubledSurfacePages },
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :surface, provider: "DoubledSurfaceProvider", implements: %i[sidebar_pages]
       ) ]
@@ -66,7 +66,7 @@ RSpec.describe Syrus::Plugin::Surface, :reset_plugin_registry do
     end
     stub_const("PartialSurfaceProvider", provider)
     Syrus::PluginRegistry.register(
-      name: "partial_surface", version: "1", provides: {},
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "partial_surface", version: "1", provides: {},
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family: :surface, provider: "PartialSurfaceProvider", implements: %i[sidebar_pages admin_pages]
       ) ]

@@ -11,15 +11,15 @@ RSpec.describe SyrusBrowser::Engine do
   end
 
   it "registers SyrusBrowser::McpToolSet as the :mcp_tool_set provider" do
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(SyrusBrowser::McpToolSet)
+    expect(workflow_tool_sets).to include(SyrusBrowser::McpToolSet)
   end
 
   it "registers SyrusBrowser::ImageDiffRenderer as the :artifact_renderer provider" do
-    expect(Syrus::PluginRegistry.providers_for(:artifact_renderer)).to include(SyrusBrowser::ImageDiffRenderer)
+    expect(surface_implementations(:artifact_renderers)).to include(SyrusBrowser::ImageDiffRenderer)
   end
 
   it "registers SyrusBrowser::ChatToolSet as the :chat_mcp_tool_set provider" do
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(SyrusBrowser::ChatToolSet)
+    expect(chat_tool_sets).to include(SyrusBrowser::ChatToolSet)
   end
 
   it "registers SyrusBrowser::RuntimeSessionProvider as the :runtime_session_provider provider" do
@@ -27,7 +27,7 @@ RSpec.describe SyrusBrowser::Engine do
   end
 
   it "registers the scoped permission provider" do
-    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(SyrusBrowser::PermissionProvider)
+    expect(permission_providers).to include(SyrusBrowser::PermissionProvider)
   end
 
   it "registers a manifest named 'browser'" do
@@ -46,22 +46,10 @@ RSpec.describe SyrusBrowser::Engine do
     # docs/syrus_docs/browser.md's Operations section.
     expect(PluginRecord.find_by(name: "plugin_runtime")&.enabled?).to be_falsy
     expect(Syrus::PluginRegistry.health.healthy?("browser")).to be(true)
-    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(SyrusBrowser::McpToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(SyrusBrowser::ChatToolSet)
-    expect(Syrus::PluginRegistry.providers_for(:artifact_renderer)).to include(SyrusBrowser::ImageDiffRenderer)
+    expect(workflow_tool_sets).to include(SyrusBrowser::McpToolSet)
+    expect(chat_tool_sets).to include(SyrusBrowser::ChatToolSet)
+    expect(surface_implementations(:artifact_renderers)).to include(SyrusBrowser::ImageDiffRenderer)
     expect(Syrus::PluginRegistry.providers_for(:runtime_session_provider)).to include(SyrusBrowser::RuntimeSessionProvider)
-  end
-
-  it "includes the McpToolSet plugin interface module" do
-    expect(SyrusBrowser::McpToolSet.ancestors).to include(Syrus::Plugin::McpToolSet)
-  end
-
-  it "includes the ArtifactRenderer plugin interface module" do
-    expect(SyrusBrowser::ImageDiffRenderer.ancestors).to include(Syrus::Plugin::ArtifactRenderer)
-  end
-
-  it "includes the ChatMcpToolSet plugin interface module" do
-    expect(SyrusBrowser::ChatToolSet.ancestors).to include(Syrus::Plugin::ChatMcpToolSet)
   end
 
   it "includes the RuntimeSessionProvider plugin interface module" do

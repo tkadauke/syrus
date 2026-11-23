@@ -64,7 +64,7 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
     stub_const("BadOrientationFamily", bad)
     stub_const("GoodOrientationFamily", good)
     [ [ "bad_orientation_family", "BadOrientationFamily" ], [ "good_orientation_family", "GoodOrientationFamily" ] ].each do |name, provider_name|
-      Syrus::PluginRegistry.register(name:, version: "1", provides: {}, family_provides: [
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name:, version: "1", provides: {}, family_provides: [
         Syrus::Plugin::FamilyDeclaration.build(
           family: :chat_integration, provider: provider_name, provisional: %i[turn_orientations]
         )

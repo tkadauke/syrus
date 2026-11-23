@@ -12,7 +12,7 @@ RSpec.describe SpendingInsights::Engine do
     PluginRecord.find_or_create_by!(name: "spending_insights").update!(enabled: true)
     PluginRecord.find_by!(name: "spending_insights").update!(enabled: false)
 
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(SpendingInsights::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).not_to include(SpendingInsights::SidebarPages)
   end
 
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no
@@ -64,7 +64,7 @@ RSpec.describe SpendingInsights::Engine do
     SpendingInsights.register!
 
     expect(PluginRecord.find_by!(name: "spending_insights").enabled?).to be(false)
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(SpendingInsights::SidebarPages)
+    expect(surface_implementations(:sidebar_pages)).not_to include(SpendingInsights::SidebarPages)
 
     Syrus::PluginRegistry.reset!
   end

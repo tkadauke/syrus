@@ -10,7 +10,7 @@ RSpec.describe Syrus::Plugin::ServiceProvider, :reset_plugin_registry do
     definition = Syrus::Plugin::Family.fetch(family)
     tiers = capabilities.group_by { |capability| definition.capabilities.fetch(capability).tier }
     Syrus::PluginRegistry.register(
-      name: plugin, version: "1", provides: {}, prepare_priority: priority,
+      default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: plugin, version: "1", provides: {}, prepare_priority: priority,
       family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
         family:, provider: provider_name, implements: tiers.fetch(:stable, []), provisional: tiers.fetch(:provisional, [])
       ) ]
@@ -106,7 +106,7 @@ RSpec.describe Syrus::Plugin::ServiceProvider, :reset_plugin_registry do
     it "shows legacy registrations to dispatch" do
       klass = service_class("legacy")
       klass.include(Syrus::Plugin::AgentProvider)
-      Syrus::PluginRegistry.register(name: "legacy_agent", version: "1", provides: { agent_provider: klass })
+      Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "legacy_agent", version: "1", provides: { agent_provider: klass })
 
       expect(added(:agent_provider)).to eq([ klass ])
     end
@@ -117,7 +117,7 @@ RSpec.describe Syrus::Plugin::ServiceProvider, :reset_plugin_registry do
       stub_const("DoubledAgent", klass)
       stub_const("DoubledDecl", described_class.build(key: "doubled", display_name: "Doubled", agent_provider: "DoubledAgent"))
       Syrus::PluginRegistry.register(
-        name: "doubled_plugin", version: "1", provides: { agent_provider: klass },
+        default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "doubled_plugin", version: "1", provides: { agent_provider: klass },
         family_provides: [ Syrus::Plugin::FamilyDeclaration.build(family: :agent_runtime, provider: "DoubledDecl", implements: %i[agent_provider]) ]
       )
 

@@ -6,7 +6,7 @@ RSpec.describe Throughput::Engine do
 
     expect(manifest).to be_present
     expect(manifest.enabled?).to be(true)
-    expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).to include(Throughput::RepoPageTabs)
+    expect(surface_implementations(:repo_page_tabs)).to include(Throughput::RepoPageTabs)
   end
 
   it "schedules repository snapshot refreshes through plugin callbacks" do
