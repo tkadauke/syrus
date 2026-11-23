@@ -19,8 +19,8 @@ RSpec.describe Workflows::CodingHandoff do
     let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented") }
 
     before do
-      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-        RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
       )
     end
 
@@ -95,8 +95,8 @@ RSpec.describe Workflows::CodingHandoff do
 
     context "when visual review is enabled" do
       before do
-        allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-          RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+        allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+          SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
         )
       end
 

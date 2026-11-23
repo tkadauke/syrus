@@ -14,7 +14,7 @@ import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
 import reenqueueWorkCard from "./tool_cards/reenqueue_work"
 import retryFromCurrentPrBranchCard from "./tool_cards/retry_from_current_pr_branch"
 import retryJobCard from "./tool_cards/retry_job"
-import runVisualReviewCard from "./tool_cards/run_visual_review"
+import runVisualReviewCard from "../../../../plugins/browser/app/frontend/tool_cards/run_visual_review"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {

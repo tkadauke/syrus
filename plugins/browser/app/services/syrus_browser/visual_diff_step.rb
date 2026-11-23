@@ -1,5 +1,5 @@
-module Steps
-  class VisualDiff < Base
+module SyrusBrowser
+  class VisualDiffStep < Steps::Base
     BASELINE_RENDERER_TYPE = :image_diff
     COMPARISON_RENDERER_TYPE = :before_after_visual_diff
 
@@ -58,7 +58,7 @@ module Steps
     private
 
     def auto_deferred?
-      workflow.artifact("visual_diff_source") == ::VisualDiffSubmission::AUTOMATIC_SOURCE
+      workflow.artifact("visual_diff_source") == Syrus::Host::VisualDiffSubmission::AUTOMATIC_SOURCE
     end
 
     def obsolete_job_state?
@@ -76,10 +76,10 @@ module Steps
     end
 
     def prompt(after_artifacts)
-      Prompts::VisualDiff.new(
+      SyrusBrowser::Prompts::VisualDiff.new(
         job: job,
         after_artifacts: after_artifacts,
-        baseline_type: workflow.artifact("visual_diff_baseline_type").presence || ::VisualDiffSubmission::BASELINE_TYPE,
+        baseline_type: workflow.artifact("visual_diff_baseline_type").presence || Syrus::Host::VisualDiffSubmission::BASELINE_TYPE,
         base_branch: job.effective_base_branch
       ).to_s
     end
@@ -88,7 +88,7 @@ module Steps
       raw_after_artifacts = Array(workflow.artifact("visual_diff_after_artifacts"))
       raise StepFailed, "no after screenshots available for visual_diff" if raw_after_artifacts.empty? && rejected_after_artifact_reasons.empty?
 
-      validation = VisualReviewEvidenceGuard.validate_visual_diff_after_artifacts(
+      validation = Syrus::Host::VisualReviewEvidenceGuard.validate_visual_diff_after_artifacts(
         job: job,
         prompt: run.prompt,
         artifacts: raw_after_artifacts
@@ -117,7 +117,7 @@ module Steps
     end
 
     def baseline_entries
-      baseline_type = workflow.artifact("visual_diff_baseline_type").presence || ::VisualDiffSubmission::BASELINE_TYPE
+      baseline_type = workflow.artifact("visual_diff_baseline_type").presence || Syrus::Host::VisualDiffSubmission::BASELINE_TYPE
       Array(workflow.artifact("typed_artifacts")).select do |entry|
         entry.is_a?(Hash) &&
           (entry["original_type"] == baseline_type || entry.dig("payload", "original_type") == baseline_type)

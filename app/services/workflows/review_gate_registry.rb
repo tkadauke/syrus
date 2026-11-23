@@ -70,20 +70,6 @@ module Workflows
         handler_provider: "Steps::SecurityReview", prompt_provider: "Prompts::SecurityReview",
         tool_provider: %w[submit_security_review], verdict_artifact: "security_review_iterations",
         failure_policy: { "deterministic" => "fail", "transient" => "retry" }, panel_capable: true
-      },
-      {
-        key: "visual", step_kind: "visual_review", after: %w[security],
-        excluded_trigger_kinds: %w[external_pr_feedback],
-        enabled_resolver: lambda { |job:, syrus_yml:, **|
-          plan = syrus_yml ? RepoVisualReviewPlan.for_job(job, loaded: syrus_yml) : RepoVisualReviewPlan.for_job(job)
-          plan.enabled? && plan.rounds.positive?
-        },
-        loop_budget: lambda { |job:, syrus_yml:, **|
-          (syrus_yml ? RepoVisualReviewPlan.for_job(job, loaded: syrus_yml) : RepoVisualReviewPlan.for_job(job)).rounds
-        },
-        handler_provider: "Steps::VisualReview", prompt_provider: "Prompts::VisualReview",
-        tool_provider: %w[submit_visual_review], verdict_artifact: "visual_review_iterations",
-        failure_policy: { "deterministic" => "fail", "transient" => "retry" }, required: false
       }
     ].freeze
 

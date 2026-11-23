@@ -1,12 +1,12 @@
 require "mcp"
 
-module Mcp::Tools
+module SyrusBrowser::Tools
   class RunVisualReviewTool < MCP::Tool
-    extend ProposalToolSupport
-    extend PendingActionToolSupport
+    extend ::Mcp::Tools::ProposalToolSupport
+    extend ::Mcp::Tools::PendingActionToolSupport
 
     tool_name "run_visual_review"
-    MAX_PROMPT_LENGTH = ManualVisualReviewSubmission::MAX_PROMPT_LENGTH
+    MAX_PROMPT_LENGTH = 4_000
 
     description <<~DESC
       Request an on-demand visual review pass for a Syrus Job — re-checks the

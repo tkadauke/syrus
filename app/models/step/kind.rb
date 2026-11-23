@@ -189,21 +189,6 @@ class Step
                 repair_semantics: :deterministic_idempotent,
                 runtime_inserted: true,
                 placement_policy: Step::PlacementPolicy::CONTROL_PLANE),
-      # Three verdicts rather than two: "skipped" (not visually testable, or
-      # filtered out by when_files_changed) exits the loop the same way
-      # "approved" does, since there is nothing for another iteration to
-      # address.
-      Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
-                agent_role: AgentRole::WORKFLOW_VISUAL_REVIEWER,
-                required_mcp_tools: %w[submit_visual_review],
-                resource_profile_fallback_step_kinds: %w[implement],
-                review_gate: {
-                  artifact_key: "visual_review_iterations",
-                  exit_verdicts: %w[approved skipped],
-                  cancellation_reason: "visual_review_approved"
-                }),
-      Entry.new(kind: "visual_diff",        handler: "VisualDiff",        label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
-                required_mcp_tools: %w[submit_visual_artifact]),
       Entry.new(kind: "summarize",          handler: "Summarize",          label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
                 agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_summary]),
