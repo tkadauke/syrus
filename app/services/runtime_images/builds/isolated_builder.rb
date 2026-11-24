@@ -22,6 +22,36 @@ module RuntimeImages
     #  - CPU, memory, PIDs, wall-clock duration, log volume, scratch/cache
     #    storage, and output archive size all have ceilings.
     class IsolatedBuilder
+      # Fails closed when the worker cannot actually confine the build: a root
+      # worker would run buildah rootful with the worker's host access, so an
+      # unprivileged account is required unless the operator attests that the
+      # worker itself is a disposable confined sandbox. Per-spawn cgroup
+      # limits (memory/CPU) must also have been applied to each command.
+      class Confinement
+        def verify!
+          if Process.euid.zero? && !Config.worker_confined?
+            raise BuildFailed.new("builder refuses to run as root without RUNTIME_IMAGE_BUILD_WORKER_CONFINED=1",
+                                  code: "builder_not_isolated", retryable: false)
+          end
+          return if system("prlimit", "--version", out: File::NULL, err: File::NULL)
+
+          raise BuildFailed.new("prlimit is required to bound builder PIDs and storage", code: "builder_not_isolated", retryable: false)
+        end
+
+        def verify_applied!(result)
+          return if Config.cgroup_optional?
+
+          id = result.respond_to?(:spawned_process_id) ? result.spawned_process_id : nil
+          return unless id
+
+          state = SpawnedProcess.find_by(id: id)&.resource_attribution&.dig("cgroup", "state")
+          return if state == "applied"
+
+          raise BuildFailed.new("cgroup memory/CPU limits were not applied (state=#{state.inspect})",
+                                code: "builder_not_isolated", retryable: true)
+        end
+      end
+
       IMAGE_TAG = "runtime-image-build:latest".freeze
       ALLOWED_RECIPE_KEYS = %w[dockerfile context target build_args].freeze
       BUILD_ARG_NAME = /\A[A-Za-z_][A-Za-z0-9_]{0,63}\z/
@@ -38,13 +68,16 @@ module RuntimeImages
         end
       end
 
-      def initialize(launcher: Launcher.new("prepare"), data_root: nil, extractor: SourceExtractor.new)
+      def initialize(launcher: Launcher.new("prepare"), data_root: nil, extractor: SourceExtractor.new,
+                     confinement: Confinement.new)
         @launcher = launcher
+        @confinement = confinement
         @data_root = data_root
         @extractor = extractor
       end
 
       def build(request:, attempt:, control:)
+        @confinement.verify!
         recipe = validate_recipe!(request.recipe)
         build_root = root.join("builds")
         FileUtils.mkdir_p(build_root)
@@ -138,8 +171,7 @@ module RuntimeImages
           if now - last_poll >= STORAGE_POLL_SECONDS
             last_poll = now
             control.heartbeat
-            used = directory_bytes(scratch, limit: Config.build_storage_bytes + 1) + directory_bytes(cache, limit: Config.build_storage_bytes + 1)
-            failure ||= [ "storage_limit_exceeded", "build exceeded #{Config.build_storage_bytes} bytes of storage" ] if used > Config.build_storage_bytes
+            failure ||= storage_failure(scratch, cache)
           end
           !failure.nil?
         end
@@ -148,18 +180,42 @@ module RuntimeImages
           failure ||= [ "log_limit_exceeded", "build log exceeded #{Config.build_log_bytes} bytes" ] if logged > Config.build_log_bytes
         end
 
-        [ build_command(request, cache, context, recipe), push_command(cache, output) ].each do |command|
+        [ build_command(request, cache, context, recipe), push_command(cache, output) ].each do |inner|
+          command = limited(inner)
           remaining = deadline - monotonic
           raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") unless remaining.positive?
 
           result = @launcher.call(command: command, env: environment(scratch), mounts: mounts(scratch, cache),
                                   timeout: remaining, resource_limits: resource_limits, stop_requested: stop, on_output_chunk: on_chunk)
           control.raise_if_canceled!
+          @confinement.verify_applied!(result)
+          check_storage!(scratch, cache)
           raise BuildFailed.new(failure.last, code: failure.first) if failure
           raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") if result.timed_out?
           raise BuildFailed.new("build was stopped", code: "build_stopped", retryable: true) if result.stopped? || result.operator_killed?
           raise BuildFailed.new("build exited with status #{result.exit_status}", code: "build_failed") unless result.success?
         end
+      end
+
+      # Hard per-process ceilings inherited by the whole builder tree for both
+      # build and push: process count, largest single file (so one write cannot
+      # blow past the storage ceiling between samples), and CPU seconds.
+      def limited(command)
+        [ "prlimit", "--nproc=#{Config.build_pids}", "--fsize=#{Config.build_storage_bytes}",
+          "--cpu=#{Config.build_duration * [ Config.build_cpus.ceil, 1 ].max}", "--", *command ]
+      end
+
+      def storage_failure(scratch, cache)
+        limit = Config.build_storage_bytes
+        used = directory_bytes(scratch, limit: limit + 1) + directory_bytes(cache, limit: limit + 1)
+        [ "storage_limit_exceeded", "build exceeded #{limit} bytes of storage" ] if used > limit
+      end
+
+      # Mandatory after every command, so a build that overshoots between
+      # samples and exits is still rejected.
+      def check_storage!(scratch, cache)
+        failure = storage_failure(scratch, cache)
+        raise BuildFailed.new(failure.last, code: failure.first) if failure
       end
 
       def build_command(request, cache, context, recipe)

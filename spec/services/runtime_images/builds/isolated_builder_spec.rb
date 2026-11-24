@@ -63,7 +63,12 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
   end
 
-  def builder(**opts) = described_class.new(launcher: opts.delete(:launcher) || launcher, data_root: data_root, **opts)
+  let(:open_confinement) { instance_double(described_class::Confinement, verify!: nil, verify_applied!: nil) }
+
+  def builder(**opts)
+    described_class.new(launcher: opts.delete(:launcher) || launcher, data_root: data_root,
+                        confinement: opts.delete(:confinement) || open_confinement, **opts)
+  end
 
   def build(request, b = builder) = b.build(request: request, attempt: nil, control: control)
 
@@ -207,5 +212,43 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
   it "maps cancellation to the control's cancel" do
     allow(control).to receive(:raise_if_canceled!).and_raise(RuntimeImages::Builds::Canceled)
     expect { build(request_for({ "Dockerfile" => "x" })) }.to raise_error(RuntimeImages::Builds::Canceled)
+  end
+
+  describe "confinement and hard ceilings" do
+    let(:request) { request_for({ "Dockerfile" => "FROM scratch\n" }) }
+
+    it "wraps both build and push in prlimit with PID, file-size and CPU ceilings" do
+      calls = []
+      build(request, builder(launcher: launcher(calls: calls)))
+      expect(calls.size).to eq(2)
+      calls.each do |c|
+        expect(c[:command].first(2)).to eq([ "prlimit", "--nproc=#{RuntimeImages::Builds::Config.build_pids}" ])
+        expect(c[:command]).to include("--fsize=#{RuntimeImages::Builds::Config.build_storage_bytes}")
+      end
+    end
+
+    it "rejects storage overshoot found after a command exits, without any poll" do
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(10)
+      l = launcher
+      l2 = lambda do |command:, env:, **rest|
+        File.binwrite(File.join(env["HOME"], "big"), "x" * 100)
+        l.call(command: command, env: env, **rest)
+      end
+      expect { build(request, builder(launcher: l2)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }
+    end
+
+    it "fails closed as root without a confinement attestation" do
+      allow(Process).to receive(:euid).and_return(0)
+      expect { build(request, builder(confinement: described_class::Confinement.new)) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
+    end
+
+    it "fails when cgroup limits were not applied to the spawned process" do
+      process = instance_double(SpawnedProcess, resource_attribution: { "cgroup" => { "state" => "unavailable" } })
+      allow(SpawnedProcess).to receive(:find_by).with(id: 7).and_return(process)
+      res = result_class.new(exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false, operator_killed: false, aliveness_failed: false, duration_s: 1, spawned_process_id: 7)
+      expect { described_class::Confinement.new.verify_applied!(res) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
+    end
   end
 end
