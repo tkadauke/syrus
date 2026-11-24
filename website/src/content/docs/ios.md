@@ -57,3 +57,22 @@ workflow to archive, export, or upload to TestFlight, with signing credentials
 supplied as repository secrets. Build logs are retained as artifacts; secrets
 are never printed. To roll back, expire the build in App Store Connect and
 re-release the last good commit with a higher build number.
+
+## When something goes wrong
+
+The shell tells you whether a problem belongs to the network, the server, your
+session, or the app itself, and offers a matching recovery action:
+
+| Source | Examples | Recovery |
+| --- | --- | --- |
+| Network problem | offline, timeout, DNS or host unreachable | Retries automatically when connectivity returns or the app returns to the foreground; **Try again** |
+| Server problem | HTTP 5xx, untrusted certificate, TLS failure, dropped connection | **Try again** (not offered for certificate errors) and **Change server** |
+| Session expired | HTTP 401 or 403 on the main page | **Sign in again** restarts at the server root |
+| App problem | the web content process was killed repeatedly | **Try again** |
+
+While offline with a page already loaded, a banner is shown instead of
+replacing the page. Attachments and other non-renderable responses are
+downloaded and opened in the share sheet. Pull-to-refresh keeps its spinner
+until the reload finishes, and the web view resizes when the keyboard appears.
+Errors are announced to VoiceOver, and the error screen scales with Dynamic
+Type.
