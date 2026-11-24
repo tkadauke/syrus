@@ -1171,6 +1171,7 @@
   },
   "repository_form": {
     "loading": "Repository-Formular wird geladen...",
+    "field_loading": "Wird geladen...",
     "back": "Zurück zum Repository",
     "working_section": "Arbeits-Repository",
     "working_description": "Syrus pollt Issues, erstellt Branches und öffnet PRs in diesem Repository.",
