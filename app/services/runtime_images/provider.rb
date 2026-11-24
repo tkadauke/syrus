@@ -7,6 +7,8 @@ module RuntimeImages
       raise NotImplementedError, "#{self.class.name} must implement #key"
     end
 
+    # publish must be idempotent per digest and must never clear a prior
+    # revocation; the service re-asserts revoke/delete if it does.
     def publish(_request) = raise(NotImplementedError, "#{self.class.name} must implement #publish")
     def resolve(_request) = raise(NotImplementedError, "#{self.class.name} must implement #resolve")
     def inspect_image(_request) = raise(NotImplementedError, "#{self.class.name} must implement #inspect_image")

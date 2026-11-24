@@ -17,7 +17,7 @@ class SyntheticRuntimeImageProvider < RuntimeImages::Provider
   def publish(request)
     @calls << [:publish, request]
     digest = "sha256:#{Digest::SHA256.hexdigest(request.payload.to_s)}"
-    @store[[digest, request.platform]] = { revoked: false }
+    @store[[digest, request.platform]] ||= { revoked: false }
     @tags[request.source_ref] = digest
     RuntimeImages::PublishResult.new(digest: digest, locator: "synthetic/#{request.namespace.name}@#{digest}", platform: request.platform)
   end
