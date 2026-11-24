@@ -28,6 +28,7 @@ RSpec.describe "queue partitioning" do
   BASE_APP_QUEUES = %w[
     runs
     merges
+    runtime_image_builds
     chat
     videos
     control_plane
@@ -64,6 +65,7 @@ RSpec.describe "queue partitioning" do
     runs-linux-amd64
     merges
     merges-linux-amd64
+    runtime_image_builds
   ].freeze
   MACOS_COMPUTE_QUEUES = %w[runs-macos-arm64 merges-macos-arm64].freeze
 
