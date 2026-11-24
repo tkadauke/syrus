@@ -2066,6 +2066,19 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(lock.reload).not_to be_active
   end
 
+  it "releases a merge lock retained by a terminal WorkUnit" do
+    workflow = job.latest_workflow
+    unit = workflow.work_unit
+    merge_lock = unit.work_unit_locks.create!(lock_key: "merge:repository:#{job.repository_id}")
+    unit.update_columns(state: "failed", finished_at: 5.minutes.ago)
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :terminal_work_unit_active_locks).evidence.with_indifferent_access[:active_lock_keys])
+      .to include("merge:repository:#{job.repository_id}")
+    expect(merge_lock.reload).not_to be_active
+  end
+
   # A finished auto_merge parent with a running landing_validation prefetch
   # child, as LandingValidationPrefetcher leaves them.
   def terminal_parent_with_prefetch_child(parent_state)

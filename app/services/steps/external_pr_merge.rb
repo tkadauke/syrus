@@ -4,6 +4,7 @@ module Steps
   # (conflicts, failing required status checks, etc.).
   class ExternalPrMerge < Base
     include AutoMergeControl
+    include MergeLockControl
 
     TRANSIENT_MERGE_ERRORS = [
       Octokit::Conflict,
@@ -40,6 +41,15 @@ module Steps
         return
       end
 
+      with_merge_lock(
+        context: "external_pr_merge",
+        on_timeout: -> { defer_landing_for_retry!(context: "external_pr_merge", reason: "merge lock busy") }
+      ) { land(client, pr) }
+    end
+
+    private
+
+    def land(client, pr)
       return if defer_if_base_moved_since_validation!(
         client,
         pr,
@@ -57,8 +67,6 @@ module Steps
       workflow.request_job_closure!(job, "external_pr_merged") if job.may_close?
       log("external_pr_merge: merged external PR ##{job.external_pr_number}")
     end
-
-    private
 
     def push_same_repository_repairs!
       head_repo = workflow.artifact("external_pr_head_repo")

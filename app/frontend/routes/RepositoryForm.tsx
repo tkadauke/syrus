@@ -479,6 +479,20 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             onChange={(checked) => setValues({ ...values, trust_clean_rebase_grade: checked })}
             value={values.trust_clean_rebase_grade}
           />
+          <Field label={t("repository_form.label_landing_concurrency")}>
+            <Form.Input
+              max={5}
+              min={1}
+              onChange={(event) => {
+                const parsed = Number.parseInt(event.target.value, 10)
+                setValues({ ...values, landing_concurrency: Number.isNaN(parsed) ? 1 : Math.min(5, Math.max(1, parsed)) })
+              }}
+              step={1}
+              type="number"
+              value={values.landing_concurrency}
+            />
+            <Form.HelpText>{t("repository_form.landing_concurrency_hint")}</Form.HelpText>
+          </Field>
           <Checkbox
             label={t("repository_form.check_distributed_workflow_dag")}
             onChange={(checked) => setValues({ ...values, distributed_workflow_dag_enabled: checked })}
@@ -956,6 +970,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     pr_cost_footer_enabled: payload.repository.pr_cost_footer_enabled,
     auto_merge_enabled: payload.repository.auto_merge_enabled,
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
+    landing_concurrency: payload.repository.landing_concurrency,
     pr_check_gate: payload.repository.pr_check_gate,
     known_flaky_failure_dismissal_enabled: payload.repository.known_flaky_failure_dismissal_enabled,
     known_flaky_failure_min_score: payload.repository.known_flaky_failure_min_score,

@@ -107,6 +107,9 @@ module Steps
         end
       end
 
+      active_graders, agentic_rebase_carried = carry_forward_after_agentic_rebase(active_graders, grader_fingerprint)
+      carried_forward.concat(agentic_rebase_carried)
+
       active_graders = skip_reusable_target_health!(active_graders) if target_health_narrowing_applies?
       active_graders = force_prior_unsuccessful_graders(active_graders, plan.graders) if evidence_driven_landing_repair?
       active_graders, deduplicated = deduplicate_equivalent_failed_variants(active_graders)
@@ -673,6 +676,97 @@ module Steps
         }.compact
       end
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, entries)
+    end
+
+    # After an agentic rebase during landing, re-run only the graders whose
+    # scope covers a file the agent's resolution touched and carry every other
+    # grader's passing landing result forward. Gated like the clean-rebase
+    # carry-forward (Repository#trust_clean_rebase_grade); everything that
+    # cannot be proven falls back to running the grader.
+    def carry_forward_after_agentic_rebase(active_graders, grader_fingerprint)
+      unchanged = [ active_graders, [] ]
+      return unchanged unless agentic_rebase_carry_forward_applicable?
+
+      record = LandingAgenticRebase.recorded_for(workflow: workflow, job: job, head_sha: current_head_sha)
+      return unchanged unless record
+
+      source = LandingValidationCache.carry_forward_source_for(
+        job: job,
+        base_ref: record["base_ref"],
+        grader_fingerprint: grader_fingerprint,
+        changed_files_fingerprint: nil
+      )
+      unless source.reusable?
+        log("[grader_fanout] agentic rebase: not carrying graders forward - #{source.reason}")
+        return unchanged
+      end
+
+      manifest = source.workflow&.artifact(LandingValidationManifest::ARTIFACT_KEY)
+      unless manifest.is_a?(Hash) && manifest["head_sha"].to_s == record["pre_head_sha"].to_s
+        log("[grader_fanout] agentic rebase: not carrying graders forward - the prior validation manifest is not for the pre-rebase head")
+        return unchanged
+      end
+
+      touched = Array(record["touched_files"])
+      partition = LandingAgenticRebase.partition(
+        graders: active_graders,
+        touched_files: touched,
+        manifest: manifest,
+        target_graph: target_graph,
+        label_for: method(:target_label_for),
+        fingerprints_for: method(:target_fingerprints_for)
+      )
+
+      carried = partition.carried.map do |grader, reason|
+        log("[grader_fanout] carrying #{grader.name} forward after agentic rebase (#{reason}) [#{target_label_for(grader)}]")
+        [ grader, CarryForwardResult.new(reason, target_fingerprints_for(grader), []) ]
+      end
+      partition.rerun.each do |grader, reason|
+        log("[grader_fanout] re-running #{grader.name} after agentic rebase (#{reason}) [#{target_label_for(grader)}]")
+      end
+      return unchanged if carried.empty?
+
+      record_agentic_rebase_carry_forward!(carried, partition.rerun, touched, source, manifest)
+      carried_names = carried.map { |grader, _| grader.name }.to_set
+      [ active_graders.reject { |grader| carried_names.include?(grader.name) }, carried ]
+    end
+
+    def agentic_rebase_carry_forward_applicable?
+      repository.trust_clean_rebase_grade? &&
+        LandingGraderPlan::LANDING_TRIGGER_KINDS.include?(workflow.trigger_kind) &&
+        !workflow.work_definition.landing_validation_child? &&
+        grader_fanout_reuse_enabled? &&
+        step.iteration.to_i <= 1
+    end
+
+    def record_agentic_rebase_carry_forward!(carried, rerun, touched, source, manifest)
+      by_label = Array(manifest["targets"]).index_by { |target| target["target_label"] }
+      entries = carried.map do |grader, result|
+        label = target_label_for(grader)
+        {
+          "name" => grader.name,
+          "required" => grader.required,
+          "target_label" => label,
+          "ci_checks" => ci_checks_for(grader),
+          "source_iteration" => 1,
+          "reason" => result.reason,
+          "source" => "agentic_rebase_carry_forward",
+          "source_workflow_id" => source.workflow&.id,
+          "source_head_sha" => manifest["head_sha"],
+          "target_fingerprints" => result.fingerprints.to_h,
+          "target_health_record_refs" => [],
+          "exit_code" => by_label.dig(label, "exit_code")
+        }.compact
+      end
+      workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, entries)
+      workflow.set_artifact!(
+        LandingAgenticRebase::DECISIONS_ARTIFACT_KEY,
+        {
+          "touched_files" => touched,
+          "carried" => entries.map { |entry| entry.slice("name", "target_label", "reason") },
+          "rerun" => rerun.map { |grader, reason| { "name" => grader.name, "target_label" => target_label_for(grader), "reason" => reason } }
+        }
+      )
     end
 
     def enforce_required_target_health_for_unaffected_graders(active_graders, selections)

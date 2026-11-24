@@ -2330,7 +2330,8 @@ module WorkEngine
               work_unit_kind: unit.kind,
               blocked_reason: unit.blocked_reason,
               blocked_since: unit.blocked_at,
-              lock_keys: lock_keys
+              lock_keys: lock_keys,
+              landing_lanes: lock_keys.map { |key| WorkDefinitions.landing_lane_for_key(key) }
             },
             explanation: "WorkUnit ##{unit.id} is blocked on #{unit.blocked_reason}, which clears only by operator action, " \
                          "yet it still holds #{lock_keys.join(', ')} and is blocking every other landing in the repository."
@@ -2363,6 +2364,7 @@ module WorkEngine
             work_unit_id: unit.id,
             lock_owner: unit.slug,
             lock_keys: lock_keys,
+            landing_lanes: lock_keys.map { |key| WorkDefinitions.landing_lane_for_key(key) },
             blocked_workflow: workflow.slug,
             urgent_blocker_jobs: blocker_jobs.map { |job| { id: job.id, slug: job.slug, state: job.state } },
             automatic_action: "release repository landing lock only",

@@ -35,6 +35,9 @@ RSpec.describe Steps::ExternalPrMerge do
   end
 
   before do
+    # The merge lock key reads the delivery policy through git, which these
+    # examples stub call-by-call; the lock itself is covered by merge_lock_spec.
+    allow(WorkDefinitions).to receive(:merge_lock_key_for).and_return(nil)
     job.approve!(via: "operator")
     job.start_landing!
     job.save!

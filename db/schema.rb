@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_120100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_145347) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3533,6 +3533,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_120100) do
     t.datetime "github_issues_full_synced_at"
     t.string "pr_check_gate", default: "all", null: false
     t.boolean "land_on_inherited_check_failure", default: false, null: false
+    t.integer "landing_concurrency", default: 1, null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
