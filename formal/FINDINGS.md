@@ -5411,6 +5411,33 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M81. Main through `97961c9fe5`
+
+A job bundle: plugins routed through `Syrus::Host` facades, interactive chat
+tool parity with reviewed exceptions, grace and episode-aware plugin fleet
+convergence alerts, a nil provider-account fix in provider selection, paused
+Jobs excluded from the review workspace, and ERB-safe migration database
+config.
+
+- **"Fix CI: conformance spec grace period, repair closure order, formal
+  mirrors"** (`c39aba0944`). These are main's own fixes for issues this branch
+  fixed independently: the orphaned-job conformance snapshot needs an old
+  timestamp, as F118's age dimension already supplies, and the main-branch
+  repair's closure order, as in F120. Main now closes the anchor Job before the
+  health change, and the plugin's preflight skip is kept. The rebase is clean.
+- **Nil provider account in `AvailabilitySelector`** (`2f6a29a8f1`,
+  `cf3ac0c178`, `7df73dff9c`). *Relied-on invariant:* account-less selection
+  still serializes reservations where there is an account. Holds alongside
+  F123's NOWAIT reservation: the provider-routing and phase-admission specs pass.
+- **Host facades** (`b304a6b7c5`, `178ec6cb04`, `4e244c0da4`). *Relied-on
+  invariant:* plugins reach core only through `Syrus::Host`. Holds:
+  `bin/check-plugin-boundaries` is clean, including F126's require and
+  constant-resolution rules.
+- The rest (chat tool parity, fleet convergence alerts, coworker
+  background-run claims, migration ERB) is covered by the formal and
+  architecture specs, which pass (1,169 examples with the provider specs). I
+  did not trace it further.
+
 ## M80. Main through `feddc2afec`
 
 A merge train for the main-branch health Epic. Main-branch health checking
@@ -7487,7 +7514,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `feddc2afec`. Each loop iteration continues from there:
+Checked through main `97961c9fe5`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
