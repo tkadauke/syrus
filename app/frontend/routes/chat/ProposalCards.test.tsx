@@ -7,6 +7,7 @@ import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { applyAppEvent } from "../../lib/appEvents"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
+import type { SmartPermissionOption } from "../../api/permissionRequests"
 import type { ChatQueryKey } from "./constants"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 
@@ -640,7 +641,7 @@ describe("PendingActionCard", () => {
   })
 
   it("names the operation in remembered-scope labels when only the request-level presentation carries the statement", () => {
-    const option = {
+    const option: SmartPermissionOption = {
       kind: "allow_chat",
       duration: "chat_session",
       breadth: "resource",
