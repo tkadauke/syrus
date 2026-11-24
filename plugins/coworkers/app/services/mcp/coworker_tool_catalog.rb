@@ -100,8 +100,8 @@ module Mcp
       end
 
       def plugin_providers
-        manifests = Syrus::Host::PluginRegistry.all_plugins
-        health = Syrus::Host::PluginRegistry.health(enabled_names: manifests.select(&:enabled?).map(&:name))
+        manifests = Syrus::PluginRegistry.all_plugins
+        health = Syrus::PluginRegistry.health(enabled_names: manifests.select(&:enabled?).map(&:name))
         manifests.flat_map do |manifest|
           state = if !manifest.enabled?
             :plugin_disabled

@@ -266,10 +266,10 @@ module Permissions
 
       entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
       return :unavailable unless entry
-      return :unavailable if entry.feature_flag && !Syrus::Host::FeatureFlags.enabled?("#{entry.feature_flag}_enabled?")
+      return :unavailable if entry.feature_flag && !Syrus::Host::FeatureFlags.enabled?(entry.feature_flag)
 
       role_flag = entry.feature_flags_by_role&.fetch(context.role, nil)
-      return :unavailable if role_flag && !Syrus::Host::FeatureFlags.enabled?("#{role_flag}_enabled?")
+      return :unavailable if role_flag && !Syrus::Host::FeatureFlags.enabled?(role_flag)
       return :resource_unconfigured if repository_scope_required?(entry.descriptor) && context.allowed_repository_ids.empty?
 
       :available
