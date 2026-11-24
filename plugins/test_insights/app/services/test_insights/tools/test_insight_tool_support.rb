@@ -4,7 +4,7 @@ module TestInsights
       private
 
       def current_context(server_context)
-        McpToolContext.from_server_context(server_context)
+        Syrus::Host::ToolContext.from_server_context(server_context)
       end
 
       def repository_for(context, repository: nil, repository_id: nil)

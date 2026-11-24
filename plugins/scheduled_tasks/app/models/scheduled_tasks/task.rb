@@ -3,7 +3,7 @@ module ScheduledTasks
   #
   # Named Task rather than ScheduledTask because a plugin's models are
   # namespaced under its own module; the table keeps the name it had.
-  class Task < ApplicationRecord
+  class Task < Syrus::Host::Record
     self.table_name = "scheduled_tasks"
     include AutoApproveModes
     include AuthorizationCheckpointOrigin

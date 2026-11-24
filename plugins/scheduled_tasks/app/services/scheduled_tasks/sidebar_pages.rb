@@ -2,7 +2,7 @@ module ScheduledTasks
   # The pages this plugin owns. They were entries in core's React route table
   # and in config/routes.rb; both named components core no longer ships.
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     COMPONENT = "scheduled_tasks/ScheduledTasksPage".freeze
 

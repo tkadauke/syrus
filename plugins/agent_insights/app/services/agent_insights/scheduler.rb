@@ -16,7 +16,7 @@ module AgentInsights
           issue_title: "Insight analysis: #{repository.slug}",
           owner_user: enqueue_user
         )
-        WorkUnits::Launcher.create_and_start!(kind: "agent_insight", job: j)
+        Syrus::Host::WorkLauncher.create_and_start!(kind: "agent_insight", job: j)
         j
       end
     end

@@ -1,7 +1,7 @@
 require "digest"
 
 module TestInsights
-  class TestIdentity < ApplicationRecord
+  class TestIdentity < Syrus::Host::Record
     self.table_name = "test_insight_identities"
 
     FINGERPRINT_SEPARATOR = "\0".freeze

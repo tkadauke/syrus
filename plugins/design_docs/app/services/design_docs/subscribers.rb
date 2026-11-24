@@ -1,6 +1,6 @@
 module DesignDocs
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       {

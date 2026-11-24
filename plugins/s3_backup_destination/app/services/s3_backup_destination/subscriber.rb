@@ -1,6 +1,6 @@
 module S3BackupDestination
   class Subscriber
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions = { "local_backups.backup.completed" => :replicate }
 

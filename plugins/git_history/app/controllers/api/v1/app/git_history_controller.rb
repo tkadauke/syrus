@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class GitHistoryController < BaseController
+      class GitHistoryController < Syrus::Host::AppController
         def index
           repository = find_repository
           limit = params.fetch(:limit, ::GitHistory::Commits::DEFAULT_LIMIT).to_i.clamp(1, ::GitHistory::Commits::MAX_LIMIT)

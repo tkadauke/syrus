@@ -43,11 +43,11 @@ module Whiteboard
           { id: element.fetch("id") }
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

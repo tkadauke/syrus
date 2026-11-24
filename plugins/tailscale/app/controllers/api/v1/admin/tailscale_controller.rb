@@ -1,7 +1,7 @@
 module Api
   module V1
     module Admin
-      class TailscaleController < BaseController
+      class TailscaleController < Syrus::Host::AdminController
         def status
           return render json: { error: "tailscale_plugin_disabled" }, status: :not_found unless Tailscale.enabled?
 

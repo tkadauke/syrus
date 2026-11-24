@@ -22,10 +22,10 @@ module Mockups
     # blank, empty after cleaning, or that escapes root (absolute paths,
     # "../" traversal, or any existing symlink component).
     def resolve(relative_path)
-      path = Syrus::PathJail.resolve!(root, relative_path)
+      path = Syrus::Host::PathJail.resolve!(root, relative_path)
       reject_symlink_components!(path)
       path
-    rescue Syrus::PathJail::PathEscape => e
+    rescue Syrus::Host::PathJailEscape => e
       case e.reason
       when :blank
         raise InvalidPath, "path is required"

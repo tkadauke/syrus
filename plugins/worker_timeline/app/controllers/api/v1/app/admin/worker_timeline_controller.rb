@@ -9,21 +9,21 @@ module Api
         # (see Api::V1::Admin::WorkerTimelineController and
         # app/services/timeline/) so the browser SPA -- which authenticates
         # via session cookie, not an API token -- has routes it can call.
-        class WorkerTimelineController < BaseController
+        class WorkerTimelineController < Syrus::Host::AppAdminController
           before_action :require_worker_timeline_enabled
 
           def macro
             folder = active_smart_folder
             filter = ::Filters::SmartFolderResolution.call(
               filter_class: ::WorkerTimeline::MacroQueryFilter, subject: :worker_timeline,
-              params: params, active_smart_folder: folder, user: Current.user
+              params: params, active_smart_folder: folder, user: Syrus::Host::Current.user
             ).filter
 
             payload = ::Timeline::MacroQuery.call(
               from: filter.from,
               to: filter.to,
               expression: filter,
-              allowed_job_ids: ::Job.visible_to(Current.user).select(:id)
+              allowed_job_ids: ::Job.visible_to(Syrus::Host::Current.user).select(:id)
             )
             render json: payload.merge(
               filter: filter.to_h,
@@ -58,13 +58,13 @@ module Api
 
           def active_smart_folder
             @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
-              subject: :worker_timeline, user: Current.user, params: params
+              subject: :worker_timeline, user: Syrus::Host::Current.user, params: params
             )
           end
 
           def smart_folders
             ::Admin::SmartFolderNavigation.new(
-              subject: :worker_timeline, user: Current.user,
+              subject: :worker_timeline, user: Syrus::Host::Current.user,
               active_folder: active_smart_folder, base_scope: ::Workflow.none,
               filter_class: ::WorkerTimeline::MacroQueryFilter,
               count_provider: ->(folder) { smart_folder_count(folder) }
@@ -72,11 +72,11 @@ module Api
           end
 
           def smart_folder_count(folder)
-            Rails.cache.fetch([ "worker_timeline", "smart_folder_count", Current.user.id, folder.id, folder.updated_at.to_i ], expires_in: 1.minute) do
-              filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Current.user)
+            Rails.cache.fetch([ "worker_timeline", "smart_folder_count", Syrus::Host::Current.user.id, folder.id, folder.updated_at.to_i ], expires_in: 1.minute) do
+              filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Syrus::Host::Current.user)
               ::Timeline::MacroQuery.new(
                 from: filter.from, to: filter.to, expression: filter,
-                allowed_job_ids: ::Job.visible_to(Current.user).select(:id)
+                allowed_job_ids: ::Job.visible_to(Syrus::Host::Current.user).select(:id)
               ).capped_count
             end
           end

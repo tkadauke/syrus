@@ -19,7 +19,7 @@ module Whiteboard
     class << self
       def call(content:, x:, y:, server_context:, font_size: nil)
         content = content.to_s
-        return Mcp::Tools.invalid("content is required") if content.empty?
+        return Syrus::Host::McpTools.invalid("content is required") if content.empty?
 
         args = {
           "content" => content,
@@ -35,11 +35,11 @@ module Whiteboard
           { id: element.fetch("id") }
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

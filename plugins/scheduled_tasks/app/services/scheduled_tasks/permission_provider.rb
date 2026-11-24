@@ -15,7 +15,7 @@ module ScheduledTasks
   # data. Creation and immediate firing keep their pending-action lifecycle, and
   # the approved action re-validates repository write access when it runs.
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = AgentRole::CHAT_ROLES
     OBSERVE = "scheduled_tasks.observe@v1".freeze

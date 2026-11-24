@@ -19,7 +19,7 @@ module SyrusDev
         revision_scope: revision_scope,
         filter: filter_payload,
         filter_schema: filter_schema,
-        thresholds: PerformanceLogging.thresholds,
+        thresholds: Syrus::Host::PerformanceLogging.thresholds,
         storage: storage_payload,
         baseline: baseline_payload(baseline_revision, raw_events, current_summaries),
         summaries: summaries,

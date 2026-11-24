@@ -1,7 +1,7 @@
 module Api
   module V1
     module Admin
-      class MysqlController < BaseController
+      class MysqlController < Syrus::Host::AdminController
         before_action :require_admin_mysql_enabled
 
         def show

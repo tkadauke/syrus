@@ -1,6 +1,6 @@
 module AgentInsights
   class RepoPageTabs
-    include Syrus::Plugin::RepoPageTab
+    include Syrus::Host::RepoPageTab
 
     def self.repo_page_tabs(repository:, user:)
       return [] if repository.blank?

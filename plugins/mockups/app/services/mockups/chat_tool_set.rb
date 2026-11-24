@@ -41,7 +41,7 @@ module Mockups
           # Mockup previews render inside the chat's own preview sandbox. Essential: evaluated and audited, never deniable.
           essential: true
         }
-        definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
+        definition.merge(capability_descriptor: Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition))
       end
     end
 

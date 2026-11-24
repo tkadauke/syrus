@@ -34,7 +34,7 @@ module ThemingTools
       def call(theme_id:, server_context:, name: nil, light: nil, dark: nil, shape: nil, shadow: nil, spacing: nil, density: nil, typography: nil)
         user = server_context.fetch(:chat_session).user
         theme = Theme.where(owner_user: user, built_in: false).find_by(id: theme_id)
-        return Mcp::Tools.invalid("No custom theme with id #{theme_id} owned by you was found.") unless theme
+        return Syrus::Host::McpTools.invalid("No custom theme with id #{theme_id} owned by you was found.") unless theme
 
         previous_theme = theme.public_payload
         baseline = theme.tokens
@@ -45,12 +45,12 @@ module ThemingTools
         }.merge(ExtendedTokenSchema.merge_groups(baseline, shape: shape, shadow: shadow, spacing: spacing, density: density, typography: typography))
 
         issues = theme.contrast_issues
-        return Mcp::Tools.invalid(rejection_message(issues)) if issues.any?
+        return Syrus::Host::McpTools.invalid(rejection_message(issues)) if issues.any?
 
         if theme.save
-          Mcp::Tools.success(theme.public_payload.merge(previous_theme: previous_theme))
+          Syrus::Host::McpTools.success(theme.public_payload.merge(previous_theme: previous_theme))
         else
-          Mcp::Tools.invalid(theme.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(theme.errors.full_messages.to_sentence)
         end
       end
 

@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocVersion < ApplicationRecord
+  class DesignDocVersion < Syrus::Host::Record
     self.table_name = "design_doc_versions"
 
     ACTOR_KINDS = %w[user agent system].freeze

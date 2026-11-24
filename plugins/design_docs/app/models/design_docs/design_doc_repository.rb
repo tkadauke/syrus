@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocRepository < ApplicationRecord
+  class DesignDocRepository < Syrus::Host::Record
     self.table_name = "design_doc_repositories"
 
     belongs_to :design_doc, class_name: "DesignDocs::DesignDoc"

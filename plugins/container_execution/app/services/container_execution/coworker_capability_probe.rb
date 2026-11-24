@@ -3,7 +3,7 @@ require "uri"
 
 module ContainerExecution
   class CoworkerCapabilityProbe
-    include Syrus::Plugin::WorkerCapabilityProbe
+    include Syrus::Host::WorkerCapabilityProbe
 
     RUNTIME_TOKEN = "confined_coworker".freeze
     PROVIDERS = %w[CODEX CLAUDE MUSE AGY].freeze
