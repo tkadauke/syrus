@@ -193,3 +193,21 @@ cannot do it.
 8. Switch to a second server, sign in, and confirm the device registers there and
    not on the first.
 
+
+## Shell failure states
+
+The web shell attributes every load failure to a source so testers can tell
+where to look (`Syrus/Web/WebFailure.swift`):
+
+| Source | Examples | Recovery |
+| --- | --- | --- |
+| Network problem | offline, timeout, DNS/host unreachable | auto-retries when connectivity returns or the app foregrounds; **Try again** |
+| Server problem | HTTP 5xx, untrusted certificate, TLS failure, dropped connection | **Try again** (hidden for certificate errors), **Change server** |
+| Session expired | main-frame HTTP 401/403 | **Sign in again** restarts at the server root |
+| App problem | web content process killed repeatedly | **Try again** |
+
+Other shell behaviors: a banner shows while offline with a page loaded;
+attachments and non-renderable responses download and open the share sheet;
+pull-to-refresh keeps its spinner until the reload finishes; the keyboard
+shrinks the web view; errors are announced to VoiceOver and the error screen
+scales with Dynamic Type.
