@@ -30,6 +30,7 @@ class User < ApplicationRecord
   has_many :pinned_jobs, through: :job_pins, source: :job
   has_many :diff_review_comments, dependent: :destroy
   has_many :notifications, dependent: :destroy
+  has_many :mobile_devices, dependent: :destroy
   has_many :smart_folders, dependent: :destroy
   has_many :tags, dependent: :destroy
   has_many :cognitive_engagement_events, dependent: :destroy
