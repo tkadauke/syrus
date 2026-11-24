@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+# Extracts a build's source archive and resolves its context and Dockerfile.
+# It runs inside the builder's private user+mount namespace, against the
+# size-bounded tmpfs, so extraction is limited by the kernel (ENOSPC) rather
+# than by an estimate of the host filesystem's allocation behavior.
+#
+# usage: extract-runtime-image-source ARCHIVE DEST WORK REJECT_FILE MAX_BYTES MAX_ENTRIES CONTEXT DOCKERFILE
+# Writes WORK/context and WORK/dockerfile symlinks. On rejection it writes
+# {"code","message"} JSON to REJECT_FILE and exits 3.
+require "json"
+
+module RuntimeImages
+  module Builds
+    class Error < StandardError; end
+
+    class Rejected < Error
+      attr_reader :code
+
+      def initialize(code, message = code.to_s)
+        @code = code.to_s
+        super(message)
+      end
+    end
+  end
+end
+
+dir = File.expand_path("../app/services/runtime_images/builds", __dir__)
+load File.join(dir, "build_paths.rb")
+load File.join(dir, "source_extractor.rb")
+
+archive, dest, work, reject_file, max_bytes, max_entries, context_rel, dockerfile_rel = ARGV
+begin
+  extractor = RuntimeImages::Builds::SourceExtractor.new(max_bytes: Integer(max_bytes), max_entries: Integer(max_entries))
+  extractor.extract(archive, dest)
+  paths = RuntimeImages::Builds::BuildPaths
+  context = paths.resolve!(dest, context_rel, what: "context path")
+  raise RuntimeImages::Builds::Rejected.new("path_invalid", "context path is not a directory") unless File.directory?(context)
+  dockerfile = paths.resolve!(context, dockerfile_rel, what: "Dockerfile path")
+  raise RuntimeImages::Builds::Rejected.new("path_invalid", "Dockerfile is not a regular file") unless File.file?(dockerfile)
+  File.symlink(context, File.join(work, "context"))
+  File.symlink(dockerfile, File.join(work, "dockerfile"))
+rescue RuntimeImages::Builds::Rejected => e
+  File.write(reject_file, JSON.generate("code" => e.code, "message" => e.message))
+  exit 3
+rescue Errno::ENOSPC, Errno::EDQUOT
+  File.write(reject_file, JSON.generate("code" => "source_too_large", "message" => "source does not fit the build storage ceiling"))
+  exit 3
+end

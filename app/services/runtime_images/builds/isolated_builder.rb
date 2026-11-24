@@ -25,6 +25,8 @@ module RuntimeImages
     #  - CPU, memory, PIDs, wall-clock duration, log volume, scratch
     #    storage, and output archive size all have ceilings.
     class IsolatedBuilder
+      EXTRACT_SCRIPT = Rails.root.join("bin/extract-runtime-image-source")
+      REJECT_FILE = "source.rejected.json"
       NAMESPACE_PREFIX = %w[unshare --user --map-root-user --mount --].freeze
 
       # Fails closed when the worker cannot actually confine the build: a root
@@ -87,12 +89,10 @@ module RuntimeImages
         end
       end
 
-      def initialize(launcher: Launcher.new("prepare"), data_root: nil, extractor: SourceExtractor.new,
-                     confinement: Confinement.new)
+      def initialize(launcher: Launcher.new("prepare"), data_root: nil, confinement: Confinement.new)
         @launcher = launcher
         @confinement = confinement
         @data_root = data_root
-        @extractor = extractor
       end
 
       def build(request:, attempt:, control:)
@@ -101,11 +101,9 @@ module RuntimeImages
         build_root = root.join("builds")
         FileUtils.mkdir_p(build_root)
         Dir.mktmpdir("build-#{request.id}-", build_root.to_s) do |scratch|
-          source_dir = File.join(scratch, "source")
-          archive_digest = extract_source!(request, source_dir)
-          context = resolve_context!(source_dir, request.source_manifest["context_path"], recipe)
+          archive_digest = stage_source!(request, scratch)
           output = File.join(scratch, "image.tar")
-          run_build(request, control, scratch: scratch, context: context, recipe: recipe, output: output)
+          run_build(request, control, scratch: scratch, recipe: recipe, output: output, recipe_paths: context_paths(request, recipe))
           Output.new(payload: read_output!(output, request.platform), source_digest: request.source_digest,
                      provenance: provenance(request, archive_digest))
         end
@@ -135,13 +133,14 @@ module RuntimeImages
         recipe
       end
 
-      def extract_source!(request, dir)
+      # Downloads the raw archive (one file, capped by the source and storage
+      # ceilings) to host scratch and checks it against the captured digest.
+      # Unpacking happens later, inside the bounded tmpfs namespace.
+      def stage_source!(request, scratch)
         raise Rejected.new("source_missing", "build request has no source archive") unless request.source_archive.attached?
 
-        archive = File.join(File.dirname(dir), "source.archive")
+        archive = File.join(scratch, "source.archive")
         blob = request.source_archive.blob
-        # Raw archive plus extracted tree share host scratch before the bounded
-        # tmpfs exists, so together they must fit the storage ceiling.
         ceiling = [ Config.max_source_bytes, Config.build_storage_bytes ].min
         if blob.byte_size > ceiling
           raise Rejected.new("source_too_large", "source archive is #{blob.byte_size} bytes, over the #{ceiling} byte limit")
@@ -158,34 +157,26 @@ module RuntimeImages
             file.write(chunk)
           end
         end
-        # Charge the archive's own allocation (rounded blocks plus inode) on this
-        # filesystem, not its logical size, before budgeting the extracted tree.
-        remaining = Config.build_storage_bytes - @extractor.allocated_bytes(written, archive)
-        digest = @extractor.extract(archive, dir, max_bytes: [ remaining, 0 ].max)
+        digest = "sha256:#{Digest::SHA256.file(archive).hexdigest}"
         revision = request.source_manifest["revision"].to_s
         if revision.start_with?("sha256:") && revision != digest
           raise Rejected.new("source_mismatch", "source archive digest #{digest} does not match captured #{revision}")
         end
-        FileUtils.rm_f(archive)
         digest
       end
 
-      def resolve_context!(source_dir, captured_context, recipe)
-        context_rel = BuildPaths.relative!(recipe["context"] || captured_context || ".", what: "context path")
-        context = BuildPaths.resolve!(source_dir, context_rel, what: "context path")
-        raise Rejected.new("path_invalid", "context path is not a directory") unless File.directory?(context)
-
-        dockerfile_rel = BuildPaths.relative!(recipe["dockerfile"] || "Dockerfile", what: "Dockerfile path")
-        dockerfile = BuildPaths.resolve!(context, dockerfile_rel, what: "Dockerfile path")
-        raise Rejected.new("path_invalid", "Dockerfile is not a regular file") unless File.file?(dockerfile)
-
-        { dir: context, dockerfile: dockerfile }
+      # Lexically validated context and Dockerfile paths; resolution against
+      # the real tree (symlink escape) happens in the extraction script.
+      def context_paths(request, recipe)
+        context = BuildPaths.relative!(recipe["context"] || request.source_manifest["context_path"] || ".", what: "context path")
+        dockerfile = BuildPaths.relative!(recipe["dockerfile"] || "Dockerfile", what: "Dockerfile path")
+        [ context, dockerfile ]
       end
 
       # One command for the whole build: build and push share the bounded
       # tmpfs (it only exists inside the namespace), and the process tree is
       # bounded by prlimit plus the per-spawn cgroup.
-      def run_build(request, control, scratch:, context:, recipe:, output:)
+      def run_build(request, control, scratch:, recipe:, output:, recipe_paths:)
         deadline = monotonic + Config.build_duration
         logged = 0
         failure = nil
@@ -207,7 +198,7 @@ module RuntimeImages
 
         work = File.join(scratch, "work")
         FileUtils.mkdir_p(work)
-        command = limited(wrapped(work, build_command(request, work, context, recipe), push_command(work, output)))
+        command = limited(wrapped(scratch, work, recipe_paths, build_command(request, work, recipe), push_command(work, output)))
         remaining = deadline - monotonic
         raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") unless remaining.positive?
 
@@ -215,6 +206,7 @@ module RuntimeImages
                                 timeout: remaining, resource_limits: resource_limits, stop_requested: stop, on_output_chunk: on_chunk)
         control.raise_if_canceled!
         @confinement.verify_applied!(result)
+        raise_if_source_rejected!(scratch)
         check_storage!(scratch)
         raise BuildFailed.new(failure.last, code: failure.first) if failure
         raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") if result.timed_out?
@@ -223,13 +215,25 @@ module RuntimeImages
       end
 
       # Mounts a size-bounded tmpfs at +work+ inside a private user+mount
-      # namespace, then runs build and push against it. Writes past the size
-      # fail with ENOSPC in the kernel; nothing is left on the host disk.
-      def wrapped(work, build, push)
+      # namespace, unpacks the source onto it, then runs build and push against
+      # it. Writes past the size fail with ENOSPC in the kernel; nothing but the
+      # one raw archive is left on the host disk.
+      def wrapped(scratch, work, paths, build, push)
+        extract = [ RbConfig.ruby, EXTRACT_SCRIPT.to_s, File.join(scratch, "source.archive"), File.join(work, "source"), work,
+                    File.join(scratch, REJECT_FILE), Config.max_source_bytes.to_s, Config.max_source_entries.to_s, *paths ]
         script = "set -eu; mount -t tmpfs -o size=#{Config.build_storage_bytes},mode=0700 tmpfs #{Shellwords.escape(work)}; " \
                  "mkdir -p #{Shellwords.escape(File.join(work, "home"))} #{Shellwords.escape(File.join(work, "tmp"))}; " \
+                 "#{Shellwords.join(extract)}; " \
                  "#{Shellwords.join(build)} && #{Shellwords.join(push)}"
         [ *NAMESPACE_PREFIX, "sh", "-c", script ]
+      end
+
+      def raise_if_source_rejected!(scratch)
+        path = File.join(scratch, REJECT_FILE)
+        return unless File.exist?(path)
+
+        info = JSON.parse(File.read(path))
+        raise BuildFailed.new(info["message"].to_s, code: info["code"].to_s, retryable: false)
       end
 
       # Hard per-process ceilings inherited by the whole builder tree: process
@@ -254,15 +258,15 @@ module RuntimeImages
         raise BuildFailed.new(failure.last, code: failure.first) if failure
       end
 
-      def build_command(request, work, context, recipe)
+      def build_command(request, work, recipe)
         cmd = [ *base(work), "build", "--isolation", "chroot", "--platform", request.platform, "--format", "oci",
                 "--layers=false", "--memory", Config.build_memory_bytes.to_s,
                 "--cpu-period", "100000", "--cpu-quota", (Config.build_cpus * 100_000).to_i.to_s,
                 "--ulimit", "nproc=#{Config.build_pids}:#{Config.build_pids}",
-                "--file", context[:dockerfile], "--tag", IMAGE_TAG ]
+                "--file", File.join(work, "dockerfile"), "--tag", IMAGE_TAG ]
         cmd += [ "--target", recipe["target"].to_s ] if recipe["target"]
         Hash(recipe["build_args"]).sort.each { |name, value| cmd += [ "--build-arg", "#{name}=#{value}" ] }
-        cmd << context[:dir]
+        cmd << File.join(work, "context")
       end
 
       def push_command(work, output) = [ *base(work), "push", IMAGE_TAG, "oci-archive:#{output}" ]
