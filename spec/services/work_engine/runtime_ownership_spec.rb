@@ -97,13 +97,13 @@ RSpec.describe WorkEngine::RuntimeOwnership do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
 
-    def preserved_train_for(job, attempt_state: :pending, train_state: "landing")
+    def preserved_train_for(job, attempt_state: :pending, train_state: "landing", scheduled_at: 30.seconds.from_now)
       train = MergeTrain.create!(repository: repository, base_branch: "main", state: train_state, priority: "medium")
       MergeTrainMember.create!(merge_train: train, job: job, position: 0)
       workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "failed", artifacts: { "merge_train_id" => train.id })
       AutoRetryAttempt.create!(
         job: job, workflow: workflow, agent_provider: "claude", failure_classification: "landing_validation_unproven",
-        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND, attempt_number: 1, scheduled_at: 30.seconds.from_now,
+        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND, attempt_number: 1, scheduled_at: scheduled_at,
         performed_at: attempt_state == :performed ? Time.current : nil
       )
       train
@@ -124,6 +124,24 @@ RSpec.describe WorkEngine::RuntimeOwnership do
 
       expect(described_class.active_landing_work_for_job?(performed)).to be(false)
       expect(described_class.active_landing_work_for_job?(finished)).to be(false)
+    end
+
+    # The relaunch is scheduled 30 seconds out. An attempt still pending long
+    # after that never ran (its AutoRetryJob raised and failed, for one), and
+    # counting it as landing work forever hid the stuck train from the
+    # reconciler, which before this window existed would have deferred it.
+    it "stops counting a relaunch that is long overdue" do
+      job = Factories.job_record(user: user, repository: repository, state: "landing", pr_number: 14, branch_name: "syrus/d", issue_number: 14)
+      preserved_train_for(job, scheduled_at: 2.hours.ago)
+
+      expect(described_class.active_landing_work_for_job?(job)).to be(false)
+    end
+
+    it "still counts a relaunch that is due but within the grace" do
+      job = Factories.job_record(user: user, repository: repository, state: "landing", pr_number: 15, branch_name: "syrus/e", issue_number: 15)
+      preserved_train_for(job, scheduled_at: 1.minute.ago)
+
+      expect(described_class.active_landing_work_for_job?(job)).to be(true)
     end
   end
 

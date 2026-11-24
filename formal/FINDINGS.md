@@ -4658,6 +4658,29 @@ before; it also pins that `safe_constantize` and a printed name stay allowed).
 `spec/services/formal/plugin_deletion_spec.rb`,
 `spec/formal/plugin_deletion_conformance_spec.rb`.
 
+## F127. A preserved merge-train relaunch that never ran hid the train from the reconciler forever — fixed
+
+**Before.** Main's `0654328aad` made `WorkEngine::RuntimeOwnership` count a
+pending preserved-relaunch `AutoRetryAttempt` as landing work, so the
+reconciler stops deferring a preserved train's members during the 30 seconds
+before the relaunch. The window had no end. `AutoRetryJob` discards only on
+`RecordNotFound`, so any other exception leaves a failed SolidQueue execution
+and the attempt pending forever. `prune_stale_pending!` has no "overdue" reason
+and the reconciler has no check for an overdue attempt. Such a train's members
+then sat in landing with no active work and nothing noticing. Before the
+change, the reconciler's orphaned-landing check would at least have deferred
+them.
+
+**Fix.** Only an attempt whose `scheduled_at` is within
+`PRESERVED_RELAUNCH_GRACE` (15 minutes) counts. A relaunch still pending past
+that is treated as lost, and the reconciler's orphaned-landing-slot handling
+applies again.
+
+**Specs.** `spec/services/work_engine/runtime_ownership_spec.rb` "stops counting
+a relaunch that is long overdue" (red before) and "still counts a relaunch that
+is due but within the grace". The engine, merge-train and formal specs pass
+(1,470 examples).
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
@@ -5387,6 +5410,34 @@ reused test database.
 the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
+
+## M79. Main through `0654328aad`
+
+- **"Keep members approved when a preserved merge train cannot relaunch"**
+  (`0654328aad`). *Relied-on invariant:* a pending preserved relaunch will run.
+  Counterexample: an `AutoRetryJob` that raises leaves it pending forever.
+  Fixed as F127. Teardown deferring members, keeping their approval instead of
+  failing them, holds: it only follows a preservation decision, which means no
+  member was blamed.
+- **"Let an adjudicated grader failure leave landing evidence the gate
+  honours"** (`c3c430cf1a`). *Relied-on invariant:* an accepted failure is
+  evidence only for the exact head it was graded on. Holds: the target carries
+  its adjudicator and the gate applies the same exact-head SHA and fingerprint
+  binding as a pass. Main updated `ValidationGate.lean` to prove an unaccepted
+  failure never passes.
+- **"Only call a failing test flaky when it flipped on the same commit"**
+  (`d0fb59c0cf`). This narrows `KnownFlakyFailure`: a test counts as flaky only
+  if it both passed and failed on one head SHA, and providers that cannot say
+  decline. It only removes acceptances, so it cannot let a failure through.
+- **"Classify a required MCP tool call that failed in the sidecar as
+  infrastructure"** (`0a8cf1c7db`). This applies only when the Run's own MCP
+  usage shows the tool was called and never completed. *Relied-on invariant:*
+  the reclassified failure still retries a bounded number of times. Holds: it
+  is retryable infrastructure, capped by `INFRASTRUCTURE_STEP_RETRY_LIMIT`
+  (`CascadeReplay.lean`, `replay_terminates`).
+- **"Bound MySQL socket operations on the macOS worker"** (`f61402d29c`).
+  Optional connect, read and write timeouts, set only by `bin/macos-worker`.
+  Worker configuration.
 
 ## M78. Main through `cb9c48211b`
 
@@ -7412,7 +7463,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `cb9c48211b`. Each loop iteration continues from there:
+Checked through main `0654328aad`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

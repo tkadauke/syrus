@@ -34,12 +34,19 @@ module WorkEngine
     # orphaned let the reconciler defer the anchor Job, the relaunch was then
     # refused because the Job was "already approved", and teardown failed
     # every other member out of landing.
+    PRESERVED_RELAUNCH_GRACE = 15.minutes
+
     def pending_preserved_merge_train_relaunch?
       train_ids = MergeTrain.active.joins(:members).where(merge_train_members: { job_id: job.id }).pluck(:id)
       return false if train_ids.empty?
 
+      # Only while the relaunch can still be expected: it is scheduled about
+      # 30 seconds out, so one still pending long after that never ran (its
+      # AutoRetryJob failed), and counting it forever would hide the stuck
+      # train from the reconciler that would otherwise act on it.
       AutoRetryAttempt.pending
         .where(retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND)
+        .where("scheduled_at > ?", PRESERVED_RELAUNCH_GRACE.ago)
         .includes(:workflow)
         .any? { |attempt| attempt.workflow && train_ids.include?(attempt.workflow.artifact("merge_train_id").to_i) }
     end
