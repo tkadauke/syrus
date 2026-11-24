@@ -10,7 +10,7 @@ module AgentActivity
     def self.call(...) = new(...).call
 
     def self.base_relation
-      Agent
+      Syrus::Host::AgentRecord
         .where(agent_process_exists_sql)
     end
 

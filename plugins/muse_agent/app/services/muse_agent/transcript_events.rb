@@ -12,12 +12,12 @@ module MuseAgent
         [ muse_system_init_event(payload, timestamp) ]
       when "turn.input.user", "user.message", "message.user"
         text = muse_payload_text(payload)
-        text.present? ? [ ClaudeTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: text }) ] : []
+        text.present? ? [ Syrus::Host::AgentTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: text }) ] : []
       when "run.output.delta", "run.output.text", "assistant.message", "assistant.text", "message.assistant"
         text = muse_payload_text(payload)
-        text.present? ? [ ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ] : []
+        text.present? ? [ Syrus::Host::AgentTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ] : []
       when "tool.call", "tool_call", "tool.use", "mcp.tool_call", "mcp.tool.call", "msp.tool_call", "msp.tool.call"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: {
@@ -35,7 +35,7 @@ module MuseAgent
       when "tool_result_batch_committed"
         muse_tool_batch_result_events(payload, timestamp)
       when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
@@ -46,7 +46,7 @@ module MuseAgent
           }.compact
         ) ]
       when /\Atask\.lifecycle\./
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :other,
           timestamp: timestamp,
           data: {
@@ -57,7 +57,7 @@ module MuseAgent
           }.compact
         ) ]
       when "run.terminal.completed"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :result,
           timestamp: timestamp,
           data: {
@@ -72,7 +72,7 @@ module MuseAgent
           }.compact
         ) ]
       when "run.terminal.failed", "run.terminal.error"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :result,
           timestamp: timestamp,
           data: {
@@ -86,7 +86,7 @@ module MuseAgent
           }.compact
         ) ]
       else
-        [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
       end
     end
 
@@ -103,9 +103,9 @@ module MuseAgent
     def muse_side_effect_tool_event(payload, timestamp)
       event = payload["event"].is_a?(Hash) ? payload["event"] : {}
       operation = event["operation"].to_s
-      return [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "task.lifecycle.side_effect_intent" }) ] unless operation.start_with?("tool:")
+      return [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "task.lifecycle.side_effect_intent" }) ] unless operation.start_with?("tool:")
 
-      [ ClaudeTranscript::Event.new(
+      [ Syrus::Host::AgentTranscript::Event.new(
         kind: :tool_use,
         timestamp: timestamp,
         data: {
@@ -121,7 +121,7 @@ module MuseAgent
         name = muse_tool_record_name(effect)
         next if name.blank?
 
-        ClaudeTranscript::Event.new(
+        Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: {
@@ -131,12 +131,12 @@ module MuseAgent
           }.compact
         )
       end
-      events.presence || [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_batch.effect" }) ]
+      events.presence || [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_batch.effect" }) ]
     end
 
     def muse_tool_batch_result_events(payload, timestamp)
       events = muse_tool_batch_effects(payload).map do |effect|
-        ClaudeTranscript::Event.new(
+        Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
@@ -147,11 +147,11 @@ module MuseAgent
           }.compact
         )
       end
-      events.presence || [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_result_batch_committed" }) ]
+      events.presence || [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_result_batch_committed" }) ]
     end
 
     def muse_system_init_event(payload, timestamp)
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :system_init,
         timestamp: timestamp,
         data: {

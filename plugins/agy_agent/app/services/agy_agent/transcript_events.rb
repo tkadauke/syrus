@@ -15,12 +15,12 @@ module AgyAgent
       when "error"
         [ agy_error_event(parsed, timestamp) ]
       else
-        [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
       end
     end
 
     def agy_init_event(parsed, timestamp)
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :system_init,
         timestamp: timestamp,
         data: {
@@ -36,17 +36,17 @@ module AgyAgent
       text = parsed.dig("message", "content").presence || parsed["content"].presence || parsed["text"].presence
       return if text.blank?
 
-      ClaudeTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: text })
+      Syrus::Host::AgentTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: text })
     end
 
     def agy_step_update_events(parsed, timestamp)
       events = []
       text = parsed.dig("message", "content").presence || parsed["content"].presence || parsed["text"].presence
-      events << ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) if text.present?
+      events << Syrus::Host::AgentTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) if text.present?
 
       tool_call = parsed["tool_call"] || parsed["toolUse"] || parsed["tool_use"]
       if tool_call.is_a?(Hash)
-        events << ClaudeTranscript::Event.new(
+        events << Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: {
@@ -59,7 +59,7 @@ module AgyAgent
 
       tool_result = parsed["tool_result"] || parsed["toolResult"]
       if tool_result.is_a?(Hash)
-        events << ClaudeTranscript::Event.new(
+        events << Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
@@ -71,12 +71,12 @@ module AgyAgent
         )
       end
 
-      events.presence || [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+      events.presence || [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
     end
 
     def agy_result_event(parsed, timestamp)
       usage = parsed["usage"] || {}
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :result,
         timestamp: timestamp,
         data: {
@@ -92,7 +92,7 @@ module AgyAgent
     end
 
     def agy_error_event(parsed, timestamp)
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :result,
         timestamp: timestamp,
         data: {

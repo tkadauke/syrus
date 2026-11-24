@@ -7,7 +7,7 @@ module Coworkers
       @base_sha = workspace_head
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking coworker for background run (#{workflow.slug})")
-      result = run_agent(prompt: run.prompt, workload_policy: Syrus::Host::ChatWorkloadPolicy.for_current_setting)
+      result = run_agent(prompt: run.prompt, workload_policy: Syrus::Host::AgentRuntime.chat_workload_policy)
       run.update!(agent_summary: result.final_text.to_s.strip.presence)
       @written_paths = claims_present? ? written_paths : Set.new
       persist_workspace!

@@ -37,7 +37,7 @@ module AgentMemory
           AgentMemory::Entry.active
                     .where(scope: "repository", scope_id: context.repository.id)
                     .where("agent_memory_entries.user_id = ? OR agent_memory_entries.published = ?", context.user.id, true)
-        elsif context.role == AgentRole::COWORKER_CHAT
+        elsif context.role == Syrus::Host::AgentRole::COWORKER_CHAT
           owned = AgentMemory::Entry.active.where(user_id: context.user.id, scope: COWORKER_READ_SCOPES)
           published = AgentMemory::Entry.active.where.not(user_id: context.user.id)
                                          .where(scope: "repository", scope_id: memory_repository_ids(context), published: true)
@@ -56,7 +56,7 @@ module AgentMemory
         memory = AgentMemory::Entry.active.find_by(id: id)
         return unless memory
         if memory.user_id == context.user.id
-          return memory unless context.role == AgentRole::COWORKER_CHAT
+          return memory unless context.role == Syrus::Host::AgentRole::COWORKER_CHAT
           return memory if COWORKER_READ_SCOPES.include?(memory.scope)
         end
 
@@ -70,7 +70,7 @@ module AgentMemory
       end
 
       def memory_repository_ids(context)
-        return context.allowed_repository_ids unless context.role == AgentRole::COWORKER_CHAT
+        return context.allowed_repository_ids unless context.role == Syrus::Host::AgentRole::COWORKER_CHAT
 
         Syrus::Host::RepositoryRecord.accessible_repository_ids_for(context.user).pluck(:id)
       end

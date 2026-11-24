@@ -4,6 +4,8 @@ require "syrus/host/backup_destination"
 require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
 require "syrus/host/agent_runtime"
+require "syrus/host/agent_prompts"
+require "syrus/host/skill_catalog"
 require "syrus/host/runtime_images"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
@@ -24,6 +26,29 @@ module Syrus
   module Host
     module PublicApis
       ALIASES = {
+        AgentRole: "AgentRole",
+        AgentRecord: "Agent",
+        AgentProviderRegistry: "AgentProviders",
+        AgentProviderBase: "AgentProviders::Base",
+        AgentProviderConfigurationError: "AgentProviders::ConfigurationError",
+        AgentSessionStore: "AgentProviders::SessionStore",
+        ChatProviderBase: "ChatProviders::Base",
+        ChatProviderConfigurationError: "ChatProviders::ConfigurationError",
+        AgentTranscript: "ClaudeTranscript",
+        AgentEventAbbreviator: "AgentEventAbbreviator",
+        AgentSidecarEnvironment: "AgentSidecarEnvironment",
+        ProviderAuthFailure: "ProviderAuthFailure",
+        ProviderUsageLimit: "ProviderUsageLimit",
+        ProviderModelUnsupported: "ProviderModelUnsupported",
+        ProviderAvailabilityEvidence: "ProviderAvailabilityEvidence",
+        ProviderRateLimitEvidence: "ProviderRateLimitEvidence",
+        ProviderQuotaReset: "ProviderQuotaReset",
+        ProviderSession: "ProviderSession",
+        CodexAccountScope: "CodexAccountScope",
+        RebaseAttemptGuard: "RebaseAttemptGuard",
+        PlatformIdentityRecord: "PlatformIdentity",
+        PlatformConfigBase: "PlatformIdentity::PlatformConfig::Base",
+        AdversarialReviewPrompt: "Prompts::AdversarialReview",
         PluginApi: "Syrus::PluginApi",
         AgentProvider: "Syrus::Plugin::AgentProvider",
         AdminPage: "Syrus::Plugin::AdminPage",
@@ -267,6 +292,29 @@ module Syrus
       }.freeze
 
       ALIAS_CONTRACTS = {
+        AgentRole: [ "Names the agent roles a plugin may pass as the role of a tool context or workflow run and the CHAT_ROLES and WORKFLOW_ROLES groupings of them; only the listed role identifiers are promised, not authorization derived from them.", %w[AGENT_INSIGHT CHAT_CODING CHAT_LOCAL CHAT_PLANNER CHAT_ROLES COWORKER COWORKER_CHAT WORKFLOW_ADVERSARIAL_REVIEWER WORKFLOW_COWORKER_REVIEWER WORKFLOW_IMPLEMENT WORKFLOW_MANUAL WORKFLOW_ROLES WORKFLOW_VISUAL_REVIEWER] ],
+        AgentRecord: [ "The durable identity of an agent session; find_or_create_for! resolves it for a run, chat session or design doc. Columns and other associations are not promised.", %w[find_or_create_for! where] ],
+        AgentProviderRegistry: [ "Resolves an agent provider class by key (for) and runs a one-shot prompt through one (run_one_shot); provider selection and availability policy are not promised.", %w[for run_one_shot] ],
+        AgentProviderBase: [ "Bases agent-provider classes plugins contribute; only subclassing is promised, with the hooks AgentProvider documents.", %w[new] ],
+        AgentProviderConfigurationError: [ "Raised by a provider when it is not configured for the requesting user; callers treat it as unavailable rather than failed.", %w[new message] ],
+        AgentSessionStore: [ "Reads the stored transcript of a provider session for a job; storage layout is not promised.", %w[transcript_for] ],
+        ChatProviderBase: [ "Bases chat-provider classes plugins contribute alongside an agent provider; only subclassing is promised.", %w[new] ],
+        ChatProviderConfigurationError: [ "Raised by a chat provider when it is not configured for the requesting user.", %w[new message] ],
+        AgentTranscript: [ "Parses a provider's JSONL transcript into events and defines the Event value (kind, timestamp, data) providers emit; the parsing rules are not promised.", %w[new events Event] ],
+        AgentEventAbbreviator: [ "Abbreviates tool use and tool results into the compact form shown in transcripts; the abbreviation rules may change between releases.", %w[tool_use tool_result] ],
+        AgentSidecarEnvironment: [ "Filters the environment passed to an agent's MCP sidecar server config; the allowed keys may change between releases.", %w[filter_for_agent_config] ],
+        ProviderAuthFailure: [ "Detects provider authentication failures in output text and names the OUTCOME a run records for one; the detection patterns may grow. Provider outcome classes are promised together.", %w[detect? OUTCOME] ],
+        ProviderUsageLimit: [ "Detects provider usage-limit failures in output text, names the OUTCOME a run records for one, and flags suspicious model names; the detection patterns may grow.", %w[detect? suspicious_model? OUTCOME] ],
+        ProviderModelUnsupported: [ "Detects a provider rejecting the requested model and names the OUTCOME a run records for it; the detection patterns may grow.", %w[detect? OUTCOME] ],
+        ProviderAvailabilityEvidence: [ "Records and queries per-user provider availability evidence from credential and usage probes; columns and suppression rules beyond the listed members are not promised.", %w[create! where sanitized_details record_claude_probe! record_codex_probe! false_positive_codex_usage_limit? suppressed_by_positive_after?] ],
+        ProviderRateLimitEvidence: [ "Recognizes rate-limit wording in probe output; the patterns may grow.", %w[text_match?] ],
+        ProviderQuotaReset: [ "Carries the RETRY_BUFFER added to a provider's reported quota reset time before retrying.", %w[RETRY_BUFFER] ],
+        ProviderSession: [ "Locates a provider's on-disk session transcripts (canonical_path_for, canonical_subagents_dir_for) and its recorded session rows (find_by); file layout beyond those paths is not promised.", %w[canonical_path_for canonical_subagents_dir_for find_by] ],
+        CodexAccountScope: [ "Derives the Codex usage-account scope for a user; the derivation may change between releases.", %w[for_user] ],
+        RebaseAttemptGuard: [ "Counts consecutive failed rebase attempts for a job (consecutive_failures) and names the MEMORY_WRITE_RETRY_STORM_THRESHOLD at which memory writes are held back; the rest of the rebase retry policy is not promised.", %w[consecutive_failures MEMORY_WRITE_RETRY_STORM_THRESHOLD] ],
+        PlatformIdentityRecord: [ "Finds or creates the identity a chat-platform user maps to; columns and linking policy beyond find_or_initialize_by are not promised.", %w[find_or_initialize_by] ],
+        PlatformConfigBase: [ "Bases the per-platform configuration class a chat-platform plugin defines; only subclassing is promised.", %w[new] ],
+        AdversarialReviewPrompt: [ "Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change.", %w[new] ],
         PluginApi: [ "Declares and installs plugin manifests; Definition internals are not promised.", %w[syrus_plugin syrus_plugin_definition register! enabled?] ],
         AgentProvider: [ "Supplies the optional agent-provider class hooks that plugins may override; invocation orchestration and undeclared provider methods are not promised.", %w[mcp_tool_name evidence_reset_at false_positive_evidence? suppress_usage_limit_run? ignore_model_for_positive_evidence? usage_signal_account_id usage_snapshot usage_status usage_observed_at availability_evidence_observed_at usage_windows configured_for_user? credential_attributes available_models] ],
         AdminPage: [ "Supplies admin navigation and route metadata; host navigation implementation details are not promised.", %w[admin_pages] ],
@@ -522,7 +570,9 @@ module Syrus
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
         RuntimeImages: [ "Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.", %w[available? find publish_local acquire active_base request_build retain revoke delete audit] ],
-        AgentRuntime: [ "Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler] ],
+        AgentRuntime: [ "Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler chat_workload_policy] ],
+        AgentPrompts: [ "Renders shared prompt fragments for plugin agent prompts: memory_context, chat_system, git_safety_text and submit_summary_instructions_text; the fragment wording may change between releases.", %w[memory_context chat_system git_safety_text submit_summary_instructions_text] ],
+        SkillCatalog: [ "Resolves, validates and renders named skills (resolve, validate_arguments!, render) and exposes the name_pattern and the resolution_errors and argument_errors they raise; skill discovery and markdown parsing are not promised.", %w[name_pattern resolve validate_arguments! render resolution_errors argument_errors] ],
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 
