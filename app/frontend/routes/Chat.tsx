@@ -1435,7 +1435,8 @@ function ChatWorkspace({
   }, [initialLinkedTab, isDesktop, panelCollapsed, showMobileChatColumn])
 
   useEffect(() => {
-    if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
+    // Only repair a selection that vanished; a null selection stays null so a newly appearing tab is badged, not auto-selected.
+    if (activeTab !== null && !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload])
 
