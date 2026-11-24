@@ -43,6 +43,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     git = instance_double(GitRunner)
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
+    allow(handler).to receive(:quiet_git).and_return(git) if handler.respond_to?(:quiet_git, true)
     # Per-member LandedCommit capture calls "rev-parse <integration branch>"
     # before/after each member is integrated; default both calls to the same
     # unstubbed value so previous_tip == new_tip and no commit gets recorded
@@ -1434,6 +1435,24 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         expect(a.reload).to be_closed
         expect(a.closure_reason).to eq("pr_merged")
         expect(train.members.find_by(job: a).state).to eq("merged")
+      end
+
+      # Regression: diff-tree ran through streaming_git, so every line of every
+      # rewritten commit's patch became a job log write; a landed Epic train
+      # held its landing lane for over a quarter of an hour after the merge.
+      it "computes patch ids without streaming patch output into the job log" do
+        handler, a, = land_after_rebase("rebased-1" => "pid-other", "rebased-2" => "pid-a")
+        quiet = handler.send(:quiet_git)
+        loud = instance_double(GitRunner)
+        allow(loud).to receive(:run) { |*args, **kwargs| quiet.run(*args, **kwargs) }
+        allow(handler).to receive(:streaming_git).and_return(loud)
+
+        handler.call
+
+        apply_pending_job_closures!
+        expect(a.reload).to be_closed
+        expect(loud).not_to have_received(:run).with("diff-tree", any_args)
+        expect(loud).not_to have_received(:run).with("patch-id", any_args)
       end
 
       it "still fails a member none of whose patches reached the integration" do

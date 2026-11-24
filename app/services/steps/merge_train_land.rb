@@ -552,7 +552,7 @@ module Steps
       return false unless new_base
 
       chdir = workspace.path.to_s
-      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      git = quiet_git
       target = patch_id_for(git, recorded_sha, chdir)
       return false if target.blank?
 
@@ -569,6 +569,15 @@ module Steps
     rescue GitRunner::GitError => e
       log("merge_train: rebased-integration check for #{member_job.slug} failed: #{e.class}: #{e.message}", kind: "system")
       false
+    end
+
+    # Plumbing whose output is data, not progress: `diff-tree -p` prints a
+    # commit's whole patch, and through streaming_git every line became its own
+    # job log write -- for every commit the rebase rewrote, for every member. A
+    # landed Epic train spent over a quarter of an hour after its merge writing
+    # diffs to the log while it held the landing lane.
+    def quiet_git
+      GitRunner.new(env: { "GIT_TERMINAL_PROMPT" => "0" }, workflow: workflow)
     end
 
     def patch_id_for(git, sha, chdir)
