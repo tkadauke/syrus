@@ -1,0 +1,82 @@
+# Operator-triggered iOS archive (optionally export / TestFlight upload).
+# Signing credentials come from repository secrets in the `ios-release`
+# environment; configure required reviewers on that environment to gate runs.
+name: iOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "archive: build only; export: signed .ipa; upload: send to TestFlight"
+        type: choice
+        options: [archive, export, upload]
+        default: archive
+      build_number:
+        description: "Override build number (default: commit count of the ref)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: ios-release
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      SYRUS_IOS_TEAM_ID: ${{ secrets.SYRUS_IOS_TEAM_ID }}
+      SYRUS_IOS_BUNDLE_ID: ${{ vars.SYRUS_IOS_BUNDLE_ID }}
+      SYRUS_IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Write App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          key_path="$RUNNER_TEMP/AuthKey.p8"
+          umask 077
+          printf '%s' "$ASC_KEY_P8" > "$key_path"
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Archive / export / upload
+        run: make "${{ inputs.action }}"
+
+      - name: Remove App Store Connect key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Upload logs and metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-logs
+          path: |
+            ios/build/release/logs
+            ios/build/release/metadata.txt
+          retention-days: 30
+
+      - name: Upload archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-archive
+          path: |
+            ios/build/release/Syrus.xcarchive
+            ios/build/release/export
+          retention-days: 14

@@ -1,0 +1,54 @@
+# Generate, build, and unit-test the iOS app on a macOS runner (unsigned,
+# simulator only). No signing credentials are used here.
+name: iOS CI
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # build numbers derive from the commit count
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Show versions
+        run: |
+          xcodebuild -version
+          echo "version: $(scripts/version.sh full)"
+
+      - name: Build and test on the simulator
+        run: |
+          set -o pipefail
+          make test 2>&1 | tee test.log
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-log
+          path: ios/test.log
+          retention-days: 14
