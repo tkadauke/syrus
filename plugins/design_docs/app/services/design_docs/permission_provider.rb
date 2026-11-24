@@ -2,7 +2,7 @@ module DesignDocs
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = (AgentRole::CHAT_ROLES + AgentRole::WORKFLOW_ROLES).uniq.freeze
+    ROLES = (Syrus::Host::AgentRole::CHAT_ROLES + Syrus::Host::AgentRole::WORKFLOW_ROLES).uniq.freeze
     CAPABILITY = "design_docs.documents@v1"
     EFFECTS = {
       "list_design_docs" => %i[confidential_read], "read_design_doc" => %i[confidential_read],

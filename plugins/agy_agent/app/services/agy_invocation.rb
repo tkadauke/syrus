@@ -114,7 +114,7 @@ class AgyInvocation
     current_chat_session = Thread.current[:syrus_current_chat_session]
     current_agent =
       Thread.current[:syrus_current_agent] ||
-      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
+      (Syrus::Host::AgentRecord.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
 
     runner_result = Syrus::Host::ProcessRunner.new(
       env: agy_env(workspace_path: workspace_path, agy_home: agy_home, api_key: api_key, model: model, effort_level: effort_level).merge(env || {}),
@@ -232,7 +232,7 @@ class AgyInvocation
         {
           command: server.fetch(:command),
           args: Array(server[:args]),
-          env: AgentSidecarEnvironment.filter_for_agent_config(server)
+          env: Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server)
         }
       end
     }
@@ -257,7 +257,7 @@ class AgyInvocation
       {
         command: server.fetch(:command),
         args: Array(server[:args]),
-        env: AgentSidecarEnvironment.filter_for_agent_config(server)
+        env: Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server)
       }
     end
   end
@@ -448,8 +448,8 @@ class AgyInvocation
   end
 
   def error_outcome(detail)
-    return ProviderUsageLimit::OUTCOME if ProviderUsageLimit.detect?(detail)
-    return ProviderAuthFailure::OUTCOME if ProviderAuthFailure.detect?(detail)
+    return Syrus::Host::ProviderUsageLimit::OUTCOME if Syrus::Host::ProviderUsageLimit.detect?(detail)
+    return Syrus::Host::ProviderAuthFailure::OUTCOME if Syrus::Host::ProviderAuthFailure.detect?(detail)
 
     "error"
   end

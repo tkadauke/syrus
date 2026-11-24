@@ -62,7 +62,7 @@ module MysqlDbBrowser
 
       read_only = read_only_statement?(statement)
       unless read_only
-        if context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        if context&.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
           audit!(statement: statement, read_only: false, user: user, success: false, error_message: "Rejected: coworker MySQL access is read-only.")
           raise WriteNotAllowed, "Coworker MySQL access is read-only. Only SELECT, SHOW, DESCRIBE, EXPLAIN, and read-only CTE statements are permitted."
         end

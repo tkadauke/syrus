@@ -1,7 +1,7 @@
 require "json"
 
 module ChatProviders
-  class Codex < Base
+  class Codex < Syrus::Host::ChatProviderBase
     include Syrus::Plugin::ChatProvider
 
     def self.provider_key = "codex"

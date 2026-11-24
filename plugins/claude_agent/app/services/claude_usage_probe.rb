@@ -39,7 +39,7 @@ class ClaudeUsageProbe
     end
 
     def latest_probe_evidence(user, provider_account: nil)
-      scope = ProviderAvailabilityEvidence
+      scope = Syrus::Host::ProviderAvailabilityEvidence
         .where(user: user, provider: "claude", source: "usage_probe")
       scope = scope.where(account_id: provider_account.public_id) if provider_account
       scope.recent.first
@@ -166,7 +166,7 @@ class ClaudeUsageProbe
   end
 
   def persist(status:, snapshot:, message:, http_status:)
-    ProviderAvailabilityEvidence.record_claude_probe!(
+    Syrus::Host::ProviderAvailabilityEvidence.record_claude_probe!(
       user: @user,
       provider_account: @provider_account,
       status: status,

@@ -122,7 +122,7 @@ class ClaudeInvocation
     current_chat_session = Thread.current[:syrus_current_chat_session]
     current_agent =
       Thread.current[:syrus_current_agent] ||
-      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
+      (Syrus::Host::AgentRecord.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
     runner_result = Syrus::Host::ProcessRunner.new(
       env: env,
       command: cmd,
@@ -235,14 +235,14 @@ class ClaudeInvocation
   end
 
   def ensure_session_on_disk(session_id, workspace_path, log_sink)
-    path = ProviderSession.canonical_path_for(
+    path = Syrus::Host::ProviderSession.canonical_path_for(
       home: ENV.fetch("HOME", "/root"),
       cwd: workspace_path,
       session_id: session_id
     )
     return if File.exist?(path)
 
-    session = ProviderSession.find_by(session_id: session_id)
+    session = Syrus::Host::ProviderSession.find_by(session_id: session_id)
     return unless session&.transcript_jsonl.present?
 
     FileUtils.mkdir_p(File.dirname(path))
@@ -290,10 +290,10 @@ class ClaudeInvocation
         message = assistant_text_for(event).presence || "Claude returned an API error."
         detail = api_error_message(event, message)
         log_sink.call(detail, kind: "system")
-        if ProviderUsageLimit.detect?(detail)
+        if Syrus::Host::ProviderUsageLimit.detect?(detail)
           return {
             is_error: true,
-            outcome: ProviderUsageLimit::OUTCOME,
+            outcome: Syrus::Host::ProviderUsageLimit::OUTCOME,
             final_text: detail
           }
         end
@@ -319,7 +319,7 @@ class ClaudeInvocation
           log_sink.call(block["text"], kind: "assistant_text") if block["text"].present?
         when "tool_use"
           log_sink.call(
-            AgentEventAbbreviator.tool_use(
+            Syrus::Host::AgentEventAbbreviator.tool_use(
               block["name"],
               block["input"],
               path_roots: [ @workspace_path ]
@@ -342,7 +342,7 @@ class ClaudeInvocation
         content.each do |block|
           next unless block["type"] == "tool_result"
           log_sink.call(
-            AgentEventAbbreviator.tool_result(block["content"], error: block["is_error"] == true),
+            Syrus::Host::AgentEventAbbreviator.tool_result(block["content"], error: block["is_error"] == true),
             kind: "tool_result",
             tool_result_content: block["content"],
             tool_result_error: block["is_error"] == true,
