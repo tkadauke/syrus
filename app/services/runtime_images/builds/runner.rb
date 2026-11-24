@@ -40,12 +40,12 @@ module RuntimeImages
       rescue Canceled
         @orchestrator.acknowledge_cancel(attempt)
       rescue BuildFailed => e
-        @orchestrator.fail_attempt(attempt, code: e.code, message: e.message, retryable: e.retryable)
+        @orchestrator.fail_attempt(attempt, code: e.code, detail: e.message, retryable: e.retryable)
       rescue RuntimeImages::ProviderError, ActiveRecord::ConnectionNotEstablished, Timeout::Error, SystemCallError => e
         # Registry and infrastructure trouble is transient by nature.
-        @orchestrator.fail_attempt(attempt, code: "infrastructure_error", message: "#{e.class}: #{e.message}", retryable: true)
+        @orchestrator.fail_attempt(attempt, code: "infrastructure_error", detail: "#{e.class}: #{e.message}", retryable: true)
       rescue StandardError => e
-        @orchestrator.fail_attempt(attempt, code: "unexpected_error", message: "#{e.class}: #{e.message}", retryable: false)
+        @orchestrator.fail_attempt(attempt, code: "unexpected_error", detail: "#{e.class}: #{e.message}", retryable: false)
       end
 
       private
