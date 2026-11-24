@@ -54,7 +54,23 @@ class NotificationService
       }
     )
 
+    enqueue_mobile_push(notification)
+
     notification
+  end
+
+  # Push is best-effort: a queue hiccup must never fail the caller that
+  # merely wanted to record a notification.
+  def self.enqueue_mobile_push(notification)
+    return unless user_has_mobile_devices?(notification.user_id)
+
+    MobilePushDeliveryJob.perform_later(notification.id)
+  rescue StandardError => e
+    Rails.logger.warn("[notifications] mobile push enqueue failed: #{e.class}: #{e.message}")
+  end
+
+  def self.user_has_mobile_devices?(user_id)
+    MobileDevice.active.exists?(user_id: user_id)
   end
 
   def self.notification_payload(notification)

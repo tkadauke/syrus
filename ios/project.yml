@@ -1,0 +1,70 @@
+name: Syrus
+options:
+  bundleIdPrefix: app.syrus
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    PRODUCT_BUNDLE_IDENTIFIER: app.syrus.ios
+    # Set your own Team ID for device builds (see ios/README.md).
+    DEVELOPMENT_TEAM: ""
+targets:
+  Syrus:
+    type: application
+    platform: iOS
+    sources:
+      - path: Syrus
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: Syrus/Resources/Syrus.Debug.entitlements
+          SYRUS_APNS_ENVIRONMENT: sandbox
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Syrus/Resources/Syrus.Release.entitlements
+          SYRUS_APNS_ENVIRONMENT: production
+    info:
+      path: Syrus/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Syrus
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIBackgroundModes:
+          - remote-notification
+        # Only the embedded web view may talk to plain-HTTP servers (dev and
+        # LAN instances); native code never makes network requests itself.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoadsInWebContent: true
+        SyrusAPNSEnvironment: $(SYRUS_APNS_ENVIRONMENT)
+  SyrusTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SyrusTests
+    dependencies:
+      - target: Syrus
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.syrus.ios.tests
+schemes:
+  Syrus:
+    build:
+      targets:
+        Syrus: all
+    test:
+      targets:
+        - SyrusTests
