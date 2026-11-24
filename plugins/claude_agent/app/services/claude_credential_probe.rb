@@ -36,7 +36,7 @@ class ClaudeCredentialProbe
         ],
         mounts: Syrus::Host::ProcessRunner.mounts(workspace),
         network: "agent",
-        timeout: CredentialProbe::TIMEOUT_SECONDS,
+        timeout: Syrus::Host::CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",
         on_output_chunk: ->(chunk) { append_output(output, chunk) }

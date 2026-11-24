@@ -538,7 +538,7 @@ module WorkerTimeline
     def command_excerpt(command)
       return nil if command.blank?
 
-      CommandRedactor.redact(command).squish.truncate(180, omission: "...")
+      Syrus::Host::CommandRedactor.redact(command).squish.truncate(180, omission: "...")
     end
 
     def elapsed_seconds(started_at)
