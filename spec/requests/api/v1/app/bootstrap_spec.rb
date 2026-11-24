@@ -213,6 +213,19 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     )
   end
 
+  it "drops a recovered alert from subsequent bootstrap responses" do
+    user = Factories.user
+    sign_in_as(user)
+    user.mark_gh_api_blocked!("Resource not accessible by personal access token")
+
+    get api_v1_app_bootstrap_path
+    expect(parse_body.fetch("system_alerts").pluck("id")).to include("github_token_scope:#{user.id}")
+
+    user.clear_gh_api_blocked!
+    get api_v1_app_bootstrap_path
+    expect(parse_body.fetch("system_alerts").pluck("id")).not_to include("github_token_scope:#{user.id}")
+  end
+
   it "serializes active system alerts for the SPA shell" do
     user = Factories.user
     sign_in_as(user)
