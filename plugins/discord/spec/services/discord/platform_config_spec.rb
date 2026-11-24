@@ -1,17 +1,25 @@
 require "rails_helper"
+require_relative "../../support/discord_bot_account"
 
 RSpec.describe Discord::PlatformConfig do
-  describe "#configured?" do
-    it "is false when discord_bot_token is blank" do
-      AppSetting.current.update_column(:discord_bot_token, nil)
+  before { enable_discord_plugin! }
 
+  describe "#configured?" do
+    it "is false until the bot account is connected" do
       expect(described_class.new.configured?).to be false
     end
 
-    it "is true when discord_bot_token is present" do
-      AppSetting.current.update!(discord_bot_token: "bot-token")
+    it "is true when the bot account is connected" do
+      connect_discord_bot!
 
       expect(described_class.new.configured?).to be true
+    end
+
+    it "is false again once the account is disconnected" do
+      connect_discord_bot!
+      ConnectedAccounts::Account.update_all(status: "revoked")
+
+      expect(described_class.new.configured?).to be false
     end
   end
 

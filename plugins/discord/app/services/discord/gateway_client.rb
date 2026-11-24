@@ -39,8 +39,13 @@ module Discord
 
     attr_reader :fatal_close_code, :fatal_close_reason, :run_outcome
 
-    def initialize(token:, url: DEFAULT_URL)
+    # `stale_check` is polled on every heartbeat; when it returns true the
+    # session is closed with run_outcome :credential_changed (the bot token
+    # was rotated or revoked), and the caller reconnects with the current one.
+    def initialize(token:, url: DEFAULT_URL, stale_check: nil)
       @token = token
+      @stale_check = stale_check
+      @credential_changed = false
       @url = url
       @sequence = nil
       @session_id = nil
@@ -61,6 +66,7 @@ module Discord
       attempts = 0
       @fatal_close_code = nil
       @fatal_close_reason = nil
+      @credential_changed = false
 
       loop do
         @should_reconnect = false
@@ -70,9 +76,14 @@ module Discord
           connect_and_pump
           @run_outcome ||= @session_id.present? ? :closed : :startup_failure
         rescue => e
-          Rails.logger.error("Discord::GatewayClient: connection error: #{e.message}")
+          Rails.logger.error("Discord::GatewayClient: connection error: #{e.class}")
           @should_reconnect = @session_id.present?
           @run_outcome = @should_reconnect ? :connection_error : :startup_failure
+        end
+
+        if @credential_changed
+          @should_reconnect = false
+          @run_outcome = :credential_changed
         end
 
         break unless @should_reconnect
@@ -99,7 +110,7 @@ module Discord
 
       @driver.on(:message) { |event| handle_frame(event.data) }
       @driver.on(:close) { |event| handle_close(event) }
-      @driver.on(:error) { |event| Rails.logger.error("Discord::GatewayClient: #{event.message}") }
+      @driver.on(:error) { |event| Rails.logger.error("Discord::GatewayClient: websocket error") }
 
       @driver.start
       pump until @closed
@@ -194,6 +205,8 @@ module Discord
       @heartbeat_thread = Thread.new do
         loop do
           sleep(interval_ms / 1000.0)
+          break if end_session_if_credential_changed
+
           send_heartbeat
         end
       end
@@ -202,6 +215,23 @@ module Discord
     def stop_heartbeat
       @heartbeat_thread&.kill
       @heartbeat_thread = nil
+    end
+
+    # Runs on the heartbeat thread. Closing the socket unblocks the pump loop,
+    # which then exits through #run's credential_changed handling.
+    def end_session_if_credential_changed
+      return false unless @stale_check&.call
+
+      @credential_changed = true
+      begin
+        @socket&.close
+      rescue IOError
+        nil
+      end
+      true
+    rescue StandardError => error
+      Rails.logger.error("Discord::GatewayClient: credential check failed: #{error.class}")
+      false
     end
 
     def send_heartbeat

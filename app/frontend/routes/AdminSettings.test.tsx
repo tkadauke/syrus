@@ -38,13 +38,8 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       main_concern_report_threshold: 2,
       report_issue_repo_slug: "tkadauke/syrus",
       chat_coding_workspace_budget_mb: 0,
-      telegram_bot_handle: null,
       merge_train_max_size: 10,
-      clearable_secrets: [
-        { key: "gemini_api_key", label: "Gemini API key", set: true },
-        { key: "telegram_bot_token", label: "Telegram bot token", set: false },
-        { key: "discord_bot_token", label: "Discord bot token", set: false }
-      ]
+      clearable_secrets: [{ key: "gemini_api_key", label: "Gemini API key", set: true }]
     },
     ...overrides
   }
@@ -216,157 +211,35 @@ describe("AdminSettings SecretRow", () => {
   })
 })
 
-describe("AdminSettings Discord section", () => {
+describe("AdminSettings bot token sections", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  async function discordSection() {
-    const heading = await screen.findByRole("heading", { name: "Discord" })
+  async function platformSection(name: "Telegram" | "Discord") {
+    const heading = await screen.findByRole("heading", { name })
     const section = heading.closest("section")
-    if (!section) throw new Error("Discord section not found")
+    if (!section) throw new Error(`${name} section not found`)
     return within(section)
   }
 
-  it("renders the Discord token input with a not-set status", async () => {
+  it.each(["Telegram", "Discord"] as const)("links %s's bot token to the connected accounts page instead of holding a token field", async (name) => {
     renderRoute()
 
-    const section = await discordSection()
-    expect(section.getByLabelText("Discord bot token")).toBeInTheDocument()
-    expect(section.getByText("Not set.")).toBeInTheDocument()
+    const section = await platformSection(name)
+    const link = section.getByRole("link", { name: "Manage the bot token in Connected accounts" })
+    expect(link).toHaveAttribute("href", "/admin/connected_accounts")
+    expect(section.getByText(/instance-owned connected account/)).toBeInTheDocument()
+    expect(section.queryByLabelText(/bot token/i)).not.toBeInTheDocument()
+    expect(section.queryByRole("button", { name: "Save token" })).not.toBeInTheDocument()
+    expect(section.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument()
   })
 
-  it("saves the Discord bot token", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
-        return Promise.resolve(
-          jsonResponse(
-            adminPayload({
-              message: "Settings updated.",
-              settings: {
-                ...adminPayload().settings,
-                clearable_secrets: [
-                  { key: "gemini_api_key", label: "Gemini API key", set: true },
-                  { key: "telegram_bot_token", label: "Telegram bot token", set: false },
-                  { key: "discord_bot_token", label: "Discord bot token", set: true }
-                ]
-              }
-            })
-          )
-        )
-      }
-      return Promise.resolve(jsonResponse(adminPayload()))
-    })
-
+  it("never sends a bot token through the settings endpoint", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminPayload()))
     renderRoute()
 
-    const section = await discordSection()
-    const input = section.getByLabelText("Discord bot token")
-    fireEvent.change(input, { target: { value: "discord-secret-token" } })
-    fireEvent.click(section.getByRole("button", { name: "Save token" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/admin/settings",
-        expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ app_setting: { discord_bot_token: "discord-secret-token" } })
-        })
-      )
-    })
-  })
-
-  it("clears the Discord bot token when set", async () => {
-    const mockConfirm = mockUseConfirm(true)
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
-      }
-      return Promise.resolve(
-        jsonResponse(
-          adminPayload({
-            settings: {
-              ...adminPayload().settings,
-              clearable_secrets: [
-                { key: "gemini_api_key", label: "Gemini API key", set: true },
-                { key: "telegram_bot_token", label: "Telegram bot token", set: false },
-                { key: "discord_bot_token", label: "Discord bot token", set: true }
-              ]
-            }
-          })
-        )
-      )
-    })
-
-    renderRoute()
-
-    const section = await discordSection()
-    fireEvent.click(section.getByRole("button", { name: "Clear" }))
-
-    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/admin/settings/clear_secret",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ secret: "discord_bot_token" })
-        })
-      )
-    })
-  })
-
-  it("clears the Telegram bot token through the shared confirm dialog", async () => {
-    const mockConfirm = mockUseConfirm(true)
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
-      }
-      return Promise.resolve(
-        jsonResponse(
-          adminPayload({
-            settings: {
-              ...adminPayload().settings,
-              clearable_secrets: [
-                { key: "gemini_api_key", label: "Gemini API key", set: true },
-                { key: "telegram_bot_token", label: "Telegram bot token", set: true },
-                { key: "discord_bot_token", label: "Discord bot token", set: false }
-              ]
-            }
-          })
-        )
-      )
-    })
-
-    renderRoute()
-
-    const heading = await screen.findByRole("heading", { name: "Telegram" })
-    const section = within(heading.closest("section") as HTMLElement)
-    fireEvent.click(section.getByRole("button", { name: "Clear" }))
-
-    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/admin/settings/clear_secret",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ secret: "telegram_bot_token" })
-        })
-      )
-    })
-  })
-
-  it("does not double-render the Discord secret in the generic secrets list", async () => {
-    renderRoute()
-
-    await discordSection()
-    expect(screen.queryByText("Discord bot token")).not.toBeInTheDocument()
-  })
-
-  it("disables Discord's Start polling button until a bot token is set", async () => {
-    renderRoute()
-
-    const section = await discordSection()
-    expect(section.getByRole("button", { name: "Start polling" })).toBeDisabled()
+    await platformSection("Discord")
+    const bodies = fetchSpy.mock.calls.map(([, init]) => String(init?.body ?? ""))
+    expect(bodies.some((body) => body.includes("bot_token"))).toBe(false)
   })
 })
 
@@ -377,11 +250,7 @@ describe("AdminSettings platform polling controls", () => {
     return adminPayload({
       settings: {
         ...adminPayload().settings,
-        clearable_secrets: [
-          { key: "gemini_api_key", label: "Gemini API key", set: true },
-          { key: "telegram_bot_token", label: "Telegram bot token", set: true },
-          { key: "discord_bot_token", label: "Discord bot token", set: true }
-        ]
+        clearable_secrets: [{ key: "gemini_api_key", label: "Gemini API key", set: true }]
       }
     })
   }
@@ -408,7 +277,7 @@ describe("AdminSettings platform polling controls", () => {
           jsonResponse({
             started: ["Discord::GatewayConnectionJob"],
             connectors: [
-              { name: "PollTelegramUpdatesJob", status: "already_running", platform: "telegram" },
+              { name: "Telegram::PollUpdatesJob", status: "already_running", platform: "telegram" },
               { name: "Discord::GatewayConnectionJob", status: "started", platform: "discord" }
             ]
           })
@@ -418,7 +287,7 @@ describe("AdminSettings platform polling controls", () => {
     })
   }
 
-  it("enables both sections' Start polling buttons once each platform has a token", async () => {
+  it("enables both sections' Start polling buttons (the backend reports not_configured itself)", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(bothTokensSetPayload()))
     renderRoute()
 

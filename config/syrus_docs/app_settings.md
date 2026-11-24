@@ -372,17 +372,9 @@ Instance-wide storage budget for walkthrough video blobs, measured in megabytes.
 
 ## External platform integrations
 
-### telegram_bot_handle
+### Telegram and Discord bot tokens (legacy settings)
 
-**Type:** string · **Default:** nil
-
-The `@handle` of the Syrus Telegram bot (e.g. `syrus_bot`). Setting this marks Telegram as configured; `AppSetting.telegram_configured?` returns true and the Connected Platforms UI shows Telegram as available. Saving a blank handle clears the setting and disables Telegram configuration. The Telegram integration itself (long-poll adapter) is a separate job that registers via `PlatformPollingJob.registry`; this setting is what that job checks in its `configured?` guard.
-
-### discord_bot_token
-
-**Type:** string (encrypted) · **Default:** nil
-
-The bot token used by the `discord` plugin's Gateway connector (`Discord::GatewayConnectionJob`) and outbound adapter (`Discord::PlatformAdapter`). `AppSetting.discord_bot_token` is the gate `Discord::GatewayConnectionJob#configured?` checks before opening a Gateway connection; it is separate from the `discord` `PluginRecord`'s install/enable toggle -- the plugin can be enabled with no token set (no connector starts) or disabled with a token already configured.
+Bot tokens are no longer application settings and cannot be set, shown or cleared on **Admin → Settings**. Each token is an instance-owned **connected account** managed on **Admin → Connected accounts** (see the `telegram` and `discord` plugin pages). The `telegram_bot_token`, `telegram_bot_handle` and `discord_bot_token` columns remain only so an existing token can be carried over: on first use after upgrade the token is copied into a connected account, verified, and then the old value is erased. If the copy fails, the old value is kept and keeps working until a copy succeeds, so delivery is never interrupted and no token is lost. Once a connected account exists the old settings are never read again.
 
 ## Coding-Mode workspaces
 

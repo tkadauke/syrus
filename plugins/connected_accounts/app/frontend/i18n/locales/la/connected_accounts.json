@@ -20,6 +20,16 @@
     "allow_as_owner": "Actiones rationis coniunctae nomine domini agere permitte"
   },
   "nav_accounts": "Rationes coniunctae",
+  "instance": {
+    "title": "Rationes instantiae",
+    "description": "Indicium praebitoris officiis suggestus nominatis coniunge. Indicium tuto conditur neque iterum ostenditur.",
+    "label": "Titulus rationis tutus",
+    "token": "Indicium praebitoris",
+    "connect": "Indicium coniunge",
+    "rotate": "Indicium renova",
+    "disconnect": "Disiunge",
+    "status": "Status: {{status}}"
+  },
   "accounts": {
     "title": "Rationes coniunctae",
     "description": "Rationes externas coniunge et administra quas Syrus permissu tuo adhibere potest.",

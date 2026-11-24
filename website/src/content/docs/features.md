@@ -2191,9 +2191,21 @@ any time.
 
 Platform buttons show as **Not yet available** when the instance administrator
 has not yet configured that platform integration. Administrators set each
-platform's bot token in the admin settings page (Telegram and Discord each
-have their own section there). Every configured platform's connector job
-(`PollTelegramUpdatesJob`, `Discord::GatewayConnectionJob`, etc.) can be
+platform's bot token as an instance-owned connected account on **Admin →
+Connected accounts** (provider "Telegram bot" or "Discord bot"; the Telegram
+and Discord sections of the admin settings page link there). The token is
+validated with the platform before it is stored, kept encrypted, never shown
+again, and used only while a call is in flight (Discord's Gateway connection
+holds it in memory for the life of the connection). To rotate a token, paste
+the new one on the same page; the Discord Gateway reconnects with it and
+Telegram's next poll uses it. Disconnecting the account stops that platform's
+connector. Bot tokens are not OAuth, so Syrus cannot revoke them at the
+platform: reset the token in the Discord developer portal or with @BotFather
+when it should stop working. Instances that had a token configured as an
+application setting have it carried over automatically on upgrade (the upgrade
+also enables Connected accounts and beta mode for them, since both platform
+plugins now rely on that experimental plugin). Every configured platform's connector job
+(`Telegram::PollUpdatesJob`, `Discord::GatewayConnectionJob`, etc.) can be
 started from its own section's **Start polling** button, or it starts
 automatically on application boot when `SYRUS_ROLE` is set. Under the hood
 each button calls the same shared admin API (below), which re-primes every
@@ -2214,15 +2226,16 @@ adapter delivers the message to each participant who has a linked identity
 for that platform. Participants with no linked identity receive the reply via
 ActionCable on the web UI as usual. Platform adapters are registered at load
 time; the `web` adapter is a no-op since ActionCable already handles it.
-Beyond the built-in web and Telegram adapters, a plugin gem can register its
+Beyond the built-in web adapter, a plugin gem can register its
 own external platform through the `:platform_delivery` plugin extension
 point — once registered and enabled, its platform automatically appears as a
-Connected Platforms option, with no core code change required. Discord is the
-first such plugin (`plugins/discord/`, disabled by default): instead of
-long-polling, it holds a persistent, bot-initiated outbound WebSocket
-connection to Discord's Gateway, so linking (a DM `/link <token>` command) and
+Connected Platforms option, with no core code change required. Telegram
+(`plugins/telegram/`, enabled automatically for instances that already had a
+bot token) and Discord (`plugins/discord/`, disabled by default) are such plugins.
+Instead of long-polling, Discord holds a persistent, bot-initiated outbound
+WebSocket connection to Discord's Gateway, so linking (a DM `/link <token>` command) and
 message delivery work the same no-inbound-webhook way as Telegram once an
-administrator sets a Discord bot token and enables the plugin.
+administrator connects a Discord bot token and enables the plugin.
 
 **Starting the polling worker** — Platform polling workers self-reschedule
 after each poll cycle. On application boot, registered workers are started

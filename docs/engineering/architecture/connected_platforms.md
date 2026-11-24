@@ -16,12 +16,23 @@ The account settings UI calls:
 - `DELETE /api/v1/app/platform_identities/:id` to unlink an identity scoped to
   the current user.
 
-Telegram is available only when `AppSetting.telegram_bot_handle` is present.
+Telegram is provided by the `telegram` plugin (`plugins/telegram/`) through
+the `:platform_delivery` extension point; it appears once the plugin is
+enabled and is linkable only when its instance-owned `telegram_bot` connected
+account is connected (`Telegram::BotAccess.configured?`); the handle in the
+linking instructions is resolved from Telegram (`getMe`). Instances that had a
+Telegram bot token configured before the extraction have the plugin enabled
+automatically by migration, and a later migration enables its dependencies
+(`connected_accounts`, `credential_store`) and beta mode for any instance
+running either platform plugin. Telegram is experimental for that reason: a
+stable plugin may not hard-depend on an experimental one
+(`spec/architecture/stable_plugin_dependencies_spec.rb`), and an experimental
+plugin is only active while beta mode is on.
 Slack is listed as a supported platform but disabled until its integration is
 configured. Discord is provided by the `discord` plugin (`plugins/discord/`)
 through the `:platform_delivery` extension point; it appears in the list once
-the plugin is enabled, and becomes configured (linkable) once
-`AppSetting.discord_bot_token` is also set (see
+the plugin is enabled, and becomes configured (linkable) once its
+instance-owned `discord_bot` connected account is connected (see
 `config/syrus_docs/external_platforms.md`). When a platform poller creates a
 `PlatformIdentity`, Syrus broadcasts `platform_identity_linked` on
 `AppUserChannel` with the refreshed settings payload so the browser updates

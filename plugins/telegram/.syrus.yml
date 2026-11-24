@@ -1,0 +1,9 @@
+project:
+  id: telegram
+  label: "telegram plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

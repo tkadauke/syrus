@@ -5,6 +5,7 @@ module GoogleWorkspace
   MAIL_SCOPE = "mail.read".freeze
 
   syrus_plugin "google_workspace" do
+    requires_syrus nil
     experimental true
     requires_syrus nil
     icon_url "/plugin-icons/google_workspace.svg"

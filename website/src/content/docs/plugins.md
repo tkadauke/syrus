@@ -700,7 +700,26 @@ required methods and their result contracts are:
 
 `authorization`, `exchange_code`, `refresh`, `revoke`, `identity`, and
 `validate` are required. API-key and password providers use the same contract
-with a trivial `authorization` implementation. Providers that declare
+with a trivial `authorization` implementation. Declare `authorization_kind:
+"token"` to expose the administrator-only token-entry UI. The broker validates
+the submitted token before storing it, never returns it to the UI, and creates
+an instance-owned account restricted to `as_service`. A token provider pins
+its API origin in the manifest (`configuration: { api_origins: [ "https://api.example.com/v1/" ] }`),
+which becomes the credential's target constraint, and its `identity` result
+becomes the account's default label. Providers extend
+`ConnectedAccounts::SystemServiceProvider` for the binding plumbing, and read
+the token inside `system_invoke` only through the block-scoped
+`access.with_token`. A provider may also
+declare exact `system_service_identities` and implement
+`register_system_access(identity, binding)`, or core may register the identity
+and implementation. The broker injects an opaque binding into the registered
+service; only that binding can open a block-scoped lease, and each use is
+audited. The broker calls the service's fixed `system_invoke(context)`
+implementation and never yields credential access to caller-supplied code. An
+identity string alone grants nothing. The system path cannot use
+user-owned accounts or act as a general plugin credential bypass. Installed
+in-process plugin code remains trusted and is not a sandbox boundary. Providers
+that declare
 `events` must verify authenticity and fail closed before normalizing a push.
 Token-bearing `exchange_code` and `refresh` results are returned only to the
 Connected Accounts broker. Providers must not log token material or include it

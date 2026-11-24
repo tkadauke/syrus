@@ -3373,8 +3373,8 @@ Bundled plugins:
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
 - `linear_source` — installed but disabled by default until configured.
-- `discord` — installed but disabled by default until an operator sets
-  `AppSetting.discord_bot_token`. Provides the `:platform_delivery`
+- `discord` — installed but disabled by default until an operator connects the
+  instance-owned `discord_bot` connected account (the bot token). Provides the `:platform_delivery`
   extension point (`Discord::PlatformAdapter`); see
   `config/syrus_docs/external_platforms.md` for the Gateway connector
   details.
@@ -3858,15 +3858,15 @@ plugin-owned review invocation while preserving the already-recorded repair.
 
 ## Adding a new external messaging platform
 
-**Core platform** (built directly into `app/`, like Telegram):
+**Core platform** (built directly into `app/`; Slack is the only one left, and prefer a plugin for anything new):
 
 1. Create a `PlatformPollingJob` subclass (e.g. `SlackPollingJob`) that implements `configured?` and `poll_once`.
 2. In `poll_once`, call `InboundMessageRouter.new(...).call` for each inbound message.
 3. Create a `PlatformDelivery` adapter subclass and register it: `PlatformDelivery::Registry.register("slack", SlackAdapter)`.
 4. Add the platform slug to `PlatformIdentity::PLATFORMS`.
-5. Add any required `AppSetting` columns for the bot token/handle.
+5. Keep the bot token in an instance-owned connected account, not an `AppSetting` column: declare a `connected_accounts:provider` with `authorization_kind: "token"`, a manifest-pinned `configuration.api_origins`, and a `system_service_identities` entry, `depend_on` `connected_accounts`, extend `ConnectedAccounts::SystemServiceProvider`, and reach the token only through a fixed `system_invoke` operation via `access.with_token` (see `plugins/discord/` and `plugins/telegram/`).
 
-**Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/`):
+**Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/` or `plugins/telegram/`):
 
 1. Create an adapter class that includes `Syrus::Plugin::PlatformDelivery` and implements `.platform_key` (e.g. `"discord"`), `#deliver(message:, platform_identity:)`, and optionally `.connector_job_class` (a `PlatformPollingJob` subclass for the plugin's inbound listener, if it has one).
 2. Register it from the plugin gem's engine initializer with explicit release posture: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, provides: { platform_delivery: Discord::PlatformAdapter })`.

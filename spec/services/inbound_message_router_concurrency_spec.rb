@@ -8,7 +8,7 @@ RSpec.describe "Inbound message router concurrency" do
   before do
     clear_enqueued_jobs
     @user = Factories.user
-    @identity = Factories.platform_identity(user: @user, platform: "telegram", external_id: "concurrent-sender")
+    @identity = Factories.platform_identity(user: @user, platform: "slack", external_id: "concurrent-sender")
   end
 
   after do
@@ -33,7 +33,7 @@ RSpec.describe "Inbound message router concurrency" do
           ready << true
           start.pop
           InboundMessageRouter.new(
-            platform: "telegram",
+            platform: "slack",
             external_id: @identity.external_id,
             external_handle: "alice",
             message_text: "Only once",

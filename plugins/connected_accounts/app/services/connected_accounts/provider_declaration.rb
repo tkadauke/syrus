@@ -1,7 +1,8 @@
 module ConnectedAccounts
   ProviderDeclaration = Data.define(
     :plugin_name, :provider, :key, :display_name, :capabilities, :callback_route,
-    :scopes, :supports_read_only, :configuration, :settings_notice, :settings_notice_i18n_key
+    :scopes, :supports_read_only, :configuration, :settings_notice, :settings_notice_i18n_key,
+    :authorization_kind, :system_service_identities
   ) do
     RISK_LEVELS = %w[low medium high critical].freeze
 
@@ -18,7 +19,9 @@ module ConnectedAccounts
         supports_read_only: values["supports_read_only"],
         configuration: values.fetch("configuration", {}).to_h.stringify_keys.freeze,
         settings_notice: values["settings_notice"].presence,
-        settings_notice_i18n_key: values["settings_notice_i18n_key"].presence
+        settings_notice_i18n_key: values["settings_notice_i18n_key"].presence,
+        authorization_kind: values.fetch("authorization_kind", "oauth").to_s,
+        system_service_identities: Array(values["system_service_identities"]).map(&:to_s).freeze
       ).tap(&:validate!)
     end
 
@@ -33,10 +36,19 @@ module ConnectedAccounts
       errors << "unknown capabilities: #{unknown.join(', ')}" if unknown.any?
       errors << "callback_route must be an absolute path" unless callback_route.start_with?("/")
       errors << "supports_read_only must be true or false" unless [ true, false ].include?(supports_read_only)
+      errors << "authorization_kind must be oauth or token" unless %w[oauth token].include?(authorization_kind)
+      invalid_services = system_service_identities.reject { |identity| identity.match?(/\A[a-z][a-z0-9_.:-]*\z/) }
+      errors << "system service identities are invalid: #{invalid_services.join(', ')}" if invalid_services.any?
       errors.concat(scope_errors)
       raise ArgumentError, errors.join("; ") if errors.any?
 
       klass = provider.constantize
+      if system_service_identities.any? && !klass.respond_to?(:register_system_access)
+        errors << "#{provider} must implement .register_system_access(identity, binding)"
+      end
+      if system_service_identities.any? && !accepts_context?(klass, "system_invoke")
+        errors << "#{provider} must implement .system_invoke(context)"
+      end
       capabilities.each do |capability|
         errors << "#{provider} must implement .#{capability}(context)" unless accepts_context?(klass, capability)
       end
@@ -46,6 +58,12 @@ module ConnectedAccounts
     rescue NameError => error
       raise ArgumentError, "provider #{provider.inspect} does not resolve (#{error.message})"
     end
+
+    def token_authorization? = authorization_kind == "token"
+
+    # Manifest-pinned API origins. A provider that declares them owns the
+    # credential's target constraint; instance configuration cannot widen it.
+    def api_origins = Array(configuration["api_origins"]).map(&:to_s)
 
     def call(capability, context)
       capability = capability.to_s

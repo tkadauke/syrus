@@ -16,8 +16,8 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
     it "returns the current user's linked identities" do
       sign_in_as(user)
-      pi = Factories.platform_identity(user: user, platform: "telegram", external_handle: "@alice")
-      Factories.platform_identity(user: other, platform: "telegram", external_handle: "@bob")
+      pi = Factories.platform_identity(user: user, platform: "slack", external_handle: "@alice")
+      Factories.platform_identity(user: other, platform: "slack", external_handle: "@bob")
 
       get "/api/v1/app/platform_identities"
 
@@ -26,7 +26,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       expect(body["platform_identities"].length).to eq(1)
       expect(body["platform_identities"].first).to include(
         "id" => pi.id,
-        "platform" => "telegram",
+        "platform" => "slack",
         "external_handle" => "@alice"
       )
       expect(body["platform_identities"].first["linked_at"]).to be_present
@@ -41,7 +41,8 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       body = parse_body
       expect(body["available_platforms"]).to be_an(Array)
       platforms = body["available_platforms"].map { |p| p["platform"] }
-      expect(platforms).to include("telegram", "slack")
+      expect(platforms).to include("slack")
+      expect(platforms).not_to include("telegram")
     end
 
     it "returns empty list when user has no linked identities" do
@@ -133,7 +134,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
   describe "POST /api/v1/app/platform_identities/linking_token" do
     it "401s when signed out" do
-      post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
+      post "/api/v1/app/platform_identities/linking_token", params: { platform: "slack" }
       expect(response).to have_http_status(:unauthorized)
     end
 
@@ -146,40 +147,11 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
     it "422s when the platform is not configured" do
       sign_in_as(user)
-      allow(AppSetting).to receive(:telegram_configured?).and_return(false)
 
-      post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
+      post "/api/v1/app/platform_identities/linking_token", params: { platform: "slack" }
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(parse_body.dig("error", "code")).to eq("not_configured")
-    end
-
-    it "returns a signed token and instructions when configured" do
-      sign_in_as(user)
-      allow(AppSetting).to receive(:telegram_configured?).and_return(true)
-      allow(AppSetting).to receive(:telegram_bot_handle).and_return("MyBot")
-
-      post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
-
-      expect(response).to have_http_status(:ok)
-      body = parse_body
-      expect(body["token"]).to be_present
-      expect(body.dig("instructions", "text")).to include("MyBot")
-      expect(body.dig("instructions", "bot_handle")).to eq("MyBot")
-    end
-
-    it "issues a verifiable token containing user_id and platform" do
-      sign_in_as(user)
-      allow(AppSetting).to receive(:telegram_configured?).and_return(true)
-      allow(AppSetting).to receive(:telegram_bot_handle).and_return("MyBot")
-
-      post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
-
-      token = parse_body["token"]
-      verified = Rails.application.message_verifier(:platform_linking).verify(token)
-      # MessageVerifier serializes via JSON so keys come back as strings
-      expect(verified["user_id"]).to eq(user.id)
-      expect(verified["platform"]).to eq("telegram")
     end
 
     context "with a plugin-registered platform" do

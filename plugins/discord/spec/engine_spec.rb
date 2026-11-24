@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "support/discord_bot_account"
 
 RSpec.describe SyrusDiscord::Engine do
   it "registers the Discord platform_delivery plugin disabled by default" do
@@ -10,13 +11,13 @@ RSpec.describe SyrusDiscord::Engine do
   end
 
   it "exposes the Discord platform_delivery provider when enabled" do
-    PluginRecord.find_by!(name: "discord").update!(enabled: true)
+    enable_discord_plugin!
 
     expect(Syrus::PluginRegistry.providers_for(:platform_delivery)).to include(Discord::PlatformAdapter)
   end
 
   it "makes discord a valid PlatformIdentity platform once enabled" do
-    PluginRecord.find_by!(name: "discord").update!(enabled: true)
+    enable_discord_plugin!
 
     expect(PlatformIdentity.available_platforms).to include("discord")
   end

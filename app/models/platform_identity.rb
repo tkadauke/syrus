@@ -1,5 +1,5 @@
 class PlatformIdentity < ApplicationRecord
-  PLATFORMS = %w[ telegram slack ].freeze
+  PLATFORMS = %w[ slack ].freeze
 
   belongs_to :user
 
