@@ -110,6 +110,10 @@ The currently registered contribution kinds are:
   never-enabled-here runs neither. `plugin_records.ever_enabled` is stamped by
   the model on any save while enabled and never cleared. Plugin migrations run
   at deploy time regardless of enabled state -- never from a runtime toggle.
+  They are on the shared migration path, so their tables belong in the shared
+  `db/schema.rb` like any core table: a plugin is not "kept out of the core
+  schema", and dropping its tables from the dump leaves every test run with a
+  pending migration.
 - **A plugin can suggest itself.** `suggests_enabling(reason) { |signals| ... }`
   in the manifest is evaluated even for a plugin that is disabled and was never
   enabled -- the one tier that reaches an admin who does not know it exists. It
