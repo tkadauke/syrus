@@ -15,6 +15,12 @@ module Achievements
     default_enabled false
     disableable true
     lifecycle callback_providers: "Achievements::Callbacks", domain_subscribers: "Achievements::Subscribers"
+    provides sidebar_pages: "Achievements::SidebarPages", ui_slots: "Achievements::UiSlots"
+    frontend routes: { "achievements/Achievements" => "app/frontend/routes/Achievements.tsx" },
+             ui_slots: { "achievements/JobReveal" => "app/frontend/ui_slots/JobReveal.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/achievements.json" ]
+
+    route :get, "/achievements", to: "spa#show"
     route :get, "/api/v1/app/achievements", to: "api/v1/app/achievements#index"
     route :get, "/api/v1/app/achievements/pending", to: "api/v1/app/achievements#pending"
     route :post, "/api/v1/app/achievements/reset_acknowledgments", to: "api/v1/app/achievements#reset_acknowledgments"

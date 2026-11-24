@@ -398,6 +398,15 @@ confirmation. Resets never delete unlocks or change their timestamps. Enabling
 the plugin does not backfill history: only events after enablement are
 evaluated, and any future backfill will be a separate explicit operation.
 
+The plugin adds an **Achievements** page to the sidebar that shows instance
+milestones and your personal accomplishments separately, including locked ones
+(hidden achievements show only a placeholder), when each was earned, and a link
+to the Job or Epic that triggered it when you can open it. From there you can
+acknowledge or replay a reveal. A milestone tied to a Job is revealed the first
+time you open that Job and is acknowledged only once the reveal has actually
+been shown. Reveals respect reduced-motion settings, work with a keyboard and
+screen reader, and never play sound. The artwork is a neutral placeholder.
+
 Local Backups can create sealed recovery bundles for installations that use an
 authoritative SQLite database and Disk Active Storage. It takes a consistent
 online database snapshot, streams and verifies every referenced blob, and
