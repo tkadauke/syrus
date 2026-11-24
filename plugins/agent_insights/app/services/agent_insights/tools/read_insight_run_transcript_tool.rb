@@ -37,7 +37,7 @@ module AgentInsights
 
         def call(run_id:, server_context:, page: nil, per: nil)
           context_run = Syrus::Host::McpTools.run_from_context(server_context)
-          target_run = Run
+          target_run = Syrus::Host::RunRecord
             .joins(step: { workflow: :job })
             .includes(:job, :step)
             .where(jobs: { repository_id: context_run.job.repository_id, user_id: context_run.job.user_id })

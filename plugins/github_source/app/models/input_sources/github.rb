@@ -85,7 +85,7 @@ module InputSources
         Rails.logger.info("[InputSources::Github] #{repository.slug}##{issue.number} preempted by PR ##{linked[:number]}")
         # This Job is terminal at creation and never gets an agent workflow, so
         # workflow-selection labels deliberately do not become Job attributes.
-        job = Job.create!(
+        job = Syrus::Host::JobRecord.create!(
           user: user,
           repository: repository,
           issue_number: issue.number,
@@ -103,7 +103,7 @@ module InputSources
         return
       end
 
-      job = Job.create!(
+      job = Syrus::Host::JobRecord.create!(
         user: user,
         repository: repository,
         issue_number: issue.number,
@@ -147,7 +147,7 @@ module InputSources
       case marker[:kind]
       when :epic_declaration
         epic_url = issue_url(issue.number)
-        Epic.find_or_create_by!(
+        Syrus::Host::Epic.find_or_create_by!(
           user: user,
           repository: repository,
           github_issue_url: epic_url
@@ -174,7 +174,7 @@ module InputSources
       candidate = epic_for_url(epic_url)
       rejection = candidate&.epic_marker_rejection(marker_origin: "github_issue", marker_user: user)
       epic = rejection ? nil : candidate
-      job = Job.create!(
+      job = Syrus::Host::JobRecord.create!(
         user: user,
         repository: repository,
         issue_number: issue.number,
@@ -205,7 +205,7 @@ module InputSources
     def latest_job_for_issue(issue_number)
       return @latest_jobs_by_issue[issue_number.to_i] if defined?(@latest_jobs_by_issue) && @latest_jobs_by_issue
 
-      Job.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
+      Syrus::Host::JobRecord.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
     end
 
     def preload_ingest_caches(issues)
@@ -222,7 +222,7 @@ module InputSources
       end
 
       @markers_by_issue_number = Array(issues).to_h do |issue|
-        [ issue.number.to_i, EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository) ]
+        [ issue.number.to_i, Syrus::Host::EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository) ]
       end
 
       epic_urls = @markers_by_issue_number.values
@@ -233,7 +233,7 @@ module InputSources
       @epics_by_url = if epic_urls.empty?
         {}
       else
-        Epic.where(github_issue_url: epic_urls).group_by(&:github_issue_url).transform_values do |candidates|
+        Syrus::Host::Epic.where(github_issue_url: epic_urls).group_by(&:github_issue_url).transform_values do |candidates|
           candidates.find { |candidate| candidate.user_id == user.id } || candidates.first
         end
       end
@@ -248,13 +248,13 @@ module InputSources
     def marker_for(issue)
       return @markers_by_issue_number[issue.number.to_i] if defined?(@markers_by_issue_number) && @markers_by_issue_number
 
-      EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
+      Syrus::Host::EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
     end
 
     def epic_for_url(epic_url)
       return @epics_by_url[epic_url] if defined?(@epics_by_url) && @epics_by_url
 
-      Epic.find_by(user: user, github_issue_url: epic_url) || Epic.find_by(github_issue_url: epic_url)
+      Syrus::Host::Epic.find_by(user: user, github_issue_url: epic_url) || Syrus::Host::Epic.find_by(github_issue_url: epic_url)
     end
 
     def remember_latest_job(job)
@@ -278,7 +278,7 @@ module InputSources
     end
 
     def initial_state_for_issue(issue)
-      Job.initial_state_for_creator(syrus_issue_creator(issue))
+      Syrus::Host::JobRecord.initial_state_for_creator(syrus_issue_creator(issue))
     end
 
     def syrus_issue_creator(issue)
