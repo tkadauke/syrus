@@ -59,3 +59,18 @@ Workers keep pulled images in their local container engine, keyed by immutable d
 - Images in use are leased and are never evicted. Eviction is least-recently-used; revoked or deleted digests are evicted first and can be purged on demand. Pressure is reported as ok, high (80%), or critical (92%) disk use, and prefetch stands down unless pressure is ok.
 - Every lookup or pull records an outcome (hit, pulled, registry_unavailable, timeout, corrupt, revoked, not_found, busy) for hit-ratio reporting. Holding an image is never a worker admission capability.
 - A revoked digest is refused without contacting the registry.
+
+## Retention, garbage collection, and reconciliation
+
+Retention is configured on the shared retention page (`runtime_image_retention_days`, 0 = never collect). A namespace may override the window with its own `retention_days`. `RetentionPolicyExecutors::RuntimeImage` runs `RuntimeImages::Collector`, which only considers stored images that are older than their window, have no retention hold (`RuntimeImage#retain!`, including lapsed holds, which are expired first), and are not the newest pullable image of their namespace and platform.
+
+Deletion order is deliberate: revoke is recorded durably first, a worker lease (`RuntimeImageCacheEntry`) defers deletion, the provider delete runs, and only then is the record marked deleted. Deleted records stay as tombstones so a digest can never be republished. Provider failures are stored on the image (`cleanup_failure_count`, `cleanup_last_error`), retried every pass, and stop after `Collector::MAX_CLEANUP_ATTEMPTS`; exhausted images fail the `image cleanup` health check. Workers drop revoked and deleted digests from their local caches through `WorkerCache#purge_revoked` and eviction.
+
+`RuntimeImageReconcileJob` (hourly, `cleanup` queue) runs `RuntimeImages::Reconciler`: stale pending records are resolved against the provider, available records the registry lost are marked deleted, revoked images still stored are revoked again, and digests with no record are reported. Orphan digests are only removed with `bin/rails runtime_images:reconcile DELETE_ORPHANS=1`, because an in-flight publish looks the same as an orphan. Only tagged manifests are enumerable through the OCI tag API.
+
+## Operations
+
+- `bin/rails runtime_images:status` prints health checks and failed cleanup; it exits non-zero on a failing check.
+- `bin/rails runtime_images:reconcile [REPAIR=0] [DELETE_ORPHANS=1]` runs a reconciliation pass.
+- `GET /api/v1/admin/runtime_images` returns the same checks plus image counts by state, retained rollback images, cache footprint per host, pull outcomes and hit ratio for the last 24 hours, and recent audit events. `POST /api/v1/admin/runtime_images/reconcile` queues a pass.
+- Every publish, revoke, retain, delete, collection, retention expiry, reconciliation repair, and authentication failure is a `RuntimeImageAuditEvent` and increments `syrus_runtime_image_operations_total{kind,outcome}`. `Metrics::RuntimeImageSampler` exports `syrus_runtime_images{state}`, `syrus_runtime_image_cache_bytes{state}`, and `syrus_runtime_image_pulls_24h{outcome}`.

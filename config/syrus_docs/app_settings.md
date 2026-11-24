@@ -407,6 +407,9 @@ archive, pruning, and extension-point mechanics live in the
 | `run_health_snapshot_retention_days` | 7 days |
 | `main_branch_health_check_retention_days` | 7 days |
 | `workflow_step_resource_profile_retention_days` | 180 days |
+| `runtime_image_retention_days` | 30 days |
+| `runtime_image_pull_event_retention_days` | 30 days |
+| `runtime_image_audit_event_retention_days` | 180 days |
 
 `job_log_retention_days` controls the detailed output shown for a Run. After
 the default 30-day window, stdout, stderr, tool-call, and system chunks are

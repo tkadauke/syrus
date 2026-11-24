@@ -84,6 +84,32 @@ module RuntimeImages
       def delete(request) = remove(request, "delete")
       def retain(_request) = nil
 
+      MAX_LISTED_TAGS = 1000
+      TAG_PAGE_SIZE = 100
+
+      # Digests reachable by a tag in the namespace's repository. Untagged
+      # manifests (such as the children of an index) are not visible through
+      # the tag API, so reconciliation only covers tagged images.
+      def list(request)
+        repo = repository(request.namespace)
+        digests = []
+        last = nil
+        while digests.size < MAX_LISTED_TAGS
+          query = "n=#{TAG_PAGE_SIZE}#{"&last=#{URI.encode_www_form_component(last)}" if last}"
+          response = call(:worker, repo, :get, "/v2/#{repo}/tags/list?#{query}")
+          return digests.uniq if response.status == 404
+          raise_for(response, "list tags")
+          tags = Array(JSON.parse(response.body.to_s)["tags"])
+          break if tags.empty?
+          tags.each { |tag| digests << tag_digest(repo, tag) }
+          break if tags.size < TAG_PAGE_SIZE
+          last = tags.last
+        end
+        digests.compact.uniq
+      rescue JSON::ParserError
+        raise ProviderError, "registry returned a tag list that is not valid JSON"
+      end
+
       # A bearer token limited to pulling one namespace's repository, safe to
       # hand to a workload. Raises Unsupported when the registry cannot mint
       # scoped tokens, because the only alternative is exposing the
@@ -104,6 +130,13 @@ module RuntimeImages
         return if response.status == 404
         raise Unsupported, "registry does not allow manifest deletion" if [405, 501].include?(response.status)
         raise_for(response, "#{verb} manifest")
+      end
+
+      def tag_digest(repo, tag)
+        response = call(:worker, repo, :head, "/v2/#{repo}/manifests/#{URI.encode_www_form_component(tag)}", headers: manifest_accept)
+        return nil unless response.success?
+        digest = response.header("docker-content-digest")
+        digest if digest.to_s.match?(RuntimeImage::DIGEST_FORMAT)
       end
 
       def push_blob(repo, digest, bytes)

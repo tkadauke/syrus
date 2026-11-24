@@ -13,7 +13,7 @@ module RuntimeImages
         def header(name) = headers[name.to_s.downcase]
       end
 
-      class AuthenticationFailed < ProviderError
+      class AuthenticationFailed < RuntimeImages::AuthenticationError
         attr_reader :status
 
         def initialize(message, status: nil)

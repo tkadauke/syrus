@@ -16,5 +16,11 @@ module RuntimeImages
     def revoke(_request) = raise(NotImplementedError, "#{self.class.name} must implement #revoke")
     def retain(_request) = raise(NotImplementedError, "#{self.class.name} must implement #retain")
     def delete(_request) = raise(NotImplementedError, "#{self.class.name} must implement #delete")
+
+    # Optional: the digests the backing store holds for one namespace
+    # (Array<String>), used to find objects with no durable record. Providers
+    # that cannot enumerate keep this default and reconciliation reports the
+    # namespace as unsupported rather than guessing.
+    def list(_request) = raise(Unsupported, "#{self.class.name} cannot list a namespace's digests")
   end
 end

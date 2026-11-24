@@ -49,8 +49,21 @@ class SyntheticRuntimeImageProvider < RuntimeImages::Provider
     @calls << [:retain, request]
   end
 
+  # Pass `unsupported_listing!` to model a provider that cannot enumerate.
+  def unsupported_listing! = (@unsupported_listing = true)
+
+  def list(request)
+    @calls << [:list, request]
+    raise RuntimeImages::Unsupported, "cannot list" if @unsupported_listing
+    @store.keys.map(&:first).uniq
+  end
+
+  # Simulates a failure of the next delete call.
+  attr_accessor :delete_error
+
   def delete(request)
     @calls << [:delete, request]
+    raise delete_error if delete_error
     @store.delete([request.digest, request.platform])
   end
 end

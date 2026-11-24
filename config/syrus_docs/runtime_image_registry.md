@@ -45,3 +45,12 @@ When the registry is configured, a devcontainer that builds from a Dockerfile is
 - Publication needs a container engine that saves images as an OCI layout (current Docker with the containerd image store, or Podman). An engine that cannot is reported as an export failure.
 - Devcontainers that name an `image` keep that reference. The digest the engine holds for it is recorded on the Workflow as the `container_execution_image_resolution` artifact.
 - Without a configured registry, builds fall back to a tag in the worker's own Docker daemon, as before.
+
+## Retention and cleanup
+
+- `runtime_image_retention_days` on the retention settings page controls how long published images are kept (0 keeps them forever). A namespace can set its own `retention_days`.
+- Images under a retention hold (for example a rollback image) are never collected; a lapsed hold is released first. The newest pullable image of each namespace and platform is always kept.
+- Collection revokes an image, waits while any worker holds it in use, deletes it from the registry, and only then records it as deleted. Failed cleanup is retried each pass and is reported by `bin/rails runtime_images:status` and `GET /api/v1/admin/runtime_images`.
+- An hourly reconciliation compares records with the registry and repairs drift. Unrecorded registry digests are reported and removed only with `bin/rails runtime_images:reconcile DELETE_ORPHANS=1`.
+- Pull outcomes, authentication failures, corruption, and lifecycle decisions are kept as audit events and exposed as metrics (`syrus_runtime_image_*`).
+
