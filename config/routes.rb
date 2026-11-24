@@ -92,6 +92,9 @@ Rails.application.routes.draw do
           delete :reset
         end
         post "desktop/api_token", to: "desktop_tokens#create"
+        resources :mobile_devices, only: %i[ create ] do
+          collection { delete :unregister }
+        end
         resources :mcp_bridge_tokens, only: %i[ index create destroy ]
         resource :credentials, only: %i[ show update ] do
           get :options
