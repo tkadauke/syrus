@@ -26,4 +26,4 @@ Use three distinct registry identities; the registry's token service enforces th
 
 ## Diagnostics
 
-`bin/rails runtime_images:diagnose` checks reachability, https, credential separation, and each role's granted scope (from the token's reported access, or a read-only pull probe when the token is opaque, in which case push/delete are reported as unverified). Output never includes secrets; the task exits non-zero on failure.
+`bin/rails runtime_images:diagnose` checks reachability, https, credential separation, and each role against the registry itself: a read-only tag listing must be accepted, a builder's push is verified by opening and cancelling a blob upload, and delete is reported as unverified unless the token reports it (a registry that rejects the token fails the role even if the token claims the right access; use an existing repository as the probe if your registry hides unknown names behind a bare 404). Output never includes secrets; the task exits non-zero on failure.

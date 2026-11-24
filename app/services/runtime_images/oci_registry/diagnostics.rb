@@ -45,37 +45,62 @@ module RuntimeImages
         end
       end
 
-      # A 200 from /v2/ only proves authentication, not scope. Prefer the
-      # access claim the token service reports for the probe repository; when
-      # the token is opaque, verify pull with a read-only tag listing and
-      # report push/delete as unverified instead of claiming them.
+      # A 200 from /v2/ only proves authentication, and a token's own claims
+      # prove nothing about whether the registry accepts it. Every role is
+      # therefore checked against the registry: a read-only tag listing must
+      # be accepted (200, or a 404 that names the repository unknown, which
+      # registries only answer after authorizing the token). A builder's push
+      # right is verified by opening and cancelling a blob upload. Delete
+      # cannot be probed without mutating, so it is reported from the token's
+      # access claim when present and as unverified otherwise.
       def role_check(client, role, repository)
         name = "#{role} credential"
         return Check.new(name, :fail, "not configured") unless @configuration.credential?(role)
         actions = Configuration::ROLE_ACTIONS.fetch(role)
         token, = client.mint_token(role: role, repository: repository, actions: actions)
         reported = reported_actions(token, repository)
-        return claim_check(name, actions, reported) if reported
-        probe_check(client, role, repository, actions, name)
+        if reported && (missing = actions - reported).any?
+          return Check.new(name, :fail, "token service did not grant #{missing.join(',')}")
+        end
+        failure = pull_failure(client, role, repository, actions) || push_failure(client, role, repository, actions)
+        return Check.new(name, :fail, failure) if failure
+        verified_check(name, actions, reported)
       rescue RuntimeImages::Error => e
         Check.new("#{role} credential", :fail, e.message)
       end
 
-      def claim_check(name, actions, reported)
-        missing = actions - reported
-        return Check.new(name, :ok, "token grants #{actions.join(',')}") if missing.empty?
-        Check.new(name, :fail, "token service did not grant #{missing.join(',')}")
+      def verified_check(name, actions, reported)
+        unverified = actions - %w[pull push]
+        unverified -= reported.to_a
+        return Check.new(name, :ok, "registry accepted #{(actions - unverified).join(',')}") if unverified.empty?
+        Check.new(name, :warn, "registry accepted pull#{actions.include?('push') ? ',push' : ''}; #{unverified.join(',')} not verifiable without a scope-reporting token")
       end
 
-      def probe_check(client, role, repository, actions, name)
+      def pull_failure(client, role, repository, actions)
         response = client.request(role: role, repository: repository, method: :get,
                                   path: "/v2/#{repository}/tags/list", actions: actions)
-        unless response.success? || response.status == 404
-          return Check.new(name, :fail, "registry denied pull (HTTP #{response.status})")
-        end
-        unverified = actions - ["pull"]
-        return Check.new(name, :ok, "authenticated for pull") if unverified.empty?
-        Check.new(name, :warn, "pull verified; #{unverified.join(',')} not verifiable without a scope-reporting token")
+        return nil if response.success?
+        return nil if response.status == 404 && response.body.to_s.include?("NAME_UNKNOWN")
+        "registry did not confirm pull access (HTTP #{response.status})"
+      end
+
+      def push_failure(client, role, repository, actions)
+        return nil unless actions.include?("push")
+        response = client.request(role: role, repository: repository, method: :post,
+                                  path: "/v2/#{repository}/blobs/uploads/", actions: actions)
+        return "registry denied push (HTTP #{response.status})" unless response.status == 202
+        location = response.header("location").to_s
+        cancel_upload(client, role, repository, actions, location)
+        nil
+      end
+
+      def cancel_upload(client, role, repository, actions, location)
+        target = URI.join("#{@configuration.url}/", location)
+        path = target.request_uri
+        return unless path.start_with?("/v2/#{repository}/blobs/uploads/")
+        client.request(role: role, repository: repository, method: :delete, path: path, actions: actions)
+      rescue RuntimeImages::Error, URI::InvalidURIError
+        nil
       end
 
       def reported_actions(token, repository)

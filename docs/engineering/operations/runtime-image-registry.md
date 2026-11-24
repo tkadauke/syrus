@@ -42,7 +42,9 @@ the deployment credential.
 ## Diagnostics
 
 `bin/rails runtime_images:diagnose` checks reachability, transport security,
-credential separation, and authentication for each role. Output never includes
+credential separation, and for each role whether the registry accepts its token
+(tag listing for pull, a cancelled blob upload for builder push; delete is
+unverifiable without mutating). Output never includes
 secrets and the task exits non-zero on failure.
 
 Revocation and deletion require the registry to allow manifest deletion; a
