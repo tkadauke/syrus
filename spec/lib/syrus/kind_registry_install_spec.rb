@@ -35,6 +35,7 @@ RSpec.describe Syrus::KindRegistry, "install and teardown" do
     expect(Job::Kind.values).to include(*built_in)
 
     set_enabled(false)
-    expect(Job::Kind.values).to eq(built_in)
+    expect(Job::Kind.values).to include(*built_in)
+    expect(Job::Kind.values).not_to include("agent_insight")
   end
 end

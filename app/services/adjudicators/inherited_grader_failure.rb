@@ -14,7 +14,8 @@ module Adjudicators
       steps = Array(step || failed_grader_steps(workflow))
       return Adjudication.inconclusive(adjudicator: name) if steps.empty?
 
-      result = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: steps)
+      result = RepairClassifiers.classify(workflow:, failed_steps: steps)
+      return Adjudication.inconclusive(adjudicator: name, reason: "not_inherited") unless result
       return Adjudication.inconclusive(adjudicator: name, reason: "not_inherited") unless result.inherited?
 
       Adjudication.dismiss(

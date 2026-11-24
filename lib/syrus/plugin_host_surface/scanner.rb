@@ -81,7 +81,7 @@ module Syrus
       end
 
       def public_names(api)
-        target_name = api.name.safe_constantize&.name
+        target_name = api.name.safe_constantize.then { |target| target.respond_to?(:name) && target.is_a?(Module) ? target.name : nil }
         [ api.name, target_name ].compact.uniq
       end
 

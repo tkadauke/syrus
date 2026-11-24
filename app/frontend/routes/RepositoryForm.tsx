@@ -42,6 +42,7 @@ import { Select } from "../components/Select"
 import { DataTable, Form, Surface, Text } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
+import { PluginUiSlot } from "../pluginUiSlots"
 
 const LINEAR_TEAM_LOOKUP_DEBOUNCE_MS = 400
 
@@ -545,51 +546,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             onChange={(checked) => setValues({ ...values, ci_repair_enabled: checked })}
             value={values.ci_repair_enabled}
           />
-          <Checkbox
-            label={t("repository_form.check_main_health")}
-            onChange={(checked) =>
-              setValues({
-                ...values,
-                main_branch_health_enabled: checked,
-                main_branch_repair_enabled: checked ? values.main_branch_repair_enabled : false,
-                main_branch_repair_blocks_work: checked ? values.main_branch_repair_blocks_work : false,
-                main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
-              })
-            }
-            value={values.main_branch_health_enabled}
-          />
-          <Checkbox
-            label={t("repository_form.check_main_repair")}
-            onChange={(checked) => {
-              setRepairTouched(true)
-              setValues({
-                ...values,
-                main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
-                main_branch_repair_enabled: checked,
-                main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
-              })
-            }}
-            value={values.main_branch_health_enabled && values.main_branch_repair_enabled}
-          />
-          <Checkbox
-            label={t("repository_form.check_main_repair_blocks_work")}
-            onChange={(checked) =>
-              setValues({ ...values, main_branch_health_enabled: checked ? true : values.main_branch_health_enabled, main_branch_repair_blocks_work: checked })
-            }
-            value={values.main_branch_repair_blocks_work}
-          />
-          <Checkbox
-            label={t("repository_form.check_repair_auto_approve")}
-            onChange={(checked) =>
-              setValues({
-                ...values,
-                main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
-                main_branch_repair_enabled: checked ? true : values.main_branch_repair_enabled,
-                main_branch_repair_auto_approve: checked
-              })
-            }
-            value={values.main_branch_health_enabled && values.main_branch_repair_enabled && values.main_branch_repair_auto_approve}
-          />
+          <PluginUiSlot panels={payload.ui_settings} props={{ values, setValues, setRepairTouched }} />
           <Checkbox
             label={t("repository_form.check_timeout_failures")}
             onChange={(checked) => setValues({ ...values, treat_grader_timeouts_as_failures: checked })}

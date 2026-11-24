@@ -1,0 +1,27 @@
+{
+  "plugin": {
+    "display_name": "Main branch health",
+    "description": "Main branch health plugin for Syrus."
+  },
+  "admin": {
+    "title": "Main branch health",
+    "message": "Your plugin is ready."
+  },
+  "banner": {
+    "broken_main_banner": "Main branch is broken — queued jobs are held.",
+    "broken_main_banner_not_held": "Main branch is broken — work is not paused.",
+    "main_health_inconclusive_banner": "Main branch health is inconclusive.",
+    "main_health_inconclusive_banner_not_held": "Main branch health is inconclusive — work is not paused.",
+    "broken_main_view_details": "View details",
+    "broken_main_repair_active": "Repair running:",
+    "broken_main_repair_waiting": "Repair waiting:",
+    "broken_main_repair_landing": "Repair landing:",
+    "broken_main_repair_failed_jobs": "Failed repairs:",
+    "broken_main_repair_waiting_for_signals": "Waiting for CI and grader signals.",
+    "broken_main_repair_cap": "Repair cap reached.",
+    "broken_main_repair_start": "Start repair job",
+    "broken_main_repair_starting": "Starting...",
+    "broken_main_repair_start_failed": "Repair could not be started.",
+    "broken_main_dismiss": "Dismiss"
+  }
+}

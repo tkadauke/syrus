@@ -187,7 +187,7 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
       state: "succeeded",
       iteration: 0
     )
-    MainConcernReport.create!(
+    MainBranchHealth::ConcernReport.create!(
       repository: repository,
       job: job,
       workflow: workflow,
@@ -196,7 +196,7 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
       failing_tests: [ "rspec-ci" ],
       reason: "rspec-ci fails the same way on origin/main"
     )
-    MainConcernReport.create!(
+    MainBranchHealth::ConcernReport.create!(
       repository: repository,
       job: job,
       workflow: workflow,

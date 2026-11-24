@@ -337,7 +337,6 @@ surface (see [Permission authority](permission_authority.md)):
 | `read_run_worker_health` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `record_isolated_repro` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - | essential |
 | `report_cannot_proceed` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `report_cannot_proceed` | - | essential |
-| `report_main_concern` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - | essential |
 | `run_target_prepare` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:manual` | - | `run_target_prepare` | - | essential |
 | `runtime_acquire_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |
 | `runtime_capture_artifact` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |

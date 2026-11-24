@@ -425,7 +425,7 @@ RSpec.describe Steps::GraderCollect do
       status: "failed",
       checked_at: Time.current
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -452,7 +452,7 @@ RSpec.describe Steps::GraderCollect do
 
   it "does not pass strict grader failures even when main has the same failed grader" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -468,7 +468,7 @@ RSpec.describe Steps::GraderCollect do
 
   it "does not pass new grader failures that are absent from broken-main evidence" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -728,7 +728,7 @@ RSpec.describe Steps::GraderCollect do
 
   it "consumes grader-recorded base-revision evidence without launching another retry" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -850,7 +850,7 @@ RSpec.describe Steps::GraderCollect do
       details: { "name" => "rspec" }
     )
     base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       workflow: base_workflow,
       sha: "main123",
@@ -922,7 +922,7 @@ RSpec.describe Steps::GraderCollect do
       status: "failed",
       checked_at: Time.current
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       workflow: base_workflow,
       sha: "main123",
@@ -954,7 +954,7 @@ RSpec.describe Steps::GraderCollect do
 
   it "consumes grader-recorded full-command retry evidence for a non-test grader" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -998,7 +998,7 @@ RSpec.describe Steps::GraderCollect do
 
   it "does not pass inherited-looking grader failures under strict failure policy" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -1015,7 +1015,7 @@ RSpec.describe Steps::GraderCollect do
   it "dismisses a required grader failure verified by report_main_concern plus a matching base-revision retry" do
     repair_step = Step.create!(workflow: workflow, kind: "landing_fix", position: 99, iteration: step.iteration, loop_id: loop_id)
     repair_run = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: step.iteration)
-    MainConcernReport.create!(
+    MainBranchHealth::ConcernReport.create!(
       repository: job.repository,
       job: job,
       workflow: workflow,
@@ -1054,7 +1054,7 @@ RSpec.describe Steps::GraderCollect do
   it "still fails collection when report_main_concern was filed but base_retry shows the base revision passing" do
     repair_step = Step.create!(workflow: workflow, kind: "landing_fix", position: 99, iteration: step.iteration, loop_id: loop_id)
     repair_run = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: step.iteration)
-    MainConcernReport.create!(
+    MainBranchHealth::ConcernReport.create!(
       repository: job.repository,
       job: job,
       workflow: workflow,

@@ -318,7 +318,7 @@ module Steps
       case verdict.adjudicator
       when Adjudicators::InheritedGraderFailure.name
         record_inherited_main_failure!(failed_required, verdict.evidence)
-      when Adjudicators::ReportedMainConcern.name
+      when "reported_main_concern"
         record_main_concern_verified_failure!(failed_required, verdict.evidence)
       when Adjudicators::KnownFlakyFailure.name
         record_known_flaky_failure!(failed_required, verdict.evidence)
@@ -390,7 +390,7 @@ module Steps
       verdict_evidence = verdict_evidence.to_h
       classified = nil
       unless verdict_evidence.key?(:classifications) || verdict_evidence.key?("classifications")
-        classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)
+        classified = RepairClassifiers.classify(workflow: workflow, failed_steps: failed_required)
       end
       inherited_names = verdict_evidence[:inherited_names] || verdict_evidence["inherited_names"] || classified&.inherited_names || []
       main_branch_evidence = verdict_evidence[:main_branch_evidence] || verdict_evidence["main_branch_evidence"] || classified&.evidence
@@ -408,7 +408,7 @@ module Steps
       )
     end
 
-    # Surfaces an Adjudicators::ReportedMainConcern dismissal the same way
+    # Surfaces a reported_main_concern dismissal the same way
     # record_inherited_main_failure! surfaces one -- an operator looking at
     # why a red required grader did not block this iteration must be able to
     # see both halves of the evidence: the agent's report_main_concern claim

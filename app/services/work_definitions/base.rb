@@ -106,7 +106,7 @@ module WorkDefinitions
     def unit_gates
       [
         WorkUnits::Gates::ActiveWorkLock,
-        WorkUnits::Gates::MainBranchHealth,
+        WorkUnits::Gates::WorkGateVeto,
         WorkUnits::Gates::ProviderAvailability,
         WorkUnits::Gates::ManualPause,
         WorkUnits::Gates::AdmissionControl

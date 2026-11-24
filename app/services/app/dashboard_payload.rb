@@ -63,16 +63,15 @@ module App
     end
 
     def chrome_payload
-      health_blocked_repositories = PerformanceLogging.phase("dashboard_chrome.health_blocked_repositories", subject: subject) { health_blocked_repositories_json }
       stable = stable_chrome_payload
       ui_panels = (stable.fetch(:ui_panels) + volatile_ui_panels_json).sort_by { |panel| panel[:order].to_i }
 
-      volatile_chrome_payload(health_blocked_repositories)
+      volatile_chrome_payload
         .merge(stable)
-        .merge(ui_panels: ui_panels)
+        .merge(ui_panels: ui_panels, banner_panels: banner_panels_json)
     end
 
-    def volatile_chrome_payload(health_blocked_repositories)
+    def volatile_chrome_payload
       {
         subject: subject,
         view: view,
@@ -84,7 +83,6 @@ module App
         filter: smart_folder_resolution.filter.to_h,
         landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_json },
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
-        health_blocked_repositories: health_blocked_repositories,
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
         active_smart_folder_filter: active_smart_folder&.filter,
@@ -240,6 +238,14 @@ module App
         context: ui_panel_context,
         cacheable: true
       )
+    end
+
+    # Full-width banners above the dashboard body (for example a plugin's
+    # operational alert). Always rebuilt: banners describe live state.
+    def banner_panels_json
+      PerformanceLogging.phase("dashboard_chrome.banner_panels", subject: subject) do
+        ::App::UiSlotsPayload.panels_for(slot: "dashboard.banner", context: ui_panel_context, cacheable: false)
+      end
     end
 
     def volatile_ui_panels_json

@@ -1009,7 +1009,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
           ci_health: "broken",
           grader_health: "broken"
         )
-        MainBranchHealthCheck.create!(
+        MainBranchHealth::HealthCheck.create!(
           repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
           ci_health: "broken", grader_health: "broken",
           ci_failed_checks: [ { "name" => "rspec" }, { "name" => "e2e" } ]
@@ -1681,6 +1681,22 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_ci_handled_sha).to be_nil
     end
 
+    it "does not treat an unrelated work-gate veto as a broken main branch" do
+      unrelated = Syrus::Plugin::WorkPolicy::Veto.new(
+        reason: :resource_safety,
+        message: "Maintenance is in progress."
+      )
+      allow(WorkGates).to receive(:evaluate).and_return(WorkGates::Result.new(vetoes: [ unrelated ]))
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+    end
+
     it "dispatches ci_failure while main is known-broken when main repair does not block work" do
       repository.update!(
         ci_health: "broken",
@@ -1688,7 +1704,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
         landing_paused: true,
         main_branch_repair_blocks_work: false
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository,
         sha: base_sha,
         checked_at: 1.minute.ago,

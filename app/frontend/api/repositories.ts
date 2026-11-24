@@ -126,6 +126,7 @@ export type RepositoryFormPayload = {
   provider_routing_rules: ProviderRoutingRule[]
   inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
   provider_routing_options: ProviderRoutingOptions
+  ui_settings?: import("../pluginUiSlots").UiSlotPanel[]
   input_source_types: InputSourceType[]
   auto_approve_modes: RepositoryAutoApproveMode[]
   repositories_path: string

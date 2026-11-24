@@ -175,11 +175,12 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, JOB_BLOCK_REASON)
 
-    if main_health_blocking?(workflow)
-      reason = MAIN_HEALTH_BLOCK_REASON
+    if (veto = work_gate_veto(workflow))
+      reason = veto.reason
       return if start_blocked_backoff_active?(workflow, reason)
 
-      record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF)
+      record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF,
+        details: veto.details.merge("message" => veto.message, "landing" => veto.landing?, "work_gate" => true))
       # Like the Epic-wide and landing-pause gates above. Without it this gate
       # had nothing scheduled to look again, so a workflow blocked here waited
       # on a main-health transition rather than on its own backoff.
@@ -187,7 +188,8 @@ class StepDispatcher
       warn_if_stuck_queued(workflow, reason)
       return
     end
-    clear_start_blocked!(workflow, MAIN_HEALTH_BLOCK_REASON)
+    previous_work_gate_reason = workflow.artifact("start_blocked_details").to_h["work_gate"] && workflow.artifact("start_blocked_reason")
+    clear_start_blocked!(workflow, previous_work_gate_reason || MAIN_HEALTH_BLOCK_REASON)
 
     if urgent_blocking?(workflow)
       reason = URGENT_BLOCK_REASON
@@ -351,16 +353,10 @@ class StepDispatcher
   end
 
   def self.main_health_blocking?(workflow)
-    return false if MAIN_HEALTH_EXEMPT_TRIGGERS.include?(workflow.trigger_kind)
-    return false if MainHealthChangedService.fix_main_job?(workflow.job)
-
-    repository = workflow.job.repository
-    return false unless repository.main_branch_health_enabled?
-    return false unless repository.strict_breakage_policy?
-    return false unless repository.main_branch_repair_blocks_work?
-
-    repository.landing_paused? && repository.main_health_broken?
+    WorkGates.evaluate(workflow:).veto_for(MAIN_HEALTH_BLOCK_REASON).present?
   end
+
+  def self.work_gate_veto(workflow) = WorkGates.evaluate(workflow:).first
 
   def self.merge_train_workflow?(workflow)
     workflow.trigger_kind == "merge_train" && workflow.artifact("merge_train_id").present?

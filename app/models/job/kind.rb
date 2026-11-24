@@ -27,7 +27,6 @@ class Job
       Entry.new(kind: "issue",       investigable: true, classifiable: true),
       Entry.new(kind: "cron",        issueless: true, investigable: true),
       Entry.new(kind: "direct",      issueless: true, investigable: true),
-      Entry.new(kind: "main_grader", issueless: true, infrastructure: true),
       Entry.new(kind: "external_pr", issueless: true),
       Entry.new(kind: "deploy",      issueless: true, infrastructure: true)
     ].freeze

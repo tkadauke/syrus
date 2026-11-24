@@ -133,7 +133,7 @@ class LandingQueueProcessor
 
   def try_land!(job)
     cancel_obsolete_automatic_visual_diffs!(job.repository.jobs.approved)
-    release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
+    release_main_health_blocked_landing_slots_for_repair!(job) if BaseBranchHealth.repair_job?(job)
     release_urgent_blocked_landing_slots_for_urgent_job!(job) if job.priority == "urgent"
     return if landing_in_progress_for_job?(job)
     return unless job.approved?
@@ -718,7 +718,7 @@ class LandingQueueProcessor
     queue_entries
       .select(&:eligible?)
       .map(&:job)
-      .select { |job| MainHealthChangedService.fix_main_job?(job) }
+      .select { |job| BaseBranchHealth.repair_job?(job) }
       .flat_map { |job| release_main_health_blocked_landing_slots_for_repair!(job) }
   end
 
@@ -870,12 +870,7 @@ class LandingQueueProcessor
       end
 
     check_blocker.call({ key: "landing_paused" }) if job.user.landing_paused? || job.owner_user&.landing_paused?
-    if job.repository.main_branch_health_enabled? &&
-       job.repository.strict_breakage_policy? &&
-       job.repository.main_branch_repair_blocks_work? &&
-       job.repository.landing_paused? &&
-       job.repository.main_health_broken? &&
-       !MainHealthChangedService.fix_main_job?(job)
+    if WorkGates.evaluate(job:, landing: true).vetoes.any?(&:landing?)
       check_blocker.call({ key: "landing_paused_main_broken" })
     end
     check_blocker.call({ key: "repository_archived" }) if job.repository.archived?
@@ -1072,7 +1067,7 @@ class LandingQueueProcessor
     return if attribution.base_sha.blank?
 
     if repository.ci_health_broken? && repository.last_ci_evaluated_sha == attribution.base_sha
-      MainHealthChangedService.ensure_repair_job!(repository)
+      BaseBranchHealth.ensure_repair!(repository)
       return
     end
 
@@ -1081,7 +1076,7 @@ class LandingQueueProcessor
       last_health_checked_sha: attribution.base_sha,
       last_ci_evaluated_sha: attribution.base_sha
     )
-    MainHealthChangedService.on_health_change!(repository.reload)
+    BaseBranchHealth.health_changed!(repository.reload)
   end
 
   def trigger_main_health_poll_for_unknown_pr_check_attribution(job, attribution)
@@ -1092,7 +1087,7 @@ class LandingQueueProcessor
       "[LandingQueueProcessor] #{job.slug} PR checks are failing, but base attribution is #{attribution.reason}; " \
       "requesting main-health poll for #{repository.slug}"
     )
-    PollMainBranchHealthJob.perform_later(repository.id)
+    BaseBranchHealth.poll_later(repository.id)
   end
 
   def inherited_pr_check_evidence_stale?(job, attribution)
@@ -1110,7 +1105,7 @@ class LandingQueueProcessor
       "[LandingQueueProcessor] #{job.slug} PR checks look inherited from stale base #{attribution.base_sha}; " \
       "refreshing main health and mergeability before final blocker decision"
     )
-    PollMainBranchHealthJob.perform_later(job.repository_id)
+    BaseBranchHealth.poll_later(job.repository_id)
     PollRebaseJob.enqueue_manual_check(job.id)
   end
 
@@ -1265,7 +1260,7 @@ class LandingQueueProcessor
   # as the culprit, in pairs that pointed at each other. Nothing in that set was
   # at fault and nothing in it could move.
   #
-  # Memoized per tick: attribution queries MainBranchHealthCheck, and siblings
+  # Memoized per tick: attribution queries MainBranchHealth::HealthCheck, and siblings
   # repeat across every member of an Epic, so an un-memoized call is quadratic
   # in Epic size.
   def tolerated_inherited_pr_checks?(sibling)

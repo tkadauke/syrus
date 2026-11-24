@@ -54,9 +54,12 @@ module Syrus
       repository_configuration
       backup_artifact_source
       backup_destination
+      work_gate
+      repair_classifier
       system_alert_provider
       line_coverage_provider
       skill
+      base_branch_health
     ].freeze
 
     # Qualified points hosted by the workflow kernel rather than by an
@@ -128,7 +131,10 @@ module Syrus
       repository_configuration: "Declares and validates plugin-owned repository configuration read from the supported configuration file.",
       backup_artifact_source: "Provides sealed backup artifacts for validation, pinning, streaming, and replication tracking.",
       backup_destination: "Replicates sealed backup artifacts to a plugin-owned offsite destination and reports their remote state.",
-      system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery."
+      work_gate: "May veto workflow or WorkUnit starts, and declares whether that veto also applies to landing.",
+      repair_classifier: "Classifies failed Run or Workflow evidence for generic repair machinery.",
+      system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery.",
+      base_branch_health: "Tracks base-branch health and repair for core's dispatcher, landing, polling and CI-repair code, which otherwise assume nothing is known."
     }.freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -188,7 +194,10 @@ module Syrus
       repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
       backup_artifact_source:  -> { Syrus::Plugin::BackupArtifactSource },
       backup_destination:      -> { Syrus::Plugin::BackupDestination },
-      system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider }
+      work_gate:               -> { Syrus::Plugin::WorkGate },
+      repair_classifier:       -> { Syrus::Plugin::RepairClassifier },
+      system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider },
+      base_branch_health:      -> { Syrus::Plugin::BaseBranchHealth }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

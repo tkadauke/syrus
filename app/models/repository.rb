@@ -84,14 +84,6 @@ class Repository < ApplicationRecord
   attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24
   attribute :upstream_pr_grace_period_days, :integer, default: 7
-  attribute :ci_health, :string, default: "unknown"
-  attribute :grader_health, :string, default: "unknown"
-  attribute :main_health_poll_error_streak, :integer, default: 0
-  attribute :landing_paused, :boolean, default: false
-  attribute :main_branch_health_enabled, :boolean, default: false
-  attribute :main_branch_repair_enabled, :boolean, default: false
-  attribute :main_branch_repair_blocks_work, :boolean, default: false
-  attribute :main_branch_repair_auto_approve, :boolean, default: false
   # When on, a scheduled job keeps this fork's default branch in sync with
   # its in-instance upstream (via GitHub's merge-upstream API) so main-branch
   # health/grader detection runs against current code even when no Jobs run.
@@ -104,9 +96,6 @@ class Repository < ApplicationRecord
   attribute :poll_external_pr_errors, :json, default: []
 
   attr_accessor :main_branch_repair_enabled_explicit
-
-  enum :ci_health, CI_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
-  enum :grader_health, GRADER_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
 
   belongs_to :user, optional: true
   belongs_to :installation, optional: true
@@ -132,7 +121,6 @@ class Repository < ApplicationRecord
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :repository_documents, as: :attachable, class_name: "Document", dependent: :destroy
   has_many :chat_pending_actions, dependent: :nullify
-  has_many :main_branch_health_checks, dependent: :destroy
   has_many :preview_environments, dependent: :destroy
   has_many :repository_execution_probes, dependent: :destroy
   has_many :cognitive_engagement_events, dependent: :destroy

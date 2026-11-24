@@ -7,23 +7,34 @@ RSpec.describe "WorkUnit runtime gates" do
   let(:workflow) { WorkUnits::Launcher.instantiate(kind: "initial", job: job) }
   let(:unit) { workflow.work_unit }
 
-  describe WorkUnits::Gates::MainBranchHealth do
-    it "blocks when StepDispatcher main-health policy would block the workflow" do
-      allow(StepDispatcher).to receive(:main_health_blocking?).with(workflow).and_return(true)
+  describe WorkUnits::Gates::WorkGateVeto do
+    let(:veto) do
+      Syrus::Plugin::WorkPolicy::Veto.new(
+        reason: "example_veto",
+        message: "Example plugin paused work.",
+        details: { "repository_id" => repository.id, "block_reason" => "example_block" }
+      )
+    end
+
+    it "blocks with the provider's block reason when a work gate vetoes the workflow" do
+      allow(StepDispatcher).to receive(:work_gate_veto).with(workflow).and_return(veto)
 
       result = described_class.call(unit)
 
       expect(result).to be_blocked
-      expect(result.reason).to eq("main_branch_health")
-      expect(result.details).to include(
-        "repository_id" => repository.id,
-        "repository_slug" => repository.slug,
-        "main_health_state" => "broken"
-      )
+      expect(result.reason).to eq("example_block")
+      expect(result.details).to eq("repository_id" => repository.id)
     end
 
-    it "passes when main-health policy allows the workflow" do
-      allow(StepDispatcher).to receive(:main_health_blocking?).with(workflow).and_return(false)
+    it "falls back to the veto reason when the provider names no block reason" do
+      bare = Syrus::Plugin::WorkPolicy::Veto.new(reason: "bare_veto", message: "Paused.")
+      allow(StepDispatcher).to receive(:work_gate_veto).with(workflow).and_return(bare)
+
+      expect(described_class.call(unit).reason).to eq("bare_veto")
+    end
+
+    it "passes when no work gate vetoes the workflow" do
+      allow(StepDispatcher).to receive(:work_gate_veto).with(workflow).and_return(nil)
 
       expect(described_class.call(unit)).to be_pass
     end

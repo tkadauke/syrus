@@ -1359,7 +1359,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1396,7 +1396,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_failing_names: [ "rspec" ],
         pr_checks_base_sha: "develop-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository,
         branch: "develop",
         sha: "develop-sha",
@@ -1440,7 +1440,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         last_health_checked_sha: "base-sha",
         last_ci_evaluated_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: first_job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1459,7 +1459,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1479,7 +1479,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       second = queue_job(issue_number: 2, approved_at: 1.minute.ago)
       [ first, second ].each { |job| job.update_columns(epic_id: epic.id) }
       repository.update!(pr_check_gate: "own_only")
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1508,7 +1508,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       second = queue_job(issue_number: 2, approved_at: 1.minute.ago)
       [ first, second ].each { |job| job.update_columns(epic_id: epic.id) }
       repository.update!(pr_check_gate: "own_only")
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "healthy", ci_failed_checks: []
       )
@@ -1554,7 +1554,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec" ], pr_checks_base_sha: "old-base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, sha: "old-base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1588,7 +1588,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1606,7 +1606,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec", "mine" ], mergeability_base_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
@@ -1622,7 +1622,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
         pr_checks_failing_names: [ "rspec", "mine" ], mergeability_base_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )

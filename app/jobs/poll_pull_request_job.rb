@@ -599,16 +599,11 @@ class PollPullRequestJob < ApplicationJob
     value.to_s == "ci_infrastructure"
   end
 
-  # Mirrors StepDispatcher.main_health_blocking?: don't blame the Job's own
-  # diff for a red check when the repository's base revision is already
-  # known-broken. Repair jobs must keep absorbing CI feedback until main is
-  # fixed, same exemption ci_failure_cap_reached? already grants them.
+  # Do not blame the Job's own diff when a work-policy provider says the base
+  # is unavailable. Repair work remains exempt through the provider itself.
   def main_health_broken?
-    return false if @job.main_branch_repair?
-
-    repository = @job.repository
-    return false unless repository.main_branch_repair_blocks_work?
-    return false unless repository.landing_paused? && repository.main_health_broken?
+    veto = WorkGates.evaluate(job: @job).veto_for(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
+    return false unless veto
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while main branch is broken")
     true
@@ -728,12 +723,12 @@ class PollPullRequestJob < ApplicationJob
     # on the base silently disabled CI repair for every Job in the fleet.
     if (introduced = introduced_failing_check_names(base_sha)).present?
       Rails.logger.info("[PollPullRequestJob] #{@job.slug}: base #{base_sha[0, 7]} is unhealthy but #{introduced.join(', ')} fail only here; repairing those")
-      PollMainBranchHealthJob.perform_later(@job.repository_id)
+      BaseBranchHealth.poll_later(@job.repository_id)
       return false
     end
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because base #{base_sha[0, 7]} is not known healthy")
-    PollMainBranchHealthJob.perform_later(@job.repository_id)
+    BaseBranchHealth.poll_later(@job.repository_id)
     true
   end
 
@@ -778,7 +773,7 @@ class PollPullRequestJob < ApplicationJob
     return true if branch == repository.default_branch &&
       repository.last_health_checked_sha == base_sha && repository.main_health == "healthy"
 
-    MainBranchHealthCheck
+    BaseBranchHealth.checks
       .where(repository: repository, branch: branch, sha: base_sha)
       .where(ci_health: %w[healthy not_configured], grader_health: "healthy")
       .exists?
