@@ -182,7 +182,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::CodePathNormalizer` (since 0.1.16) — Normalizes tool-reported source paths to repository-relative paths. Only the listed members are supported. Supported members: `normalize`.
 - `Syrus::Host::CoverageParsers` (since 0.1.16) — Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract. Only the listed members are supported. Supported members: `for`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
-- `Syrus::Host::DiffReviews` (since 0.1.16) — Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised. Supported members: `best_match_version`, `comments`, `final_review_version`, `versions`.
+- `Syrus::Host::DiffReviews` (since 0.1.16) — Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised. Supported members: `best_match_version`, `comments`, `default_version_for_review`, `final_review_version`, `versions`.
 - `Syrus::Host::DiskUsage` (since 0.1.16) — Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised. Supported members: `read`.
 - `Syrus::Host::EcosystemDependencyAuditPlan` (since 0.1.16) — Carries one ecosystem's immutable dependency-audit lockfiles and command. Only the listed members are supported. Supported members: `command`, `label`, `lockfiles`, `new`.
 - `Syrus::Host::EcosystemGraderCoverage` (since 0.1.16) — Shares the supported coverage-phase decision used by Ecosystem grader-type providers. Only the listed members are supported. Supported members: `coverage_for_phases?`.
@@ -193,7 +193,6 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::ExternalReviewer` (since 0.1.16) — Defines provisional external-review dispatch, refresh, and cancellation operations; lifecycle orchestration and storage are not promised. Only the listed members are supported. Supported members: `available_for?`, `cancel`, `capabilities`, `display_name`, `provider_key`, `refresh`, `submit`.
 - `Syrus::Host::FeedbackKind` (since 0.1.16) — Resolves the feedback object for a workflow; its review_text feeds review prompts. Only the listed members are supported. Supported members: `for`.
 - `Syrus::Host::GithubContentTrust` (since 0.1.16) — Shares the GitHub-content prompt trust boundary. Only the listed members are supported.
-
 - `Syrus::Host::Handles` (since 0.1.16) — Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised. Supported members: `claim!`, `normalize`, `release!`, `rename!`.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
 - `Syrus::Host::Job` (since 0.1.16) — Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised. Supported members: `accessible_to`, `find`, `id`, `repository`, `state`, `title`, `user`, `visible_to`, `workflows`.
@@ -230,13 +229,12 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::RepositoryContentProvider` (since 0.1.16) — Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised. Only the listed members are supported. Supported members: `available_for?`, `build`, `changes`, `children`, `commits`, `display_name`, `divergence`, `history`, `provider_key`, `read`, `refs`, `relation`, `resolve`, `role`, `tree`, `tree_sha`.
 - `Syrus::Host::RepositoryGlob` (since 0.1.16) — Matches repository paths against configured globs. Only the listed members are supported. Supported members: `match?`.
 - `Syrus::Host::RetainedGraderCoverageOutputs` (since 0.1.16) — Reads the coverage files graders declared and the Run retained. Only the listed members are supported. Supported members: `for`.
-- `Syrus::Host::ReviewExecutionPolicy` (since 0.1.16) — Shares review-step skip and failure policy. Only the listed members are supported.
-- `Syrus::Host::ReviewFindingEvents` (since 0.1.16) — Records structured review findings. Only the listed members are supported. Supported members: `record`.
-
 - `Syrus::Host::RetentionDefinition` (since 0.1.16) — Declares one retention policy (key, model, age column, setting, default, executor); registry storage is not promised. Only the listed members are supported. Supported members: `key`, `model_class`, `new`, `retention_window`, `scope_name`.
 - `Syrus::Host::RetentionExecutor` (since 0.1.16) — Bases plugin retention executors that prune one declared policy; batching, scheduling, and archival are not promised. Only the listed members are supported. Supported members: `call`, `new`.
 - `Syrus::Host::RetentionLimits` (since 0.1.16) — Names the default batch limits for retention executors; scheduling is not promised. Supported members: `default_batch_size`, `default_max_batches`.
 - `Syrus::Host::RetentionResult` (since 0.1.16) — Reports how many records an executor deleted and whether a backlog remains. Only the listed members are supported. Supported members: `backlog`, `deleted_count`, `new`.
+- `Syrus::Host::ReviewExecutionPolicy` (since 0.1.16) — Shares review-step skip and failure policy. Only the listed members are supported.
+- `Syrus::Host::ReviewFindingEvents` (since 0.1.16) — Records structured review findings. Only the listed members are supported. Supported members: `record`.
 - `Syrus::Host::ReviewerTargets` (since 0.1.16) — Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised. Only the listed members are supported. Supported members: `TargetRequired`, `TargetUnavailable`, `resolve`.
 - `Syrus::Host::Run` (since 0.1.16) — Reads a run's identity, state, workflow, and job through find; dispatch, lifecycle transitions, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `state`, `workflow`.
 - `Syrus::Host::SkillBase` (since 0.1.16) — Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported. Supported members: `definition`.
@@ -252,7 +250,6 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::VisualReviewProjects` (since 0.1.16) — Resolves preview projects for a plugin-owned visual review step. Only the listed members are supported. Supported members: `call`, `configured_when_files_changed`.
 - `Syrus::Host::VisualReviewRuntimeSession` (since 0.1.16) — Manages a visual review runtime session. Only the listed members are supported. Supported members: `new`, `start!`, `stop!`.
 - `Syrus::Host::VisualReviewRuntimeTargets` (since 0.1.16) — Resolves runtime targets for a plugin-owned visual review step. Only the listed members are supported. Supported members: `call`.
-
 - `Syrus::Host::WorkDefinition` (since 0.1.16) — Bases plugin work definitions that declare retry, lock, and landing policy for a workflow kind; the scheduling engine is not promised. Only the listed members are supported. Supported members: `new`.
 - `Syrus::Host::WorkGateResult` (since 0.1.16) — Carries a start-gate verdict: pass, or block with a reason and optional retry time. Only the listed members are supported. Supported members: `block`, `blocked?`, `details`, `pass`, `pass?`, `reason`, `retry_at`.
 - `Syrus::Host::WorkLauncher` (since 0.1.16) — Instantiates and starts a workflow of a registered kind for a job, raising LockConflict when another unit holds the lock; ownership records, locks, and landing policy are not promised. Only the listed members are supported. Supported members: `LockConflict`, `create_and_start!`, `instantiate`, `start!`.
@@ -273,6 +270,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 43762 bytes (UTF-8, including this line).
-
-Size: 47294 bytes (UTF-8, including this line).
+Size: 52454 bytes (UTF-8, including this line).

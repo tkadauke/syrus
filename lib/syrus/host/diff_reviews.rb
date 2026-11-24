@@ -9,6 +9,10 @@ module Syrus
         ::DiffReviewVersion.best_match_for(job_id:, run_id:, workflow_id:)
       end
 
+      def self.default_version_for_review(job)
+        ::DiffReviewVersion.default_for_review(job)
+      end
+
       def self.final_review_version(job:, workflow:, run:)
         ::DiffReviewVersions::FinalReviewVersion.resolve(job:, workflow:, run:)
       end

@@ -358,6 +358,7 @@ Supported members:
 
 - `best_match_version`
 - `comments`
+- `default_version_for_review`
 - `final_review_version`
 - `versions`
 
@@ -952,22 +953,6 @@ Supported members:
 
 - `for`
 
-### `Syrus::Host::ReviewExecutionPolicy`
-
-Since: `0.1.16`
-
-Shares review-step skip and failure policy. Only the listed members are supported.
-
-### `Syrus::Host::ReviewFindingEvents`
-
-Since: `0.1.16`
-
-Records structured review findings. Only the listed members are supported.
-
-Supported members:
-
-- `record`
-
 ### `Syrus::Host::RetentionDefinition`
 
 Since: `0.1.16`
@@ -1015,6 +1000,22 @@ Supported members:
 - `backlog`
 - `deleted_count`
 - `new`
+
+### `Syrus::Host::ReviewExecutionPolicy`
+
+Since: `0.1.16`
+
+Shares review-step skip and failure policy. Only the listed members are supported.
+
+### `Syrus::Host::ReviewFindingEvents`
+
+Since: `0.1.16`
+
+Records structured review findings. Only the listed members are supported.
+
+Supported members:
+
+- `record`
 
 ### `Syrus::Host::ReviewerTargets`
 
@@ -1178,12 +1179,6 @@ Since: `0.1.16`
 
 Manages a visual review runtime session. Only the listed members are supported.
 
-### `Syrus::Host::WorkDefinition`
-
-Since: `0.1.16`
-
-Bases plugin work definitions that declare retry, lock, and landing policy for a workflow kind; the scheduling engine is not promised. Only the listed members are supported.
-
 Supported members:
 
 - `new`
@@ -1200,6 +1195,15 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::WorkDefinition`
+
+Since: `0.1.16`
+
+Bases plugin work definitions that declare retry, lock, and landing policy for a workflow kind; the scheduling engine is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
 
 ### `Syrus::Host::WorkGateResult`
 
