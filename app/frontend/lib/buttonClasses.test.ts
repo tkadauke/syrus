@@ -13,4 +13,12 @@ describe("buttonClass", () => {
     expect(className).not.toContain("bg-blue-500")
     expect(className).not.toContain("text-white")
   })
+
+  it("matches the shared Button md control height for every tone", () => {
+    for (const tone of ["primary", "secondary", "success", "danger", "danger-outline"] as const) {
+      const className = buttonClass(tone)
+      expect(className).toContain("h-[var(--control-height-md)]")
+      expect(className).not.toContain("py-1.5")
+    }
+  })
 })
