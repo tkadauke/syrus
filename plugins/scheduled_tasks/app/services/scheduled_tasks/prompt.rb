@@ -40,7 +40,7 @@ module ScheduledTasks
     end
 
     def to_s
-      [ preamble, interpolated_user_prompt, footer, memory_context, Prompts::GitSafety::TEXT, Prompts::SubmitSummaryInstructions::TEXT ].compact_blank.join("\n\n")
+      [ preamble, interpolated_user_prompt, footer, memory_context, Syrus::Host::AgentPrompts.git_safety_text, Syrus::Host::AgentPrompts.submit_summary_instructions_text ].compact_blank.join("\n\n")
     end
 
     # The operator's own instruction, interpolated with template
@@ -89,7 +89,7 @@ module ScheduledTasks
     end
 
     def memory_context
-      Prompts::MemoryContext.new(user: @task.user, repository_ids: [ @task.repository_id ]).to_s.presence
+      Syrus::Host::AgentPrompts.memory_context(user: @task.user, repository_ids: [ @task.repository_id ]).presence
     end
 
     def value_for(var)

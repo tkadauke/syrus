@@ -25,7 +25,7 @@ module SyrusDev
     class << self
       def call(server_context:, since: nil, until_time: nil)
         context = Syrus::Host::ToolContext.from_server_context(server_context)
-        return Syrus::Host::McpTools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
+        return Syrus::Host::McpTools.not_authorized unless context.role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT
         return Syrus::Host::McpTools.invalid("workspace reuse outcomes are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
 
         window_end = parse_time(until_time) || Time.current

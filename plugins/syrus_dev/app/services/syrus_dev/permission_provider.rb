@@ -4,18 +4,18 @@ module SyrusDev
 
     CAPABILITY = "syrus_dev.read_diagnostics@v1".freeze
     WORKFLOW_DEFAULTS = {
-      AgentRole::WORKFLOW_IMPLEMENT => :allow,
-      AgentRole::AGENT_INSIGHT => :allow
+      Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT => :allow,
+      Syrus::Host::AgentRole::AGENT_INSIGHT => :allow
     }.freeze
     DIAGNOSTIC_ROLES = [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::AGENT_INSIGHT,
-      AgentRole::COWORKER_CHAT,
-      AgentRole::COWORKER
+      Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT,
+      Syrus::Host::AgentRole::AGENT_INSIGHT,
+      Syrus::Host::AgentRole::COWORKER_CHAT,
+      Syrus::Host::AgentRole::COWORKER
     ].freeze
     DIAGNOSTIC_DEFAULTS = WORKFLOW_DEFAULTS.merge(
-      AgentRole::COWORKER_CHAT => :ask,
-      AgentRole::COWORKER => :ask
+      Syrus::Host::AgentRole::COWORKER_CHAT => :ask,
+      Syrus::Host::AgentRole::COWORKER => :ask
     ).freeze
 
     class << self
@@ -54,8 +54,8 @@ module SyrusDev
 
     register_read(
       operation: "syrus_dev.performance/read@v1",
-      roles: [ AgentRole::WORKFLOW_IMPLEMENT, AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
-      defaults: DIAGNOSTIC_DEFAULTS.except(AgentRole::AGENT_INSIGHT)
+      roles: [ Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT, Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ],
+      defaults: DIAGNOSTIC_DEFAULTS.except(Syrus::Host::AgentRole::AGENT_INSIGHT)
     )
     register_read(
       operation: "syrus_dev.logs/search@v1",
@@ -64,8 +64,8 @@ module SyrusDev
     )
     register_read(
       operation: "syrus_dev.workspace_reuse/read@v1",
-      roles: [ AgentRole::WORKFLOW_IMPLEMENT ],
-      defaults: WORKFLOW_DEFAULTS.except(AgentRole::AGENT_INSIGHT)
+      roles: [ Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ],
+      defaults: WORKFLOW_DEFAULTS.except(Syrus::Host::AgentRole::AGENT_INSIGHT)
     )
   end
 end

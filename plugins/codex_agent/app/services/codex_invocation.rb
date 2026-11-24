@@ -174,7 +174,7 @@ class CodexInvocation
     current_chat_session = Thread.current[:syrus_current_chat_session]
     current_agent =
       Thread.current[:syrus_current_agent] ||
-      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
+      (Syrus::Host::AgentRecord.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
     process_start_requested_at = startup_timing.now
     output_start_requested_at = process_start_requested_at
     mcp_server_names = normalized_mcp_servers(mcp_servers || mcp_server).keys
@@ -336,7 +336,7 @@ class CodexInvocation
         "tool_timeout_sec = #{server.fetch(:tool_timeout_sec, MCP_TOOL_TIMEOUT_SECONDS)}"
       ]
 
-      env = AgentSidecarEnvironment.filter_for_agent_config(server)
+      env = Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server)
       if env.any?
         lines << ""
         lines << "[mcp_servers.#{name}.env]"
@@ -392,26 +392,26 @@ class CodexInvocation
       message = event["error"] || event["message"] || "turn failed"
       detail = message.to_s
       scoped_detail = codex_error_detail(detail)
-      detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
+      detail = scoped_detail if Syrus::Host::ProviderUsageLimit.detect?(scoped_detail)
       log_sink.call("[codex error] #{detail}", kind: "system")
-      if ProviderUsageLimit.detect?(detail)
+      if Syrus::Host::ProviderUsageLimit.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderUsageLimit::OUTCOME,
+          outcome: Syrus::Host::ProviderUsageLimit::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderAuthFailure.detect?(detail)
+      if Syrus::Host::ProviderAuthFailure.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderAuthFailure::OUTCOME,
+          outcome: Syrus::Host::ProviderAuthFailure::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderModelUnsupported.detect?(detail)
+      if Syrus::Host::ProviderModelUnsupported.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderModelUnsupported::OUTCOME,
+          outcome: Syrus::Host::ProviderModelUnsupported::OUTCOME,
           final_text: detail
         }
       end
@@ -421,26 +421,26 @@ class CodexInvocation
       message = event["message"] || event["error"] || "error"
       detail = message.to_s
       scoped_detail = codex_error_detail(detail)
-      detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
+      detail = scoped_detail if Syrus::Host::ProviderUsageLimit.detect?(scoped_detail)
       log_sink.call("[codex error] #{detail}", kind: "system")
-      if ProviderUsageLimit.detect?(detail)
+      if Syrus::Host::ProviderUsageLimit.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderUsageLimit::OUTCOME,
+          outcome: Syrus::Host::ProviderUsageLimit::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderAuthFailure.detect?(detail)
+      if Syrus::Host::ProviderAuthFailure.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderAuthFailure::OUTCOME,
+          outcome: Syrus::Host::ProviderAuthFailure::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderModelUnsupported.detect?(detail)
+      if Syrus::Host::ProviderModelUnsupported.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderModelUnsupported::OUTCOME,
+          outcome: Syrus::Host::ProviderModelUnsupported::OUTCOME,
           final_text: detail
         }
       end

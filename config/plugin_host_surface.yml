@@ -1,28 +1,9 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 201
+legacy_baseline: 147
 constants:
 - name: AdminAction
-- name: Agent
-- name: AgentEventAbbreviator
-- name: AgentProviderCatalogOptions
-- name: AgentProviders
-- name: AgentProviders::Base
-- name: AgentProviders::ConfigurationError
-- name: AgentProviders::SessionStore
-- name: AgentRole::AGENT_INSIGHT
-- name: AgentRole::CHAT_CODING
-- name: AgentRole::CHAT_LOCAL
-- name: AgentRole::CHAT_PLANNER
-- name: AgentRole::CHAT_ROLES
-- name: AgentRole::COWORKER
-- name: AgentRole::COWORKER_CHAT
-- name: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-- name: AgentRole::WORKFLOW_IMPLEMENT
-- name: AgentRole::WORKFLOW_ROLES
-- name: AgentRole::WORKFLOW_VISUAL_REVIEWER
-- name: AgentSidecarEnvironment
 - name: AppEvents
 - name: AppSetting
 - name: Appearance::ColorPalette
@@ -43,9 +24,6 @@ constants:
 - name: ChatPendingAction
 - name: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES
 - name: ChatProposal
-- name: ChatProviderOptions
-- name: ChatProviders::Base
-- name: ChatProviders::ConfigurationError
 - name: ChatQueuedMessage::INTERNAL_ROLE_KEY
 - name: ChatQueuedMessagePromoter
 - name: ChatResultBadges
@@ -62,10 +40,6 @@ constants:
 - name: ChatWakeup
 - name: ChatWorkEvents
 - name: ChatWorkspace
-- name: ClaudeTranscript
-- name: ClaudeTranscript::Event
-- name: CodexAccountScope
-- name: Execution::ChatWorkloadPolicy
 - name: Feature
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
@@ -127,8 +101,6 @@ constants:
 - name: PersistentMcpDaemon
 - name: PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER
 - name: PersistentMcpDaemon::MCP_PATH
-- name: PlatformIdentity
-- name: PlatformIdentity::PlatformConfig::Base
 - name: PlatformPollingJob
 - name: PluginDataCleanup
 - name: PluginJob
@@ -141,23 +113,6 @@ constants:
 - name: PreviewPanel::Service
 - name: PreviewPanelVersion
 - name: PreviewProcessLauncher
-- name: Prompts::AdversarialReview
-- name: Prompts::ChatSystem
-- name: Prompts::GitSafety::TEXT
-- name: Prompts::MemoryContext
-- name: Prompts::SubmitSummaryInstructions::TEXT
-- name: ProviderAuthFailure
-- name: ProviderAuthFailure::OUTCOME
-- name: ProviderAvailabilityEvidence
-- name: ProviderModelUnsupported
-- name: ProviderModelUnsupported::OUTCOME
-- name: ProviderQuotaReset::RETRY_BUFFER
-- name: ProviderRateLimitEvidence
-- name: ProviderSession
-- name: ProviderUsageLimit
-- name: ProviderUsageLimit::OUTCOME
-- name: RebaseAttemptGuard
-- name: RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
 - name: RetentionPolicyExecutors::Default
 - name: RetentionPolicyExecutors::Result
 - name: RetentionPolicyRegistry::Definition
@@ -167,14 +122,6 @@ constants:
 - name: RuntimeSession
 - name: RuntimeSessionProviders
 - name: RuntimeSessionProviders::ConfigurationError
-- name: Skills
-- name: Skills::NAME_PATTERN
-- name: Skills::NotFoundError
-- name: Skills::ParameterSchema
-- name: Skills::ParameterSchema::ParseError
-- name: Skills::ParameterSchema::ValidationError
-- name: Skills::Renderer
-- name: Skills::SkillMarkdown::ParseError
 - name: SkipIfPending
 - name: Syrus::DataCleanup
 - name: Syrus::Events
@@ -195,7 +142,6 @@ constants:
 - name: TracksFinishedAt
 - name: TypedArtifactRenderer
 - name: UiEngagementSample
-- name: ValidatesAgentProvider
 - name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis

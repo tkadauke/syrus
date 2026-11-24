@@ -2,7 +2,7 @@ module AdminMysql
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ].freeze
 
     class << self
       def normalize_arguments(arguments)
@@ -40,7 +40,7 @@ module AdminMysql
       capability: "mysql.admin.kill_query@v1", operation: "mysql.admin/kill_query@v1",
       presentation: Syrus::Host::CapabilityPresentation.for(capability: "mysql.admin.kill_query@v1", operation: "mysql.admin/kill_query@v1"),
       effects: %i[external_write operational destructive], risk: :critical,
-      requestable_roles: [ AgentRole::CHAT_PLANNER ], defaults: { AgentRole::CHAT_PLANNER => :ask },
+      requestable_roles: [ Syrus::Host::AgentRole::CHAT_PLANNER ], defaults: { Syrus::Host::AgentRole::CHAT_PLANNER => :ask },
       maximum_autonomy: :invocation, authority_durations: %i[invocation],
       resource_scope: :syrus_database,
       classifier: fixed_classifier("mysql.admin/kill_query@v1", %i[external_write operational destructive], :critical),
