@@ -41,11 +41,21 @@ class PollMergeStateJob < ApplicationJob
         "skipping until next poll\n#{Array(e.backtrace).first(8).join("\n")}\n" \
         "lock_holders=#{MysqlLockDiagnostics.snapshot.to_json}"
       )
+      record_contention_event(e)
       nil
     end
   end
 
   private
+
+  # The skip returns normally, so the perform.active_job notification carries
+  # no exception; record the exhausted contention in the backend exception
+  # event view (backtrace + lock holders) directly.
+  def record_contention_event(error)
+    BackendExceptionEvent.record_job!({ exception_object: error, job: self }, 0)
+  rescue StandardError => e
+    Rails.logger.error("[PollMergeStateJob] contention event dropped: #{e.class}: #{e.message}")
+  end
 
   def poll_merge_state(job_id)
     return if AppSetting.polling_paused?
