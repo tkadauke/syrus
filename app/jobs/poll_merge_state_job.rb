@@ -13,7 +13,35 @@ class PollMergeStateJob < ApplicationJob
 
   limits_concurrency to: 1, key: ->(job_id) { "merge_state_poll:#{job_id}" }
 
+  LOCK_RETRY_ERRORS = [
+    ActiveRecord::Deadlocked,
+    ActiveRecord::LockWaitTimeout
+  ].freeze
+  LOCK_RETRY_ATTEMPTS = 2
+
+  # Bounded retry on MySQL lock contention. When it persists, skip this
+  # poll: PollAllMergeStatesJob re-selects the Job on its next tick, so a
+  # contended poll is deferred rather than raised as a job failure.
   def perform(job_id)
+    attempts = 0
+    begin
+      poll_merge_state(job_id)
+    rescue *LOCK_RETRY_ERRORS => e
+      attempts += 1
+      if attempts <= LOCK_RETRY_ATTEMPTS
+        Rails.logger.warn("[PollMergeStateJob] job #{job_id} lock conflict (#{e.class}); retrying #{attempts}/#{LOCK_RETRY_ATTEMPTS}")
+        sleep(0.05 * attempts) unless Rails.env.test?
+        retry
+      end
+
+      Rails.logger.warn("[PollMergeStateJob] job #{job_id} lock conflict persisted (#{e.class}); skipping until next poll")
+      nil
+    end
+  end
+
+  private
+
+  def poll_merge_state(job_id)
     return if AppSetting.polling_paused?
 
     @job = Job.find_by(id: job_id)
@@ -82,8 +110,6 @@ class PollMergeStateJob < ApplicationJob
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
     Rails.logger.warn("[PollMergeStateJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
   end
-
-  private
 
   def persist_mergeability(pr)
     MergeabilityRecorder.record_github!(job: @job, pr: pr)
