@@ -37,6 +37,9 @@ gem "faraday-http-cache"
 # Octokit's Faraday v2 missing-middleware warning.
 gem "faraday-retry"
 
+# HTTP/2 client — APNs only speaks HTTP/2, which Net::HTTP/Faraday cannot.
+gem "httpx", "~> 1.9"
+
 # Model Context Protocol SDK — used for the per-run sidecar that lets
 # the agent submit PR copy back to Syrus during its run.
 gem "mcp"
