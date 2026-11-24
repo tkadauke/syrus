@@ -301,7 +301,7 @@ module Mcp
 
       # Whether an extension context filters plugin definitions at all.
       def extension_context?(context)
-        context && participants.any? { |participant| participant.context == context.to_sym }
+        context && participants(enabled_only: true).any? { |participant| participant.context == context.to_sym }
       end
 
       # Installed plugin chat tool sets, resolved per context. +user+ resolves

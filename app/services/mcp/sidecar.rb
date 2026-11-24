@@ -174,7 +174,7 @@ module Mcp
       else
         return definitions unless Mcp::ChatToolParity.extension_context?(policy)
 
-        definitions.select { |defn| Mcp::ChatToolParity.plugin_definition_in_context?(defn, policy, user: user, provider: provider) }
+        definitions.select { |defn| Mcp::ChatToolParity.plugin_definition_in_context?(defn, policy, user: user, provider: provider, participants: Mcp::ChatToolParity.participants(enabled_only: true)) }
       end
     end
 
