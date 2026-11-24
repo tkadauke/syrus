@@ -56,7 +56,8 @@ module RuntimeImages
 
       # The builder must have consumed exactly the source that was captured.
       def verify_source!(request, output)
-        return if output.source_digest.blank? || output.source_digest == request.source_digest
+        raise BuildFailed.new("builder did not report the source digest it consumed", code: "source_unattested") if output.source_digest.blank?
+        return if output.source_digest == request.source_digest
 
         raise BuildFailed.new("built source #{output.source_digest} does not match captured #{request.source_digest}", code: "source_mismatch")
       end

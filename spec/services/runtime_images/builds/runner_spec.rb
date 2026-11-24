@@ -48,6 +48,16 @@ RSpec.describe RuntimeImages::Builds::Runner do
     expect(claimed.result.error_code).to eq("source_mismatch")
   end
 
+  it "fails when the builder does not attest the source it consumed" do
+    request
+    allow(builder).to receive(:build).and_return(output.tap { |o| o.source_digest = nil })
+
+    claimed, = run
+
+    expect(claimed).to be_failed
+    expect(claimed.result.error_code).to eq("source_unattested")
+  end
+
   it "retries when verification finds the image absent" do
     request
     allow(builder).to receive(:build).and_return(output)
