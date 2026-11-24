@@ -29,7 +29,7 @@ module Api
             table_payload = schema_inspector.table(params[:database], params[:table], sections: %w[info columns])
             columns = table_payload.dig(:columns, :available) ? table_payload[:columns][:rows] : []
             filter_schema = ::MysqlDbBrowser::FilterSchemaBuilder.build(columns)
-            filter_tree = ::Filters::QueryParam.decode(params[:q])
+            filter_tree = Syrus::Host::Filters::QueryParam.decode(params[:q])
             sort_column = sortable_column(columns, params[:sort_by])
             sort_direction = params[:sort_dir].to_s.downcase == "desc" ? "DESC" : "ASC"
             per_page = clamp_per_page(params[:per_page])
@@ -72,7 +72,7 @@ module Api
               join_table: join && join[:table],
               join_columns: join_columns
             )
-            filter_tree = ::Filters::QueryParam.decode(params[:q])
+            filter_tree = Syrus::Host::Filters::QueryParam.decode(params[:q])
 
             result = executor.execute_select(user: Syrus::Host::Current.user, limit: compiler.limit) do |client|
               where_clause = filter_tree.present? ? ::MysqlDbBrowser::FilterTreeSqlCompiler.new(client: client, filter_schema: compiler.filter_schema, identifier_prefix: params[:database]).compile(filter_tree) : nil

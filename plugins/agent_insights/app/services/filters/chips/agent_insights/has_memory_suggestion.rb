@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class HasMemorySuggestion < Base
+      class HasMemorySuggestion < Syrus::Host::Filters::Chips::Base
         filter_name "has_memory_suggestion"
         label "Memory suggestion"
         bucket :boolean

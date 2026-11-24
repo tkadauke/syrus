@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module WorkerTimeline
-      class EpicId < FkColumn
+      class EpicId < Syrus::Host::Filters::Chips::FkColumn
         filter_name "epic_id"
         label "Epic"
         column :epic_id

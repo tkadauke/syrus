@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module DesignDocs
-      class RepositoryId < Base
+      class RepositoryId < Syrus::Host::Filters::Chips::Base
         filter_name "repository_id"
         label "Repository"
         bucket :fk

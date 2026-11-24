@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module WorkerTimeline
-      class JobType < Base
+      class JobType < Syrus::Host::Filters::Chips::Base
         filter_name "job_type"
         label "Job type"
         bucket :enum
@@ -21,8 +21,8 @@ module Filters
 
         def job_kinds
           {
-            "system" => Filters::Chips::Jobs::JobType.system_kinds,
-            "user" => Filters::Chips::Jobs::JobType.user_kinds
+            "system" => Syrus::Host::Filters::Chips::Jobs::JobType.system_kinds,
+            "user" => Syrus::Host::Filters::Chips::Jobs::JobType.user_kinds
           }.values_at(*Array(value)).flatten.uniq
         end
       end

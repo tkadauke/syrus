@@ -175,7 +175,7 @@ class ClaudeUsageProbe
       http_status: http_status,
       observed_at: Time.current
     )
-    App::ProviderAvailability.clear_cache!(user: @user, provider: "claude")
+    Syrus::Host::ProviderAvailability.clear_cache!(user: @user, provider: "claude")
     Result.new(status: status, snapshot: snapshot, message: message)
   end
 
