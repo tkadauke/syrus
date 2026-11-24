@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class DismissedAt < DateColumn
+      class DismissedAt < Syrus::Host::Filters::Chips::DateColumn
         filter_name "dismissed_at"
         label "Dismissed at"
         column :dismissed_at

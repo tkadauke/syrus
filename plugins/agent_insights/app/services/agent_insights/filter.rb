@@ -1,13 +1,13 @@
 module AgentInsights
   class Filter
-    include Filters::BaseFilter
+    include Syrus::Host::Filters::BaseFilter
 
     def self.subject
       AgentInsights::SmartFolders::SUBJECT
     end
 
     def self.schema
-      Filters::Schema.for(subject: subject)
+      Syrus::Host::Filters::Schema.for(subject: subject)
     end
 
     def self.build_tree_from_url_params(params)
@@ -18,7 +18,7 @@ module AgentInsights
     end
 
     def apply(scope)
-      Filters::Compiler.call(@ast, scope: scope, user: @user, subject: self.class.subject)
+      Syrus::Host::Filters::Compiler.call(@ast, scope: scope, user: @user, subject: self.class.subject)
     end
   end
 end

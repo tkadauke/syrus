@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module SdlcPipeline
-      class Search < Base
+      class Search < Syrus::Host::Filters::Chips::Base
         filter_name "search"
         label "Search"
         bucket :string

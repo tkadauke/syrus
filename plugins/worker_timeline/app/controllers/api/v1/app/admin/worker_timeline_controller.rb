@@ -14,12 +14,12 @@ module Api
 
           def macro
             folder = active_smart_folder
-            filter = ::Filters::SmartFolderResolution.call(
+            filter = Syrus::Host::Filters::SmartFolderResolution.call(
               filter_class: ::WorkerTimeline::MacroQueryFilter, subject: :worker_timeline,
               params: params, active_smart_folder: folder, user: Syrus::Host::Current.user
             ).filter
 
-            payload = ::Timeline::MacroQuery.call(
+            payload = Syrus::Host::TimelineMacroQuery.call(
               from: filter.from,
               to: filter.to,
               expression: filter,
@@ -51,19 +51,19 @@ module Api
           end
 
           def workflow
-            render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
+            render json: Syrus::Host::TimelineWorkflowWaterfallQuery.call(workflow_id: params[:id])
           end
 
           private
 
           def active_smart_folder
-            @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
+            @active_smart_folder ||= Syrus::Host::SmartFolderNavigation.active_folder(
               subject: :worker_timeline, user: Syrus::Host::Current.user, params: params
             )
           end
 
           def smart_folders
-            ::Admin::SmartFolderNavigation.new(
+            Syrus::Host::SmartFolderNavigation.new(
               subject: :worker_timeline, user: Syrus::Host::Current.user,
               active_folder: active_smart_folder, base_scope: Syrus::Host::WorkflowRecord.none,
               filter_class: ::WorkerTimeline::MacroQueryFilter,
@@ -74,7 +74,7 @@ module Api
           def smart_folder_count(folder)
             Rails.cache.fetch([ "worker_timeline", "smart_folder_count", Syrus::Host::Current.user.id, folder.id, folder.updated_at.to_i ], expires_in: 1.minute) do
               filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Syrus::Host::Current.user)
-              ::Timeline::MacroQuery.new(
+              Syrus::Host::TimelineMacroQuery.new(
                 from: filter.from, to: filter.to, expression: filter,
                 allowed_job_ids: Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).select(:id)
               ).capped_count

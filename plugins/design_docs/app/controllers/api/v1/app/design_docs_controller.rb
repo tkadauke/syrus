@@ -221,16 +221,16 @@ module Api
 
         def design_docs_payload(scope)
           base_scope = policy_scope(DesignDoc)
-          SmartFolder.ensure_builtins_for_subject!(::DesignDocs::SmartFolders::SUBJECT)
+          Syrus::Host::SmartFolder.ensure_builtins_for_subject!(::DesignDocs::SmartFolders::SUBJECT)
 
           {
             active_smart_folder_id: active_smart_folder&.id,
             filter: current_filter.to_h,
-            filter_schema: ::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Syrus::Host::Current.user),
+            filter_schema: Syrus::Host::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Syrus::Host::Current.user),
             sort: current_sort,
             preferences: design_doc_preferences,
             controls: design_doc_controls,
-            smart_folders: ::Admin::SmartFolderNavigation.new(
+            smart_folders: Syrus::Host::SmartFolderNavigation.new(
               subject: ::DesignDocs::SmartFolders::SUBJECT,
               user: Syrus::Host::Current.user,
               active_folder: active_smart_folder,
@@ -340,14 +340,14 @@ module Api
         end
 
         def current_filter
-          @current_filter ||= ::Filters::SmartFolderResolution.call(
+          @current_filter ||= Syrus::Host::Filters::SmartFolderResolution.call(
             filter_class: ::DesignDocs::Filter, subject: ::DesignDocs::SmartFolders::SUBJECT,
             params: params, active_smart_folder: active_smart_folder, user: Syrus::Host::Current.user
           ).filter
         end
 
         def active_smart_folder
-          @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
+          @active_smart_folder ||= Syrus::Host::SmartFolderNavigation.active_folder(
             subject: ::DesignDocs::SmartFolders::SUBJECT,
             user: Syrus::Host::Current.user,
             params: params

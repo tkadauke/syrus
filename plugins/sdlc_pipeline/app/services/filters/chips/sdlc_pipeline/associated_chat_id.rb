@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module SdlcPipeline
-      class AssociatedChatId < Base
+      class AssociatedChatId < Syrus::Host::Filters::Chips::Base
         filter_name "associated_chat_id"
         label "Associated chat"
         bucket :enum

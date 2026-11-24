@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module SpendingReport
-      class TriggerKind < EnumColumn
+      class TriggerKind < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "trigger_kind"
         label "Trigger"
         column :trigger_kind
