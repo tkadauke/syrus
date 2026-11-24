@@ -159,6 +159,19 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
       expect(result.runtime_image).to be_present
     end
 
+    it "gives cancellation precedence when it lands just before success" do
+      request = submit
+      _, attempt = orchestrator.claim_next
+      orchestrator.begin_verifying(attempt)
+      orchestrator.cancel(request, reason: "stop")
+
+      result = orchestrator.succeed(attempt, image: image_for(request))
+
+      expect(request.reload).to be_canceled
+      expect(attempt.reload.state).to eq("canceled")
+      expect(result.outcome).to eq("canceled")
+    end
+
     it "rejects illegal transitions" do
       request = submit
       expect { request.transition_to!("succeeded") }.to raise_error(RuntimeImageBuildRequest::InvalidTransition)

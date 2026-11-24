@@ -92,6 +92,11 @@ module RuntimeImages
         locked(attempt) do |request, attempt|
           next request.result unless request.in_flight? && attempt.active?
 
+          if request.cancel_requested?
+            attempt.update!(state: "canceled", finished_at: now, lease_expires_at: nil)
+            next cancel_now(request, now: now)
+          end
+
           attempt.update!(state: "succeeded", finished_at: now, lease_expires_at: nil)
           request.transition_to!("succeeded", finished_at: now)
           finish(request, outcome: "succeeded", image: image, digest: image.digest, now: now)
