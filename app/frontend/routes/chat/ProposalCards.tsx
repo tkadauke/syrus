@@ -40,6 +40,7 @@ import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
 import { PermissionRulePreview } from "../../components/PermissionRulePreview"
+import { PermissionDecisionSummary, permissionActionPhrase } from "../../components/PermissionDecisionSummary"
 import { LinkedPermissionRule, SmartPermissionActions } from "../../components/SmartPermissionActions"
 import type { SmartPermissionOption } from "../../api/permissionRequests"
 import { Button } from "../../components/Button"
@@ -1060,13 +1061,6 @@ export function PendingActionCard({
   const isEmergencyLand = actionKey === "emergency_land"
   const toolReview = actionKey ? pendingAction.review : null
   const authorizationSummary = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_presentation : undefined
-  const authorizationContext = (
-    [
-      [i18n.t("settings:approval_inbox.requested_by"), [authorizationSummary?.agent, authorizationSummary?.origin].filter(Boolean).join(" · ")],
-      [i18n.t("settings:approval_inbox.requested_duration"), authorizationSummary?.requested_durations?.join(", ")],
-      [i18n.t("settings:approval_inbox.why_required"), authorizationSummary?.why_approval_required]
-    ] as Array<[string, string | undefined]>
-  ).filter((entry): entry is [string, string] => Boolean(entry[1]))
   const authorizationItems = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_items || [] : []
   const statusClass =
     isEmergencyLand && (isPending || isConfirming)
@@ -1163,7 +1157,20 @@ export function PendingActionCard({
             {actionKey === "schedule_recurring" && !terminalLabel ? (
               <p className="mt-2 break-words text-sm font-semibold text-warning-text">{t("pending_action_schedule_recurring_warning")}</p>
             ) : null}
-            {toolReview ? (
+            {pendingAction.request_kind === "authorization_request" && (toolReview || pendingAction.detail) ? (
+              <details className="mt-2 text-xs" data-testid="authorization-technical-details">
+                <summary className="cursor-pointer font-medium text-text-secondary">{i18n.t("settings:permission_decision.technical_details")}</summary>
+                {toolReview ? (
+                  <ToolApprovalDetails
+                    actor={toolReview.actor as ToolApprovalActor | undefined}
+                    args={toolReview.arguments}
+                    toolName={typeof toolReview.tool_name === "string" ? toolReview.tool_name : pendingAction.detail}
+                  />
+                ) : (
+                  <PendingActionDetail detail={pendingAction.detail as string} />
+                )}
+              </details>
+            ) : toolReview ? (
               <ToolApprovalDetails
                 actor={toolReview.actor as ToolApprovalActor | undefined}
                 args={toolReview.arguments}
@@ -1187,30 +1194,22 @@ export function PendingActionCard({
               </p>
             ) : null}
             {authorizationItems.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                {authorizationContext.length ? (
-                  <dl className="min-w-0 space-y-1 text-xs text-text-secondary">
-                    {authorizationContext.map(([label, value]) => (
-                      <div className="min-w-0" key={label}>
-                        <dt className="font-medium text-text-primary">{label}</dt>
-                        <dd className="break-words">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : null}
-                {authorizationItems.map((item) => (
-                  <div className="rounded border border-gray-200 p-2 text-xs dark:border-gray-700" key={item.id}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium text-text-primary">{item.presentation?.statement || t("authorization_fallback")}</span>
-                      <span className="text-gray-500 dark:text-gray-400">{t(`authorization_state_${item.state}`)}</span>
-                    </div>
-                    {item.presentation?.scope || item.presentation?.consequences?.length ? (
-                      <p className="mt-1 break-words text-text-secondary">
-                        {[item.presentation?.scope, item.presentation?.consequences?.join(", ")].filter(Boolean).join(" · ")}
-                      </p>
-                    ) : null}
+              <div className="mt-3 space-y-3">
+                {authorizationItems.map((item, index) => (
+                  <div className="space-y-2 border-t border-border pt-3 text-xs first:border-t-0 first:pt-0" key={item.id}>
+                    <PermissionDecisionSummary
+                      fallbackStatement={t("authorization_fallback")}
+                      headingLevel={4}
+                      presentation={index === 0 ? { ...authorizationSummary, ...item.presentation } : item.presentation}
+                      technical={[
+                        [i18n.t("settings:approval_inbox.capability"), [item.capability, item.operation].filter(Boolean).join(" · ")],
+                        [i18n.t("settings:approval_inbox.effects"), item.effects]
+                      ]}
+                    />
+                    {item.state !== "pending" ? <p className="text-text-muted">{t(`authorization_state_${item.state}`)}</p> : null}
                     {item.state === "pending" ? (
                       <SmartPermissionActions
+                        actionPhrase={permissionActionPhrase(item.presentation?.statement)}
                         busy={authorizationDecision.isPending || smartAuthorizationDecision.isPending}
                         error={smartAuthorizationDecision.error}
                         onAllowOnce={() => {

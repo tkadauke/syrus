@@ -128,7 +128,7 @@ describe("Activity shell", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Approvals/ }))
     const shell = await screen.findByRole("dialog", { name: "Activity" })
     expect(within(shell).getByRole("tab", { name: /Approvals/ })).toHaveAttribute("aria-selected", "true")
-    expect(await within(shell).findByText("Publish the release note")).toBeVisible()
+    expect(await within(shell).findByText(/Publish the release note/)).toBeVisible()
 
     fireEvent.click(within(shell).getByRole("tab", { name: /Notifications/ }))
     expect(within(shell).getByText("Build failed")).toBeVisible()
@@ -276,7 +276,7 @@ describe("Activity shell", () => {
     const { client } = renderChrome()
     fireEvent.click(await screen.findByRole("button", { name: /^Approvals/ }))
     const shell = await screen.findByRole("dialog", { name: "Activity" })
-    await within(shell).findByText("Delete the cache")
+    await within(shell).findByText(/Delete the cache/)
     act(() => {
       client.setQueryData(["permission_requests", "summary"], {
         requests: [{ ...request(2, "Delete the cache"), state: "approved", actionable: false }, request(1, "Publish the release note")],
@@ -284,7 +284,7 @@ describe("Activity shell", () => {
         pagination: { page: 1, per_page: 50, total: 2, total_pages: 1 }
       })
     })
-    await waitFor(() => expect(within(shell).queryByText("Delete the cache")).not.toBeInTheDocument())
+    await waitFor(() => expect(within(shell).queryByText(/Delete the cache/)).not.toBeInTheDocument())
     expect(within(shell).getByTestId("activity-count-approvals")).toHaveTextContent("1")
   })
 

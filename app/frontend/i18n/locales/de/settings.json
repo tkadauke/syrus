@@ -74,7 +74,9 @@
       "chat_session": "Dieser Chat",
       "job": "Dieser Job",
       "permanent": "Dauerhaft"
-    }
+    },
+    "capability": "Fähigkeit",
+    "resource_scope": "Ressourcenbereich"
   },
   "permissions": {
     "title": "Berechtigungen",
@@ -2009,6 +2011,39 @@
       "resource": "Nur diese Ressource",
       "tool": "Jede Nutzung dieses Werkzeugs",
       "family": "Die ganze Werkzeugfamilie"
+    },
+    "remember_control": "Entscheidung merken",
+    "remember_placeholder": "Entscheidung merken …",
+    "remembered_intro": "Das wird gemerkt:",
+    "applies_where": "Wo es gilt",
+    "revoke": "Widerrufen",
+    "revoke_how": "Jederzeit unter Einstellungen → Berechtigungen.",
+    "remember": {
+      "action": {
+        "chat_session": "„{{action}}“ für diesen Chat erlauben",
+        "job": "„{{action}}“ für diesen Job erlauben",
+        "permanent": "„{{action}}“ immer erlauben"
+      },
+      "generic": {
+        "chat_session": "Diese Aktion für diesen Chat erlauben",
+        "job": "Diese Aktion für diesen Job erlauben",
+        "permanent": "Diese Aktion immer erlauben"
+      },
+      "tool": {
+        "chat_session": "Jede Nutzung dieses Tools für diesen Chat erlauben",
+        "job": "Jede Nutzung dieses Tools für diesen Job erlauben",
+        "permanent": "Jede Nutzung dieses Tools immer erlauben"
+      },
+      "family": {
+        "chat_session": "Die ganze Tool-Familie für diesen Chat erlauben",
+        "job": "Die ganze Tool-Familie für diesen Job erlauben",
+        "permanent": "Die ganze Tool-Familie immer erlauben"
+      },
+      "prefix": {
+        "chat_session": "Befehle, die mit „{{prefix}}“ beginnen, für diesen Chat erlauben",
+        "job": "Befehle, die mit „{{prefix}}“ beginnen, für diesen Job erlauben",
+        "permanent": "Befehle, die mit „{{prefix}}“ beginnen, immer erlauben"
+      }
     }
   },
   "permission_editor": {
@@ -2092,5 +2127,13 @@
     "last_used": "zuletzt benutzt {{time}}",
     "never_used": "nie benutzt",
     "none": "Keine MCP-Brücken-Tokens."
+  },
+  "permission_decision": {
+    "question": "Erlauben: {{action}}?",
+    "what_happens": "Was passiert",
+    "applies_to": "Betrifft",
+    "requested_by": "Angefragt von",
+    "duration": "Angefragt für",
+    "technical_details": "Technische Details"
   }
 }
