@@ -51,10 +51,19 @@ RSpec.describe "OCI registry configuration, diagnostics, and workload isolation"
         .to_return(status: 401, headers: { "WWW-Authenticate" => 'Bearer realm="https://registry.test/token",service="registry"' })
     end
 
+    let(:probe) { "syrus/diagnostics/probe" }
+
+    def stub_token(&block)
+      stub_request(:get, "https://registry.test/token").with(query: hash_including({})).to_return(&block)
+    end
+
+    def stub_tags(status:, body: "")
+      stub_request(:get, "https://registry.test/v2/#{probe}/tags/list").to_return(status: status, body: body)
+    end
+
     it "reports per-role results, flags missing roles, and redacts secrets" do
       stub_challenge
-      probe = "syrus/diagnostics/probe"
-      stub_request(:get, "https://registry.test/token").with(query: hash_including({})).to_return do |req|
+      stub_token do |req|
         user = Base64.decode64(req.headers["Authorization"].split.last).split(":").first
         if user == "b"
           { status: 200, body: { token: jwt([{ "name" => probe, "actions" => %w[pull push] }]) }.to_json }
@@ -62,6 +71,10 @@ RSpec.describe "OCI registry configuration, diagnostics, and workload isolation"
           { status: 403, body: "s3cret-w" }
         end
       end
+      stub_tags(status: 404, body: '{"errors":[{"code":"NAME_UNKNOWN"}]}')
+      stub_request(:post, "https://registry.test/v2/#{probe}/blobs/uploads/")
+        .to_return(status: 202, headers: { "Location" => "https://registry.test/v2/#{probe}/blobs/uploads/u1" })
+      stub_request(:delete, "https://registry.test/v2/#{probe}/blobs/uploads/u1").to_return(status: 204)
       diagnostics = described_class.new(provider)
       checks = diagnostics.run.index_by(&:name)
       expect(checks["builder credential"].status).to eq(:ok)
@@ -73,23 +86,53 @@ RSpec.describe "OCI registry configuration, diagnostics, and workload isolation"
 
     it "fails a role whose token lacks the requested actions even though /v2/ would answer 200" do
       stub_challenge
-      stub_request(:get, "https://registry.test/token").with(query: hash_including({})).to_return(
-        status: 200, body: { token: jwt([{ "name" => "syrus/diagnostics/probe", "actions" => ["pull"] }]) }.to_json
-      )
+      stub_token { { status: 200, body: { token: jwt([{ "name" => probe, "actions" => ["pull"] }]) }.to_json } }
+      stub_tags(status: 200, body: "{}")
       check = described_class.new(provider).run.find { |c| c.name == "builder credential" }
       expect(check.status).to eq(:fail)
       expect(check.detail).to include("push")
     end
 
-    it "verifies pull with a read-only probe and warns when push cannot be verified for opaque tokens" do
+    it "fails when the token claims the right actions but the registry rejects the bearer token" do
       stub_challenge
-      stub_request(:get, "https://registry.test/token").with(query: hash_including({}))
-        .to_return(status: 200, body: { token: "opaque" }.to_json)
-      stub_request(:get, "https://registry.test/v2/syrus/diagnostics/probe/tags/list")
-        .to_return(status: 404)
+      stub_token { { status: 200, body: { token: jwt([{ "name" => probe, "actions" => %w[pull push] }]) }.to_json } }
+      stub_request(:get, "https://registry.test/v2/#{probe}/tags/list")
+        .to_return(status: 401, headers: { "WWW-Authenticate" => 'Bearer realm="https://registry.test/token",service="registry"' })
+      check = described_class.new(provider).run.find { |c| c.name == "builder credential" }
+      expect(check.status).to eq(:fail)
+      expect(check.detail).to include("rejected")
+    end
+
+    it "fails an opaque token whose pull probe is a bare 404 that does not name the repository unknown" do
+      stub_challenge
+      stub_token { { status: 200, body: { token: "opaque" }.to_json } }
+      stub_tags(status: 404, body: "not found")
       checks = described_class.new(provider).run.index_by(&:name)
-      expect(checks["builder credential"].status).to eq(:warn)
+      expect(checks["worker credential"].status).to eq(:fail)
+      expect(checks["builder credential"].status).to eq(:fail)
+    end
+
+    it "verifies pull, and push via a cancelled upload, for opaque tokens" do
+      stub_challenge
+      stub_token { { status: 200, body: { token: "opaque" }.to_json } }
+      stub_tags(status: 404, body: '{"errors":[{"code":"NAME_UNKNOWN"}]}')
+      stub_request(:post, "https://registry.test/v2/#{probe}/blobs/uploads/")
+        .to_return(status: 202, headers: { "Location" => "/v2/#{probe}/blobs/uploads/u1" })
+      cancel = stub_request(:delete, "https://registry.test/v2/#{probe}/blobs/uploads/u1").to_return(status: 204)
+      checks = described_class.new(provider).run.index_by(&:name)
+      expect(checks["builder credential"].status).to eq(:ok)
       expect(checks["worker credential"].status).to eq(:ok)
+      expect(cancel).to have_been_requested
+    end
+
+    it "fails a builder whose push is denied by the registry" do
+      stub_challenge
+      stub_token { { status: 200, body: { token: "opaque" }.to_json } }
+      stub_tags(status: 200, body: "{}")
+      stub_request(:post, "https://registry.test/v2/#{probe}/blobs/uploads/").to_return(status: 403)
+      check = described_class.new(provider).run.find { |c| c.name == "builder credential" }
+      expect(check.status).to eq(:fail)
+      expect(check.detail).to include("push")
     end
   end
 end
