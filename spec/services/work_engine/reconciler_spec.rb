@@ -1290,6 +1290,57 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :reenqueue_run)).to have_attributes(auto_executable: true, target_id: queued_run.id)
   end
 
+  # Regression: a landing bundle sat two hours behind one never-started
+  # macOS grader after three of its required rspec shards had failed.
+  describe "a never-started grader behind a grader_collect that already has a failed required grader" do
+    let(:failed_grader) { workflow.steps.create!(kind: "grader", position: 40, state: "failed", details: { "name" => "rspec", "required" => true }) }
+    let(:starved_grader) { workflow.steps.create!(kind: "grader", position: 41, state: "queued", details: { "name" => "ios", "required" => true }) }
+    let!(:collect_step) do
+      workflow.steps.create!(kind: "grader_collect", position: 42, state: "queued", depends_on_ids: [ failed_grader.id, starved_grader.id ])
+    end
+    let!(:starved_run) do
+      starved_grader.runs.create!(job: job, user: job.user, trigger_kind: workflow.trigger_kind,
+                                  agent_provider: workflow.agent_provider, state: "queued",
+                                  created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    end
+
+    before do
+      ensure_solid_queue_test_tables!
+      workflow.update_columns(state: "running", started_at: 3.hours.ago)
+      solid_queue_run_job(starved_run, ready: true, created_at: 2.hours.ago)
+    end
+
+    it "cancels the starved grader so grader_collect can settle" do
+      allow(StepDispatcher).to receive(:advance_from)
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :queued_grader_starving_failed_collect)).to be_present
+      expect(starved_run.reload).to be_cancelled
+      expect(starved_grader.reload).to be_cancelled
+      expect(StepDispatcher).to have_received(:advance_from).with(starved_grader)
+    end
+
+    it "leaves the grader alone while it is recent" do
+      starved_run.update_columns(created_at: 5.minutes.ago)
+
+      expect(kind(reconcile(workflow_id: workflow.id), :queued_grader_starving_failed_collect)).to be_nil
+    end
+
+    it "leaves the grader alone while no required sibling has failed" do
+      failed_grader.update_columns(state: "succeeded")
+
+      expect(kind(reconcile(workflow_id: workflow.id), :queued_grader_starving_failed_collect)).to be_nil
+    end
+
+    it "waits while another sibling grader is still running" do
+      workflow.steps.create!(kind: "grader", position: 43, state: "running", details: { "name" => "lint", "required" => true })
+        .tap { |running| collect_step.update!(depends_on_ids: collect_step.depends_on_ids + [ running.id ]) }
+
+      expect(kind(reconcile(workflow_id: workflow.id), :queued_grader_starving_failed_collect)).to be_nil
+    end
+  end
+
   it "marks a queued grader_collect Run failed instead of reenqueueing once its required grader conclusion is already cached failed for the same commit" do
     ensure_solid_queue_test_tables!
     loop_id = SecureRandom.uuid

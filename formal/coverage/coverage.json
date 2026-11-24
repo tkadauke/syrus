@@ -525,6 +525,26 @@
       "notes": "After REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT failed executions the Run is failed as run_job_crashed (retryable, infrastructure), so the bounded retry path and grader_collect's infrastructure handling take over instead of an unbounded re-enqueue loop."
     },
     {
+      "id": "queued-grader-starving-failed-collect",
+      "area": "runs-queue",
+      "title": "A never-started grader holds open a grader_collect whose required sibling already failed",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_grader_starving_failed_collect"
+      ],
+      "classifiers": [
+        "classify_queued_graders_starving_failed_collect"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "grader_collect waits for every grader it depends on to be terminal; a grader no live worker could start (for example the only macOS worker wedged) kept a landing bundle open for hours after its required rspec shards had failed",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "notes": "After STARVED_GRADER_AFTER_FAILED_SIBLING the never-started grader is cancelled; grader_collect counts a cancelled required grader as unsuccessful, so the verdict is unchanged and only the wait is removed. Graders that are running are never cancelled."
+    },
+    {
       "id": "queued-grader-collect-cached-failure",
       "area": "runs-queue",
       "title": "A lost-queue grader_collect Run whose failure is already cached is replayed instead of failed",

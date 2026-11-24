@@ -284,6 +284,7 @@ module WorkEngine
       issues.concat(classify_terminal_workflows_with_active_descendants)
       issues.concat(classify_active_runs_on_terminal_steps)
       issues.concat(classify_queued_runs)
+      issues.concat(classify_queued_graders_starving_failed_collect)
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
       issues.concat(classify_active_steps_with_terminal_runs)
@@ -668,6 +669,51 @@ module WorkEngine
           connection_message: "%ActiveRecord::ConnectionNotEstablished%"
         )
         .select("steps.workflow_id")
+    end
+
+    # A required grader has already failed, so its grader_collect's verdict
+    # is settled -- but collect only runs once every grader it depends on is
+    # terminal. A sibling grader that never started (no worker can take it:
+    # the only capable one is busy, wedged, or on an incompatible release)
+    # then holds a known failure open indefinitely; a production landing
+    # bundle sat two hours behind one queued macOS grader after three of its
+    # required rspec shards had failed. Cancel the starved graders so collect
+    # can fail and the repair loop start.
+    def classify_queued_graders_starving_failed_collect
+      runs.select(&:queued?).filter_map do |run|
+        step = run.step
+        next unless step&.kind == "grader" && step.queued? && run.started_at.nil?
+        next unless older_than?(run.created_at, STARVED_GRADER_AFTER_FAILED_SIBLING)
+
+        workflow = run.workflow
+        next unless workflow&.running?
+
+        workflow_steps = steps_for_workflow(workflow)
+        collect = workflow_steps.find do |candidate|
+          candidate.kind == "grader_collect" && candidate.queued? && candidate.depends_on_step_ids.include?(step.id)
+        end
+        next unless collect
+
+        graders = workflow_steps.select { |candidate| collect.depends_on_step_ids.include?(candidate.id) }
+        failed_required = graders.select { |grader| grader.failed? && grader.details.to_h["required"] }
+        next if failed_required.empty?
+        next unless graders.reject(&:terminal?).all?(&:queued?)
+
+        issue(
+          kind: :queued_grader_starving_failed_collect,
+          severity: :error,
+          affected_ids: ids_for(run),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "cancel_starved_grader",
+          evidence: run_evidence(run).merge(
+            grader_collect_step_id: collect.id,
+            failed_required_graders: failed_required.map { |grader| grader.details.to_h["name"] || grader.id },
+            age_seconds: seconds_since(run.created_at)
+          ),
+          explanation: "Grader Run ##{run.id} never started, and its grader_collect Step ##{collect.id} already has " \
+                       "#{failed_required.size} failed required grader(s), so waiting on it only delays a known failure."
+        )
+      end
     end
 
     def classify_queued_runs
@@ -3688,6 +3734,11 @@ module WorkEngine
     # Failed RunJob executions for one Run after which re-enqueueing it stops
     # and the Run is failed with the crash (queued_run_repeated_queue_execution_failure).
     REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT = 3
+
+    # How long a never-started grader may hold open a grader_collect whose
+    # verdict a failed required sibling has already settled
+    # (queued_grader_starving_failed_collect).
+    STARVED_GRADER_AFTER_FAILED_SIBLING = 20.minutes
 
     def orphaned_queue_job?(sq)
       return false unless !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]

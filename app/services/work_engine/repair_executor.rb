@@ -830,6 +830,28 @@ module WorkEngine
         end
       end
 
+      class CancelStarvedGrader < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not queued") unless run.queued? && run.started_at.nil?
+
+          step = run.step
+          return skipped("Run has no grader Step") unless step&.kind == "grader"
+          return skipped("Step is #{step.state}, not queued") unless step.queued?
+          return skipped("Workflow is not running") unless step.workflow&.running?
+
+          with_transition_reason do
+            run.cancel!
+            run.save!
+            step.cancel!
+            step.save!
+          end
+          StepDispatcher.advance_from(step.reload)
+          success("cancelled starved #{run_label(run)} on #{step_label(step)}; a required sibling grader already failed")
+        end
+      end
+
       class FailRunAfterRepeatedQueueFailure < Base
         def perform
           run = target_run
