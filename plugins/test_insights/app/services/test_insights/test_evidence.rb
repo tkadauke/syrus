@@ -7,7 +7,6 @@ module TestInsights
   # It already had a coarser fallback for repositories with no test data, so
   # core degrades to that when this plugin is absent rather than depending on it.
   class TestEvidence
-    include Syrus::Plugin::TestEvidence
 
     FAILURE_STATUSES = %w[failed error].freeze
     FAILURE_MESSAGE_SNIPPET_BYTES = 300
