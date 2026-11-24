@@ -21,8 +21,5 @@ class CreateMobileDevices < ActiveRecord::Migration[8.1]
     add_index :mobile_devices, %i[platform token], unique: true unless index_exists?(:mobile_devices, %i[platform token], unique: true)
     add_index :mobile_devices, :user_id unless index_exists?(:mobile_devices, :user_id)
     add_index :mobile_devices, :session_id unless index_exists?(:mobile_devices, :session_id)
-
-    add_foreign_key :mobile_devices, :users unless foreign_key_exists?(:mobile_devices, :users)
-    add_foreign_key :mobile_devices, :sessions unless foreign_key_exists?(:mobile_devices, :sessions)
   end
 end
