@@ -18,6 +18,15 @@ RSpec.describe Coworkers::ChatParity do
     expect(Mcp::ChatToolParity.contexts).to eq(%i[planner coding local coworker])
   end
 
+  it "activates no coworker parity policy at runtime while the plugin is disabled" do
+    allow(Coworkers).to receive(:enabled?).and_return(false)
+
+    expect(Mcp::ChatToolParity.participants).to include(described_class)
+    expect(Mcp::ChatToolParity.participants(enabled_only: true)).not_to include(described_class)
+    expect(Mcp::ChatToolParity.extension_context?(:coworker)).to be_falsey
+    expect(Mcp::Sidecar.filter_by_policy([ { name: "x" } ], :coworker)).to eq([ { name: "x" } ])
+  end
+
   it "has no unexplained differences between planner, coding, local, and coworker catalogs" do
     expect(Mcp::ChatToolParity.report).to eq([])
   end
