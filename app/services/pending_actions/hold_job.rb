@@ -39,6 +39,8 @@ module PendingActions
     end
 
     def presentation_detail
+      return nil unless payload["job_id"].present? && user
+
       job = repair_action_job_or_nil
       return nil unless job
 

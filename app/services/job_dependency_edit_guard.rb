@@ -43,6 +43,9 @@ class JobDependencyEditGuard
     # The Job has no active Run: retire started Workflows and return it to the
     # waiting state. Also run after dependency edits that bypass the tools.
     def demote_if_gate_unmet!(job)
+      # The Job may be gone by commit time (e.g. its creation was rolled back).
+      return unless Job.exists?(job.id)
+
       job.reload
       return unless job.running?
       return if JobHold.active_runs(job).any?
