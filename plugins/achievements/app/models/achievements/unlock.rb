@@ -11,6 +11,10 @@ module Achievements
     EVIDENCE_MAX_STRING = 500
     INSTANCE_OWNER = "instance".freeze
 
+    # Registry the definition is validated against; `record!` sets it so a
+    # custom registry is honoured consistently. Defaults to the bundled catalog.
+    attr_writer :registry
+
     has_many :acknowledgments, class_name: "Achievements::Acknowledgment",
       foreign_key: :unlock_id, inverse_of: :unlock, dependent: :delete_all
 
@@ -44,6 +48,7 @@ module Achievements
         subject_type: subject && subject_kind(subject), subject_id: subject&.id,
         evidence: evidence, unlocked_at: at
       )
+      unlock.registry = registry
       unlock.save!
       [ unlock, true ]
     rescue ActiveRecord::RecordNotUnique
@@ -67,7 +72,7 @@ module Achievements
     private
 
     def definition_matches_registry
-      definition = Achievements::Registry.default.find(definition_key)
+      definition = (@registry || Achievements::Registry.default).find(definition_key)
       return errors.add(:definition_key, "is not a registered achievement") if definition.nil?
 
       errors.add(:scope, "does not match the definition") unless scope == definition.scope.to_s
