@@ -35,7 +35,7 @@ class Coworkers::ClaimedWorkspacePaths
       path = candidate.to_s.strip.delete_prefix("./").sub(/[.,;:]\z/, "")
       next unless path == "memory" || path.start_with?("memory/")
       next if path.split("/").include?("..")
-      next unless path.end_with?("/") || path.include?("*") || path == "memory" || !path.split("/").last.include?(".")
+      next unless path.end_with?("/") || path.include?("*") || path == "memory"
       path if write_claim?(text, offset)
     end.uniq
   end
