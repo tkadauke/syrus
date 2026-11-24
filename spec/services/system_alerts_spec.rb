@@ -102,6 +102,43 @@ RSpec.describe SystemAlerts do
           expect(divergence_ids).to eq([ "plugin_fleet_divergence" ])
         end
       end
+
+      it "gives a later episode at the same revision a new fingerprint and lets it notify and render after the first was delivered and dismissed" do
+        digest = Digest::SHA256.hexdigest(JSON.generate([
+          { "name" => "weather", "version" => "1.0.0", "digest" => Digest::SHA256.hexdigest("archive"), "size" => 7 }
+        ]))
+        allow(SystemAlertDelivery).to receive(:configured?).and_return(true)
+        allow_any_instance_of(SystemAlertDelivery).to receive(:deliver_to_sinks)
+        def divergence_alert = described_class.active_for(user: admin).find { |a| a.id == "plugin_fleet_divergence" }
+
+        travel_to(Time.zone.parse("2026-11-20 12:00:00")) { beat!; divergence_alert }
+        first = travel_to(Time.zone.parse("2026-11-20 12:06:00")) do
+          beat!
+          alert = divergence_alert
+          SystemAlertDelivery.deliver(described_class.outbound_alerts)
+          alert
+        end
+        # Uninterrupted episode keeps a stable fingerprint across refreshes.
+        travel_to(Time.zone.parse("2026-11-20 12:08:00")) do
+          beat!
+          expect(divergence_alert.dismissal_key).to eq(first.dismissal_key)
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:09:00")) do
+          @process.update!(plugin_set_revision: 2, plugin_set_digest: digest, last_heartbeat_at: Time.current)
+          expect(divergence_alert).to be_nil
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:20:00")) do
+          @process.update!(plugin_set_revision: 1, plugin_set_digest: nil, last_heartbeat_at: Time.current)
+          expect(divergence_alert).to be_nil
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:26:00")) do
+          beat!
+          second = divergence_alert
+          expect(second.dismissal_key).not_to eq(first.dismissal_key)
+          expect { SystemAlertDelivery.deliver(described_class.outbound_alerts) }
+            .to change { SystemAlertNotification.where(dismissal_key: second.dismissal_key).count }.from(0).to(1)
+        end
+      end
     end
 
     it "surfaces a github-token-blocked alert when the user is flagged" do
