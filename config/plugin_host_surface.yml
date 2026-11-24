@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 393
+legacy_baseline: 294
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -10,18 +10,10 @@ constants:
 - name: AdminAction
 - name: Agent
 - name: AgentEventAbbreviator
-- name: AgentInvocation
-- name: AgentInvocation::DEFAULT_MAX_TURNS
-- name: AgentInvocation::DEFAULT_TIMEOUT_SECONDS
-- name: AgentInvocation::ENV_FORWARD
-- name: AgentInvocation::MAX_EVENT_BYTES
-- name: AgentInvocation::Result
-- name: AgentInvocation::SILENT_TIMEOUT_SECONDS
 - name: AgentProviders
 - name: AgentProviders::Base
 - name: AgentProviders::ConfigurationError
 - name: AgentProviders::SessionStore
-- name: AgentRole
 - name: AgentRole::AGENT_INSIGHT
 - name: AgentRole::CHAT_CODING
 - name: AgentRole::CHAT_LOCAL
@@ -34,9 +26,6 @@ constants:
 - name: AgentRole::WORKFLOW_ROLES
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
 - name: AgentSidecarEnvironment
-- name: Api::V1::Admin::BaseController
-- name: Api::V1::App::Admin::BaseController
-- name: Api::V1::App::BaseController
 - name: App::Presentation
 - name: App::ProviderAvailability
 - name: App::RunArtifactsPayload
@@ -45,7 +34,6 @@ constants:
 - name: ApplicationCable::Channel
 - name: ApplicationPolicy
 - name: ApplicationPolicy::Scope
-- name: ApplicationRecord
 - name: AuthorizationCheckpointOrigin
 - name: AuthorizedInvocation
 - name: AutoApproveModes
@@ -66,18 +54,12 @@ constants:
 - name: ChatQueuedMessagePromoter
 - name: ChatResultBadges
 - name: ChatSession
-  reason: The coworkers, review and briefing plugins use Syrus::Host::ChatSessions; other plugin groups (whiteboard, global_search, terminal, video_walkthroughs) still query and extend ChatSession directly.
+  reason: The coworkers, review and briefing plugins use Syrus::Host::ChatSessions;
+    other plugin groups (whiteboard, global_search, terminal, video_walkthroughs)
+    still query and extend ChatSession directly.
 - name: ChatSession::MODES
 - name: ChatSessionLifecycle
 - name: ChatSessionRehydrator
-- name: ChatSpeechToText::Providers::Base
-- name: ChatSpeechToText::Providers::InvalidAudio
-- name: ChatSpeechToText::Providers::StreamingDelta
-- name: ChatSpeechToText::Providers::TranscriptionError
-- name: ChatSpeechToText::Providers::TranscriptionResult
-- name: ChatSpeechToText::Providers::TranscriptionTimeout
-- name: ChatSpeechToText::Providers::TranscriptionUnavailable
-- name: ChatSpeechToText::Telemetry
 - name: ChatSpendEntry
 - name: ChatWakeup
 - name: ChatWorkEvents
@@ -87,11 +69,9 @@ constants:
 - name: ClaudeTranscript::Event
 - name: CodexAccountScope
 - name: CommandRedactor
-- name: CoverageAnalysis::Parsers::Base::ParseResult
 - name: CredentialProbe
 - name: CredentialProbe::Result
 - name: CredentialProbe::TIMEOUT_SECONDS
-- name: Current
 - name: DirectJobs::Creator
 - name: DirectJobs::Creator::Attachment
 - name: Document::MAX_ATTACHMENTS_PER_JOB
@@ -100,8 +80,6 @@ constants:
 - name: Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
 - name: EpicMarkerParser
 - name: Epics::Filter
-- name: Execution::Backend
-- name: Execution::Local
 - name: Feature
 - name: Filters::Ast
 - name: Filters::Ast::AndNode
@@ -129,13 +107,9 @@ constants:
 - name: Filters::SmartFolderResolution::PRESET_FIELD
 - name: Filters::UnknownFilterField
 - name: FtsQueryParser
-- name: GitRunner
-- name: GitRunner::GitError
 - name: GithubApiUsageRollup
 - name: GithubClient
 - name: GithubIssueJobAttributes
-- name: GraderResourceRequest
-- name: GraderResourceRequest::ALL
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
 - name: IngestIssueImagesJob
@@ -147,7 +121,9 @@ constants:
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
 - name: IssueImageExtractor
 - name: Job
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Jobs; other plugin groups (test_insights, global_search, scheduled_tasks, main_branch_health) still query and extend Jobs directly.
+  reason: The coworkers, review and briefing plugins use Syrus::Host::Jobs; other
+    plugin groups (test_insights, global_search, scheduled_tasks, main_branch_health)
+    still query and extend Jobs directly.
 - name: Job::Kind
 - name: Job::Origin
 - name: Job::ProviderSetting::Base
@@ -161,8 +137,6 @@ constants:
 - name: Jobs::Filter
 - name: JunitXmlParser
 - name: JunitXmlParser::ParseError
-- name: JunitXmlParser::ParsedCase
-- name: JunitXmlParser::ParsedRun
 - name: KubernetesCluster
 - name: LandedCommit
 - name: LandingFailureHandler
@@ -179,7 +153,6 @@ constants:
 - name: Mcp::Tools::ProposalToolSupport
 - name: McpInvocationContext
 - name: McpSidecarLog
-- name: McpToolContext
 - name: McpToolPayloads::WorkflowPayload
 - name: McpToolPolicy
 - name: MergeTrain
@@ -192,12 +165,10 @@ constants:
 - name: Observability::EventSink
 - name: OperationalLogSearch
 - name: OperationalLogSearch::INPUT_SCHEMA_PROPERTIES
-- name: OperationalLogging
 - name: Paginatable
 - name: PendingActionItem
 - name: PendingActions::Base
 - name: PerformanceLogEvent
-- name: PerformanceLogging
 - name: PerformanceLogging::BROWSER_TRACE_EVENT
 - name: PerformanceLogging::FEATURE_SLUG
 - name: PerformanceLogging::SLOW_JOB_EVENT
@@ -229,7 +200,6 @@ constants:
 - name: PreviewPanel::Service
 - name: PreviewPanelVersion
 - name: PreviewProcessLauncher
-- name: ProcessRunner
 - name: Prompts::ChatSystem
 - name: Prompts::GitSafety::TEXT
 - name: Prompts::MemoryContext
@@ -250,25 +220,10 @@ constants:
 - name: RepoDefaultBranchSyrusYml
 - name: RepoDeploymentStagesReader
 - name: Repository
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Repositories; other plugin groups (agent_insights, test_insights, design_docs, credential_store) still query repositories and their jobs directly.
+  reason: The coworkers, review and briefing plugins use Syrus::Host::Repositories;
+    other plugin groups (agent_insights, test_insights, design_docs, credential_store)
+    still query repositories and their jobs directly.
 - name: RepositoryBareClone
-- name: RepositoryContent
-- name: RepositoryContent::Blob
-- name: RepositoryContent::Change
-- name: RepositoryContent::Commit
-- name: RepositoryContent::CommitHistory
-- name: RepositoryContent::Divergence
-- name: RepositoryContent::Entry
-- name: RepositoryContent::Error
-- name: RepositoryContent::NotFound
-- name: RepositoryContent::Ref
-- name: RepositoryContent::Revision
-- name: RepositoryContent::Source
-- name: RepositoryContent::TooLarge
-- name: RepositoryContent::Truncated
-- name: RepositoryContent::Unavailable
-- name: RepositoryContent::UnknownRevision
-- name: RepositoryContent::Unsupported
 - name: RepositoryMembership
 - name: RepositoryPolicy
 - name: RepositorySummarySerialization
@@ -278,7 +233,9 @@ constants:
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
 - name: Run
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Runs; other plugin groups (agent_insights, spending_insights, test_insights) still read run state and artifacts directly.
+  reason: The coworkers, review and briefing plugins use Syrus::Host::Runs; other
+    plugin groups (agent_insights, spending_insights, test_insights) still read run
+    state and artifacts directly.
 - name: Run::ACTIVE_STATES
 - name: RunDiff
 - name: RunHeartbeat
@@ -311,66 +268,22 @@ constants:
 - name: Syrus::DataCleanup
 - name: Syrus::Events
 - name: Syrus::Installer
-- name: Syrus::Metrics
-- name: Syrus::PathJail
-- name: Syrus::PathJail::PathEscape
-- name: Syrus::Plugin::AdminPage
-- name: Syrus::Plugin::AgentProvider
 - name: Syrus::Plugin::AgentProvider::ModelInfo
-- name: Syrus::Plugin::AgenticConnection
-- name: Syrus::Plugin::Callbacks
-- name: Syrus::Plugin::ChatJobStatusExtension
-- name: Syrus::Plugin::ChatMcpToolSet
-- name: Syrus::Plugin::ChatMediaSource
-- name: Syrus::Plugin::ChatPayloadContributor
-- name: Syrus::Plugin::ChatPromptInjector
 - name: Syrus::Plugin::ChatProvider
-- name: Syrus::Plugin::ChatTurnOrientation
-- name: Syrus::Plugin::CliCommandHandler
-- name: Syrus::Plugin::DomainSubscriber
-- name: Syrus::Plugin::ExecutionBackend
-- name: Syrus::Plugin::GatedToolSet
-- name: Syrus::Plugin::GraderFailureSummarizer
-- name: Syrus::Plugin::InputSource
-- name: Syrus::Plugin::JobOrigin
-- name: Syrus::Plugin::McpToolSet
 - name: Syrus::Plugin::MemoryStore
-- name: Syrus::Plugin::PermissionProvider
 - name: Syrus::Plugin::PlatformDelivery
-- name: Syrus::Plugin::PreviewPanelRetention
-- name: Syrus::Plugin::PurgeContributor
-- name: Syrus::Plugin::RepoPageTab
-- name: Syrus::Plugin::RepositoryConfiguration
-- name: Syrus::Plugin::RepositoryContentProvider
-- name: Syrus::Plugin::RepositoryRecommendation
-- name: Syrus::Plugin::RetentionPolicy
-- name: Syrus::Plugin::RuntimeSessionProvider
-- name: Syrus::Plugin::SidebarPage
-- name: Syrus::Plugin::SourceControlProvider
-- name: Syrus::Plugin::SpeechToTextProvider
-- name: Syrus::Plugin::TestEvidence
-- name: Syrus::Plugin::UiSlot
-- name: Syrus::Plugin::WorkerCapabilityProbe
 - name: Syrus::Plugin::WorkflowArtifactContributor
-- name: Syrus::Plugin::WorkspaceGitTransport
-- name: Syrus::Plugin::WorkspaceTab
 - name: Syrus::PluginApi
-  reason: Every plugin entry file extends it while the plugin loader runs, before the Syrus::Host alias table can be installed; moving it needs a loader-safe Host entry point.
-- name: Syrus::PluginRegistry
+  reason: Every plugin entry file extends it while the plugin loader runs, before
+    the Syrus::Host alias table can be installed; moving it needs a loader-safe Host
+    entry point.
 - name: Syrus::PluginSettings
-- name: SyrusMcp
 - name: SyrusMcp::TypedArtifactProvenance
 - name: SyrusSearchDatabaseTasks
 - name: SyrusVersion
 - name: SyrusYml
-- name: SyrusYml::BaseRetry
 - name: SyrusYml::CONFIG_FILE
-- name: SyrusYml::DEFAULT_GRADE_PHASES
-- name: SyrusYml::GradeStep
-- name: SyrusYml::MAX_GRADE_TIMEOUT_MINUTES
-- name: SyrusYml::ParseError
 - name: SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV
-- name: TargetGraph::ExecutionCapabilities
 - name: Team
 - name: TeamMembership
 - name: TeamRepository
@@ -384,23 +297,25 @@ constants:
 - name: ToolPayloadRedactor::REDACTED
 - name: TracksFinishedAt
 - name: User
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Users; other plugin groups (design_docs, syrus_dev, credential_store) still query users and their repositories directly.
+  reason: The coworkers, review and briefing plugins use Syrus::Host::Users; other
+    plugin groups (design_docs, syrus_dev, credential_store) still query users and
+    their repositories directly.
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
 - name: User::DASHBOARD_REQUIRED_COLUMNS
 - name: WorkDefinitions::Base
-- name: WorkUnits::Launcher
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis
 - name: WorkerHostHealthSample
 - name: WorkerQueueTopology
 - name: WorkerStorageIdentity
 - name: Workflow
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Workflows; other plugin groups (main_branch_health, throughput, syrus_coverage, terminal) still read workflow state and artifacts directly.
+  reason: The coworkers, review and briefing plugins use Syrus::Host::Workflows; other
+    plugin groups (main_branch_health, throughput, syrus_coverage, terminal) still
+    read workflow state and artifacts directly.
 - name: Workflow::TriggerKind
 - name: WorkflowActivityEvent
 - name: WorkflowVisualEvidence
 - name: WorkflowWarnings
-- name: WorkflowWorkspace
 - name: Workflows::Base
 - name: WorkspaceDependencyEnv
 - name: WorkspaceReuseOutcomes::Summary
