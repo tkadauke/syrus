@@ -5286,6 +5286,35 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M76. Main through `f476164c79`
+
+A merge train for the instance connected accounts Epic. Accounts can be owned
+by the instance. Discord and Telegram bot tokens move onto them, and Telegram
+becomes a bundled platform plugin. `ConnectedAccounts::SystemInvocation` lets a
+registered service use an instance account without a user.
+
+*Relied-on invariant:* only the service that declared a system identity, using
+an instance account of its own provider, can make a system invocation. Holds:
+
+- `SystemInvocation.call` resolves the caller only from the `Binding` it was
+  handed at registration (the proof is compared by identity).
+- It requires the account's owner policy to allow system access.
+- It checks that the registration's provider key, identity and service class
+  are exactly the account's provider's declaration, and refuses a blank
+  purpose.
+- Every failure is the same denial.
+- Registrations are keyed weakly by the binding, so a service that drops its
+  binding loses access, and a reload mints a fresh proof that invalidates old
+  bindings. Both fail closed.
+
+What it does not stop is in-process code reading the private registrations
+with `send`. That is the trust all plugins in one process share, and
+`bin/check-plugin-boundaries` rejects it statically.
+
+Checked after the rebase: mirrors match, boundaries are clean, and the
+connected-accounts, formal, architecture and lock-order specs pass (1,153
+examples).
+
 ## M75. Main through `3e5efbd613`
 
 A merge train for the workflow-composition Epic. `Workflows::CompositionAnchors`
@@ -7216,7 +7245,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `3e5efbd613`. Each loop iteration continues from there:
+Checked through main `f476164c79`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
