@@ -92,6 +92,8 @@ module Coworkers
     # The coworkers plugin owns the coworker chat context for parity.
     def self.chat_parity_participant = Coworkers::ChatParity
 
+    def self.chat_parity_reason_codes = Coworkers::ChatParity::REASON_CODES
+
     def self.chat_parity_exceptions
       [ {
         reason_code: "coworker_identity_lifecycle",
