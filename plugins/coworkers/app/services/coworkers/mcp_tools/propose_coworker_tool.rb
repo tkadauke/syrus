@@ -2,8 +2,8 @@ require "mcp"
 
 module Coworkers::McpTools
   class ProposeCoworkerTool < MCP::Tool
-    extend Mcp::Tools::ProposalToolSupport
-    extend Mcp::Tools::PendingActionToolSupport
+    extend Syrus::Host::McpProposalToolSupport
+    extend Syrus::Host::McpPendingActionToolSupport
 
     tool_name "propose_coworker"
     description "Propose a persistent coworker. Validates the complete configuration and remote now; nothing is created until the owner confirms."

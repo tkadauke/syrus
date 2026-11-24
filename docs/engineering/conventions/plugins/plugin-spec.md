@@ -179,7 +179,9 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::CapabilityDispatch` (since 0.1.16) — Invokes declared capability providers through their composition and health boundaries. Only the listed members are supported. Supported members: `call`.
 - `Syrus::Host::CapabilityFamily` (since 0.1.16) — Defines provider-neutral capability families and their composition contracts; registry internals are not promised. Only the listed members are supported. Supported members: `define`, `fetch`.
 - `Syrus::Host::CapabilityValidationError` (since 0.1.16) — Reports a deliberate caller-visible capability validation problem without counting it as a provider crash. Only the listed members are supported. Supported members: `code`, `details`, `message`, `new`.
+- `Syrus::Host::ChatBridgeThread` (since 0.1.16) — Creates and looks up the thread linking an origin chat to a spawned chat; other associations and persistence are not promised. Only the listed members are supported. Supported members: `create!`, `find_by`.
 - `Syrus::Host::ChatDelivery` (since 0.1.16) — Delivers the next queued chat message when the chat is idle and names the internal-role metadata key; queue ordering and batching are not promised. Supported members: `deliver_next_if_idle!`, `internal_role_key`.
+- `Syrus::Host::ChatLockErrors` (since 0.1.16) — Adds chat-lock error rendering to plugin API controllers; error payloads are not promised. Only the listed members are supported.
 - `Syrus::Host::ChatMessages` (since 0.1.16) — Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised. Supported members: `active`, `find`, `find_by`, `install_after_commit_on_create`, `none`, `remove_after_commit_on_create`, `where`.
 - `Syrus::Host::ChatPendingActions` (since 0.1.16) — Reads chat pending actions; creation, confirmation, and state transitions are not promised. Supported members: `pending`, `where`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
@@ -188,6 +190,8 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::ChatWorkspaces` (since 0.1.16) — Resolves a chat's repository checkout path and reports its git state; workspace layout beyond the returned paths is not promised. Supported members: `ensure_root!`, `rebase_in_progress?`, `repo_path_for`, `uncommitted_changes?`.
 - `Syrus::Host::CliCommandHandler` (since 0.1.16) — Bases server-backed plugin CLI handlers; transport internals are not promised. Only the listed members are supported. Supported members: `call`, `json`, `raw_text`, `table`, `text`.
 - `Syrus::Host::CodePathNormalizer` (since 0.1.16) — Normalizes tool-reported source paths to repository-relative paths. Only the listed members are supported. Supported members: `normalize`.
+- `Syrus::Host::ColorPalette` (since 0.1.16) — Validates accent colors and picks the next unused default agent color; the palette itself is not promised. Only the listed members are supported. Supported members: `HEX_PATTERN`, `default_agent_order`, `next_default_color`.
+- `Syrus::Host::CommandRedactor` (since 0.1.16) — Redacts secrets from command output and structured values; redaction rules are not promised. Only the listed members are supported. Supported members: `redact`, `redact_value`.
 - `Syrus::Host::CoverageParsers` (since 0.1.16) — Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract. Only the listed members are supported. Supported members: `for`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::DeliveryPolicy` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `for`.
@@ -218,10 +222,19 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::JobSystemKindMainBranchRepair` (since 0.1.16) — Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
 - `Syrus::Host::LandingQueueProcessor` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `try_land!`.
 - `Syrus::Host::LandingValidationManifest` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `manifest_for_landed_sha`, `record_main_parity!`.
+- `Syrus::Host::McpAuthorizationSupport` (since 0.1.16) — Raises AuthorizationError and creates pending coworker approvals for plugin tool calls; permission evaluation is not promised. Only the listed members are supported. Supported members: `AuthorizationError`, `pending_coworker_approval`, `pending_coworker_plugin_approval`, `with_server_context`.
+- `Syrus::Host::McpEvidenceRedactor` (since 0.1.16) — Redacts secrets from evidence values returned by plugin MCP tools; redaction rules are not promised. Only the listed members are supported. Supported members: `call`.
+- `Syrus::Host::McpPagination` (since 0.1.16) — Normalizes the page parameter of paginated plugin MCP tools; page sizing is not promised. Only the listed members are supported. Supported members: `normalize_page`.
+- `Syrus::Host::McpPendingActionToolSupport` (since 0.1.16) — Extends plugin MCP tools that queue pending actions; the helper methods are not promised. Only the listed members are supported.
+- `Syrus::Host::McpProposalToolSupport` (since 0.1.16) — Extends plugin MCP tools that file proposals; the helper methods are not promised. Only the listed members are supported.
 - `Syrus::Host::McpTools` (since 0.1.16) — Provides database-connection and MCP response helpers; core tool implementations are not promised. Only the listed members are supported. Supported members: `invalid`, `success`, `with_database_connection`.
+- `Syrus::Host::Memory` (since 0.1.16) — Reads agent-memory availability and the memories selected for a review; memory storage and ranking are not promised. Only the listed members are supported. Supported members: `available?`, `selected_review_memories`.
+- `Syrus::Host::Mentionable` (since 0.1.16) — Marks a plugin model as an @-mentionable chat target; mention storage is not promised. Only the listed members are supported.
+- `Syrus::Host::MentionablesResolver` (since 0.1.16) — Finds a mentionable by kind and id and resolves the mentions in a message; resolution order is not promised. Only the listed members are supported. Supported members: `find`, `resolve`.
 - `Syrus::Host::Metrics` (since 0.1.16) — Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised. Only the listed members are supported. Supported members: `counter`, `gauge`, `histogram`.
 - `Syrus::Host::NotificationService` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `create_for`.
 - `Syrus::Host::OperationalLogging` (since 0.1.16) — Emits structured plugin diagnostic events; subscribers and storage are not promised. Only the listed members are supported. Supported members: `ingest`.
+- `Syrus::Host::Paginatable` (since 0.1.16) — Adds page-parameter handling to plugin API controllers; page sizing is not promised. Only the listed members are supported.
 - `Syrus::Host::PendingActionAuthorizedToolCall` (since 0.1.16) — Bases pending actions that replay an authorized tool call; replay internals are not promised. Only the listed members are supported. Supported members: `new`.
 - `Syrus::Host::PendingActionBase` (since 0.1.16) — Bases plugin pending-action handlers confirmed by an operator; queueing is not promised. Only the listed members are supported. Supported members: `new`.
 - `Syrus::Host::PendingActionPermissionManagement` (since 0.1.16) — Bases pending actions that change durable permissions; permission storage is not promised. Only the listed members are supported. Supported members: `new`.
@@ -247,8 +260,10 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `capability_providers`, `extension_point?`, `providers_for`, `providers_with_owner_for`, `register`, `register_direct`.
 - `Syrus::Host::PreviewPreparation` (since 0.1.16) — Prepares a preview for visual review. Only the listed members are supported. Supported members: `call`, `new`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `capture`, `forwarded_env`, `mounts`, `new`, `run`, `start`.
+- `Syrus::Host::PromptsAdversarialReview` (since 0.1.16) — Bases plugin review prompts that reuse the adversarial-review prompt; overridable hooks beyond new are not promised. Only the listed members are supported. Supported members: `new`.
 - `Syrus::Host::PromptsGradeFailureFeedback` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `new`.
 - `Syrus::Host::ProviderContentRefusals` (since 0.1.16) — Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised. Supported members: `detect?`, `outcome`.
+- `Syrus::Host::PromptsMemoryContext` (since 0.1.16) — Renders the agent-memory prompt context for a user and repositories; ranking and prompt wording are not promised. Only the listed members are supported. Supported members: `new`, `to_s`.
 - `Syrus::Host::RebaseTarget` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `artifacts`.
 - `Syrus::Host::RebaseWorkflowSelector` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `active_for_stack?`, `active_merge_train_for_stack?`, `instantiate`.
 - `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`.
@@ -307,7 +322,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::WorkflowSourceSnapshots` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `current_for`.
 - `Syrus::Host::WorkspaceContext` (since 0.1.16) — Carries the workspace path and format hint passed to ecosystem capability providers. Only the listed members are supported. Supported members: `new`.
 
-The compatibility scanner also recognizes 444 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 436 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
@@ -321,4 +336,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 64977 bytes (UTF-8, including this line).
+Size: 68425 bytes (UTF-8, including this line).
