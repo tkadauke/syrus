@@ -5337,6 +5337,54 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M77. Main through `95e61b9291`
+
+A merge train for the parallel landing lanes Epic.
+
+- **"Serialize the final merge behind a per-repository merge lock"**
+  (`c6732a4f00`, `9956c339e9`). `MergeLock` is a `WorkUnitLock` keyed
+  `merge:repository:<id>[:branch:<name>]`, held by `auto_merge`,
+  `merge_train_land`, `merge_train_land_after_rebase` and `external_pr_merge`
+  only around their last sequence: check that the validated base is still the
+  branch head, handle a moved base, merge, record. Waiters go first-come by
+  landing start. *Relied-on invariant:* between a landing's head check and its
+  merge, nothing else merges into that branch. Holds among those four steps.
+  It does not hold against emergency landing, hotfix sync or promotion (Lead
+  L15). `try_acquire` also returns a lock-free lease when the Workflow has no
+  WorkUnit, which fails open; every landing Workflow is launched with one.
+- **"Allow up to N concurrent landing units per repository"** (`bcdd2d3653`,
+  `62a2f3f096`). `landing_concurrency` (1–5, default 1) gives each extra lane
+  its own landing lock key, and the claimed lane is carried on the Workflow so
+  every recomputation asks for the same one. *Relied-on invariants:* a Job is
+  in at most one landing unit, and at the default of 1 landing behaves as
+  before. Both hold: lane 1's key is unchanged byte for byte, and unit
+  membership is still exclusive. `LandingSlot.lean`'s one-landing-per-repository
+  property now holds per lane, and merge exclusion moves to the merge lock.
+- **"Re-run only graders covering files touched by agentic landing rebase"**
+  (`e1a7c79dcb`). After an agent resolves a landing rebase, only graders whose
+  file scope covers a file the agent's resolution changed re-run; the rest
+  carry forward. *Relied-on invariant:* a grader whose scope misses every
+  changed file would pass again. This is the same assumption the clean-rebase
+  path already makes, behind the same opt-in `trust_clean_rebase_grade`
+  setting. Off, a full grader round still runs.
+- **"Tolerate workflow doubles without work_unit when reading claimed landing
+  lanes"** (`6cbc41776e`). A test-double guard.
+
+## Lead L15. Emergency landing and branch publishes merge outside the merge lock
+
+`EmergencyLand::Lander#merge!`, and the auto-merge paths of
+`Steps::HotfixSyncPublish` and `Steps::PromotionPublish`, merge into a branch
+without taking `MergeLock`. GitHub's `expected_sha` guards the PR's head, not
+the base branch. So the merge lock's promise, that a landing merges onto the
+base it just checked, breaks if one of these merges into the same branch
+between a lane's head check and its merge call. The window is one GitHub API
+round-trip, and a merge that lands before the check is caught as a moved base.
+The race predates the lanes (the single landing slot never excluded these
+paths either), but N lanes make landing merges more frequent. Not changed:
+emergency landing is an operator override by design, so whether it should wait
+for an in-flight lane merge is a behaviour decision. The likely fix is for all
+three to take the same lock for their own merge call, which is milliseconds.
+
 ## M76. Main through `f476164c79`
 
 A merge train for the instance connected accounts Epic. Accounts can be owned
@@ -7296,7 +7344,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `f476164c79`. Each loop iteration continues from there:
+Checked through main `95e61b9291`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
