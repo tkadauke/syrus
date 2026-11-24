@@ -91,6 +91,7 @@ import SyrusModel.RollbackImage
 import SyrusModel.ReopenedStepLiveness
 import SyrusModel.WakeupChain
 import SyrusModel.PluginDeletion
+import SyrusModel.MergeExclusion
 import SyrusModel.DispatchOrder
 import SyrusModel.Kernel.Basic
 import SyrusModel.Kernel.Reconcile

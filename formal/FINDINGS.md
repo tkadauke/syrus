@@ -4713,6 +4713,47 @@ physical removal to manual use, with the boundary grader deciding
 deletability") and `spec/config/syrus_grader_config_spec.rb` (the grader list
 without the retired grader). 68 examples pass.
 
+## F129. Hotfix sync and promotion move a landing branch only under its merge lock (NY41: A, part 1)
+
+**Before.** `MergeLock` serializes a landing's last sequence on one branch:
+check that the validated base is still the head, then merge. `expected_sha`
+guards the PR head, not the base, so this is only sound if nothing else writes
+the branch in between. `Steps::HotfixSyncPublish` and `Steps::PromotionPublish`
+did write landing branches without it, in both their modes:
+
+- a direct push, whose lease only guards against overwriting;
+- a PR auto-merge.
+
+Promotion writes `main`, the branch every default-branch lane merges into
+(Lead L15).
+
+**Fix.** Both writes in both steps hold the merge lock of the branch they write
+(`with_target_merge_lock`), keyed by `WorkDefinitions.merge_lock_key_for_branch`,
+which has the same shape as the landing key. `MergeLockControl` gets an
+overridable `merge_lock_key`, and the two step kinds join `MergeLock`'s
+first-come waiter list. A lock still held when the wait runs out fails the
+step with a message saying why. Manual-PR mode, which never merges, takes no
+lock.
+
+**Proof.** `MergeExclusion.lean`:
+
+- `no_write_between_check_and_merge`: with every writer locked, no valid trace
+  of up to five events, for two lanes and a publisher, puts another write
+  between a lane's check and its merge.
+- `unlocked_writer_breaks_it`: one unlocked publisher does.
+
+`MergeLock#try_acquire` and both steps' `with_target_merge_lock` are in
+`formal/mirrors.yml`.
+
+**Specs.** `hotfix_sync_publish_spec.rb` and `promotion_publish_spec.rb`, "merge
+lock on the target branch": a step does not publish while a landing holds the
+lock, and holds then releases the lock around its own publish. Red before the
+change. Both specs now launch the Workflow through `WorkUnits::Launcher`, as
+the dispatchers do in production, so it has the WorkUnit the lock is held on.
+
+**Not yet.** Emergency landing (`EmergencyLand::Lander#merge!`) has no WorkUnit,
+and a `WorkUnitLock` requires one. How it should hold the lock is NY43.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)

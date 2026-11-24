@@ -18,7 +18,9 @@
 class MergeLock
   # Step kinds that merge into a landing branch (the job-bundle land path runs
   # as a merge-train land).
-  STEP_KINDS = %w[auto_merge merge_train_land merge_train_land_after_rebase external_pr_merge].freeze
+  # Publish steps that write straight to a branch take it too (NY41).
+  STEP_KINDS = %w[auto_merge merge_train_land merge_train_land_after_rebase external_pr_merge
+                  hotfix_sync_publish promotion_publish].freeze
 
   Lease = Struct.new(:lock, :key) do
     def release!

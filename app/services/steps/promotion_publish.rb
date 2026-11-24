@@ -18,6 +18,7 @@ module Steps
   # "promotion_landed"); a PR left open for manual/gated merge leaves the
   # Job open so the operator sees it's still awaiting action.
   class PromotionPublish < Base
+    include MergeLockControl
     def call
       workspace.setup
       policy = DeliveryPolicy.for(repository: repository)
@@ -81,7 +82,25 @@ module Steps
       workflow.artifact("promotion_target_branch")
     end
 
+    # Both writes to the target branch hold that branch's merge lock (NY41),
+    # so a landing lane never merges onto a base this publish just moved.
     def publish_direct!
+      with_target_merge_lock("publish") { publish_direct_unlocked! }
+    end
+
+    def merge_pull_request!(pr_number:, expected_sha:)
+      with_target_merge_lock("merge") { merge_pull_request_unlocked!(pr_number:, expected_sha:) }
+    end
+
+    def merge_lock_key = WorkDefinitions.merge_lock_key_for_branch(repository, target_branch)
+
+    def with_target_merge_lock(context, &)
+      with_merge_lock(context: "promotion_publish: #{context}", on_timeout: lambda {
+        raise StepFailed, "promotion_publish: #{target_branch} is held by another landing's merge lock; retry after it finishes."
+      }, &)
+    end
+
+    def publish_direct_unlocked!
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_promotion_direct_push", log: method(:log)) do |push_url|
         git.run("push", push_url, "HEAD:refs/heads/#{target_branch}", chdir: workspace.path.to_s)
@@ -157,7 +176,7 @@ module Steps
       ).resolve
     end
 
-    def merge_pull_request!(pr_number:, expected_sha:)
+    def merge_pull_request_unlocked!(pr_number:, expected_sha:)
       client = GithubClient.for(repository: repository, user: job.user)
       # The merge cannot be undone: stop if the landing was stopped or the Job
       # closed since the gate passed (formal/SyrusModel/MergeFence.lean).

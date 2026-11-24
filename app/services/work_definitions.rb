@@ -205,6 +205,19 @@ module WorkDefinitions
     landing_key.sub(/\Alanding:/, "merge:")
   end
 
+  # The merge lock for a named branch: what a publish that writes straight to
+  # a branch (hotfix sync, promotion) must hold, so it cannot move a landing
+  # branch between a landing's head check and its merge (Lead L15, NY41).
+  # Same key shape as merge_lock_key_for.
+  def merge_lock_key_for_branch(repository, branch)
+    return nil unless repository&.id
+
+    key = "merge:repository:#{repository.id}"
+    return key if branch.blank? || branch == repository.default_branch
+
+    "#{key}:branch:#{branch}"
+  end
+
   def landing_workflow_kinds
     @landing_workflow_kinds ||= definitions_matching { |definition| definition.landing_lock? && definition.first_class? }
       .map(&:workflow_trigger_kind)

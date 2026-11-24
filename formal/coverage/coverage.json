@@ -3824,7 +3824,7 @@
         "C. Leave as is: the window is tiny, and main's own post-merge graders catch a broken combination."
       ],
       "recommendation": "A. The wait is at most one merge call, and it closes the gap for every writer to a landing branch.",
-      "decision": "A (2026-11-24, answered on the lean-plan site): emergency landing, hotfix sync and promotion take the per-branch merge lock for their own merge call. To implement."
+      "decision": "A (2026-11-24, answered on the lean-plan site): emergency landing, hotfix sync and promotion take the per-branch merge lock for their own merge call. Hotfix sync and promotion implemented as F129; emergency landing waits on NY43."
     },
     {
       "id": "NY42",
@@ -3838,6 +3838,18 @@
       ],
       "recommendation": "A. The scan now covers every kind the deletion run catches, and the nightly run keeps checking that claim.",
       "decision": "Decided in chat (2026-11-24): gate on the scan inside the plugin-boundaries grader, retire coworkers-removability, and run no nightly audit. Instead, a plant spec in normal CI asserts the scan's verdict for every known coupling kind; the two kinds neither check catches stay documented as known gaps. Implemented as F128."
+    },
+    {
+      "id": "NY43",
+      "item": "landing-queue-order",
+      "title": "How should emergency landing hold the merge lock, given it has no WorkUnit?",
+      "context": "NY41 decided that emergency landing takes the per-branch merge lock for its merge. The lock is a WorkUnitLock, and work_unit_locks.work_unit_id is required. Emergency landing is an operator action that first requires the Job to have no active runtime work, so there is no unit to hold it on, and no work definition exists to launch one under. Waiting until no lane holds the key is not enough: a lane could take the lock between that check and the emergency merge.",
+      "options": [
+        "A. Launch a short-lived WorkUnit for the emergency merge under a new emergency_land work definition, hold the lock on it, and finish the unit when the merge returns. It fits the existing lock, reconciler cleanup and waiter ordering, but adds a work definition and intent for a rare operator action.",
+        "B. Allow a lock without a WorkUnit: make work_unit_id nullable and add a holder label and an expiry, so a crash cannot leave it held forever. MergeLock and the reconciler learn to treat an expired holder-less lock as released. Smaller conceptually, but a migration and a second cleanup path.",
+        "C. Keep emergency landing as an override that does not take the lock, and document that it can race an in-flight lane merge (one API round-trip)."
+      ],
+      "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing."
     }
   ]
 }

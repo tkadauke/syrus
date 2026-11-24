@@ -13,8 +13,11 @@ RSpec.describe Steps::PromotionPublish do
       issue_title: "Promote develop into main"
     )
   end
+  # Launched as production launches it (PromotionDispatcher), so the Workflow
+  # has the WorkUnit the merge lock is held on.
   let(:workflow) do
-    Workflows::Promotion.instantiate(
+    WorkUnits::Launcher.instantiate(
+      kind: "promotion",
       job: job,
       artifacts: { "promotion_source_branch" => "develop", "promotion_target_branch" => "main" }
     )
@@ -43,6 +46,44 @@ RSpec.describe Steps::PromotionPublish do
     allow(client).to receive(:open_pull_request_for_head).and_return(nil)
     allow(client).to receive(:pull_request).and_return(OpenStruct.new(state: "open", merged: false, merged_at: nil))
     allow(repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+  end
+
+  # NY41 (Lead L15): promotion writes to main, the branch every default-branch
+  # landing lane merges into, so it holds main's merge lock while it does.
+  describe "merge lock on the target branch" do
+    let(:key) { "merge:repository:#{repository.id}" }
+
+    before do
+      stub_policy(mode: "direct")
+      Steps::MergeLockControl.merge_lock_wait = 0
+      Steps::MergeLockControl.merge_lock_poll = 0
+    end
+
+    after do
+      Steps::MergeLockControl.merge_lock_wait = nil
+      Steps::MergeLockControl.merge_lock_poll = nil
+    end
+
+    it "does not push while a landing holds main's merge lock" do
+      holder_job = Factories.job_record(user: user, repository: repository, issue_number: 72)
+      holder = WorkUnits::Launcher.instantiate(kind: "initial", job: holder_job).work_unit
+      holder.work_unit_locks.create!(lock_key: key)
+      allow(git).to receive(:run)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /merge lock/)
+
+      expect(git).not_to have_received(:run).with("push", anything, "HEAD:refs/heads/main", anything)
+    end
+
+    it "takes and releases main's merge lock around its push" do
+      allow(git).to receive(:run).with("push", "https://push.example/repo.git", "HEAD:refs/heads/main", chdir: "/tmp/workspace") do
+        expect(WorkUnitLock.active.where(lock_key: key, work_unit: workflow.work_unit)).to exist
+      end
+
+      handler.call
+
+      expect(WorkUnitLock.active.where(lock_key: key)).not_to exist
+    end
   end
 
   describe "mode: direct" do

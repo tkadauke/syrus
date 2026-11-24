@@ -153,6 +153,20 @@ models:
     owner: ScheduleWakeupTool
     method: chain_refusal
     sha: 55658a63dc4d0d36
+- model: MergeExclusion.lean
+  mirrors:
+  - path: app/services/merge_lock.rb
+    owner: MergeLock
+    method: try_acquire
+    sha: 8c1b77be519b0a73
+  - path: app/services/steps/hotfix_sync_publish.rb
+    owner: HotfixSyncPublish
+    method: with_target_merge_lock
+    sha: c14065b129023309
+  - path: app/services/steps/promotion_publish.rb
+    owner: PromotionPublish
+    method: with_target_merge_lock
+    sha: 5701fc0d9f7a7b1f
 - model: PluginDeletion.lean
   mirrors:
   - path: app/services/formal/plugin_deletion.rb

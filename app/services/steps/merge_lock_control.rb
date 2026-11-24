@@ -28,10 +28,14 @@ module Steps
       end
     end
 
+    # The branch this step merges into. Landing steps merge into the Job's
+    # landing branch; a publish step overrides this with the branch it writes.
+    def merge_lock_key = WorkDefinitions.merge_lock_key_for(job)
+
     def acquire_merge_lock(context)
       deadline = Time.current + MergeLockControl.merge_lock_wait
       logged = false
-      key = WorkDefinitions.merge_lock_key_for(job)
+      key = merge_lock_key
       loop do
         lease = MergeLock.try_acquire(workflow: workflow, job: job, step: step, key: key)
         return lease if lease
