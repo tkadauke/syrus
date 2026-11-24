@@ -121,6 +121,23 @@ class ChatProposal < ApplicationRecord
     job || epic
   end
 
+  # Where a proposal that splices into the middle of an Epic's chain lands:
+  # "inserted after JOB-X, before JOB-Y". Before confirmation the downstream
+  # Job is the anchor's current successor in the Epic; afterwards it is the
+  # Job that follows the inserted Job(s).
+  def insertion_json
+    return nil if insert_after_job_id.blank?
+
+    anchor = Job.find_by(id: insert_after_job_id)
+    downstream = insertion_downstream_job(anchor)
+    {
+      insert_after_job_id: insert_after_job_id,
+      insert_after_slug: anchor&.slug,
+      insert_before_job_id: downstream&.id,
+      insert_before_slug: downstream&.slug
+    }
+  end
+
   def planned_execution_requirement
     PlannedExecutionRequirement.from_stored_record(self)
   end
@@ -250,6 +267,15 @@ class ChatProposal < ApplicationRecord
   private_class_method :transitive_closure
 
   private
+
+  def insertion_downstream_job(anchor)
+    return nil unless anchor && target_epic_id
+
+    inserted_ids = epic? ? child_proposals.filter_map(&:job_id) : [ job_id ].compact
+    scope = JobDependency.joins(:job).where(jobs: { epic_id: target_epic_id })
+    scope = inserted_ids.any? ? scope.where(depends_on_job_id: inserted_ids).where.not(job_id: inserted_ids) : scope.where(depends_on_job_id: anchor.id)
+    scope.first&.job
+  end
 
   def repair_unresolved_job_dependency_placeholders?
     saved_change_to_state? || saved_change_to_job_id?
