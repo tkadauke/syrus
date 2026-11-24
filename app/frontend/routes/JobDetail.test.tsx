@@ -202,8 +202,15 @@ describe("JobDetailView", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Authorization requests" })).toBeInTheDocument()
-    expect(screen.getByText("Publish a scheduled update")).toBeInTheDocument()
-    expect(screen.queryByText(/records\.write/)).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Allow: Publish a scheduled update?" })).toBeInTheDocument()
+    // Capability names exist only inside the collapsed Technical details.
+    const details = screen.getByTestId("permission-technical-details") as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    expect(details).toHaveTextContent("records.write")
+    const card = screen.getByTestId("permission-request-12")
+    const visible = card.cloneNode(true) as HTMLElement
+    visible.querySelector("details")?.remove()
+    expect(visible.textContent).not.toMatch(/records\.write/)
     expect(screen.getByText("waiting")).toBeInTheDocument()
   })
 
