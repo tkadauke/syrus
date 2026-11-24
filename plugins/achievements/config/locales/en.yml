@@ -1,0 +1,13 @@
+en:
+  achievements:
+    errors:
+      not_registered: "is not a registered achievement"
+      scope_mismatch: "does not match the definition"
+      subject_type_not_allowed: "is not allowed for this definition"
+      must_be_blank_for_instance: "must be blank for instance unlocks"
+      must_be_instance_owner: "must be %{owner}"
+      user_required: "is required for user unlocks"
+      must_be_user_owner: "must be user:%{user_id}"
+      subject_id_requires_type: "must be present with a subject type"
+      subject_type_requires_id: "must be present with a subject id"
+      evidence_too_large: "is larger than %{bytes} bytes"

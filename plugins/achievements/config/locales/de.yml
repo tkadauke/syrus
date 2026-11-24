@@ -1,0 +1,13 @@
+de:
+  achievements:
+    errors:
+      not_registered: "ist keine registrierte Errungenschaft"
+      scope_mismatch: "passt nicht zur Definition"
+      subject_type_not_allowed: "ist für diese Definition nicht erlaubt"
+      must_be_blank_for_instance: "muss bei Instanz-Freischaltungen leer sein"
+      must_be_instance_owner: "muss %{owner} sein"
+      user_required: "ist für Nutzer-Freischaltungen erforderlich"
+      must_be_user_owner: "muss user:%{user_id} sein"
+      subject_id_requires_type: "muss zusammen mit einem Subjekttyp angegeben werden"
+      subject_type_requires_id: "muss zusammen mit einer Subjekt-ID angegeben werden"
+      evidence_too_large: "ist größer als %{bytes} Bytes"
