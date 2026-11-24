@@ -35,7 +35,11 @@ afterEach(async () => {
 
 describe("AchievementRevealQueue", () => {
   it("orders reveals deterministically by unlock time then id", () => {
-    const ordered = sortReveals([unlock(3, { unlocked_at: "2026-11-24T10:00:01Z" }), unlock(2, { unlocked_at: "2026-11-24T10:00:01Z" }), unlock(1, { unlocked_at: "2026-11-24T11:00:00Z" })])
+    const ordered = sortReveals([
+      unlock(3, { unlocked_at: "2026-11-24T10:00:01Z" }),
+      unlock(2, { unlocked_at: "2026-11-24T10:00:01Z" }),
+      unlock(1, { unlocked_at: "2026-11-24T11:00:00Z" })
+    ])
     expect(ordered.map((entry) => entry.id)).toEqual([2, 3, 1])
   })
 
