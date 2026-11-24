@@ -17,13 +17,15 @@ The desired set is published for pre-boot readers at:
 - `plugins/desired/manifest.json.sig`
 
 The JSON contains schema version `1`, a monotonically increasing revision, and
-the enabled external releases with their name, version, SHA-256 digest, byte
+the enabled external (non-bundled) releases with their name, version, SHA-256 digest, byte
 size, process roles, and fleet-quarantine state. Publication writes the
 detached signature before atomically replacing the manifest, so the manifest
 is the commit point. Readers must verify the signature over the manifest's
 exact bytes before parsing or acting on it. A verification failure, unknown
 schema version, missing artifact, size mismatch, or digest mismatch makes the
-publication unusable.
+publication unusable. Bundled releases ship in the Syrus image, are never
+published, and are excluded from fleet convergence; an installation with no
+enabled external releases never raises the plugin fleet divergence alert.
 
 Generate the control-plane Ed25519 key once with
 `bin/rails plugin_manifest:keygen`. The private seed is encrypted in the
