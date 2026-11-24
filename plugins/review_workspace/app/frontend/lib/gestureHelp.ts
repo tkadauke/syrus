@@ -15,7 +15,7 @@ function acknowledgedVersion() {
 }
 
 export function useGestureHelp() {
-  const [visible, setVisible] = useState(() => acknowledgedVersion() < GESTURE_HELP_VERSION)
+  const [visible, setVisible] = useState(() => GESTURE_HELP_VERSION > acknowledgedVersion())
   const acknowledge = useCallback(() => {
     try {
       window.localStorage.setItem(GESTURE_HELP_STORAGE_KEY, String(GESTURE_HELP_VERSION))
