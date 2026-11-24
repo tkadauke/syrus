@@ -177,14 +177,16 @@ RSpec.describe PollScheduledTasksJob do
 
       repos = Array.new(5) { Factories.repository }
       now = Time.current
+      template = cron_task.attributes.except("id")
       rows = Array.new(2_000) do |i|
-        cron_task.attributes.except("id").merge(
+        template.merge(
           "repository_id" => repos[i % 5].id, "user_id" => repos[i % 5].user_id,
           "name" => "bulk #{i}", "system_key" => nil, "created_at" => now, "updated_at" => now
         )
       end
       ScheduledTasks::Task.insert_all(rows)
-      ActiveRecord::Base.connection.execute("ANALYZE TABLE scheduled_tasks")
+      # No ANALYZE TABLE: it implicitly commits on MySQL and would leak the
+      # fixture rows out of the transactional example.
 
       relation = ScheduledTasks::Task.alive.where(state: "scheduled")
                                      .where(ScheduledTasks::Task.arel_table[:id].gt(0))
