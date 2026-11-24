@@ -595,7 +595,11 @@ describe("RepositoryDetailRoute recommendations", () => {
     fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 10 }] })
     fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80, clientY: 12 }] })
     expect(screen.getByText("Show PR cost")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Go to tip 1" }))
+    const dot = screen.getByRole("button", { name: "Go to tip 1" })
+    expect(dot.className).toContain("h-11")
+    expect(dot.className).toContain("w-8")
+    expect(dot.firstElementChild?.className).toContain("h-2 w-2")
+    fireEvent.click(dot)
     expect(screen.getByText("Add visual review")).toBeInTheDocument()
   })
 
