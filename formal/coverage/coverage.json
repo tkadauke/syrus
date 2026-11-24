@@ -3784,7 +3784,8 @@
         "B. Keep the order and lock each Workflow's intent before the Workflow at every entry point that can finish one (cancellation, dispatcher finish, terminal sync, reconciler repairs).",
         "C. Leave the intent's write out of the write-order work: settle it after commit instead. That gives up F97's atomicity, so a crash in between leaves a terminal unit with an open intent for the reconciler."
       ],
-      "recommendation": "A. The evidence says the intent is only locked before the Workflow on paths that create that Workflow, so the position was never load-bearing. B repeats NY35's spreading pattern, and C undoes F97."
+      "recommendation": "A. The evidence says the intent is only locked before the Workflow on paths that create that Workflow, so the position was never load-bearing. B repeats NY35's spreading pattern, and C undoes F97.",
+      "decision": "Superseded (2026-11-24, in chat): the operator asked for a lock order an agent would guess, parent before child. Folded into NY40, which asks it for the whole hierarchy."
     },
     {
       "id": "NY39",
@@ -3796,7 +3797,44 @@
         "B. Run the rollup after the Job's transaction commits (after_commit), and add a reconciler check that re-runs it for an Epic whose state disagrees with its children. The order holds by construction. A reader can briefly see an Epic behind its children, and a crash between commit and rollup leaves it stale until the next child change or the reconciler's next pass.",
         "C. Keep the in-transaction rollup and scope the write-order guarantee to exclude it, relying on InnoDB's deadlock detection for this one pattern."
       ],
-      "recommendation": "B. The rollup is derived state, recomputed from the children every time, so applying it after commit is safe to repeat, and any later child change re-derives it. Nothing repairs a stale Epic today (no reconciler check, no periodic refresh), so B includes adding that check for the crash window. A is invasive, and C leaves a known gap."
+      "recommendation": "B. The rollup is derived state, recomputed from the children every time, so applying it after commit is safe to repeat, and any later child change re-derives it. Nothing repairs a stale Epic today (no reconciler check, no periodic refresh), so B includes adding that check for the crash window. A is invasive, and C leaves a known gap.",
+      "decision": "Superseded (2026-11-24, in chat): the operator asked for a lock order an agent would guess, parent before child. Folded into NY40, which asks it for the whole hierarchy."
+    },
+    {
+      "id": "NY40",
+      "item": "row-lock-order",
+      "title": "Make the row-lock order hierarchical (parents before children), with a Lineage.lock! helper at transaction entry points?",
+      "context": "NY38 and NY39 were two instances of one tension: outcomes roll up the tree (Step to Workflow to WorkUnit to WorkIntent to Job to Epic) inside one transaction, so any parent-first order is broken by the rollups. The operator prefers the order an agent would guess, parent before child. A survey with that order (AppSetting -> User -> Epic -> Job -> WorkIntent -> WorkUnit -> Workflow -> Step -> Run), writes counted, found 3,862 hits at 119 site pairs. About 2,380 are bottom-up locking from Runs (RunJob claims its Run, then climbs), a few local sites to flip; F124, which locks the Run first, would be reversed. About 1,370 are rollups from Workflow and WorkUnit through about 15 production funnels (after-commit state callbacks, TerminalWorkflowSync, the reconciler and repair executor, JobClosure, WorkflowCancellation, the dispatcher). 44 are Job to Epic. The fix is a Lineage.lock!(record) that locks the ancestry top-down at the start of each funnel's transaction, then write tracking in raise mode so new code is held to it.",
+      "options": [
+        "A. Go hierarchical: Lineage.lock! at the funnels, flip the bottom-up sites, write tracking raising. Rollups stay atomic (F97 holds). Cost: each Run claim and Workflow transition also locks its Job, Epic, intent and unit rows, so more queueing on hot Job rows (Lead L2), though no deadlocks. About 2–3 loop days.",
+        "B. Keep the current, write-path order: move WorkIntent after Step (the old NY38 A) and Epic after Job, finish NY37's patterns. Smaller change, but the rule is 'touch order', which an agent would not guess.",
+        "C. Parent-first order with rollups after commit: the intent sync (undoing F97) and the Epic rollup run after commit, repaired by reconciler checks for the crash window."
+      ],
+      "recommendation": "A. It gives the one-sentence rule the operator asked for, keeps rollups atomic, and the checker enforces it. Watch Job-row contention as it lands."
+    },
+    {
+      "id": "NY41",
+      "item": "landing-queue-order",
+      "title": "Should emergency landing, hotfix sync and promotion take the per-branch merge lock for their own merge (Lead L15)?",
+      "context": "Main's parallel landing lanes serialize landing merges behind MergeLock: check the validated base is still the branch head, then merge. EmergencyLand::Lander, Steps::HotfixSyncPublish and Steps::PromotionPublish merge into a branch without it, and GitHub's expected_sha guards the PR head, not the base. One of them merging between a lane's head check and its merge call makes the lane merge onto a base it did not just check. The window is one API round-trip and predates the lanes; lanes make landing merges more frequent.",
+      "options": [
+        "A. All three take the same merge lock for their own merge call (milliseconds). Emergency landing would wait at most for an in-flight lane merge to finish.",
+        "B. Emergency landing stays an unconditional override; only hotfix sync and promotion take the lock.",
+        "C. Leave as is: the window is tiny, and main's own post-merge graders catch a broken combination."
+      ],
+      "recommendation": "A. The wait is at most one merge call, and it closes the gap for every writer to a landing branch."
+    },
+    {
+      "id": "NY42",
+      "item": "plugin-deletion",
+      "title": "Gate PRs on the 12-second plugin-deletion scan, and move the 20-minute removability graders to a nightly audit?",
+      "context": "The plugin-deletion pilot (F126): PluginDeletion.lean proves that checking the edges leaving kept code is enough for a deleted plugin to leave a closed system. Formal::PluginDeletion applies that to the boundary audit's edges, agrees with the model on all 1,024 small graphs, and decides all 65 plugins in about 12 seconds. Planting one dependency of each kind showed the scan missed two kinds the deletion run catches (a require of the plugin library, a raising constantize/const_get); both are flagged now. On every kind tried the scan is at least as strong as the deletion run. Neither catches a bare module-key string or a schema foreign key into a plugin table. Only one removability grader exists today (coworkers-removability, about 20 minutes).",
+      "options": [
+        "A. PRs gate on the scan (bin/plugin-deletion-check over all plugins); the removability graders run nightly, and a nightly failure where the scan said safe is a scan bug to fix.",
+        "B. Keep the removability graders on PRs and add the scan beside them as an early, fast signal.",
+        "C. Gate on the scan and drop the removability graders entirely."
+      ],
+      "recommendation": "A. The scan now covers every kind the deletion run catches, and the nightly run keeps checking that claim."
     }
   ]
 }

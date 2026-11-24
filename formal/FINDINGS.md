@@ -5411,6 +5411,30 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M80. Main through `feddc2afec`
+
+A merge train for the main-branch health Epic. Main-branch health checking
+and repair move from core into the `main_branch_health` plugin, with their
+storage in plugin-owned tables. Core gains generic extension points that
+plugins fill (work gates, alerts, repair classifiers, work policy), and the
+Health tab and dashboard banner come from the plugin. *Relied-on invariants:*
+
+- **Gating and repair behaviour survive the move.** Holds: `formal/mirrors.yml`
+  still matches every mirrored method, and the plugin's own 438 specs pass,
+  `main_branch_repair_spec.rb` included.
+- **F120's fix moved with its service.** Holds: the preflight-repair sweep
+  still skips a repair whose Workflow recorded `preflight_passed` or
+  `preflight_inconclusive`, now in
+  `plugins/main_branch_health/app/services/main_health_changed_service.rb`.
+- **Core no longer depends on the plugin.** Holds:
+  `bin/check-plugin-boundaries` is clean, including F126's new require and
+  constant-resolution rules.
+
+The formal, architecture, work-engine, work-unit and lock-order specs pass
+after the rebase (1,901 examples). A first run showed 1,529 failures from a
+test database that lacked the Epic's new plugin tables; it was green once
+`db:test:prepare` rebuilt the database.
+
 ## M79. Main through `0654328aad`
 
 - **"Keep members approved when a preserved merge train cannot relaunch"**
@@ -7463,7 +7487,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `0654328aad`. Each loop iteration continues from there:
+Checked through main `feddc2afec`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
