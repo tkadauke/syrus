@@ -506,6 +506,51 @@ RSpec.describe "Coworker background runs" do
     )
   end
 
+  def run_with_summary(text, tree)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir))
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: text))
+    allow_any_instance_of(GitRunner).to receive(:run).with(
+      "ls-tree", "-r", "--name-only", "HEAD", chdir: workspace.path.to_s
+    ).and_return(tree)
+    [ handler, run ]
+  end
+
+  it "accepts one exact claimed file that was persisted" do
+    handler, = run_with_summary("Saved `memory/diary/2026-11-23.md`.", "memory/diary/2026-11-23.md\n")
+    expect { handler.call }.not_to raise_error
+  end
+
+  it "accepts multiple exact claimed files that were persisted" do
+    handler, = run_with_summary(
+      "Wrote `memory/people/ann.md` and `memory/repos/acme.md`.", "memory/people/ann.md\nmemory/repos/acme.md\n"
+    )
+    expect { handler.call }.not_to raise_error
+  end
+
+  it "rejects a directory claim when only one child file was written, naming observed paths" do
+    handler, run = run_with_summary("Saved notes to `memory/`.", "memory/diary/2026-11-23.md\n")
+    expect { handler.call }.to raise_error(Coworkers::RunStep::PersistenceFailed, /memory\/.*memory\/diary\/2026-11-23\.md/m)
+    expect(run.reload.agent_summary).to include("unsupported persistence claim")
+  end
+
+  it "rejects a claimed file that was not written" do
+    handler, = run_with_summary("Saved `memory/people/ann.md`.", "memory/diary/2026-11-23.md\n")
+    expect { handler.call }.to raise_error(Coworkers::RunStep::PersistenceFailed, /memory\/people\/ann\.md/)
+  end
+
+  it "rejects a success claim after a workspace tool failure left nothing persisted" do
+    handler, run = run_with_summary(
+      "The write_coworker_file call failed, but I saved `memory/people/ann.md` anyway.", "SOUL.md\n"
+    )
+    expect { handler.call }.to raise_error(Coworkers::RunStep::PersistenceFailed, /not present/)
+    expect(run.reload.agent_summary).to include("SOUL.md")
+  end
+
   it "fails before the successor step can clean uncommitted workspace output" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")

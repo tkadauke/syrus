@@ -20,6 +20,26 @@ class Coworkers::ClaimedWorkspacePaths
     end.uniq
   end
 
+  # Directory-level or wildcard memory claims ("saved to `memory/`",
+  # "updated memory/people/*"). These can never be verified as an exact file
+  # write, so they are reported separately and treated as invalid claims.
+  VAGUE_PATH = %r{(?<![\w/])memory(?:/[A-Za-z0-9_.@+*?-]+)*(?:/\*{0,2}|/?\*[A-Za-z0-9_.*?-]*)?(?![\w.@+-])}
+
+  def self.unsupported_from(summary)
+    text = summary.to_s
+    candidates = text.to_enum(:scan, /#{CODE_SPAN}|#{VAGUE_PATH}/).map do
+      match = Regexp.last_match
+      [ match[1] || match[0], match.begin(0) ]
+    end
+    candidates.filter_map do |candidate, offset|
+      path = candidate.to_s.strip.delete_prefix("./").sub(/[.,;:]\z/, "")
+      next unless path == "memory" || path.start_with?("memory/")
+      next if path.split("/").include?("..")
+      next unless path.end_with?("/") || path.include?("*") || path == "memory" || !path.split("/").last.include?(".")
+      path if write_claim?(text, offset)
+    end.uniq
+  end
+
   def self.normalize(candidate)
     path = candidate.to_s.strip.delete_prefix("./").sub(/[.,;:]\z/, "")
     return path if CORE_FILES.include?(path)
