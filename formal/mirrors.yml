@@ -135,6 +135,10 @@ models:
     sha: 176ed25cd8cdcd8b
 - model: LockOrder.lean
   mirrors:
+  - path: app/services/provider_routing/availability_selector.rb
+    owner: AvailabilitySelector
+    method: reservation_mutex!
+    sha: e67df4b50626949a
   - path: app/services/job_closure.rb
     owner: JobClosure
     method: self.lock_pending_workflows!

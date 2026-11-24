@@ -115,11 +115,22 @@ RSpec.describe Syrus::LockOrder::Checker do
     }.to raise_error(Syrus::LockOrder::Error, /took Job at .* while holding Workflow/)
   end
 
+  # NY36: a NOWAIT lock fails at once instead of waiting, so it adds no edge
+  # to the wait-for graph and is outside the order, before or after anything.
+  it "treats a NOWAIT lock as outside the order" do
+    expect {
+      ActiveRecord::Base.transaction do
+        User.lock("FOR UPDATE NOWAIT").find(job.user_id)
+        workflow.lock!
+      end
+    }.not_to raise_error
+  end
+
   it "records the pending-decision inversions instead of raising" do
     violation = Syrus::LockOrder::Violation.new(
-      held: "User", taking: "Workflow",
-      site: "app/services/step_dispatcher.rb:693",
-      held_site: "app/services/provider_routing/availability_selector.rb:297"
+      held: "Step", taking: "Workflow",
+      site: "app/services/work_units/workflow_cancellation.rb:51",
+      held_site: "app/models/workflow.rb:568"
     )
 
     expect(Syrus::LockOrder.pending_decision?(violation)).to be(true)

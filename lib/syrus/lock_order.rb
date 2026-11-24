@@ -16,8 +16,6 @@ module Syrus
     # pair the order cannot fix without a design choice. The checker records
     # them instead of raising; any other inversion fails the example.
     PENDING_DECISION = [
-      # Provider-account reservation locks the User row as a mutex mid-transaction.
-      { held_site: "app/services/provider_routing/availability_selector.rb", site: "app/services/step_dispatcher.rb" },
       # A Workflow cancelled from inside another Workflow's cancel (an
       # after_cancel hook, after the outer Workflow locked its Steps). The Job
       # closure path is pre-locked (NY33, JobClosure.lock_pending_workflows!);
@@ -186,9 +184,13 @@ module Syrus
       module RelationLock
         private
 
+        # A NOWAIT lock fails at once instead of waiting (NY36), so it adds no
+        # edge to the wait-for graph: outside the order, and not held.
         def exec_queries(...)
           records = super
-          Checker.observe(klass, klass.connection, ids: records.map(&:id)) if lock_value
+          if lock_value && !(lock_value.is_a?(String) && lock_value.include?("NOWAIT"))
+            Checker.observe(klass, klass.connection, ids: records.map(&:id))
+          end
           records
         end
       end

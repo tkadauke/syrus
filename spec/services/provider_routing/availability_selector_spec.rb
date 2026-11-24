@@ -387,6 +387,43 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(decision.artifact.fetch("selected_account")).to eq(second.safe_reference.stringify_keys)
     end
 
+    # NY36: the reservation's User lock is taken with NOWAIT, so it never
+    # waits and cannot join a deadlock. When another reservation holds the row,
+    # this one proceeds without the mutex and still picks the least-pressured
+    # account from what it can see.
+    it "takes the reservation lock without waiting" do
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude",
+                                  provider_account: user.default_provider_account("claude"), priority: "medium")
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available", usage: { remaining_percent: 50 })
+      allow(User).to receive(:lock).and_call_original
+
+      described_class.call(job: job, task_key: "initial", workflow: workflow)
+
+      expect(User).to have_received(:lock).with("FOR UPDATE NOWAIT")
+    end
+
+    it "still selects and pins an account when another reservation holds the User row" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1, label: "spare",
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload,
+        weight: 2
+      )
+      busy_job = Factories.job_record(repository: repository, user: user)
+      Workflow.create!(job: busy_job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium")
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium")
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available", usage: { remaining_percent: 50 })
+      busy = User.none
+      allow(busy).to receive(:find).and_raise(ActiveRecord::LockWaitTimeout, "NOWAIT is set")
+      allow(User).to receive(:lock).with("FOR UPDATE NOWAIT").and_return(busy)
+
+      decision = described_class.call(job: job, task_key: "initial", workflow: workflow)
+
+      expect(decision.provider_account).to eq(second)
+      expect(workflow.reload.provider_account).to eq(second)
+    end
+
     it "honors an explicit account pin and does not fall back within that provider" do
       first = user.default_provider_account("claude")
       second = ProviderAccount.create!(

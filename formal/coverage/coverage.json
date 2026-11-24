@@ -3746,7 +3746,7 @@
         "C. Reserve outside any transaction. Account selection moves ahead of the callers' transactions and runs in its own short transaction. This gives the cleanest lock story, but it is the largest change, and the pin can be stale by the time the Run is created."
       ],
       "recommendation": "A. It keeps the balancing guarantee and NY31's order, and needs small changes at only the two outer sites; the suite-wide checker then proves that no other path reserves late. B is a fine fallback if more reserving paths turn up.",
-      "decision": "A (2026-11-23, answered on the lean-plan site): Every transaction that can reserve locks the User row first. create_run_and_enqueue and RetryWorkflowEnqueuer lock the owning User before their Workflow/Job lock, which makes the re-lock inside the reservation free. Move User to the front of the order as NY31 decided; the checker then catches any reserving path that was missed. Started, not merged: locking the User first at the three sites the survey named only moved the inversion outward to six more transaction entry points, some of which reserve for several Jobs at once. Reopened as NY36."
+      "decision": "A (2026-11-23, answered on the lean-plan site): Every transaction that can reserve locks the User row first. create_run_and_enqueue and RetryWorkflowEnqueuer lock the owning User before their Workflow/Job lock, which makes the re-lock inside the reservation free. Move User to the front of the order as NY31 decided; the checker then catches any reserving path that was missed. Started, not merged: locking the User first at the three sites the survey named only moved the inversion outward to six more transaction entry points, some of which reserve for several Jobs at once. Reopened as NY36. Superseded by NY36 (D), implemented as F123."
     },
     {
       "id": "NY36",
@@ -3758,7 +3758,8 @@
         "B. Drop the reservation mutex (NY35's B). Two reservations racing may pick the same account, so balancing is occasionally uneven. The User row returns to last in the order.",
         "D. Take the reservation's User lock with NOWAIT. Uncontended, behaviour is unchanged: the mutex serializes reservations. If another transaction holds the row, the reservation goes ahead without the mutex, uneven at worst as in B, and only under real contention. The checker treats a NOWAIT lock as outside the order, and LockOrder.lean proves a never-waiting lock adds no wait-for edge. The three User-first locks already added would be reverted."
       ],
-      "recommendation": "D. It keeps the balancing guarantee in the common case, removes the cycle by construction instead of site by site, and touches one method. A is the most invasive and keeps finding sites. B is simplest but gives up the mutex everywhere."
+      "recommendation": "D. It keeps the balancing guarantee in the common case, removes the cycle by construction instead of site by site, and touches one method. A is the most invasive and keeps finding sites. B is simplest but gives up the mutex everywhere.",
+      "decision": "D (2026-11-23, answered on the lean-plan site): Take the reservation's User lock with NOWAIT. Uncontended, behaviour is unchanged: the mutex serializes reservations. If another transaction holds the row, the reservation goes ahead without the mutex, uneven at worst as in B, and only under real contention. The checker treats a NOWAIT lock as outside the order, and LockOrder.lean proves a never-waiting lock adds no wait-for edge. The three User-first locks already added would be reverted. Implemented as F123."
     },
     {
       "id": "NY37",
@@ -3770,7 +3771,8 @@
         "B. Scope the guarantee to explicit locks. Keep the checker as it is, document that writes are outside the proven order and rely on InnoDB's deadlock detection, and keep the survey flag for audits.",
         "C. Reorder the ranks to fit the writes (move WorkUnit before Workflow) and change the launch paths, which lock the Workflow before the unit, instead."
       ],
-      "recommendation": "A. The WorkUnit pattern is one call moved in four methods and covers about 900 of the hits, and Run#start is one lock. Once the groups are fixed, raise-mode write tracking keeps it from regressing. B leaves the proof covering only part of what the code locks, and C moves the inversion to the launch paths."
+      "recommendation": "A. The WorkUnit pattern is one call moved in four methods and covers about 900 of the hits, and Run#start is one lock. Once the groups are fixed, raise-mode write tracking keeps it from regressing. B leaves the proof covering only part of what the code locks, and C moves the inversion to the launch paths.",
+      "decision": "A (2026-11-23, answered on the lean-plan site): Bring writes under the order, pattern by pattern. Write the WorkUnit last in each terminal transition (the same transaction, so F97's atomicity holds), lock the Run before the Job in Run#start, trace the two small groups, then switch write tracking on in raise mode so new code is checked. To implement."
     }
   ]
 }

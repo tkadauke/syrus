@@ -159,6 +159,22 @@ theorem waits_only_on_committed_rows (t : Tx) (origin : RowOrigin) :
   | committed => decide
   | createdBy c => cases c <;> decide
 
+/-- A lock request either waits for a holder or, with NOWAIT (NY36), fails at
+once. `waitsForReq` is whether the request can wait. -/
+def waitsForReq (nowait : Bool) (t : Tx) (origin : RowOrigin) (heldByOther : Bool) : Bool :=
+  !nowait && waitsFor t origin heldByOther
+
+/-- A NOWAIT request never waits, so it adds no edge to the wait-for graph and
+cannot close a cycle, whatever the transaction holds or locks next. This is
+why the provider reservation's User lock is outside the order. -/
+theorem nowait_never_waits (t : Tx) (origin : RowOrigin) (held : Bool) :
+    waitsForReq true t origin held = false := by
+  simp [waitsForReq]
+
+/-- An ordinary request on a committed row the other transaction holds waits. -/
+theorem blocking_request_waits (t : Tx) : waitsForReq false t .committed true = true := by
+  cases t <;> decide
+
 end SelfCreated
 
 /-! ## A pending Job closure inside a cancellation (NY33)

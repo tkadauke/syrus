@@ -298,7 +298,8 @@ module ProviderRouting
     end
 
     def reserve_least_pressured_account(accounts, payloads)
-      user.with_lock do
+      User.transaction do
+        reservation_mutex!
         pool = Workflow.where(provider_account_id: accounts.map(&:id))
         pool = pool.where.not(id: workflow.id) if workflow&.persisted?
         active = pool.where(state: %w[queued running]).group(:provider_account_id).count
@@ -314,15 +315,38 @@ module ProviderRouting
       end
     end
 
+    # NY36: the User row is the reservation's mutex, so two reservations for one
+    # user see each other's pins. It is taken with NOWAIT: the lock never waits,
+    # so it cannot be part of a deadlock whatever this transaction already holds
+    # or locks next (formal/SyrusModel/LockOrder.lean, `nowait_never_waits`).
+    # If another reservation holds the row, this one goes ahead without the
+    # mutex; at worst the two pick the same account, and only under contention.
+    NOWAIT_ERROR_NUMBER = 3572 # MySQL ER_LOCK_NOWAIT
+
+    def reservation_mutex!
+      User.lock("FOR UPDATE NOWAIT").find(user.id)
+      true
+    rescue ActiveRecord::LockWaitTimeout
+      false
+    rescue ActiveRecord::StatementInvalid => e
+      raise unless nowait_conflict?(e)
+
+      false
+    end
+
+    def nowait_conflict?(error)
+      cause = error.cause
+      (cause.respond_to?(:error_number) && cause.error_number == NOWAIT_ERROR_NUMBER) || error.message.include?("NOWAIT")
+    end
+
     def pin_account!(account)
       return unless workflow
       return if workflow.provider_account_id == account.id
       return if workflow.runs.exists?
 
-      # This runs while the User row lock is held, and the row lock order puts
-      # Workflow before User, so write the pin without locking the Workflow
-      # row. The User lock already serializes pinning, and the pin only
-      # touches provider columns and two artifact rows.
+      # This runs under the reservation mutex (a NOWAIT User lock, outside the
+      # row lock order), and the pin only touches provider columns and two
+      # artifact rows, so it writes them directly.
       workflow.update_columns(
         agent_provider: account.provider_key,
         provider_account_id: account.id,

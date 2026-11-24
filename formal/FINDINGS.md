@@ -4524,6 +4524,38 @@ and admin page fixtures include the new key.
 **Docs.** `config/syrus_docs/chat.md`, `app_settings.md`, `permission_authority.md`,
 and the website's features page.
 
+## F123. The provider reservation's User lock never waits (NY36: D)
+
+**Before.** `AvailabilitySelector#reserve_least_pressured_account` locked the
+User row with `with_lock`, as a mutex, so two reservations for one user see each
+other's pins. That lock was taken inside whatever transaction was open, before
+or after Workflow, Step and Job locks depending on the caller, and held to
+commit: a two-way cycle no position in the order could break (NY31, NY35).
+Option A, locking the User first in every reserving transaction, kept finding
+new entry points. Main's `3378299a82` then wrote the pin with `update_columns`,
+which still takes an InnoDB row lock (Lead L14).
+
+**Fix.** The reservation takes the User row with `FOR UPDATE NOWAIT`
+(`reservation_mutex!`). Uncontended, nothing changes: the mutex serializes
+reservations. If another transaction holds the row, MySQL fails the statement
+at once (`ER_LOCK_NOWAIT`). The reservation then goes ahead without the mutex
+and picks from the counts it can see, so the worst case is two reservations
+choosing the same account, and only under contention. The checker treats a
+NOWAIT lock as outside the order, and the reservation's `PENDING_DECISION` entry
+is gone. NY35's partial option-A work is not needed.
+
+**Proof.** `LockOrder.lean`: `nowait_never_waits` (a NOWAIT request adds no
+wait-for edge, so it cannot close a cycle whatever else the transaction holds
+or locks) and `blocking_request_waits`. `reservation_mutex!` is in
+`formal/mirrors.yml`.
+
+**Specs.** `availability_selector_spec.rb` "takes the reservation lock without
+waiting" (red before) and "still selects and pins an account when another
+reservation holds the User row". `lock_order_spec.rb` "treats a NOWAIT lock as
+outside the order" (red before). The reservation paths that needed the pending
+entry pass in raise mode: provider admission, retry enqueuer, step dispatcher
+and the simulations, 502 examples.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)

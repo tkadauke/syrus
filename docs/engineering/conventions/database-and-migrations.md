@@ -130,6 +130,10 @@ InnoDB; one order makes that impossible
 - Re-locking a row the transaction already holds is fine in any order, which
   is why `Workflow#start`'s `job.lock!` is safe under a caller that locked the
   Job first.
+- A lock taken with `NOWAIT` is outside the order: it fails at once instead
+  of waiting, so it can never be part of a deadlock. Provider-account
+  reservation uses one on the User row as its mutex and goes ahead without it
+  when another reservation holds the row.
 - A row the transaction inserted itself may be locked in any order: no other
   transaction can see it before commit, so the lock never waits and nobody waits
   on it. Restarting a Job relies on this when it closes the old Job and launches
