@@ -90,7 +90,7 @@ module DesignDocs
     end
 
     def self.enabled?
-      Syrus::PluginRegistry.providers_for("global_search:source").include?(self)
+      Syrus::Host::PluginRegistry.providers_for("global_search:source").include?(self)
     end
 
     def self.user_json(user)

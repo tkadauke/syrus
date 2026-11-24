@@ -1,5 +1,5 @@
 module Whiteboard
-  class Snapshot < ApplicationRecord
+  class Snapshot < Syrus::Host::Record
     self.table_name = "whiteboard_snapshots"
 
     SNAPSHOT_KINDS = %w[manual auto_clear auto_before_load].freeze

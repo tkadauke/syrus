@@ -13,7 +13,7 @@ module Api
       #   GET  /api/v1/admin/terminal_sessions/:id  — detail
       #   POST /api/v1/admin/terminal_sessions/:id/kill — kill the session,
       #        the same write path the app API's kill/destroy actions use.
-      class TerminalSessionsController < BaseController
+      class TerminalSessionsController < Syrus::Host::AdminController
         DEFAULT_PER = 50
         MAX_PER     = 100
 

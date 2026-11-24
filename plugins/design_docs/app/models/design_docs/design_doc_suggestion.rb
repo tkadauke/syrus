@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocSuggestion < ApplicationRecord
+  class DesignDocSuggestion < Syrus::Host::Record
     self.table_name = "design_doc_suggestions"
 
     STATES = %w[pending accepted rejected stale conflict].freeze

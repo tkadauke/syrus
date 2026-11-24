@@ -10,9 +10,9 @@ module Whiteboard
 
     class << self
       def call(server_context:)
-        Mcp::Tools.success(Canvas.read(server_context.fetch(:chat_session)))
+        Syrus::Host::McpTools.success(Canvas.read(server_context.fetch(:chat_session)))
       rescue ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+        Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
       end
     end
   end

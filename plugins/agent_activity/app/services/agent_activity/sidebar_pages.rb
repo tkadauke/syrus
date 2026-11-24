@@ -1,6 +1,6 @@
 module AgentActivity
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     def self.sidebar_pages
       return [] unless AgentActivity.enabled?

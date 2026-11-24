@@ -1,7 +1,7 @@
 module Mockups
   # The preview panel's slice of the chat agent's system prompt.
   module PromptSection
-    include Syrus::Plugin::ChatPromptInjector
+    include Syrus::Host::ChatPromptInjector
 
     def self.chat_prompt_section(chat_session:, repository:, message: nil)
       <<~TEXT.strip

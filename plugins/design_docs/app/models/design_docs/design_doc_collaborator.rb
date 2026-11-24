@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocCollaborator < ApplicationRecord
+  class DesignDocCollaborator < Syrus::Host::Record
     self.table_name = "design_doc_collaborators"
 
     ROLES = %w[viewer editor].freeze

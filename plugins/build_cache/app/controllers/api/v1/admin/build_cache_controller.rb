@@ -5,7 +5,7 @@ module Api
       # Destructive clear actions require an operator confirmation step in
       # the SPA (Api::V1::App::Admin::BuildCacheController) and are not
       # exposed here.
-      class BuildCacheController < BaseController
+      class BuildCacheController < Syrus::Host::AdminController
         def show
           include_stats = ActiveModel::Type::Boolean.new.cast(params.fetch(:include_stats, false))
           render json: ::BuildCache::Payload.new.show(include_stats: include_stats)

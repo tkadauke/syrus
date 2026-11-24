@@ -6,7 +6,7 @@ module Mockups
   # viewer (html, markdown, pdf, image) that other features render
   # into; this record is the first-class thing a person browses, searches and
   # links to.
-  class Mockup < ApplicationRecord
+  class Mockup < Syrus::Host::Record
     self.table_name = "mockups"
 
     SLUG_PREFIX = "MOCKUP".freeze

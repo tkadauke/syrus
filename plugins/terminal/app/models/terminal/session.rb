@@ -1,5 +1,5 @@
 module Terminal
-  class Session < ApplicationRecord
+  class Session < Syrus::Host::Record
     self.table_name = "terminal_sessions"
 
     include TracksFinishedAt

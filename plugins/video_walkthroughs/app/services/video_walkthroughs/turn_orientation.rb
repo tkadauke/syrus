@@ -5,7 +5,7 @@ module VideoWalkthroughs
   # work autonomously toward an Epic. Every step is then a real tool call you
   # can trace, which a pasted blob would not be.
   module TurnOrientation
-    include Syrus::Plugin::ChatTurnOrientation
+    include Syrus::Host::ChatTurnOrientation
 
     # Returns nil for a normal message, and for a walkthrough row that has
     # vanished -- the turn falls through to whatever note the user typed rather

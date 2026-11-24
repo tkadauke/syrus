@@ -57,22 +57,22 @@ module VideoWalkthroughs
         finish = rest[:end] || rest["end"]
 
         walkthrough = chat_session.video_walkthroughs.find_by(id: walkthrough_id)
-        return Mcp::Tools.invalid("walkthrough not found in this chat: #{walkthrough_id.inspect}") unless walkthrough
+        return Syrus::Host::McpTools.invalid("walkthrough not found in this chat: #{walkthrough_id.inspect}") unless walkthrough
         unless walkthrough.analyzed? && walkthrough.analysis.present?
-          return Mcp::Tools.invalid("walkthrough #{walkthrough.id} has no completed analysis to zoom into")
+          return Syrus::Host::McpTools.invalid("walkthrough #{walkthrough.id} has no completed analysis to zoom into")
         end
 
         start_seconds = VideoWalkthroughs::Gemini::FrameExtractor.parse_timestamp(start)
         end_seconds = VideoWalkthroughs::Gemini::FrameExtractor.parse_timestamp(finish)
         if start_seconds.nil? || end_seconds.nil?
-          return Mcp::Tools.invalid("start and end must be mm:ss or whole seconds")
+          return Syrus::Host::McpTools.invalid("start and end must be mm:ss or whole seconds")
         end
 
         start_seconds, end_seconds, truncated = clamp(start_seconds, end_seconds, walkthrough.duration_seconds)
-        return Mcp::Tools.invalid("end must be after start, and within the video") if start_seconds.nil?
+        return Syrus::Host::McpTools.invalid("end must be after start, and within the video") if start_seconds.nil?
 
         unless chat_session.user.gemini_configured?
-          return Mcp::Tools.invalid("Gemini is not configured — add an API key under Credentials.")
+          return Syrus::Host::McpTools.invalid("Gemini is not configured — add an API key under Credentials.")
         end
 
         client = client_factory.call(api_key: chat_session.user.gemini_api_key)
@@ -80,7 +80,7 @@ module VideoWalkthroughs
 
         resolved = active_file(client, walkthrough)
         if resolved.nil?
-          return Mcp::Tools.invalid(
+          return Syrus::Host::McpTools.invalid(
             "This video has expired — Gemini keeps uploads about 48 hours and the stored copy is gone. Record a fresh walkthrough to zoom in."
           )
         end
@@ -102,19 +102,19 @@ module VideoWalkthroughs
             "The requested range exceeded the #{MAX_SEGMENT_SECONDS / 60}-minute zoom cap and was " \
             "truncated to #{clock_range(start_seconds, end_seconds)}. Zoom in on a shorter window for more."
         end
-        Mcp::Tools.success(success)
+        Syrus::Host::McpTools.success(success)
       rescue StoredVideoUnavailable
-        Mcp::Tools.invalid(
+        Syrus::Host::McpTools.invalid(
           "Could not read the stored video — it may have been pruned. Record a fresh walkthrough to zoom in."
         )
       rescue VideoWalkthroughs::Gemini::Client::AuthError => e
-        Mcp::Tools.invalid("Gemini rejected the API key: #{e.message} Check it under Credentials.")
+        Syrus::Host::McpTools.invalid("Gemini rejected the API key: #{e.message} Check it under Credentials.")
       rescue VideoWalkthroughs::Gemini::Client::RateLimited
-        Mcp::Tools.invalid("Gemini's quota is busy right now (free-tier per-minute limits). Try the segment again in a minute.")
+        Syrus::Host::McpTools.invalid("Gemini's quota is busy right now (free-tier per-minute limits). Try the segment again in a minute.")
       rescue VideoWalkthroughs::Gemini::Client::ConnectionError
-        Mcp::Tools.invalid("Could not reach Gemini — try the segment again.")
+        Syrus::Host::McpTools.invalid("Could not reach Gemini — try the segment again.")
       rescue VideoWalkthroughs::Gemini::Client::Error => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
 
       private

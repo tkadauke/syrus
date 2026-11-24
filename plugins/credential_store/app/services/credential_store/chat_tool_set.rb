@@ -1,6 +1,6 @@
 module CredentialStore
   class ChatToolSet
-    include Syrus::Plugin::ChatMcpToolSet
+    include Syrus::Host::ChatMcpToolSet
 
     TOOL_CLASSES = [ ListCredentialsTool, SshExecTool ].freeze
 
