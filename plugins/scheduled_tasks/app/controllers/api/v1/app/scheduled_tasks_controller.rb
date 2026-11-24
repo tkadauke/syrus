@@ -188,7 +188,7 @@ module Api
         def scheduled_task_detail_payload(task)
           {
             task: task_detail_json(task),
-            recent_jobs: Job.visible_to(Syrus::Host::Current.user, scope: task.jobs).order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
+            recent_jobs: Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: task.jobs).order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
             options: scheduled_task_options
           }
         end
@@ -370,7 +370,7 @@ module Api
           {
             kinds: ScheduledTasks::Task::KINDS,
             pr_pileup_policies: ScheduledTasks::Task::PR_PILEUP_POLICIES,
-            auto_approve_modes: AutoApproveModes.options
+            auto_approve_modes: Syrus::Host::AutoApproveModes.options
           }
         end
 
@@ -383,7 +383,7 @@ module Api
         end
 
         def auto_approve_preview(task)
-          AutoApproveModes.option_for(task.auto_approve_mode)&.fetch(:preview)
+          Syrus::Host::AutoApproveModes.option_for(task.auto_approve_mode)&.fetch(:preview)
         end
 
         def assign_from_template(task, template)

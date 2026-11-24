@@ -35,7 +35,7 @@ module AgentMemory
       case actor
       when ::User
         [ "user", actor, nil ]
-      when ::Run
+      when Syrus::Host::RunRecord
         [ "agent", nil, actor ]
       else
         [ "system", nil, nil ]

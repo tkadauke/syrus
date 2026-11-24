@@ -267,7 +267,7 @@ module Throughput
       end
 
       def base_moved_regrade?
-        return true if workflow&.artifact(Steps::MergeTrainLand::STALE_BASE_ARTIFACT).is_a?(Hash)
+        return true if workflow&.artifact(Syrus::Host::MergeTrainLandStep::STALE_BASE_ARTIFACT).is_a?(Hash)
 
         step_metrics&.merge_train_rebase? || false
       end
@@ -619,7 +619,7 @@ module Throughput
     def failed_train_cooldown_seconds(attempts)
       attempts
         .select { |attempt| failed_train_with_cooldown?(attempt) }
-        .sum { MergeTrainDispatcher::RETRY_COOLDOWN.to_i }
+        .sum { Syrus::Host::MergeTrainDispatcher::RETRY_COOLDOWN.to_i }
     end
 
     def failed_train_cooldown_remaining_seconds(attempts)
@@ -628,14 +628,14 @@ module Throughput
         .sum do |attempt|
           next 0 unless attempt.finished_at
 
-          [ attempt.finished_at + MergeTrainDispatcher::RETRY_COOLDOWN - now, 0 ].max
+          [ attempt.finished_at + Syrus::Host::MergeTrainDispatcher::RETRY_COOLDOWN - now, 0 ].max
         end.round
     end
 
     def failed_train_with_cooldown?(attempt)
       attempt.merge_train? &&
         attempt.failed? &&
-        !LandingFailureHandler.stale_merge_train_base?(attempt.train&.failure_reason)
+        !Syrus::Host::LandingFailureHandler.stale_merge_train_base?(attempt.train&.failure_reason)
     end
 
     def rate_payload(count, hours, sample_count:)
@@ -711,9 +711,9 @@ module Throughput
     def last_active_window
       active_at = [
         repository.jobs.maximum(:created_at),
-        Workflow.joins(:job).where(jobs: { repository_id: repository.id }).maximum(:finished_at),
+        Syrus::Host::WorkflowRecord.joins(:job).where(jobs: { repository_id: repository.id }).maximum(:finished_at),
         PrReviewComment.joins(:job).where(jobs: { repository_id: repository.id }).maximum(:comment_created_at),
-        MergeTrain.where(repository_id: repository.id).maximum(:finished_at)
+        Syrus::Host::MergeTrain.where(repository_id: repository.id).maximum(:finished_at)
       ].compact.max || now
 
       (active_at - LAST_ACTIVE_WINDOW_DURATION)..active_at
@@ -724,7 +724,7 @@ module Throughput
     end
 
     def pr_open_steps
-      @pr_open_steps ||= Step.joins(workflow: :job)
+      @pr_open_steps ||= Syrus::Host::Step.joins(workflow: :job)
         .where(jobs: { repository_id: repository.id })
         .where(kind: "pr_open", state: "succeeded")
         .where(window_condition(:steps, :finished_at))
@@ -755,7 +755,7 @@ module Throughput
     ].freeze
 
     def finished_workflows_in(range)
-      workflows = Workflow.joins(:job)
+      workflows = Syrus::Host::WorkflowRecord.joins(:job)
         .where(jobs: { repository_id: repository.id })
         .where(trigger_kind: LANDING_TRIGGER_KINDS + REBASE_TRIGGER_KINDS)
         .where(finished_at: range)
@@ -766,7 +766,7 @@ module Throughput
       ActiveRecord::Associations::Preloader.new(
         records: workflows,
         associations: :job,
-        scope: Job.select(*WORKFLOW_JOB_COLUMNS)
+        scope: Syrus::Host::JobRecord.select(*WORKFLOW_JOB_COLUMNS)
       ).call
       workflows
     end
@@ -779,7 +779,7 @@ module Throughput
       rebase_kinds = quoted_list(MERGEABILITY_REBASE_WAIT_STEP_KINDS)
       cached_reason = ActiveRecord::Base.connection.quote(LANDING_VALIDATION_CACHED_REASON)
 
-      Step.where(workflow_id: workflow_ids)
+      Syrus::Host::Step.where(workflow_id: workflow_ids)
         .group(:workflow_id)
         .pluck(
           :workflow_id,
@@ -817,7 +817,7 @@ module Throughput
     end
 
     def merge_trains
-      @merge_trains ||= MergeTrain
+      @merge_trains ||= Syrus::Host::MergeTrain
         .where(repository_id: repository.id)
         .where(window_condition(:merge_trains, :finished_at))
         .where(state: %w[ succeeded failed cancelled ])
@@ -837,7 +837,7 @@ module Throughput
     ].freeze
 
     def output_runs
-      @output_runs ||= Run
+      @output_runs ||= Syrus::Host::RunRecord
         .joins(step: { workflow: :job })
         .where(state: "succeeded")
         .where(window_condition(:runs, :finished_at))
@@ -858,7 +858,7 @@ module Throughput
         if ids.empty?
           {}
         else
-          Run.where(id: ids)
+          Syrus::Host::RunRecord.where(id: ids)
              .where("OCTET_LENGTH(#{preferred_output_diff_sql}) <= ?", MAX_DIFF_SAMPLE_BYTES)
              .limit(MAX_DIFF_SAMPLE_RUNS)
              .pluck(:id, Arel.sql(preferred_output_diff_sql))
@@ -873,7 +873,7 @@ module Throughput
     end
 
     def preferred_output_diff_sql
-      RunDiff.preferred_diff_sql
+      Syrus::Host::RunDiff.preferred_diff_sql
     end
 
     def output_diff_sample_run_ids
@@ -890,9 +890,9 @@ module Throughput
     end
 
     def created_feedback_workflows
-      @created_feedback_workflows ||= Workflow.joins(:job)
+      @created_feedback_workflows ||= Syrus::Host::WorkflowRecord.joins(:job)
         .where(jobs: { repository_id: repository.id })
-        .where(trigger_kind: Workflow::TriggerKind.feedback_values)
+        .where(trigger_kind: Syrus::Host::WorkflowRecord::TriggerKind.feedback_values)
         .where(window_condition(:workflows, :created_at))
         .includes(:job)
         .to_a
@@ -903,7 +903,7 @@ module Throughput
     end
 
     def approval_votes
-      @approval_votes ||= JobApproval.joins(:job)
+      @approval_votes ||= Syrus::Host::JobApproval.joins(:job)
         .where(jobs: { repository_id: repository.id })
         .where(window_condition(:job_approvals, :approved_at))
         .to_a
@@ -926,7 +926,7 @@ module Throughput
     end
 
     def pr_opened_at_by_job_id
-      @pr_opened_at_by_job_id ||= Step.joins(workflow: :job)
+      @pr_opened_at_by_job_id ||= Syrus::Host::Step.joins(workflow: :job)
         .where(jobs: { repository_id: repository.id })
         .where(kind: "pr_open", state: "succeeded")
         .where.not(finished_at: nil)
@@ -935,7 +935,7 @@ module Throughput
     end
 
     def landing_started_at_by_job_id
-      @landing_started_at_by_job_id ||= Workflow.joins(:job)
+      @landing_started_at_by_job_id ||= Syrus::Host::WorkflowRecord.joins(:job)
         .where(jobs: { repository_id: repository.id })
         .where(trigger_kind: LANDING_TRIGGER_KINDS, state: "succeeded")
         .where.not(started_at: nil)

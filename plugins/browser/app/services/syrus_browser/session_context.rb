@@ -36,7 +36,7 @@ module SyrusBrowser
       end
 
       def for_run(run)
-        sink = if run.is_a?(Run) && run.step&.kind == "visual_review"
+        sink = if run.is_a?(Syrus::Host::RunRecord) && run.step&.kind == "visual_review"
           ArtifactSinks::VisualReviewDraft.new(run)
         else
           ArtifactSinks::Null.new
