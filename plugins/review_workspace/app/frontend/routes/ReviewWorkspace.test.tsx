@@ -7,6 +7,7 @@ import { createMemoryRouter, Link, MemoryRouter, Route, RouterProvider, Routes, 
 import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
+import { resetReviewSessionStoreForTests } from "../lib/reviewSession"
 
 class TestPointerEvent extends MouseEvent {
   pointerId: number
@@ -75,6 +76,8 @@ vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
 
 afterEach(() => {
   window.localStorage.clear()
+  window.sessionStorage.clear()
+  resetReviewSessionStoreForTests()
   document.documentElement.classList.remove("dark")
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -978,6 +981,197 @@ describe("ReviewWorkspaceRoute", () => {
 
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
     expect(workspaceRequests).toBe(2)
+  })
+
+  describe("session-scoped deferrals", () => {
+    let eligible: number[] = []
+    function mockEligibility(ids: number[]) {
+      eligible = ids
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        if (String(input).includes("/summary"))
+          return new Response(JSON.stringify({ change_scope: null }), { status: 200, headers: { "Content-Type": "application/json" } })
+        const jobs = reviewJobs(6).filter((entry) => eligible.includes(entry.id))
+        return new Response(JSON.stringify({ count: jobs.length, jobs }), { status: 200, headers: { "Content-Type": "application/json" } })
+      })
+    }
+    function swipeLeft() {
+      const card = screen.getByTestId("mobile-review-card")
+      fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 9, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 60, clientY: 200, pointerId: 9, pointerType: "touch" })
+      fireEvent.pointerUp(card, { clientX: 60, clientY: 200, pointerId: 9, pointerType: "touch" })
+    }
+    function sessionRouter(initial: string = "/review/JOB-42") {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+      const router = createMemoryRouter(
+        [
+          { path: "/dashboard/*", element: <Link to="/review/JOB-42">Enter review</Link> },
+          { path: "/review", element: <ReviewWorkspaceRoute /> },
+          { path: "/review/:job_id", element: <ReviewWorkspaceRoute /> }
+        ],
+        { initialEntries: ["/dashboard", initial], initialIndex: 1 }
+      )
+      const view = render(
+        <QueryClientProvider client={client}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      )
+      return { router, client, view }
+    }
+    async function deferAAndB() {
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      swipeLeft()
+      await screen.findByText("JOB-44 · acme/widgets")
+    }
+
+    it("keeps button- and gesture-deferred Jobs excluded after feedback on another Job and a refresh", async () => {
+      mockEligibility([42, 43, 44, 45])
+      const { client } = sessionRouter()
+      await deferAAndB()
+      fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+      fireEvent.change(await screen.findByLabelText("What should change?"), { target: { value: "Tighten." } })
+      eligible = [42, 43, 45]
+      const seen: string[] = []
+      const observer = new MutationObserver(() => seen.push(document.body.textContent ?? ""))
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      fireEvent.click(screen.getByRole("button", { name: "Send feedback" }))
+      await waitFor(() => expect(jobApi.submitJobFeedback).toHaveBeenCalledWith(44, "Tighten.", 3))
+      await screen.findByText("JOB-45 · acme/widgets")
+      await waitFor(() => expect(client.isFetching()).toBe(0))
+      observer.disconnect()
+      expect(seen.some((text) => /JOB-4[23] · acme/.test(text))).toBe(false)
+      expect(screen.queryByText("JOB-42 · acme/widgets")).not.toBeInTheDocument()
+      expect(screen.queryByText("JOB-43 · acme/widgets")).not.toBeInTheDocument()
+    })
+
+    it("carries the acted-on Job id when the active route changes before the request settles", async () => {
+      mockEligibility([42, 43, 44, 45])
+      let release!: () => void
+      jobApi.submitJobFeedback.mockImplementationOnce(() => new Promise<undefined>((resolve) => (release = () => resolve(undefined))))
+      sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+      fireEvent.change(await screen.findByLabelText("What should change?"), { target: { value: "Later." } })
+      fireEvent.click(screen.getByRole("button", { name: "Send feedback" }))
+      await waitFor(() => expect(jobApi.submitJobFeedback).toHaveBeenCalledWith(42, "Later.", 3))
+      fireEvent.keyDown(window, { key: "j" })
+      await screen.findByText("JOB-43 · acme/widgets")
+      eligible = [43, 44, 45]
+      await act(async () => release())
+      await screen.findByText("JOB-43 · acme/widgets")
+      expect(screen.getAllByText("1 of 3 ready now").length).toBeGreaterThan(0)
+    })
+
+    it("restores deferrals after a remount and keeps them through a canonical replacement", async () => {
+      mockEligibility([42, 43, 44])
+      const { view } = sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      const stored = window.sessionStorage.getItem("syrus.review_workspace.sessions")
+      expect(stored).toContain("42")
+      view.unmount()
+      // Same-tab reload: history state and sessionStorage survive; a new router restores them.
+      expect(window.sessionStorage.getItem("syrus.review_workspace.sessions")).toBe(stored)
+      const sessionId = Object.keys(JSON.parse(stored!).sessions)[0]
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const router = createMemoryRouter(
+        [{ path: "/review/:job_id", element: <ReviewWorkspaceRoute /> }],
+        { initialEntries: [{ pathname: "/review/JOB-42", state: { reviewWorkspaceSessionId: sessionId, reviewWorkspaceCanReturn: false } }] }
+      )
+      render(
+        <QueryClientProvider client={client}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      )
+      await screen.findByText("JOB-43 · acme/widgets")
+      expect(router.state.location.pathname).toBe("/review/JOB-43")
+      expect(screen.queryByText("JOB-42 · acme/widgets")).not.toBeInTheDocument()
+    })
+
+    it("excludes an approved Job and keeps earlier deferrals", async () => {
+      mockEligibility([42, 43, 44])
+      sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+      eligible = [42, 43, 44]
+      fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
+      await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalled())
+      await screen.findByText("JOB-44 · acme/widgets")
+      expect(screen.queryByText("JOB-42 · acme/widgets")).not.toBeInTheDocument()
+      expect(screen.queryByText("JOB-43 · acme/widgets")).not.toBeInTheDocument()
+    })
+
+    it("does not exclude the Job or alter deferrals when feedback fails", async () => {
+      mockEligibility([42, 43])
+      jobApi.submitJobFeedback.mockRejectedValueOnce(new Error("nope"))
+      sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+      fireEvent.change(await screen.findByLabelText("What should change?"), { target: { value: "x" } })
+      fireEvent.click(screen.getByRole("button", { name: "Send feedback" }))
+      expect(await screen.findByRole("alert")).toBeInTheDocument()
+      expect(screen.getByText("JOB-43 · acme/widgets")).toBeInTheDocument()
+      expect(screen.queryByText("JOB-42 · acme/widgets")).not.toBeInTheDocument()
+    })
+
+    it("clears deferrals on explicit exit so a fresh entry shows eligible Jobs again", async () => {
+      mockEligibility([42, 43])
+      const { router } = sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Exit review workspace" }))
+      await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard/jobs"))
+      expect(window.sessionStorage.getItem("syrus.review_workspace.sessions") ?? "").not.toContain("42")
+      fireEvent.click(screen.getByRole("link", { name: "Enter review" }))
+      expect(await screen.findByText("JOB-42 · acme/widgets")).toBeInTheDocument()
+    })
+
+    it("prunes deferred ids that are no longer eligible", async () => {
+      mockEligibility([42, 43, 44])
+      const { client } = sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      eligible = [43, 44]
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: ["review_workspace"], exact: true })
+      })
+      await waitFor(() => expect(window.sessionStorage.getItem("syrus.review_workspace.sessions") ?? "").not.toContain("[42]"))
+    })
+
+    it("falls back to in-memory state when sessionStorage is unavailable", async () => {
+      mockEligibility([42, 43])
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("denied")
+      })
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("denied")
+      })
+      sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      expect(await screen.findByText("JOB-43 · acme/widgets")).toBeInTheDocument()
+      expect(screen.queryByText("JOB-42 · acme/widgets")).not.toBeInTheDocument()
+    })
+
+    it("isolates separate sessions", async () => {
+      mockEligibility([42, 43])
+      const first = sessionRouter()
+      await screen.findByText("JOB-42 · acme/widgets")
+      fireEvent.click(screen.getByRole("button", { name: "Defer for this session" }))
+      await screen.findByText("JOB-43 · acme/widgets")
+      first.view.unmount()
+      sessionRouter()
+      expect(await screen.findByText("JOB-42 · acme/widgets")).toBeInTheDocument()
+    })
   })
 
   describe("decision brief and context", () => {
