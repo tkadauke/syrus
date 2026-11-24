@@ -29,6 +29,14 @@ RSpec.describe "main_branch_health plugin disabled" do
     expect(WorkGates.evaluate(job: job, landing: true).vetoes.any?(&:landing?)).to be(true)
   end
 
+  it "contributes the dashboard health banner panel with blocked repositories while enabled" do
+    repository.update!(main_health: "broken") if repository.respond_to?(:main_health=)
+    panels = App::UiSlotsPayload.panels_for(slot: "dashboard.banner", context: { user: user }, cacheable: false)
+
+    expect(panels.map { |panel| panel[:component] }).to eq([ "main_branch_health/HealthBanners" ])
+    expect(panels.first[:props]["repositories"].map { |repo| repo["id"] }).to eq([ repository.id ])
+  end
+
   context "when disabled" do
     before do
       repository
