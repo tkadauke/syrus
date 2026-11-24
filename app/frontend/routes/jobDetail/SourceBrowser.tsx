@@ -1,4 +1,5 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousDataWithin } from "../../lib/placeholderData"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Dispatch, ReactNode, SetStateAction } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
@@ -60,10 +61,11 @@ export function SourceTab({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const search = sourceSearch(sourceRef, null)
   const diffSearch = sourceDiffSearch(diffBaseRef, diffHeadRef)
+  const sourceKey = ["jobs", jobId, "source", search] as const
   const source = useQuery({
-    queryKey: ["jobs", jobId, "source", search],
+    queryKey: sourceKey,
     queryFn: () => fetchJobSource(jobId, search),
-    placeholderData: keepPreviousData
+    placeholderData: keepPreviousDataWithin(sourceKey, [0, 1])
   })
   const sourceFile = useQuery({
     enabled: Boolean((source.data?.resolved_sha || source.data?.selected_ref) && sourcePath),

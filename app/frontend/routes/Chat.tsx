@@ -47,6 +47,7 @@ import {
 } from "../api/videoWalkthroughs"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateChatUnread, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { keepPreviousDataWithin } from "../lib/placeholderData"
 import {
   branchChat,
   clearChatHistory,
@@ -270,7 +271,7 @@ export function ChatRoute() {
       const data = query.state.data as ChatPayload | undefined
       return data && isAgentActive(data) ? 3_000 : 30_000
     },
-    placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
+    placeholderData: keepPreviousDataWithin(["chats", id], [0, 1])
   })
   const readOnly = chat.data?.chat.read_only === true
   const lastMessageAt = chat.data?.chat.last_message_at
