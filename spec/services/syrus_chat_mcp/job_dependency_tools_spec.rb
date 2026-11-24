@@ -545,6 +545,25 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
       expect(job.state).to eq("queued")
     end
 
+    it "rejects removing a dependency while a Run is active and holds with hold_running: true" do
+      job, workflow, run = running_job_with_active_run
+      dependency = JobDependency.create!(job: job, depends_on_job: admin_prerequisite, source: "manual")
+      other = Factories.job_record(user: user, repository: repository, issue_number: 704, state: "running")
+      JobDependency.create!(job: job, depends_on_job: other, source: "manual")
+
+      rejected = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id)
+      expect(rejected.dig(:result, :isError)).to be true
+      expect(error_text(rejected)).to include(run.slug)
+      expect(JobDependency.exists?(dependency.id)).to be true
+      expect(workflow.reload).to be_running
+
+      held = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id, hold_running: true)
+      expect(held.dig(:result, :isError)).to be_falsey
+      expect(JobDependency.exists?(dependency.id)).to be false
+      expect(run.reload).to be_cancelled
+      expect(workflow.reload).to be_cancelled
+    end
+
     it "returns a running Job with a blocked Workflow to the waiting state" do
       job = Factories.job_record(user: user, repository: repository, issue_number: 703, state: "running")
       workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "blocked")
