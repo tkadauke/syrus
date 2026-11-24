@@ -3957,6 +3957,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
     t.datetime "last_used_at"
     t.datetime "leased_until"
     t.integer "lease_count", default: 0, null: false
+    t.string "claim_token", limit: 32
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["hostname", "runtime_image_id"], name: "idx_ri_cache_entries_host_image", unique: true

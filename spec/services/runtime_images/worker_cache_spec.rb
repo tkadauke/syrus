@@ -212,7 +212,9 @@ RSpec.describe RuntimeImages::WorkerCache do
         expect(RuntimeImageCacheEntry.count).to eq(1)
         nil
       end
-      expect(cache.evict(target_bytes: 0)).to eq([image.digest])
+      # The sleeper resolved the claim itself, so the original owner is fenced
+      # (its token-scoped delete matches nothing) and reports no eviction.
+      expect(cache.evict(target_bytes: 0)).to eq([])
       expect(waits).to eq(1)
       expect(acquired.cache_hit).to be(false)
       expect(engine.pulls.size).to eq(2)
@@ -235,6 +237,29 @@ RSpec.describe RuntimeImages::WorkerCache do
       expect(engine.removed.size).to eq(1)
       expect(pulled.cache_hit).to be(false)
       expect(RuntimeImageCacheEntry.first).to have_attributes(state: "present", lease_count: 1)
+    end
+
+    it "fences the original eviction owner once its claim was taken over" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      RuntimeImageCacheEntry.update_all(updated_at: 10.minutes.ago)
+      entry = RuntimeImageCacheEntry.first
+      # The original owner's removal is paused; during it the claim goes stale
+      # and another process takes it over, which invalidates the owner's token.
+      allow(engine).to receive(:remove).and_wrap_original do |original, reference|
+        RuntimeImageCacheEntry.where(id: entry.id).update_all(updated_at: 10.minutes.ago)
+        taker = described_class.new(engine: FakeCacheEngine.new, service: service, hostname: "w1")
+        taker.send(:reconcile_abandoned_claim, RuntimeImageCacheEntry.find(entry.id))
+        original.call(reference)
+      end
+      RuntimeImageCacheEntry.where(id: entry.id).update_all(state: "present")
+      expect(cache.evict(target_bytes: 0)).to eq([])
+      expect(RuntimeImageCacheEntry.where(id: entry.id)).to be_empty
+    end
+
+    it "rejects a claim TTL that does not exceed the engine removal bound" do
+      expect { described_class.new(engine: engine, service: service, hostname: "w1", claim_ttl: 60) }
+        .to raise_error(ArgumentError, /claim_ttl/)
     end
 
     it "does not take over a fresh eviction claim" do
