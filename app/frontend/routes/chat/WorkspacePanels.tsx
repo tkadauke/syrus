@@ -161,7 +161,7 @@ export function ChatWorkspacePanel({
   })
 
   useEffect(() => {
-    if (activeTab === null || !tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload))
+    if (activeTab !== null && !tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload))
   }, [activeTab, onSelectTab, payload, tabs])
   const tabItems = tabs.flatMap((tab): UnderlineTabItem<WorkspaceTab>[] => {
     if (!isPreviewTab(tab)) {

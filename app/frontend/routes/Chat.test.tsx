@@ -4920,6 +4920,35 @@ describe("chat message image attachments", () => {
     expect(screen.queryByRole("complementary", { name: "Chat workspace" })).not.toBeInTheDocument()
   })
 
+  it("badges a first media tab without selecting it when an open desktop workspace starts with no tabs", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    let chatFetches = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8") {
+        chatFetches += 1
+        return Promise.resolve(jsonResponse(chatPayload({ chat: { chat_image_count: chatFetches > 1 ? 1 : 0, has_chat_images: chatFetches > 1 } })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    act(() => {
+      actionCableSubscriptions
+        .find((subscription) => subscription.params.channel === "ChatChannel")
+        ?.mixin.received({ type: "updated", resource: "chat", id: 8, changed: ["media"] })
+    })
+
+    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
+    const mediaTab = await within(workspace).findByRole("button", { name: /^Media\s*1 new item$/ })
+    expect(mediaTab).not.toHaveClass("text-brand")
+    expect(within(workspace).getByTestId("workspace-tab-badge")).toBeInTheDocument()
+  })
+
   it("badges Media instead of switching to it when a runtime screenshot adds another chat image", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard.canvas")
