@@ -2682,6 +2682,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
     t.index ["recorded_at"], name: "index_metrics_dashboard_samples_on_recorded_at"
   end
 
+  create_table "mobile_devices", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "session_id"
+    t.string "platform", default: "ios", null: false
+    t.string "token", limit: 191, null: false
+    t.string "apns_environment", default: "production", null: false
+    t.string "bundle_id", null: false
+    t.string "device_name"
+    t.string "app_version"
+    t.string "os_version"
+    t.datetime "last_registered_at", null: false
+    t.datetime "last_delivered_at"
+    t.datetime "disabled_at"
+    t.string "disabled_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["platform", "token"], name: "index_mobile_devices_on_platform_and_token", unique: true
+    t.index ["session_id"], name: "index_mobile_devices_on_session_id"
+    t.index ["user_id"], name: "index_mobile_devices_on_user_id"
+  end
+
   create_table "mockups", force: :cascade do |t|
     t.integer "preview_panel_id", null: false
     t.integer "user_id", null: false
