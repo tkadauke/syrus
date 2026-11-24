@@ -43,7 +43,7 @@ module RuntimeImages
     private
 
     def reconcile_records(namespace)
-      RuntimeImage.where(runtime_image_namespace: namespace).where.not(availability: "deleted").limit(@batch).each do |image|
+      RuntimeImage.where(runtime_image_namespace: namespace).where.not(availability: "deleted").find_each(batch_size: @batch) do |image|
         inspection = @service.inspect_image(image)
         case image.availability
         when "pending" then reconcile_pending(image, inspection)
