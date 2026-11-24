@@ -830,6 +830,28 @@ module WorkEngine
         end
       end
 
+      class RetryAgentBlockedWorkflow < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not blocked") unless workflow.blocked?
+
+          result = RetryWorkflowEnqueuer.call(
+            job: workflow.job,
+            artifacts: {
+              "retry_reason" => "agent blocker cleared by satisfied dependencies",
+              "blocked_workflow_id" => workflow.id,
+              "cannot_proceed" => workflow.artifact("cannot_proceed")
+            },
+            provider_validation: :none,
+            automatic: true
+          )
+          return skipped(result.error) unless result.success?
+
+          success("retried #{workflow_label(workflow)} as #{workflow_label(result.workflow)} after its added dependencies were satisfied")
+        end
+      end
+
       class CancelStarvedGrader < Base
         def perform
           run = target_run

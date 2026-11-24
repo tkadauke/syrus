@@ -679,6 +679,24 @@ module WorkEngine
     # bundle sat two hours behind one queued macOS grader after three of its
     # required rspec shards had failed. Cancel the starved graders so collect
     # can fail and the repair loop start.
+    def dependencies_cleared_agent_block(workflow)
+      return unless workflow.blocked? && workflow.artifact("cannot_proceed").present?
+
+      job = workflow.job
+      return unless job && !job.closed? && !job.approved? && !job.landing?
+      return unless workflow == latest_workflow_for_job(job)
+      # The blocked Workflow's own unit stays active (blocked); only other work defers this.
+      return if job.any_active_run?
+      return if active_work_units_for_job(job).any? { |unit| unit.workflow_id != workflow.id }
+
+      blocked_at = workflow.finished_at || workflow.updated_at
+      added = job.dependencies.select { |dependency| dependency.created_at && dependency.created_at > blocked_at }
+      return if added.empty?
+      return unless job.dependencies_satisfied_for_execution?
+
+      added
+    end
+
     def classify_queued_graders_starving_failed_collect
       runs.select(&:queued?).filter_map do |run|
         step = run.step
@@ -1330,6 +1348,26 @@ module WorkEngine
 
     def classify_workflows
       workflows.filter_map do |workflow|
+        # An agent that cannot proceed for want of a prerequisite is answered
+        # by making the prerequisite a dependency. Once every dependency added
+        # after the block is satisfied, the blocker is gone: retry rather than
+        # leave the Workflow waiting for an operator who already acted.
+        if (cleared = dependencies_cleared_agent_block(workflow))
+          next issue(
+            kind: :agent_blocked_workflow_dependencies_satisfied,
+            severity: :warning,
+            affected_ids: ids_for(workflow),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "retry_agent_blocked_workflow",
+            evidence: workflow_evidence(workflow).merge(
+              cannot_proceed: workflow.artifact("cannot_proceed"),
+              satisfied_dependency_job_ids: cleared.map(&:depends_on_job_id).compact
+            ),
+            explanation: "Workflow ##{workflow.id} is blocked by an agent cannot-proceed report, and every dependency " \
+                         "added to its Job since then is now satisfied."
+          )
+        end
+
         if workflow.blocked? && workflow.artifact("cannot_proceed").present? &&
             older_than?(workflow.finished_at || workflow.updated_at, STALE_AGENT_BLOCKED_WORKFLOW_THRESHOLD)
           next issue(

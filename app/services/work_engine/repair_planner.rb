@@ -364,6 +364,18 @@ module WorkEngine
         end
       end
 
+      class AgentBlockedWorkflowDependenciesSatisfied < Base
+        def plan
+          automatic_plan(
+            "retry_agent_blocked_workflow",
+            primary_workflow,
+            "The agent's blocker was answered with dependencies that are now satisfied; retry the blocked Workflow.",
+            execution_steps: [ "RetryWorkflowEnqueuer.call" ],
+            preconditions: { workflow_state: "blocked", cannot_proceed: true, added_dependencies_satisfied: true }
+          )
+        end
+      end
+
       class QueuedGraderStarvingFailedCollect < Base
         def plan
           automatic_plan(

@@ -132,6 +132,46 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(fresh.issues.map(&:kind)).not_to include("stale_agent_blocked_workflow")
   end
 
+  # Regression: an implement agent stopped for a missing prerequisite, the
+  # prerequisite was filed as a dependency, and the blocked Workflow then
+  # waited for an operator after that dependency had landed.
+  describe "an agent-blocked workflow whose added dependencies are satisfied" do
+    let(:blocker) { Factories.job_record(user: job.user, repository: job.repository, state: "implemented", issue_number: 321) }
+
+    before do
+      workflow.update!(state: "blocked", finished_at: 2.hours.ago)
+      workflow.set_artifact!("cannot_proceed", { "reason" => "Prerequisite not met" })
+      step.update_columns(state: "blocked")
+      run.update_columns(state: "blocked", finished_at: 2.hours.ago)
+    end
+
+    it "retries the workflow once the dependency added after the block is satisfied" do
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_at: 1.hour.ago)
+      blocker.update_columns(state: "closed", closure_reason: "pr_merged")
+      allow(RetryWorkflowEnqueuer).to receive(:call).and_return(RetryWorkflowEnqueuer::Result.new(workflow: workflow, error: nil, circuit: nil))
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :agent_blocked_workflow_dependencies_satisfied)).to be_present
+      expect(RetryWorkflowEnqueuer).to have_received(:call).with(
+        hash_including(job: job, automatic: true, artifacts: hash_including("blocked_workflow_id" => workflow.id))
+      )
+    end
+
+    it "waits while the added dependency is unfinished" do
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_at: 1.hour.ago)
+
+      expect(kind(reconcile(workflow_id: workflow.id), :agent_blocked_workflow_dependencies_satisfied)).to be_nil
+    end
+
+    it "ignores dependencies that already existed when the agent blocked" do
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_at: 3.hours.ago)
+      blocker.update_columns(state: "closed", closure_reason: "pr_merged")
+
+      expect(kind(reconcile(workflow_id: workflow.id), :agent_blocked_workflow_dependencies_satisfied)).to be_nil
+    end
+  end
+
   # A reconcile pass must never ask the database to sort rows that carry a
   # large text or JSON column. Steps carry a JSON details column that grader
   # steps fill with command output, Workflows a 16MB artifacts column, Runs two

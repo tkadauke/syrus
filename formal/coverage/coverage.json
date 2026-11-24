@@ -525,6 +525,26 @@
       "notes": "After REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT failed executions the Run is failed as run_job_crashed (retryable, infrastructure), so the bounded retry path and grader_collect's infrastructure handling take over instead of an unbounded re-enqueue loop."
     },
     {
+      "id": "agent-blocked-workflow-dependencies-satisfied",
+      "area": "workflows",
+      "title": "An agent-blocked Workflow stays blocked after the dependencies added to answer it are satisfied",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "agent_blocked_workflow_dependencies_satisfied"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "an implement agent reported cannot-proceed for a missing prerequisite; the operator filed the prerequisite as a dependency, and nothing resumed the blocked Workflow once it was satisfied",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "notes": "Only dependencies created after the block count, and all of the Job's dependencies must be satisfied for execution; the retry goes through RetryWorkflowEnqueuer, so its eligibility, runaway protection and provider checks apply."
+    },
+    {
       "id": "queued-grader-starving-failed-collect",
       "area": "runs-queue",
       "title": "A never-started grader holds open a grader_collect whose required sibling already failed",
