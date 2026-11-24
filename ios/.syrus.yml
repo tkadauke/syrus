@@ -1,0 +1,35 @@
+project:
+  id: ios-app
+  label: iOS App
+  kind: ios_app
+  capabilities:
+    os: macos
+
+prepare:
+  - xcodegen generate
+
+targets:
+  - name: sources
+    kind: library
+    sources:
+      - "Syrus/**/*"
+      - "SyrusTests/**/*"
+      - "project.yml"
+
+grade:
+  - name: xcode-test
+    description: |
+      Generates the Xcode project and runs the unit tests on an iOS simulator
+      (unsigned build).
+    run: make test
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "Syrus/**/*"
+      - "SyrusTests/**/*"
+      - "project.yml"
+      - "Makefile"
+    capabilities:
+      os: macos
+    deps:
+      - ":sources"
+    timeout_minutes: 20

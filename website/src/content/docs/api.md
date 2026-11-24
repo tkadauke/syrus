@@ -63,6 +63,28 @@ checkout, Job, Epic, repository, and schedule commands. See
 [Syrus CLI](/docs/cli) for installation, login, command reference, and
 terminal workflows.
 
+## Mobile Devices
+
+First-party native apps (the iOS app under `ios/`) register their APNs device
+token so Syrus can push in-app notifications. Both endpoints act on the
+signed-in user and accept a browser session or a bearer token.
+
+```bash
+# Register or refresh a token (idempotent; the token moves to the caller if
+# another user held it).
+curl -X POST -H "Authorization: Bearer $SYRUS_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"token":"<hex>","bundle_id":"app.syrus.ios","apns_environment":"sandbox"}' \
+  https://syrus.example.com/api/v1/app/mobile_devices
+
+# Remove a token you own.
+curl -X DELETE -H "Authorization: Bearer $SYRUS_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"token":"<hex>"}' https://syrus.example.com/api/v1/app/mobile_devices/unregister
+```
+
+Registration returns `201` with a `mobile_device` object; invalid tokens return
+`422`. Delivery requires the APNs environment variables described in
+`ios/README.md`.
+
 ## Browser Sessions
 
 Browser clients can end the current signed-cookie session with
