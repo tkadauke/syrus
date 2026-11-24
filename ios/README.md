@@ -10,7 +10,7 @@ notifications. Everything lives under `ios/`.
 | --- | --- |
 | `project.yml` | XcodeGen spec (source of truth; `Syrus.xcodeproj` is generated and git-ignored) |
 | `Syrus/Servers` | `ServerURL` parsing, persisted `ServerStore`, connection screen |
-| `Syrus/Web` | `WKWebView` host, `NavigationPolicy`, load/error states |
+| `Syrus/Web` | `WKWebView` host, `NavigationPolicy`, load/error states, `HapticsBridge` (validated `syrusHaptics` script message `{v:1,type:"selection"/"commit"}`, main frame of the configured server only) |
 | `Syrus/Push` | APNs authorization, token registration with the Syrus API, notification routing |
 | `SyrusTests` | Unit tests (URL parsing, persistence, navigation policy, push registration) |
 

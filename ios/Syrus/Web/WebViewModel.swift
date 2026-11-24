@@ -1,6 +1,11 @@
 import Foundation
 import WebKit
 
+/// Lets the haptics bridge read the current server without retaining the model.
+private final class ServerBox {
+    var server: ServerURL?
+}
+
 /// Observable state of the embedded Syrus web view.
 @MainActor
 final class WebViewModel: NSObject, ObservableObject {
@@ -28,7 +33,9 @@ final class WebViewModel: NSObject, ObservableObject {
     @Published var downloadError: String?
 
     let webView: WKWebView
-    private(set) var server: ServerURL?
+    private let haptics: HapticsBridge
+    private(set) var server: ServerURL? { didSet { serverBox.server = server } }
+    private let serverBox: ServerBox
     private var observations: [NSKeyValueObservation] = []
     private let network: NetworkMonitor?
     private var consecutiveContentCrashes = 0
@@ -44,6 +51,11 @@ final class WebViewModel: NSObject, ObservableObject {
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
         configuration.applicationNameForUserAgent = Self.userAgentSuffix
+        // The handler reads the server lazily so it never outlives a server switch.
+        let box = ServerBox()
+        haptics = HapticsBridge(player: SystemHapticsPlayer(), serverProvider: { box.server })
+        serverBox = box
+        configuration.userContentController.add(haptics, name: HapticsMessage.handlerName)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
 

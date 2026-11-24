@@ -405,6 +405,81 @@ describe("ReviewWorkspaceRoute", () => {
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
   })
 
+  describe("native haptics", () => {
+    async function mountCard() {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-review-summary")
+      return screen.getByTestId("mobile-review-card")
+    }
+    function installBridge() {
+      const post = vi.fn()
+      Object.defineProperty(window, "webkit", { configurable: true, value: { messageHandlers: { syrusHaptics: { postMessage: post } } } })
+      return post
+    }
+    afterEach(() => {
+      Reflect.deleteProperty(window, "webkit")
+      vi.useRealTimers()
+    })
+
+    it("ticks at distance increments, ignores duplicates, and commits on release", async () => {
+      const card = await mountCard()
+      const post = installBridge()
+      let now = 1000
+      vi.spyOn(performance, "now").mockImplementation(() => (now += 100))
+      const move = (clientX: number) => fireEvent.pointerMove(card, { clientX, clientY: 200, pointerId: 61, pointerType: "touch" })
+      fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 61, pointerType: "touch" })
+      move(110)
+      expect(post).not.toHaveBeenCalled()
+      move(130)
+      move(130)
+      expect(post.mock.calls).toEqual([[{ v: 1, type: "selection" }]])
+      move(160)
+      expect(post).toHaveBeenCalledTimes(2)
+      move(140)
+      move(130)
+      expect(post).toHaveBeenCalledTimes(2)
+      move(120)
+      expect(post).toHaveBeenCalledTimes(3)
+      move(185)
+      fireEvent.pointerUp(card, { clientX: 185, clientY: 200, pointerId: 61, pointerType: "touch" })
+      expect(post.mock.calls.at(-1)).toEqual([{ v: 1, type: "commit" }])
+    })
+
+    it("plays a commit impact for a leftward swipe and none for a short release", async () => {
+      const card = await mountCard()
+      const post = installBridge()
+      fireEvent.pointerDown(card, { clientX: 200, clientY: 200, pointerId: 62, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 190, clientY: 200, pointerId: 62, pointerType: "touch" })
+      fireEvent.pointerUp(card, { clientX: 190, clientY: 200, pointerId: 62, pointerType: "touch" })
+      expect(post).not.toHaveBeenCalled()
+      fireEvent.pointerDown(card, { clientX: 200, clientY: 200, pointerId: 63, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 100, clientY: 200, pointerId: 63, pointerType: "touch" })
+      fireEvent.pointerUp(card, { clientX: 100, clientY: 200, pointerId: 63, pointerType: "touch" })
+      expect(post.mock.calls.at(-1)).toEqual([{ v: 1, type: "commit" }])
+    })
+
+    it("stays silent for vertical scrolling and cancelled drags", async () => {
+      const card = await mountCard()
+      const post = installBridge()
+      fireEvent.pointerDown(card, { clientX: 100, clientY: 300, pointerId: 64, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 102, clientY: 200, pointerId: 64, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 103, clientY: 150, pointerId: 64, pointerType: "touch" })
+      fireEvent.pointerCancel(card, { pointerId: 64, pointerType: "touch" })
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it("does nothing in an ordinary browser", async () => {
+      const card = await mountCard()
+      fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 65, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 190, clientY: 200, pointerId: 65, pointerType: "touch" })
+      fireEvent.pointerUp(card, { clientX: 190, clientY: 200, pointerId: 65, pointerType: "touch" })
+      expect(await screen.findByText("Approve JOB-42 for landing?")).toBeInTheDocument()
+    })
+  })
+
   it.each([320, 430])("keeps horizontal action cues stable across drag progress at a %ipx viewport", async (viewport) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
