@@ -54,7 +54,7 @@ module AgentInsights
           scope = scope.where(state: state_s) unless state_s == "all"
 
           per_page = normalized_limit(limit, default: DEFAULT_LIMIT, max: MAX_LIMIT)
-          page_num = Mcp::Pagination.normalize_page(page)
+          page_num = Syrus::Host::McpPagination.normalize_page(page)
           offset   = (page_num - 1) * per_page
 
           insights = scope
