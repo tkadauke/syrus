@@ -2,6 +2,7 @@ la:
   achievements:
     api:
       not_found: "Res gesta non inventa est."
+      workbench_unavailable: "Officina honorum praesto non est."
       confirmation_required: "Confirmatio requiritur ad omnes agnitiones reponendas."
     errors:
       not_registered: "non est inscripta res gesta"
