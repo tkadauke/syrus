@@ -97,6 +97,9 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
     end
 
     it "separates static chrome from the polling rows payload and supports conditional rows" do
+      # A running row's duration_seconds follows the clock, so freeze it to keep
+      # the two ETag requests from straddling a second boundary.
+      freeze_time
       sign_in_as(operator)
       agent_activity_job_with_run(repository: repository, run_attrs: { state: "running", started_at: 2.minutes.ago })
 
