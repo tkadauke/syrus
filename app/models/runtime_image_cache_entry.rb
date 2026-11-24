@@ -2,7 +2,7 @@
 # durable RuntimeImage record stays the source of truth for identity and
 # revocation; this row only describes what a host happens to have on disk.
 class RuntimeImageCacheEntry < ApplicationRecord
-  STATES = %w[present corrupt].freeze
+  STATES = %w[present corrupt evicting].freeze
 
   belongs_to :runtime_image
 
