@@ -1,8 +1,9 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/admin/runtime_images", type: :request do
-  let(:admin) { Factories.user }
-  let(:admin_token) { admin.generate_api_token! }
+  let!(:admin) { Factories.user }
+  let!(:admin_token) { admin.generate_api_token! }
+  let(:non_admin_token) { Factories.user.generate_api_token! }
   def auth = { "Authorization" => "Bearer #{admin_token}" }
 
   it "401s without a token" do
@@ -19,5 +20,13 @@ RSpec.describe "API: /api/v1/admin/runtime_images", type: :request do
   it "queues a reconciliation pass" do
     expect { post "/api/v1/admin/runtime_images/reconcile", headers: auth }.to have_enqueued_job(RuntimeImageReconcileJob)
     expect(response).to have_http_status(:accepted)
+  end
+
+  it "403s for non-admin users" do
+    get "/api/v1/admin/runtime_images", headers: { "Authorization" => "Bearer #{non_admin_token}" }
+    expect(response).to have_http_status(:forbidden)
+
+    post "/api/v1/admin/runtime_images/reconcile", headers: { "Authorization" => "Bearer #{non_admin_token}" }
+    expect(response).to have_http_status(:forbidden)
   end
 end
