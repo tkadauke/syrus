@@ -5411,6 +5411,26 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M83. Main through `d27d3490ae`
+
+A merge train for the Achievements Epic: a new `achievements` plugin with a
+definition registry, unlock persistence, evaluation from domain events,
+acknowledgments, a collection page and a development workbench.
+*Relied-on invariant:* a plugin reacting to engine events can never fail an
+engine transition. Holds:
+
+- It subscribes only to `job.closed` and `epic.upserted`, both `:async` in
+  `Syrus::Events`, so evaluation never runs inside the publishing transaction.
+  Even `:inline` delivery is isolated: a raising subscriber is logged, not
+  propagated.
+- A failed evaluation is handed to a plugin-owned retry job (evaluation is
+  idempotent), so a failure does not lose the unlock either.
+
+Checked after the rebase: mirrors match, boundaries are clean, the plugin's
+specs and the formal specs pass (824 examples), and
+`Formal::PluginDeletion.call("achievements")` is `safe`. This is the
+plugin-deletion pilot's first look at a newly added plugin.
+
 ## M82. Main through `519fe10b07`
 
 - **"Relaunch a preserved merge train even when its failure asks for a
@@ -7541,7 +7561,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `519fe10b07`. Each loop iteration continues from there:
+Checked through main `d27d3490ae`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
