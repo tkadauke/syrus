@@ -1,5 +1,8 @@
 la:
   achievements:
+    api:
+      not_found: "Res gesta non inventa est."
+      confirmation_required: "Confirmatio requiritur ad omnes agnitiones reponendas."
     errors:
       not_registered: "non est inscripta res gesta"
       scope_mismatch: "cum definitione non congruit"

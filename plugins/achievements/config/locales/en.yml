@@ -1,5 +1,8 @@
 en:
   achievements:
+    api:
+      not_found: "Achievement not found."
+      confirmation_required: "Confirmation is required to reset everyone's acknowledgments."
     errors:
       not_registered: "is not a registered achievement"
       scope_mismatch: "does not match the definition"

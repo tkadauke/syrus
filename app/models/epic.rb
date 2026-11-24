@@ -689,7 +689,7 @@ class Epic < ApplicationRecord
   end
 
   def publish_epic_upserted_event
-    Syrus::Events.publish("epic.upserted", epic_id: id, user_id: user_id, repository_id: repository_id)
+    Syrus::Events.publish("epic.upserted", epic_id: id, user_id: user_id, repository_id: repository_id, state: state, origin: origin)
   end
 
   def assign_owner!(new_owner)
