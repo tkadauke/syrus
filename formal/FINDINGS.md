@@ -5337,6 +5337,23 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M78. Main through `cb9c48211b`
+
+A job bundle of mobile Review work: swipe-intent locking, gesture arbitration,
+scroll preservation, and an evidence-based decision brief. Two commits change
+what counts as current review evidence:
+
+- **"Only present review evidence for the current implementation head"**
+  (`99ea331305`) and **"Resolve current review head with a bounded query set"**
+  (`34d3e23e16`). `ReviewWorkspacePlugin::CurrentHead` takes the head recorded
+  by the newest succeeded `implement` or `respond` step across the Job's
+  Workflows (newest Workflow first, at most 50 candidates). *Relied-on
+  invariant:* the workspace calls the same evidence current that the
+  required-review barrier enforces. Holds: it uses the barrier's own
+  `MUTATION_KINDS`, and `ImmutableReviewHeadBarrier.reviewed_head_sha` stamps
+  reviews against the same step's head (per Workflow; the workspace takes the
+  newest Workflow that has one). Display only; the barrier is unchanged.
+
 ## M77. Main through `95e61b9291`
 
 A merge train for the parallel landing lanes Epic.
@@ -7344,7 +7361,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `95e61b9291`. Each loop iteration continues from there:
+Checked through main `cb9c48211b`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
