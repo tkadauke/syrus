@@ -73,29 +73,29 @@ module Achievements
 
     def definition_matches_registry
       definition = (@registry || Achievements::Registry.default).find(definition_key)
-      return errors.add(:definition_key, "is not a registered achievement") if definition.nil?
+      return errors.add(:definition_key, I18n.t("achievements.errors.not_registered")) if definition.nil?
 
-      errors.add(:scope, "does not match the definition") unless scope == definition.scope.to_s
+      errors.add(:scope, I18n.t("achievements.errors.scope_mismatch")) unless scope == definition.scope.to_s
       if subject_type.present? && !definition.subject_kinds.include?(subject_type.to_sym)
-        errors.add(:subject_type, "is not allowed for this definition")
+        errors.add(:subject_type, I18n.t("achievements.errors.subject_type_not_allowed"))
       end
     end
 
     def owner_matches_scope
       case scope
       when "instance"
-        errors.add(:user_id, "must be blank for instance unlocks") if user_id.present?
-        errors.add(:owner_key, "must be #{INSTANCE_OWNER}") unless owner_key == INSTANCE_OWNER
+        errors.add(:user_id, I18n.t("achievements.errors.must_be_blank_for_instance")) if user_id.present?
+        errors.add(:owner_key, I18n.t("achievements.errors.must_be_instance_owner", owner: INSTANCE_OWNER)) unless owner_key == INSTANCE_OWNER
       when "user"
-        return errors.add(:user_id, "is required for user unlocks") if user_id.blank?
+        return errors.add(:user_id, I18n.t("achievements.errors.user_required")) if user_id.blank?
 
-        errors.add(:owner_key, "must be user:#{user_id}") unless owner_key == "user:#{user_id}"
+        errors.add(:owner_key, I18n.t("achievements.errors.must_be_user_owner", user_id: user_id)) unless owner_key == "user:#{user_id}"
       end
     end
 
     def subject_is_complete
-      errors.add(:subject_id, "must be present with a subject type") if subject_type.present? && subject_id.blank?
-      errors.add(:subject_type, "must be present with a subject id") if subject_id.present? && subject_type.blank?
+      errors.add(:subject_id, I18n.t("achievements.errors.subject_id_requires_type")) if subject_type.present? && subject_id.blank?
+      errors.add(:subject_type, I18n.t("achievements.errors.subject_type_requires_id")) if subject_id.present? && subject_type.blank?
     end
 
     def evidence_is_bounded_primitive_json
@@ -106,7 +106,7 @@ module Achievements
       return if raw.nil?
 
       problem = Evidence.problem_with(raw, max_depth: EVIDENCE_MAX_DEPTH, max_string: EVIDENCE_MAX_STRING)
-      problem ||= "is larger than #{EVIDENCE_MAX_BYTES} bytes" if raw.to_json.bytesize > EVIDENCE_MAX_BYTES
+      problem ||= I18n.t("achievements.errors.evidence_too_large", bytes: EVIDENCE_MAX_BYTES) if raw.to_json.bytesize > EVIDENCE_MAX_BYTES
       errors.add(:evidence, problem) if problem
     end
 
