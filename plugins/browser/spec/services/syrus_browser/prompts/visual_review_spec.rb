@@ -396,4 +396,22 @@ RSpec.describe SyrusBrowser::Prompts::VisualReview do
       expect(prompt).to include("Full job diff against the base branch")
     end
   end
+
+  describe "attached mockup guidance" do
+    it "tells the reviewer to render and compare against an attached mockup" do
+      expect(prompt).to include("Attached mockups")
+      expect(prompt).to include("Render and inspect the mockup, including its important interactions")
+      expect(prompt).to include("Compare the running implementation directly against the mockup across relevant viewports and states")
+      expect(prompt).to include("material unexplained differences in visual hierarchy, composition, styling, responsive behavior, or interaction")
+      expect(prompt).to include("\"needs_work\" verdict")
+      expect(prompt).to include("Follow explicit written Job requirements when they conflict with the mockup")
+    end
+
+    it "keeps the guidance conditional and preserves the existing workflow for ordinary Jobs" do
+      expect(prompt).to include("if there is no attached mockup, ignore this section")
+      expect(prompt).to include("Changed-surface coverage")
+      expect(prompt).to include("Prior visual review findings: none.")
+      expect(prompt).to include("stop_preview")
+    end
+  end
 end
