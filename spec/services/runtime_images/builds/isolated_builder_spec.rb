@@ -321,14 +321,14 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     it "fails closed when a bounded tmpfs namespace cannot be created" do
       allow(Process).to receive(:euid).and_return(1000)
       c = described_class::Confinement.new
-      allow(c).to receive(:system).and_return(true, false)
+      allow(c).to receive(:probe).and_return(true, false)
       expect { c.verify! }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
     end
 
     it "accepts the confinement probe when prlimit and the tmpfs namespace work" do
       allow(Process).to receive(:euid).and_return(1000)
       c = described_class::Confinement.new
-      allow(c).to receive(:system).and_return(true, true)
+      allow(c).to receive(:probe).and_return(true, true)
       expect { c.verify! }.not_to raise_error
     end
 
