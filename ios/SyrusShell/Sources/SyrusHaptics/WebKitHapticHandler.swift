@@ -1,8 +1,6 @@
-#if canImport(WebKit)
-import WebKit
-#endif
 #if os(iOS)
 import UIKit
+import WebKit
 
 /// Plays haptics through UIKit feedback generators.
 public final class UIKitHapticPlayer: HapticPlayer {
@@ -37,9 +35,28 @@ extension HapticRequest.ImpactStyle {
     }
 }
 
-#endif
 
-#if canImport(WebKit)
+/// Production preferences: haptics are off when Low Power Mode is on or the user turned the
+/// in-app toggle off (`UserDefaults` key `syrusHapticsEnabled`, default on).
+public struct SystemHapticPreferences: HapticPreferences {
+    public static let defaultsKey = "syrusHapticsEnabled"
+    private let defaults: UserDefaults
+    private let lowPowerMode: () -> Bool
+
+    public init(
+        defaults: UserDefaults = .standard,
+        lowPowerMode: @escaping () -> Bool = { ProcessInfo.processInfo.isLowPowerModeEnabled }
+    ) {
+        self.defaults = defaults
+        self.lowPowerMode = lowPowerMode
+    }
+
+    public var hapticsEnabled: Bool {
+        let toggle = defaults.object(forKey: Self.defaultsKey) as? Bool ?? true
+        return toggle && !lowPowerMode()
+    }
+}
+
 /// Registers as the `syrusHaptics` script message handler. Only main-frame messages from the
 /// Syrus origin are honored.
 public final class WebKitHapticHandler: NSObject, WKScriptMessageHandler {
@@ -73,6 +90,16 @@ public enum HapticsInstaller {
         configuration.userContentController.removeScriptMessageHandler(forName: HapticBridge.messageHandlerName)
         configuration.userContentController.add(handler, name: HapticBridge.messageHandlerName)
         return handler
+    }
+
+    /// Installs the production bridge (UIKit generators + system preferences).
+    @discardableResult
+    public static func installDefault(
+        on configuration: WKWebViewConfiguration,
+        allowedHost: @escaping () -> String?
+    ) -> WebKitHapticHandler {
+        let bridge = HapticBridge(player: UIKitHapticPlayer(), preferences: SystemHapticPreferences())
+        return install(on: configuration, bridge: bridge, allowedHost: allowedHost)
     }
 }
 #endif
