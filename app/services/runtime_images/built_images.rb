@@ -51,12 +51,20 @@ module RuntimeImages
       @cache ||= WorkerCache.new(engine: @engine, service: @service)
     end
 
+    # Namespaces are keyed by the full owner identity plus provider. The name
+    # is globally unique, so it carries a digest of that identity: lossy
+    # slugs ("repo/a" vs "repo-a") must never share a namespace.
     def namespace_for(owner_kind, owner_ref)
-      attributes = { owner_kind: owner_kind.to_s, owner_ref: owner_ref.to_s, provider_key: @provider_key }
-      name = "#{owner_kind}-#{owner_ref}".downcase.gsub(/[^a-z0-9]+/, "-").delete_prefix("-").delete_suffix("-")
-      RuntimeImageNamespace.find_by(name: name) || RuntimeImageNamespace.create!(attributes.merge(name: name))
+      identity = { owner_kind: owner_kind.to_s, owner_ref: owner_ref.to_s, provider_key: @provider_key }
+      RuntimeImageNamespace.find_by(identity) || RuntimeImageNamespace.create!(identity.merge(name: namespace_name(identity)))
     rescue ActiveRecord::RecordNotUnique
-      RuntimeImageNamespace.find_by!(name: name)
+      RuntimeImageNamespace.find_by!(identity)
+    end
+
+    def namespace_name(identity)
+      slug = "#{identity[:owner_kind]}-#{identity[:owner_ref]}".downcase.gsub(/[^a-z0-9]+/, "-").delete_prefix("-").delete_suffix("-")
+      suffix = Digest::SHA256.hexdigest(identity.values.join("\0"))[0, 12]
+      "#{slug[0, 150]}-#{suffix}"
     end
   end
 end
