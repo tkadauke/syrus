@@ -104,6 +104,29 @@ RSpec.describe Run, :ci_only do
       end
     end
 
+    # NY37: an UPDATE holds its row lock to commit, and the lock order puts Run
+    # before Job. start locked the Job and then wrote the Run; it now locks
+    # the Run first, without reloading unsaved attributes.
+    it "locks the Run before the Job it writes" do
+      run = job.initial_run
+      run.parent_session_id = "session-unsaved"
+      checker = Syrus::LockOrder::Checker
+      previous_mode = checker.mode
+      previous_writes = ENV["SYRUS_LOCK_ORDER_WRITES"]
+      checker.mode = :record
+      ENV["SYRUS_LOCK_ORDER_WRITES"] = "1"
+      before = checker.violations.size
+
+      Run.transaction { run.start! }
+
+      expect(checker.violations.drop(before).select { |v| v.held == "Job" && v.taking == "Run" }).to be_empty
+      expect(run.reload).to have_attributes(state: "running", parent_session_id: "session-unsaved")
+    ensure
+      checker.violations.slice!(before..) if before
+      checker.mode = previous_mode
+      ENV["SYRUS_LOCK_ORDER_WRITES"] = previous_writes
+    end
+
     it "running → succeeded via succeed, sets finished_at" do
       run = job.initial_run
       run.start!

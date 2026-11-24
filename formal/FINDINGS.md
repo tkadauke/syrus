@@ -4556,6 +4556,25 @@ outside the order" (red before). The reservation paths that needed the pending
 entry pass in raise mode: provider admission, retry enqueuer, step dispatcher
 and the simulations, 502 examples.
 
+## F124. Starting a Run locked its Job before writing the Run — fixed (NY37: A, part 1)
+
+**Before.** `Run#start` ran `before { job.lock! }` and then saved the Run. The
+order puts Run before Job, and an UPDATE holds its row lock to commit, so any
+path that started a Run without locking it first wrote a Run while holding its
+Job. That was 131 hits in the write-tracking survey (Lead L14).
+
+**Fix.** `start` locks the Run's own row first, with a locking query rather than
+`lock!` so the attributes the caller set before `start!` are kept, and then the
+Job.
+
+**Specs.** `spec/models/run_spec.rb` "locks the Run before the Job it writes"
+(red before; it also checks an unsaved attribute survives). `run_spec.rb` and
+`run_job_spec.rb` pass.
+
+**Rest of NY37.** The WorkUnit-last change is written and waits on NY38, because
+the WorkIntent the same transitions settle ranks before Workflow. The
+Step-then-Workflow and Job-then-Epic groups are not yet traced.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
