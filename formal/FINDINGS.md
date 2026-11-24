@@ -7726,7 +7726,12 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `6edc2c7761`. Each loop iteration continues from there:
+- A commit already inside that range, which built the coworker tool surface
+  from enabled plugins only: the invariant (a per-process memo depends only on
+  static inputs) failed. It made the full suite order-dependent and put 38
+  wrong rows in the MCP catalog. F131, fixed on main in `8f3fdf0ac1`.
+
+Checked through main `8f3fdf0ac1`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
