@@ -154,6 +154,11 @@ module WorkDefinitions
     end
     def active_work_lock_wait_reason_for_blocked_definition(_blocked_definition) = { key: "blocked_by_active_landing_unit" }
     def active_work_lock_wait_reason_when_blocked_by_merge_train = { key: "blocked_by_active_landing_unit" }
+    # One non-terminal unit per scope and kind (work_units.active_dedup_key).
+    # A definition whose units are already exclusive through their lock keys
+    # can opt out to let several run in one scope.
+    def scope_deduplicated? = true
+
     def lock_conflicts_enforced?
       return true if WorkUnits::PathOwnership::PATH_GROUPS.key?(kind)
       return true if first_class? && scope == "job"

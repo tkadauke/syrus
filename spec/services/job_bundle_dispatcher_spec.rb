@@ -66,6 +66,35 @@ RSpec.describe JobBundleDispatcher do
     expect(described_class.try_dispatch!(repository)).to be_present
   end
 
+  # Regression: every bundle took a repository-wide lock, so with three
+  # landing lanes a wedged bundle held every other epicless Job out of the
+  # two free lanes for hours.
+  it "dispatches a second bundle into a free lane beside an active one" do
+    repository.update!(landing_concurrency: 2)
+    first_members = [ approved_job(1), approved_job(2) ]
+    first = described_class.try_dispatch!(repository)
+    expect(first.work_unit.member_jobs).to match_array(first_members)
+    expect(first.work_unit.work_unit_locks.pluck(:lock_key)).not_to include("repository:#{repository.id}")
+
+    second_members = [ approved_job(3), approved_job(4) ]
+    expect(described_class.blocker_reason(repository)).to be_nil
+    second = described_class.try_dispatch!(repository)
+
+    expect(second).to be_present
+    expect(second.work_unit.member_jobs).to match_array(second_members)
+    expect(second.artifact(WorkDefinitions::LANDING_LANE_ARTIFACT)).not_to eq(first.artifact(WorkDefinitions::LANDING_LANE_ARTIFACT))
+  end
+
+  it "keeps bundles serialized on a single landing lane" do
+    approved_job(1)
+    approved_job(2)
+    expect(described_class.try_dispatch!(repository)).to be_present
+    approved_job(3)
+    approved_job(4)
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+  end
+
   it "names the work unit holding a lock the bundle needs" do
     approved_job(1)
     approved_job(2)
@@ -75,10 +104,10 @@ RSpec.describe JobBundleDispatcher do
     )
     other_workflow = Workflow.create!(job: other_job, trigger_kind: "main_grader", state: "running")
     unit = attach_work_unit(other_workflow, state: "running", kind: "main_grader")
-    unit.work_unit_locks.create!(lock_key: "repository:#{repository.id}")
+    unit.work_unit_locks.create!(lock_key: "landing:repository:#{repository.id}")
 
     expect(described_class.blocker_reason(repository))
-      .to eq("main_grader #{other_workflow.slug} holds repository:#{repository.id}; the job bundle starts once it releases")
+      .to eq("main_grader #{other_workflow.slug} holds landing:repository:#{repository.id}; the job bundle starts once it releases")
     expect(described_class.try_dispatch!(repository)).to be_nil
   end
 

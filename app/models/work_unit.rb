@@ -398,7 +398,7 @@ class WorkUnit < ApplicationRecord
     # otherwise-unrelated units onto the same "<scope_type>::<kind>" key,
     # so skip the dedup guarantee rather than false-collide them. The
     # per-job lock keys in create_lock! still protect these cases.
-    self.active_dedup_key = active? && scope_id.present? && lock_conflicts_enforced_for_kind? ? "#{scope_type}:#{scope_id}:#{kind}" : nil
+    self.active_dedup_key = active? && scope_id.present? && lock_conflicts_enforced_for_kind? && scope_deduplicated_for_kind? ? "#{scope_type}:#{scope_id}:#{kind}" : nil
   end
 
   # A WorkUnit's kind can belong to a plugin that has since been
@@ -411,5 +411,11 @@ class WorkUnit < ApplicationRecord
     definition.lock_conflicts_enforced?
   rescue WorkDefinitions::UnknownKind
     false
+  end
+
+  def scope_deduplicated_for_kind?
+    definition.scope_deduplicated?
+  rescue WorkDefinitions::UnknownKind
+    true
   end
 end
