@@ -2368,7 +2368,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
     it "resolves plugin panels for the jobs dashboard notice slot" do
       panel = { id: "test.notice", component: "test/Notice", order: 10 }
 
-      expect(App::UiSlotsPayload).to receive(:panels_for).twice do |slot:, context:, cacheable:|
+      expect(App::UiSlotsPayload).to receive(:panels_for).exactly(3).times do |slot:, context:, cacheable:|
+        next [] if slot == "dashboard.banner"
+
         expect(slot).to eq("dashboard.jobs.notice")
         expect(context[:user]).to eq(user)
         expect(context[:subject]).to eq("job")
