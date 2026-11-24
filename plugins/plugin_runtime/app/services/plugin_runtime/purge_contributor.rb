@@ -3,7 +3,7 @@ module PluginRuntime
   # outside the database. `plugin:purge[name]` asks this for them so purging
   # a plugin removes its volumes too. See Syrus::Plugin::PurgeContributor.
   class PurgeContributor
-    include Syrus::Plugin::PurgeContributor
+    include Syrus::Host::PurgeContributor
 
     def self.purge_report(plugin_name, configuration: Configuration.current)
       return [] unless configuration.managed?

@@ -6,7 +6,7 @@ module BuildCache
   # is delivered inline precisely so this can still reach the workspace and the
   # command's own scrubbed environment before the workspace is torn down.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       { "step.command.completed" => :on_command_completed }

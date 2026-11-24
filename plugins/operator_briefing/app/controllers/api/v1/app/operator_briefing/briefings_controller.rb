@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class BriefingsController < BaseController
+        class BriefingsController < Syrus::Host::AppController
           include ChatSessionLifecycle
 
           def show

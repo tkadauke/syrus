@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(126)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(126)
+    expect(Syrus::Host.apis.size).to eq(138)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(138)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -264,6 +264,35 @@ RSpec.describe Syrus::Host::PublicApis do
 
       expect(path).to exist
       expect("Syrus::Host::#{name}".constantize.record_class).to equal(name.to_s.constantize)
+    end
+  end
+
+  it "aliases the product plugin-point facades onto their core modules and declares their contracts" do
+    {
+      ChatJobStatusExtension: Syrus::Plugin::ChatJobStatusExtension, ChatMediaSource: Syrus::Plugin::ChatMediaSource,
+      ChatPromptInjector: Syrus::Plugin::ChatPromptInjector, DomainSubscriber: Syrus::Plugin::DomainSubscriber,
+      GraderFailureSummarizer: Syrus::Plugin::GraderFailureSummarizer, JobOrigin: Syrus::Plugin::JobOrigin,
+      PreviewPanelRetention: Syrus::Plugin::PreviewPanelRetention, RepoPageTab: Syrus::Plugin::RepoPageTab,
+      RepositoryRecommendation: Syrus::Plugin::RepositoryRecommendation,
+      RuntimeSessionProvider: Syrus::Plugin::RuntimeSessionProvider, TestEvidence: Syrus::Plugin::TestEvidence,
+      WorkspaceTab: Syrus::Plugin::WorkspaceTab
+    }.each do |name, core|
+      expect(Syrus::Host.const_get(name)).to equal(core), name.to_s
+      api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
+      expect(api).to be_present, name.to_s
+      expect(api.members).not_to be_empty, name.to_s
+      expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name.to_s
+    end
+  end
+
+  it "lists only members the product plugin-point modules define" do
+    {
+      ChatMediaSource: Syrus::Plugin::ChatMediaSource, JobOrigin: Syrus::Plugin::JobOrigin,
+      PreviewPanelRetention: Syrus::Plugin::PreviewPanelRetention,
+      RepositoryRecommendation: Syrus::Plugin::RepositoryRecommendation
+    }.each do |name, core|
+      api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
+      api.members.each { |member| expect(core.instance_methods).to include(member.to_sym), "#{name}##{member}" }
     end
   end
 end

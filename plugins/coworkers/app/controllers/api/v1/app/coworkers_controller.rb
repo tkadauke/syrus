@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class CoworkersController < BaseController
+      class CoworkersController < Syrus::Host::AppController
         include ChatProviderOptions
         include AgentProviderCatalogOptions
 

@@ -48,7 +48,7 @@ module SyrusDev
       )
 
       counts = nil
-      ApplicationRecord.transaction do
+      Syrus::Host::Record.transaction do
         snapshot = preview_snapshot(lock: true)
         counts = snapshot.fetch(:counts)
         raise ArgumentError, "permission reset preview is stale" unless secure_digest_match?(confirmation_digest, digest(snapshot))

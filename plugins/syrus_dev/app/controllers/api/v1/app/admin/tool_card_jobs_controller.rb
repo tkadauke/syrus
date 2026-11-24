@@ -2,11 +2,11 @@ module Api
   module V1
     module App
       module Admin
-        class ToolCardJobsController < BaseController
+        class ToolCardJobsController < Syrus::Host::AppAdminController
           def create
             return render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found unless SyrusDev.enabled?
 
-            result = ::SyrusDev::ToolCardJobCreator.new(user: Current.user).call(
+            result = ::SyrusDev::ToolCardJobCreator.new(user: Syrus::Host::Current.user).call(
               prompt: params[:prompt],
               screenshot: params[:screenshot]
             )

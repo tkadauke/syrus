@@ -17,12 +17,12 @@ module AgentMemory::Tools
 
     class << self
       def call(memory_id:, server_context:)
-        return ::Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
+        return Syrus::Host::McpTools.unauthorized("Admin access required") unless admin?(server_context)
 
         memory = AgentMemory::Entry.find_by(id: memory_id)
-        return ::Mcp::Tools.invalid("memory not found: #{memory_id}") unless memory
+        return Syrus::Host::McpTools.invalid("memory not found: #{memory_id}") unless memory
 
-        ::Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           memory_id: memory.id,
           deleted: memory.deleted?,
           audit_events: memory.audit_events.map { |event| event_payload(event) }

@@ -3,7 +3,7 @@ module Whiteboard
   # Core used to build all three inline in ChatSerialization and the chats
   # controller's counts query.
   module PayloadContributor
-    include Syrus::Plugin::ChatPayloadContributor
+    include Syrus::Host::ChatPayloadContributor
 
     def self.chat_payload(chat_session:, context:)
       # The full scene is large, so it ships only when asked for.

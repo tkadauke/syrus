@@ -4,7 +4,7 @@ module Api
       # Operator-facing twin of TestInsights::Tools::ReadJobTestResultsTool --
       # same TestInsights::RunResults service the MCP tool calls, reachable
       # with a bearer token instead of an agent run.
-      class JobTestResultsController < BaseController
+      class JobTestResultsController < Syrus::Host::AdminController
         def index
           job = find_job_by_ref(Job.all, params[:job_id])
 

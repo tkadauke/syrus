@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Insights
-        class AttentionController < BaseController
+        class AttentionController < Syrus::Host::AppController
           def show
             window_days = (Integer(params[:window_days].presence || 7, exception: false) || 7).clamp(1, 90)
             cache_key = [ "attention-report", Syrus::Host::Current.user.id, window_days, Time.current.to_i / 5.minutes ]

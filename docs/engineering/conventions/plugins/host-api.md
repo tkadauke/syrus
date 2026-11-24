@@ -225,6 +225,16 @@ Supported members:
 - `chat_turn_identity`
 - `chat_turn_trigger`
 
+### `Syrus::Host::ChatJobStatusExtension`
+
+Since: `0.1.16`
+
+Lets a plugin add actions to the chat Jobs workspace by returning a hash merged into the job-status response's extensions member; response assembly is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `payload`
+
 ### `Syrus::Host::ChatMcpToolSet`
 
 Since: `0.1.16`
@@ -236,6 +246,18 @@ Supported members:
 - `available_for?`
 - `handle`
 - `tool_definitions`
+
+### `Syrus::Host::ChatMediaSource`
+
+Since: `0.1.16`
+
+Lets a plugin list chat media and panel context for a chat session; media storage and panel rendering are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_media_context`
+- `chat_media_panel`
+- `list_chat_media`
 
 ### `Syrus::Host::ChatPayloadContributor`
 
@@ -249,6 +271,16 @@ Supported members:
 - `chat_payload`
 - `chat_payload_counts`
 - `chat_payload_paths`
+
+### `Syrus::Host::ChatPromptInjector`
+
+Since: `0.1.16`
+
+Lets a plugin add a section to the chat agent's system prompt; prompt assembly and ordering beyond provider order are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_prompt_section`
 
 ### `Syrus::Host::ChatSession`
 
@@ -589,6 +621,16 @@ Supported members:
 
 - `read`
 
+### `Syrus::Host::DomainSubscriber`
+
+Since: `0.1.16`
+
+Lets a plugin observe domain events by declaring subscriptions; event delivery, ordering and retries are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `subscriptions`
+
 ### `Syrus::Host::EcosystemDependencyAuditPlan`
 
 Since: `0.1.16`
@@ -813,6 +855,16 @@ Supported members:
 - `new`
 - `to_h`
 
+### `Syrus::Host::GraderFailureSummarizer`
+
+Since: `0.1.16`
+
+Lets a plugin summarize a failed grader step; summary storage and when the summarizer is asked are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `summarize_grader_failure`
+
 ### `Syrus::Host::GraderResourceRequest`
 
 Since: `0.1.16`
@@ -914,6 +966,21 @@ Supported members:
 - `user`
 - `visible_to`
 - `workflows`
+
+### `Syrus::Host::JobOrigin`
+
+Since: `0.1.16`
+
+Describes where a Job originated (label, url, icon, synthetic issue, auto-approve mode); origin resolution and storage are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `auto_approve_mode`
+- `icon`
+- `label`
+- `origin_key`
+- `synthetic_issue`
+- `url`
 
 ### `Syrus::Host::JobVisibilityRestriction`
 
@@ -1112,6 +1179,16 @@ Supported members:
 - `required_mcp_tools`
 - `review_needed?`
 
+### `Syrus::Host::PreviewPanelRetention`
+
+Since: `0.1.16`
+
+Lets a plugin declare which preview panels must be retained; the retention sweep itself is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `retained_preview_panel?`
+
 ### `Syrus::Host::ProcessRunner`
 
 Since: `0.1.16`
@@ -1153,6 +1230,16 @@ Supported members:
 - `has_many`
 - `sanitize_sql_like`
 - `transaction`
+
+### `Syrus::Host::RepoPageTab`
+
+Since: `0.1.16`
+
+Marks a provider of repository-page tabs computed per repository and user; SPA routing and navigation are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `repo_page_tabs`
 
 ### `Syrus::Host::Repository`
 
@@ -1218,6 +1305,16 @@ Narrows repository relations on general discovery surfaces; direct repository ac
 Supported members:
 
 - `apply`
+
+### `Syrus::Host::RepositoryRecommendation`
+
+Since: `0.1.16`
+
+Lets a plugin recommend plugins or settings for a repository; recommendation ranking and presentation are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `repository_recommendations`
 
 ### `Syrus::Host::RetentionPolicy`
 
@@ -1329,6 +1426,29 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::RuntimeSessionProvider`
+
+Since: `0.1.16`
+
+Supplies an interactive runtime session (start, snapshot, input, logs, stop); session persistence, leases and routing are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `build_or_reload`
+- `capabilities`
+- `detect`
+- `display_name`
+- `environment_for_terminal`
+- `input`
+- `inspect`
+- `launch`
+- `logs`
+- `provider_key`
+- `snapshot`
+- `start_session`
+- `stop_session`
+- `visual_review_start_required?`
 
 ### `Syrus::Host::SidebarPage`
 
@@ -1496,6 +1616,22 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::TestEvidence`
+
+Since: `0.1.16`
+
+Answers which tests failed in a run and optional flakiness and isolated-repro evidence; the main-branch failure classifier that consumes it is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `failed_test_cases`
+- `failed_test_identities`
+- `failed_test_summary`
+- `flakiness_score`
+- `isolated_repro_evidence`
+- `record_isolated_repro!`
+- `test_case_count`
+
 ### `Syrus::Host::TestRunResult`
 
 Since: `0.1.16`
@@ -1653,6 +1789,17 @@ Supported members:
 - `register!`
 - `url`
 
+### `Syrus::Host::WorkspaceTab`
+
+Since: `0.1.16`
+
+Contributes tabs to the chat workspace panel; panel layout and rendering are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `workspace_tabs`
+
 ## Legacy compatibility APIs
 
 These core constants are recognized by the compatibility scanner because
@@ -1670,7 +1817,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentProviders::Base`
 - `AgentProviders::ConfigurationError`
 - `AgentProviders::SessionStore`
-- `AgentRole`
 - `AgentRole::AGENT_INSIGHT`
 - `AgentRole::CHAT_CODING`
 - `AgentRole::CHAT_LOCAL`
@@ -1683,9 +1829,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentRole::WORKFLOW_ROLES`
 - `AgentRole::WORKFLOW_VISUAL_REVIEWER`
 - `AgentSidecarEnvironment`
-- `Api::V1::Admin::BaseController`
-- `Api::V1::App::Admin::BaseController`
-- `Api::V1::App::BaseController`
 - `App::AdversarialReviewProjects`
 - `App::JobDiscussionChatResolver`
 - `App::Presentation`
@@ -1699,7 +1842,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ApplicationCable::Channel`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
-- `ApplicationRecord`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
 - `AutoApproveModes`
@@ -1744,7 +1886,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `CredentialProbe`
 - `CredentialProbe::Result`
 - `CredentialProbe::TIMEOUT_SECONDS`
-- `Current`
 - `DiffReviewComment`
 - `DiffReviewVersion`
 - `DiffReviewVersions::FinalReviewVersion`
@@ -1835,7 +1976,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Mcp::Tools::ProposalToolSupport`
 - `McpInvocationContext`
 - `McpSidecarLog`
-- `McpToolContext`
 - `McpToolPayloads::WorkflowPayload`
 - `McpToolPolicy`
 - `McpToolRegistry`
@@ -1851,14 +1991,12 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Observability::EventSink`
 - `OperationalLogSearch`
 - `OperationalLogSearch::INPUT_SCHEMA_PROPERTIES`
-- `OperationalLogging`
 - `Paginatable`
 - `PendingActionItem`
 - `PendingActions::AuthorizedToolCall`
 - `PendingActions::Base`
 - `PendingActions::PermissionManagement`
 - `PerformanceLogEvent`
-- `PerformanceLogging`
 - `PerformanceLogging::BROWSER_TRACE_EVENT`
 - `PerformanceLogging::FEATURE_SLUG`
 - `PerformanceLogging::SLOW_JOB_EVENT`
@@ -1903,7 +2041,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PreviewPanel::Service`
 - `PreviewPanelVersion`
 - `PreviewProcessLauncher`
-- `ProcessRunner`
 - `Prompts::AdversarialReview`
 - `Prompts::ChatSystem`
 - `Prompts::GitSafety::TEXT`
@@ -1926,7 +2063,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RepoDeploymentStagesReader`
 - `Repository`
 - `RepositoryBareClone`
-- `RepositoryContent`
 - `RepositoryMembership`
 - `RepositoryPolicy`
 - `RepositorySummarySerialization`
@@ -1973,46 +2109,15 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Events`
 - `Syrus::Installer`
 - `Syrus::Memory`
-- `Syrus::Metrics`
-- `Syrus::PathJail`
-- `Syrus::PathJail::PathEscape`
-- `Syrus::Plugin::AdminPage`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
-- `Syrus::Plugin::Callbacks`
-- `Syrus::Plugin::ChatJobStatusExtension`
-- `Syrus::Plugin::ChatMcpToolSet`
-- `Syrus::Plugin::ChatMediaSource`
-- `Syrus::Plugin::ChatPayloadContributor`
-- `Syrus::Plugin::ChatPromptInjector`
 - `Syrus::Plugin::ChatProvider`
-- `Syrus::Plugin::ChatTurnOrientation`
-- `Syrus::Plugin::CliCommandHandler`
-- `Syrus::Plugin::DomainSubscriber`
-- `Syrus::Plugin::ExecutionBackend`
 - `Syrus::Plugin::GraderFailureSummarizer`
-- `Syrus::Plugin::InputSource`
-- `Syrus::Plugin::JobOrigin`
-- `Syrus::Plugin::McpToolSet`
 - `Syrus::Plugin::MemoryStore`
-- `Syrus::Plugin::PermissionProvider`
 - `Syrus::Plugin::PlatformDelivery`
-- `Syrus::Plugin::PreviewPanelRetention`
-- `Syrus::Plugin::PurgeContributor`
-- `Syrus::Plugin::RepoPageTab`
 - `Syrus::Plugin::RepositoryRecommendation`
-- `Syrus::Plugin::RetentionPolicy`
-- `Syrus::Plugin::RuntimeSessionProvider`
-- `Syrus::Plugin::SidebarPage`
-- `Syrus::Plugin::SourceControlProvider`
-- `Syrus::Plugin::SpeechToTextProvider`
 - `Syrus::Plugin::TestEvidence`
-- `Syrus::Plugin::UiSlot`
-- `Syrus::Plugin::WorkerCapabilityProbe`
 - `Syrus::Plugin::WorkflowArtifactContributor`
-- `Syrus::Plugin::WorkspaceGitTransport`
-- `Syrus::Plugin::WorkspaceTab`
 - `Syrus::PluginApi`
-- `Syrus::PluginRegistry`
 - `Syrus::PluginSettings`
 - `SyrusMcp::TypedArtifactProvenance`
 - `SyrusSearchDatabaseTasks`
@@ -2039,7 +2144,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `User::DASHBOARD_REQUIRED_COLUMNS`
 - `ValidatesAgentProvider`
 - `WorkDefinitions::Base`
-- `WorkUnits::Launcher`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`
@@ -2051,7 +2155,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `WorkflowActivityEvent`
 - `WorkflowVisualEvidence`
 - `WorkflowWarnings`
-- `WorkflowWorkspace`
 - `Workflows::Base`
 - `WorkspaceDependencyEnv`
 - `WorkspaceReuseOutcomes::Summary`

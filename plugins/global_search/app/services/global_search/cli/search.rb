@@ -2,7 +2,7 @@
 
 module GlobalSearch
   module Cli
-    class Search < Syrus::Plugin::CliCommandHandler
+    class Search < Syrus::Host::CliCommandHandler
       TYPES = %w[job epic chat repository].freeze
 
       def call(args:, flags:, user:)

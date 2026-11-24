@@ -67,7 +67,7 @@ module Mcp
           end
           shared = unclassified.map do |definition|
             name = value(definition, :name).to_s
-            descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+            descriptor = Syrus::Host::CapabilityDescriptor.for_coworker_parity(
               unclassified_descriptors.fetch(name),
               default_policy: unclassified_defaults.fetch(unclassified_descriptors.fetch(name).capability)
             )
@@ -100,8 +100,8 @@ module Mcp
       end
 
       def plugin_providers
-        manifests = Syrus::PluginRegistry.all_plugins
-        health = Syrus::PluginRegistry.health(enabled_names: manifests.select(&:enabled?).map(&:name))
+        manifests = Syrus::Host::PluginRegistry.all_plugins
+        health = Syrus::Host::PluginRegistry.health(enabled_names: manifests.select(&:enabled?).map(&:name))
         manifests.flat_map do |manifest|
           state = if !manifest.enabled?
             :plugin_disabled

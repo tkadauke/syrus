@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class ChatWhiteboardsController < BaseController
+      class ChatWhiteboardsController < Syrus::Host::AppController
         def show
           whiteboard = Whiteboard::Board.for(find_chat_session)
           fresh_when(etag: whiteboard&.version || 0, public: false)
@@ -56,7 +56,7 @@ module Api
         private
 
         def find_chat_session
-          Current.user.accessible_chat_sessions.find(params[:id])
+          Syrus::Host::Current.user.accessible_chat_sessions.find(params[:id])
         end
 
         def whiteboard_payload(whiteboard, fields: nil, include_files: false)

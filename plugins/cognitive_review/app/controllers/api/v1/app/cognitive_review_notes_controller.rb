@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class CognitiveReviewNotesController < BaseController
+      class CognitiveReviewNotesController < Syrus::Host::AppController
         include ChatLockErrors
         include ChatSessionLifecycle
 

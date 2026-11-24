@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module CredentialStore
-        class CredentialsController < BaseController
+        class CredentialsController < Syrus::Host::AppController
           before_action :require_credential_store_enabled
 
           def probe_host_key

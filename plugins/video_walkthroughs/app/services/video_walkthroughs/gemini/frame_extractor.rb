@@ -36,9 +36,9 @@ module VideoWalkthroughs
         def runner
           @runner ||= lambda do |cmd|
             current_run = Thread.current[:syrus_current_run]
-            capture = ProcessRunner.new(
-              env: ProcessRunner.forwarded_env(%w[PATH HOME]), command: cmd,
-              mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
+            capture = Syrus::Host::ProcessRunner.new(
+              env: Syrus::Host::ProcessRunner.forwarded_env(%w[PATH HOME]), command: cmd,
+              mounts: Syrus::Host::ProcessRunner.mounts(Dir.pwd), network: "grader",
               timeout: COMMAND_TIMEOUT_SECONDS, kind: "media", run: current_run, workflow: current_run&.workflow,
               chat_session: Thread.current[:syrus_current_chat_session]
             ).capture

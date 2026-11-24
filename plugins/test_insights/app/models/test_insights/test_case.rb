@@ -1,5 +1,5 @@
 module TestInsights
-  class TestCase < ApplicationRecord
+  class TestCase < Syrus::Host::Record
     self.table_name = "test_insight_cases"
 
     include HasConfigurableRetention
@@ -67,7 +67,7 @@ module TestInsights
     # A test is flaky if it has both passed and failed within the lookback window.
     # Returns nil if no history exists.
     def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK, exclude_workflow: nil)
-      statuses = PerformanceLogging.phase("test_insights.flakiness_score", repository_id: repository.id) do
+      statuses = Syrus::Host::PerformanceLogging.phase("test_insights.flakiness_score", repository_id: repository.id) do
         score_scope_for(repository: repository, suite_name: suite_name, name: name, exclude_workflow: exclude_workflow)
           .scored
           .limit(lookback)
@@ -202,7 +202,7 @@ module TestInsights
       cases_by_identity_id = cases.filter_map { |tc| [ tc.test_identity_id, tc ] if tc.test_identity_id }.to_h
       return {} if cases_by_identity_id.empty?
 
-      recent_rows = PerformanceLogging.phase("test_insights.batch_flakiness_by_identity", identity_count: cases_by_identity_id.size) do
+      recent_rows = Syrus::Host::PerformanceLogging.phase("test_insights.batch_flakiness_by_identity", identity_count: cases_by_identity_id.size) do
         cases_by_identity_id.keys.each_slice(FLAKINESS_QUERY_BATCH_SIZE).flat_map do |identity_ids|
           connection.select_rows(TestInsights::RecentStats.recent_cases_sql(identity_ids, lookback: lookback))
         end

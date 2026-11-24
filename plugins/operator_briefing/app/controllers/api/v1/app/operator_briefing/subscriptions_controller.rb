@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class SubscriptionsController < BaseController
+        class SubscriptionsController < Syrus::Host::AppController
           def update
             subscription = ::OperatorBriefing::BriefingSubscription
               .where(user: Syrus::Host::Current.user, repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))

@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class ReviewWorkspaceController < BaseController
+      class ReviewWorkspaceController < Syrus::Host::AppController
         before_action :require_review_workspace_enabled
 
         def index

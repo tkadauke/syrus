@@ -1,5 +1,5 @@
 module TestInsights
-  class TestRun < ApplicationRecord
+  class TestRun < Syrus::Host::Record
     self.table_name = "test_insight_runs"
 
     belongs_to :run

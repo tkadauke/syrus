@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class TopicsController < BaseController
+        class TopicsController < Syrus::Host::AppController
           REVISION_LIMIT = 3
 
           def show

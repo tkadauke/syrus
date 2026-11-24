@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class FeedbacksController < BaseController
+        class FeedbacksController < Syrus::Host::AppController
           def create
             feedback = ::OperatorBriefing::Feedback.create!(
               user: Syrus::Host::Current.user,

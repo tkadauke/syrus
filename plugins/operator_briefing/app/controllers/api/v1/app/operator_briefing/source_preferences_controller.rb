@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module OperatorBriefing
-        class SourcePreferencesController < BaseController
+        class SourcePreferencesController < Syrus::Host::AppController
           def update
             preference = ::OperatorBriefing::SourcePreference.where(user: Syrus::Host::Current.user).find(params[:id])
 

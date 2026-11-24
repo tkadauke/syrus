@@ -205,7 +205,7 @@ module TestInsights
     def report_ingestion_failure(message, error:, test_run:)
       full_message = "[TestInsights::Ingester] #{message} for Run #{@run.id} grader #{@grader_name}: #{error.class}: #{error.message}"
       Rails.logger.error(full_message)
-      OperationalLogging.ingest(
+      Syrus::Host::OperationalLogging.ingest(
         level: "error",
         source: "test_insights_ingester",
         message: full_message,

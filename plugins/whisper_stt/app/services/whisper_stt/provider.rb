@@ -1,6 +1,6 @@
 module WhisperStt
   class Provider < Syrus::Host::SpeechToTextBase
-    include Syrus::Plugin::SpeechToTextProvider
+    include Syrus::Host::SpeechToTextProvider
 
     def self.provider_key = "whisper_stt"
     def self.display_name = "Whisper speech-to-text"

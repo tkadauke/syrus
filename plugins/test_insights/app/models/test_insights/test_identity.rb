@@ -1,7 +1,7 @@
 require "digest"
 
 module TestInsights
-  class TestIdentity < ApplicationRecord
+  class TestIdentity < Syrus::Host::Record
     self.table_name = "test_insight_identities"
 
     FINGERPRINT_SEPARATOR = "\0".freeze
@@ -169,7 +169,7 @@ module TestInsights
 
     def self.latest_status_times_for(ids)
       ids.each_slice(REFRESH_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
-        maxima = PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
+        maxima = Syrus::Host::PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
           TestCase
             .from("#{TestCase.quoted_table_name}#{TestCase.scored_status_created_index_hint}")
             .where(test_identity_id: slice, status: %w[failed error passed])

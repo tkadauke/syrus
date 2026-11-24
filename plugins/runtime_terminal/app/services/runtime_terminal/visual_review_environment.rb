@@ -81,9 +81,9 @@ module RuntimeTerminal
     end
 
     def capture(argv, payload)
-      capture = ProcessRunner.new(
+      capture = Syrus::Host::ProcessRunner.new(
         env: { "PATH" => COMMAND_PATH }, command: argv,
-        mounts: ProcessRunner.mounts(runtime_session.workspace_ref), network: "grader",
+        mounts: Syrus::Host::ProcessRunner.mounts(runtime_session.workspace_ref), network: "grader",
         timeout: TIMEOUT, stdin_data: payload, kind: "grader",
         run: runtime_session.run, workflow: runtime_session.workflow, job: runtime_session.job
       ).capture(limit: MAX_OUTPUT_BYTES)

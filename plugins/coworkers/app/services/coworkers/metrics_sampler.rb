@@ -90,12 +90,12 @@ module Coworkers
       value.respond_to?(:in_time_zone) && !value.is_a?(String) ? value.in_time_zone : Time.zone.parse(value.to_s)
     end
 
-    def set(name, value, tags) = Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").set(value, tags: tags)
-    def counter(name) = Syrus::Metrics.counter(:"syrus_coworkers_#{name}")
+    def set(name, value, tags) = Syrus::Host::Metrics.gauge(:"syrus_coworkers_#{name}").set(value, tags: tags)
+    def counter(name) = Syrus::Host::Metrics.counter(:"syrus_coworkers_#{name}")
 
     def clear_published_series!(active_handles)
       %i[journaling_last_result_age_seconds journaling_consecutive_failures unsaved_workspace_age_seconds unsaved_workspace_attempts journaling_state journaling_last_result].each do |name|
-        Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").samples.each { |tags, _| Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").clear(tags:) }
+        Syrus::Host::Metrics.gauge(:"syrus_coworkers_#{name}").samples.each { |tags, _| Syrus::Host::Metrics.gauge(:"syrus_coworkers_#{name}").clear(tags:) }
       end
       %i[spend_usd_total workspace_push_failures_total].each do |name|
         counter(name).samples.each do |tags, _|

@@ -1,6 +1,6 @@
 module InputSources
   class Github < InputSource
-    include Syrus::Plugin::InputSource
+    include Syrus::Host::InputSource
 
     def poll!
       return if repository.archived?

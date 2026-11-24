@@ -7,7 +7,7 @@ module Api
         # Admin-only: these are instance-wide operational numbers -- queue depth,
         # failure counts, which plugins are on -- not anything scoped to the
         # requesting user's own work.
-        class MetricsDashboardController < BaseController
+        class MetricsDashboardController < Syrus::Host::AppAdminController
           before_action :require_metrics_dashboard_enabled
 
           def show

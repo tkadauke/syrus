@@ -1,5 +1,5 @@
 module Whiteboard
-  class Board < ApplicationRecord
+  class Board < Syrus::Host::Record
     self.table_name = "whiteboard_boards"
 
     MAX_ELEMENTS = 1000

@@ -43,8 +43,8 @@ class Coworkers::UnsavedWorkspace
 
   def record!(branch:, path:, operation:, failure:)
     now = Time.current
-    if Syrus::Metrics.registry.declared?(:syrus_coworkers_workspace_push_failures_total)
-      Syrus::Metrics.counter(:syrus_coworkers_workspace_push_failures_total)
+    if Syrus::Host::Metrics.registry.declared?(:syrus_coworkers_workspace_push_failures_total)
+      Syrus::Host::Metrics.counter(:syrus_coworkers_workspace_push_failures_total)
         .increment(tags: { coworker: @link.coworker.handle, kind: failure.kind })
     end
     @link.with_lock do

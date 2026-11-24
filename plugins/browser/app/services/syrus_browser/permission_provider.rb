@@ -4,7 +4,7 @@ require "uri"
 
 module SyrusBrowser
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = [ AgentRole::CHAT_CODING, AgentRole::WORKFLOW_VISUAL_REVIEWER ].freeze
     ALLOW_DEFAULTS = ROLES.index_with { :allow }.freeze
