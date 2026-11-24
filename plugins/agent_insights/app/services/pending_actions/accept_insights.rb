@@ -13,7 +13,7 @@ module PendingActions
     private
 
     def mutation = @mutation ||= AgentInsights::Mutations::Accept.new(ids: payload.fetch("insight_ids"), actor: user, audit_actor: user, repository_scope: permitted_repositories)
-    def permitted_repositories = user.admin? ? Repository.all : Repository.accessible_to(user)
+    def permitted_repositories = user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(user)
     def insight_detail = "Insights #{payload.fetch('insight_ids').map { |id| "##{id}" }.join(', ')}"
   end
 end

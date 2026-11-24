@@ -34,7 +34,7 @@ module Api
         private
 
         def find_repository
-          repo = Repository.accessible_to(Syrus::Host::Current.user).active.find_by(id: params[:id])
+          repo = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).active.find_by(id: params[:id])
           render_error("not_found", "Repository not found.", status: :not_found) unless repo
           repo
         end

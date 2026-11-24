@@ -1,6 +1,6 @@
 module SyrusDev
   class PermissionFactoryResetScope::Instance < PermissionFactoryResetScope
-    def users = ::User.all
+    def users = Syrus::Host::UserRecord.all
     def profile_users = users
     def rules = PermissionRule.all
     def leases = PermissionLease.all

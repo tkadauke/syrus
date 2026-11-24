@@ -2,6 +2,19 @@ require "rails_helper"
 
 RSpec.describe "Syrus::Host work-engine record facades" do
   ALIASED = {
+    PolicyBase: ApplicationPolicy, Handle: Handle, InputSourceBase: InputSource, GitMergeDrivers: GitMergeDrivers,
+    DiffReviewComment: DiffReviewComment, DiffReviewVersion: DiffReviewVersion, GithubClient: GithubClient,
+    GithubAuthenticatedGit: GithubAuthenticatedGit, GithubApiUsageRollup: GithubApiUsageRollup,
+    GithubIssueJobAttributes: GithubIssueJobAttributes, GithubIngestPolicy: IngestPolicy,
+    GithubIssueImageExtractor: IssueImageExtractor, GithubIssueImageIngestJob: IngestIssueImagesJob,
+    GithubIssueClassifierJob: ClassifyIssueJob, FinalReviewVersion: DiffReviewVersions::FinalReviewVersion,
+    PendingWorkWakeup: InputSources::PendingWorkWakeup, RepositoryRecord: Repository, UserRecord: User,
+    TeamRecord: Team, TeamMembershipRecord: TeamMembership, TeamRepositoryRecord: TeamRepository,
+    RepositoryMembershipRecord: RepositoryMembership, RepositoryPolicy: RepositoryPolicy,
+    RepositoryBareClone: RepositoryBareClone, RepositorySummarySerialization: RepositorySummarySerialization,
+    RepoDefaultBranchSyrusYml: RepoDefaultBranchSyrusYml, RepoDeploymentStagesReader: RepoDeploymentStagesReader,
+    SyrusYmlConfig: SyrusYml, PrReviewComment: PrReviewComment, Document: Document,
+    ReviewVerdictSubmission: ReviewEvidence::VerdictSubmission,
     Epic: Epic, Step: Step, StepHandlerBase: Steps::Base, AdversarialReviewStep: Steps::AdversarialReview,
     MergeTrainLandStep: Steps::MergeTrainLand, WorkflowBase: Workflows::Base, WorkDefinitionBase: WorkDefinitions::Base,
     RunJob: RunJob, RunDiff: RunDiff, RunHeartbeat: RunHeartbeat, WorkflowActivityEvent: WorkflowActivityEvent,

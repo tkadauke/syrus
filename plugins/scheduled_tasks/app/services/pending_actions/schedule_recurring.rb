@@ -64,7 +64,7 @@ module PendingActions
     private
 
     def repository_write_access?
-      repository && RepositoryPolicy.new(user, repository).write?
+      repository && Syrus::Host::RepositoryPolicy.new(user, repository).write?
     end
   end
 end

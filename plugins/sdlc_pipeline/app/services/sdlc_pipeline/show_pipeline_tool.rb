@@ -20,7 +20,7 @@ module SdlcPipeline
     class << self
       def call(repository_id:, filter:, server_context:, at: nil, range_start: nil, range_end: nil)
         chat_session = server_context.fetch(:chat_session)
-        repository = Repository.accessible_to(chat_session.user).active.find(repository_id)
+        repository = Syrus::Host::RepositoryRecord.accessible_to(chat_session.user).active.find(repository_id)
         ast = Filters::Ast.parse(filter)
         Filters::Compiler.call(ast, scope: Syrus::Host::JobRecord.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
         validated = Filters::Ast.serialize(ast)
