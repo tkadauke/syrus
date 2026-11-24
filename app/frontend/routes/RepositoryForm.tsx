@@ -81,6 +81,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   const queryClient = useQueryClient()
   const location = useLocation()
   const [values, setValues] = useState<RepositoryInput>(() => inputFromPayload(payload))
+  const [landingDraft, setLandingDraft] = useState<string | null>(null)
   const [repairTouched, setRepairTouched] = useState(mode === "edit")
   const [ownerMode, setOwnerMode] = useState<"select" | "manual">("manual")
   const [repoMode, setRepoMode] = useState<"select" | "manual">("manual")
@@ -481,15 +482,23 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           />
           <Field label={t("repository_form.label_landing_concurrency")}>
             <Form.Input
+              inputMode="numeric"
               max={5}
               min={1}
+              onBlur={() => setLandingDraft(null)}
               onChange={(event) => {
-                const parsed = Number.parseInt(event.target.value, 10)
-                setValues({ ...values, landing_concurrency: Number.isNaN(parsed) ? 1 : Math.min(5, Math.max(1, parsed)) })
+                // Keep the raw text while editing so Backspace can empty the
+                // field and multi-digit typing is not clamped mid-keystroke.
+                const raw = event.target.value
+                setLandingDraft(raw)
+                const parsed = Number.parseInt(raw, 10)
+                if (!Number.isNaN(parsed)) {
+                  setValues({ ...values, landing_concurrency: Math.min(5, Math.max(1, parsed)) })
+                }
               }}
               step={1}
               type="number"
-              value={values.landing_concurrency}
+              value={landingDraft ?? values.landing_concurrency}
             />
             <Form.HelpText>{t("repository_form.landing_concurrency_hint")}</Form.HelpText>
           </Field>
