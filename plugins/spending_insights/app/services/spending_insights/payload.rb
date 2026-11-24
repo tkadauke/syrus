@@ -14,21 +14,21 @@ module SpendingInsights
     end
 
     def as_json(*)
-      PerformanceLogging.phase("spending_payload", admin: user.admin?) do
+      Syrus::Host::PerformanceLogging.phase("spending_payload", admin: user.admin?) do
         {
           scope: scope_json,
           filter: filter.to_h,
           filters: filters_json,
           controls: controls_json,
-          totals: PerformanceLogging.phase("spending.totals") { totals_json },
+          totals: Syrus::Host::PerformanceLogging.phase("spending.totals") { totals_json },
           breakdowns: {
-            epics: PerformanceLogging.phase("spending.breakdown.epics") { epic_breakdown },
-            users: PerformanceLogging.phase("spending.breakdown.users") { user_breakdown },
-            repositories: PerformanceLogging.phase("spending.breakdown.repositories") { repository_breakdown },
-            trigger_kinds: PerformanceLogging.phase("spending.breakdown.trigger_kinds") { trigger_kind_breakdown }
+            epics: Syrus::Host::PerformanceLogging.phase("spending.breakdown.epics") { epic_breakdown },
+            users: Syrus::Host::PerformanceLogging.phase("spending.breakdown.users") { user_breakdown },
+            repositories: Syrus::Host::PerformanceLogging.phase("spending.breakdown.repositories") { repository_breakdown },
+            trigger_kinds: Syrus::Host::PerformanceLogging.phase("spending.breakdown.trigger_kinds") { trigger_kind_breakdown }
           },
-          top_runs: PerformanceLogging.phase("spending.top_runs") { top_runs },
-          trend: PerformanceLogging.phase("spending.trend") { trend }
+          top_runs: Syrus::Host::PerformanceLogging.phase("spending.top_runs") { top_runs },
+          trend: Syrus::Host::PerformanceLogging.phase("spending.trend") { trend }
         }
       end
     end

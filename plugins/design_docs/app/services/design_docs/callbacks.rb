@@ -1,6 +1,6 @@
 module DesignDocs
   class Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     def self.on_enable
       return unless global_search_available?
@@ -11,8 +11,8 @@ module DesignDocs
     end
 
     def self.global_search_available?
-      manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == "global_search" }
-      manifest&.enabled? && Syrus::PluginRegistry.health.healthy?("global_search")
+      manifest = Syrus::Host::PluginRegistry.all_plugins.find { |candidate| candidate.name == "global_search" }
+      manifest&.enabled? && Syrus::Host::PluginRegistry.health.healthy?("global_search")
     end
   end
 end

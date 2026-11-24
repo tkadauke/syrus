@@ -5,7 +5,7 @@ module TestInsights
   # shards finish, so the profile is captured once per round -- keyed by the
   # grader and the immutable source snapshot the round grades -- and reused by
   # every shard, including a shard retried within the same round.
-  class ShardRuntimeSnapshot < ApplicationRecord
+  class ShardRuntimeSnapshot < Syrus::Host::Record
     self.table_name = "test_insight_shard_runtime_snapshots"
 
     # Long enough for a shard retried well after the rest of its round to

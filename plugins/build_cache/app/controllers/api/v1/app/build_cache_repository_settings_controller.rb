@@ -7,7 +7,7 @@ module Api
       # here is `basedirs_safe`, gated behind a repository the current user
       # can actually see. Repository-wide mutations require repository admin
       # access.
-      class BuildCacheRepositorySettingsController < BaseController
+      class BuildCacheRepositorySettingsController < Syrus::Host::AppController
         def show
           repository = find_repository
           return unless repository

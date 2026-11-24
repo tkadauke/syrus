@@ -1,6 +1,6 @@
 module SyrusDev
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     CAPABILITY = "syrus_dev.read_diagnostics@v1".freeze
     WORKFLOW_DEFAULTS = {

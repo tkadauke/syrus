@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocAgentRun < ApplicationRecord
+  class DesignDocAgentRun < Syrus::Host::Record
     self.table_name = "design_doc_agent_runs"
 
     STATUSES = %w[queued running succeeded failed canceled].freeze

@@ -3,7 +3,7 @@ module Whiteboard
   # ChatMediaAttacher, ChatProposal, submit_chat_feedback, list_chat_media,
   # and ChatMediaRef's format regex.
   module MediaSource
-    include Syrus::Plugin::ChatMediaSource
+    include Syrus::Host::ChatMediaSource
 
     def self.chat_media_kind = "snapshot"
 

@@ -1,6 +1,6 @@
 module CredentialStore
   class PurgeContributor
-    include Syrus::Plugin::PurgeContributor
+    include Syrus::Host::PurgeContributor
 
     def self.purge_report(plugin_name)
       return [] if plugin_name == "credential_store"

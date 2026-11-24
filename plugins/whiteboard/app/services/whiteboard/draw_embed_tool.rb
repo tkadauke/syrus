@@ -21,7 +21,7 @@ module Whiteboard
     class << self
       def call(link:, x:, y:, width:, height:, server_context:, type: "embeddable")
         link = link.to_s
-        return Mcp::Tools.invalid("link is required") if link.blank?
+        return Syrus::Host::McpTools.invalid("link is required") if link.blank?
 
         args = {
           "type" => type,
@@ -46,11 +46,11 @@ module Whiteboard
           { id: element.fetch("id") }
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

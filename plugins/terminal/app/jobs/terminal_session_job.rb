@@ -26,7 +26,7 @@ class TerminalSessionJob < PluginJob
     Terminal::Relay.new(
       session: session,
       command: [ "bash" ],
-      env: ProcessRunner.forwarded_env([]).merge(provider_env)
+      env: Syrus::Host::ProcessRunner.forwarded_env([]).merge(provider_env)
     ).run
   rescue RuntimeSessionProviders::ConfigurationError => e
     finish_environment_failure!(session, runtime_session, e)

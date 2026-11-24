@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class GithubApiUsageController < BaseController
+        class GithubApiUsageController < Syrus::Host::AppAdminController
           def show
             return render json: { error: "github_source_plugin_disabled" }, status: :not_found unless SyrusGithubSource.enabled?
 

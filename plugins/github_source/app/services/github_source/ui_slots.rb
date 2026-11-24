@@ -1,6 +1,6 @@
 module GithubSource
   class UiSlots
-    include Syrus::Plugin::UiSlot
+    include Syrus::Host::UiSlot
     include Rails.application.routes.url_helpers
 
     def self.ui_slots(slot:, context:)

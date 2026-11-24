@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class PermissionFactoryResetsController < BaseController
+        class PermissionFactoryResetsController < Syrus::Host::AppAdminController
           INSTANCE_CONFIRMATION = "RESET INSTANCE"
           RETAINED_DATA = %w[audit_history users repositories jobs workflows permission_reset_audits].freeze
 

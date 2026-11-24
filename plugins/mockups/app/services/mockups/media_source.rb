@@ -2,7 +2,7 @@ module Mockups
   # The "preview_panel_version:<id>" media kind. A version can carry several
   # files, so this is the source that returns more than one Document.
   module MediaSource
-    include Syrus::Plugin::ChatMediaSource
+    include Syrus::Host::ChatMediaSource
 
     def self.chat_media_kind = "preview_panel_version"
 

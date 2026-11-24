@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class KubernetesClustersController < BaseController
+        class KubernetesClustersController < Syrus::Host::AppAdminController
           before_action :require_k8s_cluster_enabled
 
           def index

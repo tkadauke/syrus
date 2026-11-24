@@ -8,7 +8,7 @@ module GlobalSearch
   # (in-chat search, the search_chats MCP tool, chat cleanup) read that index,
   # so it is infrastructure rather than part of this optional feature.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       { "job.upserted" => :on_job_upserted, "epic.upserted" => :on_epic_upserted }

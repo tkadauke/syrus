@@ -6,7 +6,7 @@ module AgentInsights
   # -- an Active Record callback in core, calling a service in core, for a
   # feature that is not core's. It is a job.closed subscriber now.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       { "job.closed" => :on_job_closed }

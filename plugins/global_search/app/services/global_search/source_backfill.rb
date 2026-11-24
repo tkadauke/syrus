@@ -11,7 +11,7 @@ module GlobalSearch
     private
 
     def providers
-      Syrus::PluginRegistry.providers_for("global_search:source")
+      Syrus::Host::PluginRegistry.providers_for("global_search:source")
     end
 
     def backfill_provider(provider)

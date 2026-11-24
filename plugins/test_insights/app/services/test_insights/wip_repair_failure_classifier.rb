@@ -30,7 +30,7 @@ module TestInsights
       return 0 unless retry_loop_grader_step?
       return 0 if passed_identity_ids.empty?
 
-      PerformanceLogging.phase("test_insights.mark_wip_repair_failures", workflow_id: @step.workflow_id) do
+      Syrus::Host::PerformanceLogging.phase("test_insights.mark_wip_repair_failures", workflow_id: @step.workflow_id) do
         TestCase
           .joins(test_run: { run: :step })
           .where(test_identity_id: passed_identity_ids)

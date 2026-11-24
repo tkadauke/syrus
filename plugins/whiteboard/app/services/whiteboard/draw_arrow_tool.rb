@@ -27,8 +27,8 @@ module Whiteboard
       def call(from_id:, to_id:, server_context:, label: nil)
         from_id = from_id.to_s
         to_id = to_id.to_s
-        return Mcp::Tools.invalid("from_id is required") if from_id.empty?
-        return Mcp::Tools.invalid("to_id is required") if to_id.empty?
+        return Syrus::Host::McpTools.invalid("from_id is required") if from_id.empty?
+        return Syrus::Host::McpTools.invalid("to_id is required") if to_id.empty?
 
         args = { "from_id" => from_id, "to_id" => to_id, "label" => label }.compact
 
@@ -52,11 +52,11 @@ module Whiteboard
           { id: arrow.fetch("id"), label_id: label_element&.fetch("id") }.compact
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

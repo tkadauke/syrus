@@ -1,6 +1,6 @@
 module SdlcPipeline
   class ChatJobStatusExtension
-    include Syrus::Plugin::ChatJobStatusExtension
+    include Syrus::Host::ChatJobStatusExtension
     def self.payload(chat_session:, jobs:)
       repositories = jobs.map(&:repository).compact.uniq(&:id).sort_by(&:slug)
       return {} if repositories.empty?

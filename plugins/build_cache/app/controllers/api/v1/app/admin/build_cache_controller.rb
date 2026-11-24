@@ -9,7 +9,7 @@ module Api
         # BuildCache::ClearRequest with a required audit reason, and a
         # separate `confirm` call actually mutates the bucket. See
         # BuildCache::ClearRequest.
-        class BuildCacheController < BaseController
+        class BuildCacheController < Syrus::Host::AppAdminController
           def show
             render json: payload.show(include_stats: include_stats?)
           end

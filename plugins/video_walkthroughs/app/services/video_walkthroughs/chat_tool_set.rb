@@ -29,7 +29,7 @@ module VideoWalkthroughs
           description: klass.description_value,
           input_schema: klass.input_schema_value.to_h
         }
-        definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
+        definition.merge(capability_descriptor: Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition))
       end
     end
 

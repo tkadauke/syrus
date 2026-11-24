@@ -31,12 +31,12 @@ module SdlcPipeline
           chat_session_id: chat_session.id, type: "updated", resource: "chat", id: chat_session.id,
           payload: { action: "open_tool_presentation", presentation: "sdlc_pipeline", title_i18n_key: "sdlc_pipeline:title", path: path }
         )
-        Mcp::Tools.success(repository: { id: repository.id, slug: repository.slug }, filter: validated, path: path,
+        Syrus::Host::McpTools.success(repository: { id: repository.id, slug: repository.slug }, filter: validated, path: path,
                            at: at, range_start: range_start, range_end: range_end)
       rescue ArgumentError, ActiveRecord::StatementInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       rescue ActiveRecord::RecordNotFound
-        Mcp::Tools.invalid("Repository is unavailable.")
+        Syrus::Host::McpTools.invalid("Repository is unavailable.")
       end
 
       private
