@@ -1262,17 +1262,6 @@ describe("JobDetailView", () => {
     expect(screen.queryByTestId("deployment-stage-pipeline")).not.toBeInTheDocument()
   })
 
-  it("skips workflows with null artifacts when rendering coverage", () => {
-    renderJobDetail(
-      jobPayload({
-        coverage: { workflow_id: 1, coverage: { summary: { lines_pct: 92.4, branches_pct: null, functions_pct: null } } }
-      })
-    )
-
-    expect(screen.getByTestId("coverage-card")).toBeInTheDocument()
-    expect(screen.getByText("92.4%")).toBeInTheDocument()
-  })
-
   // The trigger renders as a bare "⋯" glyph, which is no accessible name at
   // all for a screen reader (or a test) to go on.
   it("gives the overflow menu trigger an accessible name", () => {

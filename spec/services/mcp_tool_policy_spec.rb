@@ -32,7 +32,6 @@ RSpec.describe McpToolPolicy do
 
       expect(tools).to include(
         Mcp::Tools::ReadLiveStateTool,
-        Mcp::Tools::GetCoverageReportTool,
         Mcp::Tools::ReadRunWorkerHealthTool,
         Mcp::Tools::StartPreviewTool,
         Mcp::Tools::StopPreviewTool,
@@ -58,7 +57,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitJobMetadataTool,
         Mcp::Tools::SubmitReportTool
       )
-      expect(tools.size).to eq(24)
+      expect(tools.size).to eq(23)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
@@ -76,7 +75,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
-      expect(tools.size).to eq(14)
+      expect(tools.size).to eq(13)
     end
 
     it "returns only the dedicated submission tool to the security reviewer" do
@@ -122,26 +121,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitArtifactTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
-      expect(tools.size).to eq(17)
-    end
-
-    it "advertises generic runtime tools for a non-browser visual-review session" do
-      job = Factories.job
-      step = Step.create!(workflow: job.latest_workflow, kind: "visual_review", position: 99)
-      visual_run = step.runs.create!(job: job, trigger_kind: job.latest_workflow.trigger_kind)
-      RuntimeSession.create!(
-        repository: job.repository, job: job, workflow: visual_run.workflow, run: visual_run,
-        workspace_ref: "/workspace", provider_key: "cli_tui", display_name: "Terminal", state: "running"
-      )
-
-      tools = described_class.for(McpToolContext.from_run(visual_run))
-
-      expect(tools).to include(
-        Mcp::Tools::RuntimeInspectTool,
-        Mcp::Tools::RuntimeWaitTool,
-        Mcp::Tools::RuntimeInputTool,
-        Mcp::Tools::RuntimeCaptureArtifactTool
-      )
+      expect(tools.size).to eq(16)
     end
 
     it "excludes report_main_concern from the visual_reviewer role" do

@@ -58,7 +58,6 @@ import {
   type JobWorkflow,
   type PendingFeedbackComment
 } from "../api/jobs"
-import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
 import { ProviderAvailabilityWarning, providerFailoverTooltip } from "../components/ProviderAvailabilityWarning"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
@@ -992,7 +991,6 @@ function SummaryTab({
   withPreviewStop: (proceed: () => void) => void
 }) {
   const { t } = useT("jobs")
-  const coverageInfo = payload.coverage
   const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
@@ -1006,8 +1004,6 @@ function SummaryTab({
           <CollapsibleMarkdownSection emptyText={t("no_summary")} text={payload.summary?.text ?? null} title={t("section_agent_summary")} />
 
           <TestPlanPanel testPlan={payload.test_plan} />
-
-          {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 
           <PluginUiSlot panels={payload.ui_panels} props={{ job: payload.job }} />
 

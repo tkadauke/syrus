@@ -128,6 +128,17 @@ Supported members:
 - `upload`
 - `verify`
 
+### `Syrus::Host::BotIdentity`
+
+Since: `0.1.16`
+
+Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments. Only the listed members are supported.
+
+Supported members:
+
+- `authored_github_comment?`
+- `for`
+
 ### `Syrus::Host::Callbacks`
 
 Since: `0.1.16`
@@ -215,6 +226,26 @@ Supported members:
 - `raw_text`
 - `table`
 - `text`
+
+### `Syrus::Host::CodePathNormalizer`
+
+Since: `0.1.16`
+
+Normalizes tool-reported source paths to repository-relative paths. Only the listed members are supported.
+
+Supported members:
+
+- `normalize`
+
+### `Syrus::Host::CoverageParsers`
+
+Since: `0.1.16`
+
+Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::Current`
 
@@ -358,6 +389,22 @@ Supported members:
 - `refresh`
 - `submit`
 
+### `Syrus::Host::FeedbackKind`
+
+Since: `0.1.16`
+
+Resolves the feedback object for a workflow; its review_text feeds review prompts. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
+### `Syrus::Host::GithubContentTrust`
+
+Since: `0.1.16`
+
+Shares the GitHub-content prompt trust boundary. Only the listed members are supported.
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -471,6 +518,16 @@ Supported members:
 - `syrus_plugin`
 - `syrus_plugin_definition`
 
+### `Syrus::Host::PluginDispatch`
+
+Since: `0.1.16`
+
+Asks ecosystem capability providers a question and composes their answers. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::PluginInvocation`
 
 Since: `0.1.16`
@@ -495,6 +552,17 @@ Supported members:
 - `providers_with_owner_for`
 - `register`
 - `register_direct`
+
+### `Syrus::Host::PreviewPreparation`
+
+Since: `0.1.16`
+
+Prepares a preview for visual review. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+- `new`
 
 ### `Syrus::Host::ProcessRunner`
 
@@ -565,6 +633,42 @@ Supported members:
 - `tree`
 - `tree_sha`
 
+### `Syrus::Host::RepositoryGlob`
+
+Since: `0.1.16`
+
+Matches repository paths against configured globs. Only the listed members are supported.
+
+Supported members:
+
+- `match?`
+
+### `Syrus::Host::RetainedGraderCoverageOutputs`
+
+Since: `0.1.16`
+
+Reads the coverage files graders declared and the Run retained. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
+### `Syrus::Host::ReviewExecutionPolicy`
+
+Since: `0.1.16`
+
+Shares review-step skip and failure policy. Only the listed members are supported.
+
+### `Syrus::Host::ReviewFindingEvents`
+
+Since: `0.1.16`
+
+Records structured review findings. Only the listed members are supported.
+
+Supported members:
+
+- `record`
+
 ### `Syrus::Host::Run`
 
 Since: `0.1.16`
@@ -578,6 +682,27 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::SkillBase`
+
+Since: `0.1.16`
+
+Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `definition`
+
+### `Syrus::Host::StepFailed`
+
+Since: `0.1.16`
+
+Signals a deliberate, retry-classified step failure from a plugin-owned step. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::SystemAlert`
 
@@ -598,6 +723,16 @@ Defines the system-alert contribution plugins may provide; alert aggregation and
 Supported members:
 
 - `system_alerts`
+
+### `Syrus::Host::TargetGraphCompiler`
+
+Since: `0.1.16`
+
+Compiles repository target configuration. Only the listed members are supported.
+
+Supported members:
+
+- `compile`
 
 ### `Syrus::Host::ToolContext`
 
@@ -646,6 +781,60 @@ Supported members:
 - `jobs`
 - `repositories`
 
+### `Syrus::Host::VisualDiffSubmission`
+
+Since: `0.1.16`
+
+Coordinates deferred before/after visual comparisons. Only the listed members are supported.
+
+Supported members:
+
+- `enqueue_deferred_for_visual_review`
+
+### `Syrus::Host::VisualReviewEvidenceGuard`
+
+Since: `0.1.16`
+
+Validates visual review evidence. Only the listed members are supported.
+
+Supported members:
+
+- `blocked_evidence_reason`
+- `validate_visual_diff_after_artifacts`
+
+### `Syrus::Host::VisualReviewProjects`
+
+Since: `0.1.16`
+
+Resolves preview projects for a plugin-owned visual review step. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+- `configured_when_files_changed`
+
+### `Syrus::Host::VisualReviewRuntimeSession`
+
+Since: `0.1.16`
+
+Manages a visual review runtime session. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `start!`
+- `stop!`
+
+### `Syrus::Host::VisualReviewRuntimeTargets`
+
+Since: `0.1.16`
+
+Resolves runtime targets for a plugin-owned visual review step. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::Workflow`
 
 Since: `0.1.16`
@@ -659,6 +848,16 @@ Supported members:
 - `job`
 - `runs`
 - `state`
+
+### `Syrus::Host::WorkspaceContext`
+
+Since: `0.1.16`
+
+Carries the workspace path and format hint passed to ecosystem capability providers. Only the listed members are supported.
+
+Supported members:
+
+- `new`
 
 ## Legacy compatibility APIs
 

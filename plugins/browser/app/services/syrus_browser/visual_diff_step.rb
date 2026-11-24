@@ -1,0 +1,173 @@
+module SyrusBrowser
+  class VisualDiffStep < Steps::Base
+    BASELINE_RENDERER_TYPE = :image_diff
+    COMPARISON_RENDERER_TYPE = :before_after_visual_diff
+
+    def call
+      if auto_deferred? && obsolete_job_state?
+        skip!("Job is already #{job.state}; automatic visual comparison is no longer useful.")
+        return
+      end
+
+      after_artifacts = validated_after_artifacts
+      if after_artifacts.empty?
+        reason = rejected_after_artifact_reasons.presence&.join(" ") || "No after screenshots are available for visual_diff."
+        skip!(reason)
+        return
+      end
+
+      workspace.setup
+      record_base_revision!
+      before_count = baseline_entries.size
+      run.update!(prompt: prompt(after_artifacts)) if run.prompt.blank?
+      begin
+        run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_visual_artifact])
+      rescue CannotProceed => e
+        # Visual diff is auxiliary: failing to start the preview for baseline
+        # capture must degrade to a skipped step, never a blocked workflow
+        # that keeps the Job looking stuck.
+        job.clear_needs_attention!(reason: "agent_cannot_proceed")
+        reason = "Baseline capture could not run: #{e.reason}"
+        skip!(reason)
+        raise StepSkipped.new(reason, reason: reason)
+      end
+
+      workflow.reload
+      new_baselines = baseline_entries.drop(before_count)
+      pairs = VisualDiffPairs.new(workflow: workflow, after_artifacts: after_artifacts, baseline_entries: new_baselines).pairs
+      workflow.set_artifact!("visual_diff_pairs", pairs)
+
+      if pairs.empty?
+        skip!("No baseline screenshots were captured for the available after screenshots.")
+        return
+      end
+
+      workflow.set_typed_artifact!(
+        type: "visual_diff_comparison",
+        title: "Before/after visual comparison",
+        renderer_type: COMPARISON_RENDERER_TYPE,
+        payload: {
+          "base_revision" => workflow.artifact("visual_diff_base_revision"),
+          "base_branch" => job.effective_base_branch,
+          "head_revision" => job.branch_name,
+          "pairs" => pairs
+        }
+      )
+    end
+
+    private
+
+    def auto_deferred?
+      workflow.artifact("visual_diff_source") == Syrus::Host::VisualDiffSubmission::AUTOMATIC_SOURCE
+    end
+
+    def obsolete_job_state?
+      job.approved? || job.landing? || job.closed?
+    end
+
+    def skip!(reason)
+      log("[visual_diff] skipped: #{reason}", kind: "system")
+      workflow.set_artifact!("visual_diff_skipped_reason", reason)
+    end
+
+    def record_base_revision!
+      sha = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+      workflow.set_artifact!("visual_diff_base_revision", sha)
+    end
+
+    def prompt(after_artifacts)
+      SyrusBrowser::Prompts::VisualDiff.new(
+        job: job,
+        after_artifacts: after_artifacts,
+        baseline_type: workflow.artifact("visual_diff_baseline_type").presence || Syrus::Host::VisualDiffSubmission::BASELINE_TYPE,
+        base_branch: job.effective_base_branch
+      ).to_s
+    end
+
+    def validated_after_artifacts
+      raw_after_artifacts = Array(workflow.artifact("visual_diff_after_artifacts"))
+      raise StepFailed, "no after screenshots available for visual_diff" if raw_after_artifacts.empty? && rejected_after_artifact_reasons.empty?
+
+      validation = Syrus::Host::VisualReviewEvidenceGuard.validate_visual_diff_after_artifacts(
+        job: job,
+        prompt: run.prompt,
+        artifacts: raw_after_artifacts
+      )
+      rejected = Array(workflow.artifact("visual_diff_rejected_after_artifacts")) + validation.rejected_artifacts
+      rejected.uniq! { |artifact| [ artifact["type"], artifact["title"], artifact["image_url"], artifact["rejected_reason"] ] }
+      workflow.set_artifact!("visual_diff_rejected_after_artifacts", rejected) if rejected.present?
+      workflow.set_artifact!("visual_diff_after_artifacts", validation.accepted_artifacts) if validation.rejected?
+      log_rejected_after_artifacts(rejected)
+      validation.accepted_artifacts
+    end
+
+    def rejected_after_artifact_reasons
+      Array(workflow.artifact("visual_diff_rejected_after_artifacts")).filter_map do |artifact|
+        artifact["rejected_reason"].presence if artifact.is_a?(Hash)
+      end
+    end
+
+    def log_rejected_after_artifacts(rejected)
+      rejected_after_artifact_reasons = rejected.filter_map { |artifact| artifact["rejected_reason"].presence if artifact.is_a?(Hash) }
+      return if rejected_after_artifact_reasons.empty?
+
+      rejected_after_artifact_reasons.each do |reason|
+        log("[visual_diff] invalid after artifact: #{reason}", kind: "system")
+      end
+    end
+
+    def baseline_entries
+      baseline_type = workflow.artifact("visual_diff_baseline_type").presence || Syrus::Host::VisualDiffSubmission::BASELINE_TYPE
+      Array(workflow.artifact("typed_artifacts")).select do |entry|
+        entry.is_a?(Hash) &&
+          (entry["original_type"] == baseline_type || entry.dig("payload", "original_type") == baseline_type)
+      end
+    end
+
+    class VisualDiffPairs
+      def initialize(workflow:, after_artifacts:, baseline_entries:)
+        @workflow = workflow
+        @after_artifacts = after_artifacts
+        @baseline_entries = baseline_entries
+      end
+
+      def pairs
+        after_artifacts.each_with_index.filter_map do |after_artifact, index|
+          baseline = baseline_for(after_artifact, index)
+          next unless baseline
+
+          {
+            "title" => after_artifact["title"].presence || baseline["title"].presence || "Screenshot #{index + 1}",
+            "before" => image_payload(baseline),
+            "after" => image_payload(after_artifact)
+          }
+        end
+      end
+
+      private
+
+      attr_reader :workflow, :after_artifacts, :baseline_entries
+
+      def baseline_for(after_artifact, index)
+        title = after_artifact["title"].to_s
+        baseline_entries.find { |entry| entry["title"].to_s == title && title.present? } || baseline_entries[index]
+      end
+
+      def image_payload(entry)
+        payload = entry["payload"].to_h
+        {
+          "type" => entry["type"],
+          "title" => entry["title"],
+          "image_url" => payload["image_url"] || entry["image_url"],
+          "content_type" => payload["content_type"] || entry["content_type"],
+          "byte_size" => payload["byte_size"] || entry["byte_size"],
+          "created_at" => entry["created_at"],
+          "source" => payload["source"] || entry["source"],
+          "captured_at" => payload["captured_at"] || entry["captured_at"],
+          "page" => payload["page"] || entry["page"],
+          "viewport" => payload["viewport"] || entry["viewport"]
+        }.compact
+      end
+    end
+  end
+end

@@ -189,21 +189,6 @@ class Step
                 repair_semantics: :deterministic_idempotent,
                 runtime_inserted: true,
                 placement_policy: Step::PlacementPolicy::CONTROL_PLANE),
-      # Three verdicts rather than two: "skipped" (not visually testable, or
-      # filtered out by when_files_changed) exits the loop the same way
-      # "approved" does, since there is nothing for another iteration to
-      # address.
-      Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
-                agent_role: AgentRole::WORKFLOW_VISUAL_REVIEWER,
-                required_mcp_tools: %w[submit_visual_review],
-                resource_profile_fallback_step_kinds: %w[implement],
-                review_gate: {
-                  artifact_key: "visual_review_iterations",
-                  exit_verdicts: %w[approved skipped],
-                  cancellation_reason: "visual_review_approved"
-                }),
-      Entry.new(kind: "visual_diff",        handler: "VisualDiff",        label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
-                required_mcp_tools: %w[submit_visual_artifact]),
       Entry.new(kind: "summarize",          handler: "Summarize",          label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
                 agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
                 required_mcp_tools: %w[submit_summary]),
@@ -220,9 +205,6 @@ class Step
                 },
                 fail_policy: :advance,
                 resource_profile_fallback_step_kinds: %w[implement respond coding_handoff_fix]),
-      Entry.new(kind: "review_plan",        handler: "ReviewPlan",         label: "Review plan (retired)",      style: "bg-gray-100 text-gray-700",   agentic: false,
-                fail_policy: :advance,
-                repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "respond",            handler: "Respond",            label: "Address feedback",           style: "bg-cyan-100 text-cyan-700",   agentic: true),
       Entry.new(kind: "summarize_amend",    handler: "SummarizeAmend",     label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
                 agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
@@ -347,10 +329,6 @@ class Step
                 reconcile_strategy: :merge_train_land),
       Entry.new(kind: "manual",             handler: "Manual",             label: "Manual",                     style: "bg-gray-100 text-gray-700",   agentic: true),
       Entry.new(kind: "manual_agentic_run", handler: "ManualAgenticRun",   label: "Manual agentic run",         style: "bg-fuchsia-100 text-fuchsia-700", agentic: true),
-      Entry.new(kind: "coverage_analyze",   handler: "CoverageAnalyze",    label: "Analyze coverage",           style: "bg-yellow-100 text-yellow-700", agentic: false,
-                repair_semantics: :deterministic_idempotent),
-      Entry.new(kind: "coverage_pr_comment", handler: "CoveragePrComment", label: "Post coverage comment",     style: "bg-yellow-100 text-yellow-700", agentic: false,
-                repair_semantics: :publication),
       Entry.new(kind: "dependency_audit",   handler: "DependencyAudit",   label: "Dependency audit",           style: "bg-orange-100 text-orange-700", agentic: false,
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent),

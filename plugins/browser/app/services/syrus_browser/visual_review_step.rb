@@ -1,0 +1,404 @@
+module SyrusBrowser
+  class VisualReviewStep < Steps::Base
+    include Syrus::Host::ReviewExecutionPolicy
+
+    def call
+      workspace.setup
+
+      if configured_when_files_changed.any? && !configured_changed_files_match?
+        skip_via_pre_filter!
+        return
+      end
+
+      if visual_review_runtime_targets.empty?
+        skip_unavailable_runtime_target!
+        return
+      end
+
+      workflow.set_artifact!("visual_review_preview_projects", visual_review_projects.to_a)
+      workflow.set_artifact!("visual_review_runtime_targets", visual_review_runtime_targets.map(&:to_h))
+      return unless prepare_previews! if visual_review_runtime_targets.any?(&:legacy_browser)
+
+      begin
+        start_runtime_sessions!
+
+        run.update!(prompt: reviewer_prompt) if run.prompt.blank?
+
+        before_count = review_iterations.size
+        log("invoking agent for visual_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
+
+        run_agent(prompt: run.prompt,
+                  required_mcp_tools: %w[submit_visual_review],
+                  disallowed_tools: REVIEW_COLLIDING_TOOLS)
+
+        workflow.reload
+        if review_iterations.size <= before_count
+          capture_mcp_sidecar_stderr
+
+          # Deliberately does not mirror Steps::AdversarialReview's swallow-and-approve
+          # behavior after repeated missing-tool-call failures. That behavior is itself
+          # under separate reconsideration for being too broad (it rescues any
+          # StandardError, not just the missing-tool-call shape, once one prior Run on
+          # the step has failed for any reason). Even a correctly-narrowed version would
+          # still fake an "approved" verdict for visual QA, which is a worse failure mode
+          # here than for text review: a stuck/retried Job is visible and recoverable, a
+          # silently-approved-but-never-actually-reviewed UI regression is not. Raising
+          # unconditionally also isn't a loss of resilience — RunFailureClassifier already
+          # classifies this exact "agent didn't call submit_visual_review" shape as
+          # `missing_required_tool_call` (retryable), so WorkEngine::RepairExecutor's
+          # normal 5m/20m/1h auto-retry backoff already covers a transient reviewer miss
+          # without this step needing to swallow it.
+          fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
+                     evidence: { tool: "submit_visual_review" })
+        end
+
+        record_blocked_evidence_warning!(review_iterations.last)
+
+        Syrus::Host::VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
+      ensure
+        begin
+          discard_reviewer_workspace_changes
+        ensure
+          stop_runtime_sessions!
+        end
+      end
+    end
+
+    private
+
+    def record_blocked_evidence_warning!(iteration)
+      reason = iteration["blocked_evidence_reason"].presence || Syrus::Host::VisualReviewEvidenceGuard.blocked_evidence_reason(
+        job: job,
+        artifacts: Array(iteration["artifacts"]),
+        verdict: iteration["verdict"],
+        critique: iteration["critique"],
+        prompt: run.prompt
+      )
+      return if reason.blank?
+
+      evidence = {
+        "reason" => reason,
+        "verdict" => iteration["verdict"],
+        "run_id" => run.id,
+        "step_id" => step.id
+      }
+      workflow.set_artifact!("visual_review_blocked_evidence", evidence)
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "visual_review_blocked_evidence",
+        severity: "medium",
+        title: "Visual review completed with blocked evidence: #{reason}",
+        evidence: evidence
+      )
+      log("[visual_review] warning: #{reason}")
+    end
+
+    def prepare_previews!
+      workflow.set_artifact!("visual_review_preview_preparation_failure", nil)
+      if step.details.to_h.key?("preview_preparation_failure")
+        step.update!(details: step.details.to_h.except("preview_preparation_failure"))
+      end
+
+      preparations = visual_review_projects.to_a.map do |project|
+        project_id = project["id"] || project[:id]
+        log("[visual_review] preparing preview project #{project_id}")
+        Syrus::Host::PreviewPreparation.new(
+          workspace.path,
+          project_id: project_id,
+          run: run,
+          workflow: workflow,
+          log: method(:log),
+          preview_key: project_id.present? ? "#{run.id}:#{project_id}" : run.id
+        ).call.merge("run_id" => run.id)
+      end
+      workflow.set_artifact!("visual_review_preview_preparations", preparations)
+      true
+    rescue Syrus::Host::PreviewPreparation::Error => e
+      failure = e.details.merge(
+        "run_id" => run.id,
+        "step_id" => step.id,
+        "occurred_at" => Time.current.iso8601
+      )
+      workflow.set_artifact!("visual_review_preview_preparation_failure", failure)
+      step.update!(details: step.details.to_h.merge("preview_preparation_failure" => failure))
+      log("[visual_review] preview preparation unavailable: #{e.message}")
+      record_skip!("Visual review infrastructure could not prepare the preview (#{failure['reason']}): #{e.message}", skip_reason: failure["reason"])
+      skip_or_fail_unavailable_review!(
+        review_kind: "visual_review",
+        reason: failure["reason"],
+        message: "preview preparation unavailable: #{e.message}",
+        config_required: visual_review_config&.required == true
+      )
+    end
+
+    def parent_session_id
+      return nil if agent_resume_disabled?
+
+      explicit_parent_session_id ||
+        workflow.steps
+          .where(kind: "visual_review", loop_id: step.loop_id)
+          .where("iteration < ?", step.iteration)
+          .reorder(iteration: :desc)
+          .first&.latest_run&.provider_session&.session_id
+    end
+
+    def reviewer_prompt
+      SyrusBrowser::Prompts::VisualReview.new(
+        issue: review_issue,
+        diff: review_diff,
+        prior_findings: review_iterations,
+        workflow_kind: workflow.trigger_kind,
+        feedback_context: feedback_context_text,
+        test_plan_recommended: test_plan_artifact["visual_review_recommended"],
+        test_plan_reason: test_plan_artifact["visual_review_reason"],
+        seed_notes: visual_review_seed_notes,
+        manual_review_instructions: manual_review_instructions,
+        preview_projects: visual_review_projects.to_a,
+        runtime_targets: runtime_session_prompt_targets
+      ).to_s
+    end
+
+    def manual_review_instructions
+      Workflow::TriggerKind.visual_review_instructions_for(workflow)
+    end
+
+    def test_plan_artifact
+      workflow.artifact("test_plan").to_h
+    end
+
+    def visual_review_config
+      return @visual_review_config if defined?(@visual_review_config)
+
+      @visual_review_config = begin
+        SyrusYml.load_repo(workspace.path).visual_review
+      rescue SyrusYml::ParseError, Errno::ENOENT
+        nil
+      end
+    end
+
+    def visual_review_projects
+      @visual_review_projects ||= Syrus::Host::VisualReviewProjects.call(
+        workspace_path: workspace.path,
+        changed_files: changed_files
+      )
+    end
+
+    def visual_review_runtime_targets
+      @visual_review_runtime_targets ||= Syrus::Host::VisualReviewRuntimeTargets.call(
+        workspace_path: workspace.path,
+        changed_files: changed_files,
+        preview_projects: visual_review_projects
+      )
+    end
+
+    def start_runtime_sessions!
+      @runtime_session_lifecycles = []
+      visual_review_runtime_targets.reject(&:legacy_browser).each do |target|
+        lifecycle = Syrus::Host::VisualReviewRuntimeSession.new(run: run, target: target)
+        @runtime_session_lifecycles << lifecycle
+        lifecycle.start!
+      end
+      workflow.set_artifact!("visual_review_runtime_sessions", @runtime_session_lifecycles.map do |lifecycle|
+        session = lifecycle.runtime_session
+        { "id" => session.id, "provider" => session.provider_key, "name" => session.display_name }
+      end)
+    rescue StandardError => e
+      stop_runtime_sessions!
+      failure = { "reason" => "runtime_session_start_failed", "message" => e.message, "run_id" => run.id }
+      workflow.set_artifact!("visual_review_runtime_failure", failure)
+      skip_or_fail_unavailable_review!(
+        review_kind: "visual_review",
+        reason: failure["reason"],
+        message: failure["message"],
+        config_required: true
+      )
+    end
+
+    def stop_runtime_sessions!
+      Array(@runtime_session_lifecycles).reverse_each(&:stop!)
+    end
+
+    def runtime_session_prompt_targets
+      run.runtime_sessions.order(:id).map do |session|
+        target = session.metadata["visual_review_target"].to_h
+        target.merge(
+          "session_id" => session.id,
+          "state" => session.state,
+          "capabilities" => session.capabilities
+        )
+      end
+    end
+
+    def visual_review_seed_notes
+      [ visual_review_config&.seed_notes, visual_review_projects.seed_notes ].compact_blank.uniq.join("\n\n")
+    end
+
+    def configured_changed_files_match?
+      changed_files_match?(configured_when_files_changed)
+    end
+
+    def changed_files_match?(patterns)
+      changed_files.any? { |file| Syrus::Host::RepositoryGlob.match?(patterns, file) }
+    end
+
+    def configured_when_files_changed
+      @configured_when_files_changed ||= [
+        *Array(visual_review_config&.when_files_changed),
+        *Syrus::Host::VisualReviewProjects.configured_when_files_changed(workspace_path: workspace.path)
+      ].compact_blank.uniq
+    end
+
+    def changed_files
+      branch_diff = review_eligibility_diff
+      return diff_file_paths(branch_diff) if branch_diff.present?
+
+      GitRunner.new.run("diff", "--name-only", "#{default_branch_ref}...HEAD", chdir: workspace.path.to_s)
+        .split("\n").map(&:strip).reject(&:empty?)
+    rescue GitRunner::GitError, Errno::ENOENT => e
+      log("[visual_review] warning: could not determine changed files: #{e.message}")
+      []
+    end
+
+    def skip_via_pre_filter!
+      log("[visual_review] skipped: no changed files match visual_review.when_files_changed")
+      record_skip!(
+        "No changed files matched the configured visual_review.when_files_changed patterns.",
+        skip_reason: "visual_review_when_files_changed_no_match"
+      )
+    end
+
+    def skip_unavailable_runtime_target!
+      reason = if Array(visual_review_config&.targets).any?
+        "no_matching_visual_review_runtime_target"
+      else
+        visual_review_projects.unavailable_reason || "no_visual_review_runtime_target"
+      end
+      message = skip_message_for(reason)
+      log("[visual_review] skipped: #{message}")
+      workflow.set_artifact!("visual_review_preview_projects_unavailable_reason", reason)
+      record_skip!(message, skip_reason: reason)
+    end
+
+    def skip_message_for(reason)
+      {
+        "no_preview_configured" => "No preview is configured for this repository.",
+        "no_affected_preview_project" => "No affected project has a preview configured.",
+        "no_affected_visual_review_project" => "No affected preview project has visual_review enabled.",
+        "no_matching_visual_review_runtime_target" => "No visual-review runtime target matched the changed files.",
+        "visual_review_project_resolution_failed" => "Could not resolve affected preview projects for visual review."
+      }.fetch(reason.to_s, "Affected preview projects are unavailable for visual review.")
+    end
+
+    def record_skip!(critique, skip_reason:)
+      iterations = review_iterations
+      iterations << {
+        "iteration" => step.iteration,
+        "step_id" => step.id,
+        "run_id" => run.id,
+        "critique" => critique,
+        "verdict" => "skipped"
+      }
+      workflow.set_artifact!("visual_review_iterations", iterations)
+      Syrus::Host::ReviewFindingEvents.record(
+        workflow: workflow,
+        step: step,
+        run: run,
+        review_kind: "visual",
+        iteration: step.iteration,
+        verdict: "skipped",
+        critique: critique,
+        skipped: true,
+        skip_reason: skip_reason
+      )
+    end
+
+    def review_issue
+      job.synthetic_issue || Struct.new(:title, :body).new(job.issue_title.to_s, job.issue_body.to_s)
+    end
+
+    # Review the cumulative job diff (`<base>...HEAD`), not just the last
+    # implement/respond iteration: a later iteration (e.g. fixing adversarial
+    # review feedback) can touch far less than the job as a whole. The base is
+    # the job's effective base (parent branch for stacked jobs) via
+    # `default_branch_ref`. The per-step diff is only a fallback when the
+    # cumulative diff is unavailable. Standalone manual visual reviews have no
+    # agentic step at all, so they raise only when the branch has no changes.
+    def review_diff
+      cumulative_branch_diff.presence || latest_agentic_diff.presence
+    end
+
+    def review_eligibility_diff
+      cumulative_branch_diff.presence ||
+        if workflow.steps.where(kind: agentic_kind).exists?
+          latest_agentic_review_run&.agent_diff.presence || latest_agentic_diff.presence
+        end
+    end
+
+    def cumulative_branch_diff
+      return @cumulative_branch_diff if defined?(@cumulative_branch_diff)
+
+      @cumulative_branch_diff = begin
+        diff_against_default
+      rescue GitRunner::GitError, Errno::ENOENT => e
+        log("[visual_review] warning: cumulative diff unavailable, falling back to step diff: #{e.message}")
+        nil
+      end
+    end
+
+    def latest_agentic_diff
+      scope = workflow.steps.where(kind: agentic_kind)
+
+      if scope.exists?
+        latest_agentic_review_run
+          &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
+          .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for visual_review")
+      else
+        raise StepFailed, "no changes to review against #{default_branch_ref}"
+      end
+    end
+
+    def latest_agentic_review_run
+      workflow.steps.where(kind: agentic_kind, state: "succeeded")
+        .order(:position)
+        .last
+        &.latest_run
+    end
+
+    def agentic_kind
+      feedback_workflow? ? "respond" : "implement"
+    end
+
+    def diff_file_paths(diff)
+      diff.to_s.each_line.filter_map do |line|
+        next unless line.start_with?("diff --git ")
+
+        line[/\Ab\/(.+)\z/, 1] || line.split.last&.sub(/\Ab\//, "")
+      end.compact_blank.uniq
+    end
+
+    def feedback_workflow?
+      Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind).present?
+    end
+
+    def feedback_context_text
+      Syrus::Host::FeedbackKind.for(workflow)&.review_text
+    end
+
+    def review_iterations
+      Array(workflow.artifact("visual_review_iterations"))
+    end
+
+    def discard_reviewer_workspace_changes
+      return unless File.exist?(workspace.path.join(".git"))
+
+      status = GitRunner.new.run("status", "--porcelain", chdir: workspace.path.to_s)
+      return if status.strip.empty?
+
+      log("[visual_review] discarding uncommitted reviewer workspace changes", kind: "system")
+      git = streaming_git
+      git.run("restore", "--staged", "--worktree", ".", chdir: workspace.path.to_s)
+      git.run("clean", "-fd", chdir: workspace.path.to_s)
+    end
+  end
+end

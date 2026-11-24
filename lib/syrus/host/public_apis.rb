@@ -54,7 +54,27 @@ module Syrus
         EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
         EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan",
-        Toolkit: "Syrus::Plugin::Toolkit"
+        Toolkit: "Syrus::Plugin::Toolkit",
+        VisualReviewProjects: "App::VisualReviewProjects",
+        VisualReviewRuntimeTargets: "App::VisualReviewRuntimeTargets",
+        PreviewPreparation: "PreviewPreparation",
+        ReviewExecutionPolicy: "Steps::ReviewExecutionPolicy",
+        GithubContentTrust: "Prompts::GithubContentTrust",
+        RepositoryGlob: "RepositoryContent::Glob",
+        ReviewFindingEvents: "ReviewFindingEvents",
+        VisualDiffSubmission: "VisualDiffSubmission",
+        VisualReviewEvidenceGuard: "VisualReviewEvidenceGuard",
+        VisualReviewRuntimeSession: "VisualReviewRuntimeSession",
+        FeedbackKind: "Workflow::FeedbackKind",
+        TargetGraphCompiler: "TargetGraph::Compiler",
+        BotIdentity: "BotIdentity",
+        CodePathNormalizer: "CodeFacts::PathNormalizer",
+        CoverageParsers: "CoverageAnalysis::Parsers",
+        RetainedGraderCoverageOutputs: "RetainedGraderCoverageOutputs",
+        SkillBase: "Skills::Base",
+        StepFailed: "Steps::Base::StepFailed",
+        WorkspaceContext: "Syrus::Plugin::Context::WorkspaceContext",
+        PluginDispatch: "Syrus::Plugin::Dispatch"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -93,7 +113,27 @@ module Syrus
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
         EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ],
-        Toolkit: [ "Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition.", %w[chat_tool_sets chat_tool_set_for] ]
+        Toolkit: [ "Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition.", %w[chat_tool_sets chat_tool_set_for] ],
+        VisualReviewProjects: [ "Resolves preview projects for a plugin-owned visual review step.", %w[call configured_when_files_changed] ],
+        VisualReviewRuntimeTargets: [ "Resolves runtime targets for a plugin-owned visual review step.", %w[call] ],
+        PreviewPreparation: [ "Prepares a preview for visual review.", %w[new call] ],
+        ReviewExecutionPolicy: [ "Shares review-step skip and failure policy.", %w[] ],
+        GithubContentTrust: [ "Shares the GitHub-content prompt trust boundary.", %w[] ],
+        RepositoryGlob: [ "Matches repository paths against configured globs.", %w[match?] ],
+        ReviewFindingEvents: [ "Records structured review findings.", %w[record] ],
+        VisualDiffSubmission: [ "Coordinates deferred before/after visual comparisons.", %w[enqueue_deferred_for_visual_review] ],
+        VisualReviewEvidenceGuard: [ "Validates visual review evidence.", %w[blocked_evidence_reason validate_visual_diff_after_artifacts] ],
+        VisualReviewRuntimeSession: [ "Manages a visual review runtime session.", %w[new start! stop!] ],
+        FeedbackKind: [ "Resolves the feedback object for a workflow; its review_text feeds review prompts.", %w[for] ],
+        TargetGraphCompiler: [ "Compiles repository target configuration.", %w[compile] ],
+        BotIdentity: [ "Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments.", %w[for authored_github_comment?] ],
+        CodePathNormalizer: [ "Normalizes tool-reported source paths to repository-relative paths.", %w[normalize] ],
+        CoverageParsers: [ "Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract.", %w[for] ],
+        RetainedGraderCoverageOutputs: [ "Reads the coverage files graders declared and the Run retained.", %w[for] ],
+        SkillBase: [ "Bases plugin-contributed built-in skills; instruction rendering is not promised.", %w[definition] ],
+        StepFailed: [ "Signals a deliberate, retry-classified step failure from a plugin-owned step.", %w[new message] ],
+        WorkspaceContext: [ "Carries the workspace path and format hint passed to ecosystem capability providers.", %w[new] ],
+        PluginDispatch: [ "Asks ecosystem capability providers a question and composes their answers.", %w[call] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

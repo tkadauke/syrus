@@ -56,10 +56,6 @@ RSpec.describe Step::Kind do
       expect(described_class.agentic_values).to include("security_review")
     end
 
-    it "returns submit_visual_review for visual_review" do
-      expect(described_class.fetch("visual_review").required_mcp_tools).to eq(%w[submit_visual_review])
-    end
-
     it "returns empty array for non-submission steps" do
       %w[implement respond prepare pr_open push grader grader_collect].each do |kind|
         expect(described_class.fetch(kind).required_mcp_tools).to eq([]),
@@ -98,14 +94,6 @@ RSpec.describe Step::Kind do
       expect(entry.resource_profile_lookup_groups_for).to include(
         [ [ "implement", nil ], [ "respond", nil ], [ "coding_handoff_fix", nil ] ]
       )
-    end
-
-    it "keeps retired review_plan executable for persisted legacy workflows without MCP tools" do
-      entry = described_class.fetch("review_plan")
-
-      expect(entry.handler_class).to eq(Steps::ReviewPlan)
-      expect(entry.agentic).to be(false)
-      expect(entry.required_mcp_tools).to eq([])
     end
   end
 

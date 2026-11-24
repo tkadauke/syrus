@@ -173,10 +173,6 @@ default: &default
     class: WorkflowWorkspacePruneJob
     queue: cleanup
     schedule: every 2 hours
-  prune_coverage_hit_map_ttl:
-    class: CoverageHitMapTtlPruneJob
-    queue: cleanup
-    schedule: every day at 3:50am
   purge_expired_passkey_challenges:
     class: PurgeExpiredPasskeyChallengesJob
     queue: cleanup

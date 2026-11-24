@@ -33,8 +33,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/resume_landing_queue.tsx
     app/frontend/routes/chat/tool_cards/retry_from_current_pr_branch.tsx
     app/frontend/routes/chat/tool_cards/retry_job.tsx
-    app/frontend/routes/chat/tool_cards/run_visual_diff.tsx
-    app/frontend/routes/chat/tool_cards/run_visual_review.tsx
     app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
     app/frontend/routes/chat/tool_cards/search_chats.tsx
     app/frontend/routes/chat/tool_cards/search_jobs.tsx
@@ -286,7 +284,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
   def code_or_protocol_literals
     @code_or_protocol_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
       app/frontend/api/repositories.ts|jsx_text|githubSelectorFallback
-      app/frontend/components/CoverageCard.tsx|jsx_text|(threshold: %)
+      plugins/syrus_coverage/app/frontend/ui_slots/CoverageCard.tsx|jsx_text|(threshold: %)
       app/frontend/components/AdminEventActions.tsx|jsx_text|JOB-
       app/frontend/components/Checkbox.tsx|jsx_text|in a
       app/frontend/components/Checkbox.tsx|ternary|border-danger text-danger accent-danger focus-visible:ring-danger

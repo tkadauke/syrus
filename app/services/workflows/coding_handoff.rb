@@ -35,6 +35,7 @@ module Workflows
       prepare_then(
         job,
         review_gate_loops(job, agent_step: :coding_handoff_fix),
+        judge_loops(job, agent_step: :coding_handoff_fix),
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair_first: false,

@@ -181,6 +181,13 @@ Coverage belongs in the repository's grader command. Syrus can read configured
 coverage artifacts, summarize deltas, and post a PR comment when requested,
 but the command itself should decide when coverage is collected.
 
+Coverage analysis is provided by the Coverage plugin, which is on by default. It
+adds its analysis step once, after the review and grade loops, only for
+repositories that configure `coverage:` in `.syrus.yml`, and its PR comment once
+the pull request exists. An operator can disable the plugin: new workflows then
+omit the steps and the `coverage:` block is ignored without an error, while
+recorded coverage history is kept.
+
 Coverage is analyzed in the `review` phase, so that is the phase typed
 framework graders instrument. A typed grader declaring `coverage: true` runs
 uninstrumented in `landing` and `ci`, where nothing reads the result and the

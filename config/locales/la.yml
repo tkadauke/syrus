@@ -537,6 +537,9 @@ la:
         cleaned_up_at: "Purgatum"
     user_time_zones:
       invalid_mode: "modus automatic vel manual esse debet"
+    admin:
+      plugin_disable:
+        workflow_steps_in_flight: "Workflow nondum finitus gradus a %{plugin} possessos continet. Exspecta dum absolvatur antequam plugin inhabiles."
     chat_shell_commands:
       unsupported_chat_mode: "Praecepta shell solum in sessionibus chat Coding Mode vel Local Mode praesto sunt."
       feature_disabled: "%{mode} in hac instantia non activatus est."

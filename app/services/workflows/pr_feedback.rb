@@ -28,8 +28,11 @@ module Workflows
         job,
         :respond,
         review_gate_loops(job, agent_step: :respond),
+        judge_loops(job, agent_step: :respond),
         grader_retry_loop(job, :respond, autofix: true, repair_first: false),
-        feedback_finish_steps(job)
+        post_implementation_steps(job),
+        feedback_finish_steps(job),
+        post_pr_steps(job)
       )
     end
 

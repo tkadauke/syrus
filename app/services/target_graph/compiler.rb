@@ -198,7 +198,7 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.security_review || config&.review_notes || config&.coverage || plugin_configuration_present?(config&.plugin_configurations)
+      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.security_review || config&.review_notes || plugin_configuration_present?(config&.plugin_configurations)
 
       if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
@@ -220,7 +220,6 @@ class TargetGraph
         adversarial_review: config&.adversarial_review,
         security_review: config&.security_review,
         review_notes: config&.review_notes,
-        coverage: config&.coverage,
         capabilities: declared&.capabilities,
         plugin_configurations: config&.plugin_configurations
       )
@@ -300,7 +299,6 @@ class TargetGraph
           adversarial_review: nested_config.adversarial_review,
           security_review: nested_config.security_review,
           review_notes: nested_config.review_notes,
-          coverage: nested_config.coverage,
           plugin_configurations: nested_config.plugin_configurations
         )
 
@@ -323,10 +321,10 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, review_notes: nil, coverage: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, review_notes: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || security_review || review_notes || coverage || plugin_configuration_present?(plugin_configurations))
+        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || security_review || review_notes || plugin_configuration_present?(plugin_configurations))
 
         merged_capabilities = merge_capabilities!(
           existing.capabilities,
@@ -345,7 +343,6 @@ class TargetGraph
             adversarial_review: adversarial_review || existing.adversarial_review,
             security_review: security_review || existing.security_review,
             review_notes: review_notes || existing.review_notes,
-            coverage: coverage || existing.coverage,
             capabilities: merged_capabilities,
             plugin_configurations: existing.plugin_configurations.overlay(plugin_configurations)
           )
@@ -365,7 +362,6 @@ class TargetGraph
           adversarial_review: adversarial_review,
           security_review: security_review,
           review_notes: review_notes,
-          coverage: coverage,
           capabilities: declared_project&.capabilities,
           plugin_configurations: plugin_configurations
         )

@@ -1,15 +1,15 @@
 require "rails_helper"
 
 RSpec.describe Coworkers::ReviewGate do
-  it "is registered as a review gate ordered between security and visual review" do
+  it "is registered as a review gate ordered after security review" do
     definition = Workflows::ReviewGateRegistry.definitions.find { |item| item.key == "coworker" }
 
     expect(definition).to have_attributes(
       step_kind: "coworker_review", after: %w[security], before: %w[visual],
       verdict_artifact: "coworker_review_iterations", panel_capable: true
     )
-    expect(Workflows::ReviewGateRegistry.ordered("after_agent").map(&:step_kind).last(3))
-      .to eq(%w[security_review coworker_review visual_review])
+    expect(Workflows::ReviewGateRegistry.ordered("after_agent").map(&:step_kind).last(2))
+      .to eq(%w[security_review coworker_review])
   end
 
   it "declares the coworker_review step kind from the plugin" do

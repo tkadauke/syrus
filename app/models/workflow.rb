@@ -46,7 +46,6 @@ class Workflow < ApplicationRecord
   has_many :auto_retry_attempts, dependent: :destroy
   has_many :diff_review_comments, dependent: :nullify
   has_many :diff_review_versions, dependent: :nullify
-  has_one_attached :coverage_hit_map
   has_many_attached :visual_artifacts
   has_many :visual_evidences, class_name: "WorkflowVisualEvidence", dependent: :destroy
   has_many :workflow_workspace_events, dependent: :destroy
@@ -1025,35 +1024,6 @@ class Workflow < ApplicationRecord
     WorkDefinitions.for_existing(trigger_kind)
   end
 
-
-  # Compress json_data (a Hash) with gzip and attach it as the coverage_hit_map blob.
-  # Hit map structure: { "app/models/user.rb" => { "1" => 3, "2" => 0, "5" => 1 } }
-  # (line number string → hit count; absent line = not executable)
-  def attach_coverage_hit_map!(json_data)
-    compressed = StringIO.new.tap do |io|
-      gz = Zlib::GzipWriter.new(io)
-      gz.write(JSON.generate(json_data))
-      gz.close
-    end.string
-    coverage_hit_map.attach(
-      io: StringIO.new(compressed),
-      filename: "coverage_hit_map.json.gz",
-      content_type: "application/gzip"
-    )
-  end
-
-  # Decompress and parse the attached hit map blob. Returns nil if no attachment.
-  def coverage_hit_map_data
-    return nil unless coverage_hit_map.attached?
-
-    compressed = coverage_hit_map.download
-    JSON.parse(Zlib::GzipReader.new(StringIO.new(compressed)).read)
-  end
-
-  # Detach and delete the coverage hit map blob.
-  def purge_coverage_hit_map!
-    coverage_hit_map.purge
-  end
 
   # Attaches base64-decoded image bytes as a visual artifact, tagged with
   # `type` in blob metadata so visual_artifact_for(type) can look it up

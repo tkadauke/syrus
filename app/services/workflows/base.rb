@@ -203,10 +203,6 @@ module Workflows
       job.skip_prepare?
     end
 
-    def self.coverage_analyze_for(job)
-      "coverage_analyze" if RepoCoveragePlanReader.for_job(job)
-    end
-
     # Fetches and parses the repository's default-branch `.syrus.yml`
     # exactly once. Callers that consult more than one Repo*Plan while
     # building a chain (Initial, Retry, CodingHandoff, MainBranchRepair,
@@ -258,6 +254,18 @@ module Workflows
       end
     end
 
+    def self.judge_loops(job, agent_step:)
+      Workflows::CompositionAnchors.judges(job:, trigger_kind:, agent_step:)
+    end
+
+    def self.post_implementation_steps(job)
+      Workflows::CompositionAnchors.post_implementation(job:)
+    end
+
+    def self.post_pr_steps(job)
+      Workflows::CompositionAnchors.post_pr(job:)
+    end
+
     # `autofix:` inserts the config-driven format (rubocop -a, eslint --fix,
     # gofmt -w, ... or `.syrus.yml` `formatters:`) and generate (`.syrus.yml`
     # `generated:`) steps between the agent step and the grader check on
@@ -270,8 +278,8 @@ module Workflows
     #
     # For those autofix call sites, format/generate/grader Steps are only
     # materialized when the repository's `.syrus.yml` actually configures
-    # them (RepoGradeLoopPlan, read pre-clone the same way
-    # RepoAdversarialReviewPlan/RepoVisualReviewPlan are) — none of the
+    # them (RepoGradeLoopPlan, read pre-clone the same way as the other
+    # repository plans) — none of the
     # three is configured by default, so a freshly onboarded repo with no
     # `.syrus.yml` yet gets a bare agent step with no grade loop at all. As
     # soon as any one of them is configured, the whole grade loop (the agent
@@ -358,8 +366,6 @@ module Workflows
 
     def self.feedback_finish_steps(job = nil)
       [
-        "coverage_analyze",
-        "coverage_pr_comment",
         "dependency_audit",
         "dependency_audit_pr_comment",
         "summarize_amend",

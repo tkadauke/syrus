@@ -217,9 +217,10 @@ RSpec.describe "Syrus grader configuration" do
     )
     expect(graph.root_project.preview).to eq(config.preview)
     expect(graph.root_project.visual_review).to eq(config.visual_review)
-    expect(graph.root_project.coverage.sources.map(&:artifact)).to eq(config.coverage.sources.map(&:artifact))
-    expect(graph.root_project.coverage.threshold).to eq(config.coverage.threshold)
-    expect(graph.root_project.coverage.project_id).to eq("repo")
+    coverage_key = "syrus_coverage.config"
+    expect(graph.root_project.plugin_configurations[coverage_key].sources.map(&:artifact))
+      .to eq(config.plugin_configurations[coverage_key].sources.map(&:artifact))
+    expect(graph.root_project.plugin_configurations[coverage_key].threshold).to eq(config.plugin_configurations[coverage_key].threshold)
   end
 
   it "declares the CLI project and Go test target in cli/.syrus.yml" do
@@ -362,7 +363,7 @@ RSpec.describe "Syrus grader configuration" do
     expect(config.prepare).to eq([ "npm ci" ])
     expect(config.preview.start).to eq("npm exec vite -- --host 0.0.0.0 --port $PORT")
     expect(config.visual_review).to have_attributes(enabled: true, rounds: 2)
-    expect(config.coverage.sources.first.artifact).to eq("coverage/lcov.info")
+    expect(config.plugin_configurations["syrus_coverage.config"].sources.first.artifact).to eq("coverage/lcov.info")
 
     graph = root_graph
     expect(graph.target("//desktop:renderer-build").command).to eq("npm run build:renderer")

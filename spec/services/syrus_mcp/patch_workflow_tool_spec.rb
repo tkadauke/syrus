@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe SyrusMcp::PatchWorkflowTool do
   let(:run) { Factories.job.initial_run }
 
-  def call_tool(step_kinds: [ "visual_review" ], reason: "UI change needs visual QA", after_kind: "implement")
+  def call_tool(step_kinds: [ "adversarial_review" ], reason: "Implementation needs another review", after_kind: "implement")
     described_class.call(
       step_kinds: step_kinds,
       reason: reason,

@@ -7,9 +7,7 @@ RSpec.describe ProviderRouting::HoldReevaluator do
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: false, source: nil, note: nil)
     )
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
-      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: nil)
-    )
+    stub_no_workflow_judges
     allow(App::ProviderAvailability).to receive(:for_user).and_return(nil)
     allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
   end

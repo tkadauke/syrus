@@ -39,41 +39,6 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
     allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return([ catalog_descriptor ])
   end
 
-  it "discovers visual-review tools as permission-controlled coworker operations" do
-    visual_tools = McpToolRegistry.entries(surface: :coworker).filter_map do |entry|
-      next unless %w[run_visual_review run_visual_diff].include?(entry.tool_name)
-
-      Mcp::CoworkerToolCatalog::Descriptor.new(
-        tool_name: entry.tool_name,
-        capability: "syrus.visual_review",
-        ungated: entry.ungated,
-        approval_effect: entry.approval_effect,
-        tier: entry.tier,
-        tool: entry.tool,
-        provider: nil,
-        description: entry.tool.description_value
-      )
-    end
-    allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return(visual_tools)
-
-    result = described_class.new(context).call(
-      query: "syrus.visual_review",
-      include_non_requestable: true
-    ).sole
-
-    expect(result).to have_attributes(
-      capability: "syrus.visual_review",
-      state: "requestable",
-      blocker: "permission",
-      tools: %w[run_visual_diff run_visual_review]
-    )
-    expect(result.prerequisites).to include(
-      include(id: "role_eligible", satisfied: true),
-      include(id: "permission", satisfied: false, reason: "capability_not_granted")
-    )
-    expect(result.next_action).to include(type: "request_permission", grants_authority: false)
-  end
-
   it "reports an eligible ungranted family as requestable with scope, policy, and lock reason" do
     allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
 

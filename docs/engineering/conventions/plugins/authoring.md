@@ -59,6 +59,30 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `repository_filter`
 - `system_alert_provider`
 
+## Workflow composition anchors
+
+The workflow kernel hosts three qualified extension points. A plugin that
+contributes a step must also register that step and its handler through
+`workflow_kinds`.
+
+- `workflow:judge` providers expose `.judges`, returning entries with
+  `step_kind`, `order`, `trigger_kinds`, and a callable `rounds_for(job)`.
+  Core pairs each enabled judge with the workflow's agent step and creates a
+  review-first `Workflows::Loop`; plugins do not control `review_first`.
+- `workflow:post_implementation` providers expose `.post_implementation`,
+  returning entries with `step_kind`, `order`, and callable
+  `enabled_for(job)`. These steps run once after judge and grade loops and
+  before summary/PR publication.
+- `workflow:post_pr` providers expose `.post_pr`, returning the same fields
+  plus `fail_policy`. The policy must match the registered `Step::Kind`; use
+  `:advance` for advisory work that must not fail the parent workflow.
+
+Contributions are ordered by `order`, then plugin and step kind for a stable
+tie break. The resulting loop and step nodes serialize into the existing
+`chain_template`; no plugin-specific persistence is available or required.
+Disabling a plugin is refused while a non-terminal workflow contains one of
+its step kinds, including when that particular step has already finished.
+
 `repository_filter` providers receive an accessible Repository relation and
 the current user through `apply(scope:, user:)`. They may narrow
 general-purpose repository discovery surfaces without changing direct access

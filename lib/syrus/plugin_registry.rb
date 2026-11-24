@@ -55,7 +55,19 @@ module Syrus
       backup_artifact_source
       backup_destination
       system_alert_provider
+      line_coverage_provider
+      skill
     ].freeze
+
+    # Qualified points hosted by the workflow kernel rather than by an
+    # installable plugin. They use the same federated lookup and contribution
+    # lifetime rules as plugin-hosted points without manufacturing a "core"
+    # plugin record in the operator inventory.
+    CORE_HOSTED_EXTENSION_POINTS = Set.new(%w[
+      workflow:judge
+      workflow:post_implementation
+      workflow:post_pr
+    ]).freeze
 
     # Kept with EXTENSION_POINTS so adding a capability also requires explaining
     # when a plugin author should use it. Generated authoring documentation
@@ -94,6 +106,8 @@ module Syrus
       job_origin: "Describes and renders a plugin-owned source from which Jobs may originate.",
       mentionable: "Adds a plugin-owned entity that users and agents can address through mentions.",
       chat_identity_provider: "Supplies plugin-owned participant identities and presentation metadata for chat.",
+      line_coverage_provider: "Supplies per-line coverage evidence for reviewed diffs, the latest default-branch file coverage, and agent-prompt context.",
+      skill: "Contributes built-in skills, each a named instruction set resolved like the host's own built-in skills.",
       preview_panel_viewer: "Renders a supported content type inside the repository preview panel.",
       preview_panel_retention: "Decides which plugin-owned preview resources remain available and when they expire.",
       repository_recommendation: "Produces evidence-backed plugin recommendations for a repository.",
@@ -152,6 +166,8 @@ module Syrus
       job_origin:              -> { Syrus::Plugin::JobOrigin },
       mentionable:              -> { Syrus::Plugin::Mentionable },
       chat_identity_provider:     -> { Syrus::Plugin::ChatIdentityProvider },
+      line_coverage_provider:  -> { Syrus::Plugin::LineCoverageProvider },
+      skill:                   -> { Syrus::Plugin::Skill },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       preview_panel_retention: -> { Syrus::Plugin::PreviewPanelRetention },
       repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },
@@ -352,14 +368,15 @@ module Syrus
         health = health_for(plugins, enabled_names: enabled.map(&:name))
         live = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
 
+        core_hosted = CORE_HOSTED_EXTENSION_POINTS.include?(key)
         host = live.find { |manifest| manifest.name == host_name }
-        return [] if host.nil?
+        return [] if host.nil? && !core_hosted
 
         # The host must actually declare the point. Without this any
         # "<plugin>:<anything>" would silently resolve, and the declared
         # surface the boundary audit reasons about would stop meaning
         # anything.
-        return [] unless host.hosted_extension_points.include?(key)
+        return [] unless core_hosted || host.hosted_extension_points.include?(key)
 
         live.flat_map do |manifest|
           Array(manifest.provides[key] || manifest.provides[key.to_sym]).compact.map { |provider| [ manifest.name, provider ] }
@@ -367,7 +384,8 @@ module Syrus
       end
 
       def hosted_extension_points
-        @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
+        CORE_HOSTED_EXTENSION_POINTS |
+          @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
       end
 
       # Plugin-hosted extension points own their contracts. They use this seam

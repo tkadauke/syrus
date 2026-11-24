@@ -1,0 +1,399 @@
+require "rails_helper"
+
+RSpec.describe SyrusBrowser::Prompts::VisualReview do
+  let(:issue) { Struct.new(:title, :body).new("Add a dashboard banner", "Show a banner on the dashboard.") }
+  let(:diff) { "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n" }
+
+  subject(:prompt) do
+    described_class.new(
+      issue: issue,
+      diff: diff,
+      prior_findings: prior_findings,
+      workflow_kind: workflow_kind,
+      feedback_context: feedback_context,
+      test_plan_recommended: test_plan_recommended,
+      test_plan_reason: test_plan_reason,
+      seed_notes: seed_notes,
+      preview_projects: preview_projects,
+      runtime_targets: runtime_targets
+    ).to_s
+  end
+
+  let(:prior_findings) { [] }
+  let(:workflow_kind) { nil }
+  let(:feedback_context) { nil }
+  let(:test_plan_recommended) { nil }
+  let(:test_plan_reason) { nil }
+  let(:seed_notes) { nil }
+  let(:preview_projects) { [] }
+  let(:runtime_targets) { [] }
+
+  context "with a terminal runtime target" do
+    let(:runtime_targets) do
+      [
+        {
+          "session_id" => 41,
+          "provider" => "cli_tui",
+          "name" => "Queue console",
+          "capabilities" => { "input" => %w[keyboard stdin pointer resize], "inspect" => %w[screen], "artifacts" => %w[screenshots] },
+          "launch" => { "command" => "bin/queue" },
+          "dimensions" => { "columns" => 100, "rows" => 32 },
+          "review_notes" => "Open the failed queue",
+          "captures" => [ "queue loaded" ]
+        }
+      ]
+    end
+
+    it "provides the target contract and a deterministic TUI review protocol" do
+      expect(prompt).to include("session_id=41", "provider=cli_tui", 'launch={"command":"bin/queue"}')
+      expect(prompt).to include('capabilities={"input":["keyboard","stdin","pointer","resize"]')
+      expect(prompt).to include("acquire input control", "semantic screen state", "expected visible text")
+      expect(prompt).to match(/text, key,\s+chord, mouse, and resize events/)
+      expect(prompt).to include("labeled full-color screenshots", "submit_visual_review")
+    end
+  end
+
+  it "includes independence instruction" do
+    expect(prompt).to include("independent visual QA reviewer")
+  end
+
+  it "includes the job title and body" do
+    expect(prompt).to include("Add a dashboard banner")
+    expect(prompt).to include("Show a banner on the dashboard.")
+  end
+
+  it "includes the diff" do
+    expect(prompt).to include('<div class="banner">New</div>')
+  end
+
+  context "with an oversized diff" do
+    let(:diff) do
+      [
+        "diff --git a/app/frontend/routes/Dashboard.tsx b/app/frontend/routes/Dashboard.tsx",
+        "--- a/app/frontend/routes/Dashboard.tsx",
+        "+++ b/app/frontend/routes/Dashboard.tsx",
+        "@@ -1,2 +1,3 @@",
+        "+<section className=\"banner\">New launch state</section>",
+        "diff --git a/config/catalog.yml b/config/catalog.yml",
+        "--- a/config/catalog.yml",
+        "+++ b/config/catalog.yml",
+        "@@ -1,2 +1,8000 @@",
+        ("+catalog_entry: generated-data\n" * 3_000)
+      ].join("\n")
+    end
+
+    it "summarizes changed files and preserves UI-relevant hunks without embedding huge data diffs" do
+      expect(prompt).to include("bounded for visual review prompt budget")
+      expect(prompt).to include("Full diff omitted because")
+      expect(prompt).to include("- app/frontend/routes/Dashboard.tsx")
+      expect(prompt).to include("- config/catalog.yml")
+      expect(prompt).to include('<section className="banner">New launch state</section>')
+      expect(prompt.scan("catalog_entry: generated-data").size).to be < 10
+      expect(prompt.length).to be < diff.length
+    end
+  end
+
+  it "labels the diff as the full job diff by default" do
+    expect(prompt).to include("Full job diff against the base branch")
+    expect(prompt).to include("Never skip because changes were \"committed in earlier steps\"")
+    expect(prompt).not_to include("latest succeeded")
+  end
+
+  it "includes submit_visual_review tool instructions" do
+    expect(prompt).to include("submit_visual_review")
+    expect(prompt).to include("exact name shown in your tool list")
+  end
+
+  it "describes the go/no-go, start_preview, browser, screenshot, and stop_preview workflow" do
+    expect(prompt).to include("start_preview")
+    expect(prompt).to include("stop_preview")
+    expect(prompt).to include("verdict \"skipped\"")
+  end
+
+  context "with one affected preview project" do
+    let(:preview_projects) do
+      [
+        {
+          "id" => "web",
+          "label" => "Web app",
+          "path" => "apps/web",
+          "owner_config_path" => "apps/web/.syrus.yml"
+        }
+      ]
+    end
+
+    it "lists the project and permits a bare start_preview call" do
+      expect(prompt).to include("Affected preview projects available to this visual review")
+      expect(prompt).to include("project_id: web; label: Web app; path: apps/web; config: apps/web/.syrus.yml")
+      expect(prompt).to include("Call `start_preview` without project_id to use this single affected project")
+    end
+  end
+
+  context "with multiple affected preview projects" do
+    let(:preview_projects) do
+      [
+        { id: "web", label: "Web app", path: "apps/web", owner_config_path: "apps/web/.syrus.yml" },
+        { id: "admin", label: "Admin app", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml" }
+      ]
+    end
+
+    it "tells the reviewer to pass a project_id instead of using an ambiguous bare start_preview" do
+      expect(prompt).to include("project_id: web; label: Web app; path: apps/web; config: apps/web/.syrus.yml")
+      expect(prompt).to include("project_id: admin; label: Admin app; path: apps/admin; config: apps/admin/.syrus.yml")
+      expect(prompt).to include("Call `start_preview` once per project you need to inspect")
+      expect(prompt).to include("A bare `start_preview` is ambiguous for this change")
+      expect(prompt).to include("choose the relevant project_id")
+    end
+  end
+
+  it "tells the reviewer to use exact browser_snapshot refs for browser interactions" do
+    expect(prompt).to include("call `browser_snapshot` first")
+    expect(prompt).to include("Never invent refs")
+    expect(prompt).to include("pass an undefined target")
+  end
+
+  it "tells the reviewer not to run builds or tests as fallback verification" do
+    expect(prompt).to include("Do not run builds, test suites, graders, typecheckers, linters")
+    expect(prompt).to include("Those belong to Syrus grader steps")
+    expect(prompt).to include("Do not fall back to builds, tests, lint")
+  end
+
+  it "tells the reviewer to test both a desktop and mobile viewport by default, switching with browser_emulate" do
+    expect(prompt).to include("browser_emulate")
+    expect(prompt).to include('preset: "iphone-15-pro"')
+    expect(prompt).to include('preset: "desktop"')
+    expect(prompt).to include('color_scheme: "dark"')
+    expect(prompt).to include("env(safe-area-inset-*)")
+    expect(prompt).to include("browser_resize")
+    expect(prompt).to include("1280x800")
+    expect(prompt).to include("390x844")
+    expect(prompt).to include("desktop viewport")
+    expect(prompt).to include("mobile viewport")
+  end
+
+  it "permits skipping a viewport with a stated reason, not silently" do
+    expect(prompt).to include("You may skip one viewport when the issue/diff context makes it clearly")
+    expect(prompt).to include("state why in your critique")
+    expect(prompt).to include("not a silent omission")
+  end
+
+  it "warns that browser_snapshot refs must be re-taken after a resize" do
+    expect(prompt).to include("re-run `browser_snapshot` after every resize to re-resolve the subject")
+    expect(prompt).to include("never reuse refs captured at the previous viewport size")
+  end
+
+  it "requires every visual artifact to identify and visibly capture the subject" do
+    expect(prompt).to include("Every `submit_visual_artifact` call must pass a structured `subject`")
+    expect(prompt).to include('{type: "snapshot_ref", ref: "e12", snapshot_token: "..."}')
+    expect(prompt).to include('{type: "css", selector: "[data-testid=...]"}')
+    expect(prompt).to include("scroll the subject into view and verify that it is visible")
+    expect(prompt).to include("does not show the subject of the Job is not evidence and must not be submitted")
+  end
+
+  it "allows descriptive screenshot types without making association depend on them" do
+    expect(prompt).to include("descriptive `type`")
+    expect(prompt).to include("trusted run and image provenance, not from an exact type name")
+  end
+
+  it "directs long-page reviews to an isolated route with only necessary context" do
+    expect(prompt).to include("UI changes inside long pages or lists")
+    expect(prompt).to match(/most isolated route that renders the\s+subject under review/)
+    expect(prompt).to include("focused detail, component-preview, or catalog route")
+    expect(prompt).to include("Include nearby context only when it is needed")
+  end
+
+  it "describes browser_drop as the preferred tool for native file drag-and-drop" do
+    expect(prompt).to include("browser_drop")
+    expect(prompt).to include("synthesizes a real drag/drop via")
+  end
+
+  it "describes browser_evaluate as a fallback for drag-and-drop cases browser_drop doesn't cover" do
+    expect(prompt).to include("browser_evaluate")
+    expect(prompt).to include("synthetic `File` + `DataTransfer`")
+    expect(prompt).to include("dragenter`/`dragover`/`drop`")
+    expect(prompt).to include("fireEvent.drop(target, { dataTransfer: { files } })")
+    expect(prompt).to include("doesn't cover")
+  end
+
+  it "describes when to use browser_file_upload for file-picker attachment" do
+    expect(prompt).to include("browser_file_upload")
+    expect(prompt).to include("File-picker")
+  end
+
+  it "describes when to use browser_drag for non-file element-to-element dragging" do
+    expect(prompt).to include("browser_drag")
+    expect(prompt).to include("Non-file element-to-element dragging")
+  end
+
+  it "tells the reviewer that literal OS-level file drag from the desktop is permanently unverifiable" do
+    expect(prompt).to include("permanently unverifiable")
+    expect(prompt).to include("OS-level drag")
+    expect(prompt).to include('verdict "skipped"')
+    expect(prompt).to include("do not spend retries hunting for a way around it")
+  end
+
+  it "tells the reviewer to skip when browser automation is broken" do
+    expect(prompt).to include("browser automation itself appears unavailable or broken")
+    expect(prompt).to match(/at\s+most two focused retries/)
+    expect(prompt).to include('verdict "skipped"')
+    expect(prompt).to include("tooling blocker")
+  end
+
+  it "forbids approving from an unrelated proxy route when the changed surface can't be reached" do
+    expect(prompt).to include("Changed-surface coverage")
+    expect(prompt).to include("do not approve the change based on")
+    expect(prompt).to include("screenshots of a different, unrelated, or merely similar-looking page")
+    expect(prompt).to include("used as a proxy for it")
+  end
+
+  it "allows a faithful proxy only when the Job/diff makes the shared component itself the target, with a stated reason" do
+    expect(prompt).to include("verifying that shared component through another page the intended")
+    expect(prompt).to include("state in your critique exactly why the proxy page")
+    expect(prompt).to include("is a faithful stand-in for the changed surface")
+  end
+
+  it "tells the reviewer to record skipped for a tooling/seed-data blocker on the intended surface" do
+    expect(prompt).to include('verdict "skipped" when the blocker')
+    expect(prompt).to include("no synced clone, missing seed data")
+    expect(prompt).to include("auth/session state you cannot obtain")
+  end
+
+  it "tells the reviewer to record needs_work when the missing route/data/preview setup is itself a defect" do
+    expect(prompt).to include('verdict "needs_work" when the')
+    expect(prompt).to include("implementation or preview-seeding defect")
+  end
+
+  it "requires the critique to name the intended surface and the rejected fallback" do
+    expect(prompt).to include("must explicitly name (a) the intended")
+    expect(prompt).to include("surface you could not exercise, and (b) the fallback or proxy page")
+    expect(prompt).to include("Do not silently substitute a different")
+  end
+
+  it "tells the reviewer not to approve unrelated auth or error walls for a non-auth surface" do
+    expect(prompt).to include("Auth/error walls are a common version of this failure")
+    expect(prompt).to include("If you intend")
+    expect(prompt).to include("`/credential_store`")
+    expect(prompt).to include("screenshots show `/session/new`")
+    expect(prompt).to include("Submit \"skipped\" for external tooling/auth/seed blockers")
+    expect(prompt).to include("\"needs_work\" when the redirect/error is an implementation or preview")
+  end
+
+  it "allows legitimate auth surface work even when adjacent post-login routes are mentioned" do
+    expect(prompt).to include("Legitimate auth/session-screen work is different")
+    expect(prompt).to include("review and approve that auth surface normally")
+    expect(prompt).to include("mentions a post-login route or redirect")
+  end
+
+  it "does not include a test-plan hint section by default" do
+    expect(prompt).not_to include("recommended running visual review")
+    expect(prompt).not_to include("did NOT recommend")
+  end
+
+  it "does not include a seed notes section by default" do
+    expect(prompt).not_to include("seed notes")
+  end
+
+  context "with the implementer recommending visual review" do
+    let(:test_plan_recommended) { true }
+    let(:test_plan_reason) { "Added a new banner to the dashboard header." }
+
+    it "includes the recommendation and reason as a hint, not a directive" do
+      expect(prompt).to include("recommended running visual review")
+      expect(prompt).to include("Added a new banner to the dashboard header.")
+      expect(prompt).to include("Treat this as a hint, not a directive")
+    end
+  end
+
+  context "with the implementer recommending against visual review" do
+    let(:test_plan_recommended) { false }
+    let(:test_plan_reason) { "Backend-only refactor." }
+
+    it "includes the negative recommendation" do
+      expect(prompt).to include("did NOT recommend running visual review")
+      expect(prompt).to include("Backend-only refactor.")
+    end
+  end
+
+  context "with seed_notes" do
+    let(:seed_notes) { "Log in as demo@example.com / password to reach the dashboard." }
+
+    it "includes the seed notes section" do
+      expect(prompt).to include("Log in as demo@example.com / password to reach the dashboard.")
+    end
+  end
+
+  context "with prior findings" do
+    let(:prior_findings) do
+      [ { "iteration" => 1, "verdict" => "needs_work", "critique" => "The banner overlaps the nav." } ]
+    end
+
+    it "renders prior findings" do
+      expect(prompt).to include("Iteration 1")
+      expect(prompt).to include("The banner overlaps the nav.")
+    end
+  end
+
+  context "with no prior findings" do
+    it "notes there are none" do
+      expect(prompt).to include("Prior visual review findings: none.")
+    end
+  end
+
+  context "with workflow_kind: 'pr_comment'" do
+    let(:workflow_kind) { "pr_comment" }
+
+    it "notes this is a PR comment feedback workflow" do
+      expect(prompt).to include("PR comment feedback workflow")
+    end
+
+    it "labels the diff as the full job diff" do
+      expect(prompt).to include("Full job diff against the base branch")
+    end
+
+    it "does not include feedback history when feedback_context is blank" do
+      expect(prompt).not_to include("PR comments being addressed")
+    end
+
+    context "with feedback_context" do
+      let(:feedback_context) { "@alice: The banner overlaps the nav on mobile." }
+
+      it "includes the PR feedback history section" do
+        expect(prompt).to include("PR comments being addressed")
+        expect(prompt).to include("@alice: The banner overlaps the nav on mobile.")
+      end
+    end
+  end
+
+  context "with workflow_kind: 'chat_feedback'" do
+    let(:workflow_kind) { "chat_feedback" }
+
+    it "notes this is a chat feedback workflow" do
+      expect(prompt).to include("chat feedback workflow")
+    end
+
+    it "labels the diff as the full job diff" do
+      expect(prompt).to include("Full job diff against the base branch")
+    end
+
+    context "with feedback_context" do
+      let(:feedback_context) { "Please make the banner dismissible." }
+
+      it "includes the chat feedback history section" do
+        expect(prompt).to include("Chat feedback being addressed")
+        expect(prompt).to include("Please make the banner dismissible.")
+      end
+    end
+  end
+
+  context "with workflow_kind: 'initial'" do
+    let(:workflow_kind) { "initial" }
+
+    it "does not include a feedback workflow note" do
+      expect(prompt).not_to include("feedback workflow")
+    end
+
+    it "labels the diff as the full job diff" do
+      expect(prompt).to include("Full job diff against the base branch")
+    end
+  end
+end

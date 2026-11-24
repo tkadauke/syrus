@@ -82,9 +82,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
   end
 
   before do
-    visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
-    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
-    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+    stub_no_workflow_judges
 
     # Scenario assertions cover persisted state-machine convergence. Building
     # realtime presentation payloads for every committed Workflow, Step, and
@@ -433,7 +431,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result).to be_success
     job = Job.find(result.job_ids.first)
     failed_workflow = job.workflows.find_by!(state: "failed")
-    failed_run = failed_workflow.steps.find_by!(kind: "visual_review").runs.find_by!(state: "failed")
+    failed_run = failed_workflow.steps.find_by!(kind: "adversarial_review").runs.find_by!(state: "failed")
 
     expect(job).to be_implemented
     expect(failed_run.run_failure_classification).to have_attributes(

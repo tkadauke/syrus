@@ -75,18 +75,18 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review)] → [loop(visual_review first, then implement ⇄ visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+initial:     prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review)] → [loop(visual_review first, then implement ⇄ visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open
 pr_comment:  prepare → respond → [loop(adversarial_review first, then respond ⇄ adversarial_review)] → [loop(visual_review first, then respond ⇄ visual_review)] → retry_until(format → generate → graders; repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 chat_feedback: prepare → respond → [loop(adversarial_review first, then respond ⇄ adversarial_review)] → [loop(visual_review first, then respond ⇄ visual_review)] → retry_until(format → generate → graders; repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review)] → [loop(visual_review first, then implement ⇄ visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+retry:       prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review)] → [loop(visual_review first, then implement ⇄ visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 landing_validation: speculative_landing_build → prepare → graders
 merge_train: merge_train_assemble → merge_train_build → prepare → merge_train_reconcile → retry_until(graders, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(graders, repair: landing_fix) → merge_train_land_after_rebase)
 merge_train_validation: speculative_merge_train_build → prepare → graders
-coding_handoff: prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
+coding_handoff: prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open
 local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_fix) → summarize/test_plan/pr_open or summarize_amend/try(push)
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
@@ -327,22 +327,16 @@ Key steps:
   the base with no implementation (the empty-workspace PR-open regressions).
   `RunCheckpointPublisher` already publishes every mutation step's commit for
   this purpose — only `summarize`/`summarize_amend` used to restore from it.
-- **`review_plan`** — Optional, best-effort agentic step after `pr_open` in
-  chains ending with `initial_pr_finish_steps`. Opt-in via `.syrus.yml`
-  `review_plan: true` (a bare boolean, not a nested block); materialized
-  only when `RepoReviewPlanPlan` resolves the repository as opted in (read
-  pre-clone, the same way the adversarial/visual review plans are), so an
-  unconfigured repository gets no `review_plan` Step at all rather than one
-  that runs and self-skips. Resumes the agent from the last successful `implement` session
-  and asks it to call `submit_review_plan` with a handful of specific,
-  high-signal "pay attention to X because Y" points anchored at
-  `file`/`line`, then posts (or upserts, by marker) a PR comment formatted
-  from the artifact — an empty item list posts nothing. Unlike other
-  agentic steps, `review_plan` must never fail the parent Job/Workflow: any
-  `StepFailed` raised anywhere in the step (agent error, missing tool call,
-  MCP sidecar unavailable, GitHub API failure) is caught and logged inside
-  the handler; `fail_policy: :advance` on the `Step::Kind` entry is a
-  declarative backstop for the same guarantee.
+- **`review_plan`** — Owned by the `review_planning` plugin and contributed at
+  the `workflow:post_pr` anchor (once, after `pr_open`). Opt-in via `.syrus.yml`
+  `review_plan: true`, the plugin's legacy-alias configuration key; materialized
+  only when `ReviewPlanning::Plan` resolves the repository as opted in, so an
+  unconfigured repository gets no `review_plan` Step. Resumes the agent from the
+  last successful `implement` session, asks it to call `submit_review_plan`, then
+  posts (or upserts, by marker) a PR comment; an empty item list posts nothing.
+  It must never fail the parent Job/Workflow: `StepFailed` is caught inside the
+  handler and `fail_policy: :advance` on the step kind is the backstop. Feedback
+  chains that have no `pr_open` step record a skip.
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by the agent CLI over stdio
 via a per-step `mcp.json` tempfile. Tools available to workflow agents:

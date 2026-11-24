@@ -151,22 +151,6 @@ RSpec.describe McpToolRegistry do
       )
     end
 
-    it "makes visual-review requests explicitly eligible for interactive and background coworkers" do
-      %w[run_visual_review run_visual_diff].each do |tool_name|
-        chat_entry = described_class.entries(surface: :chat).find { |entry| entry.tool_name == tool_name }
-        coworker_entry = described_class.entries(surface: :coworker).find { |entry| entry.tool_name == tool_name }
-
-        expect(chat_entry.descriptor.requestable_roles).to include(
-          AgentRole::COWORKER_CHAT, AgentRole::COWORKER
-        )
-        expect(coworker_entry).to have_attributes(tier: :deferred, mutation: true, approval_effect: true)
-        expect(coworker_entry.descriptor).to have_attributes(
-          capability: "syrus.visual_review@v1",
-          defaults: include(AgentRole::COWORKER_CHAT => :ask, AgentRole::COWORKER => :ask)
-        )
-      end
-    end
-
     it "derives the coworker surface from ordinary chat registration with centralized exclusions" do
       chat_entries = described_class.entries(surface: :chat)
       coworker_names = described_class.entries(surface: :coworker).map(&:tool_name)
@@ -263,7 +247,7 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
           read_live_state
-          get_coverage_report read_run_worker_health start_preview stop_preview
+          read_run_worker_health start_preview stop_preview
           read_preview_log report_cannot_proceed report_main_concern record_isolated_repro submit_summary submit_test_plan
           search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_artifact patch_workflow run_target_prepare submit_visual_artifact
@@ -303,25 +287,9 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
           read_live_state
-          get_coverage_report read_run_worker_health start_preview stop_preview
+          read_run_worker_health start_preview stop_preview
           read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_adversarial_review
-        ]
-      )
-    end
-
-    it "exposes review tools but no session controls without a runtime target" do
-      run = Factories.job.initial_run
-      run.step.update_columns(kind: "visual_review")
-      context = McpToolContext.from_run(run.reload)
-
-      expect(tool_names_for(context)).to contain_exactly(
-        *%w[
-          read_live_state
-          get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
-          submit_visual_review submit_visual_artifact
-          list_artifacts read_artifact
         ]
       )
     end

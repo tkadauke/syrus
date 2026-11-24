@@ -15,7 +15,11 @@ RSpec.describe Workflows::MergeTrain do
   end
 
   context "without coverage configured" do
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(nil) }
+    before do
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: nil)
+      )
+    end
 
     it "materializes the assemble → build → prepare → reconcile → graders → land chain" do
       train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
@@ -54,8 +58,12 @@ RSpec.describe Workflows::MergeTrain do
   end
 
   context "with coverage configured" do
-    let(:coverage_plan) { instance_double(RepoCoveragePlan) }
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(coverage_plan) }
+    before do
+      config = SyrusYml.new("coverage:\n  sources:\n    - artifact: coverage/lcov.info\n      format: lcov\n").parse
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+      )
+    end
 
     it "does not insert coverage_analyze because merge trains use fast graders" do
       train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")

@@ -13,10 +13,12 @@ module Workflows
         job,
         :implement,
         review_gate_loops(job, agent_step: :implement, syrus_yml: syrus_yml),
+        judge_loops(job, agent_step: :implement),
         grader_retry_loop(job, :implement, autofix: true, repair_first: false, syrus_yml: syrus_yml),
-        "coverage_analyze",
+        post_implementation_steps(job),
         "dependency_audit",
-        initial_pr_finish_steps(job, syrus_yml: syrus_yml)
+        initial_pr_finish_steps(job, syrus_yml: syrus_yml),
+        post_pr_steps(job)
       )
     end
   end

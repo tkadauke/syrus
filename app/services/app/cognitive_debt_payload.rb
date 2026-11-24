@@ -46,7 +46,7 @@ module App
         repository: repository,
         target_sha: target_sha,
         line_facts: line_facts,
-        coverage_snapshot: latest_coverage_snapshot,
+        coverage_snapshot: latest_coverage_files,
         change_frequency: change_frequency,
         engagements: supported_engagements,
         target_health_records: target_health_records,
@@ -103,24 +103,21 @@ module App
     end
 
     def modified_at_for(path)
-      latest_diff_version_time_by_path[path] || latest_coverage_snapshot&.created_at || repository.updated_at
+      latest_diff_version_time_by_path[path] || latest_coverage_files&.recorded_at || repository.updated_at
     end
 
     def target_sha
-      @target_sha ||= repository.last_health_checked_sha.presence || latest_coverage_snapshot&.sha.to_s.presence || repository.default_branch
+      @target_sha ||= repository.last_health_checked_sha.presence || latest_coverage_files&.sha.to_s.presence || repository.default_branch
     end
 
-    def latest_coverage_snapshot
-      @latest_coverage_snapshot ||= CoverageSnapshot
-        .where(repository: repository)
-        .for_project(TargetGraph::ROOT_PROJECT_ID)
-        .on_branch(repository.default_branch)
-        .order(created_at: :desc)
-        .first
+    def latest_coverage_files
+      return @latest_coverage_files if defined?(@latest_coverage_files)
+
+      @latest_coverage_files = LineCoverageSource.latest_default_branch_files(repository: repository)
     end
 
     def coverage_files
-      @coverage_files ||= latest_coverage_snapshot&.data || {}
+      @coverage_files ||= latest_coverage_files&.data || {}
     end
 
     def engagement_events

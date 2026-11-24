@@ -995,17 +995,19 @@ Agentic Steps (`implement`, `adversarial_review`, `security_review`, `visual_rev
 invoke the Workflow's
 configured provider through `AgentProviders::*`. Non-agentic Steps run
 service code: graders, git push/force-push, PR opening, mergeability
-gates, merge API calls, merge-train assembly/landing, and
-`coverage_analyze`. `coverage_analyze` runs after `grader_collect` in
-initial (and compatible) Workflows: it reads a `coverage:` block from
-`.syrus.yml`, parses coverage artifacts produced by graders, merges and
-normalizes them, computes per-file and diff-level annotations, stores a
-`CoverageSnapshot`, and evaluates any configured threshold. Skipped
-silently if no coverage configuration is present. In feedback Workflows
-(`pr_comment`, `chat_feedback`) a `coverage_pr_comment` Step follows
-immediately: it posts or updates the coverage report as a PR comment
-using the body computed by `coverage_analyze`; a no-op when coverage is
-unconfigured, the plan has `pr_comment: false`, or the Job has no PR.
+gates, merge API calls, merge-train assembly/landing, and the steps
+plugins contribute at the workflow anchors. The `syrus_coverage` plugin
+contributes `coverage_analyze` at `workflow:post_implementation` (once,
+after the review and grade loops, only when `.syrus.yml` has a
+`coverage:` block): it parses coverage artifacts produced by graders,
+merges and normalizes them, computes per-file and diff-level
+annotations, stores a `SyrusCoverage::Snapshot`, and evaluates any
+configured threshold. It contributes `coverage_pr_comment` at
+`workflow:post_pr`, which posts or updates the coverage report as a PR
+comment using the body computed by `coverage_analyze`; advisory
+(`fail_policy: advance`), and a no-op when the plan has
+`pr_comment: false` or the Job has no PR. With the plugin disabled, new
+workflows simply omit both steps.
 
 `initial`, `retry`, `pr_comment`, and `chat_feedback` all materialize a
 bare top-level `implement`/`respond` Step immediately after `prepare`.
@@ -1332,10 +1334,10 @@ What happens to a single labeled issue, from label to merge:
      Steps run when applicable, then grader Steps run configured
      `.syrus.yml` checks; failures append another bounded repair/check
      iteration.
-   - The `coverage_analyze` Step runs after graders pass: it parses
-     any coverage artifacts, merges them, stores a `CoverageSnapshot`,
-     and evaluates the configured threshold. Skipped when no coverage
-     configuration is present in `.syrus.yml`.
+   - The `syrus_coverage` plugin's `coverage_analyze` Step runs after
+     graders pass: it parses any coverage artifacts, merges them,
+     stores a `SyrusCoverage::Snapshot`, and evaluates the configured
+     threshold. Present only when `.syrus.yml` configures `coverage:`.
    - The `summarize` Step asks the agent to call `submit_summary`
      unless the implement Step already provided PR copy.
    - The `test_plan` Step asks the agent to call `submit_test_plan`
@@ -1769,7 +1771,7 @@ agent at it over stdio. Today's tool surface:
   review, the Step requires an explicit verdict and feeds `needs_work`
   critiques into its repair iteration.
 - `get_coverage_report()` — returns the coverage artifact from the most
-  recent `coverage_analyze` step: summary, per-file breakdown, diff
+  recent coverage analysis: summary, per-file breakdown, diff
   annotations, and any threshold miss. Returns `coverage_unavailable`
   when no coverage configuration is present or no artifact has been
   written yet.

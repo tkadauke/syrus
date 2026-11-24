@@ -1,0 +1,393 @@
+require "rails_helper"
+
+RSpec.describe Workflows::CodingHandoff do
+  include ActiveJob::TestHelper
+
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
+  let(:chat) { ChatSession.create!(user: user, mode: "coding") }
+
+  def enable_coding_mode!
+    feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+      record.category = "Labs"
+      record.name = "Coding Mode"
+    end
+    feature.update!(enabled: true)
+  end
+
+  describe ".steps_for" do
+    let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented") }
+
+    before do
+      allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+        SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+      )
+    end
+
+    it "includes prepare, grader retry loop, summarize, test_plan, pr_open" do
+      kinds = described_class.steps_for(job)
+      expect(kinds.first).to eq("prepare")
+      expect(kinds[1]).to be_a(Workflows::RetryUntil)
+      expect(kinds[1].repair_steps).to eq(%w[ coding_handoff_fix ])
+      expect(kinds[1].check_steps).to eq(%w[ grader_fanout grader_collect ])
+      expect(kinds[1].repair_first).to be(false)
+      expect(step_kind_names(kinds.last(3))).to eq(%w[ summarize test_plan pr_open ])
+    end
+
+    it "materializes the representative chain template" do
+      allow(AppSetting).to receive(:grade_max_iterations).and_return(5)
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
+      )
+      expect(workflow.chain_template).to match([
+        { "type" => "step", "kind" => "prepare" },
+        { "type" => "retry_until", "max_iterations" => 5, "repair_first" => false,
+          "repair" => [ "coding_handoff_fix" ], "check" => [ "grader_fanout", "grader_collect" ] },
+        { "type" => "step", "kind" => "summarize" },
+        { "type" => "step", "kind" => "test_plan" },
+        stack_aware_pr_open_node(max_iterations: 5)
+      ])
+    end
+
+    it "omits prepare when job has skip_prepare_reason" do
+      allow(job).to receive(:skip_prepare?).and_return(true)
+      kinds = described_class.steps_for(job)
+      expect(kinds).not_to include("prepare")
+      expect(kinds.first).to be_a(Workflows::RetryUntil)
+      expect(step_kind_names([ kinds.last ])).to eq(%w[ pr_open ])
+    end
+
+    context "when legacy review_plan is enabled in .syrus.yml" do
+      it "ignores the retired key and does not append review_plan" do
+        config = SyrusYml.new("review_plan: true\n").parse
+        allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+          RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+        )
+
+        kinds = described_class.steps_for(job)
+        expect(step_kind_names(kinds.last(3))).to eq(%w[ summarize test_plan pr_open ])
+        expect(kinds).not_to include("review_plan")
+      end
+    end
+
+    context "when adversarial review is enabled" do
+      before do
+        allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+          RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
+        )
+      end
+
+      it "inserts a review-first adversarial_review loop, repaired by coding_handoff_fix, before the grader retry chain" do
+        allow(AppSetting).to receive(:grade_max_iterations).and_return(5)
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+          %w[ prepare adversarial_review grader_fanout grader_collect summarize test_plan pr_open ]
+        )
+        expect(workflow.steps.where(kind: "coding_handoff_fix").count).to eq(0)
+        expect(workflow.chain_template).to include(
+          { "type" => "loop", "max_iterations" => 2, "steps" => %w[ coding_handoff_fix adversarial_review ] }
+        )
+      end
+    end
+
+    context "when visual review is enabled" do
+      before do
+        allow(SyrusBrowser::RepoVisualReviewPlan).to receive(:for_job).and_return(
+          SyrusBrowser::RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+        )
+      end
+
+      it "inserts a review-first visual_review loop before the grader retry chain" do
+        allow(AppSetting).to receive(:grade_max_iterations).and_return(5)
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+          %w[ prepare visual_review grader_fanout grader_collect summarize test_plan pr_open ]
+        )
+      end
+
+      context "and adversarial review is also enabled" do
+        before do
+          allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+            RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: [])
+          )
+        end
+
+        it "places the visual_review loop after the adversarial_review loop and before the grader retry chain" do
+          workflow = described_class.instantiate(job: job)
+
+          expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+            %w[ prepare adversarial_review visual_review grader_fanout grader_collect summarize test_plan pr_open ]
+          )
+        end
+      end
+    end
+
+    context "with post-implementation review providers" do
+      after do
+        Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
+      end
+
+      it "appends the generic review-note host step after pr_open when an enabled provider requests coding handoff review" do
+        provider = Class.new do
+          include Syrus::Plugin::PostImplementationReviewProvider
+
+          def self.review_needed?(job:, trigger_kind:)
+            trigger_kind == "coding_handoff"
+          end
+        end
+
+        register_contributions(name: "coding_handoff_review_notes", version: "1.0.0", contributes: { post_implementation_review_provider: provider })
+
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind).last(2)).to eq(%w[ pr_open post_implementation_review ])
+      end
+    end
+  end
+
+  describe ".after_success" do
+    before { enable_coding_mode! }
+
+    let(:job) do
+      Factories.job_record(user: user, repository: repository, state: "implemented",
+                           linked_chat_id: chat.id)
+    end
+    let(:workflow) do
+      Workflow.create!(
+        job: job,
+        trigger_kind: "coding_handoff",
+        artifacts: { "coding_handoff_chat_id" => chat.id }
+      )
+    end
+
+    it "leaves linked_chat_id cleared on the job" do
+      job.update!(linked_chat_id: nil)
+      described_class.after_success(workflow)
+      expect(job.reload.linked_chat_id).to be_nil
+    end
+
+    it "posts a success system message to the linked chat" do
+      expect {
+        described_class.after_success(workflow)
+      }.to change { chat.messages.where(role: "system").count }.by(1)
+
+      msg = chat.messages.where(role: "system").last
+      expect(msg.content["source"]).to eq("grader_report")
+      expect(msg.content["text"]).to include("All graders passed")
+    end
+
+    it "keeps linked_chat_id available while reporting success and clears it afterward" do
+      allow(GraderChatReporter).to receive(:report_success) do |workflow:, chat:|
+        expect(workflow.job.reload.linked_chat_id).to eq(chat.id)
+      end
+      allow(ChatCodingWorkspaceReclaimJob).to receive(:perform_later) do |chat_id|
+        expect(chat_id).to eq(chat.id)
+        expect(job.reload.linked_chat_id).to eq(chat.id)
+      end
+
+      described_class.after_success(workflow)
+
+      expect(GraderChatReporter).to have_received(:report_success).with(workflow: workflow, chat: chat)
+      expect(ChatCodingWorkspaceReclaimJob).to have_received(:perform_later).with(chat.id)
+      expect(job.reload.linked_chat_id).to be_nil
+    end
+
+    it "is a no-op when coding_mode feature is disabled" do
+      Feature.find_by(slug: "coding_mode")&.update!(enabled: false)
+      job.update!(linked_chat_id: nil)
+
+      expect {
+        described_class.after_success(workflow)
+      }.not_to change { chat.messages.count }
+
+      expect(job.reload.linked_chat_id).to be_nil
+    end
+
+    it "is a no-op when no originating chat id is recorded" do
+      workflow.update!(artifacts: {})
+      job.update!(linked_chat_id: nil)
+      expect {
+        described_class.after_success(workflow)
+      }.not_to have_enqueued_job(ChatCodingWorkspaceReclaimJob)
+    end
+
+    it "enqueues a coding-workspace reclaim on the chat queue (branch is pushed)" do
+      expect {
+        described_class.after_success(workflow)
+      }.to have_enqueued_job(ChatCodingWorkspaceReclaimJob).with(chat.id).on_queue("chat")
+    end
+  end
+
+  describe ".after_fail" do
+    before { enable_coding_mode! }
+
+    let(:job) do
+      Factories.job_record(user: user, repository: repository, state: "running",
+                           linked_chat_id: chat.id)
+    end
+    let(:workflow) do
+      Workflow.create!(
+        job: job,
+        trigger_kind: "coding_handoff",
+        artifacts: { "coding_handoff_chat_id" => chat.id }
+      )
+    end
+
+    context "when failure was a grader failure" do
+      before do
+        Step.create!(workflow: workflow, kind: "grader_collect", position: 0,
+                     iteration: AppSetting.grade_max_iterations, state: "failed")
+      end
+
+      it "marks the job failed after retry exhaustion" do
+        described_class.after_fail(workflow)
+        expect(job.reload).to be_failed
+      end
+
+      it "does not restore linked_chat_id" do
+        job.update!(linked_chat_id: nil)
+        described_class.after_fail(workflow)
+        expect(job.reload.linked_chat_id).to be_nil
+      end
+
+      it "posts a passive failure report to the originating chat" do
+        expect(ChatQueuedMessagePromoter).not_to receive(:deliver_one_if_idle!)
+
+        expect {
+          described_class.after_fail(workflow)
+        }.to change { chat.messages.where(role: "system").count }.by(1)
+          .and change { chat.chat_queued_messages.count }.by(0)
+
+        msg = chat.messages.where(role: "system").last
+        expect(msg.content["source"]).to eq("grader_report")
+        expect(msg.content["text"]).to include("no chat-agent action is required")
+      end
+    end
+
+    context "when failure was a non-grader failure (e.g. prepare)" do
+      it "propagates the failure to the job (mark_failed!)" do
+        described_class.after_fail(workflow)
+        expect(job.reload).to be_failed
+      end
+
+      it "does not post to the linked chat" do
+        expect {
+          described_class.after_fail(workflow)
+        }.not_to change { chat.messages.count }
+      end
+    end
+
+    context "when coding_mode feature is disabled" do
+      before do
+        Feature.find_by(slug: "coding_mode")&.update!(enabled: false)
+        Step.create!(workflow: workflow, kind: "grader_collect", position: 0,
+                     iteration: 1, state: "failed")
+      end
+
+      # The chat side is Coding Mode's and stays silent; the Job is not. It
+      # used to stay :running here, with nothing working on it.
+      it "reports nothing to the chat but still fails the Job" do
+        expect {
+          described_class.after_fail(workflow)
+        }.not_to change { chat.messages.count }
+        expect(job.reload).to be_failed
+      end
+    end
+  end
+
+  describe ".grader_failure?" do
+    let(:job) { Factories.job_record(user: user, repository: repository, state: "running") }
+    let(:workflow) { Workflow.create!(job: job, trigger_kind: "coding_handoff") }
+
+    it "returns true when grader_collect step is failed" do
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 0,
+                   iteration: 1, state: "failed")
+      expect(described_class.grader_failure?(workflow)).to be(true)
+    end
+
+    it "returns false when grader_collect is succeeded" do
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 0,
+                   iteration: 1, state: "succeeded")
+      expect(described_class.grader_failure?(workflow)).to be(false)
+    end
+
+    it "returns false when no grader_collect step exists" do
+      expect(described_class.grader_failure?(workflow)).to be(false)
+    end
+  end
+
+  describe "retry-loop dispatch" do
+    before { enable_coding_mode! }
+
+    let(:job) do
+      Factories.job_record(user: user, repository: repository, state: "running",
+                           linked_chat_id: nil)
+    end
+    let(:workflow) { described_class.instantiate(job: job) }
+
+    it "runs a fresh coding_handoff_fix step after a failed grader iteration" do
+      allow(AppSetting).to receive(:grade_max_iterations).and_return(3)
+      workflow = described_class.instantiate(job: job)
+      grader_collect = workflow.steps.find_by!(kind: "grader_collect")
+
+      expect {
+        StepDispatcher.fail_from(grader_collect)
+      }.to change { workflow.steps.where(kind: "coding_handoff_fix", iteration: 2).count }.by(1)
+
+      fix = workflow.steps.find_by!(kind: "coding_handoff_fix", iteration: 2)
+      expect(fix.runs.count).to eq(1)
+      expect(fix.loop_id).to eq(grader_collect.loop_id)
+    end
+
+    it "fails terminally after the configured max iterations" do
+      allow(AppSetting).to receive(:grade_max_iterations).and_return(1)
+      workflow = described_class.instantiate(job: job)
+      grader_collect = workflow.steps.find_by!(kind: "grader_collect")
+      grader_collect.update_column(:state, "failed")
+
+      expect {
+        StepDispatcher.fail_from(grader_collect)
+      }.not_to change { workflow.steps.where(kind: "coding_handoff_fix").count }
+
+      expect(workflow.reload).to be_failed
+      expect(job.reload).to be_failed
+    end
+  end
+
+  # A coding handoff lifts its Job to :running when it starts, and generic
+  # propagation leaves both its failure and its cancellation to this
+  # definition (it owns the Job lifecycle). after_fail returned before failing
+  # the Job whenever Coding Mode was switched off, and there was no
+  # after_cancel at all, so either ending left a :running Job with nothing
+  # working on it.
+  describe "terminal outcomes always settle a running Job" do
+    let(:job) { Factories.job_record(user: user, repository: repository, state: "running") }
+    let(:workflow) { Workflow.create!(job: job, trigger_kind: "coding_handoff", state: "running") }
+
+    it "fails the Job on failure even when Coding Mode is off" do
+      described_class.after_fail(workflow)
+
+      expect(job.reload).to be_failed
+    end
+
+    it "fails the Job when the handoff is cancelled" do
+      workflow.set_artifact!("cancelled_reason", "operator_cancelled")
+
+      described_class.after_cancel(workflow)
+
+      expect(job.reload).to be_failed
+    end
+
+    it "leaves the Job alone when the handoff was superseded by newer work" do
+      workflow.set_artifact!("cancelled_reason", Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
+
+      described_class.after_cancel(workflow)
+
+      expect(job.reload).to be_running
+    end
+  end
+end

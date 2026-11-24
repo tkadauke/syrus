@@ -388,10 +388,6 @@ class McpToolRegistry
         lifecycle_chat(Mcp::Tools::RebaseJobTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::ReopenJobTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::PollJobFeedbackTool, tier: :deferred, mutation: true),
-        mutation_chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true,
-          descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]),
-        mutation_chat(Mcp::Tools::RunVisualDiffTool, tier: :deferred, mutation: true,
-          descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]),
         lifecycle_chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
         mutation_chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
         ingestion_chat(Mcp::Tools::ReadPrTool, tier: :deferred),
@@ -527,7 +523,6 @@ class McpToolRegistry
       [
         workflow_action(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles,
           descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
-        workflow_action(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles,
           descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
         workflow_action(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),

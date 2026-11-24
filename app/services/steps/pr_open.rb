@@ -63,7 +63,6 @@ module Steps
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
         transition_job_to_implemented!
         refresh_stack_footer
-        post_coverage_comment_if_present
         post_dependency_audit_comment_if_present
         return
       end
@@ -80,11 +79,9 @@ module Steps
         open_fork_review_pr
       elsif fork_to_upstream?
         open_upstream_pr
-        post_coverage_comment_if_present
         post_dependency_audit_comment_if_present
       else
         open_pr
-        post_coverage_comment_if_present
         post_dependency_audit_comment_if_present
       end
     end
@@ -991,38 +988,6 @@ module Steps
 
     def transient_github_error?(error)
       error.respond_to?(:response_status) && error.response_status.to_i >= 500
-    end
-
-    def post_coverage_comment_if_present
-      pr_comment_body = workflow.artifact("coverage")&.[]("pr_comment_body")
-      return unless pr_comment_body.present?
-
-      pr_number = job.pr_number
-      return unless pr_number.present?
-
-      pr_repo   = job.effective_pr_repository
-      client    = GithubClient.for_authorship(repository: pr_repo, job: job)
-      repo_slug = pr_repo.slug
-
-      existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
-        BotIdentity.for(job).authored_github_comment?(comment) &&
-          comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
-      end
-
-      if existing
-        begin
-          client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
-          log("[pr_open] updated coverage comment ##{existing.id} on PR ##{pr_number}")
-        rescue => e
-          log("[pr_open] failed to update coverage comment ##{existing.id}: #{e.class}: #{e.message} — posting new comment")
-          client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
-        end
-      else
-        client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
-        log("[pr_open] posted coverage comment on PR ##{pr_number}")
-      end
-    rescue => e
-      log("[pr_open] failed to post coverage comment: #{e.class}: #{e.message}")
     end
 
     def post_dependency_audit_comment_if_present

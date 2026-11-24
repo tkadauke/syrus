@@ -155,7 +155,7 @@ RSpec.describe PrCommentIngester do
     comment = make_comment(
       id: 109,
       login: "alice",
-      body: "#{CoverageReport::PrCommentFormatter::MARKER}\n## Test Coverage Report"
+      body: "<!-- syrus-coverage -->\n## Test Coverage Report"
     )
 
     result = call([ comment ])
@@ -261,7 +261,7 @@ RSpec.describe PrCommentIngester do
     end
 
     it "skips Syrus-generated report comments" do
-      marker = CoverageReport::PrCommentFormatter::MARKER
+      marker = "<!-- syrus-coverage -->"
       allow_any_instance_of(BotIdentity).to receive(:authored_github_comment?).and_return(true)
       expect(PrCommentClassifier).not_to receive(:call)
       result = call([ make_comment(id: 211, login: "syrus", body: "#{marker}\nPlease add coverage") ])

@@ -1,0 +1,10 @@
+project:
+  id: syrus_coverage
+  label: "syrus_coverage plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest

@@ -1833,9 +1833,8 @@ module App
     # preview, visual_review defaults to enabled whenever the repo hasn't
     # overridden it — so a missing/unreadable .syrus.yml or an absent local
     # clone falls back to `true` instead of `false`. This mirrors
-    # RepoVisualReviewPlan's resolution order, which the
-    # Initial/Retry/PrFeedback/ChatFeedback workflow templates use to
-    # decide whether the automatic visual_review loop runs at all.
+    # the browser plugin's repository-plan resolution order, which its judge
+    # contribution uses to decide whether the automatic loop runs at all.
     def visual_review_configured?
       return @visual_review_configured unless @visual_review_configured.nil?
 

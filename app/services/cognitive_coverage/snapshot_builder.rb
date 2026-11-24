@@ -244,7 +244,7 @@ module CognitiveCoverage
 
     def latest_coverage_snapshot
       @latest_coverage_snapshot ||= @coverage_snapshot ||
-        CoverageSnapshot.on_default_branch.where(repository: @repository).order(created_at: :desc).first
+        LineCoverageSource.latest_default_branch_files(repository: @repository)
     end
 
     def unhealthy_target_health?

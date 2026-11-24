@@ -89,7 +89,7 @@ RSpec.describe RepoDefaultBranchSyrusYml do
 
   describe ".for_job" do
     it "resolves from the job's repository and user" do
-      stub_repository_content(repository, files: { ".syrus.yml" => "review_plan: true\n" })
+      stub_repository_content(repository, files: { ".syrus.yml" => "prepare: []\n" })
       job = instance_double(Job, repository: repository, user: user)
 
       expect(described_class.for_job(job).outcome).to eq(:loaded)

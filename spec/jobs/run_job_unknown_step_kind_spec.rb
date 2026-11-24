@@ -29,17 +29,20 @@ RSpec.describe RunJob, "with a step kind this worker does not provide" do
     expect(step.details["unknown_kind_handbacks"]).to eq(1)
   end
 
-  it "fails the Step as unknown once no worker has taken it within the budget" do
+  it "fails with a plugin-health finding once no worker has taken it within the budget" do
     step.update_columns(details: step.details.to_h.merge("unknown_kind_handbacks" => described_class::UNKNOWN_KIND_HANDBACK_LIMIT))
 
-    expect {
-      begin
-        described_class.perform_now(run.id)
-      rescue ArgumentError
-        nil
-      end
-    }.not_to have_enqueued_job(described_class).with(run.id)
+    expect { described_class.perform_now(run.id) }
+      .not_to have_enqueued_job(described_class).with(run.id)
 
     expect(run.reload).to be_failed
+    expect(step.reload.details["plugin_health_finding"]).to include(
+      "code" => "step_handler_unavailable",
+      "step_kind" => "fleet_plugin_only_step"
+    )
+    expect(Syrus::PluginInvocation.runtime_health.failures.last).to have_attributes(
+      extension_point: "workflow_kinds",
+      operation: "dispatch"
+    )
   end
 end

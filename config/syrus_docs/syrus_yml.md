@@ -1124,7 +1124,7 @@ visual_review:
       captures: ["queue loaded", "job selected"]
 ```
 
-`enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the always-on instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the always-on default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without an omitted `enabled` forcing the feature off. See [`visual_review.md`](visual_review.md) for the full feature reference.
+`enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the always-on instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the always-on default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without an omitted `enabled` forcing the feature off. See the Browser plugin's visual-review documentation for the full feature reference.
 
 `rounds` controls how many visual-review passes run. Range: 0–10, defaults to `1`.
 
@@ -1200,26 +1200,21 @@ review behavior.
 
 ## review_plan
 
-Retired compatibility key. Older repositories may still contain this bare
-boolean:
-
-```yaml
-review_plan: true
-```
-
-Syrus still parses the key so old `.syrus.yml` files remain harmless, but it
-does not materialize a `review_plan` workflow step or expose a
-`submit_review_plan` MCP tool. New review-note behavior is supplied by plugins
-through the post-implementation review extension point.
+Owned by the Review plan plugin: the bare boolean `review_plan: true` opts the
+repository into a self-review comment after the PR opens. See `review_planning.md`.
+While the plugin is disabled the key is ignored without an error.
 
 ## coverage
 
-Enables coverage reporting. Syrus parses lcov or Cobertura artifacts produced by graders, computes diff annotations, and optionally posts a PR comment.
+Owned by the Coverage plugin: `coverage:` configures the analysis of the coverage
+reports graders produce, thresholds, and the PR comment. The full field
+reference, the nested-project rules, and the on/off behavior live in
+`coverage.md`. While the plugin is disabled the block is ignored without an
+error.
 
 Typed framework graders instrument their **review**-phase entry only, because
-review is the only phase whose workflows run a `coverage_analyze` step. A typed
+review is the only phase whose workflows run the coverage analysis. A typed
 grader with `coverage: true` whose `phases` omit `review` runs uninstrumented.
-See `coverage.md`.
 
 The `vitest` grader declares `coverage/lcov.info` as its output. When the Vite
 config points `coverage.reportsDirectory` somewhere else, name the real file
@@ -1231,37 +1226,6 @@ grade:
     coverage: true
     coverage_artifact: coverage/js/lcov.info
 ```
-
-```yaml
-coverage:
-  sources:
-    - artifact: coverage/lcov.info
-      format: lcov
-    - artifact: coverage/cobertura.xml
-      format: cobertura
-  threshold:
-    lines: 80
-    pr_lines: 70
-  on_miss: warn
-  pr_comment: true
-  hitmap_ttl_days: 7
-```
-
-### coverage fields
-
-| Field | Required | Default | Notes |
-|---|---|---|---|
-| `sources` | yes | — | Array of artifact paths + format, relative to the declaring `.syrus.yml` |
-| `threshold.lines` | no | — | Overall line coverage % (0–100) |
-| `threshold.pr_lines` | no | — | PR-diff line coverage % (0–100) |
-| `threshold.branches` | no | — | Overall branch coverage % (0–100), recorded as a warning rather than a hard gate |
-| `on_miss` | no | `warn` | `block`, `warn`, or `schedule` |
-| `pr_comment` | no | `false` | Post coverage summary as PR comment |
-| `hitmap_ttl_days` | no | 7 | Days to retain the hit-map blob |
-
-`on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
-
-Nested `.syrus.yml` files may declare their own `coverage:` blocks. Those sources and thresholds apply to the owning project, not the whole repository; source paths are resolved relative to the directory containing the nested `.syrus.yml`, even when that file declares an explicit `project.path` metadata override. Root coverage keeps the legacy repository-wide behavior. A repository aggregate is computed only when root coverage is configured or when nested project coverage is the only configured coverage source.
 
 ## deployment_stages
 

@@ -1723,6 +1723,8 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     expect(missing_from_templates).to contain_exactly(
       "apply_suggestions",
       "auto_close",
+      "coverage_analyze",
+      "coverage_pr_comment",
       "grade",
       "grader",
       "merge_train_agent",
