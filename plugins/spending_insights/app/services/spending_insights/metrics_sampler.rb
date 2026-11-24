@@ -66,7 +66,7 @@ module SpendingInsights
     end
 
     def finished_runs(after:, through:)
-      Run.terminal
+      Syrus::Host::RunRecord.terminal
          .where(finished_at: after...through)
          .where.not(cost_usd: nil)
          .pluck(:agent_provider, :trigger_kind, :cost_usd)

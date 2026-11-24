@@ -18,9 +18,9 @@ module AgentActivity
       relation = base_relation
       return relation.where(admin_visibility_sql(user)) if scope == :admin
 
-      visible_job_ids = Job.visible_to(
+      visible_job_ids = Syrus::Host::JobRecord.visible_to(
         user,
-        scope: Job.accessible_to(user).or(Job.effectively_owned_by(user))
+        scope: Syrus::Host::JobRecord.accessible_to(user).or(Syrus::Host::JobRecord.effectively_owned_by(user))
       ).select(:id)
       relation.where(operator_visibility_sql(user, visible_job_ids))
     end
@@ -78,7 +78,7 @@ module AgentActivity
           )
         )",
         visible_job_ids,
-        Step::AGENTIC_KINDS
+        Syrus::Host::Step::AGENTIC_KINDS
       ])
     end
 
@@ -153,7 +153,7 @@ module AgentActivity
               AND steps.kind IN (?)
           )
         )",
-        Step::AGENTIC_KINDS
+        Syrus::Host::Step::AGENTIC_KINDS
       ])
     end
 
@@ -256,7 +256,7 @@ module AgentActivity
     end
 
     def preload_agent_processes(agents)
-      scope = SpawnedProcess
+      scope = Syrus::Host::SpawnedProcess
         .where(kind: "agent")
         .select(:id, :agent_id, :kind, :started_at, :finished_at, :outcome)
       ActiveRecord::Associations::Preloader.new(

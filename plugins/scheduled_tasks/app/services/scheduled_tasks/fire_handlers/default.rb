@@ -32,7 +32,7 @@ module ScheduledTasks
       end
 
       def create_job!(**attributes)
-        job = Job.create!(
+        job = Syrus::Host::JobRecord.create!(
           {
             user: task.user,
             repository: task.repository,

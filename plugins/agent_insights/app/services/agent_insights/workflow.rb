@@ -12,7 +12,7 @@ module AgentInsights
   #
   # The anchor Job is closed by after_success and after_fail regardless of
   # workflow outcome so insight Jobs do not accumulate in the operator dashboard.
-  class Workflow < ::Workflows::Base
+  class Workflow < Syrus::Host::WorkflowBase
     steps :agent_insight_run, :auto_close
 
     def self.trigger_kind = "agent_insight"
@@ -33,7 +33,7 @@ module AgentInsights
     end
 
     private_class_method def self.close_anchor_job!(workflow)
-      StateTransition.with_source("system") do
+      Syrus::Host::StateTransition.with_source("system") do
         job = workflow.job
         job.close_with_reason!("agent_insight") if job.may_close?
       end

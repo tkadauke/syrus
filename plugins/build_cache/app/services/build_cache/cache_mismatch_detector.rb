@@ -36,7 +36,7 @@ module BuildCache
 
       restarted = DaemonRestarter.restart!(env: env)
 
-      WorkflowWarnings.record!(
+      Syrus::Host::WorkflowWarnings.record!(
         workflow: workflow,
         step: step,
         kind: WARNING_KIND,
@@ -58,7 +58,7 @@ module BuildCache
 
       restarted = DaemonRestarter.restart!(env: env)
 
-      WorkflowWarnings.record!(
+      Syrus::Host::WorkflowWarnings.record!(
         workflow: workflow,
         step: step,
         kind: WARNING_KIND,
