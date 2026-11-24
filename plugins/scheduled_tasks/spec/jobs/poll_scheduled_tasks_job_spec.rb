@@ -191,7 +191,7 @@ RSpec.describe PollScheduledTasksJob do
       relation = ScheduledTasks::Task.alive.where(state: "scheduled")
                                      .where(ScheduledTasks::Task.arel_table[:id].gt(0))
                                      .order(:id).limit(described_class::BATCH_SIZE)
-      plan = relation.explain.to_s
+      plan = relation.explain.inspect
       expect(plan).not_to match(/filesort/i)
       expect(plan).not_to match(/Using temporary/i)
     end
