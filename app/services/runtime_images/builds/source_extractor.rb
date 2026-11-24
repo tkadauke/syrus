@@ -10,6 +10,12 @@ module RuntimeImages
     # outside it: absolute or ".." paths, hardlinks, device nodes, and
     # symlinks that leave the tree.
     class SourceExtractor
+      # Conservative on-disk cost model: every inode (file, directory, symlink,
+      # and each directory created implicitly for a nested path) is charged one
+      # filesystem block, and file data is rounded up to whole blocks. This keeps
+      # many empty or tiny entries from slipping under a byte-count-only budget.
+      BLOCK = 4096
+
       def initialize(max_bytes: Config.max_source_bytes, max_entries: Config.max_source_entries)
         @max_bytes = max_bytes
         @max_entries = max_entries
@@ -44,18 +50,37 @@ module RuntimeImages
             name = BuildPaths.relative!(entry.full_name.delete_prefix("./"), what: "archive entry")
             target = File.join(root, name)
             if entry.directory?
+              bytes = charge(bytes, new_dirs(root, target) * BLOCK, max_bytes)
               FileUtils.mkdir_p(target)
             elsif entry.file?
-              bytes += entry.header.size
-              raise Rejected.new("source_too_large", "source exceeds #{max_bytes} bytes") if bytes > max_bytes
+              bytes = charge(bytes, new_dirs(root, File.dirname(target)) * BLOCK + BLOCK + round_up(entry.header.size), max_bytes)
               write_file(root, target, entry)
             elsif entry.header.typeflag == "2"
+              bytes = charge(bytes, new_dirs(root, File.dirname(target)) * BLOCK + BLOCK, max_bytes)
               write_symlink(root, target, entry.header.linkname)
             else
               raise Rejected.new("source_invalid", "archive entry #{name} has an unsupported type")
             end
           end
         end
+      end
+
+      def charge(bytes, cost, max_bytes)
+        bytes += cost
+        raise Rejected.new("source_too_large", "source exceeds #{max_bytes} bytes") if bytes > max_bytes
+        bytes
+      end
+
+      def round_up(size) = ((size + BLOCK - 1) / BLOCK) * BLOCK
+
+      # Number of directories between root and path that do not exist yet.
+      def new_dirs(root, path)
+        count = 0
+        while path != root && path.start_with?("#{root}/") && !File.exist?(path)
+          count += 1
+          path = File.dirname(path)
+        end
+        count
       end
 
       def write_file(root, target, entry)

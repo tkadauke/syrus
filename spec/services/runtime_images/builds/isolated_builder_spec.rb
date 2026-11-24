@@ -190,6 +190,18 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
   end
 
+  describe "many small entries against the storage ceiling" do
+    it "charges per-inode overhead so thousands of empty files are rejected before extraction completes" do
+      files = (1..200).to_h { |i| [ "d#{i}/f#{i}", "" ] }.merge("Dockerfile" => "FROM scratch\n")
+      request = request_for(files)
+      raw = request.source_archive.blob.byte_size
+      # Logical bytes are ~12; the block-accounted footprint is hundreds of KB.
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(raw + 100_000)
+      expect { build(request, builder(extractor: RuntimeImages::Builds::SourceExtractor.new)) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("source_too_large") }
+    end
+  end
+
   describe "ceilings" do
     let(:request) { request_for({ "Dockerfile" => "FROM scratch\n" }) }
 
@@ -200,8 +212,8 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
 
     it "fails when scratch storage exceeds its ceiling" do
-      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 20)
-      l = launcher { |_c, _chunk, stop| File.binwrite(File.join(File.dirname(File.dirname(Dir.glob("#{data_root}/runtime-image-builds/builds/*/source").first)), "big"), "x" * 100) rescue nil; stop.call }
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 10_000)
+      l = launcher { |_c, _chunk, stop| File.binwrite(File.join(File.dirname(File.dirname(Dir.glob("#{data_root}/runtime-image-builds/builds/*/source").first)), "big"), "x" * 20_000) rescue nil; stop.call }
       expect { build(request, builder(launcher: l)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }
     end
 
@@ -258,10 +270,10 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
 
     it "rejects storage overshoot found after the command exits, without any poll" do
-      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 20)
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 10_000)
       l = launcher
       l2 = lambda do |command:, env:, **rest|
-        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 100)
+        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 20_000)
         l.call(command: command, env: env, **rest)
       end
       expect { build(request, builder(launcher: l2)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }
