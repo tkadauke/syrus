@@ -238,6 +238,7 @@ RSpec.configure do |config|
 
   config.around do |example|
     snapshot = Syrus::PluginRegistry.boot_snapshot
+    family_snapshot = Syrus::Plugin::Family.snapshot
     # Plugin circuit breakers live in process memory. An example that makes a
     # plugin raise enough times opens its circuit for the cooldown, and every
     # later example in the process then silently loses that plugin's
@@ -256,6 +257,11 @@ RSpec.configure do |config|
     # as well so teardown and process-level hooks cannot observe an empty
     # provider list between examples.
     Syrus::PluginRegistry.restore(snapshot) if snapshot
+    # Families plugins define at load time (mail, personal_calendar) are not
+    # built-ins, so an example that resets the registry to built-ins dropped
+    # them for the rest of the process and the generated plugin docs came out
+    # different depending on spec order.
+    Syrus::Plugin::Family.restore_snapshot!(family_snapshot) if family_snapshot
     Syrus::Plugin::Ecosystem.restore_definition! if defined?(Syrus::Plugin::Ecosystem)
     Syrus::Plugin::Toolkit.restore_definition! if defined?(Syrus::Plugin::Toolkit)
     Syrus::Plugin::Surface.restore_definition! if defined?(Syrus::Plugin::Surface)

@@ -121,6 +121,12 @@ module Syrus
         end
         def reset! = @definitions.clear
         def restore_built_ins! = @definitions.replace(@built_in_definitions)
+        # Every definition currently registered, for code that must put the
+        # registry back exactly as it found it (test isolation: an example
+        # that calls restore_built_ins! otherwise drops the families plugins
+        # define at load time for every later example in the process).
+        def snapshot = @definitions.dup
+        def restore_snapshot!(definitions) = @definitions.replace(definitions)
       end
     end
   end
