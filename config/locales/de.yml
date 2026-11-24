@@ -397,6 +397,7 @@ de:
     jobs:
       errors:
         invalid_tab: "Unbekannter Job-Tab."
+        temporary_lock: "Job-Details sind wegen Datenbank-Konkurrenz vorübergehend nicht verfügbar. Bitte erneut versuchen."
         invalid_priority: "Ungültige Priorität."
         invalid_provider_setting: "Ungültige Anbietereinstellung."
         provider_not_configured: "Dieser Agent ist nicht konfiguriert."

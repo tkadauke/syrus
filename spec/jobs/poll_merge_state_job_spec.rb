@@ -360,6 +360,19 @@ RSpec.describe PollMergeStateJob, :ci_only do
       expect { described_class.new.perform(job.id) }.not_to raise_error
       expect(calls).to eq(described_class::LOCK_RETRY_ATTEMPTS + 1)
     end
+
+    it "logs the backtrace and lock holders when the lock wait persists" do
+      allow_any_instance_of(described_class).to receive(:poll_merge_state)
+        .and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded")
+      allow(MysqlLockDiagnostics).to receive(:snapshot).and_return([ { "trx_id" => "42", "statement" => "UPDATE jobs" } ])
+      messages = []
+      allow(Rails.logger).to receive(:warn) { |msg| messages << msg.to_s }
+
+      described_class.new.perform(job.id)
+
+      persisted = messages.find { |m| m.include?("lock conflict persisted") }
+      expect(persisted).to include("Lock wait timeout exceeded", "lock_holders=", "UPDATE jobs")
+    end
   end
 
   describe "external PR ingest readiness gate" do
