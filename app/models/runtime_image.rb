@@ -32,6 +32,14 @@ class RuntimeImage < ApplicationRecord
   scope :available, -> { where(availability: "available") }
   scope :revoked, -> { where(availability: "revoked") }
   scope :pullable, -> { available.where(revoked_at: nil) }
+  # Garbage-collection candidates before age is applied: stored images that
+  # no retention hold protects. Age, namespace overrides, and the "keep the
+  # newest image" rule are applied by RuntimeImages::Collector.
+  scope :prunable, lambda { |now = Time.current|
+    where(availability: %w[available revoked]).where.not(published_at: nil)
+      .where("retention_state <> 'retained' OR (retain_until IS NOT NULL AND retain_until <= ?)", now)
+  }
+  scope :cleanup_failed, -> { where("cleanup_failure_count > 0").where.not(availability: "deleted") }
   scope :retention_expired, ->(now = Time.current) { where(retention_state: "retained").where(retain_until: ..now) }
 
   AVAILABILITIES.each do |name|
@@ -56,6 +64,16 @@ class RuntimeImage < ApplicationRecord
   def retain!(reason: nil, until_time: nil)
     raise InvalidTransition, "deleted images cannot be retained" if deleted?
     update!(retention_state: "retained", retain_until: until_time, retention_reason: reason.to_s.truncate(500).presence)
+  end
+
+  def record_cleanup_failure!(error, now: Time.current)
+    update!(cleanup_failure_count: cleanup_failure_count + 1, cleanup_failed_at: now,
+            cleanup_last_error: "#{error.class}: #{error.message}".truncate(500))
+  end
+
+  def clear_cleanup_failure!
+    return if cleanup_failure_count.zero? && cleanup_last_error.nil?
+    update!(cleanup_failure_count: 0, cleanup_failed_at: nil, cleanup_last_error: nil)
   end
 
   def release_retention!

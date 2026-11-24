@@ -161,4 +161,18 @@ RSpec.describe RuntimeImages::OciRegistry::Provider do
     other.owner_kind = "../x"
     expect { layout.repository_for(other) }.to raise_error(RuntimeImages::ProviderError)
   end
+
+  it "lists the digests of tagged manifests as the pull-only worker" do
+    authed(:get, "/v2/#{repo}/tags/list?n=100", "repository:#{repo}:pull")
+      .to_return(status: 200, body: { tags: %w[rev-1 rev-2] }.to_json)
+    authed(:head, "/v2/#{repo}/manifests/rev-1", "repository:#{repo}:pull").to_return(status: 200, headers: { "Docker-Content-Digest" => digest })
+    authed(:head, "/v2/#{repo}/manifests/rev-2", "repository:#{repo}:pull").to_return(status: 200, headers: { "Docker-Content-Digest" => digest })
+
+    expect(provider.list(RuntimeImages::ListRequest.new(namespace: namespace))).to eq([ digest ])
+  end
+
+  it "lists nothing for a repository the registry does not know" do
+    authed(:get, "/v2/#{repo}/tags/list?n=100", "repository:#{repo}:pull").to_return(status: 404)
+    expect(provider.list(RuntimeImages::ListRequest.new(namespace: namespace))).to eq([])
+  end
 end

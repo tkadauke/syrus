@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_205837) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3950,6 +3950,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
     t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"
   end
 
+  create_table "runtime_image_audit_events", force: :cascade do |t|
+    t.bigint "runtime_image_id"
+    t.bigint "runtime_image_namespace_id"
+    t.string "event_type", limit: 64, null: false
+    t.string "outcome", limit: 32, null: false
+    t.string "digest", limit: 191
+    t.string "actor", limit: 100
+    t.json "details"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.index ["event_type", "occurred_at"], name: "idx_ri_audit_type_time"
+    t.index ["occurred_at"], name: "idx_ri_audit_time"
+    t.index ["runtime_image_id", "occurred_at"], name: "idx_ri_audit_image_time"
+  end
+
   create_table "runtime_image_cache_entries", force: :cascade do |t|
     t.string "hostname", limit: 191, null: false
     t.bigint "runtime_image_id", null: false
@@ -4012,6 +4027,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "cleanup_failure_count", default: 0, null: false
+    t.datetime "cleanup_failed_at"
+    t.string "cleanup_last_error", limit: 500
     t.index ["availability", "retention_state"], name: "idx_runtime_images_state"
     t.index ["runtime_image_namespace_id", "digest", "platform"], name: "idx_runtime_images_identity", unique: true
     t.index ["source_kind", "source_ref"], name: "idx_runtime_images_source"

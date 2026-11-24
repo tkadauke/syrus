@@ -68,6 +68,9 @@ dependent-row cleanup or another side effect is required.
 | `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | generic | yes |
 | `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | generic | yes |
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | generic | no |
+| `runtime_image_retention_days` | 30 | days | `runtime_images` | Runtime Image garbage collector | no |
+| `runtime_image_pull_event_retention_days` | 30 | days | `runtime_image_pull_events` | generic | no |
+| `runtime_image_audit_event_retention_days` | 180 | days | `runtime_image_audit_events` | generic | no |
 
 "Archivable" means the entry's `RetentionPolicyRegistry::Definition#archivable`
 flag is `true` — see "Archive-before-delete storage" below for what that

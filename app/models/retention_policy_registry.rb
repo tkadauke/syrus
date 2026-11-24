@@ -278,6 +278,48 @@ class RetentionPolicyRegistry
       description: "Per-step-key resource prediction profiles used for admission control; stale profiles are dropped rather than trusted.",
       category: "Diagnostics",
       archivable: false
+    ),
+    Definition.new(
+      key: :runtime_image,
+      model: "RuntimeImage",
+      table_name: "runtime_images",
+      age_column: :published_at,
+      scope_name: :prunable,
+      setting_key: :runtime_image_retention_days,
+      default_value: 30,
+      unit: :days,
+      executor_class: "RetentionPolicyExecutors::RuntimeImage",
+      description: "Published runtime images with no retention hold. Expired images are revoked and deleted from the registry; the newest image per namespace and held rollback images are kept, and namespaces may override the window.",
+      category: "Product",
+      archivable: false
+    ),
+    Definition.new(
+      key: :runtime_image_pull_event,
+      model: "RuntimeImagePullEvent",
+      table_name: "runtime_image_pull_events",
+      age_column: :created_at,
+      scope_name: :prunable,
+      setting_key: :runtime_image_pull_event_retention_days,
+      default_value: 30,
+      unit: :days,
+      executor_class: nil,
+      description: "Worker image cache lookup and pull outcomes used for hit-ratio and registry health reporting.",
+      category: "Diagnostics",
+      archivable: false
+    ),
+    Definition.new(
+      key: :runtime_image_audit_event,
+      model: "RuntimeImageAuditEvent",
+      table_name: "runtime_image_audit_events",
+      age_column: :occurred_at,
+      scope_name: :prunable,
+      setting_key: :runtime_image_audit_event_retention_days,
+      default_value: 180,
+      unit: :days,
+      executor_class: nil,
+      description: "Audit trail of runtime image publish, revoke, retain, delete, garbage-collection, and reconciliation decisions.",
+      category: "Diagnostics",
+      archivable: false
     )
   ].freeze
 

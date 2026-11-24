@@ -117,6 +117,10 @@ default: &default
     class: ReapStaleInstanceVersionsJob
     queue: cleanup
     schedule: every minute
+  reconcile_runtime_images:
+    class: RuntimeImageReconcileJob
+    queue: cleanup
+    schedule: every hour
   sample_worker_host_health:
     class: WorkerHostHealthSampleJob
     queue: cleanup
