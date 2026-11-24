@@ -16,6 +16,7 @@ import { Link, Navigate, useLocation, useNavigate, useNavigationType, useParams 
 import { fetchReviewWorkspace, fetchReviewWorkspaceSummary, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
 import { buildDecisionBrief, type BriefRow, type ChangeScope } from "../lib/decisionBrief"
 import { useGestureHelp } from "../lib/gestureHelp"
+import { createReviewSessionId, useReviewSessionDeferrals } from "../lib/reviewSession"
 
 const WORKSPACE_SCROLL_CLASS =
   "h-[calc(100dvh-4rem)] shrink-0 overflow-x-hidden overflow-y-scroll overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:h-auto lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden"
@@ -39,9 +40,16 @@ const BRIEF_TONE_CLASS: Record<BriefRow["tone"], string> = {
 }
 const MAX_CARD_ROTATION_DEGREES = 4
 const REVIEW_SESSION_STATE_KEY = "reviewWorkspaceCanReturn"
+const REVIEW_SESSION_ID_STATE_KEY = "reviewWorkspaceSessionId"
+type SessionState = Record<string, unknown>
 
 function canReturnFromState(state: unknown) {
   return Boolean(state && typeof state === "object" && (state as Record<string, unknown>)[REVIEW_SESSION_STATE_KEY] === true)
+}
+
+function sessionIdFromState(state: unknown) {
+  const value = state && typeof state === "object" ? (state as Record<string, unknown>)[REVIEW_SESSION_ID_STATE_KEY] : undefined
+  return typeof value === "string" && value ? value : undefined
 }
 
 export default function ReviewWorkspaceRoute() {
@@ -54,7 +62,12 @@ export default function ReviewWorkspaceRoute() {
   const isDesktop = useDesktopReviewLayout()
   const review = useQuery({ queryKey: ["review_workspace"], queryFn: fetchReviewWorkspace, refetchInterval: 30_000 })
   const queryClient = useQueryClient()
-  const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
+  // A Review session starts on entry from outside Review and is carried through
+  // every internal replacement via route state (which also survives reloads).
+  const fallbackSessionId = useRef<string>()
+  const stateSessionId = sessionIdFromState(location.state)
+  const sessionId = stateSessionId ?? (fallbackSessionId.current ??= createReviewSessionId())
+  const { deferred, defer: deferJob, prune: pruneDeferred, clear: clearSession } = useReviewSessionDeferrals(sessionId)
   const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
   const [evidenceNavigation, setEvidenceNavigation] = useState<{ jobId: number; direction: -1 | 1; sequence: number }>()
   const [gestureIntent, setGestureIntent] = useState<{ jobId: number; sequence: number }>()
@@ -63,10 +76,17 @@ export default function ReviewWorkspaceRoute() {
   const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
   const canReturnToEntry = useRef(canReturnFromState(location.state) || entryNavigationType === "PUSH")
-  const sessionState = { [REVIEW_SESSION_STATE_KEY]: canReturnToEntry.current }
+  const sessionState: SessionState = { [REVIEW_SESSION_STATE_KEY]: canReturnToEntry.current, [REVIEW_SESSION_ID_STATE_KEY]: sessionId }
   const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
   usePageTitle(t("title"))
   useEffect(() => exitRef.current?.focus(), [review.isSuccess])
+  useEffect(() => {
+    if (stateSessionId) return
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: sessionState })
+  }, [stateSessionId])
+  useEffect(() => {
+    if (review.data) pruneDeferred(review.data.jobs.map((job) => job.id))
+  }, [pruneDeferred, review.data])
   useEffect(
     () =>
       addAppEventListener((event) => {
@@ -77,6 +97,7 @@ export default function ReviewWorkspaceRoute() {
   )
 
   function exitWorkspace() {
+    clearSession()
     if (canReturnToEntry.current) navigate(-1)
     else navigate(withRoutePrefix("/dashboard/jobs", prefix), { replace: true })
     window.setTimeout(() => {
@@ -165,7 +186,7 @@ export default function ReviewWorkspaceRoute() {
           }}
           onDefer={() => {
             gestureHelp.acknowledge()
-            setDeferred((current) => new Set(current).add(active.id))
+            deferJob(active.id)
           }}
           onDetails={() => {
             gestureHelp.acknowledge()
@@ -191,11 +212,12 @@ export default function ReviewWorkspaceRoute() {
         <DecisionPanel
           detail={loadedDetail?.jobId === active.id ? loadedDetail.payload : undefined}
           job={active}
-          onCompleted={() => {
-            setDeferred((current) => new Set(current).add(active.id))
-            void review.refetch()
+          onCompleted={(jobId) => {
+            // Exclude first so the single eligibility refresh never resurrects the Job.
+            deferJob(jobId)
+            return queryClient.invalidateQueries({ queryKey: ["review_workspace"], exact: true })
           }}
-          onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
+          onDefer={() => deferJob(active.id)}
           onEvidenceMove={(direction) => setEvidenceNavigation((current) => ({ jobId: active.id, direction, sequence: (current?.sequence ?? 0) + 1 }))}
           onExit={exitWorkspace}
           onMove={selectJob}
@@ -507,7 +529,7 @@ function JobRail({
   active: ReviewWorkspaceJob
   jobs: ReviewWorkspaceJob[]
   prefix: string
-  sessionState: Record<string, boolean>
+  sessionState: SessionState
 }) {
   const { t } = useT("review_workspace")
   return (
@@ -553,7 +575,7 @@ function JobReview({
   onDetail: (jobId: number, payload: JobDetailPayload) => void
   onDetails: () => void
   onDismissGestureHelp: () => void
-  sessionState: Record<string, boolean>
+  sessionState: SessionState
   visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("review_workspace")
@@ -658,7 +680,7 @@ function MobileReviewCard({
   onDetails: () => void
   onDismissGestureHelp: () => void
   payload: JobDetailPayload
-  sessionState: Record<string, boolean>
+  sessionState: SessionState
   visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("review_workspace")
@@ -854,7 +876,7 @@ function DecisionPanel({
 }: {
   detail?: JobDetailPayload
   job: ReviewWorkspaceJob
-  onCompleted: () => void
+  onCompleted: (jobId: number) => Promise<unknown> | void
   onDefer: () => void
   onEvidenceMove: (direction: -1 | 1) => void
   onExit: () => void
@@ -876,17 +898,18 @@ function DecisionPanel({
     setFeedbackOpen(false)
     setFeedback("")
   }, [job.id])
-  async function completed() {
-    await queryClient.invalidateQueries({ queryKey: ["review_workspace"] })
-    await queryClient.invalidateQueries({ queryKey: ["jobs", String(job.id)] })
-    onCompleted()
+  // The acted-on Job ID travels with the request; it is never re-read from the
+  // card that happens to be rendered when the request settles.
+  async function completed(jobId: number) {
+    void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId)] })
+    await onCompleted(jobId)
   }
   const canApprove = Boolean(detail?.actions.can_approve && detail.job.summary_state.toLowerCase() === "implemented" && detail.paths.app_approve_path)
   const refreshEligibility = () => queryClient.invalidateQueries({ queryKey: ["review_workspace"] })
   const approve = useMutation({
-    mutationFn: () => postJobCommand(detail!.paths.app_approve_path, { expected_revision: job.revision }),
+    mutationFn: (request: { jobId: number; path: string; revision: number }) => postJobCommand(request.path, { expected_revision: request.revision }),
     onError: refreshEligibility,
-    onSuccess: completed,
+    onSuccess: (_data, request) => completed(request.jobId),
     onSettled: () => {
       approvalStarted.current = false
     }
@@ -894,12 +917,12 @@ function DecisionPanel({
   const requestApproval = () => {
     if (approvalStarted.current) return
     approvalStarted.current = true
-    approve.mutate()
+    approve.mutate({ jobId: job.id, path: detail!.paths.app_approve_path, revision: job.revision })
   }
   const submitFeedback = useMutation({
-    mutationFn: () => submitJobFeedback(job.id, feedback.trim(), job.revision),
+    mutationFn: (request: { jobId: number; text: string; revision: number }) => submitJobFeedback(request.jobId, request.text, request.revision),
     onError: refreshEligibility,
-    onSuccess: completed
+    onSuccess: (_data, request) => completed(request.jobId)
   })
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -991,7 +1014,7 @@ function DecisionPanel({
           className={MOBILE_FEEDBACK_SHEET_CLASS}
           onSubmit={(event) => {
             event.preventDefault()
-            if (feedback.trim()) submitFeedback.mutate()
+            if (feedback.trim()) submitFeedback.mutate({ jobId: job.id, text: feedback.trim(), revision: job.revision })
           }}
         >
           <label className="block text-sm font-medium" htmlFor="focused-review-feedback">
