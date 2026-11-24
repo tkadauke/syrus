@@ -105,8 +105,8 @@ RSpec.describe K8sCluster::ChatToolSet do
       provider.respond_to?(:coworker_grants) ? provider.coworker_grants.flat_map { |grant| grant.fetch(:tools) } : []
     end
     privileged.each do |tool_name|
-      expect(definitions.fetch(tool_name)).not_to include(:coworker_excluded, :coworker_exception)
-      expect(Mcp::CoworkerToolExposure.plugin_definition?(definitions.fetch(tool_name))).to be(true)
+      expect(definitions.fetch(tool_name)).not_to include(:coworker_excluded, :parity_exception)
+      expect(Mcp::ChatToolParity.plugin_definition_in_context?(definitions.fetch(tool_name), :coworker, provider: described_class)).to be(true)
       expect(definitions.fetch(tool_name)).to include(:capability_descriptor)
       expect(registered_grant_tools).not_to include(tool_name)
     end

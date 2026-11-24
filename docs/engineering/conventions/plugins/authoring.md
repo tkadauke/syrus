@@ -1183,18 +1183,24 @@ grant. A scopeable grant additionally supplies `scope_options_callback`
 `chat_mcp_tool_set` providers are collected, so disabling a plugin removes its
 declarations from the catalog.
 
-Coworkers inherit plugin chat tools by default (interactive chat tool parity;
-see `Mcp::ChatToolParity`). A role-specific exception is allowed only when the
-operation is semantically incoherent in the other context, not merely risky.
-A provider declares one with `.coworker_exception` (or a definition with
-`coworker_exception:`), and a coworker-only provider declares
-`.coworker_only_surface`; both return a hash with a registered `reason_code`,
-`explanation`, `owner`, and `test_ref` (an existing spec path), and an
-incomplete hash raises. The boolean `coworker_excluded` /
-`coworker_excluded?` / `coworker_specific_availability?` forms are removed and
-rejected. Admin-only definitions set `admin_only: true` and are shared with
-coworkers whose owner is an admin. Resource state (no browser session, no
-checkout) is reported by the tool when called, not by hiding it from coworkers.
+Every chat context inherits plugin chat tools by default (interactive chat tool
+parity; see `Mcp::ChatToolParity`, which is generic and names no plugin-owned
+context). A context-specific exception is allowed only when the operation is
+semantically incoherent in that context, not merely risky. A provider declares
+one with `.chat_parity_exceptions` (or a definition with `parity_exception:`):
+a hash with `reason_code`, `explanation`, `owner`, `test_ref` (an existing spec
+path), and `absent_from` (the contexts, for example `%i[planner coding local]`).
+The reason code is either a core code or one the provider owns through
+`.chat_parity_reason_codes`; an incomplete hash raises. Each plugin declares and
+tests the exceptions for the tools it contributes. A plugin that contributes its
+own chat context (such as coworkers) owns that context's baseline, comparison
+rules, exceptions, reason codes, and specs: its chat tool set returns a
+participant from `.chat_parity_participant` (see `Coworkers::ChatParity`), and
+it is only active while the plugin is enabled. Boolean exclusion forms are
+removed and rejected. Admin-only definitions set `admin_only: true` and are
+shared with every context whose operator is an admin. Resource state (no
+browser session, no checkout) is reported by the tool when called, not by
+hiding it from discovery.
 Exceptions are documented in the generated MCP catalog. Never use an exception
 to avoid authorization: risky, destructive, admin, external-write, and
 credential-using tools stay shared and rely on canonical descriptors, grants,

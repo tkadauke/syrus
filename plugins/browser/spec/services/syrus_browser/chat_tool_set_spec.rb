@@ -5,11 +5,12 @@ RSpec.describe SyrusBrowser::ChatToolSet do
   let(:repository) { Factories.repository(user: user) }
 
   it "is shared with coworker chats, including visual review tools" do
-    expect(Mcp::CoworkerToolExposure.plugin_provider?(described_class)).to be(true)
+    expect(Mcp::ChatToolParity.plugin_exceptions([ described_class ])).to be_empty
+    expect(Mcp::ChatToolParity.plugin_report([ described_class ])).to eq([])
     names = described_class.tool_definitions(tier: :deferred).map { |definition| definition.fetch(:name) }
     expect(names).to include("run_visual_review", "run_visual_diff")
     expect(described_class.tool_definitions(tier: :deferred))
-      .to all(satisfy { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) })
+      .to all(satisfy { |definition| Mcp::ChatToolParity.plugin_definition_in_context?(definition, :coworker, provider: described_class) })
   end
 
   it "is offered to a coworker chat even with no browser runtime session, which errors precisely on use" do

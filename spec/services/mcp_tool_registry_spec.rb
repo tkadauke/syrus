@@ -154,7 +154,7 @@ RSpec.describe McpToolRegistry do
     it "derives the coworker surface from ordinary chat registration with centralized exclusions" do
       chat_entries = described_class.entries(surface: :chat)
       coworker_names = described_class.entries(surface: :coworker).map(&:tool_name)
-      expected_shared = chat_entries.select { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }.map(&:tool_name)
+      expected_shared = chat_entries.select { |entry| Mcp::ChatToolParity.core_entry_in_context?(entry, :coworker) }.map(&:tool_name)
 
       expect(coworker_names).to include(*expected_shared)
       expect(coworker_names).to include(
@@ -165,7 +165,7 @@ RSpec.describe McpToolRegistry do
       expect(coworker_names).not_to include(
         "run_command", "runtime_start", "submit_coding_changes",
         *Mcp::ChatToolParity::WORKFLOW_VERDICT_TOOLS,
-        *Mcp::ChatToolParity::PERMISSION_TOOLS
+        *Mcp::ChatToolParity.core_exceptions.select { |exception| exception.absent_from?(:coworker) }.flat_map(&:tools)
       )
     end
   end
