@@ -287,7 +287,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::RepositoryMembershipRecord` (since 0.1.16) — Queries repository memberships, including the at_least role-tier scope. Supported members: `at_least`, `where`.
 - `Syrus::Host::RepositoryPolicy` (since 0.1.16) — Answers repository authorization questions through the standard policy interface; the rules themselves are not promised. Supported members: `new`.
 - `Syrus::Host::RepositoryRecommendation` (since 0.1.16) — Lets a plugin recommend plugins or settings for a repository; recommendation ranking and presentation are not promised. Only the listed members are supported. Supported members: `repository_recommendations`.
-- `Syrus::Host::RepositoryRecord` (since 0.1.16) — Queries repositories through access-scoped lookups (accessible_to, writable_by, accessible_repository_ids_for) and basic finders; credentials, synchronization, transitions, callbacks, and unlisted associations are not promised. Supported members: `accessible_repository_ids_for`, `accessible_to`, `active`, `all`, `arel_table`, `create!`, `find`, `find_by`, `ids`, `new`, `order`, `where`, `writable_by`.
+- `Syrus::Host::RepositoryRecord` (since 0.1.16) — Queries repositories through access-scoped lookups (accessible_to, writable_by, accessible_repository_ids_for) and basic finders; credentials, synchronization, transitions, callbacks, and unlisted associations are not promised. Supported members: `accessible_repository_ids_for`, `accessible_to`, `active`, `all`, `arel_table`, `create!`, `exists?`, `find`, `find_by`, `find_by!`, `ids`, `new`, `order`, `where`, `writable_by`.
 - `Syrus::Host::RepositorySummarySerialization` (since 0.1.16) — Controller concern that renders the repository detail header payload (repository_detail_json); other payload members are not promised. Supported members: `repository_detail_json`.
 - `Syrus::Host::RetentionPolicy` (since 0.1.16) — Lets a plugin contribute retention definitions for the tables it owns; the retention registry and pruner are not promised. Only the listed members are supported. Supported members: `retention_definitions`.
 - `Syrus::Host::ReviewContextContributor` (since 0.1.16) — Supplies restricted context and post-verdict persistence for an opaque reviewer target; the review lifecycle is not promised. Only the listed members are supported. Supported members: `operator_links`, `retention`, `tombstone`, `tool_capability`, `tool_set`.
@@ -365,4 +365,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 76171 bytes (UTF-8, including this line).
+Size: 76194 bytes (UTF-8, including this line).

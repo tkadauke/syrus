@@ -1825,8 +1825,10 @@ Supported members:
 - `all`
 - `arel_table`
 - `create!`
+- `exists?`
 - `find`
 - `find_by`
+- `find_by!`
 - `ids`
 - `new`
 - `order`
