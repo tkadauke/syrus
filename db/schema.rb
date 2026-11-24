@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3948,6 +3948,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
     t.index ["runtime_session_id", "mode", "state"], name: "index_runtime_control_leases_on_session_mode_state"
     t.index ["runtime_session_id", "state"], name: "index_runtime_control_leases_on_runtime_session_id_and_state"
     t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"
+  end
+
+  create_table "runtime_image_namespaces", force: :cascade do |t|
+    t.string "name", limit: 191, null: false
+    t.string "owner_kind", limit: 100, null: false
+    t.string "owner_ref", limit: 191, null: false
+    t.string "provider_key", limit: 100, null: false
+    t.integer "retention_days"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "idx_runtime_image_namespaces_name", unique: true
+    t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
+  end
+
+  create_table "runtime_images", force: :cascade do |t|
+    t.bigint "runtime_image_namespace_id", null: false
+    t.string "digest", limit: 191, null: false
+    t.string "platform", limit: 64, default: "linux/amd64", null: false
+    t.string "locator", limit: 1000
+    t.string "source_kind", limit: 100, null: false
+    t.string "source_ref", limit: 191, null: false
+    t.string "source_digest", limit: 191
+    t.json "provenance", null: false
+    t.string "availability", limit: 32, default: "pending", null: false
+    t.datetime "published_at"
+    t.datetime "revoked_at"
+    t.string "revoked_reason", limit: 500
+    t.string "retention_state", limit: 32, default: "default", null: false
+    t.datetime "retain_until"
+    t.string "retention_reason", limit: 500
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["availability", "retention_state"], name: "idx_runtime_images_state"
+    t.index ["runtime_image_namespace_id", "digest", "platform"], name: "idx_runtime_images_identity", unique: true
+    t.index ["source_kind", "source_ref"], name: "idx_runtime_images_source"
   end
 
   create_table "runtime_sessions", force: :cascade do |t|
