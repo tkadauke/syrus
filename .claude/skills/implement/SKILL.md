@@ -99,6 +99,29 @@ plus targeted checks.
 
 ---
 
+Attached mockups — if the Job includes an attached UI mockup (for
+example an HTML file or design image), treat it as a rendered design
+reference, not as a source excerpt to skim:
+
+  - Inspect the complete mockup. Do not rely on a partial source
+    excerpt or the first part of a long file.
+  - Render and interact with it when the available environment
+    supports doing so (for example, open an HTML mockup in the
+    headless browser and click through it).
+  - Treat it as the primary visual and interaction reference unless
+    the written Job requirements explicitly conflict with it; where
+    they conflict, follow the written requirements.
+  - Pay close attention to layout, hierarchy, spacing, typography,
+    color, responsive behavior, states, animation, gestures, overlays,
+    and dialogs.
+  - Reuse existing components only when they preserve the intended
+    composition and behavior. Convenience is not a reason for material
+    divergence from the mockup.
+
+Jobs without an attached mockup are unaffected by this section.
+
+---
+
 Corner-cutting contract — this is a one-shot, unattended run with
 no one to catch a shortcut before it ships. Rationalizations that
 show up under pressure, and why they don't hold here:

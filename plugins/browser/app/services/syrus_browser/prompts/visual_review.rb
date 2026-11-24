@@ -65,6 +65,7 @@ module SyrusBrowser::Prompts
         manual_review_instructions_section,
         workflow_instructions,
         changed_surface_coverage,
+        attached_mockup_review,
         prior_review_context,
         submission_instructions
       ].compact_blank.join("\n\n")
@@ -485,6 +486,16 @@ module SyrusBrowser::Prompts
         changed surface is the sign-in, login, signup, or session page itself,
         review and approve that auth surface normally, even if the Job also
         mentions a post-login route or redirect.
+      TEXT
+    end
+
+    def attached_mockup_review
+      <<~TEXT.strip
+        Attached mockups — if the Job includes an attached UI mockup (for example an HTML file or design image), review the implementation against it; if there is no attached mockup, ignore this section:
+        - Render and inspect the mockup, including its important interactions, rather than merely reading its source.
+        - Compare the running implementation directly against the mockup across relevant viewports and states.
+        - Treat material unexplained differences in visual hierarchy, composition, styling, responsive behavior, or interaction as defects that should produce a "needs_work" verdict.
+        - Follow explicit written Job requirements when they conflict with the mockup.
       TEXT
     end
 
