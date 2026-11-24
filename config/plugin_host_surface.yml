@@ -2,11 +2,8 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 294
+legacy_baseline: 247
 constants:
-- name: Admin::JobStateSerializer
-- name: Admin::OperationalLogsPayload
-- name: Admin::SmartFolderNavigation
 - name: AdminAction
 - name: Agent
 - name: AgentEventAbbreviator
@@ -26,9 +23,6 @@ constants:
 - name: AgentRole::WORKFLOW_ROLES
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
 - name: AgentSidecarEnvironment
-- name: App::Presentation
-- name: App::ProviderAvailability
-- name: App::RunArtifactsPayload
 - name: AppEvents
 - name: AppSetting
 - name: ApplicationCable::Channel
@@ -46,7 +40,6 @@ constants:
 - name: ChatLockErrors
 - name: ChatMediaLibrary
 - name: ChatMessage
-- name: ChatMessageSearchIndex
 - name: ChatPendingAction
 - name: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES
 - name: ChatProviders::Base
@@ -81,32 +74,6 @@ constants:
 - name: EpicMarkerParser
 - name: Epics::Filter
 - name: Feature
-- name: Filters::Ast
-- name: Filters::Ast::AndNode
-- name: Filters::Ast::Chip
-- name: Filters::Ast::EMPTY
-- name: Filters::Ast::NotNode
-- name: Filters::Ast::OrNode
-- name: Filters::BaseFilter
-- name: Filters::Chips::Base
-- name: Filters::Chips::BooleanColumn
-- name: Filters::Chips::DateColumn
-- name: Filters::Chips::DateColumn::UNITS
-- name: Filters::Chips::EnumColumn
-- name: Filters::Chips::FkColumn
-- name: Filters::Chips::FullTextStringColumn
-- name: Filters::Chips::Jobs::JobType
-- name: Filters::Chips::NumberColumn
-- name: Filters::Chips::StringColumn
-- name: Filters::Compiler
-- name: Filters::QueryParam
-- name: Filters::QueryParam::PARAM_NAME
-- name: Filters::Registry
-- name: Filters::Schema
-- name: Filters::SmartFolderResolution
-- name: Filters::SmartFolderResolution::PRESET_FIELD
-- name: Filters::UnknownFilterField
-- name: FtsQueryParser
 - name: GithubApiUsageRollup
 - name: GithubClient
 - name: GithubIssueJobAttributes
@@ -163,9 +130,6 @@ constants:
 - name: MysqlConnection::ADMIN_SURFACE
 - name: MysqlQueryAudit
 - name: Observability::EventSink
-- name: OperationalLogSearch
-- name: OperationalLogSearch::INPUT_SCHEMA_PROPERTIES
-- name: Paginatable
 - name: PendingActionItem
 - name: PendingActions::Base
 - name: PerformanceLogEvent
@@ -244,9 +208,6 @@ constants:
 - name: RuntimeSession
 - name: RuntimeSessionProviders
 - name: RuntimeSessionProviders::ConfigurationError
-- name: SearchIndexVersion
-- name: SearchIndexWriteLimits
-- name: SearchRecord
 - name: Skills
 - name: Skills::NAME_PATTERN
 - name: Skills::NotFoundError
@@ -256,13 +217,8 @@ constants:
 - name: Skills::Renderer
 - name: Skills::SkillMarkdown::ParseError
 - name: SkipIfPending
-- name: SmartFolder
-- name: SmartFolder::COUNT_CAP
 - name: SpawnedProcess
 - name: StateTransition
-- name: Step
-- name: Step::AGENTIC_KINDS
-- name: Step::Kind
 - name: Steps::Base
 - name: Steps::MergeTrainLand::STALE_BASE_ARTIFACT
 - name: Syrus::DataCleanup
@@ -279,7 +235,6 @@ constants:
     entry point.
 - name: Syrus::PluginSettings
 - name: SyrusMcp::TypedArtifactProvenance
-- name: SyrusSearchDatabaseTasks
 - name: SyrusVersion
 - name: SyrusYml
 - name: SyrusYml::CONFIG_FILE
@@ -291,8 +246,6 @@ constants:
 - name: Theme
 - name: Theme::EXTENDED_TOKEN_GROUPS
 - name: Theme::TOKEN_KEYS
-- name: Timeline::MacroQuery
-- name: Timeline::WorkflowWaterfallQuery
 - name: ToolPayloadRedactor
 - name: ToolPayloadRedactor::REDACTED
 - name: TracksFinishedAt

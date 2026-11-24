@@ -4,7 +4,7 @@ module Filters
       # "Role" in the UI: the Step#kind of the agentic step this session ran
       # as for workflow-backed agents, ChatSession#mode for chat-backed agents,
       # and "design_doc" for design-doc-backed agents.
-      class StepKind < Base
+      class StepKind < Syrus::Host::Filters::Chips::Base
         filter_name "step_kind"
         label "Role"
         bucket :enum

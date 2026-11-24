@@ -1,8 +1,8 @@
 module TestInsights
-  class SearchIndex < SearchRecord
+  class SearchIndex < Syrus::Host::SearchRecord
     self.table_name = "test_identity_fts"
 
-    include FtsQueryParser
+    include Syrus::Host::FtsQueryParser
 
     class << self
       def upsert(test_identity)

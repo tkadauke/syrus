@@ -1,6 +1,6 @@
 module SpendingInsights
   class Filter
-    include Filters::BaseFilter
+    include Syrus::Host::Filters::BaseFilter
 
     DEFAULT_WINDOW_DAYS = 90
     LEGACY_URL_KEYS = %w[
@@ -14,7 +14,7 @@ module SpendingInsights
     ].freeze
 
     def self.from_params(params, user:)
-      q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+      q_tree = Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME])
       url_tree = build_tree_from_url_params(params)
       trees = [ q_tree, url_tree ].compact
       trees.unshift(default_tree(user)) unless trees.any? { |tree| positive_top_level_fields(tree).include?("created_at") }
@@ -24,17 +24,17 @@ module SpendingInsights
     end
 
     def initialize(tree, user:)
-      @ast = Filters::Ast.parse(tree)
+      @ast = Syrus::Host::Filters::Ast.parse(tree)
       @user = user
     end
 
     def apply(scope)
-      Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :spending_report)
+      Syrus::Host::Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :spending_report)
     end
 
     def apply_without_date(scope)
-      ast = without_field(@ast, "created_at") || Filters::Ast::EMPTY
-      Filters::Compiler.call(ast, scope: scope, user: @user, subject: :spending_report)
+      ast = without_field(@ast, "created_at") || Syrus::Host::Filters::Ast::EMPTY
+      Syrus::Host::Filters::Compiler.call(ast, scope: scope, user: @user, subject: :spending_report)
     end
 
     def start_date
@@ -69,10 +69,10 @@ module SpendingInsights
 
     def positive_top_level_chips
       case @ast
-      when Filters::Ast::Chip
+      when Syrus::Host::Filters::Ast::Chip
         [ @ast ]
-      when Filters::Ast::AndNode
-        @ast.children.grep(Filters::Ast::Chip)
+      when Syrus::Host::Filters::Ast::AndNode
+        @ast.children.grep(Syrus::Host::Filters::Ast::Chip)
       else
         []
       end
@@ -138,7 +138,7 @@ module SpendingInsights
     private_class_method :parse_date
 
     def self.positive_top_level_fields(tree)
-      Filters::Ast.parse(tree).then { |ast| positive_top_level_chips(ast).map(&:field) }
+      Syrus::Host::Filters::Ast.parse(tree).then { |ast| positive_top_level_chips(ast).map(&:field) }
     rescue ArgumentError
       []
     end
@@ -146,10 +146,10 @@ module SpendingInsights
 
     def self.positive_top_level_chips(ast)
       case ast
-      when Filters::Ast::Chip
+      when Syrus::Host::Filters::Ast::Chip
         [ ast ]
-      when Filters::Ast::AndNode
-        ast.children.grep(Filters::Ast::Chip)
+      when Syrus::Host::Filters::Ast::AndNode
+        ast.children.grep(Syrus::Host::Filters::Ast::Chip)
       else
         []
       end
@@ -162,17 +162,17 @@ module SpendingInsights
 
     def without_field(node, field)
       case node
-      when Filters::Ast::Chip
+      when Syrus::Host::Filters::Ast::Chip
         node unless node.field == field
-      when Filters::Ast::AndNode
+      when Syrus::Host::Filters::Ast::AndNode
         children = node.children.filter_map { |child| without_field(child, field) }
-        Filters::Ast::AndNode.new(children: children) if children.any?
-      when Filters::Ast::OrNode
+        Syrus::Host::Filters::Ast::AndNode.new(children: children) if children.any?
+      when Syrus::Host::Filters::Ast::OrNode
         children = node.children.filter_map { |child| without_field(child, field) }
-        Filters::Ast::OrNode.new(children: children) if children.any?
-      when Filters::Ast::NotNode
+        Syrus::Host::Filters::Ast::OrNode.new(children: children) if children.any?
+      when Syrus::Host::Filters::Ast::NotNode
         child = without_field(node.child, field)
-        Filters::Ast::NotNode.new(child: child) if child
+        Syrus::Host::Filters::Ast::NotNode.new(child: child) if child
       end
     end
   end

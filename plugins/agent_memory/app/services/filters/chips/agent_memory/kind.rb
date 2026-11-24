@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentMemory
-      class Kind < EnumColumn
+      class Kind < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "kind"
         label "Kind"
         column :kind

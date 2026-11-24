@@ -214,7 +214,25 @@ module Syrus
         ReviewNoteProjects: "App::ReviewNoteProjects",
         JobDiscussionChatResolver: "App::JobDiscussionChatResolver",
         WorkflowPayload: "McpToolPayloads::WorkflowPayload",
-        AppEvents: "AppEvents"
+        AppEvents: "AppEvents",
+        Step: "Step",
+        Filters: "Filters",
+        SmartFolder: "SmartFolder",
+        SmartFolderNavigation: "Admin::SmartFolderNavigation",
+        FtsQueryParser: "FtsQueryParser",
+        SearchRecord: "SearchRecord",
+        SearchIndexVersion: "SearchIndexVersion",
+        SearchIndexWriteLimits: "SearchIndexWriteLimits",
+        SearchDatabaseTasks: "SyrusSearchDatabaseTasks",
+        ChatMessageSearchIndex: "ChatMessageSearchIndex",
+        OperationalLogSearch: "OperationalLogSearch",
+        OperationalLogsPayload: "Admin::OperationalLogsPayload",
+        JobStateSerializer: "Admin::JobStateSerializer",
+        TimelineMacroQuery: "Timeline::MacroQuery",
+        TimelineWorkflowWaterfallQuery: "Timeline::WorkflowWaterfallQuery",
+        AppPresentation: "App::Presentation",
+        ProviderAvailability: "App::ProviderAvailability",
+        RunArtifactsPayload: "App::RunArtifactsPayload"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -353,7 +371,7 @@ module Syrus
         MentionablesResolver: [ "Finds a mentionable by kind and id and resolves the mentions in a message; resolution order is not promised.", %w[find resolve] ],
         ColorPalette: [ "Validates accent colors and picks the next unused default agent color; the palette itself is not promised.", %w[HEX_PATTERN next_default_color default_agent_order] ],
         CommandRedactor: [ "Redacts secrets from command output and structured values; redaction rules are not promised.", %w[redact redact_value] ],
-        Paginatable: [ "Adds page-parameter handling to plugin API controllers; page sizing is not promised.", %w[] ],
+        Paginatable: [ "Controller concern that adds the shared page and per_page parameter handling; the including controller defines PER_PAGE as the default page size. Only the listed helpers are promised.", %w[page_param per_page_param] ],
         ChatLockErrors: [ "Adds chat-lock error rendering to plugin API controllers; error payloads are not promised.", %w[] ],
         SidebarPage: [ "Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised.", %w[] ],
         McpToolSet: [ "Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised.", %w[] ],
@@ -409,7 +427,25 @@ module Syrus
         ReviewNoteProjects: [ "Resolves the Review Notes project policy of a workspace; the policy shape is not promised.", %w[call] ],
         JobDiscussionChatResolver: [ "Finds or starts the discussion chat of a job; chat creation details are not promised.", %w[new] ],
         WorkflowPayload: [ "Serializes a workflow for MCP tool results; the payload keys are not promised.", %w[] ],
-        AppEvents: [ "Broadcasts application events to connected clients; channels are not promised.", %w[broadcast] ]
+        AppEvents: [ "Broadcasts application events to connected clients; channels are not promised.", %w[broadcast] ],
+        Step: [ "Queries workflow steps and reads the step-kind vocabulary (Kind.label_for, AGENTIC_KINDS); dispatch and transitions are not promised.", %w[where joins Kind AGENTIC_KINDS] ],
+        Filters: [ "The shared filter-bar contract. Ast (parse, serialize, EMPTY and the Chip, AndNode, OrNode, NotNode node types) is the filter tree wire format; QueryParam (decode, encode, PARAM_NAME) reads and writes it as the `q` request parameter; Compiler.call(ast, scope:, user:, subject:) compiles a tree onto a relation for a registered subject; Schema (for, chip_for, humanize_value) describes a subject's chips to the filter bar; Registry (exists?) answers whether a subject has a chip; SmartFolderResolution (call, PRESET_FIELD) resolves the effective filter for a request; UnknownFilterField is raised for an unsupported field; BaseFilter is the mixin for plugin filter classes (capped_count); Chips holds the chip base classes (Base, BooleanColumn, DateColumn, EnumColumn, FkColumn, FullTextStringColumn, NumberColumn, StringColumn, Jobs::JobType) a plugin subclasses to declare chips that it registers through its filter_chips surface. The built-in chip classes, registry storage and compiler internals are not promised.", %w[Ast BaseFilter Chips Compiler QueryParam Registry Schema SmartFolderResolution UnknownFilterField] ],
+        SmartFolder: [ "Registers smart-folder subjects and reads the built-in folders for a subject; persistence and per-user folder management are not promised. COUNT_CAP is the folder-count display cap.", %w[register_subject! ensure_builtins_for_subject! builtins builtin_definition COUNT_CAP] ],
+        SmartFolderNavigation: [ "Builds the smart-folder navigation payload for a subject and resolves the explicitly requested folder; payload members beyond the folder list are not promised.", %w[new folders active_folder] ],
+        FtsQueryParser: [ "Model concern that turns a user query into a full-text search expression for a search record; parsing rules are not promised.", %w[parse_fts_query] ],
+        SearchRecord: [ "Abstract base for models stored in the dedicated search database; plugins subclass it for their index tables and may run raw statements through its connection. Schema management is not promised.", %w[connection] ],
+        SearchIndexVersion: [ "Reads and writes the content version of a plugin-owned search index so rebuilds know when an index is stale.", %w[current write!] ],
+        SearchIndexWriteLimits: [ "Bounds row and batch sizes of search-index writes; the limits may change between releases.", %w[row clamp_rows] ],
+        SearchDatabaseTasks: [ "Prepares the search database and reports whether an index table exists; migration internals are not promised.", %w[prepare! table_exists?] ],
+        ChatMessageSearchIndex: [ "Searches the chat message index for candidate messages and the chat sessions that match; index storage is not promised.", %w[search_candidates matching_chat_session_page top_matches_by_chat_session] ],
+        OperationalLogSearch: [ "Searches the operational log index and supplies the matching MCP tool input schema; indexing and retention are not promised.", %w[INPUT_SCHEMA_PROPERTIES disabled_response search_response] ],
+        OperationalLogsPayload: [ "Builds the operational log browsing payload for an admin request; payload members are not promised beyond as_json.", %w[new as_json] ],
+        JobStateSerializer: [ "Builds the per-record degraded error entry used when one row of a list payload fails to serialize; other serializer methods are not promised.", %w[per_record_error] ],
+        TimelineMacroQuery: [ "Runs the worker timeline macro query for a time window and filter expression; query internals are not promised.", %w[call new capped_count] ],
+        TimelineWorkflowWaterfallQuery: [ "Builds the per-workflow waterfall of workflow activity; payload members are not promised.", %w[call] ],
+        AppPresentation: [ "Formats job and epic slugs, external PR URLs and agent provider labels the way the app presents them.", %w[job_slug epic_slug external_pr_url agent_provider_label] ],
+        ProviderAvailability: [ "Clears the cached availability of an agent provider for a user so the next check re-probes it; other availability queries are not promised.", %w[clear_cache!] ],
+        RunArtifactsPayload: [ "Builds the run artifacts payload shown for a run; payload members are not promised.", %w[build] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {
@@ -418,7 +454,7 @@ module Syrus
         User: [ "Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised.", %w[find id handle display_name admin? repositories jobs] ],
         Run: [ "Reads a run's identity, state, workflow, and job through find; dispatch, lifecycle transitions, persistence, and other associations are not promised.", %w[find id state workflow job] ],
         Workflow: [ "Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised.", %w[find id state job runs] ],
-        ChatSession: [ "Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.", %w[find id title user repository] ]
+        ChatSession: [ "Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.", %w[find id title user repository] ],
       }.freeze
 
       SERVICE_CONTRACTS = {

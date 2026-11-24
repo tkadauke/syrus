@@ -33,7 +33,7 @@ module AgentActivity
 
       {
         id: job.id,
-        slug: ::App::Presentation.job_slug(job.id),
+        slug: Syrus::Host::AppPresentation.job_slug(job.id),
         title: job.issue_title,
         state: job.state
       }

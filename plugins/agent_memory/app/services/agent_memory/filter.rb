@@ -1,6 +1,6 @@
 module AgentMemory
   class Filter
-    include Filters::BaseFilter
+    include Syrus::Host::Filters::BaseFilter
 
     LEGACY_URL_KEYS = %w[ scope kind published q search repository_id ].freeze
 
@@ -9,19 +9,19 @@ module AgentMemory
     end
 
     def initialize(tree, user: nil)
-      @ast = Filters::Ast.parse(tree || Filters::Ast.serialize(Filters::Ast::EMPTY))
+      @ast = Syrus::Host::Filters::Ast.parse(tree || Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY))
       @user = user
     end
 
     def apply(scope)
-      Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :memory)
+      Syrus::Host::Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :memory)
     end
 
     def self.build_tree_from_params(params)
-      q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+      q_tree = Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME])
       legacy_tree = build_tree_from_url_params(params, q_is_filter: q_tree.present?)
       [ q_tree, legacy_tree ].compact.reduce { |acc, next_tree| merge_and(acc, next_tree) } ||
-        Filters::Ast.serialize(Filters::Ast::EMPTY)
+        Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY)
     end
     private_class_method :build_tree_from_params
 

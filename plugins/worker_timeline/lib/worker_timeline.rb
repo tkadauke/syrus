@@ -43,7 +43,7 @@ module WorkerTimeline
 
     while_enabled do |scope|
       scope.effect("worker_timeline smart folder subject") do
-        SmartFolder.register_subject!(
+        Syrus::Host::SmartFolder.register_subject!(
           :worker_timeline,
           label: "Worker Timeline",
           effective_filter_contract: :smart_folder_resolution,
