@@ -19,6 +19,16 @@ class PluginDesiredState::Convergence
     process_rows.any? { |row| row[:diverged_too_long] }
   end
 
+  # Stable for an uninterrupted sustained episode (the earliest sustained
+  # process's episode start); changes when a later, new episode begins, so
+  # dismissals and outbound deduplication do not leak across recoveries.
+  def prolonged_episode_key
+    starts = process_rows.select { |row| row[:diverged_too_long] }.filter_map { |row| row[:diverged_since] }
+    return if starts.empty?
+
+    Time.zone.parse(starts.min).to_i
+  end
+
   private
 
   attr_reader :state, :now, :threshold
