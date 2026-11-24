@@ -63,8 +63,8 @@ class PluginDesiredState::Convergence
   end
 
   def convergence_state(process, heartbeat, revision)
+    return "converged" if enabled_installations.empty?
     return "unreachable" if heartbeat.blank? || heartbeat < now - InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-    return "converged" if state.revision.zero? && enabled_installations.empty?
     return "converged" if value(process, :plugin_set_digest).present? && value(process, :plugin_set_digest) == desired_digest(value(process, :role))
     return "ahead" if revision.present? && revision.to_i > state.revision
     return "pending_restart" if state.apply_revision == state.revision && state.apply_requested_at.present? && revision.to_i < state.revision
@@ -112,7 +112,7 @@ class PluginDesiredState::Convergence
   end
 
   def enabled_installations
-    @enabled_installations ||= installations.select(&:enabled_for_sync?)
+    @enabled_installations ||= installations.select { |installation| installation.enabled_for_sync? && installation.plugin_release.source != "bundled" }
   end
 
   def value(process, attribute)
