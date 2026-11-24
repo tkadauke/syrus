@@ -73,6 +73,14 @@ class McpToolRegistry
       agent_insight: :agent_insight_entries
     }.freeze
 
+    # The coworker surface is derived from which chat-parity participants are
+    # enabled, so it must be rebuilt after plugin enablement changes. Specs
+    # that toggle plugins call this; production only changes it on restart.
+    def reset_coworker_surface!
+      @entries = nil
+      @entries_by_surface&.delete(:coworker)
+    end
+
     def entries(surface: nil)
       return all_entries if surface.nil?
 
@@ -172,26 +180,12 @@ class McpToolRegistry
     private
 
     def all_entries
-      per_surface = SURFACE_ENTRY_BUILDERS.keys.map { |surface| entries_for_surface(surface) }
-      cached_sources, cached = @entries
-      return cached if cached && cached_sources.zip(per_surface).all? { |a, b| a.equal?(b) }
-
-      per_surface.flatten(1).freeze.tap { |built| @entries = [ per_surface, built ] }
+      @entries ||= SURFACE_ENTRY_BUILDERS.keys.flat_map { |surface| entries_for_surface(surface) }.freeze
     end
 
     def entries_for_surface(surface)
       builder = SURFACE_ENTRY_BUILDERS.fetch(surface)
-      cache = (@entries_by_surface ||= {})
-      return cache[surface] ||= send(builder).freeze unless surface == :coworker
-
-      # The coworker surface depends on which chat-parity participants are
-      # enabled, which changes at runtime (plugin enable/disable); a build made
-      # under one state must not outlive it.
-      signature = Mcp::ChatToolParity.participants(enabled_only: true).map(&:context)
-      cached_signature, cached_entries = cache[surface]
-      return cached_entries if cached_entries && cached_signature == signature
-
-      send(builder).freeze.tap { |built| cache[surface] = [ signature, built ] }
+      (@entries_by_surface ||= {})[surface] ||= send(builder).freeze
     end
 
     def surfaces_for_context(context)
