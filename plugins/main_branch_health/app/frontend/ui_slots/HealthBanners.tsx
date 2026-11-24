@@ -40,7 +40,6 @@ export type DashboardMainBranchRepairStatus = {
   failed_jobs: DashboardRepairJob[]
 }
 
-
 const HEALTH_BANNER_DISMISSALS_KEY = "syrus.health_banner_dismissals"
 
 function healthBannerEvidenceToken(repo: DashboardHealthBlockedRepository): string {
@@ -191,7 +190,6 @@ function RepositoryHealthBanners({
     </div>
   )
 }
-
 
 function requestMainBranchRepair(path: string) {
   return postJson<{ message?: string }>(path, {})
