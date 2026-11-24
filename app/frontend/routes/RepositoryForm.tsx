@@ -1238,17 +1238,15 @@ function Field({ label, children, loading = false }: { label: string; children: 
   return (
     <Form.Field>
       <Form.Label>
-        <span className="inline-flex items-center gap-2">
-          {label}
-          {loading ? (
-            <span role="status" aria-label={t("repository_form.field_loading")}>
-              <svg aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-text-secondary" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
-              </svg>
-            </span>
-          ) : null}
-        </span>
+        {label}
+        {loading ? (
+          <span role="status" aria-label={t("repository_form.field_loading")} className="ml-2 inline-block align-middle">
+            <svg aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-text-secondary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
+            </svg>
+          </span>
+        ) : null}
       </Form.Label>
       {children}
     </Form.Field>
