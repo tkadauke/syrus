@@ -43,6 +43,15 @@ default: &default
       threads: <%= run_threads %>
       processes: 1
       polling_interval: 0.1
+    # Runtime image builds are heavy and long; they get their own small pool so
+    # they neither starve nor are starved by agent runs. Admission caps
+    # (RUNTIME_IMAGE_BUILD_CONCURRENCY) are enforced by the dispatcher.
+<% if run_queues.include?("runs") %>
+    - queues: "runtime_image_builds"
+      threads: <%= ENV.fetch("RUNTIME_IMAGE_BUILD_THREADS", 2) %>
+      processes: 1
+      polling_interval: 0.5
+<% end %>
     # Deterministic landing and merge work runs outside the agent
     # pool so quick non-agentic steps do not consume Claude slots.
     - queues:

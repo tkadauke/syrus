@@ -74,3 +74,22 @@ Deletion order is deliberate: revoke is recorded durably first, a worker lease (
 - `bin/rails runtime_images:reconcile [REPAIR=0] [DELETE_ORPHANS=1]` runs a reconciliation pass.
 - `GET /api/v1/admin/runtime_images` returns the same checks plus image counts by state, retained rollback images, cache footprint per host, pull outcomes and hit ratio for the last 24 hours, and recent audit events. `POST /api/v1/admin/runtime_images/reconcile` queues a pass.
 - Every publish, revoke, retain, delete, collection, retention expiry, reconciliation repair, and authentication failure is a `RuntimeImageAuditEvent` and increments `syrus_runtime_image_operations_total{kind,outcome}`. `Metrics::RuntimeImageSampler` exports `syrus_runtime_images{state}`, `syrus_runtime_image_cache_bytes{state}`, and `syrus_runtime_image_pulls_24h{outcome}`.
+
+## Build orchestration
+
+Build requests (`RuntimeImageBuildRequest`), attempts, and terminal results
+are durable. A request captures an immutable source (full commit sha or sha256
+digest, never a branch) and a recipe, and is deduplicated on
+(namespace, source digest, recipe digest, platform): one live build per tuple,
+enforced by a unique index on `active_dedup_key`. States are queued, building,
+verifying, succeeded, failed, canceled, rejected.
+
+`RuntimeImageBuildDispatchJob` (recurring, `control_plane`) reaps attempts with
+expired leases and claims startable requests within
+`RUNTIME_IMAGE_BUILD_CONCURRENCY` (default 2) and
+`RUNTIME_IMAGE_BUILD_NAMESPACE_CONCURRENCY` (default 1), then enqueues
+`RuntimeImageBuildJob` on the `runtime_image_builds` queue (Linux compute
+workers; pool size `RUNTIME_IMAGE_BUILD_THREADS`). Retryable failures back off
+and stop after `RUNTIME_IMAGE_BUILD_MAX_ATTEMPTS` (default 3). Nothing is
+claimed until an executor is registered via `RuntimeImages::Builds.builder=`,
+so the plane is inert by default.

@@ -1,0 +1,221 @@
+module RuntimeImages
+  module Builds
+    # State machine for build requests. Every mutation takes a row lock on the
+    # request, re-reads state, and writes the request, attempt, and (for
+    # terminal states) result together, so a worker crash, a cancel, and a lease
+    # reaper racing each other cannot leave them disagreeing.
+    class Orchestrator
+      # Creates a request, or returns the live/finished one for the same tuple.
+      #  - a live request (queued/building/verifying) is returned as-is;
+      #  - a request that already produced a still-pullable image is returned
+      #    as-is, so callers get the existing image instead of rebuilding;
+      #  - anything else (failed, canceled, rejected, revoked image) starts a
+      #    fresh request, because a prior failure must not block a rebuild.
+      # A capture or request that can never be built is recorded as rejected.
+      def submit(namespace:, source:, recipe:, platform:, requester_kind:, requester_ref:, source_archive: nil)
+        recipe = Hash(recipe).deep_stringify_keys
+        rejection = rejection_for(source, recipe, platform)
+        return reject(namespace, source, recipe, platform, requester_kind, requester_ref, rejection) if rejection
+
+        recipe_digest = digest_of(recipe)
+        key = RuntimeImageBuildRequest.dedup_key_for(namespace_id: namespace.id, source_digest: source.digest,
+                                                     recipe_digest: recipe_digest, platform: platform)
+        existing = reusable(key)
+        return existing if existing
+
+        request = RuntimeImageBuildRequest.new(
+          runtime_image_namespace: namespace, platform: platform, dedup_key: key,
+          source_kind: source.kind, source_ref: source.ref, source_digest: source.digest, source_manifest: source.manifest,
+          recipe_digest: recipe_digest, recipe: recipe, requester_kind: requester_kind.to_s, requester_ref: requester_ref.to_s,
+          max_attempts: Config.max_attempts
+        )
+        request.source_archive.attach(source_archive) if source_archive
+        request.save!
+        Audit.record("build.queued", outcome: "ok", namespace: namespace, actor: request.requester_kind, details: audit_details(request))
+        request
+      rescue ActiveRecord::RecordNotUnique
+        # Lost the race against a concurrent submitter of the same tuple.
+        reusable(key) || raise
+      end
+
+      # Claims the next startable request that fits under the concurrency caps
+      # and starts attempt N. Returns [request, attempt] or nil.
+      def claim_next(worker: Socket.gethostname, now: Time.current)
+        return nil unless Builds.builder_available?
+
+        RuntimeImageBuildRequest.startable(now).limit(50).each do |candidate|
+          claimed = claim(candidate.id, worker: worker, now: now)
+          return claimed if claimed
+        end
+        nil
+      end
+
+      def claim(request_id, worker: Socket.gethostname, now: Time.current)
+        request = RuntimeImageBuildRequest.find(request_id)
+        # The namespace row serializes admission for a namespace, so its cap
+        # cannot be oversubscribed by concurrent claimers.
+        request.runtime_image_namespace.with_lock do
+          request.with_lock do
+            next nil unless request.queued? && !request.cancel_requested?
+            next nil if request.next_attempt_at && request.next_attempt_at > now
+            next nil if capacity_exhausted?(request)
+
+            attempt = request.attempts.create!(number: request.attempts_count + 1, state: "building", worker_hostname: worker,
+                                               started_at: now, lease_expires_at: now + Config.lease_duration)
+            request.transition_to!("building", attempts_count: attempt.number, started_at: request.started_at || now, next_attempt_at: nil)
+            [ request, attempt ]
+          end
+        end
+      end
+
+      def begin_verifying(attempt, now: Time.current)
+        locked(attempt) do |request, attempt|
+          next false unless attempt.state == "building" && request.building?
+
+          attempt.update!(state: "verifying", lease_expires_at: now + Config.lease_duration)
+          request.transition_to!("verifying")
+          true
+        end
+      end
+
+      # Extends the lease of a healthy long-running attempt.
+      def heartbeat(attempt, now: Time.current)
+        locked(attempt) do |_request, attempt|
+          next false unless attempt.active?
+
+          attempt.update!(lease_expires_at: now + Config.lease_duration)
+          true
+        end
+      end
+
+      def succeed(attempt, image:, now: Time.current)
+        locked(attempt) do |request, attempt|
+          next request.result unless request.in_flight? && attempt.active?
+
+          attempt.update!(state: "succeeded", finished_at: now, lease_expires_at: nil)
+          request.transition_to!("succeeded", finished_at: now)
+          finish(request, outcome: "succeeded", image: image, digest: image.digest, now: now)
+        end
+      end
+
+      # Records a failed attempt. A retryable failure with attempts left
+      # re-queues the request with backoff; otherwise it is terminal.
+      def fail_attempt(attempt, code:, message:, retryable:, now: Time.current)
+        locked(attempt) do |request, attempt|
+          next request.result unless request.in_flight? && attempt.active?
+
+          attempt.update!(state: "failed", finished_at: now, lease_expires_at: nil, error_code: code.to_s,
+                          error_message: message.to_s.truncate(500), retryable: retryable)
+          if request.cancel_requested?
+            cancel_now(request, now: now)
+          elsif retryable && !request.attempts_exhausted?
+            request.transition_to!("queued", next_attempt_at: now + Config.retry_delay(request.attempts_count))
+            Audit.record("build.retry", outcome: "ok", namespace: request.runtime_image_namespace, details: audit_details(request).merge("error_code" => code.to_s))
+            nil
+          else
+            request.transition_to!("failed", finished_at: now)
+            finish(request, outcome: "failed", error_code: code.to_s, message: message, now: now)
+          end
+        end
+      end
+
+      # Cancels a request. Queued requests cancel immediately; in-flight ones
+      # are flagged and cancel when the builder next observes it (or when its
+      # attempt fails or its lease expires).
+      def cancel(request, reason: nil, actor: "system", now: Time.current)
+        request.with_lock do
+          next request if request.terminal?
+
+          request.update!(cancel_requested_at: request.cancel_requested_at || now, cancel_reason: reason.to_s.truncate(500).presence)
+          cancel_now(request, now: now) if request.queued?
+          request
+        end
+      end
+
+      # Completes cancellation for an in-flight attempt that observed the flag.
+      def acknowledge_cancel(attempt, now: Time.current)
+        locked(attempt) do |request, attempt|
+          next request.result unless request.in_flight? && attempt.active?
+
+          attempt.update!(state: "canceled", finished_at: now, lease_expires_at: nil)
+          cancel_now(request, now: now)
+        end
+      end
+
+      def cancel_requested?(request) = RuntimeImageBuildRequest.where(id: request.id).where.not(cancel_requested_at: nil).exists?
+
+      # Fails attempts whose worker stopped heartbeating. They are retryable:
+      # a vanished worker says nothing about the build itself.
+      def reap_expired(now: Time.current)
+        RuntimeImageBuildAttempt.lease_expired(now).includes(:request).filter_map do |attempt|
+          fail_attempt(attempt, code: "lease_expired", message: "build worker stopped reporting progress", retryable: true, now: now)
+          attempt
+        end
+      end
+
+      private
+
+      def locked(attempt)
+        request = attempt.request
+        request.with_lock do
+          attempt.reload
+          yield request, attempt
+        end
+      end
+
+      def reusable(key)
+        live = RuntimeImageBuildRequest.live.find_by(dedup_key: key)
+        return live if live
+
+        succeeded = RuntimeImageBuildRequest.where(dedup_key: key, state: "succeeded").order(id: :desc).includes(result: :runtime_image).first
+        succeeded if succeeded&.result&.runtime_image&.pullable?
+      end
+
+      def capacity_exhausted?(request)
+        in_flight = RuntimeImageBuildRequest.in_flight
+        in_flight.count >= Config.max_concurrent_builds ||
+          in_flight.where(runtime_image_namespace_id: request.runtime_image_namespace_id).count >= Config.max_concurrent_per_namespace
+      end
+
+      def cancel_now(request, now:)
+        request.transition_to!("canceled", finished_at: now)
+        finish(request, outcome: "canceled", message: request.cancel_reason || "canceled", now: now)
+      end
+
+      def finish(request, outcome:, now:, image: nil, digest: nil, error_code: nil, message: nil)
+        result = RuntimeImageBuildResult.create!(
+          request: request, outcome: outcome, runtime_image: image, digest: digest, error_code: error_code,
+          message: message.to_s.truncate(500).presence, attempts_used: request.attempts_count, finished_at: now
+        )
+        Audit.record("build.#{outcome}", outcome: outcome == "succeeded" ? "ok" : "failed", image: image,
+                     namespace: request.runtime_image_namespace, digest: digest, details: audit_details(request).merge("error_code" => error_code))
+        result
+      end
+
+      def reject(namespace, source, recipe, platform, requester_kind, requester_ref, rejection)
+        request = RuntimeImageBuildRequest.new(
+          runtime_image_namespace: namespace, platform: platform.to_s.presence || "unknown", state: "rejected",
+          dedup_key: SecureRandom.hex(32), source_kind: source&.kind.presence || "unknown", source_ref: source&.ref.presence || "unknown",
+          source_digest: source&.digest || "sha256:#{"0" * 64}", source_manifest: source&.manifest || {},
+          recipe_digest: "sha256:#{"0" * 64}", recipe: {}, requester_kind: requester_kind.to_s, requester_ref: requester_ref.to_s,
+          max_attempts: 1, finished_at: Time.current
+        )
+        request.save!
+        finish(request, outcome: "rejected", error_code: rejection.code, message: rejection.message, now: request.finished_at)
+        request
+      end
+
+      def rejection_for(source, recipe, platform)
+        return Rejected.new("source_invalid", "source capture is required") unless source
+        return Rejected.new("platform_unsupported", "unsupported platform #{platform.inspect}") unless Config::PLATFORMS.include?(platform)
+        return Rejected.new("recipe_too_large", "recipe exceeds #{Config::MAX_RECIPE_BYTES} bytes") if SourceCapture.canonical_json(recipe).bytesize > Config::MAX_RECIPE_BYTES
+
+        nil
+      end
+
+      def digest_of(recipe) = "sha256:#{Digest::SHA256.hexdigest(SourceCapture.canonical_json(recipe))}"
+
+      def audit_details(request) = { "request_id" => request.id, "attempts" => request.attempts_count, "platform" => request.platform }
+    end
+  end
+end
