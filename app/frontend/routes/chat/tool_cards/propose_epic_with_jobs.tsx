@@ -1,6 +1,7 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "@app/i18n"
 import { workerCapabilitiesText } from "@app/lib/workerCapabilities"
+import { insertionText } from "../proposalDisplay"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { MediaPreviewShell } from "../mediaPreviewShell"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, SectionLabel, StatePill } from "../toolCardUi"
@@ -39,6 +40,7 @@ type Outcome = {
   state: string
   targetEpicId: string | null
   targetEpicLabel: string | null
+  insertion: string | null
   proposals: string[]
   epics: string[]
   jobs: string[]
@@ -156,6 +158,19 @@ function parseChildren(value: unknown): Child[] {
   })
 }
 
+function insertion(value: unknown): string | null {
+  if (!object(value)) return null
+  const afterId = displayValue(value.insert_after_job_id)
+  if (!afterId && !displayValue(value.insert_after_slug)) return null
+  const beforeId = displayValue(value.insert_before_job_id)
+  return insertionText({
+    insert_after_job_id: Number(afterId),
+    insert_after_slug: displayValue(value.insert_after_slug),
+    insert_before_job_id: beforeId ? Number(beforeId) : null,
+    insert_before_slug: displayValue(value.insert_before_slug)
+  })
+}
+
 function parse(context: ToolCardContext): Outcome | null {
   const value = context.parsedResult
   if (!object(value)) return null
@@ -170,6 +185,7 @@ function parse(context: ToolCardContext): Outcome | null {
     state,
     targetEpicId: object(value.target_epic) ? displayValue(value.target_epic.id) : null,
     targetEpicLabel: object(value.target_epic) ? displayValue(value.target_epic.label) : null,
+    insertion: insertion(value.insertion),
     proposals: [...new Set([...strings(value.depends_on_proposal_slugs), ...dependencies.filter((token) => !/^epic:\d+$/.test(token))])],
     epics: dependencies.flatMap((token) => token.match(/^epic:(\d+)$/)?.[1] || []),
     jobs: strings(value.depends_on_job_ids),
@@ -335,6 +351,12 @@ function renderExpanded(context: ToolCardContext) {
             ) : (
               outcome.targetEpicLabel
             )}
+          </div>
+        ) : null}
+        {outcome.insertion ? (
+          <div>
+            <SectionLabel>{i18n.t("chat:insertion_label")}</SectionLabel>
+            <span>{outcome.insertion}</span>
           </div>
         ) : null}
         {outcome.goalId ? (
