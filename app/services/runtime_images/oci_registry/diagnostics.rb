@@ -89,18 +89,24 @@ module RuntimeImages
         response = client.request(role: role, repository: repository, method: :post,
                                   path: "/v2/#{repository}/blobs/uploads/", actions: actions)
         return "registry denied push (HTTP #{response.status})" unless response.status == 202
-        location = response.header("location").to_s
-        cancel_upload(client, role, repository, actions, location)
-        nil
+        cancel_failure(client, role, repository, actions, response.header("location").to_s)
       end
 
-      def cancel_upload(client, role, repository, actions, location)
-        target = URI.join("#{@configuration.url}/", location)
-        path = target.request_uri
-        return unless path.start_with?("/v2/#{repository}/blobs/uploads/")
-        client.request(role: role, repository: repository, method: :delete, path: path, actions: actions)
-      rescue RuntimeImages::Error, URI::InvalidURIError
-        nil
+      # The probe upload is registry-side state; the check only passes when the
+      # upload's own Location is inside the probe repository and the registry
+      # confirms the cancellation, so repeated health checks cannot leak uploads.
+      def cancel_failure(client, role, repository, actions, location)
+        path = URI.join("#{@configuration.url}/", location).request_uri
+        unless path.start_with?("/v2/#{repository}/blobs/uploads/")
+          return "registry accepted push but returned an unusable upload location; probe upload was not cancelled"
+        end
+        response = client.request(role: role, repository: repository, method: :delete, path: path, actions: actions)
+        return nil if response.success?
+        "registry accepted push but could not cancel the probe upload (HTTP #{response.status})"
+      rescue RuntimeImages::Error => e
+        "registry accepted push but could not cancel the probe upload (#{e.message})"
+      rescue URI::InvalidURIError
+        "registry accepted push but returned an unusable upload location; probe upload was not cancelled"
       end
 
       def reported_actions(token, repository)
