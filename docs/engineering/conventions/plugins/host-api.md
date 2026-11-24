@@ -358,6 +358,7 @@ Supported members:
 
 - `best_match_version`
 - `comments`
+- `default_version_for_review`
 - `final_review_version`
 - `versions`
 

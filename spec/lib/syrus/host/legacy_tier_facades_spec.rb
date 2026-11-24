@@ -46,6 +46,7 @@ RSpec.describe "Syrus::Host facades replacing legacy plugin constants" do
     expect(Syrus::Host::ChatPendingActions.where(id: 0)).to be_empty
     expect(Syrus::Host::DiffReviews.comments.none).to be_empty
     expect(Syrus::Host::DiffReviews.versions.where(id: 0)).to be_empty
+    expect(Syrus::Host::DiffReviews).to respond_to(:default_version_for_review)
     expect(Syrus::Host::Handles.normalize("  AbC ")).to eq(HandleRegistry.normalize("  AbC "))
   end
 

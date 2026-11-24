@@ -206,7 +206,7 @@ module Syrus
         PermissionRules: [ "Queries durable permission rules and groups changes in a transaction; evaluation and audit behavior are not promised.", %w[where active transaction create!] ],
         PermissionLeases: [ "Queries permission leases; issuance and expiry are not promised.", %w[where] ],
         PermissionPolicies: [ "Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.", %w[rank] ],
-        DiffReviews: [ "Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.", %w[comments versions best_match_version final_review_version] ],
+        DiffReviews: [ "Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.", %w[comments versions best_match_version default_version_for_review final_review_version] ],
         RetentionLimits: [ "Names the default batch limits for retention executors; scheduling is not promised.", %w[default_batch_size default_max_batches] ]
       }.freeze
 
