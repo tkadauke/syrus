@@ -62,7 +62,7 @@ RSpec.describe "runtime image build jobs" do
     it "is a no-op for an attempt that is no longer active" do
       RuntimeImages::Builds.builder = double("builder")
       request, attempt = (submit && orchestrator.claim_next)
-      orchestrator.fail_attempt(attempt, code: "x", message: "m", retryable: false)
+      orchestrator.fail_attempt(attempt, code: "x", detail: "m", retryable: false)
 
       expect { described_class.perform_now(request.id, attempt.id) }.not_to change { RuntimeImageBuildResult.count }
     end
