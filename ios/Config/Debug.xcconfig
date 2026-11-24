@@ -1,0 +1,2 @@
+#include "Shared.xcconfig"
+// Debug: development signing, sandbox APNs, unsigned simulator builds work.

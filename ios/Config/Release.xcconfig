@@ -1,0 +1,2 @@
+#include "Shared.xcconfig"
+// Release: archived for App Store Connect / TestFlight (production APNs).

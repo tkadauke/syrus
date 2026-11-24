@@ -1,0 +1,4 @@
+// Copy to Local.xcconfig (git-ignored) and fill in. Never commit real values.
+DEVELOPMENT_TEAM = ABCDE12345
+// Optional: use your own bundle id (needs a matching App ID with Push Notifications).
+// PRODUCT_BUNDLE_IDENTIFIER = com.example.syrus
