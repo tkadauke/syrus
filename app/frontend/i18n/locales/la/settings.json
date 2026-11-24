@@ -855,6 +855,7 @@
     "recommendation_job_created": "Opus commendationis creatum est.",
     "tip_position": "Consilium {{index}} ex {{count}}",
     "previous_tip": "Consilium prius",
+    "go_to_tip": "Ad consilium {{index}}",
     "next_tip": "Consilium proximum",
     "working": "Operatur...",
     "dismiss_recommendation": "Dimitte {{title}}",
