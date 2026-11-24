@@ -48,6 +48,24 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       expect(entry.blocked_reason).to eq({ key: "waiting_epicless_bundle" })
     end
 
+    # Regression: with free landing lanes and a dozen approved Jobs the queue
+    # sat idle for over an hour reporting only waiting_epicless_bundle; the
+    # dispatcher's own blocker was computed every pass and shown nowhere.
+    it "says why the bundle is not forming when the dispatcher is blocked" do
+      enable_flag
+      approved_job(1)
+      second = approved_job(2)
+      allow(JobBundleDispatcher).to receive(:blocker_reason).and_call_original
+      allow(JobBundleDispatcher).to receive(:blocker_reason).with(repository).and_return("recent failed job bundle is cooling down for 12m")
+
+      entry = described_class.entries(Job.where(id: second.id)).first
+
+      expect(entry.blocked_reason).to eq(
+        key: "waiting_epicless_bundle",
+        params: { detail: "recent failed job bundle is cooling down for 12m" }
+      )
+    end
+
     it "does not block a lone ready epicless Job (falls through to per-Job auto_merge)" do
       enable_flag
       job = approved_job(1)

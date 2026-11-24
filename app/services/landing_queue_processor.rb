@@ -882,7 +882,7 @@ class LandingQueueProcessor
     # Same idea, epicless: once a same-tier bundle is forming, keep the
     # Job in :approved with a clear reason instead of letting it try to
     # land solo — JobBundleDispatcher picks the group up atomically.
-    check_blocker.call({ key: "waiting_epicless_bundle" }) if bundle_eligible_epicless_job?(job)
+    check_blocker.call(epicless_bundle_wait_reason(job)) if bundle_eligible_epicless_job?(job)
     if (retry_after = landing_start_blocker_retry_after(job))
       return blocked({ key: "landing_start_blocked_retrying", params: { retry_at: retry_after.iso8601 } })
     end
@@ -1196,7 +1196,37 @@ class LandingQueueProcessor
     )
   end
 
+  # `waiting_epicless_bundle` alone said nothing about why the bundle was not
+  # forming: with free landing lanes and a dozen approved Jobs the queue sat
+  # idle for over an hour and the dispatcher's own blocker -- computed on
+  # every pass -- was visible nowhere. Carry it on the entry.
+  def epicless_bundle_wait_reason(job)
+    detail = epicless_bundle_blocker_for(job.repository)
+    { key: "waiting_epicless_bundle", params: ({ detail: detail } if detail.present?) }.compact
+  end
+
+  # The dispatcher's readiness checks read the landing queue themselves, so
+  # this must not recurse into another blocker computation.
+  def epicless_bundle_blocker_for(repository)
+    return nil if Thread.current[:syrus_epicless_bundle_blocker_in_progress]
+
+    @epicless_bundle_blocker_by_repository_id ||= {}
+    cache = @epicless_bundle_blocker_by_repository_id
+    return cache[repository.id] if cache.key?(repository.id)
+
+    begin
+      Thread.current[:syrus_epicless_bundle_blocker_in_progress] = true
+      cache[repository.id] = JobBundleDispatcher.blocker_reason(repository).presence
+    rescue StandardError => e
+      Rails.logger.warn("[LandingQueueProcessor] bundle blocker unavailable for #{repository.slug}: #{e.class}: #{e.message}")
+      cache[repository.id] = nil
+    ensure
+      Thread.current[:syrus_epicless_bundle_blocker_in_progress] = nil
+    end
+  end
+
   def reset_blockage_caches!
+    @epicless_bundle_blocker_by_repository_id = {}
     @active_urgent_jobs_by_repository_id = {}
     @transitive_landing_queue_prerequisite_ids_by_job_ids = {}
     @epic_work_jobs_by_epic_id = {}
