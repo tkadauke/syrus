@@ -34,7 +34,7 @@ module RuntimeTerminal
 
     class RunApiCredential
       def self.resolve(run)
-        unless run && Run::ACTIVE_STATES.include?(run.state)
+        unless run && Syrus::Host::RunRecord::ACTIVE_STATES.include?(run.state)
           raise Error, "visual-review environment input run_api_credential is unavailable for an inactive Run"
         end
 

@@ -70,7 +70,7 @@ module InputSources
     end
 
     def issues_ingested_count
-      Job.where(input_source_id: id).count
+      Syrus::Host::JobRecord.where(input_source_id: id).count
     end
 
     private
@@ -108,18 +108,18 @@ module InputSources
       end
 
       issue_body = issue["description"].to_s
-      marker = EpicMarkerParser.parse(text: issue_body, default_repository: repository)
+      marker = Syrus::Host::EpicMarkerParser.parse(text: issue_body, default_repository: repository)
       if marker
         ingest_with_epic_marker!(marker, issue, issue_body)
         return
       end
 
-      Job.create!(
+      Syrus::Host::JobRecord.create!(
         user: user,
         repository: repository,
         issue_title: issue["title"].to_s,
         issue_body: issue_body,
-        state: Job.initial_state_for_creator(nil),
+        state: Syrus::Host::JobRecord.initial_state_for_creator(nil),
         input_source: self,
         external_ref: dedup_key(issue)
       )
@@ -127,13 +127,13 @@ module InputSources
     end
 
     def existing_job_for_issue(issue_id)
-      Job.where(input_source_id: id, external_ref: issue_id).order(:created_at, :id).last
+      Syrus::Host::JobRecord.where(input_source_id: id, external_ref: issue_id).order(:created_at, :id).last
     end
 
     def ingest_with_epic_marker!(marker, issue, issue_body)
       case marker[:kind]
       when :epic_declaration
-        Epic.find_or_create_by!(
+        Syrus::Host::Epic.find_or_create_by!(
           user: user,
           repository: repository,
           github_issue_url: linear_epic_url(issue)
@@ -145,15 +145,15 @@ module InputSources
         Rails.logger.info("[InputSources::Linear] #{repository.slug} #{issue['identifier']} ingested as Epic")
       when :child_of_epic
         epic_url = issue_url_for_reference(marker)
-        candidate = Epic.find_by(user: user, github_issue_url: epic_url) || Epic.find_by(github_issue_url: epic_url)
+        candidate = Syrus::Host::Epic.find_by(user: user, github_issue_url: epic_url) || Syrus::Host::Epic.find_by(github_issue_url: epic_url)
         rejection = candidate&.epic_marker_rejection(marker_origin: "linear_issue", marker_user: user)
         epic = rejection ? nil : candidate
-        job = Job.create!(
+        job = Syrus::Host::JobRecord.create!(
           user: user,
           repository: repository,
           issue_title: issue["title"].to_s,
           issue_body: issue_body,
-          state: Job.initial_state_for_creator(nil),
+          state: Syrus::Host::JobRecord.initial_state_for_creator(nil),
           epic: epic,
           triaging_reason: epic || rejection ? "classifier_pending" : "pending_epic_ref",
           pending_epic_reference: epic || rejection ? {} : { "github_issue_url" => epic_url, "origin" => "linear_issue" },

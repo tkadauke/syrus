@@ -43,22 +43,22 @@ module ScheduledTasks
       task_ids = selected_tasks.map(&:id)
       return {} if task_ids.empty?
 
-      scope = Job.where(scheduled_task_id: task_ids, created_at: starts_at...(ends_at + 1.hour))
+      scope = Syrus::Host::JobRecord.where(scheduled_task_id: task_ids, created_at: starts_at...(ends_at + 1.hour))
         .includes(:workflows).order(:created_at)
-      Job.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
+      Syrus::Host::JobRecord.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
     end
 
     def representative_durations_by_task(selected_tasks)
       task_ids = selected_tasks.map(&:id)
       return {} if task_ids.empty?
 
-      visible_jobs = Job.visible_to(user, scope: Job.where(scheduled_task_id: task_ids))
-      ranked = Workflow.where(state: "succeeded", job_id: visible_jobs.select(:id))
+      visible_jobs = Syrus::Host::JobRecord.visible_to(user, scope: Syrus::Host::JobRecord.where(scheduled_task_id: task_ids))
+      ranked = Syrus::Host::WorkflowRecord.where(state: "succeeded", job_id: visible_jobs.select(:id))
         .where.not(started_at: nil).where.not(finished_at: nil)
         .joins(:job)
         .select("workflows.*, jobs.scheduled_task_id AS calendar_scheduled_task_id, " \
           "ROW_NUMBER() OVER (PARTITION BY jobs.scheduled_task_id ORDER BY workflows.finished_at DESC) AS calendar_row_number")
-      observations = Workflow.from("(#{ranked.to_sql}) workflows")
+      observations = Syrus::Host::WorkflowRecord.from("(#{ranked.to_sql}) workflows")
         .where("calendar_row_number <= ?", MAX_REPRESENTATIVE_EXECUTIONS_PER_TASK).to_a
 
       observations.group_by { |workflow| workflow[:calendar_scheduled_task_id] }.transform_values do |workflows|
