@@ -36,7 +36,7 @@ module Api
           end
 
           poll_only = params[:section] == "poll"
-          fresh_when(etag: [ repository.id, ::Job.visible_to(Syrus::Host::Current.user).where(repository_id: repository.id).maximum(:updated_at), resolution.filter.to_h, params[:stage], params[:page] ])
+          fresh_when(etag: [ repository.id, Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).where(repository_id: repository.id).maximum(:updated_at), resolution.filter.to_h, params[:stage], params[:page] ])
           return if request.fresh?(response)
           static_payload = poll_only ? {} : {
             **(history ? { history: history } : {}),
@@ -45,7 +45,7 @@ module Api
             filter_schema: ::Filters::Schema.for(subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user),
             smart_folders: ::Admin::SmartFolderNavigation.new(
               subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user, active_folder: active_folder,
-              base_scope: ::Job.visible_to(Syrus::Host::Current.user).where(repository_id: repository.id),
+              base_scope: Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).where(repository_id: repository.id),
               filter_class: ::SdlcPipeline::Filter, path_context: { repository_id: repository.id }
             ).folders
           }

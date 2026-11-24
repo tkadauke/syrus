@@ -4,7 +4,7 @@ module PendingActions
 
     def execute
       design_doc = DesignDocs::DesignDoc.visible_to(user).find(payload.fetch("design_doc_id"))
-      raise RepairEligibility::Ineligible, "#{design_doc.display_id} is already archived" if design_doc.state == "archived"
+      raise Syrus::Host::RepairIneligible, "#{design_doc.display_id} is already archived" if design_doc.state == "archived"
 
       result = DesignDocs::Archive.call(
         design_doc: design_doc,

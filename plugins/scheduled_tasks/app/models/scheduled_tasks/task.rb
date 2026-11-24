@@ -5,7 +5,7 @@ module ScheduledTasks
   # namespaced under its own module; the table keeps the name it had.
   class Task < Syrus::Host::Record
     self.table_name = "scheduled_tasks"
-    include AutoApproveModes
+    include Syrus::Host::AutoApproveModes
     include AuthorizationCheckpointOrigin
 
     attribute :schedule_timezone, :string, default: -> { Schedules::RecurringSchedule.server_timezone }
