@@ -244,7 +244,7 @@ module App
     # operational alert). Always rebuilt: banners describe live state.
     def banner_panels_json
       PerformanceLogging.phase("dashboard_chrome.banner_panels", subject: subject) do
-        ::App::UiSlotsPayload.panels_for(slot: "dashboard.banner", context: ui_panel_context)
+        ::App::UiSlotsPayload.panels_for(slot: "dashboard.banner", context: ui_panel_context, cacheable: false)
       end
     end
 
