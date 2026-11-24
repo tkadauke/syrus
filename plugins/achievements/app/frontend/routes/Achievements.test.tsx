@@ -38,7 +38,14 @@ const payload: AchievementsPayload = {
   ],
   locked: [
     { hidden: true, scope: "instance" },
-    { hidden: false, key: "example.later", scope: "user", category: "landing", rarity: "common", presentation: { title_key: "achievements:example.secret_milestone.title" } }
+    {
+      hidden: false,
+      key: "example.later",
+      scope: "user",
+      category: "landing",
+      rarity: "common",
+      presentation: { title_key: "achievements:example.secret_milestone.title" }
+    }
   ]
 }
 
@@ -83,7 +90,8 @@ describe("Achievements collection page", () => {
 
   it("replays a reveal through the shared reveal dialog", async () => {
     const fetchMock = renderPage((url, init) => {
-      if (init?.method === "POST" && url.endsWith("/replay")) return jsonResponse({ achievement: { ...payload.achievements[0], acknowledged: false, acknowledged_at: null } })
+      if (init?.method === "POST" && url.endsWith("/replay"))
+        return jsonResponse({ achievement: { ...payload.achievements[0], acknowledged: false, acknowledged_at: null } })
       if (init?.method === "POST") return jsonResponse({ achievement: payload.achievements[0] })
       return jsonResponse(payload)
     })
