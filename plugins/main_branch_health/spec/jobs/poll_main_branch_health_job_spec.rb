@@ -73,8 +73,8 @@ RSpec.describe PollMainBranchHealthJob do
 
     described_class.perform_now(repository.id)
 
-    expect(MainBranchHealthCheck.find_by!(repository: repository, branch: "develop", sha: "develop-sha").ci_health).to eq("broken")
-    expect(MainBranchHealthCheck.find_by!(repository: repository, branch: "main", sha: "release-sha").ci_health).to eq("healthy")
+    expect(MainBranchHealth::HealthCheck.find_by!(repository: repository, branch: "develop", sha: "develop-sha").ci_health).to eq("broken")
+    expect(MainBranchHealth::HealthCheck.find_by!(repository: repository, branch: "main", sha: "release-sha").ci_health).to eq("healthy")
   end
 
   it "keeps using an intentionally configured branch when it exists" do
@@ -229,14 +229,14 @@ RSpec.describe PollMainBranchHealthJob do
   # stayed stale for hours.
   it "reads CI for a SHA whose only record came from main grading" do
     repository.update!(last_health_checked_sha: sha, last_graded_sha: sha, ci_health: "broken", grader_health: "healthy")
-    MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
-    expect(MainBranchHealthCheck.find_by!(repository: repository, sha: sha)).to have_attributes(ci_health: "broken", ci_failed_checks: nil)
+    MainBranchHealth::HealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
+    expect(MainBranchHealth::HealthCheck.find_by!(repository: repository, sha: sha)).to have_attributes(ci_health: "broken", ci_failed_checks: nil)
     stub_sha(sha)
     stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, any_cancelled?: false, failed_checks: [] })
 
     described_class.perform_now(repository.id)
 
-    expect(MainBranchHealthCheck.find_by!(repository: repository, sha: sha)).to have_attributes(ci_health: "healthy", ci_failed_checks: [])
+    expect(MainBranchHealth::HealthCheck.find_by!(repository: repository, sha: sha)).to have_attributes(ci_health: "healthy", ci_failed_checks: [])
     expect(repository.reload.ci_health).to eq("healthy")
   end
 
@@ -366,7 +366,7 @@ RSpec.describe PollMainBranchHealthJob do
       ci_health: "unknown",
       grader_health: "broken"
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: repository,
       sha: sha,
       grader_health: "broken",
@@ -447,16 +447,16 @@ RSpec.describe PollMainBranchHealthJob do
     }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha)
   end
 
-  describe "MainBranchHealthCheck recording" do
+  describe "MainBranchHealth::HealthCheck recording" do
     it "records a ci_poll health check when ci_health is determined" do
       stub_sha(sha)
       stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, failed_checks: [] })
 
       expect {
         described_class.perform_now(repository.id)
-      }.to change(MainBranchHealthCheck, :count).by(1)
+      }.to change(MainBranchHealth::HealthCheck, :count).by(1)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.source).to eq("ci_poll")
       expect(check.sha).to eq(sha)
       expect(check.ci_health).to eq("healthy")
@@ -470,7 +470,7 @@ RSpec.describe PollMainBranchHealthJob do
 
       described_class.perform_now(repository.id)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.ci_health).to eq("broken")
       expect(check.ci_failed_checks).to eq([{ "name" => "RSpec", "url" => "https://github.com/check/42" }])
     end
@@ -484,7 +484,7 @@ RSpec.describe PollMainBranchHealthJob do
         ci_health: "broken",
         grader_health: "unknown"
       )
-      MainBranchHealthCheck.record_ci_poll(
+      MainBranchHealth::HealthCheck.record_ci_poll(
         repository: repository,
         sha: sha,
         ci_health: "broken",
@@ -495,7 +495,7 @@ RSpec.describe PollMainBranchHealthJob do
 
       expect {
         described_class.perform_now(repository.id)
-      }.not_to change(MainBranchHealthCheck, :count)
+      }.not_to change(MainBranchHealth::HealthCheck, :count)
     end
 
     it "does not record a health check when checks are still pending" do
@@ -504,7 +504,7 @@ RSpec.describe PollMainBranchHealthJob do
 
       expect {
         described_class.perform_now(repository.id)
-      }.not_to change(MainBranchHealthCheck, :count)
+      }.not_to change(MainBranchHealth::HealthCheck, :count)
     end
 
     it "records a health check when no CI checks exist" do
@@ -513,21 +513,21 @@ RSpec.describe PollMainBranchHealthJob do
 
       expect {
         described_class.perform_now(repository.id)
-      }.to change(MainBranchHealthCheck, :count).by(1)
+      }.to change(MainBranchHealth::HealthCheck, :count).by(1)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.ci_health).to eq("not_configured")
     end
 
     it "does not duplicate no-CI health records for the same SHA" do
       repository.update!(last_health_checked_sha: sha, ci_health: "not_configured")
-      MainBranchHealthCheck.record_ci_poll(repository: repository, sha: sha, ci_health: "not_configured")
+      MainBranchHealth::HealthCheck.record_ci_poll(repository: repository, sha: sha, ci_health: "not_configured")
       stub_sha(sha)
       stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false, failed_checks: [] })
 
       expect {
         described_class.perform_now(repository.id)
-      }.not_to change(MainBranchHealthCheck, :count)
+      }.not_to change(MainBranchHealth::HealthCheck, :count)
     end
   end
 

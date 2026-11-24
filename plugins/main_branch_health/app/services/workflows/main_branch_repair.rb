@@ -64,7 +64,7 @@ module Workflows
       updates[:last_graded_sha] = sha if sha
       updates[:last_ci_evaluated_sha] = sha if sha
       repository.update!(updates)
-      MainBranchHealthCheck.record_grader_workflow(
+      MainBranchHealth::HealthCheck.record_grader_workflow(
         repository: repository,
         workflow: workflow,
         sha: sha || "unknown",
@@ -90,7 +90,7 @@ module Workflows
       names = Array(workflow.class.find(workflow.id).artifact("preflight_inconclusive")).filter_map { |entry| entry["name"] }
 
       repository.update!(grader_health: "inconclusive", ci_health: "inconclusive")
-      MainBranchHealthCheck.record_grader_workflow(
+      MainBranchHealth::HealthCheck.record_grader_workflow(
         repository: repository, workflow: workflow, sha: sha || "unknown",
         grader_health: "inconclusive", grader_failed_names: names
       )

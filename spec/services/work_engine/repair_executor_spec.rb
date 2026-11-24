@@ -649,7 +649,7 @@ RSpec.describe WorkEngine::RepairExecutor do
     # check grades an old base, and the superseded-base cancel only handled
     # repairs still queued.
     it "cancels the repair once main health has moved past its base" do
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
         checked_at: 1.day.ago, source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
       )
@@ -672,7 +672,7 @@ RSpec.describe WorkEngine::RepairExecutor do
         priority: "high", state: "queued"
       )
       Workflow.create!(job: repair_job, trigger_kind: "main_branch_repair", state: "running", started_at: 1.hour.ago)
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: job.repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
         checked_at: 1.day.ago, source: "ci_poll", ci_health: "broken", grader_health: "broken"
       )

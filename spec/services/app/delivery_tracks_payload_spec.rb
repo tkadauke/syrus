@@ -71,11 +71,11 @@ RSpec.describe App::DeliveryTracksPayload do
     queued_on_hotfix = Factories.job_record(repository: repository, issue_number: 2, state: "approved", delivery_track: "hotfix")
     queued_on_default = Factories.job_record(repository: repository, issue_number: 3, state: "approved")
     queued_on_unknown = Factories.job_record(repository: repository, issue_number: 4, state: "approved", delivery_track: "missing")
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, branch: "develop", sha: "dev-sha", checked_at: Time.current,
       source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
     )
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, branch: "release", sha: "release-sha", checked_at: Time.current,
       source: "ci_poll", ci_health: "broken", grader_health: "healthy"
     )

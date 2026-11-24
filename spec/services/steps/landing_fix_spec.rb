@@ -150,7 +150,7 @@ RSpec.describe Steps::LandingFix, :ci_only do
   it "does not fail a no-op repair when the agent confirmed the failing graders were not caused by code via report_main_concern" do
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+existing")
     allow(handler).to receive(:diff_against_sha).and_return("")
-    MainConcernReport.create!(
+    MainBranchHealth::ConcernReport.create!(
       repository: repository,
       job: job,
       workflow: workflow,
@@ -168,7 +168,7 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect(step.details.dig("landing_repair_outcome", "evidence")).to include(
       "reason" => "reported_main_concern_pending_equivalent_rerun",
       "repair_head_sha" => "def456",
-      "report_ids" => [ MainConcernReport.last.id ]
+      "report_ids" => [ MainBranchHealth::ConcernReport.last.id ]
     )
   end
 
@@ -187,7 +187,7 @@ RSpec.describe Steps::LandingFix, :ci_only do
       agent_provider: workflow.agent_provider,
       iteration: prior_step.iteration
     )
-    MainConcernReport.create!(
+    MainBranchHealth::ConcernReport.create!(
       repository: repository,
       job: job,
       workflow: workflow,

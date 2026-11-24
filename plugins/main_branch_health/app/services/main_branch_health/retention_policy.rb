@@ -6,7 +6,7 @@ module MainBranchHealth
       [
         RetentionPolicyRegistry::Definition.new(
           key: :main_branch_health_check,
-          model: "MainBranchHealthCheck",
+          model: "MainBranchHealth::HealthCheck",
           table_name: "main_branch_health_health_checks",
           age_column: :checked_at,
           scope_name: :pruneable,

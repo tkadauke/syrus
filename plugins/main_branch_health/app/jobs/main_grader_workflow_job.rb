@@ -15,7 +15,7 @@ class MainGraderWorkflowJob < Syrus::Host::BackgroundJob
     return unless repository
     return if repository.archived?
     health_branch = base_branch.presence || repository.default_branch
-    return if MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, branch: health_branch, sha: sha)
+    return if MainBranchHealth::HealthCheck.conclusive_grader_result_exists?(repository: repository, branch: health_branch, sha: sha)
     return if active_grading_workflow?(repository) || active_main_branch_repair_workflow?(repository, sha)
 
     user = repository.user

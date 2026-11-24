@@ -64,7 +64,7 @@ RSpec.describe Steps::GraderCollect, "inherited test-case failures" do
       status: "failed",
       checked_at: Time.current
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
@@ -110,7 +110,7 @@ RSpec.describe Steps::GraderCollect, "inherited test-case failures" do
       status: "failed",
       checked_at: Time.current
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: job.repository,
       sha: "main123",
       grader_health: "broken",
