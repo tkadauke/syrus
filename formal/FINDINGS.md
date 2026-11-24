@@ -4575,7 +4575,16 @@ Job.
 the WorkIntent the same transitions settle ranks before Workflow. The
 Step-then-Workflow and Job-then-Epic groups are not yet traced.
 
-## F125. A finishing Workflow wrote its own row after its Steps — fixed (NY37: A, part 2)
+## F125. A finishing Workflow wrote its own row after its Steps (NY37: A, part 2) — held back from main, superseded by NY40
+
+*Held back (2026-11-24).* The full suite before a push to main found that the
+own-row lock is itself an inversion under the current order: the success path
+then locks the Job in `AutoApprovalRule`, and Job ranks before Workflow. Locking
+the Job first inside the transition is no better, because callers such as
+`WorkflowCancellation` already hold the Workflow. The right fix is at the
+callers' entry points, which is NY40's `Lineage.lock!`. So the change is left
+out of the main push, and NY40 replaces it on the branch.
+
 
 **Before.** `Workflows::LifecyclePropagation`'s terminal methods run inside the
 AASM event, before AASM saves the Workflow row. They cancel and write the

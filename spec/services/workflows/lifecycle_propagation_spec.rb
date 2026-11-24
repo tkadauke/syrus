@@ -25,32 +25,6 @@ RSpec.describe Workflows::LifecyclePropagation do
     )
   end
 
-  # NY37: a terminal transition cancels and writes the Workflow's Steps, and
-  # AASM saves the Workflow row afterwards. Called without an outer Workflow
-  # lock, that wrote the Workflow while holding its Steps. The transition now
-  # locks its own row first.
-  it "locks the Workflow's row before its Steps when it finishes" do
-    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago)
-    Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running", started_at: 5.minutes.ago)
-    Step.create!(workflow: workflow, kind: "pr_open", position: 1)
-    checker = Syrus::LockOrder::Checker
-    previous_mode = checker.mode
-    previous_writes = ENV["SYRUS_LOCK_ORDER_WRITES"]
-    checker.mode = :record
-    ENV["SYRUS_LOCK_ORDER_WRITES"] = "1"
-    before = checker.violations.size
-
-    Workflow.transaction { workflow.reload.cancel! }
-
-    inverted = checker.violations.drop(before).select { |v| v.held == "Step" && v.taking == "Workflow" }
-    expect(inverted).to be_empty
-    expect(workflow.reload).to be_cancelled
-  ensure
-    checker.violations.slice!(before..) if before
-    checker.mode = previous_mode
-    ENV["SYRUS_LOCK_ORDER_WRITES"] = previous_writes
-  end
-
   it "clears stale grader-loop attention only when a new queued workflow starts" do
     mark_job_for_grader_loop_attention!
     stop_artifact = previous_workflow.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY)

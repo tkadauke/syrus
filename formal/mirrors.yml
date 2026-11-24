@@ -146,7 +146,7 @@ models:
   - path: app/services/workflows/lifecycle_propagation.rb
     owner: LifecyclePropagation
     method: cancelled!
-    sha: 1ac4c9b5a5cf7ad1
+    sha: fa9aba46c06f4a57
 - model: WakeupChain.lean
   mirrors:
   - path: app/services/mcp/tools/schedule_wakeup_tool.rb

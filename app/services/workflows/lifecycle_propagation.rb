@@ -22,7 +22,6 @@ module Workflows
     end
 
     def succeeded!
-      lock_own_row!
       JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("succeeded")
@@ -35,7 +34,6 @@ module Workflows
     end
 
     def failed!
-      lock_own_row!
       JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("failed")
@@ -54,7 +52,6 @@ module Workflows
     end
 
     def cancelled!
-      lock_own_row!
       JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       # Invariant: a root event exists before any cleanup runs. Direct
@@ -71,7 +68,6 @@ module Workflows
     end
 
     def blocked!
-      lock_own_row!
       JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
       if Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
@@ -102,15 +98,6 @@ module Workflows
     private
 
     attr_reader :workflow
-
-    # NY37: a terminal transition writes this Workflow's Steps, Runs and
-    # WorkUnit, and AASM saves the Workflow row after this callback, so take
-    # the Workflow's own row first (Workflow ranks before Step). A locking
-    # query, not lock!, so the transition's unsaved state is kept; a caller
-    # already holding the row re-locks it for free.
-    def lock_own_row!
-      Workflow.lock.where(id: workflow.id).to_a if workflow.persisted?
-    end
 
     def dispatch_hook(name)
       workflow.send(:dispatch_hook, name)
