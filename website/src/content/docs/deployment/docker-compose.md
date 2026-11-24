@@ -399,6 +399,12 @@ missing-row repairs remain separate signals.
 - `SYRUS_WORKER_CPU_LIMIT` — the CPU count used to size worker parallelism when
   Docker exposes no cgroup CPU quota. The installer fills it once from the
   Docker VM's CPU count; an existing nonblank operator value is preserved.
+- `SYRUS_RUNTIME_IMAGE_REGISTRY_URL` — optional OCI registry used to publish
+  and distribute runtime images. Set separate builder (pull+push), worker
+  (pull-only), and admin (pull+delete) identities with
+  `SYRUS_RUNTIME_IMAGE_REGISTRY_{BUILDER,WORKER,ADMIN}_{USERNAME,PASSWORD}`;
+  optionally `_REPOSITORY_PREFIX` (default `syrus`) and `_TIMEOUT`. Use https.
+  Run `bin/rails runtime_images:diagnose` to check each credential.
 - `SECRET_KEY_BASE`, `ACTIVE_RECORD_ENCRYPTION_*` — generated; keep them
   stable across restarts or stored GitHub/agent credentials can't be
   decrypted. Regenerate a key by hand with `openssl rand -hex 32`.

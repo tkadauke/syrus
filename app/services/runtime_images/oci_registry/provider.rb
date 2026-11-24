@@ -113,7 +113,8 @@ module RuntimeImages
         start = call(:builder, repo, :post, "/v2/#{repo}/blobs/uploads/", headers: { "Content-Length" => "0" })
         raise_for(start, "start blob upload")
         location = URI.parse(start.header("location").to_s)
-        if location.host && location.host != URI.parse(configuration.url).host
+        base = URI.parse(configuration.url)
+        if location.host && [location.host, location.port] != [base.host, base.port]
           raise ProviderError, "registry returned an upload location on a different host"
         end
         query = URI.decode_www_form(location.query.to_s) << ["digest", digest]
