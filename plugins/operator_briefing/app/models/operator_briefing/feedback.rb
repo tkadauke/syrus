@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class Feedback < ApplicationRecord
+  class Feedback < Syrus::Host::Record
     self.table_name = "operator_briefing_feedbacks"
 
     SENTIMENTS = %w[positive negative neutral].freeze

@@ -18,14 +18,14 @@ module Coworkers
       unsaved = Coworkers::Chat.where(coworker_id: ids).where.not(unsaved_workspace_first_failed_at: nil)
         .group(:coworker_id).pluck(:coworker_id, Arel.sql("MIN(unsaved_workspace_first_failed_at)"), Arel.sql("SUM(unsaved_workspace_attempt_count)"))
         .to_h { |id, oldest, attempts| [ id, [ oldest, attempts ] ] }
-      chat_spend = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+      chat_spend = Syrus::Host::ActivityRecords.chat_spend_entries.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
         .where(coworker_chats: { coworker_id: ids }).group("coworker_chats.coworker_id").sum(:cost_usd)
-      run_spend = Run.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) })
+      run_spend = Syrus::Host::Runs.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) })
         .group("jobs.origin_id").sum(:cost_usd)
       seven_days_ago = now - 7.days
-      weekly_chat_spend = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+      weekly_chat_spend = Syrus::Host::ActivityRecords.chat_spend_entries.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
         .where(coworker_chats: { coworker_id: ids }, incurred_at: seven_days_ago..now).group("coworker_chats.coworker_id").sum(:cost_usd)
-      weekly_run_spend = Run.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) }, finished_at: seven_days_ago..now)
+      weekly_run_spend = Syrus::Host::Runs.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) }, finished_at: seven_days_ago..now)
         .group("jobs.origin_id").sum(:cost_usd)
 
       coworkers.each do |id, handle|
@@ -90,12 +90,12 @@ module Coworkers
       value.respond_to?(:in_time_zone) && !value.is_a?(String) ? value.in_time_zone : Time.zone.parse(value.to_s)
     end
 
-    def set(name, value, tags) = Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").set(value, tags: tags)
-    def counter(name) = Syrus::Metrics.counter(:"syrus_coworkers_#{name}")
+    def set(name, value, tags) = Syrus::Host::Metrics.gauge(:"syrus_coworkers_#{name}").set(value, tags: tags)
+    def counter(name) = Syrus::Host::Metrics.counter(:"syrus_coworkers_#{name}")
 
     def clear_published_series!(active_handles)
       %i[journaling_last_result_age_seconds journaling_consecutive_failures unsaved_workspace_age_seconds unsaved_workspace_attempts journaling_state journaling_last_result].each do |name|
-        Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").samples.each { |tags, _| Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").clear(tags:) }
+        Syrus::Host::Metrics.gauge(:"syrus_coworkers_#{name}").samples.each { |tags, _| Syrus::Host::Metrics.gauge(:"syrus_coworkers_#{name}").clear(tags:) }
       end
       %i[spend_usd_total workspace_push_failures_total].each do |name|
         counter(name).samples.each do |tags, _|

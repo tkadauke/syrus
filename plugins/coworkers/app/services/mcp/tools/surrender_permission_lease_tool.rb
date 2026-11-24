@@ -9,12 +9,12 @@ module Mcp::Tools
 
     class << self
       def call(server_context:, permission_lease_id:)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         lease = Permissions::CoworkerLeaseSurrender.new(context:).call(permission_lease_id)
-        Mcp::Tools.success(permission_lease_id: lease.id, revoked: true,
+        Syrus::Host::McpTools.success(permission_lease_id: lease.id, revoked: true,
           message: I18n.t("server.permissions.coworker_permission.surrendered"))
       rescue Permissions::CoworkerPermissionRequest::Rejected => error
-        Mcp::Tools.invalid("#{error.code}: #{error.message}")
+        Syrus::Host::McpTools.invalid("#{error.code}: #{error.message}")
       end
     end
   end

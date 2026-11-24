@@ -24,13 +24,13 @@ module OperatorBriefing
       )
 
       class << self
-        include McpToolPayloads::WorkflowPayload
+        include Syrus::Host::WorkflowPayload
 
         DEFAULT_LIMIT = 20
         MAX_LIMIT = 50
 
         def call(server_context:, limit: nil, page: nil)
-          run = Mcp::Tools.run_from_context(server_context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
           briefing = Briefing.find_by!(job: run.job)
           per_page = normalized_limit(limit)
           page_num = Syrus::Host::McpPagination.normalize_page(page)
@@ -61,7 +61,7 @@ module OperatorBriefing
         private
 
         def workflow_scope(briefing)
-          ::Workflow
+          Syrus::Host::Workflows
             .joins(:job)
             .includes(:job, :workflow_artifact_values, :workflow_warnings, steps: :runs)
             .where(jobs: { repository_id: briefing.repository_id, user_id: briefing.owner_user_id })

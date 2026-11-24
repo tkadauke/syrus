@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingSubscription < ApplicationRecord
+  class BriefingSubscription < Syrus::Host::Record
     self.table_name = "operator_briefing_subscriptions"
 
     belongs_to :user
@@ -10,7 +10,7 @@ module OperatorBriefing
     scope :enabled, -> { where(enabled: true) }
 
     def self.seed_for_user!(user, enabled: false)
-      Repository.where(id: Repository.accessible_repository_ids_for(user)).find_each do |repository|
+      Syrus::Host::Repositories.where(id: Syrus::Host::Repositories.accessible_repository_ids_for(user)).find_each do |repository|
         find_or_create_by!(user: user, repository: repository) do |subscription|
           subscription.enabled = enabled
         end

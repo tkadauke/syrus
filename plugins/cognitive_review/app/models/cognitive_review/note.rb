@@ -1,7 +1,7 @@
 require "digest"
 
 module CognitiveReview
-  class Note < ApplicationRecord
+  class Note < Syrus::Host::Record
     self.table_name = "cognitive_review_notes"
 
     SIDES = %w[new old].freeze

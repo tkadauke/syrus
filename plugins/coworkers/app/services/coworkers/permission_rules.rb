@@ -119,7 +119,7 @@ module Coworkers
 
     def catalog_tool_descriptor(tool)
       if tool.tool
-        entry = McpToolRegistry.entry_for(tool.tool)
+        entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
         entry&.descriptor || (entry && Syrus::Host::PermissionCapabilityAdapter.for_registry_entry(
           tool_name: entry.tool_name, capability: entry.capability, mutation: entry.mutation,
           required_roles: entry.required_roles, admin_only: entry.admin_only

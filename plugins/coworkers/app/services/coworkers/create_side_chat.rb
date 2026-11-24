@@ -1,7 +1,7 @@
 class Coworkers::CreateSideChat
   def self.call(coworker:, user:, repository:)
-    ApplicationRecord.transaction do
-      session = ChatSession.create!(
+    Syrus::Host::Record.transaction do
+      session = Syrus::Host::ChatSessions.create!(
         user: user, repository: repository, title_auto_fallback: true,
         **coworker.chat_configuration
       )

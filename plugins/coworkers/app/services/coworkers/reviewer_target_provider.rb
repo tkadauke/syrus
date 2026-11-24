@@ -1,5 +1,5 @@
 class Coworkers::ReviewerTargetProvider
-  include Syrus::Plugin::ReviewerTargetProvider
+  include Syrus::Host::ReviewerTargetProvider
 
   def self.target_type = "coworker"
 

@@ -1,5 +1,5 @@
 class Coworkers::ReviewToolSet
-  include Syrus::Plugin::McpToolSet
+  include Syrus::Host::McpToolSet
 
   # Roles allowed to call the verdict tool; the memory tool is reviewer-only.
   SUBMIT_ROLES = [ Syrus::Host::AgentRoles::WORKFLOW_COWORKER_REVIEWER, Syrus::Host::AgentRoles::WORKFLOW_MANUAL ].freeze
@@ -22,11 +22,11 @@ class Coworkers::ReviewToolSet
   end
 
   def handle(tool_name, params, server_context)
-    context = McpToolContext.from_server_context(server_context)
-    return Mcp::Tools.not_authorized unless self.class.available_for_context?(context)
+    context = Syrus::Host::ToolContext.from_server_context(server_context)
+    return Syrus::Host::McpTools.not_authorized unless self.class.available_for_context?(context)
     entry = TOOLS.find { |candidate| candidate[:tool].tool_name == tool_name.to_s }
-    return Mcp::Tools.invalid("unknown coworker review tool") unless entry
-    return Mcp::Tools.not_authorized unless entry[:roles].include?(context.role)
+    return Syrus::Host::McpTools.invalid("unknown coworker review tool") unless entry
+    return Syrus::Host::McpTools.not_authorized unless entry[:roles].include?(context.role)
     entry[:tool].call(**(params || {}).symbolize_keys, server_context:)
   end
 end

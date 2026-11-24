@@ -19,14 +19,14 @@ module Permissions
     def self.record!(event, owner:, coworker:, **details)
       raise ArgumentError, "unknown coworker permission audit event" unless EVENTS.include?(event.to_s)
 
-      AdminAction.log!(
+      Syrus::Host::AdminActions.log!(
         user: owner, action: event,
         params: { "coworker_id" => coworker.id, "coworker_handle" => coworker.try(:handle) }.merge(details.compact.deep_stringify_keys)
       )
     end
 
     def self.events_for(coworker)
-      AdminAction.where(action: EVENTS).order(:id).select do |action|
+      Syrus::Host::AdminActions.where(action: EVENTS).order(:id).select do |action|
         action.params.is_a?(Hash) && action.params["coworker_id"] == coworker.id
       end
     end

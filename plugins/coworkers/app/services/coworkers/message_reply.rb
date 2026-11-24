@@ -1,6 +1,6 @@
 class Coworkers::MessageReply
-  include Syrus::Plugin::ChatTurnFinalizer
-  include Syrus::Plugin::ChatTurnOrientation
+  include Syrus::Host::ChatTurnFinalizer
+  include Syrus::Host::ChatTurnOrientation
 
   NO_REPLY = "NO_REPLY"
   MENTION_CONTINUATION_SOURCES = %w[

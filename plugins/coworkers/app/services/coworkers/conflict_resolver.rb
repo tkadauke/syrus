@@ -28,7 +28,7 @@ class Coworkers::ConflictResolver
     attr_accessor :agent
   end
 
-  def initialize(coworker:, user:, git: GitRunner.new, env: {}, timeout: nil)
+  def initialize(coworker:, user:, git: Syrus::Host::GitRunner.new, env: {}, timeout: nil)
     @coworker = coworker
     @user = user
     @git = git
@@ -117,8 +117,8 @@ class Coworkers::ConflictResolver
   def default_agent
     provider = @user.agent_provider
     lambda do |workspace_path:, prompt:|
-      AgentProviders.for(provider).invoke_one_shot(
-        workspace_path:, user: @user, runner: RunJob.agent_runner, scope: "coworker-conflict-resolution",
+      Syrus::Host::AgentProviders.for(provider).invoke_one_shot(
+        workspace_path:, user: @user, runner: Syrus::Host::RunJob.agent_runner, scope: "coworker-conflict-resolution",
         prompt:, log_sink: ->(*, **) { }, timeout: AGENT_TIMEOUT, max_turns: AGENT_MAX_TURNS
       )
     end

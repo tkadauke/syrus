@@ -100,7 +100,7 @@ module Coworkers
       end
 
       def coworker_only?(tool_set)
-        Mcp::ChatToolParity.provider_exceptions(tool_set).any? do |exception|
+        Syrus::Host::ChatToolParity.provider_exceptions(tool_set).any? do |exception|
           CORE_CONTEXTS.all? { |context| exception.absent_from?(context) }
         end
       end
