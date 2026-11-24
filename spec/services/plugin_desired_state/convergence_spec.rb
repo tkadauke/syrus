@@ -184,6 +184,21 @@ RSpec.describe PluginDesiredState::Convergence do
       expect(PluginDesiredState.current.divergence_episodes).to eq({})
     end
 
+    it "keeps the alert episode key stable when the earliest sustained process recovers but another remains" do
+      first = create_process("first", 1, now, started_at: now - 3.hours)
+      expect(prolonged?(now)).to be(false)
+      create_process("second", 1, now + 2.minutes, started_at: now - 3.hours)
+      InstanceVersion.update_all(last_heartbeat_at: now + 6.minutes)
+      key_for = ->(at) { described_class.new(state: PluginDesiredState.current, now: at, threshold: 5.minutes).prolonged_episode_key }
+      expect(key_for.call(now + 2.minutes)).to be_nil
+      expect(key_for.call(now + 6.minutes)).to eq(now.to_i)
+
+      first.update!(plugin_set_digest: desired_digest, plugin_set_revision: 2, last_heartbeat_at: now + 7.minutes)
+      InstanceVersion.where.not(id: first.id).update_all(last_heartbeat_at: now + 7.minutes)
+
+      expect(key_for.call(now + 7.minutes)).to eq(now.to_i)
+    end
+
     it "keeps reporting transient states on rows before the alarm is sustained" do
       create_process("behind", 1, now)
       row = described_class.new(state: PluginDesiredState.current, now:, threshold: 5.minutes).as_json.fetch(:processes).sole
