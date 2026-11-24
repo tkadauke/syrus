@@ -140,8 +140,11 @@ module RuntimeImages
 
         archive = File.join(File.dirname(dir), "source.archive")
         blob = request.source_archive.blob
-        if blob.byte_size > Config.max_source_bytes
-          raise Rejected.new("source_too_large", "source archive is #{blob.byte_size} bytes, over the #{Config.max_source_bytes} byte limit")
+        # Raw archive plus extracted tree share host scratch before the bounded
+        # tmpfs exists, so together they must fit the storage ceiling.
+        ceiling = [ Config.max_source_bytes, Config.build_storage_bytes ].min
+        if blob.byte_size > ceiling
+          raise Rejected.new("source_too_large", "source archive is #{blob.byte_size} bytes, over the #{ceiling} byte limit")
         end
 
         # Stream in chunks with a running cap so the archive is never fully
@@ -150,12 +153,12 @@ module RuntimeImages
         File.open(archive, "wb") do |file|
           blob.download do |chunk|
             written += chunk.bytesize
-            raise Rejected.new("source_too_large", "source archive exceeds the #{Config.max_source_bytes} byte limit") if written > Config.max_source_bytes
+            raise Rejected.new("source_too_large", "source archive exceeds the #{ceiling} byte limit") if written > ceiling
 
             file.write(chunk)
           end
         end
-        digest = @extractor.extract(archive, dir)
+        digest = @extractor.extract(archive, dir, max_bytes: [ Config.build_storage_bytes - written, 0 ].max)
         revision = request.source_manifest["revision"].to_s
         if revision.start_with?("sha256:") && revision != digest
           raise Rejected.new("source_mismatch", "source archive digest #{digest} does not match captured #{revision}")
