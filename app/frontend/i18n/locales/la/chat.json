@@ -3374,5 +3374,8 @@
   "tab_attention_new_items_one": "{{count}} res nova",
   "tab_attention_new_items_other": "{{count}} res novae",
   "tab_attention_new_activity": "Nova actio",
-  "workspace_new_activity": "Spatium laboris novam actionem habet"
+  "workspace_new_activity": "Spatium laboris novam actionem habet",
+  "insertion_label": "Insertio",
+  "insertion_position": "Insertum post {{after}}, ante {{before}}",
+  "insertion_position_tail": "Insertum post {{after}} (finis catenae)"
 }

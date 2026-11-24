@@ -68,3 +68,14 @@ export function proposalConfirmAriaLabel(proposal: ChatProposal, childJobCount: 
 
   return childJobCount > 0 ? i18n.t("chat:confirm_epic_and_jobs") : i18n.t("chat:confirm_epic")
 }
+
+// "Inserted after JOB-X, before JOB-Y" for a proposal that splices into the
+// middle of an Epic's linear chain; the "before" half is omitted when the
+// anchor is the chain tail.
+export function insertionText(insertion: NonNullable<ChatProposal["insertion"]>): string {
+  const after = insertion.insert_after_slug || `JOB-${insertion.insert_after_job_id}`
+  const before = insertion.insert_before_slug || (insertion.insert_before_job_id ? `JOB-${insertion.insert_before_job_id}` : null)
+  return before
+    ? i18n.t("chat:insertion_position", { after, before })
+    : i18n.t("chat:insertion_position_tail", { after })
+}

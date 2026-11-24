@@ -228,4 +228,17 @@ describe("propose_job tool card", () => {
     expect(proposeJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
     expect(proposeJobToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
   })
+
+  it("shows where an Epic-chain insertion lands", () => {
+    const parsedResult = {
+      slug: "splice-me",
+      title: "Splice me",
+      kind: "job",
+      state: "proposed",
+      repository: { slug: "acme/app" },
+      insertion: { insert_after_job_id: 5, insert_after_slug: "JOB-5", insert_before_job_id: 6, insert_before_slug: "JOB-6" }
+    }
+    render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("Inserted after JOB-5, before JOB-6")).toBeInTheDocument()
+  })
 })

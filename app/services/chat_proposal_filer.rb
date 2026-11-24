@@ -372,6 +372,8 @@ class ChatProposalFiler
     return if proposal.insert_after_job_id.blank?
     raise ArgumentError, "insert_after_job_id requires a target Epic" unless job.epic
 
+    plan = EpicChainSplice.plan!(epic: job.epic, anchor_job_id: proposal.insert_after_job_id)
+    EpicChainSplice.validate_final_chain!(plan, [ [ "new_job", job.title ] ], already_created_ids: [ job.id ])
     EpicChainSplice.apply!(
       epic: job.epic,
       anchor_job_id: proposal.insert_after_job_id,
