@@ -38,4 +38,16 @@ RSpec.describe Coworkers::ClaimedWorkspacePaths do
 
     expect(described_class.from(summary)).to eq([ "memory/today.md" ])
   end
+
+  describe ".unsupported_from" do
+    it "flags directory and wildcard claims but not exact files" do
+      expect(described_class.unsupported_from("Saved to `memory/` and updated memory/people/*; wrote `memory/diary/2026-11-23.md`.")).to eq(
+        [ "memory/", "memory/people/*" ]
+      )
+    end
+
+    it "ignores directory mentions that are not write claims" do
+      expect(described_class.unsupported_from("Read `memory/` for context.")).to be_empty
+    end
+  end
 end
