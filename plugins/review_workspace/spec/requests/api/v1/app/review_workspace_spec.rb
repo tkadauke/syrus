@@ -83,7 +83,7 @@ RSpec.describe "API: review workspace", type: :request do
   describe "GET /api/v1/app/review_workspace/:id/summary" do
     it "aggregates change scope from the stored diff review version" do
       job = Factories.job_record(user:, repository:, state: "implemented", issue_title: "Scope me")
-      DiffReviewVersion.create!(
+      Syrus::Host::DiffReviews.versions.create!(
         job:, version_index: 1, base_sha: "a" * 40, head_sha: "b" * 40, source_key: "k", reason: "source_diff",
         files_snapshot: [ { "path" => "a.rb", "additions" => 3, "deletions" => 1 }, { "path" => "b.rb", "additions" => 2, "deletions" => 0 } ]
       )
