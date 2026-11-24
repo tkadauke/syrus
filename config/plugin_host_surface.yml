@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 393
+legacy_baseline: 370
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
