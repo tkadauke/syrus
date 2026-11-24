@@ -284,7 +284,13 @@ class AutoRetryJob < ApplicationJob
   end
 
   def perform_retry(attempt)
-    if fresh_workflow_required?(attempt)
+    # A preserved merge train relaunches its own failed step; a fresh workflow
+    # for the anchor Job is never right (see below), and a Job in a train is
+    # landing, which RetryWorkflowEligibility always refuses. Failures whose
+    # Problem remediation is restart_workflow -- landing_validation_unproven
+    # among them -- took that branch and the relaunch was skipped as "already
+    # approved for landing", leaving the train to be torn down.
+    if attempt.retry_kind != AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND && fresh_workflow_required?(attempt)
       return retry_workflow(attempt)
     end
 

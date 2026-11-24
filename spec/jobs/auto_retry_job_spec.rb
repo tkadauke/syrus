@@ -870,6 +870,28 @@ RSpec.describe AutoRetryJob do
       expect(attempt.performed_at).to be_present
     end
 
+    # Regression: landing_validation_unproven's remediation is
+    # restart_workflow, so the relaunch took the fresh-workflow branch, which
+    # refuses a Job that is landing ("already approved for landing"); the
+    # train was then torn down and its members lost their approval.
+    it "relaunches the land step of a landing Job whose failure asks for a workflow restart" do
+      attempt, train, train_workflow, train_step = preserved_train_attempt!(
+        step_kind: "merge_train_land", classification: "landing_validation_unproven", retryable: true
+      )
+      job.update_columns(state: "landing")
+
+      workflows_before = job.workflows.count
+      expect {
+        described_class.perform_now(attempt.id)
+      }.to change { train_step.runs.count }.by(1)
+      expect(job.workflows.count).to eq(workflows_before)
+
+      expect(attempt.reload.skipped_reason).to be_nil
+      expect(attempt.performed_at).to be_present
+      expect(train.reload).not_to be_terminal
+      expect(train_workflow.reload).to be_running
+    end
+
     it "tears the train down when the preserved workspace has been swept" do
       attempt, train, train_workflow, = preserved_train_attempt!
       train_workflow.update_columns(cleaned_up_at: Time.current)
