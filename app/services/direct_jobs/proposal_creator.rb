@@ -10,10 +10,10 @@ module DirectJobs
       @user = user
     end
 
-    def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [], dependency_requirements: [])
+    def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [], dependency_requirements: [], insert_after_job_id: nil)
       chat_session, created_chat_session = proposal_chat_session(repository, depends_on | requirement_proposal_slugs(dependency_requirements))
       depends_on_job_ids = chain_onto_epic_tail(
-        epic: epic,
+        epic: insert_after_job_id.present? ? nil : epic,
         depends_on_job_ids: depends_on_job_ids,
         depends_on: depends_on,
         dependency_requirements: dependency_requirements
@@ -24,6 +24,7 @@ module DirectJobs
         description: prompt_text,
         server_context: { chat_session: chat_session },
         epic_id: epic&.id,
+        insert_after_job_id: insert_after_job_id.presence,
         depends_on: depends_on,
         depends_on_job_ids: depends_on_job_ids,
         dependency_requirements: dependency_requirements,

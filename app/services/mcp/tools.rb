@@ -165,6 +165,7 @@ module Mcp
           dependencies: proposal.dependencies.order(:slug).pluck(:slug),
           depends_on_epic_ids: Array(proposal.depends_on_epic_ids),
           depends_on_job_ids: Array(proposal.depends_on_job_ids),
+          insertion: proposal.insertion_json,
           dependency_requirements: ProposalJobDependencyRequirements.for_proposal(proposal),
           route_to_backlog: proposal.route_to_backlog?,
           initial_job_state: proposal.route_to_backlog? ? "backlog" : "default",
