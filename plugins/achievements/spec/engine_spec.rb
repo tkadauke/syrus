@@ -32,7 +32,9 @@ RSpec.describe Achievements do
     end
   end
 
-  it "declares no ActiveJob without a consumed queue" do
-    expect(Dir[Rails.root.join("plugins/achievements/app/jobs/**/*.rb")]).to be_empty
+  it "runs its only job on the plugin queue, which workers consume" do
+    jobs = Dir[Rails.root.join("plugins/achievements/app/jobs/**/*.rb")].map { |path| File.basename(path, ".rb") }
+    expect(jobs).to eq([ "evaluation_retry_job" ])
+    expect(Achievements::EvaluationRetryJob.new.queue_name).to eq("plugin_achievements")
   end
 end
