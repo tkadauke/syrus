@@ -4793,10 +4793,17 @@ cleanup lock its Steps before any Run. Specs:
 Part 3 converted `TerminalWorkflowSync`, `WorkUnit#preempt!`,
 `Job#close_with_reason!` (Epic before Job), and the repair executor's
 closed-Job cancel, superseded-CI-repair cancel, queued-Run relaunch and
-merge-train member close. Remaining from the focused survey:
-`StepDispatcher.create_run_and_enqueue` (Step, then WorkUnit),
-`JobClosure.lock_pending_workflows!`, `TerminalLockCleanup`, the repair
-executor's workflow start, and Run-before-Step writes in a Run's own
+merge-train member close. Part 4 added `Lineage.lock_all!` for several
+ancestries at once, possibly across Jobs: every row of a model before any row
+of the next model down. `LockOrder.lean` proves every sequence it can take is
+in the hierarchical order (`lock_all_in_order`). `JobClosure.lock_pending_workflows!`
+uses it, so the sibling cascade no longer inverts
+(`closure_lineage_before_inverts`, `closure_lineage_after_in_order`).
+`TerminalLockCleanup`, the repair executor's workflow start and
+`StepDispatcher.create_run_and_enqueue` also take their ancestry first.
+Remaining: the callers that write Steps or the Workflow before creating a Run
+(`enqueue_next_loop_iteration!`, `enqueue_try_failure_branch!` and the
+parallel grader admission), and Run-before-Step writes in a Run's own
 cancellation.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with

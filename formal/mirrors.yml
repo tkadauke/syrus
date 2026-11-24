@@ -142,7 +142,7 @@ models:
   - path: app/services/job_closure.rb
     owner: JobClosure
     method: self.lock_pending_workflows!
-    sha: 7b7dff9c93b83678
+    sha: 17c97d4a3b31a512
   - path: app/services/workflows/lifecycle_propagation.rb
     owner: LifecyclePropagation
     method: cancelled!

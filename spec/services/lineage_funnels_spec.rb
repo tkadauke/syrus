@@ -91,6 +91,39 @@ RSpec.describe "Lineage funnels" do
     expect(job.reload).to be_closed
   end
 
+  it "retires a terminal Workflow's WorkUnit that still holds locks in order" do
+    workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    workflow.runs.update_all(state: "succeeded", finished_at: Time.current)
+    unit = workflow.work_unit
+    expect(unit.work_unit_locks.active).to exist
+
+    result = checked { WorkUnits::TerminalLockCleanup.call(work_unit: unit) }
+
+    expect(result.status).to eq("applied")
+  end
+
+  it "fails a Workflow with an orphaned active Run in order" do
+    run = running_step_with_run
+
+    checked { workflow.reload.fail! }
+
+    expect(run.reload).to be_cancelled
+  end
+
+  it "fails a Workflow whose pending closure cancels a sibling in order" do
+    sibling = workflow
+    closer = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: Time.current)
+    closer.request_job_closure!(job, "pr_closed")
+
+    checked do
+      closer.reload.fail!
+      closer.save!
+    end
+
+    expect(sibling.reload).to be_cancelled
+    expect(job.reload).to be_closed
+  end
+
   it "cancels a closed Job's active Workflow from the reconciler in order" do
     running_step_with_run
     job.update_columns(state: "closed", finished_at: 2.minutes.ago, closure_reason: "operator_cancelled")

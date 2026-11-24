@@ -686,66 +686,66 @@ class StepDispatcher
   # explicitly. trigger_kind is denormalized from Workflow until
   # commit 9's cleanup migration drops Run.trigger_kind entirely.
   def self.create_run_and_enqueue(step, workflow, parent_session_id: nil, prompt: nil, check_phase_admission: true)
-    workflow.with_lock do
-      step.with_lock do
-        workflow.reload
-        step.reload
+    # Ancestry first, top down (NY40): a deferred start blocks the WorkUnit.
+    Workflow.transaction do
+      Lineage.lock!(step)
+      workflow.reload
+      step.reload
 
-        return nil if step.terminal?
-        return nil if step.runs.active.exists?
-        return nil unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(step)
+      return nil if step.terminal?
+      return nil if step.runs.active.exists?
+      return nil unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(step)
 
-        Workflows::ImmutableReviewHeadBarrier.stamp!(step, workflow)
+      Workflows::ImmutableReviewHeadBarrier.stamp!(step, workflow)
 
-        if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
-          return nil
-        end
-        clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
-
-        if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
-          return nil
-        end
-
-        refresh_default_workflow_agent_provider!(workflow)
-        run_provider_candidate = run_provider_candidate_for(step, workflow)
-        return nil if run_provider_candidate.nil?
-
-        if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
-          return nil
-        end
-        workflow.reload
-        run_provider_candidate = run_provider_candidate_for(step, workflow)
-        return nil if run_provider_candidate.nil?
-
-        if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
-          return nil
-        end
-
-        if check_phase_admission && phase_admission_deferred?(step, workflow)
-          return nil
-        end
-
-        run_provider_account = if run_provider_candidate.account_id.present?
-          workflow.user.provider_accounts.find_by(
-            provider_key: run_provider_candidate.provider,
-            public_id: run_provider_candidate.account_id
-          )
-        elsif workflow.agent_provider == run_provider_candidate.provider
-          workflow.provider_account
-        end
-
-        step.runs.create!(
-          job: workflow.job,
-          trigger_kind: workflow.trigger_kind,
-          agent_provider: run_provider_candidate.provider,
-          provider_account: run_provider_account,
-          model: run_provider_candidate.model,
-          effort_level: run_provider_candidate.effort_level,
-          iteration: step.iteration,
-          parent_session_id: parent_session_id,
-          prompt: prompt
-        )
+      if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
+        return nil
       end
+      clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
+
+      if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
+        return nil
+      end
+
+      refresh_default_workflow_agent_provider!(workflow)
+      run_provider_candidate = run_provider_candidate_for(step, workflow)
+      return nil if run_provider_candidate.nil?
+
+      if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
+        return nil
+      end
+      workflow.reload
+      run_provider_candidate = run_provider_candidate_for(step, workflow)
+      return nil if run_provider_candidate.nil?
+
+      if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
+        return nil
+      end
+
+      if check_phase_admission && phase_admission_deferred?(step, workflow)
+        return nil
+      end
+
+      run_provider_account = if run_provider_candidate.account_id.present?
+        workflow.user.provider_accounts.find_by(
+          provider_key: run_provider_candidate.provider,
+          public_id: run_provider_candidate.account_id
+        )
+      elsif workflow.agent_provider == run_provider_candidate.provider
+        workflow.provider_account
+      end
+
+      step.runs.create!(
+        job: workflow.job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: run_provider_candidate.provider,
+        provider_account: run_provider_account,
+        model: run_provider_candidate.model,
+        effort_level: run_provider_candidate.effort_level,
+        iteration: step.iteration,
+        parent_session_id: parent_session_id,
+        prompt: prompt
+      )
     end
   end
 

@@ -36,7 +36,9 @@ class JobClosure
     ids -= [ workflow.id ]
     return if ids.empty?
 
-    Workflow.where(id: ids, state: %w[queued running]).order(:id).lock.to_a
+    # The siblings' ancestries with this Workflow's, top down across Jobs
+    # (NY40): cancelling a sibling rolls up to its WorkUnit, intent and Job.
+    Lineage.lock_all!([ workflow, *Workflow.where(id: ids, state: %w[queued running]).order(:id).to_a ])
   end
 
   def self.apply_pending!(workflow)

@@ -1060,7 +1060,9 @@ module WorkEngine
           return skipped("Workflow has no first Step") unless first
           return skipped("First Step already has a Run") if first.runs.exists?
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): starting writes the WorkUnit.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             first = workflow.first_step

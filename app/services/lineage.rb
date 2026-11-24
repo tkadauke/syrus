@@ -11,10 +11,26 @@ module Lineage
   module_function
 
   def lock!(record)
-    rows = ancestry(record)
-    rows.each { |klass, id| klass.lock.where(id: id).to_a }
+    lock_all!([ record ])
     record
   end
+
+  # Several records' ancestries at once, possibly across Jobs: every row of a
+  # model is locked before any row of the next model down, ids ascending
+  # within a model, so the order holds across lineages too.
+  def lock_all!(records)
+    ids_by_model = Hash.new { |hash, klass| hash[klass] = [] }
+    records.compact.each do |record|
+      ancestry(record).each { |klass, id| ids_by_model[klass] << id }
+    end
+    MODELS.each do |klass|
+      ids = ids_by_model[klass].uniq.sort
+      klass.lock.where(id: ids).order(:id).to_a if ids.any?
+    end
+    records
+  end
+
+  MODELS = [ Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run ].freeze
 
   # [[model class, id], ...] from the top of the hierarchy down.
   def ancestry(record)
