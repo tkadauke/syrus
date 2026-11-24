@@ -14,9 +14,13 @@ provenance"):
 
 * `ok_has_required`: advisory evidence cannot replace required evidence; a
   manifest with no required result never passes.
-* `ok_required_passed`: every required result passed with fingerprints, so
-  infrastructure failure, inconclusive, cancelled or missing results never pass
-  (`infra_never_passes` names the case).
+* `ok_required_passed`: every required result passed with fingerprints, or is
+  a test failure that `grader_collect`'s rung-zero adjudication accepted
+  (confirmed-flaky history, a failure inherited from main, ...) held to the
+  same fingerprint and SHA rules; infrastructure failure, inconclusive,
+  cancelled or missing results never pass (`infra_never_passes` names the
+  case), and an unaccepted test failure never passes
+  (`unaccepted_failure_never_passes`).
 * `ok_exact_current`: with exact-head binding, the manifest and every required
   result that ran from a snapshot are for the landing SHA itself.
 * `evidenceFor_ok_current`: the gate consults only a manifest recorded for (or,
@@ -48,6 +52,8 @@ structure Target where
   /-- `source_sha` of a target that ran from a source snapshot. -/
   sourceSha : Option Nat
   hasEvidence : Bool
+  /-- `accepted_failure`: the collect's adjudicator accepted this failure. -/
+  accepted : Bool := false
   deriving DecidableEq, Repr
 
 structure Manifest where
@@ -60,11 +66,13 @@ structure Manifest where
 
 /-- `target_blockers` is empty. -/
 def targetOk (expected : Nat) (b : Binding) (t : Target) : Bool :=
-  match t.outcome with
-  | .passed =>
+  let current :=
     (match b, t.sourceSha with
      | .exactHead, some s => s == expected
      | _, _ => true) && t.hasEvidence
+  match t.outcome with
+  | .passed => current
+  | .testFailed => t.accepted && current
   | _ => false
 
 /-- `verify(manifest, expected_sha:)`.ok? (the CI-phase blockers only add
@@ -92,7 +100,8 @@ theorem ok_has_required {e : Nat} {m : Manifest} (h : verify e m = true) :
   exact ⟨t, (List.mem_filter.mp ht).1, by simpa using (List.mem_filter.mp ht).2⟩
 
 theorem ok_required_passed {e : Nat} {m : Manifest} (h : verify e m = true) :
-    ∀ t ∈ m.targets, t.required = true → t.outcome = .passed ∧ t.hasEvidence = true := by
+    ∀ t ∈ m.targets, t.required = true →
+      (t.outcome = .passed ∨ (t.outcome = .testFailed ∧ t.accepted = true)) ∧ t.hasEvidence = true := by
   intro t ht hr
   simp only [verify, Bool.and_eq_true, List.all_eq_true] at h
   have hk := h.2 t (List.mem_filter.mpr ⟨ht, by simpa using hr⟩)
@@ -104,7 +113,18 @@ theorem infra_never_passes (e : Nat) (m : Manifest) (t : Target) (ht : t ∈ m.t
   cases hv : verify e m
   · rfl
   · have := (ok_required_passed hv t ht hr).1
-    rw [hi] at this; exact Outcome.noConfusion this
+    rw [hi] at this
+    rcases this with h | ⟨h, _⟩ <;> exact Outcome.noConfusion h
+
+theorem unaccepted_failure_never_passes (e : Nat) (m : Manifest) (t : Target) (ht : t ∈ m.targets)
+    (hr : t.required = true) (hf : t.outcome = .testFailed) (ha : t.accepted = false) : verify e m = false := by
+  cases hv : verify e m
+  · rfl
+  · have := (ok_required_passed hv t ht hr).1
+    rw [hf] at this
+    rcases this with h | ⟨_, h⟩
+    · exact Outcome.noConfusion h
+    · rw [ha] at h; exact Bool.noConfusion h
 
 theorem ok_exact_current {e : Nat} {m : Manifest} (h : verify e m = true) (hb : m.binding = .exactHead) :
     m.head = e ∧ (∀ s, m.snapshot = some s → s = e) ∧
@@ -128,19 +148,19 @@ theorem evidenceFor_ok_current {sha : Nat} {ms : List Manifest} (h : evidenceFor
     exact ⟨m, List.mem_of_find?_eq_some hf, by simpa using List.find?_some hf, h⟩
 
 /-- Evidence for another SHA blocks even when nothing else is wrong with it. -/
-example : evidenceFor 2 [⟨1, .exactHead, some 1, [⟨true, .passed, some 1, true⟩]⟩] = false := by decide
+example : evidenceFor 2 [⟨1, .exactHead, some 1, [⟨true, .passed, some 1, true, false⟩]⟩] = false := by decide
 
 /-- An advisory pass does not stand in for a missing required result. -/
-example : verify 1 ⟨1, .exactHead, none, [⟨false, .passed, some 1, true⟩]⟩ = false := by decide
+example : verify 1 ⟨1, .exactHead, none, [⟨false, .passed, some 1, true, false⟩]⟩ = false := by decide
 
 /-- A required result that passed on an earlier SHA blocks under exact binding. -/
-example : verify 2 ⟨2, .exactHead, none, [⟨true, .passed, some 1, true⟩]⟩ = false := by decide
+example : verify 2 ⟨2, .exactHead, none, [⟨true, .passed, some 1, true, false⟩]⟩ = false := by decide
 
 /-- The trust boundary: a reused result has no source SHA, so the gate accepts
     it on its fingerprints alone. Its applicability to this SHA is decided
     upstream by the fanout's fingerprint comparison. -/
 theorem reused_not_sha_checked :
-    verify 2 ⟨2, .exactHead, none, [⟨true, .passed, none, true⟩]⟩ = true := by decide
+    verify 2 ⟨2, .exactHead, none, [⟨true, .passed, none, true, false⟩]⟩ = true := by decide
 
 end ValidationGate
 end SyrusModel

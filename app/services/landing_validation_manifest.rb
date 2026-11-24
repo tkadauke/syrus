@@ -321,6 +321,20 @@ class LandingValidationManifest
       when GraderOutcome::INFRASTRUCTURE_FAILED
         [ Blocker.new("required_result_infrastructure_failed", "#{label} could not run (#{target["reason"]}); this is an infrastructure problem, not a code verdict -- retry validation", label) ]
       when GraderOutcome::TEST_FAILED
+        # grader_collect's rung-zero adjudication (confirmed-flaky history, a
+        # failure inherited from main, ...) accepted this failure and passed the
+        # collect; the gate honours that verdict instead of re-litigating it.
+        # It is held to the same SHA binding and fingerprint evidence as a pass
+        # (formal/SyrusModel/ValidationGate.lean, `targetOk`).
+        if target["accepted_failure"].present?
+          if binding == "exact_head" && target["source_sha"].present? && target["source_sha"] != expected_sha.to_s
+            return [ Blocker.new("sha_mismatch", "#{label} failure was accepted on #{short(target["source_sha"])}, not #{short(expected_sha)}", label) ]
+          end
+          return [ Blocker.new("required_evidence_missing", "#{label} failure was accepted without command/environment fingerprints; cannot prove which semantics ran", label) ] unless target["has_evidence"]
+
+          return []
+        end
+
         [ Blocker.new("required_result_failed", "#{label} failed", label) ]
       when GraderOutcome::CANCELLED
         [ Blocker.new("required_result_cancelled", "#{label} was cancelled before producing a result", label) ]
@@ -345,7 +359,8 @@ class LandingValidationManifest
         "command_fingerprint" => fingerprints["command_fingerprint"],
         "environment_fingerprint" => fingerprints["environment_fingerprint"],
         "input_fingerprint" => fingerprints["input_fingerprint"],
-        "has_evidence" => evidence?(details, fingerprints)
+        "has_evidence" => evidence?(details, fingerprints),
+        "accepted_failure" => details.dig("accepted_failure", "adjudicator").presence
       }.compact
     end
 

@@ -69,6 +69,22 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
       expect(verdict.blockers.map(&:code)).to eq([ "required_result_missing" ])
     end
 
+    it "accepts a required failure that the collect's adjudication accepted on this SHA" do
+      accepted = target("rspec", outcome: "test_failed").merge("accepted_failure" => Adjudicators::KnownFlakyFailure.name)
+      expect(described_class.verify(manifest(targets: [ accepted ]), expected_sha: sha)).to be_ok
+    end
+
+    it "still blocks an unaccepted required failure" do
+      verdict = described_class.verify(manifest(targets: [ target("rspec", outcome: "test_failed") ]), expected_sha: sha)
+      expect(verdict.blockers.map(&:code)).to eq([ "required_result_failed" ])
+    end
+
+    it "blocks an accepted failure recorded against another SHA" do
+      accepted = target("rspec", outcome: "test_failed", source_sha: "c" * 40).merge("accepted_failure" => Adjudicators::KnownFlakyFailure.name)
+      verdict = described_class.verify(manifest(targets: [ accepted ]), expected_sha: sha)
+      expect(verdict.blockers.map(&:code)).to eq([ "sha_mismatch" ])
+    end
+
     it "ignores non-required failures" do
       verdict = described_class.verify(manifest(targets: [ target("rspec"), target("lint", required: false, outcome: "test_failed") ]), expected_sha: sha)
       expect(verdict).to be_ok
@@ -94,8 +110,8 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
     source_shas = { "this SHA" => :landing, "another SHA" => :other, "no snapshot" => nil }
     bindings = { "exact_head" => nil, "clean_rebase_carry_forward" => "clean_rebase_carry_forward" }
 
-    def model_target_ok(outcome, source, evidence, binding)
-      return false unless outcome == GraderOutcome::PASSED
+    def model_target_ok(outcome, source, evidence, binding, accepted)
+      return false unless outcome == GraderOutcome::PASSED || (outcome == GraderOutcome::TEST_FAILED && accepted)
 
       sha_ok = binding.nil? && source == :other ? false : true
       sha_ok && evidence
@@ -108,15 +124,18 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
           source_shas.each do |source_name, source|
             [ true, false ].each do |evidence|
               [ true, false ].each do |required|
-                source_sha = { landing: sha, other: "c" * 40 }[source]
-                shape = target("rspec", outcome: outcome, required: required, evidence: evidence, source_sha: source_sha)
-                targets = required ? [ shape ] : [ shape, target("lint") ]
-                expected = required ? model_target_ok(outcome, source, evidence, binding) : true
-                verdict = described_class.verify(manifest(targets: targets).merge("binding" => binding).compact, expected_sha: sha)
-                next if verdict.ok? == expected
+                [ true, false ].each do |accepted|
+                  source_sha = { landing: sha, other: "c" * 40 }[source]
+                  shape = target("rspec", outcome: outcome, required: required, evidence: evidence, source_sha: source_sha)
+                  shape["accepted_failure"] = Adjudicators::KnownFlakyFailure.name if accepted
+                  targets = required ? [ shape ] : [ shape, target("lint") ]
+                  expected = required ? model_target_ok(outcome, source, evidence, binding, accepted) : true
+                  verdict = described_class.verify(manifest(targets: targets).merge("binding" => binding).compact, expected_sha: sha)
+                  next if verdict.ok? == expected
 
-                disagreements << "#{binding_name}/#{outcome.inspect}/#{source_name}/evidence=#{evidence}/required=#{required}: " \
-                                 "ruby=#{verdict.ok?} (#{verdict.blockers.map(&:code).join(", ")}) model=#{expected}"
+                  disagreements << "#{binding_name}/#{outcome.inspect}/#{source_name}/evidence=#{evidence}/required=#{required}/accepted=#{accepted}: " \
+                                   "ruby=#{verdict.ok?} (#{verdict.blockers.map(&:code).join(", ")}) model=#{expected}"
+                end
               end
             end
           end

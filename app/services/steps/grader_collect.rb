@@ -110,6 +110,11 @@ module Steps
 
       if dismissed_by_rung_zero?(real_failed_required)
         fail_for_infrastructure!(infrastructure_failed_required, evidence: infrastructure_evidence) if infrastructure_failed_required.any?
+        # A dismissed failure passes this collect, so it must leave the same
+        # SHA-bound landing evidence a clean pass does. Without it the landing
+        # gate finds only an older manifest, refuses the branch as "moved after
+        # grading", and ejects a train whose graders were in fact accepted.
+        record_landing_validation!
         return
       end
 

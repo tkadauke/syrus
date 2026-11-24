@@ -532,6 +532,46 @@ RSpec.describe Steps::GraderCollect do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("treating as known-flaky:")
   end
 
+  # Regression: a dismissed failure passed the collect but recorded no landing
+  # evidence, so the merge-train land gate found only an older manifest,
+  # refused the train as "moved after grading" and ejected it.
+  it "records landing evidence for the head when it dismisses a confirmed-flaky failure" do
+    job.repository.update!(known_flaky_failure_dismissal_enabled: true)
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: grader_step.details.merge("name" => "rspec", "exit_code" => 1)
+    )
+    provider = Class.new do
+      def self.failed_test_cases(run:, grader_name:)
+        [ { "suite_name" => "spec/flaky_spec.rb", "name" => "is flaky", "failure_message" => "expected ready" } ]
+      end
+
+      def self.flakiness_score(repository:, suite_name:, name:)
+        { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
+      end
+
+      def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
+        [ "expected ready" ]
+      end
+
+      def self.grader_failure_explained_by_tests?(**) = true
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+
+    expect { handler.call }.not_to raise_error
+
+    manifest = workflow.reload.artifact(LandingValidationManifest::ARTIFACT_KEY)
+    expect(manifest).to include("head_sha" => "abc123")
+    expect(manifest["targets"]).to contain_exactly(
+      include("name" => "rspec", "outcome" => GraderOutcome::TEST_FAILED,
+              "accepted_failure" => Adjudicators::KnownFlakyFailure.name)
+    )
+    expect(LandingValidationManifest.verify(manifest, expected_sha: "abc123")).to be_ok
+  end
+
   it "fails for infrastructure when the other required failure is dismissed as flaky" do
     job.repository.update!(known_flaky_failure_dismissal_enabled: true)
     flaky_step = workflow.steps.find_by!(kind: "grader")
