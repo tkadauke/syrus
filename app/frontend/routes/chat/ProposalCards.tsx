@@ -1574,8 +1574,7 @@ function dependencyRequirementLabel(requirement: ChatProposalDependencyRequireme
   return labels[requirement.satisfaction_mode]()
 }
 
-const proposalResultFooterClass =
-  "mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-secondary"
+const proposalResultFooterClass = "mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-secondary"
 
 function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatProposal; prefix: string; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
