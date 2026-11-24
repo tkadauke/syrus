@@ -17,8 +17,6 @@ module RuntimeImages
         image.assign_attributes(source_kind: source_kind, source_ref: source_ref, source_digest: source_digest,
                                 provenance: provenance, locator: result.locator)
         image.save!
-      elsif image.source_kind != source_kind.to_s || image.source_ref != source_ref.to_s
-        raise Error, "digest #{result.digest} is already published with a different source identity"
       end
       if image.revoked? || image.deleted?
         # Providers must treat publish as idempotent and never reactivate a
@@ -26,6 +24,9 @@ module RuntimeImages
         # backing store cannot disagree with the durable record.
         enforce_terminal_state(image)
         raise Error, "runtime image #{image.digest} was #{image.availability} and cannot be republished"
+      end
+      if !image.previously_new_record? && (image.source_kind != source_kind.to_s || image.source_ref != source_ref.to_s)
+        raise Error, "digest #{result.digest} is already published with a different source identity"
       end
       image.mark_available!(locator: result.locator) if image.pending?
       image
