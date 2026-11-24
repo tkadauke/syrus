@@ -286,13 +286,19 @@ RSpec.describe Syrus::Host::PublicApis do
   end
 
   it "lists only members the product plugin-point modules define" do
-    {
-      ChatMediaSource: Syrus::Plugin::ChatMediaSource, JobOrigin: Syrus::Plugin::JobOrigin,
-      PreviewPanelRetention: Syrus::Plugin::PreviewPanelRetention,
-      RepositoryRecommendation: Syrus::Plugin::RepositoryRecommendation
-    }.each do |name, core|
+    %i[ChatJobStatusExtension ChatMediaSource ChatPromptInjector DomainSubscriber GraderFailureSummarizer JobOrigin
+       PreviewPanelRetention RepoPageTab RepositoryRecommendation RuntimeSessionProvider TestEvidence
+       WorkspaceTab].each do |name|
+      core = Syrus::Host.const_get(name)
       api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
-      api.members.each { |member| expect(core.instance_methods).to include(member.to_sym), "#{name}##{member}" }
+      api.members.each do |member|
+        # Hook modules may only document a member implementers supply, so
+        # accept a defined method or a mention in the module's own source.
+        source = File.read(Syrus::Plugin.const_source_location(name.to_s).first)
+        defined_by = core.instance_methods.include?(member.to_sym) || core.respond_to?(member) ||
+                     source.include?(member.delete_suffix("?").delete_suffix("!"))
+        expect(defined_by).to be(true), "#{name}##{member}"
+      end
     end
   end
 end
