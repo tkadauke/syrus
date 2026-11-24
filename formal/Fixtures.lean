@@ -116,9 +116,36 @@ def readySetFixture : String :=
       ", \"ready_set\": [" ++ ", ".intercalate ((ReadySet.readySet l cur).map toString) ++ "]}"
   "{\n  \"model\": \"ReadySet.readySet\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
 
+/-- `Formal::PluginDeletion.verdict` as `PluginDeletion.decide_with_unknowns`, on
+three nodes owned by core, plugin 0 and plugin 1: every edge set, both
+dependency shapes (independent, or 1 depends on 0), both deletion targets, and
+every choice of at most one node with an unresolved edge. -/
+def pluginDeletion : String :=
+  let owners : List PluginDeletion.Owner := [.core, .plugin 0, .plugin 1]
+  let pairs := [(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)]
+  let edgeSets := (List.range 64).map fun mask => (List.range 6).filterMap fun i =>
+    if (mask / (2 ^ i)) % 2 == 1 then pairs[i]? else none
+  let ownerName : PluginDeletion.Owner → String
+    | .core => "\"core\""
+    | .plugin p => "\"p" ++ toString p ++ "\""
+  let cases := [false, true].flatMap fun dependent => [0, 1].flatMap fun target =>
+    edgeSets.flatMap fun edges => [none, some 0, some 1, some 2].map fun unknown =>
+      let deps : PluginDeletion.PluginDeps := fun q => if dependent && q == 1 then [0] else []
+      let removed := PluginDeletion.removedPlugins [0, 1] deps target 2
+      let g : PluginDeletion.Graph := ⟨fun v => owners.getD v .core, edges⟩
+      let unknownFrom := match unknown with | none => [] | some u => [u]
+      let verdict := match PluginDeletion.decide_with_unknowns g removed unknownFrom with
+        | .safe => "safe" | .needsRun => "needs_run" | .broken => "broken"
+      "    {\"owners\": [" ++ ", ".intercalate (owners.map ownerName) ++ "], \"dependent\": " ++ jsonBool dependent ++
+        ", \"target\": \"p" ++ toString target ++ "\", \"removed\": [" ++
+        ", ".intercalate (removed.map fun p => "\"p" ++ toString p ++ "\"") ++ "], \"edges\": [" ++
+        ", ".intercalate (edges.map fun (a, b) => "[" ++ toString a ++ ", " ++ toString b ++ "]") ++
+        "], \"unknown_from\": [" ++ ", ".intercalate (unknownFrom.map toString) ++ "], \"verdict\": \"" ++ verdict ++ "\"}"
+  "{\n  \"model\": \"PluginDeletion.decide_with_unknowns\",\n  \"cases\": [\n" ++ ",\n".intercalate cases ++ "\n  ]\n}\n"
+
 def all : List (String × String) :=
   [("auto_approval", autoApproval), ("train_evidence", trainEvidence), ("epic_turn", epicTurn),
-   ("orphaned_queue_job", orphanedQueueJob), ("review_barrier", reviewBarrier), ("ready_set", readySetFixture)]
+   ("orphaned_queue_job", orphanedQueueJob), ("review_barrier", reviewBarrier), ("ready_set", readySetFixture), ("plugin_deletion", pluginDeletion)]
 
 end Fixtures
 

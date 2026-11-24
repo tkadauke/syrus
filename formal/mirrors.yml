@@ -153,6 +153,16 @@ models:
     owner: ScheduleWakeupTool
     method: chain_refusal
     sha: 55658a63dc4d0d36
+- model: PluginDeletion.lean
+  mirrors:
+  - path: app/services/formal/plugin_deletion.rb
+    owner: PluginDeletion
+    method: self.verdict
+    sha: a66e47c5c59f58a9
+  - path: app/services/admin/plugin_source_boundary_audit.rb
+    owner: PluginSourceBoundaryAudit
+    method: removed_plugin_names_for
+    sha: d8fff22aa1a05640
 - model: QueueExecution.lean
   mirrors:
   - path: app/services/work_engine/reconciler.rb
