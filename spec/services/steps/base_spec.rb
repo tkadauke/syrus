@@ -1284,7 +1284,7 @@ RSpec.describe Steps::Base, :ci_only do
     it "tells the agent when a main concern it already reported did not clear the failure" do
       repair_run = Step.create!(workflow: workflow, kind: "implement", position: 4, iteration: 1, state: "succeeded")
         .runs.create!(job: job, trigger_kind: "initial", state: "succeeded", iteration: 1)
-      MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: repair_run, reason: "files I did not touch")
+      MainBranchHealth::ConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: repair_run, reason: "files I did not touch")
 
       out = handler.send(:append_grade_failure_feedback, "PROMPT")
 

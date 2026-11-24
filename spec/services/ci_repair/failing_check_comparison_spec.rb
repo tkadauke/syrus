@@ -10,7 +10,7 @@ RSpec.describe CiRepair::FailingCheckComparison do
   end
 
   def record_health!(sha:, ci_failed_checks: nil, grader_failed_names: nil, source: "ci_poll")
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository,
       sha: sha,
       checked_at: Time.current,

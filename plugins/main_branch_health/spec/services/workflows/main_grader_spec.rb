@@ -122,7 +122,7 @@ RSpec.describe Workflows::MainGrader do
       repository.reload
       expect(repository.grader_health).to eq("broken")
       expect(repository.last_graded_sha).to eq(sha)
-      expect(MainBranchHealthCheck.last.grader_failed_names).to eq([ "cli-tests" ])
+      expect(MainBranchHealth::HealthCheck.last.grader_failed_names).to eq([ "cli-tests" ])
     end
 
     it "preserves unknown health from an unaffected required target" do
@@ -139,13 +139,13 @@ RSpec.describe Workflows::MainGrader do
       repository.reload
       expect(repository.grader_health).to eq("unknown")
       expect(repository.last_graded_sha).to eq(sha)
-      expect(MainBranchHealthCheck.last.grader_health).to eq("unknown")
+      expect(MainBranchHealth::HealthCheck.last.grader_health).to eq("unknown")
     end
 
     it "links the created health check record to the workflow" do
       described_class.after_success(workflow)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.workflow).to eq(workflow)
     end
 
@@ -203,7 +203,7 @@ RSpec.describe Workflows::MainGrader do
       described_class.after_fail(workflow)
 
       expect(repository.reload.grader_health).to eq("inconclusive")
-      expect(MainBranchHealthCheck.last.grader_health).to eq("inconclusive")
+      expect(MainBranchHealth::HealthCheck.last.grader_health).to eq("inconclusive")
     end
 
     it "does not mark main broken for blank results from several graders" do
@@ -237,7 +237,7 @@ RSpec.describe Workflows::MainGrader do
 
       described_class.after_fail(workflow)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.source).to eq("grader_workflow")
       expect(check.grader_health).to eq("broken")
       expect(check.grader_failed_names).to eq([ "rspec" ])
@@ -248,7 +248,7 @@ RSpec.describe Workflows::MainGrader do
 
       described_class.after_fail(workflow)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.workflow).to eq(workflow)
     end
 
@@ -262,7 +262,7 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.grader_health).to eq("inconclusive")
       expect(repository.last_graded_sha).to eq(sha)
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check).to have_attributes(
         workflow: workflow,
         sha: sha,
@@ -296,7 +296,7 @@ RSpec.describe Workflows::MainGrader do
       }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha)
 
       expect(repository.reload.grader_health).to eq("unknown")
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.grader_health).to eq("unknown")
       expect(check.grader_failed_names).to eq([ "rspec" ])
       expect(check.workflow).to eq(workflow)
@@ -311,7 +311,7 @@ RSpec.describe Workflows::MainGrader do
         described_class.after_fail(workflow)
       }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha, base_branch: "develop")
 
-      expect(MainBranchHealthCheck.last.branch).to eq("develop")
+      expect(MainBranchHealth::HealthCheck.last.branch).to eq("develop")
     end
 
     it "marks timed-out required graders inconclusive instead of broken" do
@@ -334,7 +334,7 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.reload.grader_health).to eq("inconclusive")
       expect(repository.main_health).to eq("inconclusive")
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.grader_health).to eq("inconclusive")
       expect(check.grader_failed_names).to eq([ "coverage" ])
     end
@@ -356,7 +356,7 @@ RSpec.describe Workflows::MainGrader do
       described_class.after_fail(workflow)
 
       expect(repository.reload.grader_health).to eq("inconclusive")
-      expect(MainBranchHealthCheck.last.grader_health).to eq("inconclusive")
+      expect(MainBranchHealth::HealthCheck.last.grader_health).to eq("inconclusive")
     end
 
     it "marks test-runner timeout output inconclusive instead of broken" do
@@ -377,7 +377,7 @@ RSpec.describe Workflows::MainGrader do
 
       expect(repository.reload.grader_health).to eq("inconclusive")
 
-      check = MainBranchHealthCheck.last
+      check = MainBranchHealth::HealthCheck.last
       expect(check.grader_health).to eq("inconclusive")
       expect(check.grader_failed_names).to eq([ "react-tests" ])
     end
@@ -402,7 +402,7 @@ RSpec.describe Workflows::MainGrader do
 
     it "does not record another unknown result or retry when the SHA already has a conclusive grader result" do
       repository.update!(ci_health: "not_configured", grader_health: "healthy")
-      MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
+      MainBranchHealth::HealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
       grader_step = create_failed_required_grader!(workflow, name: "coverage")
       create_failed_run!(grader_step, agent_outcome: "worker_died")
 
@@ -412,7 +412,7 @@ RSpec.describe Workflows::MainGrader do
         expect {
           described_class.after_fail(workflow)
         }.not_to have_enqueued_job(MainGraderWorkflowJob)
-      }.not_to change(MainBranchHealthCheck, :count)
+      }.not_to change(MainBranchHealth::HealthCheck, :count)
 
       expect(repository.reload.grader_health).to eq("healthy")
       expect(job.reload.state).to eq("closed")
@@ -439,7 +439,7 @@ RSpec.describe Workflows::MainGrader do
         ci_health: "broken",
         grader_health: "unknown"
       )
-      MainBranchHealthCheck.record_ci_poll(
+      MainBranchHealth::HealthCheck.record_ci_poll(
         repository: repository,
         sha: sha,
         ci_health: "broken",

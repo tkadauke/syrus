@@ -60,7 +60,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
   it "declines when report_main_concern was filed for a different iteration" do
     other_repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 8, iteration: 1, loop_id: loop_id)
     other_run = other_repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: 1)
-    MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: other_run, reason: "unrelated iteration")
+    MainBranchHealth::ConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: other_run, reason: "unrelated iteration")
 
     verdict = adjudicate
 
@@ -71,7 +71,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
   it "declines under strict failure policy even with a report and a matching base retry" do
     grader_step.update!(details: grader_step.details.merge("failures" => "strict"))
     run = repair_run_for_grader_step
-    MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "looks pre-existing")
+    MainBranchHealth::ConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "looks pre-existing")
     allow(BaseRevisionRetry).to receive(:call)
 
     verdict = adjudicate
@@ -83,7 +83,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
 
   it "declines when the base-revision retry shows the base revision passing" do
     run = repair_run_for_grader_step
-    MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "looks pre-existing")
+    MainBranchHealth::ConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "looks pre-existing")
     allow(BaseRevisionRetry).to receive(:call).and_return(
       BaseRevisionRetry::Result.new(
         ran: true, inherited: false, reason: "base_retry_full_command_base_passed",
@@ -99,7 +99,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
 
   it "dismisses when report_main_concern was filed this iteration and base_retry confirms the same grader also fails on base" do
     run = repair_run_for_grader_step
-    MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "flaky simulator, reproduces on base too")
+    MainBranchHealth::ConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "flaky simulator, reproduces on base too")
     allow(BaseRevisionRetry).to receive(:call).and_return(
       BaseRevisionRetry::Result.new(
         ran: true, inherited: true, reason: "base_retry_full_command_failed_different_output",
@@ -116,7 +116,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
 
   it "declines without a base_sha even when report_main_concern was filed" do
     run = repair_run_for_grader_step
-    MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "looks pre-existing")
+    MainBranchHealth::ConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: run, reason: "looks pre-existing")
 
     verdict = adjudicate(base_sha: nil)
 

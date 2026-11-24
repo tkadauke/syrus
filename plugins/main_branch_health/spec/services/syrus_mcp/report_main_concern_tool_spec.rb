@@ -25,10 +25,10 @@ RSpec.describe MainBranchHealth::Tools::ReportMainConcernTool do
     expect(described_class.input_schema_value.to_h[:required]).to eq(%w[reason])
   end
 
-  it "creates a MainConcernReport with the provided reason" do
-    expect { call }.to change { MainConcernReport.count }.by(1)
+  it "creates a MainBranchHealth::ConcernReport with the provided reason" do
+    expect { call }.to change { MainBranchHealth::ConcernReport.count }.by(1)
 
-    report = MainConcernReport.last
+    report = MainBranchHealth::ConcernReport.last
     expect(report).to have_attributes(
       repository: repository,
       job: run.job,
@@ -42,13 +42,13 @@ RSpec.describe MainBranchHealth::Tools::ReportMainConcernTool do
   it "stores failing_tests when provided" do
     call(failing_tests: [ "spec/foo_spec.rb", "spec/bar_spec.rb" ])
 
-    expect(MainConcernReport.last.failing_tests).to eq([ "spec/foo_spec.rb", "spec/bar_spec.rb" ])
+    expect(MainBranchHealth::ConcernReport.last.failing_tests).to eq([ "spec/foo_spec.rb", "spec/bar_spec.rb" ])
   end
 
   it "stores nil failing_tests when not provided" do
     call
 
-    expect(MainConcernReport.last.failing_tests).to be_nil
+    expect(MainBranchHealth::ConcernReport.last.failing_tests).to be_nil
   end
 
   it "returns a success response" do
@@ -76,7 +76,7 @@ RSpec.describe MainBranchHealth::Tools::ReportMainConcernTool do
   it "normalizes binary-tagged UTF-8 in reason" do
     call(reason: "Tests failing in unrelated files".b)
 
-    report = MainConcernReport.last
+    report = MainBranchHealth::ConcernReport.last
     expect(report.reason).to eq("Tests failing in unrelated files")
     expect(report.reason.encoding).to eq(Encoding::UTF_8)
   end
@@ -98,7 +98,7 @@ RSpec.describe MainBranchHealth::Tools::ReportMainConcernTool do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("timeout-only")
-    expect(MainConcernReport.count).to eq(0)
+    expect(MainBranchHealth::ConcernReport.count).to eq(0)
   end
 
   it "accepts timeout-only latest grader failures when the repository opts in" do
@@ -118,7 +118,7 @@ RSpec.describe MainBranchHealth::Tools::ReportMainConcernTool do
     response = call(reason: "React tests timed out on main", failing_tests: [ "react-tests" ])
 
     expect(response).not_to be_error
-    expect(MainConcernReport.last).to have_attributes(
+    expect(MainBranchHealth::ConcernReport.last).to have_attributes(
       repository: repository,
       reason: "React tests timed out on main"
     )
@@ -130,14 +130,14 @@ RSpec.describe MainBranchHealth::Tools::ReportMainConcernTool do
         reason: "unrelated failures",
         server_context: { run_id: run.id }
       )
-    }.to change { MainConcernReport.count }.by(1)
+    }.to change { MainBranchHealth::ConcernReport.count }.by(1)
   end
 
   context "when aggregator reaches threshold" do
     it "triggers broken-main detection" do
       other_job = Factories.job(repository: repository)
       other_run = other_job.initial_run
-      MainConcernReport.create!(
+      MainBranchHealth::ConcernReport.create!(
         repository: repository, job: other_job,
         workflow: other_run.workflow, run: other_run,
         observed_sha: sha,

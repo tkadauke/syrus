@@ -87,7 +87,7 @@ RSpec.describe Workflows::MainBranchRepair do
 
         expect(repository.reload.main_health).to eq("inconclusive")
         expect(repository.grader_health).to eq("inconclusive")
-        expect(MainBranchHealthCheck.last.grader_failed_names).to include("rspec")
+        expect(MainBranchHealth::HealthCheck.last.grader_failed_names).to include("rspec")
       end
 
       it "tells the operator and closes the anchor job without a coding repair" do
@@ -132,7 +132,7 @@ RSpec.describe Workflows::MainBranchRepair do
       it "records a grader health check linked to the workflow" do
         described_class.after_success(workflow)
 
-        check = MainBranchHealthCheck.last
+        check = MainBranchHealth::HealthCheck.last
         expect(check.workflow).to eq(workflow)
         expect(check.grader_health).to eq("healthy")
         expect(check.ci_health).to eq("healthy")

@@ -47,7 +47,7 @@ module MainBranchHealth
             )
           end
 
-          MainConcernReport.create!(
+          MainBranchHealth::ConcernReport.create!(
             repository: repository,
             job: run.job,
             workflow: run.workflow,

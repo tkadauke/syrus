@@ -63,7 +63,7 @@ module Adjudicators
         .flat_map { |candidate| candidate.runs.pluck(:id) }
       return false if run_ids.empty?
 
-      MainConcernReport.where(run_id: run_ids).exists?
+      MainBranchHealth::ConcernReport.where(run_id: run_ids).exists?
     end
 
     def self.verify(workflow, grader_step, base_sha)

@@ -147,11 +147,11 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
   it "consults the Job's development branch rather than healthy release-branch evidence" do
     repository.update!(main_branch_health_enabled: true)
     job.update!(target_branch: "develop")
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, branch: "main", sha: base_sha, checked_at: Time.current, source: "ci_poll",
       ci_health: "healthy", grader_health: "healthy"
     )
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, branch: "develop", sha: base_sha, checked_at: Time.current, source: "ci_poll",
       ci_health: "broken", grader_health: "broken"
     )
@@ -165,7 +165,7 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
   it "passes when an unknown-health base does not have one of the Job's failing checks" do
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     job.update!(pr_checks_failing_names: [ "rspec", "react" ])
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
       ci_health: "broken", grader_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
     )
@@ -176,7 +176,7 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
   it "blocks when every Job failure is also failing on the unknown-health base" do
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     job.update!(pr_checks_failing_names: [ "rspec" ])
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
       ci_health: "broken", grader_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
     )
@@ -249,7 +249,7 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     it "counts a base main health moved past after the repair began waiting" do
       job.update!(pr_checks_base_sha: base_sha)
       waiting_since = 2.days.ago
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
         checked_at: 1.day.ago, source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
       )
@@ -269,7 +269,7 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
       it "does not count #{description} as main moving past the base" do
         job.update!(pr_checks_base_sha: base_sha)
         repository.update!(last_health_checked_sha: base_sha)
-        MainBranchHealthCheck.create!(
+        MainBranchHealth::HealthCheck.create!(
           repository: repository, branch: "main", sha: sha,
           checked_at: 1.day.ago, source: "grader_workflow", ci_health: "healthy", grader_health: "healthy"
         )
@@ -282,7 +282,7 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
       job.update!(pr_checks_base_sha: base_sha)
       head = "fff1234567890000000000000000000000000000"
       repository.update!(last_health_checked_sha: head)
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository, branch: "main", sha: head,
         checked_at: 1.day.ago, source: "grader_workflow", ci_health: "not_configured", grader_health: "healthy"
       )
@@ -292,11 +292,11 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
 
     it "does not count a base while main health has checked nothing newer" do
       job.update!(pr_checks_base_sha: base_sha)
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
         checked_at: 3.days.ago, source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository, branch: "main", sha: base_sha,
         checked_at: 1.day.ago, source: "ci_poll", ci_health: "broken", grader_health: "broken"
       )
@@ -386,7 +386,7 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
   it "still blocks a duplicate when an introduced failure exempts unknown base health" do
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     job.update!(pr_checks_failing_names: [ "rspec", "react" ])
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
       ci_health: "broken", grader_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
     )

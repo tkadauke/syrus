@@ -1260,7 +1260,7 @@ class LandingQueueProcessor
   # as the culprit, in pairs that pointed at each other. Nothing in that set was
   # at fault and nothing in it could move.
   #
-  # Memoized per tick: attribution queries MainBranchHealthCheck, and siblings
+  # Memoized per tick: attribution queries MainBranchHealth::HealthCheck, and siblings
   # repeat across every member of an Epic, so an un-memoized call is quadratic
   # in Epic size.
   def tolerated_inherited_pr_checks?(sibling)
