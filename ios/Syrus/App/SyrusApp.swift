@@ -29,9 +29,11 @@ struct RootView: View {
                 model: model.web,
                 onSwitchServer: { Task { await model.switchServer() } },
                 onEnableNotifications: { Task { await model.push.enableNotifications() } },
+                onShowDiagnostics: { model.showsDiagnostics = true },
                 notificationsStatus: model.push.statusLabel
             )
             .task(id: server) { model.connect() }
+            .sheet(isPresented: $model.showsDiagnostics) { DiagnosticsView(model: model) }
         } else {
             ConnectionView(store: model.servers)
         }

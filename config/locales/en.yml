@@ -45,6 +45,11 @@ en:
       one: "Approval needed: %{purpose}"
       other: "%{count} approval requests need your attention."
       fallback: "An agent is waiting for permission"
+  mobile_devices:
+    test_push:
+      body: "Test notification: tap to confirm the deep link opens."
+      not_configured: "APNs is not configured on this server."
+      no_devices: "No active registered device found. Enable notifications in the app first."
   coworkers:
     environment_unavailable: "The coworker environment is unavailable or incompatible. Ask an administrator to inspect its image and runtime compatibility."
     confinement_unavailable: "No capable worker is available: verified coworker confinement is unavailable."
