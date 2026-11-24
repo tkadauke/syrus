@@ -506,6 +506,16 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::ContentReader`
+
+Since: `0.1.16`
+
+Resolves the repository-content reader for a repository; the provider chain and cache behind it are not promised, and only the content value and error facades are public beyond it. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
 ### `Syrus::Host::ContentRef`
 
 Since: `0.1.16`
@@ -1225,6 +1235,19 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::HandleRegistry`
+
+Since: `0.1.16`
+
+Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `claim!`
+- `normalize`
+- `release!`
+- `rename!`
+
 ### `Syrus::Host::InputSource`
 
 Since: `0.1.16`
@@ -1428,6 +1451,29 @@ Supported members:
 Since: `0.1.16`
 
 Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+
+### `Syrus::Host::McpRunContextContributor`
+
+Since: `0.1.16`
+
+Adds plugin-owned authorization attributes to workflow MCP runs; the receiving context's construction is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `context_attributes`
+
+### `Syrus::Host::McpToolSet`
+
+Since: `0.1.16`
+
+Marks a class as a workflow MCP tool set a plugin may contribute; the tool-set implementation must define .tool_definitions, .available_for? and #handle, and may define .available_for_context?; registration, gating and dispatch are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `available_for_context?`
+- `handle`
+- `tool_definitions`
 
 ### `Syrus::Host::McpTools`
 
@@ -1819,6 +1865,18 @@ Supported members:
 
 - `call`
 - `new`
+
+### `Syrus::Host::PostImplementationReviewProvider`
+
+Since: `0.1.16`
+
+Lets a plugin request a best-effort agentic pass after an implementation workflow produced its final diff; the host step that runs it is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `prompt_sections`
+- `required_mcp_tools`
+- `review_needed?`
 
 ### `Syrus::Host::ProcessRunner`
 
@@ -2746,6 +2804,17 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::SyrusYmlParseError`
+
+Since: `0.1.16`
+
+Raised by a plugin's repository-configuration parser when its .syrus.yml contribution is invalid. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
 ### `Syrus::Host::SystemAlert`
 
 Since: `0.1.16`
@@ -3215,12 +3284,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Repository`
 - `RepositoryBareClone`
 - `RepositoryContent`
-- `RepositoryContent::Error`
-- `RepositoryContent::NotFound`
-- `RepositoryContent::Truncated`
-- `RepositoryContent::Unavailable`
-- `RepositoryContent::UnknownRevision`
-- `RepositoryContent::Unsupported`
 - `RepositoryMembership`
 - `RepositoryPolicy`
 - `RepositorySummarySerialization`
@@ -3288,8 +3351,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::PreviewPanelRetention`
 - `Syrus::Plugin::PurgeContributor`
 - `Syrus::Plugin::RepoPageTab`
-- `Syrus::Plugin::RepositoryConfiguration`
-- `Syrus::Plugin::RepositoryFilter`
 - `Syrus::Plugin::RepositoryRecommendation`
 - `Syrus::Plugin::RetentionPolicy`
 - `Syrus::Plugin::RuntimeSessionProvider`
@@ -3310,7 +3371,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `SyrusVersion`
 - `SyrusYml`
 - `SyrusYml::CONFIG_FILE`
-- `SyrusYml::ParseError`
 - `SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV`
 - `Team`
 - `TeamMembership`
