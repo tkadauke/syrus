@@ -35,80 +35,101 @@ function setup(props: Partial<React.ComponentProps<typeof SmartPermissionActions
   return handlers
 }
 
+const remember = (label: string) => fireEvent.change(screen.getByLabelText("Remember this decision"), { target: { value: label } })
+const rememberOptions = () => Array.from(screen.getByLabelText("Remember this decision").querySelectorAll("option")).map((item) => item.textContent)
+
 describe("SmartPermissionActions", () => {
-  it("keeps the default footprint to three decisions", () => {
+  it("keeps Allow once first and primary, Deny secondary, and one scope control", () => {
     setup()
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Always allow similar", "Deny"])
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Deny"])
+    expect(screen.getAllByRole("combobox")).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "Allow once" }).className).toContain("bg-brand")
+    expect(screen.getByRole("button", { name: "Deny" }).className).not.toContain("bg-brand")
+    // Stable footer so the decision stays reachable on narrow screens.
+    expect(screen.getByTestId("smart-permission-footer").className).toContain("sticky")
   })
 
-  it("keeps the adaptive action one click away and puts the other durations behind More options", () => {
-    const handlers = setup({ options: [chatOption, option] })
-
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Always allow similar", "More options…", "Deny"])
-    fireEvent.click(screen.getByRole("button", { name: "More options…" }))
-    fireEvent.change(screen.getByLabelText("How long"), { target: { value: "chat_session" } })
-    fireEvent.click(screen.getByRole("button", { name: "Review" }))
-    expect(screen.getByText("This chat only")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
-    expect(handlers.onConfirm).toHaveBeenCalledWith(chatOption)
+  it("never offers the vague 'Always allow similar' wording", () => {
+    setup({ options: [chatOption, option] })
+    expect(screen.queryByText(/similar/i)).not.toBeInTheDocument()
+    expect(rememberOptions()).toEqual(["Remember this decision…", "Allow this action for this chat", "Always allow this action"])
   })
 
-  it("lets the operator choose how broadly a permanent rule applies", () => {
+  it("words remembered scopes with the requested action when known", () => {
+    setup({ options: [chatOption, option], actionPhrase: "capture a screenshot" })
+    expect(rememberOptions()).toEqual(["Remember this decision…", "Allow “capture a screenshot” for this chat", "Always allow “capture a screenshot”"])
+  })
+
+  it("lists remembered scopes narrowest first and names broader breadths explicitly", () => {
     const toolOption: SmartPermissionOption = { ...option, breadth: "tool", digest: "digest-tool" }
     const familyOption: SmartPermissionOption = { ...option, breadth: "family", digest: "digest-family" }
-    const handlers = setup({ options: [option, toolOption, familyOption] })
+    const handlers = setup({ options: [familyOption, option, chatOption, toolOption] })
 
-    fireEvent.click(screen.getByRole("button", { name: "More options…" }))
-    const breadth = screen.getByLabelText("How broadly")
-    expect(Array.from(breadth.querySelectorAll("option")).map((item) => item.textContent)).toEqual([
-      "This resource only", "Every use of this tool", "The whole tool family"
+    expect(rememberOptions()).toEqual([
+      "Remember this decision…",
+      "Allow this action for this chat",
+      "Always allow this action",
+      "Always allow every use of this tool",
+      "Always allow the whole tool family"
     ])
-    fireEvent.change(breadth, { target: { value: "family" } })
-    fireEvent.click(screen.getByRole("button", { name: "Review" }))
-    expect(screen.getByRole("group", { name: "Always allow similar · The whole tool family" })).toHaveTextContent("The whole tool family")
+    remember("permanent:family")
+    expect(screen.getByRole("group", { name: "Always allow the whole tool family" })).toHaveTextContent("Permanent until you revoke it")
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
     expect(handlers.onConfirm).toHaveBeenCalledWith(familyOption)
   })
 
-  it("offers only Allow once and Deny without an adaptive option", () => {
-    setup({ option: null })
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Deny"])
-  })
+  it("confirms a remembered scope with a focused summary of what, where, how long and how to revoke", () => {
+    const handlers = setup({ options: [chatOption, option] })
+    remember("chat_session:resource")
 
-  it("previews exact coworker, operation, scope, duration and exclusions before confirming", () => {
-    const handlers = setup()
-    fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
-
-    const preview = screen.getByRole("group", { name: "Always allow similar" })
+    const preview = screen.getByRole("group", { name: "Allow this action for this chat" })
     expect(preview).toHaveTextContent("Maya")
-    expect(preview).toHaveTextContent("mail.send/draft")
     expect(preview).toHaveTextContent("Drafts folder")
-    expect(preview).toHaveTextContent("Permanent until you revoke it")
+    expect(preview).toHaveTextContent("This chat only")
+    expect(preview).toHaveTextContent("Settings → Permissions")
     expect(preview).toHaveTextContent("Anything a higher-layer rule denies")
-    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("href", "/settings/permissions")
+    // The generic rule preview is not rendered inline.
+    expect(screen.queryByTestId("permission-rule-preview")).not.toBeInTheDocument()
+    // The raw operation stays behind a collapsed disclosure.
+    const details = within(preview).getByTestId("smart-permission-technical") as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    expect(details).toHaveTextContent("mail.send/draft")
     expect(handlers.onConfirm).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
-    expect(handlers.onConfirm).toHaveBeenCalledWith(option)
+    expect(handlers.onConfirm).toHaveBeenCalledWith(chatOption)
   })
 
-  it("moves focus into the preview and returns it on Back and Escape", async () => {
+  it("offers only Allow once and Deny without a remembered option", () => {
+    setup({ option: null })
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Deny"])
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+  })
+
+  it("links to the settings hub for customization without an exact request", () => {
     setup()
-    fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
-    expect(screen.getByRole("heading", { name: "Always allow similar" })).toHaveFocus()
+    remember("permanent:resource")
+    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("href", "/settings/permissions")
+  })
+
+  it("moves focus into the confirmation and returns it to the scope control on Back and Escape", async () => {
+    setup()
+    remember("permanent:resource")
+    expect(screen.getByRole("heading", { name: "Always allow this action" })).toHaveFocus()
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }))
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
-    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Always allow similar" })).toHaveFocus())
+    await vi.waitFor(() => expect(screen.getByLabelText("Remember this decision")).toHaveFocus())
 
-    fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
-    fireEvent.keyDown(screen.getByRole("group", { name: "Always allow similar" }), { key: "Escape" })
+    remember("permanent:resource")
+    fireEvent.keyDown(screen.getByRole("group", { name: "Always allow this action" }), { key: "Escape" })
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
   })
 
   it("disables every decision while applying and marks the preview busy", () => {
     setup({ busy: true })
     expect(screen.getAllByRole("button").every((button) => button.hasAttribute("disabled"))).toBe(true)
+    expect(screen.getByLabelText("Remember this decision")).toBeDisabled()
   })
 
   it("returns to the actions and asks the parent to reload when the preview is stale", () => {
@@ -201,11 +222,11 @@ describe("SmartPermissionActions", () => {
       return { fetchSpy, onCustomized }
     }
 
-    it("keeps the compact row and opens the editor in an accessible dialog prefilled from the request", async () => {
+    it("keeps the compact footer and opens the editor in an accessible dialog prefilled from the request", async () => {
       const { fetchSpy } = setupCustomize()
-      expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Always allow similar", "Deny"])
+      expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Deny"])
 
-      fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
+      remember("permanent:resource")
       fireEvent.click(screen.getByRole("button", { name: "Customize" }))
 
       const dialog = await screen.findByRole("dialog", { name: "Customize permission rule" })
@@ -216,7 +237,7 @@ describe("SmartPermissionActions", () => {
 
     it("saves the customized rule and then decides the pending call", async () => {
       const { onCustomized } = setupCustomize()
-      fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
+      remember("permanent:resource")
       fireEvent.click(screen.getByRole("button", { name: "Customize" }))
       await screen.findByLabelText("Applies to")
 
@@ -229,7 +250,7 @@ describe("SmartPermissionActions", () => {
 
     it("returns focus to Customize when the dialog is cancelled", async () => {
       setupCustomize()
-      fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
+      remember("permanent:resource")
       fireEvent.click(screen.getByRole("button", { name: "Customize" }))
       await screen.findByLabelText("Applies to")
 
@@ -263,7 +284,7 @@ describe("SmartPermissionActions prefix editing", () => {
         </QueryClientProvider>
       </MemoryRouter>
     )
-    fireEvent.click(screen.getByRole("button", { name: "Always allow this command" }))
+    remember("permanent:resource")
     return handlers
   }
 

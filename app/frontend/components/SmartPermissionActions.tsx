@@ -10,7 +10,7 @@ import { Modal } from "./Modal"
 import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
 import { Select } from "./Select"
 
-const BUTTON = "min-w-[7rem] flex-1 rounded-md px-3 py-1.5 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
+const BUTTON = "min-w-[7rem] flex-1 rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
 
 const EDITOR_PANEL = "max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius-panel)] bg-surface p-4 shadow-[var(--shadow-panel)] sm:p-5"
 
@@ -19,6 +19,13 @@ export const SMART_CUSTOMIZE_PATH = "/settings/permissions"
 const BREADTH_ORDER: SmartPermissionBreadth[] = ["resource", "tool", "family"]
 const DURATION_ORDER: SmartPermissionOption["duration"][] = ["chat_session", "job", "permanent"]
 const optionKey = (option: SmartPermissionOption) => `${option.duration}:${option.breadth ?? "resource"}`
+// Narrowest, shortest-lived grants first so the safest choice leads the list.
+const sortOptions = (list: SmartPermissionOption[]) =>
+  [...list].sort(
+    (a, b) =>
+      DURATION_ORDER.indexOf(a.duration) - DURATION_ORDER.indexOf(b.duration) ||
+      BREADTH_ORDER.indexOf(a.breadth ?? "resource") - BREADTH_ORDER.indexOf(b.breadth ?? "resource")
+  )
 
 /**
  * The compact decision row shared by chat authorization cards and the approval
@@ -39,7 +46,8 @@ export function SmartPermissionActions({
   onStale,
   customizeTo = SMART_CUSTOMIZE_PATH,
   request,
-  onCustomized
+  onCustomized,
+  actionPhrase
 }: {
   option: SmartPermissionOption | null | undefined
   options?: SmartPermissionOption[]
@@ -54,25 +62,22 @@ export function SmartPermissionActions({
   request?: { requestId: number; itemId: number }
   /** Called after a customized rule is saved, with the decision it implies for this call. */
   onCustomized?: (decision: "approved" | "denied") => void
+  /** Plain-language action ("capture a screenshot") used to word remembered scopes. */
+  actionPhrase?: string | null
 }) {
   const { t } = useT("settings")
   const headingId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const adaptiveRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const [selectedOption, setSelectedOption] = useState<SmartPermissionOption | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [customizing, setCustomizing] = useState(false)
-  const [choosing, setChoosing] = useState(false)
-  const [chosenDuration, setChosenDuration] = useState<SmartPermissionOption["duration"] | null>(null)
-  const [chosenBreadth, setChosenBreadth] = useState<SmartPermissionBreadth | null>(null)
-  const durationSelectId = useId()
-  const breadthSelectId = useId()
   // The prefix an operator is editing, and whatever went wrong re-previewing it.
   const [prefix, setPrefix] = useState<string | null>(null)
   const [prefixError, setPrefixError] = useState<string | null>(null)
   const [resolvingPrefix, setResolvingPrefix] = useState(false)
   const prefixId = useId()
   const customizeRef = useRef<HTMLButtonElement>(null)
+  const scopeRef = useRef<HTMLSelectElement>(null)
   const stale = error instanceof ApiError && error.status === 409
   const staleHandled = useRef(false)
 
@@ -100,8 +105,7 @@ export function SmartPermissionActions({
   const leavePreview = () => {
     setPreviewing(false)
     // Return focus to the control that opened the preview.
-    const key = selectedOption ? optionKey(selectedOption) : null
-    requestAnimationFrame(() => key && adaptiveRefs.current[key]?.focus())
+    requestAnimationFrame(() => scopeRef.current?.focus())
   }
   // Confirming an edited prefix writes a different rule than the one previewed,
   // so its digest is fetched for that exact prefix rather than reused. Leaving
@@ -130,31 +134,25 @@ export function SmartPermissionActions({
   }
 
   const failure = error ? (stale ? t("permission_smart.stale") : errorMessage(error, t("permission_smart.error"))) : null
-  const availableOptions = options?.length ? options : option ? [option] : []
-  // The adaptive action, taken from the full option list when it is there so
-  // its preview carries the same detail as every other choice.
-  const quickOption = (option && availableOptions.find((candidate) => optionKey(candidate) === optionKey(option))) ?? option ?? availableOptions[0] ?? null
-  const activeOption = selectedOption || quickOption
-  const optionLabel = (candidate: SmartPermissionOption) =>
-    candidate.breadth && candidate.breadth !== quickOption?.breadth
-      ? `${t(`permission_smart.${candidate.kind}`)} · ${t(`permission_smart.breadths.${candidate.breadth}`)}`
-      : t(`permission_smart.${candidate.kind}`)
-  const label = activeOption ? optionLabel(activeOption) : ""
-  const durations = DURATION_ORDER.filter((duration) => availableOptions.some((candidate) => candidate.duration === duration))
-  const duration = chosenDuration && durations.includes(chosenDuration) ? chosenDuration : durations[durations.length - 1]
-  const breadths = BREADTH_ORDER.filter((breadth) =>
-    availableOptions.some((candidate) => candidate.duration === duration && (candidate.breadth ?? "resource") === breadth)
-  )
-  const breadth = chosenBreadth && breadths.includes(chosenBreadth) ? chosenBreadth : breadths[0]
-  const chosen = availableOptions.find((candidate) => candidate.duration === duration && (candidate.breadth ?? "resource") === breadth) ?? null
+  const availableOptions = sortOptions(options?.length ? options : option ? [option] : [])
+  const activeOption = selectedOption
+  const label = activeOption ? rememberLabel(activeOption) : ""
+
+  function rememberLabel(candidate: SmartPermissionOption) {
+    const what = actionPhrase || ""
+    if (candidate.prefix) return t(`permission_smart.remember.prefix.${candidate.duration}`, { prefix: candidate.prefix.value })
+    const breadth = candidate.breadth ?? "resource"
+    if (breadth !== "resource") return t(`permission_smart.remember.${breadth}.${candidate.duration}`)
+    return what ? t(`permission_smart.remember.action.${candidate.duration}`, { action: what }) : t(`permission_smart.remember.generic.${candidate.duration}`)
+  }
 
   return (
-    <div className="mt-3 space-y-2" data-testid="smart-permission-actions">
+    <div className="space-y-2" data-testid="smart-permission-actions">
       {previewing && activeOption ? (
         <section
           aria-busy={busy}
           aria-labelledby={headingId}
-          className="space-y-2 rounded-lg border border-border bg-surface-subtle p-3 text-xs"
+          className="space-y-2 border-t border-border pt-3 text-sm"
           onKeyDown={(event) => {
             if (event.key === "Escape" && !busy) {
               event.stopPropagation()
@@ -163,16 +161,15 @@ export function SmartPermissionActions({
           }}
           role="group"
         >
-          <h3 className="text-sm font-semibold text-text-primary outline-none" id={headingId} ref={headingRef} tabIndex={-1}>
+          <h4 className="text-sm font-semibold text-text-primary outline-none" id={headingId} ref={headingRef} tabIndex={-1}>
             {label}
-          </h3>
-          <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[auto_1fr]">
+          </h4>
+          <p className="text-xs font-medium text-text-muted">{t("permission_smart.remembered_intro")}</p>
+          <dl className="grid gap-x-3 gap-y-1 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
             <Row label={t("permission_smart.coworker")} value={activeOption.context.coworker} />
-            <Row label={t("permission_smart.operation")} value={activeOption.context.operation} />
-            <Row label={t("permission_smart.repository")} value={activeOption.context.repository || t("permission_smart.no_repository")} />
-            <Row label={t("permission_smart.scope")} value={activeOption.context.resource_scope_label || t("permission_smart.any_scope")} />
+            <Row label={t("permission_smart.applies_where")} value={whereText(activeOption)} />
             <Row label={t("permission_smart.duration")} value={t(`permission_smart.durations.${activeOption.duration}`)} />
-            {activeOption.breadth ? <Row label={t("permission_smart.breadth")} value={t(`permission_smart.breadths.${activeOption.breadth}`)} /> : null}
+            <Row label={t("permission_smart.revoke")} value={t("permission_smart.revoke_how")} />
           </dl>
           <SummaryList items={activeOption.summary.allows} title={t("permission_smart.allows")} />
           <SummaryList items={activeOption.summary.excludes} title={t("permission_smart.excludes")} />
@@ -199,6 +196,15 @@ export function SmartPermissionActions({
                 </p>
               ) : null}
             </div>
+          ) : null}
+          {activeOption.context.operation ? (
+            <details className="text-xs" data-testid="smart-permission-technical">
+              <summary className="cursor-pointer font-medium text-text-secondary">{t("permission_decision.technical_details")}</summary>
+              <dl className="mt-1 grid gap-x-3 gap-y-1 sm:grid-cols-[auto_minmax(0,1fr)]">
+                <Row label={t("permission_smart.operation")} value={activeOption.context.operation} />
+                {activeOption.breadth ? <Row label={t("permission_smart.breadth")} value={t(`permission_smart.breadths.${activeOption.breadth}`)} /> : null}
+              </dl>
+            </details>
           ) : null}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
@@ -230,97 +236,42 @@ export function SmartPermissionActions({
           </div>
         </section>
       ) : (
-        <div aria-label={t("permission_smart.group")} className="flex flex-wrap items-center gap-2" role="group">
-          <button className={`${BUTTON} bg-brand text-on-brand`} disabled={busy} onClick={onAllowOnce} type="button">
-            {t("permission_smart.allow_once")}
-          </button>
-          {quickOption ? (
-            <button
-              className={`${BUTTON} border border-brand text-brand`}
+        <div
+          className="sticky bottom-0 -mx-1 space-y-2 bg-surface-raised px-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-2"
+          data-testid="smart-permission-footer"
+        >
+          <div aria-label={t("permission_smart.group")} className="flex flex-wrap items-center gap-2" role="group">
+            <button className={`${BUTTON} bg-brand text-on-brand`} disabled={busy} onClick={onAllowOnce} type="button">
+              {t("permission_smart.allow_once")}
+            </button>
+            <button className={`${BUTTON} border border-border text-text-secondary`} disabled={busy} onClick={onDeny} type="button">
+              {t("permission_smart.deny")}
+            </button>
+          </div>
+          {availableOptions.length ? (
+            <Select
+              aria-label={t("permission_smart.remember_control")}
+              className="px-2 text-sm"
               disabled={busy}
-              key={optionKey(quickOption)}
-              onClick={() => {
-                setSelectedOption(quickOption)
+              onChange={(event) => {
+                const next = availableOptions.find((candidate) => optionKey(candidate) === event.target.value)
+                if (!next) return
+                setSelectedOption(next)
                 setPreviewing(true)
               }}
-              ref={(element) => {
-                adaptiveRefs.current[optionKey(quickOption)] = element
-              }}
-              type="button"
+              ref={scopeRef}
+              value=""
             >
-              {optionLabel(quickOption)}
-            </button>
+              <option value="">{t("permission_smart.remember_placeholder")}</option>
+              {availableOptions.map((candidate) => (
+                <option key={optionKey(candidate)} value={optionKey(candidate)}>
+                  {rememberLabel(candidate)}
+                </option>
+              ))}
+            </Select>
           ) : null}
-          {availableOptions.length > 1 ? (
-            <button
-              aria-expanded={choosing}
-              className="text-sm font-medium text-brand underline-offset-2 hover:underline"
-              disabled={busy}
-              onClick={() => setChoosing((open) => !open)}
-              type="button"
-            >
-              {t("permission_smart.more_options")}
-            </button>
-          ) : null}
-          <button className={`${BUTTON} border border-danger text-danger`} disabled={busy} onClick={onDeny} type="button">
-            {t("permission_smart.deny")}
-          </button>
         </div>
       )}
-      {choosing && !previewing && availableOptions.length > 1 ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface-subtle p-3 text-xs" data-testid="smart-permission-chooser">
-          <label className="flex min-w-0 flex-col gap-1" htmlFor={durationSelectId}>
-            <span className="font-medium text-text-muted">{t("permission_smart.choose_duration")}</span>
-            <Select
-              className="px-2 text-sm"
-              disabled={busy}
-              fullWidth={false}
-              id={durationSelectId}
-              onChange={(event) => setChosenDuration(event.target.value as SmartPermissionOption["duration"])}
-              value={duration}
-            >
-              {durations.map((value) => (
-                <option key={value} value={value}>
-                  {t(`permission_smart.durations.${value}`)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1" htmlFor={breadthSelectId}>
-            <span className="font-medium text-text-muted">{t("permission_smart.choose_breadth")}</span>
-            <Select
-              className="px-2 text-sm"
-              disabled={busy}
-              fullWidth={false}
-              id={breadthSelectId}
-              onChange={(event) => setChosenBreadth(event.target.value as SmartPermissionBreadth)}
-              value={breadth}
-            >
-              {breadths.map((value) => (
-                <option key={value} value={value}>
-                  {t(`permission_smart.breadths.${value}`)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <button
-            className={`${BUTTON} border border-brand text-brand`}
-            disabled={busy || !chosen}
-            onClick={() => {
-              if (!chosen) return
-              setSelectedOption(chosen)
-              setChoosing(false)
-              setPreviewing(true)
-            }}
-            ref={(element) => {
-              if (chosen) adaptiveRefs.current[optionKey(chosen)] = element
-            }}
-            type="button"
-          >
-            {t("permission_smart.review")}
-          </button>
-        </div>
-      ) : null}
       {request ? (
         <Modal className={EDITOR_PANEL} label={t("permission_editor.title")} onClose={() => setCustomizing(false)} open={customizing}>
           <PermissionRuleEditor
@@ -347,13 +298,18 @@ export function SmartPermissionActions({
       ) : null}
     </div>
   )
+
+  function whereText(candidate: SmartPermissionOption) {
+    return [candidate.context.repository, candidate.context.resource_scope_label || t("permission_smart.any_scope")].filter(Boolean).join(" · ")
+  }
 }
 
 function Row({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null
   return (
     <>
       <dt className="font-medium text-text-muted">{label}</dt>
-      <dd className="break-words text-text-secondary">{value || "—"}</dd>
+      <dd className="break-words text-text-secondary">{value}</dd>
     </>
   )
 }

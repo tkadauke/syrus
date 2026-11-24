@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import * as api from "../api/permissionRequests"
@@ -116,9 +116,12 @@ describe("PermissionInboxDrawer", () => {
     fireEvent.click(control)
 
     expect(screen.getByText("Release channel")).toBeInTheDocument()
-    expect(screen.queryByText("Arguments")).not.toBeInTheDocument()
-    expect(screen.queryByText(/Drawer must show this argument/)).not.toBeInTheDocument()
-    expect(screen.getByTestId("permission-request-12").textContent).not.toMatch(/communication\.chat|send@v1|role_default|\{/)
+    // Arguments and capability names exist only inside the collapsed Technical details.
+    const card = screen.getByTestId("permission-request-12")
+    expect((within(card).getByTestId("permission-technical-details") as HTMLDetailsElement).open).toBe(false)
+    const visible = card.cloneNode(true) as HTMLElement
+    visible.querySelector("details")?.remove()
+    expect(visible.textContent).not.toMatch(/Drawer must show this argument|Arguments|communication\.chat|send@v1|role_default|\{/)
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [],
       summary: { pending_count: 0, blocked_agent_count: 0 },
