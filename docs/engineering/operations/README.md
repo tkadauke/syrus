@@ -12,6 +12,7 @@ recovering Syrus itself. Operator feature instructions remain in
 - [Data retention](data-retention.md) — retention registry, sweeping,
   archiving, pruning, size estimation, and extension points.
 - [Per-spawn resource limits](resource-limits.md) — operational rollout note
+- [Runtime image registry](runtime-image-registry.md) — OCI provider configuration, credential roles, diagnostics
   for execution confinement.
 - [Production debugging](production-debugging.md) — inspect Kubernetes,
   processes, logs, queues, workers, and data safely.
