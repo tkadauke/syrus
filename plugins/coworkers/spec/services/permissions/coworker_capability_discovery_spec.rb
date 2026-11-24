@@ -86,6 +86,26 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
     end
   end
 
+  it "consults the facade with the bare feature flag name and hides the tool when it is off" do
+    entry = double(descriptor: permission_descriptor, feature_flag: :example_flag, feature_flags_by_role: nil)
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(entry)
+    allow(Syrus::Host::FeatureFlags).to receive(:enabled?).with(:example_flag).and_return(false)
+
+    expect(described_class.new(context).call(include_non_requestable: true).sole.to_h).to include(
+      state: "unavailable", lock_reason: "provider_unavailable"
+    )
+    expect(Syrus::Host::FeatureFlags).to have_received(:enabled?).with(:example_flag)
+  end
+
+  it "applies the role-specific feature flag through the facade" do
+    entry = double(descriptor: permission_descriptor, feature_flag: nil,
+                   feature_flags_by_role: { AgentRole::COWORKER_CHAT => :role_flag })
+    allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(entry)
+    allow(Syrus::Host::FeatureFlags).to receive(:enabled?).with(:role_flag).and_return(true)
+
+    expect(described_class.new(context).call.sole.to_h).to include(state: "requestable")
+  end
+
   it "matches queries against tool names and descriptions" do
     searchable = catalog_descriptor.with(description: "Reads customer ledgers")
     allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return([ searchable ])
