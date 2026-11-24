@@ -227,6 +227,24 @@ RSpec.describe RuntimeImages::WorkerCache do
       expect { stuck.acquire(image) }.to raise_error(RuntimeImages::WorkerCache::Busy)
     end
 
+    it "recovers a claim abandoned by a crashed process once it is stale" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      RuntimeImageCacheEntry.update_all(state: "evicting", updated_at: 10.minutes.ago)
+      pulled = cache.acquire(image)
+      expect(engine.removed.size).to eq(1)
+      expect(pulled.cache_hit).to be(false)
+      expect(RuntimeImageCacheEntry.first).to have_attributes(state: "present", lease_count: 1)
+    end
+
+    it "does not take over a fresh eviction claim" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      RuntimeImageCacheEntry.update_all(state: "evicting", updated_at: Time.current)
+      expect { cache.acquire(image) }.to raise_error(RuntimeImages::WorkerCache::Busy)
+      expect(engine.removed).to be_empty
+    end
+
     it "restores the entry when the engine fails to remove it" do
       image = publish("a")
       cache.acquire(image) { nil }

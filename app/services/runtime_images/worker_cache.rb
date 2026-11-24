@@ -14,6 +14,9 @@ module RuntimeImages
     DEFAULT_PULL_TIMEOUT = 600
     DEFAULT_ACQUIRE_TIMEOUT = 60
     DEFAULT_LEASE_SECONDS = 3600
+    # An eviction claim older than this is treated as abandoned by a crashed
+    # process (engine removal itself is bounded well below it).
+    DEFAULT_CLAIM_TTL = 300
     HIGH_PRESSURE_PERCENT = 80.0
     CRITICAL_PRESSURE_PERCENT = 92.0
 
@@ -24,13 +27,14 @@ module RuntimeImages
 
     def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: DEFAULT_MAX_PULLS,
                    pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
-                   lease_seconds: DEFAULT_LEASE_SECONDS, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
+                   lease_seconds: DEFAULT_LEASE_SECONDS, claim_ttl: DEFAULT_CLAIM_TTL, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
       @engine = engine
       @service = service
       @hostname = hostname
       @pull_timeout = pull_timeout
       @acquire_timeout = acquire_timeout
       @lease_seconds = lease_seconds
+      @claim_ttl = claim_ttl
       @clock = clock
       @sleeper = sleeper
       @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
@@ -154,9 +158,29 @@ module RuntimeImages
       loop do
         entry = RuntimeImageCacheEntry.for_host(hostname).find_by(runtime_image: image)
         return entry unless entry&.state == "evicting"
+        next if reconcile_abandoned_claim(entry)
         raise Busy, "runtime image #{image.digest} is being evicted on #{hostname}" if monotonic >= deadline
         @sleeper.call(EVICTION_POLL_SECONDS)
       end
+    end
+
+    # Takes over an eviction claim whose owner never resolved it (crashed
+    # process). The takeover is a compare-and-set on the claim timestamp so
+    # only one reconciler finishes the removal; a failed removal restores the
+    # row, and a missing engine image simply fails verification and re-pulls.
+    def reconcile_abandoned_claim(entry)
+      now = @clock.call
+      return false if entry.updated_at > now - @claim_ttl
+      taken = RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", updated_at: entry.updated_at).update_all(updated_at: now)
+      return false unless taken == 1
+      begin
+        @engine.remove(entry.runtime_image.locator.to_s)
+      rescue EngineError
+        RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").update_all(state: "present", updated_at: now)
+        return true
+      end
+      RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").delete_all
+      true
     end
 
     def pull_and_verify(image, started, prefetch)
@@ -276,7 +300,7 @@ module RuntimeImages
     end
 
     def remove_entry(entry)
-      claimed = RuntimeImageCacheEntry.where(id: entry.id, state: "present").unleased(@clock.call).update_all(state: "evicting")
+      claimed = RuntimeImageCacheEntry.where(id: entry.id, state: "present").unleased(@clock.call).update_all(state: "evicting", updated_at: @clock.call)
       return false unless claimed == 1
       begin
         @engine.remove(entry.runtime_image.locator.to_s)
