@@ -5254,6 +5254,28 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M75. Main through `3e5efbd613`
+
+A merge train for the workflow-composition Epic. `Workflows::CompositionAnchors`
+lets plugins contribute steps at three positions: judge loops after the review
+gates, `post_implementation` steps before `dependency_audit`, and `post_pr`
+steps after the PR steps. Visual review, coverage analysis and review planning
+move into the browser, syrus_coverage and review_planning plugins.
+
+*Relied-on invariant:* a plugin step cannot run against a HEAD the required
+reviews have not approved. Holds without the barrier knowing about plugins.
+`ImmutableReviewHeadBarrier` checks every downstream Run against the current
+HEAD in `create_run_and_enqueue`, whatever its kind. A plugin step, or a judge
+loop's re-implement, that advances HEAD therefore forces re-review exactly as a
+core step does (`ReviewBarrier.lean`).
+
+*Relied-on invariant:* a contributed step's failure handling matches its kind.
+Holds: a `post_pr` contribution must declare the same `fail_policy` as its
+`Step::Kind` entry, or it is rejected as an invalid contribution.
+
+`formal/mirrors.yml` still matches, plugin boundaries are clean, and the engine,
+workflow, step-dispatcher, formal and architecture specs pass (2,307 examples).
+
 ## M74. Main through `65e908a8c0`
 
 A merge train for the plugin capability-family Epic. Toolkit extensions and
@@ -7162,7 +7184,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `65e908a8c0`. Each loop iteration continues from there:
+Checked through main `3e5efbd613`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
