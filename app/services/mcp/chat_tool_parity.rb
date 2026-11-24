@@ -186,6 +186,72 @@ module Mcp
         by_context
       end
 
+      # Chat tool sets of every installed plugin, whether or not the operator
+      # has enabled it: parity and the generated docs must not depend on the
+      # instance's enablement state.
+      def installed_chat_tool_sets
+        context = Struct.new(:enabled).new(true)
+        Syrus::PluginRegistry.all_plugins.filter_map do |manifest|
+          provider = Syrus::Plugin::Toolkit.provider_for_manifest(manifest)
+          provider&.chat_tools(context)
+        rescue StandardError, LoadError
+          nil
+        end.uniq
+      end
+
+      # Installed plugin chat tool sets, resolved per context. Plugin tools are
+      # not role-gated, so planner/coding/local share one resolution; the
+      # coworker resolution applies the provider and definition exceptions
+      # (admin-gated definitions resolve for an admin owner, as at call time).
+      def plugin_catalogs(providers = installed_chat_tool_sets)
+        admin = Struct.new(:admin?).new(true)
+        providers.to_h do |provider|
+          definitions = Array(provider.tool_definitions(tier: nil))
+          names = definitions.map { |definition| (definition[:name] || definition["name"]).to_s }
+          shared = Mcp::CoworkerToolExposure.plugin_provider?(provider)
+          coworker_only = Mcp::CoworkerToolExposure.coworker_only_exception(provider).present?
+          coworker = shared ? definitions.select { |d| Mcp::CoworkerToolExposure.plugin_definition?(d, user: admin) } : []
+          by_context = CONTEXTS.index_with { Set.new }
+          by_context[:coworker] = coworker.map { |d| (d[:name] || d["name"]).to_s }.to_set
+          unless coworker_only
+            %i[planner coding local].each { |context| by_context[context] = names.to_set }
+          end
+          [ provider, by_context ]
+        end
+      end
+
+      # Every reviewed exception installed plugins declare, resolved to its
+      # absent contexts and tools.
+      def plugin_exceptions(providers = installed_chat_tool_sets)
+        providers.flat_map do |provider|
+          names = Array(provider.tool_definitions(tier: nil)).map { |d| (d[:name] || d["name"]).to_s }
+          provider_level = [ Mcp::CoworkerToolExposure.coworker_exception(provider),
+                             Mcp::CoworkerToolExposure.coworker_only_exception(provider) ].compact
+            .map { |exception| exception.with(tools: names.freeze) }
+          definition_level = Array(provider.tool_definitions(tier: nil)).filter_map do |definition|
+            Mcp::CoworkerToolExposure.definition_exception(definition)
+          end
+          provider_level + definition_level
+        end
+      end
+
+      # Plugin differences across contexts that no declared exception covers.
+      def plugin_report(providers = installed_chat_tool_sets)
+        exceptions = plugin_exceptions(providers)
+        plugin_catalogs(providers).flat_map do |provider, by_context|
+          names = by_context.values.reduce(:|)
+          all_names = Array(provider.tool_definitions(tier: nil)).map { |d| (d[:name] || d["name"]).to_s }
+          (names | all_names.to_set).sort.flat_map do |name|
+            allowed = exceptions.select { |exception| exception.tools.include?(name) }.flat_map(&:absent_from).uniq
+            actual = CONTEXTS.reject { |context| by_context[context].include?(name) }
+            unexplained = actual - allowed
+            stale = allowed - actual
+            [ ("#{provider}##{name}: unexplained absence from #{unexplained.join(', ')}" if unexplained.any?),
+              ("#{provider}##{name}: exception no longer applies to #{stale.join(', ')}" if stale.any?) ].compact
+          end
+        end
+      end
+
       # Differences not covered by a reviewed exception, in both directions:
       # a tool missing where it should be shared, an exception that no longer
       # matches reality, and a coworker-only tool nothing justifies.
@@ -211,7 +277,7 @@ module Mcp
         CORE_EXCEPTIONS.reject { |exception| exception.absent_from == CONTEXTS }.flat_map(&:tools).uniq.each do |name|
           problems << "#{name}: exception names a tool that is not registered" unless registered.include?(name)
         end
-        problems
+        problems + plugin_report
       end
     end
   end

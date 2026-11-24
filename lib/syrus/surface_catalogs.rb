@@ -100,7 +100,7 @@ module Syrus
     end
 
     def self.render_parity_exceptions
-      rows = Mcp::ChatToolParity.exceptions.map do |exception|
+      rows = (Mcp::ChatToolParity.exceptions + Mcp::ChatToolParity.plugin_exceptions).uniq.map do |exception|
         tools = exception.tools.map { |name| "`#{name}`" }.join(", ").presence || "tools gated to a dedicated chat role"
         [ "`#{exception.reason_code}`", exception.explanation, exception.owner,
           exception.absent_from.map { |context| "`#{context}`" }.join(", ").presence || "-", tools ]
