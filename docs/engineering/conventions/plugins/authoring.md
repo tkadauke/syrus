@@ -1175,11 +1175,22 @@ grant. A scopeable grant additionally supplies `scope_options_callback`
 `chat_mcp_tool_set` providers are collected, so disabling a plugin removes its
 declarations from the catalog.
 
-Coworkers inherit plugin chat tools by default. A plugin may set
-`coworker_excluded: true` only when an operation depends on a dedicated chat
-mode, checkout, runtime, workflow role, or otherwise has no coherent coworker
-semantics; admin-only definitions set `admin_only: true`. These exclusions are
-registration boundaries, not authorization shortcuts. Every inherited tool
+Coworkers inherit plugin chat tools by default (interactive chat tool parity;
+see `Mcp::ChatToolParity`). A role-specific exception is allowed only when the
+operation is semantically incoherent in the other context, not merely risky.
+A provider declares one with `.coworker_exception` (or a definition with
+`coworker_exception:`), and a coworker-only provider declares
+`.coworker_only_surface`; both return a hash with a registered `reason_code`,
+`explanation`, `owner`, and `test_ref` (an existing spec path), and an
+incomplete hash raises. The boolean `coworker_excluded` /
+`coworker_excluded?` / `coworker_specific_availability?` forms are removed and
+rejected. Admin-only definitions set `admin_only: true` and are shared with
+coworkers whose owner is an admin. Resource state (no browser session, no
+checkout) is reported by the tool when called, not by hiding it from coworkers.
+Exceptions are documented in the generated MCP catalog. Never use an exception
+to avoid authorization: risky, destructive, admin, external-write, and
+credential-using tools stay shared and rely on canonical descriptors, grants,
+and per-resource checks. Every inherited tool
 keeps its canonical capability descriptor, availability checks, resource
 scope, and handler. Definitions without a legacy `coworker_grants` declaration
 are grouped by their descriptor capability and default to confirmation.

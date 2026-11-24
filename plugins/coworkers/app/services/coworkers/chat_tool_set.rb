@@ -89,7 +89,15 @@ module Coworkers
       chat_session.present? && Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
 
-    def self.coworker_specific_availability? = true
+    def self.coworker_only_surface
+      {
+        reason_code: "coworker_identity_lifecycle",
+        explanation: "Coworker workspace, reply, schedule and spawn tools operate on a coworker identity that " \
+                     "has no non-coworker subject; ordinary chats get only the deferred drafting tools.",
+        owner: "coworkers",
+        test_ref: "plugins/coworkers/spec/services/coworkers/chat_tool_set_spec.rb"
+      }
+    end
 
     def self.available_for_coworker?(_chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :essential

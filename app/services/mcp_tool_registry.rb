@@ -438,7 +438,7 @@ class McpToolRegistry
         descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
           entry.descriptor, default_policy: family_defaults.fetch(entry.descriptor.capability)
         )
-        coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag,
+        coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag, admin_only: entry.admin_only,
           feature_flags_by_role: entry.feature_flags_by_role, available_if: entry.available_if,
           interactive_only: entry.interactive_only, mutation: entry.mutation,
           approval_effect: entry.approval_effect || pending_action_tool?(entry.tool),

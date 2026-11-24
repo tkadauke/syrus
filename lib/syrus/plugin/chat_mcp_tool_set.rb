@@ -29,12 +29,14 @@ module Syrus
     # +capability_descriptor_compatibility+ digests while it migrates.
     # Coworkers inherit ordinary chat definitions and availability by default;
     # canonical capability descriptors still decide whether calls run, ask, or
-    # are denied. A definition may opt out with +coworker_excluded:+ or
-    # +admin_only:+. A provider whose entire surface is incoherent for coworkers
-    # may return true from `.coworker_excluded?`. Providers that contribute a
-    # distinct coworker-only surface may return true from
-    # `.coworker_specific_availability?` and implement
-    # `.available_for_coworker?`.
+    # are denied. A definition may set +admin_only:+. A role-specific
+    # exception is allowed only when the tool is semantically incoherent for
+    # coworkers; declare it with a +coworker_exception:+ hash on the definition
+    # or a `.coworker_exception` provider method, each carrying reason_code,
+    # explanation, owner, and test_ref (see Mcp::ChatToolParity). Providers that
+    # contribute a distinct coworker-only surface declare `.coworker_only_surface`
+    # (same metadata) and implement `.available_for_coworker?`. Boolean
+    # exclusion flags are not supported.
     #
     # A provider may declare `.coworker_grants`, returning hashes accepted by
     # `Coworkers::GrantCatalog::Descriptor`: name, label, description,
