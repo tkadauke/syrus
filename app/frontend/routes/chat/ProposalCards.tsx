@@ -1206,7 +1206,7 @@ export function PendingActionCard({
                     {item.state !== "pending" ? <p className="text-text-muted">{t(`authorization_state_${item.state}`)}</p> : null}
                     {item.state === "pending" ? (
                       <SmartPermissionActions
-                        actionPhrase={permissionActionPhrase(item.presentation?.statement)}
+                        actionPhrase={permissionActionPhrase((index === 0 ? { ...authorizationSummary, ...item.presentation } : item.presentation)?.statement)}
                         busy={authorizationDecision.isPending || smartAuthorizationDecision.isPending}
                         error={smartAuthorizationDecision.error}
                         onAllowOnce={() => {
