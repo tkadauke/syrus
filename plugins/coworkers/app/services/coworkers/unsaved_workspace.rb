@@ -18,7 +18,7 @@ class Coworkers::UnsavedWorkspace
       return outcome if outcome == :conflict
       clear! if @link.reload.unsaved_workspace?
       return outcome
-    rescue GitRunner::GitError => error
+    rescue Syrus::Host::GitRunner::GitError => error
       failure = Coworkers::PushFailure.for(error)
       record!(branch:, path:, operation:, failure:)
       break unless failure.transient? && index < remaining - 1 && !exhausted?

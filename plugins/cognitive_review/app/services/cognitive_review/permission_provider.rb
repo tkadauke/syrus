@@ -1,8 +1,8 @@
 module CognitiveReview
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = AgentRole::WORKFLOW_ROLES.freeze
+    ROLES = Syrus::Host::AgentRole::WORKFLOW_ROLES.freeze
     CAPABILITY = "cognitive_review.notes@v1"
     OPERATION = "cognitive_review.notes/submit@v1"
 

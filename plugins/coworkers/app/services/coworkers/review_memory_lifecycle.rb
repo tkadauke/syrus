@@ -93,7 +93,7 @@ class Coworkers::ReviewMemoryLifecycle
       FileUtils.mkdir_p(path.dirname)
       repository = coworker.workspace_repository or raise ArgumentError, "coworker workspace repository is unavailable"
       with_git_auth(repository, run, operation_type: "coworker_review_clone") do |url, env|
-        GitRunner.new.run("clone", "--branch", "coworkers/#{coworker.handle}", "--single-branch", url, path.to_s, env:)
+        Syrus::Host::GitRunner.new.run("clone", "--branch", "coworkers/#{coworker.handle}", "--single-branch", url, path.to_s, env:)
       end
     end
 
@@ -115,7 +115,7 @@ class Coworkers::ReviewMemoryLifecycle
 
     def persist_checkout!(coworker, run, context)
       path = context.workspace_path
-      git = GitRunner.new
+      git = Syrus::Host::GitRunner.new
       if git.run("status", "--porcelain", chdir: path).present?
         git.configure_author(Coworkers::GitIdentity.new(name: coworker.name, handle: coworker.handle), chdir: path)
         git.run("add", "--all", chdir: path)
@@ -138,7 +138,7 @@ class Coworkers::ReviewMemoryLifecycle
           sha = git.run("rev-parse", "HEAD", chdir: path).strip
           return context.update!(persistence_state: "persisted", persisted_commit_sha: sha, persisted_at: Time.current,
                                  persistence_error_code: nil, persistence_error_details: {})
-        rescue GitRunner::GitError
+        rescue Syrus::Host::GitRunner::GitError
           git.run("rebase", "--abort", chdir: path) rescue nil
           raise PersistenceError, "the coworker home branch contains conflicting memory changes" if attempt == 2
         end
@@ -147,7 +147,7 @@ class Coworkers::ReviewMemoryLifecycle
 
     def with_git_auth(repository, run, operation_type:)
       user = run.job.owner_user || run.job.user
-      git = GitRunner.new
+      git = Syrus::Host::GitRunner.new
       GithubAuthenticatedGit.run(repository:, user:, git:, operation_type:) do |authenticated_url|
         uri = URI.parse(authenticated_url)
         username, password = uri.userinfo.to_s.split(":", 2)

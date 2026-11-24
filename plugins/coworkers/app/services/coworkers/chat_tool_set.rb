@@ -1,6 +1,6 @@
 module Coworkers
   class ChatToolSet
-    include Syrus::Plugin::ChatMcpToolSet
+    include Syrus::Host::ChatMcpToolSet
 
     TOOLS = [
       McpTools::ListCoworkersTool,
@@ -137,7 +137,7 @@ module Coworkers
       return tool.call(**(params || {}).symbolize_keys, server_context: server_context) if tool
 
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown coworker tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown coworker tool: #{tool_name.inspect}") unless klass
 
       klass.call(**symbolize(params), server_context: server_context)
     end

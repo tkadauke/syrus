@@ -24,7 +24,7 @@ module Coworkers
 
       def enqueue!(chat:, task:, source_run:, summary:, duration:)
         queued = false
-        ApplicationRecord.transaction do
+        Syrus::Host::Record.transaction do
           claimed = Run.where(id: source_run.id, coworker_wake_enqueued_at: nil)
             .update_all(coworker_wake_enqueued_at: Time.current, updated_at: Time.current)
           next unless claimed == 1

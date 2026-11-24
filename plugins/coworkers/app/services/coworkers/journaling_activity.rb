@@ -75,10 +75,10 @@ module Coworkers
         pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
         return @daily_memory = text(pending, label: daily_memory_path) if pending
       end
-      reader = RepositoryContent.for(repository, user: @coworker.owner_user)
+      reader = Syrus::Host::ContentReader.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
       @daily_memory = text(reader.read(revision, daily_memory_path, max_bytes: 64.kilobytes).text, label: daily_memory_path)
-    rescue RepositoryContent::NotFound, RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision
+    rescue Syrus::Host::ContentNotFound, Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnsupported, Syrus::Host::ContentUnknownRevision
       @daily_memory = nil
     end
 

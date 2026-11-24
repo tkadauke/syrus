@@ -24,7 +24,7 @@ module Permissions
     end
 
     def call
-      unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) && coworker &&
+      unless context.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]) && coworker &&
           coworker.owner_user_id == context.user.id
         raise CoworkerPermissionRequest::Rejected.new(:not_a_coworker, "only a coworker can request revocation for itself")
       end

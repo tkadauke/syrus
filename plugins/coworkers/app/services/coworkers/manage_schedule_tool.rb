@@ -23,16 +23,16 @@ module Coworkers
     class << self
       def call(action:, server_context:, scheduled_task_id: nil, name: nil, prompt: nil, kind: "cron", schedule_input: nil, fire_at: nil, after_run: "wake")
         coworker = current_coworker(server_context)
-        return Mcp::Tools.invalid("manage_coworker_schedule is only available from a coworker's main chat") unless coworker
+        return Syrus::Host::McpTools.invalid("manage_coworker_schedule is only available from a coworker's main chat") unless coworker
 
         ScheduleActions.for(action).new(
           coworker, scheduled_task_id:, name:, prompt:, kind:, schedule_input:, fire_at:, after_run:,
           scheduled_run_followup: AfterRunPolicy::Wake.followup_message?(server_context[:current_message])
         ).call
       rescue ActiveRecord::RecordInvalid => error
-        Mcp::Tools.invalid(error.record.errors.full_messages.to_sentence)
+        Syrus::Host::McpTools.invalid(error.record.errors.full_messages.to_sentence)
       rescue ArgumentError => error
-        Mcp::Tools.invalid(error.message)
+        Syrus::Host::McpTools.invalid(error.message)
       end
 
       private
@@ -43,7 +43,7 @@ module Coworkers
       end
 
       def success(coworker, **extra)
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           coworker_id: coworker.id,
           schedules: coworker.schedules.alive.order(:created_at).map do |task|
             { id: task.id, name: task.name, kind: task.kind, state: task.state,

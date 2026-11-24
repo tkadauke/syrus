@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(93)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(93)
+    expect(Syrus::Host.apis.size).to eq(124)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(124)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -127,6 +127,77 @@ RSpec.describe Syrus::Host::PublicApis do
     expect(runner).to include("probe_mounts")
     expect(Mcp::Tools).to respond_to(:unauthorized, :truncate_text)
     expect(ProcessRunner).to respond_to(:probe_mounts)
+  end
+
+  it "aliases the review, chat and sidebar plugin-point facades onto their core modules" do
+    {
+      McpToolSet: Syrus::Plugin::McpToolSet, ChatMcpToolSet: Syrus::Plugin::ChatMcpToolSet,
+      SidebarPage: Syrus::Plugin::SidebarPage, UiSlot: Syrus::Plugin::UiSlot,
+      ChatIdentityProvider: Syrus::Plugin::ChatIdentityProvider,
+      ChatPayloadContributor: Syrus::Plugin::ChatPayloadContributor,
+      ChatTurnFinalizer: Syrus::Plugin::ChatTurnFinalizer, ChatTurnLifecycle: Syrus::Plugin::ChatTurnLifecycle,
+      ChatTurnOrientation: Syrus::Plugin::ChatTurnOrientation,
+      ChatWorkspaceLifecycle: Syrus::Plugin::ChatWorkspaceLifecycle,
+      DiffReviewAnnotationProvider: Syrus::Plugin::DiffReviewAnnotationProvider,
+      JobVisibilityRestriction: Syrus::Plugin::JobVisibilityRestriction,
+      McpRunContextContributor: Syrus::Plugin::McpRunContextContributor,
+      PostImplementationReviewProvider: Syrus::Plugin::PostImplementationReviewProvider,
+      RepositoryConfiguration: Syrus::Plugin::RepositoryConfiguration,
+      RepositoryFilter: Syrus::Plugin::RepositoryFilter, RetentionPolicy: Syrus::Plugin::RetentionPolicy,
+      ReviewContextContributor: Syrus::Plugin::ReviewContextContributor, ReviewGate: Syrus::Plugin::ReviewGate,
+      ReviewPresentationContributor: Syrus::Plugin::ReviewPresentationContributor,
+      ReviewerTargetProvider: Syrus::Plugin::ReviewerTargetProvider
+    }.each do |name, core|
+      expect(Syrus::Host.const_get(name)).to equal(core), name.to_s
+      expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name.to_s
+    end
+  end
+
+  it "aliases the content, path, role, reviewer-target, gate and handle facades onto their core values" do
+    {
+      ContentReader: RepositoryContent, PathJail: Syrus::PathJail, PathJailEscape: Syrus::PathJail::PathEscape,
+      SyrusYmlParseError: SyrusYml::ParseError, AgentRole: AgentRole, ReviewerTargetResolver: ReviewerTargets,
+      ReviewerTargetRequired: ReviewerTargets::TargetRequired,
+      ReviewerTargetUnavailable: ReviewerTargets::TargetUnavailable, GateResult: WorkUnits::GateResult,
+      HandleRegistry: HandleRegistry
+    }.each do |name, core|
+      expect(Syrus::Host.const_get(name)).to equal(core), name.to_s
+      expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name.to_s
+    end
+  end
+
+  it "backs every listed member of the callable facades with the core singleton" do
+    {
+      ContentReader: RepositoryContent, PathJail: Syrus::PathJail, ReviewerTargetResolver: ReviewerTargets,
+      GateResult: WorkUnits::GateResult, HandleRegistry: HandleRegistry, UiSlot: Syrus::Plugin::UiSlot,
+      GitRunner: GitRunner, McpTools: Mcp::Tools, ToolContext: McpToolContext
+    }.each do |name, target|
+      api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
+      callable = { ContentReader: %w[for], PathJail: %w[resolve!], ReviewerTargetResolver: %w[resolve],
+                   GateResult: %w[pass block], HandleRegistry: %w[normalize claim! rename! release!],
+                   UiSlot: %w[valid_slot?], GitRunner: %w[redact], McpTools: %w[not_authorized],
+                   ToolContext: %w[from_run] }.fetch(name)
+      expect(api.members).to include(*callable), name.to_s
+      callable.each { |member| expect(target).to respond_to(member), "#{name}.#{member}" }
+    end
+    expect(Syrus::Host::WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT).to eq(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)
+    expect(Syrus::Host::UiSlot::SLOTS).to equal(Syrus::Plugin::UiSlot::SLOTS)
+    expect(Syrus::Host::ReviewGate::SLOTS).to equal(Syrus::Plugin::ReviewGate::SLOTS)
+  end
+
+  it "exposes the agent role identifiers the plugins pass as tool-context roles" do
+    api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::AgentRole" }
+
+    expect(api.members).to include("COWORKER", "COWORKER_CHAT", "WORKFLOW_COWORKER_REVIEWER", "WORKFLOW_ROLES")
+    api.members.each { |role| expect(Syrus::Host::AgentRole.const_get(role)).to equal(AgentRole.const_get(role)) }
+  end
+
+  it "keeps the gate result and reviewer-target error contracts working through the facades" do
+    expect(Syrus::Host::GateResult.pass).to be_pass
+    expect(Syrus::Host::GateResult.block(reason: "busy")).to be_blocked
+    expect(Syrus::Host::ReviewerTargetRequired.ancestors).to include(StandardError)
+    expect { raise Syrus::Host::PathJailEscape.new(reason: :escape, relative_path: "../x", root: "/r") }
+      .to raise_error(Syrus::PathJail::PathEscape)
   end
 
   it "queues chat title generation without exposing the job to plugins" do

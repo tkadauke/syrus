@@ -15,11 +15,11 @@ module OperatorBriefing
 
       class << self
         def call(server_context:, query: nil)
-          run = Mcp::Tools.run_from_context(server_context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
           topics = BriefingTopic.where(repository: run.job.repository).order(updated_at: :desc, id: :desc)
           topics = topics.where("title LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(query.to_s)}%") if query.present?
 
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             topics: topics.limit(25).map { |topic| topic_payload(topic) }
           )
         end

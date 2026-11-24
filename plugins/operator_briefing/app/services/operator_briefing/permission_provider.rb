@@ -1,8 +1,8 @@
 module OperatorBriefing
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = (AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT ]).uniq.freeze
+    ROLES = (Syrus::Host::AgentRole::WORKFLOW_ROLES + [ Syrus::Host::AgentRole::AGENT_INSIGHT ]).uniq.freeze
     CAPABILITY = "operator_briefing.evidence@v1"
     MUTATIONS = %w[submit_briefing_block submit_dive_report].freeze
     TOOLS = (MUTATIONS + %w[read_briefing_git_diff list_briefing_recent_workflows read_briefing list_briefing_topics read_briefing_topic]).freeze

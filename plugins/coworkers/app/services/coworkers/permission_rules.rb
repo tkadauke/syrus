@@ -125,7 +125,7 @@ module Coworkers
           required_roles: entry.required_roles, admin_only: entry.admin_only
         ))
       elsif tool.definition
-        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
+        Syrus::Host::CapabilityDescriptor.for_plugin_definition(tool.definition)
       end
     end
 
@@ -143,7 +143,7 @@ module Coworkers
       grant = Coworkers::GrantCatalog.fetch(capability)
       [ Permissions::CapabilityDescriptorAdapter.for_registry_entry(
         tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
-        required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+        required_roles: [ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ],
         default_policy: POLICY.fetch(grant.default_policy).to_sym
       ) ]
     end

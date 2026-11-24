@@ -11,7 +11,7 @@ class Coworkers::SpawnChat
   def call
     chat = nil
     message = nil
-    ApplicationRecord.transaction do
+    Syrus::Host::Record.transaction do
       chat = ChatSession.create!(user: @coworker.owner_user, repository: @coworker.workspace_repository,
         title: @title, last_message_at: Time.current, conversation_kind: "direct", **@coworker.chat_configuration)
       Coworkers::Chat.create!(coworker: @coworker, chat_session: chat, role: "side")

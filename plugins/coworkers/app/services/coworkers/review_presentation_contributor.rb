@@ -1,5 +1,5 @@
 class Coworkers::ReviewPresentationContributor
-  include Syrus::Plugin::ReviewPresentationContributor
+  include Syrus::Host::ReviewPresentationContributor
 
   def self.target_editors
     [ contribution("target_editor", "CoworkerTargetEditor", "review_target_editor").merge(

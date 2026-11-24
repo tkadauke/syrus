@@ -10,7 +10,7 @@ module Coworkers
     class << self
       def call(critique:, verdict:, server_context:, key_learning: nil)
         run = ::Mcp::Tools.run_from_context(server_context)
-        context = McpToolContext.from_run(run)
+        context = Syrus::Host::ToolContext.from_run(run)
         return ::Mcp::Tools.not_authorized unless Coworkers::ReviewToolSet::SUBMIT_ROLES.include?(context.role)
         critique = ::Mcp::Tools.utf8(critique).strip
         verdict = ::Mcp::Tools.utf8(verdict).strip

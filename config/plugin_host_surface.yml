@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 428
+legacy_baseline: 397
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -23,9 +23,7 @@ constants:
 - name: AgentRole::COWORKER
 - name: AgentRole::COWORKER_CHAT
 - name: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-- name: AgentRole::WORKFLOW_COWORKER_REVIEWER
 - name: AgentRole::WORKFLOW_IMPLEMENT
-- name: AgentRole::WORKFLOW_MANUAL
 - name: AgentRole::WORKFLOW_ROLES
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
 - name: AgentSidecarEnvironment
@@ -132,15 +130,12 @@ constants:
 - name: Filters::UnknownFilterField
 - name: FtsQueryParser
 - name: GitMergeDrivers
-- name: GitRunner
-- name: GitRunner::GitError
 - name: GithubApiUsageRollup
 - name: GithubAuthenticatedGit
 - name: GithubClient
 - name: GithubIssueJobAttributes
 - name: Handle
 - name: Handle::FORMAT
-- name: HandleRegistry
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
 - name: IngestIssueImagesJob
@@ -276,12 +271,6 @@ constants:
 - name: Repository
 - name: RepositoryBareClone
 - name: RepositoryContent
-- name: RepositoryContent::Error
-- name: RepositoryContent::NotFound
-- name: RepositoryContent::Truncated
-- name: RepositoryContent::Unavailable
-- name: RepositoryContent::UnknownRevision
-- name: RepositoryContent::Unsupported
 - name: RepositoryMembership
 - name: RepositoryPolicy
 - name: RepositorySummarySerialization
@@ -291,9 +280,6 @@ constants:
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
 - name: ReviewEvidence::VerdictSubmission
-- name: ReviewerTargets
-- name: ReviewerTargets::TargetRequired
-- name: ReviewerTargets::TargetUnavailable
 - name: Run
 - name: Run::ACTIVE_STATES
 - name: RunDiff
@@ -337,42 +323,28 @@ constants:
 - name: Syrus::Plugin::AdminPage
 - name: Syrus::Plugin::AgentProvider::ModelInfo
 - name: Syrus::Plugin::Callbacks
-- name: Syrus::Plugin::ChatIdentityProvider
 - name: Syrus::Plugin::ChatJobStatusExtension
 - name: Syrus::Plugin::ChatMcpToolSet
 - name: Syrus::Plugin::ChatMediaSource
 - name: Syrus::Plugin::ChatPayloadContributor
 - name: Syrus::Plugin::ChatPromptInjector
 - name: Syrus::Plugin::ChatProvider
-- name: Syrus::Plugin::ChatTurnFinalizer
-- name: Syrus::Plugin::ChatTurnLifecycle
 - name: Syrus::Plugin::ChatTurnOrientation
-- name: Syrus::Plugin::ChatWorkspaceLifecycle
 - name: Syrus::Plugin::CliCommandHandler
-- name: Syrus::Plugin::DiffReviewAnnotationProvider
 - name: Syrus::Plugin::DomainSubscriber
 - name: Syrus::Plugin::ExecutionBackend
 - name: Syrus::Plugin::GraderFailureSummarizer
 - name: Syrus::Plugin::InputSource
 - name: Syrus::Plugin::JobOrigin
-- name: Syrus::Plugin::JobVisibilityRestriction
-- name: Syrus::Plugin::McpRunContextContributor
 - name: Syrus::Plugin::McpToolSet
 - name: Syrus::Plugin::MemoryStore
 - name: Syrus::Plugin::PermissionProvider
 - name: Syrus::Plugin::PlatformDelivery
-- name: Syrus::Plugin::PostImplementationReviewProvider
 - name: Syrus::Plugin::PreviewPanelRetention
 - name: Syrus::Plugin::PurgeContributor
 - name: Syrus::Plugin::RepoPageTab
-- name: Syrus::Plugin::RepositoryConfiguration
-- name: Syrus::Plugin::RepositoryFilter
 - name: Syrus::Plugin::RepositoryRecommendation
 - name: Syrus::Plugin::RetentionPolicy
-- name: Syrus::Plugin::ReviewContextContributor
-- name: Syrus::Plugin::ReviewGate
-- name: Syrus::Plugin::ReviewPresentationContributor
-- name: Syrus::Plugin::ReviewerTargetProvider
 - name: Syrus::Plugin::RuntimeSessionProvider
 - name: Syrus::Plugin::SidebarPage
 - name: Syrus::Plugin::SourceControlProvider
@@ -391,7 +363,6 @@ constants:
 - name: SyrusVersion
 - name: SyrusYml
 - name: SyrusYml::CONFIG_FILE
-- name: SyrusYml::ParseError
 - name: SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV
 - name: Team
 - name: TeamMembership
@@ -412,7 +383,6 @@ constants:
 - name: User::DASHBOARD_REQUIRED_COLUMNS
 - name: ValidatesAgentProvider
 - name: WorkDefinitions::Base
-- name: WorkUnits::GateResult
 - name: WorkUnits::Launcher
 - name: WorkUnits::Launcher::LockConflict
 - name: WorkerCapabilities
@@ -427,7 +397,6 @@ constants:
 - name: WorkflowVisualEvidence
 - name: WorkflowWarnings
 - name: WorkflowWorkspace
-- name: WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT
 - name: Workflows::Base
 - name: WorkspaceDependencyEnv
 - name: WorkspaceReuseOutcomes::Summary

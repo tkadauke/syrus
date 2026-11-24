@@ -1,5 +1,5 @@
 class Coworkers::ReviewContextContributor
-  include Syrus::Plugin::ReviewContextContributor
+  include Syrus::Host::ReviewContextContributor
 
   def self.target_type = "coworker"
 
@@ -48,7 +48,7 @@ class Coworkers::ReviewContextContributor
   end
 
   def self.resolve(target, run)
-    ReviewerTargets.resolve(
+    Syrus::Host::ReviewerTargetResolver.resolve(
       target,
       owner: run.job.owner_user || run.job.user,
       repository: run.job.repository

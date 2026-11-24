@@ -1,6 +1,6 @@
 module TeamDirectory
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     # A directory of one person is not a directory. The nav entry stayed
     # hidden below two users when this was a core nav item; keep that.

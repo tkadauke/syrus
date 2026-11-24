@@ -6,7 +6,7 @@ class Coworkers::CreatePreflight
                  remote_workspace: nil, test_push: true)
     @owner = owner
     @name = name
-    @handle = HandleRegistry.normalize(handle)
+    @handle = Syrus::Host::HandleRegistry.normalize(handle)
     @workspace_repo = workspace_repo
     @attributes = { accent_hex: accent_hex, avatar_key: avatar_key, chat_provider: chat_provider,
                     chat_model: chat_model, chat_effort: chat_effort }.compact

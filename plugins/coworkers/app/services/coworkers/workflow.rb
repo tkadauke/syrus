@@ -7,7 +7,7 @@ module Coworkers
 
     def self.instantiate(job:, artifacts: nil, **options)
       coworker = Coworkers::Coworker.find(job.origin_id)
-      branch_artifact = { WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT => "coworkers/#{coworker.handle}" }
+      branch_artifact = { Syrus::Host::WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT => "coworkers/#{coworker.handle}" }
       super(job:, artifacts: branch_artifact.merge(artifacts.to_h), **options)
     end
 

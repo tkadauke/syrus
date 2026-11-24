@@ -72,7 +72,7 @@ module Coworkers
       if entry.tool
         McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == entry.tool }&.descriptor
       elsif entry.definition
-        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(entry.definition)
+        Syrus::Host::CapabilityDescriptor.for_plugin_definition(entry.definition)
       end
     end
 

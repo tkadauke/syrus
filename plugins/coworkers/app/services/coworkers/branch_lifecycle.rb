@@ -6,7 +6,7 @@ class Coworkers::BranchLifecycle
   end
 
   def rename!(handle:)
-    normalized = HandleRegistry.normalize(handle)
+    normalized = Syrus::Host::HandleRegistry.normalize(handle)
     return @coworker if normalized == @coworker.handle
 
     candidate = @coworker.dup
@@ -23,9 +23,9 @@ class Coworkers::BranchLifecycle
       ensure_idle!
       @remote.copy!(source: old_branch, destination: new_branch, guard: RenameGuard.new(guard, destination_guard))
       begin
-        ApplicationRecord.transaction do
+        Syrus::Host::Record.transaction do
           @coworker.update_columns(handle: normalized)
-          HandleRegistry.rename!(owner: @coworker, handle: normalized)
+          Syrus::Host::HandleRegistry.rename!(owner: @coworker, handle: normalized)
           @remote.guarded_delete!(old_branch, guard: guard)
         end
       rescue StandardError => error
@@ -46,7 +46,7 @@ class Coworkers::BranchLifecycle
       destination = available_archive_branch
       @remote.copy!(source:, destination:, guard: guard)
       begin
-        ApplicationRecord.transaction do
+        Syrus::Host::Record.transaction do
           @coworker.destroy!
           @remote.guarded_delete!(source, guard: guard)
         end

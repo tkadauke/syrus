@@ -5,7 +5,7 @@ module Api
         class FeedbacksController < BaseController
           def create
             feedback = ::OperatorBriefing::Feedback.create!(
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               briefing: briefing,
               briefing_item: briefing_item,
               sentiment: feedback_params[:sentiment].presence,
@@ -25,7 +25,7 @@ module Api
             return @briefing if defined?(@briefing)
 
             @briefing = if feedback_params[:briefing_id].present?
-              ::OperatorBriefing::Briefing.where(owner_user: Current.user).find(feedback_params[:briefing_id])
+              ::OperatorBriefing::Briefing.where(owner_user: Syrus::Host::Current.user).find(feedback_params[:briefing_id])
             elsif briefing_item
               briefing_item.briefing
             end
@@ -36,7 +36,7 @@ module Api
 
             @briefing_item = if feedback_params[:briefing_item_id].present?
               ::OperatorBriefing::BriefingItem.joins(:briefing)
-                .where(operator_briefing_briefings: { owner_user_id: Current.user.id })
+                .where(operator_briefing_briefings: { owner_user_id: Syrus::Host::Current.user.id })
                 .find(feedback_params[:briefing_item_id])
             end
           end

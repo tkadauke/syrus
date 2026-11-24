@@ -5,7 +5,7 @@ class Coworkers::WorkspaceFileTools::Base < MCP::Tool
     def safely
       yield
     rescue Coworkers::Workspace::InvalidPath, SystemCallError => e
-      Mcp::Tools.invalid(e.message)
+      Syrus::Host::McpTools.invalid(e.message)
     end
   end
 end

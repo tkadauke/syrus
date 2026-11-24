@@ -1,5 +1,5 @@
 class Coworkers::RepositoryFilter
-  include Syrus::Plugin::RepositoryFilter
+  include Syrus::Host::RepositoryFilter
 
   def self.apply(scope:, user:)
     workspace_slugs = Coworkers::Coworker.where(owner_user: user).pluck(:workspace_repo).filter_map do |remote|

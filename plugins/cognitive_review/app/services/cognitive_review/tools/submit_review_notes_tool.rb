@@ -51,18 +51,18 @@ module CognitiveReview
         end
 
         def call(notes:, server_context:)
-          run = Mcp::Tools.run_from_context(server_context)
-          context = McpToolContext.from_run(run)
-          return Mcp::Tools.unauthorized("submit_review_notes is only available to post-implementation review runs") unless CognitiveReview::McpToolSet.available_for_context?(context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
+          context = Syrus::Host::ToolContext.from_run(run)
+          return Syrus::Host::McpTools.unauthorized("submit_review_notes is only available to post-implementation review runs") unless CognitiveReview::McpToolSet.available_for_context?(context)
 
           normalized = normalize_notes(notes)
-          return Mcp::Tools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
+          return Syrus::Host::McpTools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
           version = DiffReviewVersions::FinalReviewVersion.resolve(job: run.job, workflow: run.workflow, run: run)
-          return Mcp::Tools.invalid("No diff review version is available for this run/workflow.") unless version
+          return Syrus::Host::McpTools.invalid("No diff review version is available for this run/workflow.") unless version
 
           if normalized.empty?
             CognitiveReview::Artifact.append!(run: run, notes: [], diff_review_version: version)
-            Mcp::Tools.write_log(run, "[mcp] submit_review_notes received: 0 note(s)")
+            Syrus::Host::McpTools.write_log(run, "[mcp] submit_review_notes received: 0 note(s)")
             return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 review note(s)." } ])
           end
 
@@ -74,11 +74,11 @@ module CognitiveReview
             )
           end
           CognitiveReview::Artifact.append!(run: run, notes: normalized, diff_review_version: version)
-          Mcp::Tools.write_log(run, "[mcp] submit_review_notes received: #{saved_notes.size} note(s)")
+          Syrus::Host::McpTools.write_log(run, "[mcp] submit_review_notes received: #{saved_notes.size} note(s)")
 
           MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} review note(s)." } ])
         rescue ArgumentError, ActiveRecord::RecordInvalid => e
-          Mcp::Tools.invalid(e.message)
+          Syrus::Host::McpTools.invalid(e.message)
         rescue StandardError => e
           Rails.logger.error("[CognitiveReview::Tools::SubmitReviewNotesTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
@@ -129,7 +129,7 @@ module CognitiveReview
         end
 
         def text(value, max: MAX_TEXT_LENGTH)
-          Mcp::Tools.utf8(value).strip.truncate(max)
+          Syrus::Host::McpTools.utf8(value).strip.truncate(max)
         end
 
         def positive_integer(value)

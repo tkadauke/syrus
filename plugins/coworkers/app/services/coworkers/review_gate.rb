@@ -3,7 +3,7 @@ module Coworkers
   # ordering and loop mechanics; this provider owns enablement, round budget,
   # and the execution metadata.
   class ReviewGate
-    include Syrus::Plugin::ReviewGate
+    include Syrus::Host::ReviewGate
 
     def self.review_gates
       [

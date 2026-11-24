@@ -2,7 +2,7 @@ module Coworkers
   class ReviewStep < Steps::AdversarialReview
     MemoryPersistenceFailed = Steps::AdversarialReview::MemoryPersistenceFailed
     def call
-      raise ReviewerTargets::TargetRequired, "coworker_review requires a pinned reviewer target" if step.details.to_h["reviewer_target"].blank?
+      raise Syrus::Host::ReviewerTargetRequired, "coworker_review requires a pinned reviewer target" if step.details.to_h["reviewer_target"].blank?
       super
     end
     private
@@ -27,7 +27,7 @@ module Coworkers
     end
     def coworker_review_config
       SyrusYml.load_repo(workspace.path).plugin_configurations[Coworkers::ReviewPlan::KEY]
-    rescue SyrusYml::ParseError, Errno::ENOENT
+    rescue Syrus::Host::SyrusYmlParseError, Errno::ENOENT
       nil
     end
   end

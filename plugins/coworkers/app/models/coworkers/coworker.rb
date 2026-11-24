@@ -1,4 +1,4 @@
-class Coworkers::Coworker < ApplicationRecord
+class Coworkers::Coworker < Syrus::Host::Record
   # Opts in as an exact-agent permission rule subject (see Permissions::RuleDraft).
   def self.permission_agent_subject? = true
   self.table_name = "coworkers"
@@ -19,7 +19,7 @@ class Coworkers::Coworker < ApplicationRecord
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
-  normalizes :handle, with: ->(value) { HandleRegistry.normalize(value) }
+  normalizes :handle, with: ->(value) { Syrus::Host::HandleRegistry.normalize(value) }
 
   validates :name, :workspace_repo, presence: true
   validates :handle, presence: true, format: { with: Handle::FORMAT }, uniqueness: { case_sensitive: false }
@@ -94,9 +94,9 @@ class Coworkers::Coworker < ApplicationRecord
     used = self.class.where(owner_user_id: owner_user_id).where.not(id: id).pluck(:accent_hex)
     self.accent_hex = Appearance::ColorPalette.next_default_color(used) || Appearance::ColorPalette.default_agent_order.first
   end
-  def claim_handle! = HandleRegistry.claim!(handle: handle, owner: self)
-  def rename_handle! = HandleRegistry.rename!(owner: self, handle: handle)
-  def release_handle! = HandleRegistry.release!(owner: self)
+  def claim_handle! = Syrus::Host::HandleRegistry.claim!(handle: handle, owner: self)
+  def rename_handle! = Syrus::Host::HandleRegistry.rename!(owner: self, handle: handle)
+  def release_handle! = Syrus::Host::HandleRegistry.release!(owner: self)
 
   def avatar_is_image
     return unless avatar.attached?

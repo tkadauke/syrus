@@ -35,16 +35,16 @@ module AlertmanagerInvestigations
       return nil unless safe_path?(location.path)
       return nil unless @configuration.runbook_allowed?(repository, location.path)
 
-      content = RepositoryContent.for(repository)
+      content = Syrus::Host::ContentReader.for(repository)
       revision = content.resolve(repository.default_branch)
       blob = content.read(revision, location.path, max_bytes: MAX_RUNBOOK_BYTES)
       return nil if blob.truncated
       return nil unless opted_in?(blob.text)
 
       Result.new(repository: repository, ref: revision.ref || location.ref, path: location.path, content: blob.text)
-    rescue RepositoryContent::NotFound
+    rescue Syrus::Host::ContentNotFound
       nil
-    rescue RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision => e
+    rescue Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnsupported, Syrus::Host::ContentUnknownRevision => e
       Rails.logger.warn("[AlertmanagerInvestigations] runbook unavailable for #{@url}: #{e.class}: #{e.message}")
       nil
     end
