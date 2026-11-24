@@ -264,4 +264,20 @@ final class PushTests: XCTestCase {
         XCTAssertTrue(serverRow(.init(apnsConfigured: true, devices: [device(env: "production")])).value.hasPrefix("Environment mismatch"))
         XCTAssertEqual(serverRow(.init(apnsConfigured: true, devices: [device()])).status, .ok)
     }
+
+    func testRefreshDiagnosticsReprobesAfterFreshRegistration() async {
+        let coordinator = PushCoordinator(defaults: UserDefaults(suiteName: "push-refresh-test")!)
+        coordinator.service.update(token: "00112233aabbcc")
+        let performer = FakePerformer()
+        performer.statuses = [200, 201, 200]
+        performer.bodies = [
+            #"{"apns_configured":true,"mobile_devices":[]}"#,
+            "",
+            #"{"apns_configured":true,"mobile_devices":[{"id":4,"apns_environment":"sandbox","token_suffix":"aabbcc","disabled_at":null,"disabled_reason":null}]}"#,
+        ]
+        await coordinator.refreshDiagnostics(server: server, via: performer)
+        XCTAssertEqual(performer.requests.map(\.method), ["GET", "POST", "GET"])
+        guard case .signedIn(let state) = coordinator.probe else { return XCTFail("expected signed in") }
+        XCTAssertEqual(state.device(matching: "00112233aabbcc")?.id, 4)
+    }
 }
