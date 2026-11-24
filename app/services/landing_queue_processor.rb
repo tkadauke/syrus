@@ -677,7 +677,8 @@ class LandingQueueProcessor
   # The lane keys the freshly dispatched unit actually holds, falling back to
   # the first lane when the unit holds none yet.
   def claimed_lane_keys(workflow, lane_keys)
-    held = workflow.work_unit&.work_unit_locks&.active&.pluck(:lock_key).to_a & lane_keys
+    unit = workflow.respond_to?(:work_unit) ? workflow.work_unit : nil
+    held = unit&.work_unit_locks&.active&.pluck(:lock_key).to_a & lane_keys
     held.presence || lane_keys.first(1)
   end
 
