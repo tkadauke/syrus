@@ -14,7 +14,13 @@ module Achievements
     category "tooling"
     default_enabled false
     disableable true
-    lifecycle callback_providers: "Achievements::Callbacks"
+    lifecycle callback_providers: "Achievements::Callbacks", domain_subscribers: "Achievements::Subscribers"
+    route :get, "/api/v1/app/achievements", to: "api/v1/app/achievements#index"
+    route :get, "/api/v1/app/achievements/pending", to: "api/v1/app/achievements#pending"
+    route :post, "/api/v1/app/achievements/reset_acknowledgments", to: "api/v1/app/achievements#reset_acknowledgments"
+    route :post, "/api/v1/app/achievements/:id/acknowledge", to: "api/v1/app/achievements#acknowledge"
+    route :post, "/api/v1/app/achievements/:id/replay", to: "api/v1/app/achievements#replay"
+    route :post, "/api/v1/app/admin/achievements/reset_acknowledgments", to: "api/v1/app/admin/achievements#reset_acknowledgments"
 
     # Disabling hides the feature but keeps the rows; they still have to go when
     # the user or subject they describe is destroyed, so this is `always`.

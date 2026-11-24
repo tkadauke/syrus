@@ -6,21 +6,21 @@ module Achievements
     def self.definitions
       [
         Definition.build(
-          key: "example.first_job_landed", scope: :user, trigger: "job.landed",
+          key: "example.first_job_landed", scope: :user, trigger: "job.closed",
           evaluator: "Achievements::Evaluators::FirstOccurrence", subject_kinds: %i[job],
           category: :landing, rarity: :common,
           presentation: { title_key: "achievements:example.first_job_landed.title",
                           description_key: "achievements:example.first_job_landed.description" }
         ),
         Definition.build(
-          key: "example.first_epic_landed", scope: :instance, trigger: "epic.landed",
+          key: "example.first_epic_landed", scope: :instance, trigger: "epic.upserted",
           evaluator: "Achievements::Evaluators::FirstOccurrence", subject_kinds: %i[epic],
           category: :milestone, rarity: :rare,
           presentation: { title_key: "achievements:example.first_epic_landed.title",
                           description_key: "achievements:example.first_epic_landed.description" }
         ),
         Definition.build(
-          key: "example.secret_milestone", scope: :instance, trigger: "job.landed",
+          key: "example.secret_milestone", scope: :instance, trigger: "job.closed",
           evaluator: "Achievements::Evaluators::Threshold", subject_kinds: %i[job epic],
           category: :milestone, rarity: :legendary, visibility: :hidden,
           presentation: { title_key: "achievements:example.secret_milestone.title" }
