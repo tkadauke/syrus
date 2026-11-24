@@ -27,6 +27,21 @@ RSpec.describe Achievements::Unlock do
     expect(unlock).to have_attributes(user_id: nil, owner_key: "instance", scope: "instance")
   end
 
+  it "records a definition that exists only in the supplied registry" do
+    custom = Achievements::Definition.build(
+      key: "custom.only_here", scope: :user, trigger: "job.landed",
+      evaluator: "Achievements::Evaluators::FirstOccurrence", subject_kinds: %i[job],
+      category: :landing, rarity: :common
+    )
+    registry = Achievements::Registry.new([ custom ])
+
+    unlock, created = described_class.record!("custom.only_here", user_id: user.id, subject: Factories.job, registry: registry)
+
+    expect(created).to be(true)
+    expect(unlock).to be_persisted
+    expect(Achievements::Registry.default.find("custom.only_here")).to be_nil
+  end
+
   it "enforces uniqueness in the database" do
     described_class.record!("example.first_job_landed", user_id: user.id)
     duplicate = described_class.new(definition_key: "example.first_job_landed", definition_version: 1, scope: "user",
