@@ -118,6 +118,7 @@ import { keyboardVisualViewport } from "../lib/visualViewport"
 import { ApiVersionBanner } from "../components/ApiVersionBanner"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
+const SYSTEM_ALERT_REFRESH_INTERVAL_MS = 30_000
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
 const MAINTENANCE_SIDEBAR_STATE_KEY = "syrus.maintenance_sidebar.state"
 const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
@@ -301,7 +302,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     queryFn: fetchBootstrap,
     enabled: shouldLoadChromeBootstrap,
     initialData: initialBootstrap ?? undefined,
-    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0,
+    // Poll only while a system alert is showing so a recovered condition
+    // (e.g. plugin fleet convergence) clears the banner without a reload.
+    refetchInterval: (query) => (query.state.data?.system_alerts?.length ? SYSTEM_ALERT_REFRESH_INTERVAL_MS : false)
   })
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
