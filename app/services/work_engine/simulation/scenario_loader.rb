@@ -199,7 +199,7 @@ module WorkEngine
 
       def create_main_branch_health_checks!(repository, definitions)
         Array(definitions).each_with_index do |attrs, index|
-          MainBranchHealthCheck.create!(
+          BaseBranchHealth.checks.create!(
             repository: repository,
             sha: attrs.fetch("sha"),
             checked_at: parse_optional_time(attrs["checked_at"]) || (Time.current - (definitions.length - index).minutes),

@@ -5,6 +5,9 @@ require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
+require "syrus/host/work_gate"
+require "syrus/host/repair_classifier"
+require "syrus/host/base_branch_health"
 require "syrus/host/external_reviewer"
 %w[
   agent_provider callbacks permission_provider repository_content_provider
@@ -49,7 +52,52 @@ module Syrus
         CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError",
         EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
-        EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan"
+        EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan",
+        Adjudication: "Adjudication",
+        AutoRetryAttempt: "AutoRetryAttempt",
+        BaseRevisionRetry: "BaseRevisionRetry",
+        DeliveryPolicy: "DeliveryPolicy",
+        GithubPollingRateLimitGuard: "GithubPollingRateLimitGuard",
+        GraderConclusion: "GraderConclusion",
+        GraderFailureSignal: "GraderFailureSignal",
+        GraderLoopProgressNoProgressReason: "GraderLoopProgress::NO_PROGRESS_REASON",
+        GraderLoopProgressStopArtifactKey: "GraderLoopProgress::STOP_ARTIFACT_KEY",
+        GraderOutcome: "GraderOutcome",
+        InstanceIdentity: "InstanceIdentity",
+        JobMainBranchRepairTitle: "Job::MAIN_BRANCH_REPAIR_TITLE",
+        JobMainGraderClosureReason: "Job::MAIN_GRADER_CLOSURE_REASON",
+        JobPriorityToSq: "Job::PRIORITY_TO_SQ",
+        JobSystemKindMainBranchRepair: "Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR",
+        LandingQueueProcessor: "LandingQueueProcessor",
+        LandingValidationManifest: "LandingValidationManifest",
+        NotificationService: "NotificationService",
+        PromptsGradeFailureFeedback: "Prompts::GradeFailureFeedback",
+        RebaseTarget: "RebaseTarget",
+        RebaseWorkflowSelector: "RebaseWorkflowSelector",
+        RetryWorkflowEnqueuer: "RetryWorkflowEnqueuer",
+        StepDispatcher: "StepDispatcher",
+        StepsGraderFanoutTargetSelectionsArtifactKey: "Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY",
+        SyrusYmlDefaultGradeFailurePolicy: "SyrusYml::DEFAULT_GRADE_FAILURE_POLICY",
+        SyrusYmlGradeFailurePolicies: "SyrusYml::GRADE_FAILURE_POLICIES",
+        SystemAlerts: "SystemAlerts",
+        TargetHealthRecord: "TargetHealthRecord",
+        TestEvidenceLookup: "TestEvidenceLookup",
+        WorkDefinitionsAgentConcurrencyExempt: "WorkDefinitions::AgentConcurrencyExempt",
+        WorkDefinitionsCheckpointPreemptable: "WorkDefinitions::CheckpointPreemptable",
+        WorkDefinitionsManagesOwnJobLifecycle: "WorkDefinitions::ManagesOwnJobLifecycle",
+        WorkDefinitionsOpensReviewPullRequest: "WorkDefinitions::OpensReviewPullRequest",
+        WorkDefinitionsRecordsGraderTargetSelectionInputs: "WorkDefinitions::RecordsGraderTargetSelectionInputs",
+        WorkDefinitionsResumesFailedSteps: "WorkDefinitions::ResumesFailedSteps",
+        WorkEngineReconciler: "WorkEngine::Reconciler",
+        WorkUnit: "WorkUnit",
+        WorkUnitsOwnershipActiveStates: "WorkUnits::Ownership::ACTIVE_STATES",
+        WorkUnitsWorkflowBlockProjection: "WorkUnits::WorkflowBlockProjection",
+        WorkflowPhaseAdmissionJob: "WorkflowPhaseAdmissionJob",
+        WorkflowSourceSnapshots: "WorkflowSourceSnapshots",
+        WorkGate: "Syrus::Plugin::WorkGate",
+        RepairClassifier: "Syrus::Plugin::RepairClassifier",
+        BaseBranchHealth: "Syrus::Plugin::BaseBranchHealth",
+        WorkPolicyVeto: "Syrus::Plugin::WorkPolicy::Veto"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -85,7 +133,52 @@ module Syrus
         CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ],
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
-        EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ]
+        EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ],
+        Adjudication: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[dismiss inconclusive] ],
+        AutoRetryAttempt: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[pending] ],
+        BaseRevisionRetry: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[call] ],
+        DeliveryPolicy: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[for] ],
+        GithubPollingRateLimitGuard: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        GraderConclusion: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        GraderFailureSignal: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[timeout_like_step? timeout_only_latest_failure?] ],
+        GraderLoopProgressStopArtifactKey: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        GraderLoopProgressNoProgressReason: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        GraderOutcome: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[CANCELLED for_step] ],
+        InstanceIdentity: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[for_repository] ],
+        JobMainBranchRepairTitle: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        JobMainGraderClosureReason: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        JobPriorityToSq: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[fetch] ],
+        JobSystemKindMainBranchRepair: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        LandingQueueProcessor: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[try_land!] ],
+        LandingValidationManifest: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[manifest_for_landed_sha record_main_parity!] ],
+        NotificationService: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[create_for] ],
+        PromptsGradeFailureFeedback: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[new] ],
+        RebaseTarget: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[artifacts] ],
+        RebaseWorkflowSelector: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[active_for_stack? active_merge_train_for_stack? instantiate] ],
+        RetryWorkflowEnqueuer: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[call] ],
+        StepDispatcher: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[MAIN_HEALTH_BLOCK_REASON MAIN_HEALTH_EXEMPT_TRIGGERS START_BLOCKED_BACKOFF main_health_blocking?] ],
+        StepsGraderFanoutTargetSelectionsArtifactKey: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        SyrusYmlDefaultGradeFailurePolicy: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        SyrusYmlGradeFailurePolicies: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        SystemAlerts: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[send] ],
+        TargetHealthRecord: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[latest_for_reusable_inputs] ],
+        TestEvidenceLookup: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[failed_grader_steps failed_test_cases_for] ],
+        WorkDefinitionsAgentConcurrencyExempt: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkDefinitionsCheckpointPreemptable: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkDefinitionsManagesOwnJobLifecycle: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkDefinitionsOpensReviewPullRequest: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkDefinitionsRecordsGraderTargetSelectionInputs: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkDefinitionsResumesFailedSteps: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkEngineReconciler: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[request] ],
+        WorkUnit: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkUnitsOwnershipActiveStates: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkUnitsWorkflowBlockProjection: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[record!] ],
+        WorkflowPhaseAdmissionJob: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[enqueue_once] ],
+        WorkflowSourceSnapshots: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[current_for] ],
+        WorkGate: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        BaseBranchHealth: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        RepairClassifier: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        WorkPolicyVeto: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[new] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {
@@ -120,6 +213,9 @@ module Syrus
         private
 
         def install_aliases!
+          # The WorkDefinitions policy mixins live in built_ins.rb, which Zeitwerk
+          # does not map to their constant names.
+          require_dependency "work_definitions/built_ins"
           ALIASES.each do |name, target_name|
             Host.send(:remove_const, name) if Host.const_defined?(name, false)
             Host.const_set(name, target_name.constantize)

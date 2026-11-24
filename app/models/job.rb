@@ -1802,11 +1802,7 @@ class Job < ApplicationRecord
   end
 
   def ensure_main_branch_repair_after_close
-    if closure_reason.in?(%w[pr_merged external_pr_merged])
-      MainHealthChangedService.repair_landed!(repository, job: self)
-    else
-      MainHealthChangedService.ensure_repair_job!(repository)
-    end
+    BaseBranchHealth.repair_job_closed(self)
   end
 
   def enqueue_urgent_job_closed
@@ -1843,7 +1839,7 @@ class Job < ApplicationRecord
   end
 
   def auto_approve_main_branch_repair_after_implementation
-    MainBranchRepairAutoApprover.call(self)
+    BaseBranchHealth.repair_job_implemented(self)
   end
 
   def notify_job_implemented

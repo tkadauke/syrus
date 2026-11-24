@@ -18,10 +18,6 @@ default: &default
     class: PollAllInputSourcesJob
     queue: polling
     schedule: every 5 minutes
-  poll_main_branch_health:
-    class: PollAllMainBranchHealthJob
-    queue: polling
-    schedule: every 5 minutes
   poll_pull_requests:
     class: PollAllPullRequestsJob
     queue: polling

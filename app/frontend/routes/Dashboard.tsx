@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { PluginUiSlot } from "../pluginUiSlots"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
@@ -30,7 +31,6 @@ import { Checkbox } from "../components/Checkbox"
 import { DataTableColumnMenu } from "../components/dataTable"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
-import { CloseIcon } from "../components/CloseIcon"
 import { ColumnsIcon } from "../components/ColumnsIcon"
 import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
@@ -50,9 +50,7 @@ import {
   fetchJobsGraph,
   mergeDashboardPayload,
   recordDashboardFilterUsage,
-  requestDashboardMainBranchRepair,
   updateDashboardPreferences,
-  type DashboardHealthBlockedRepository,
   type DashboardEpicItem,
   type DashboardJobItem,
   type DashboardPayload,
@@ -256,7 +254,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </Page.Header>
       <ReadinessPanel className={marginGutterRestore} prefix={prefix} readiness={readiness} />
-      <RepositoryHealthBanners className={marginGutterRestore} prefix={prefix} repositories={payload.health_blocked_repositories ?? []} />
+      <PluginUiSlot panels={payload.banner_panels} props={{ className: marginGutterRestore, prefix }} />
 
       {isDesktop ? (
         <>
@@ -363,157 +361,6 @@ export function ReadinessPanel({ className = "", prefix, readiness }: { classNam
         ))}
       </div>
     </Section.Root>
-  )
-}
-
-const HEALTH_BANNER_DISMISSALS_KEY = "syrus.health_banner_dismissals"
-
-function healthBannerEvidenceToken(repo: DashboardHealthBlockedRepository): string {
-  return `${repo.ci_health}:${repo.grader_health}`
-}
-
-function readHealthBannerDismissals(): Record<string, string> {
-  try {
-    const raw = window.localStorage.getItem(HEALTH_BANNER_DISMISSALS_KEY)
-    const value = raw ? JSON.parse(raw) : {}
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeHealthBannerDismissals(dismissals: Record<string, string>): void {
-  try {
-    window.localStorage.setItem(HEALTH_BANNER_DISMISSALS_KEY, JSON.stringify(dismissals))
-  } catch {
-    // localStorage can be unavailable in private or restricted browser contexts.
-  }
-}
-
-export function RepositoryHealthBanners({
-  className = "",
-  prefix,
-  repositories
-}: {
-  className?: string
-  prefix: string
-  repositories: DashboardHealthBlockedRepository[]
-}) {
-  const { t } = useT("dashboard")
-  const queryClient = useQueryClient()
-  const [dismissals, setDismissals] = useState<Record<string, string>>(() => readHealthBannerDismissals())
-  const requestRepair = useMutation({
-    mutationFn: requestDashboardMainBranchRepair,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
-    }
-  })
-  const visible = repositories.filter((repo) => dismissals[repo.id] !== healthBannerEvidenceToken(repo))
-
-  if (visible.length === 0) return null
-
-  return (
-    <div className={`${className} space-y-2`}>
-      {visible.map((repo) => {
-        const repair = repo.main_branch_repair
-        const blockingJob = repair?.blocking_job
-        const failedJobs = repair?.failed_jobs ?? []
-        const isStartingRepair = requestRepair.isPending && requestRepair.variables === repo.repair_path
-        const repairError =
-          requestRepair.isError && requestRepair.variables === repo.repair_path
-            ? requestRepair.error instanceof Error
-              ? requestRepair.error.message
-              : t("broken_main_repair_start_failed")
-            : null
-
-        return (
-          <Notice
-            className="px-4 py-3"
-            contentClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-            key={repo.id}
-            role="alert"
-            tone="danger"
-          >
-            <div className="min-w-0">
-              <span>
-                <span className="font-mono font-medium">{repo.slug}</span>
-                {" — "}
-                {t(
-                  repo.main_health === "inconclusive"
-                    ? "main_health_inconclusive_banner_not_held"
-                    : repo.landing_paused && repo.main_branch_repair_blocks_work
-                      ? "broken_main_banner"
-                      : "broken_main_banner_not_held"
-                )}
-              </span>
-              {repair ? (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                  {blockingJob ? (
-                    <span>
-                      {t(
-                        repair.blocked_reason === "active"
-                          ? "broken_main_repair_active"
-                          : repair.blocked_reason === "landing"
-                            ? "broken_main_repair_landing"
-                            : "broken_main_repair_waiting"
-                      )}{" "}
-                      <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(blockingJob.job_path, prefix)}>
-                        {blockingJob.slug}
-                      </Link>
-                    </span>
-                  ) : null}
-                  {failedJobs.length > 0 ? (
-                    <span>
-                      {t("broken_main_repair_failed_jobs")}{" "}
-                      {failedJobs.map((job, index) => (
-                        <span key={job.id}>
-                          {index > 0 ? ", " : null}
-                          <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(job.job_path, prefix)}>
-                            {job.slug}
-                          </Link>
-                        </span>
-                      ))}
-                    </span>
-                  ) : null}
-                  {repair.blocked_reason === "waiting_for_health_signals" ? <span>{t("broken_main_repair_waiting_for_signals")}</span> : null}
-                  {repair.blocked_reason === "failed_open_cap" ? <span>{t("broken_main_repair_cap")}</span> : null}
-                  {repairError ? <span className="font-medium">{repairError}</span> : null}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {repair?.can_request ? (
-                <button
-                  className={buttonClasses("secondary", "sm", "disabled:cursor-not-allowed disabled:opacity-60")}
-                  disabled={isStartingRepair}
-                  onClick={() => requestRepair.mutate(repo.repair_path)}
-                  type="button"
-                >
-                  {isStartingRepair ? t("broken_main_repair_starting") : t("broken_main_repair_start")}
-                </button>
-              ) : null}
-              <Link className={buttonClasses("secondary", "sm")} to={withRoutePrefix(repo.repository_path, prefix)}>
-                {t("broken_main_view_details")}
-              </Link>
-              <button
-                aria-label={t("broken_main_dismiss")}
-                className="text-danger hover:text-danger-text"
-                onClick={() =>
-                  setDismissals((prev) => {
-                    const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
-                    writeHealthBannerDismissals(next)
-                    return next
-                  })
-                }
-                type="button"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-          </Notice>
-        )
-      })}
-    </div>
   )
 }
 

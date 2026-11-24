@@ -66,6 +66,7 @@ module Syrus
       work_gate
       repair_classifier
       system_alert_provider
+      base_branch_health
     ].freeze
 
     # Kept with EXTENSION_POINTS so adding a capability also requires explaining
@@ -136,7 +137,8 @@ module Syrus
       backup_destination: "Replicates sealed backup artifacts to a plugin-owned offsite destination and reports their remote state.",
       work_gate: "May veto workflow or WorkUnit starts, and declares whether that veto also applies to landing.",
       repair_classifier: "Classifies failed Run or Workflow evidence for generic repair machinery.",
-      system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery."
+      system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery.",
+      base_branch_health: "Tracks base-branch health and repair for core's dispatcher, landing, polling and CI-repair code, which otherwise assume nothing is known."
     }.freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -205,7 +207,8 @@ module Syrus
       backup_destination:      -> { Syrus::Plugin::BackupDestination },
       work_gate:               -> { Syrus::Plugin::WorkGate },
       repair_classifier:       -> { Syrus::Plugin::RepairClassifier },
-      system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider }
+      system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider },
+      base_branch_health:      -> { Syrus::Plugin::BaseBranchHealth }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

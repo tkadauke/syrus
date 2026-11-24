@@ -59,7 +59,7 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/JobDetail.tsx#root1" => "job detail classification-attempt history subtable with fixed diagnostic columns",
     "app/frontend/routes/PermissionsSettings.tsx#root1" => "fixed agent-permission comparison matrix, not a record list",
     "app/frontend/routes/RepositoryDetail.tsx#root1" => "repository detail triage-release action table",
-    "app/frontend/routes/repositoryDetail/MainBranchHealth.tsx#root2" => "mobile health-history summary uses fixed compact signal columns",
+    "plugins/main_branch_health/app/frontend/components/MainBranchHealth.tsx#root2" => "mobile health-history summary uses fixed compact signal columns",
     "app/frontend/routes/RepositoryForm.tsx#root1" => "credential-mode comparison matrix, not a record list",
     "app/frontend/routes/chat/adminToolCard.tsx#root1" => "compact chat tool-card result summary",
     "app/frontend/routes/dashboard/EpicWorkflowTables.tsx#root1" => "dashboard epic table uses dashboard preference controls for sort and column reorder",

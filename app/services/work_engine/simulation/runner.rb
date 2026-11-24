@@ -594,7 +594,7 @@ module WorkEngine
       def heal_main_branch!(value)
         repository = simulation_repository
         repository.update!(grader_health: "healthy", ci_health: "healthy", landing_paused: false)
-        resumed = resume_blocked_workflows!(WorkUnits::Gates::MainHealth::REASON)
+        resumed = resume_blocked_workflows!("main_branch_health")
         events << "healed main branch health, #{resumed} deferred phases resumed"
       end
 
@@ -727,7 +727,7 @@ module WorkEngine
       end
 
       def record_simulated_base_health!(job, base_sha)
-        MainBranchHealthCheck.create!(
+        BaseBranchHealth.checks.create!(
           repository: job.repository,
           sha: base_sha,
           ci_health: "healthy",

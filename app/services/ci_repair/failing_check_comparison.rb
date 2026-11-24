@@ -25,7 +25,7 @@ module CiRepair
     attr_reader :job, :base_sha, :stacked_parent_fallback
 
     def base_failing_check_names
-      checks = MainBranchHealthCheck.where(
+      checks = BaseBranchHealth.checks.where(
         repository_id: job.repository_id,
         branch: job.effective_base_branch,
         sha: base_sha
@@ -50,7 +50,7 @@ module CiRepair
         return normalize(job.parent_job.pr_checks_failing_names)
       end
 
-      latest = MainBranchHealthCheck.where(
+      latest = BaseBranchHealth.checks.where(
         repository_id: job.repository_id,
         branch: job.effective_base_branch
       ).order(id: :desc).first
@@ -62,7 +62,7 @@ module CiRepair
     end
 
     def newest_ci_failure_names
-      latest = MainBranchHealthCheck.where(
+      latest = BaseBranchHealth.checks.where(
         repository_id: job.repository_id,
         branch: job.effective_base_branch
       ).where.not(ci_failed_checks: nil).order(id: :desc).first

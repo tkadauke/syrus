@@ -256,60 +256,6 @@ module App
         }
       end
 
-      def health_blocked_repositories_json
-        @health_blocked_repositories_json ||= PerformanceLogging.phase("dashboard_health_blocked_repositories", subject: subject) do
-          user.repositories.active.select { |repo| repository_health_blocks_work?(repo) }.map do |repo|
-            repair_status = PerformanceLogging.phase("dashboard_health_blocked_repositories.repair_status", repository_id: repo.id) do
-              MainHealthChangedService.new(repo).repair_status
-            end
-            {
-              id: repo.id,
-              slug: repo.slug,
-              main_health: repo.main_health,
-              ci_health: repo.ci_health,
-              grader_health: repo.grader_health,
-              landing_paused: repo.landing_paused?,
-              main_branch_repair_blocks_work: repo.main_branch_repair_blocks_work?,
-              repository_path: repository_path(repo),
-              repair_path: "/api/v1/app/repositories/#{repo.id}/repair_main_branch",
-              main_branch_repair: main_branch_repair_json(repair_status)
-            }
-          end
-        end
-      end
-
-      def repository_health_blocks_work?(repository)
-        repository.main_branch_health_enabled? &&
-          repository.main_branch_repair_blocks_work? &&
-          repository.landing_paused? &&
-          (repository.main_health_broken? || repository.main_health_inconclusive?)
-      end
-
-      def main_branch_repair_json(status)
-        {
-          enabled: status[:enabled],
-          failed_open_jobs_count: status[:failed_open_jobs_count],
-          max_open_failed_jobs: status[:max_open_failed_jobs],
-          blocked_reason: status[:blocked_reason],
-          can_request: status[:can_request],
-          can_spawn: status[:can_spawn],
-          blocking_job: repair_job_json(status[:blocking_job]),
-          failed_jobs: status[:failed_jobs].map { |job| repair_job_json(job) }
-        }
-      end
-
-      def repair_job_json(job)
-        return nil unless job
-
-        {
-          id: job.id,
-          slug: job.slug,
-          state: job.state,
-          title: job.title,
-          job_path: job_path(job)
-        }
-      end
-
       def column_options_json
         table = subject.pluralize
         {

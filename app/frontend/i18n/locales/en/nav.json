@@ -85,7 +85,6 @@
     "queued_blocked_count": "{{count}} blocked",
     "queued_blocked_filter_aria": "Show {{count}} blocked queued jobs",
     "landing_paused_broken_main": "Work paused — main branch is broken.",
-    "landing_paused_main_health": "Work paused — repository health needs review.",
     "all_items_job": "All jobs",
     "all_items_epic": "All epics",
     "all_items_workflow": "All workflows",

@@ -538,7 +538,6 @@ class McpToolRegistry
         # infrastructure failures, so granting these would produce false quorum
         # signals.
         workflow_action(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
-        workflow_action(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
         workflow_action(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
         workflow_action(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow_action(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),

@@ -99,7 +99,7 @@ module WorkUnits
           repository.ci_health == "healthy" &&
           repository.grader_health == "healthy"
 
-        MainBranchHealthCheck
+        BaseBranchHealth.checks
           .where(repository: repository, branch: job.effective_base_branch, sha: base_sha)
           .where(ci_health: %w[healthy not_configured], grader_health: "healthy")
           .exists?
@@ -145,7 +145,7 @@ module WorkUnits
         return false if since.blank? || repository.nil?
 
         branch = candidate_job.effective_base_branch
-        checks = MainBranchHealthCheck
+        checks = BaseBranchHealth.checks
           .where(repository: repository, branch: branch)
           .where.not(sha: [ candidate_base_sha, "unknown" ])
           .where(checked_at: since..)

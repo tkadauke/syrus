@@ -68,7 +68,7 @@ module App
     end
 
     def health_for(branch)
-      check = MainBranchHealthCheck.where(repository: repository, branch: branch).recent.first
+      check = BaseBranchHealth.checks.where(repository: repository, branch: branch).recent.first
       return check.health if check
       return repository.main_health if branch == repository.default_branch
 

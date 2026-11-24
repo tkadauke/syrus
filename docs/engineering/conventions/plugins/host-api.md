@@ -7,6 +7,17 @@ unlisted members are internal.
 
 ## Public APIs
 
+### `Syrus::Host::Adjudication`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `dismiss`
+- `inconclusive`
+
 ### `Syrus::Host::AdminController`
 
 Since: `0.1.16`
@@ -85,6 +96,16 @@ Supported members:
 - `table_name`
 - `table_name=`
 
+### `Syrus::Host::AutoRetryAttempt`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `pending`
+
 ### `Syrus::Host::BackgroundJob`
 
 Since: `0.1.16`
@@ -125,6 +146,22 @@ Supported members:
 - `materialize_local`
 - `upload`
 - `verify`
+
+### `Syrus::Host::BaseBranchHealth`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::BaseRevisionRetry`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `call`
 
 ### `Syrus::Host::Callbacks`
 
@@ -203,6 +240,16 @@ Supported members:
 
 - `api_user`
 - `user`
+
+### `Syrus::Host::DeliveryPolicy`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::DiskUsage`
 
@@ -335,6 +382,62 @@ Supported members:
 - `refresh`
 - `submit`
 
+### `Syrus::Host::GithubPollingRateLimitGuard`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::GraderConclusion`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::GraderFailureSignal`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `timeout_like_step?`
+- `timeout_only_latest_failure?`
+
+### `Syrus::Host::GraderLoopProgressNoProgressReason`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::GraderLoopProgressStopArtifactKey`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::GraderOutcome`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `CANCELLED`
+- `for_step`
+
+### `Syrus::Host::InstanceIdentity`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `for_repository`
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -376,6 +479,55 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::JobMainBranchRepairTitle`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::JobMainGraderClosureReason`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::JobPriorityToSq`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `fetch`
+
+### `Syrus::Host::JobSystemKindMainBranchRepair`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::LandingQueueProcessor`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `try_land!`
+
+### `Syrus::Host::LandingValidationManifest`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `manifest_for_landed_sha`
+- `record_main_parity!`
+
 ### `Syrus::Host::McpTools`
 
 Since: `0.1.16`
@@ -399,6 +551,16 @@ Supported members:
 - `counter`
 - `gauge`
 - `histogram`
+
+### `Syrus::Host::NotificationService`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `create_for`
 
 ### `Syrus::Host::OperationalLogging`
 
@@ -488,6 +650,38 @@ Supported members:
 - `run`
 - `start`
 
+### `Syrus::Host::PromptsGradeFailureFeedback`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::RebaseTarget`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `artifacts`
+
+### `Syrus::Host::RebaseWorkflowSelector`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `active_for_stack?`
+- `active_merge_train_for_stack?`
+- `instantiate`
+
 ### `Syrus::Host::Record`
 
 Since: `0.1.16`
@@ -498,6 +692,12 @@ Supported members:
 
 - `belongs_to`
 - `has_many`
+
+### `Syrus::Host::RepairClassifier`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
 
 ### `Syrus::Host::Repository`
 
@@ -542,6 +742,16 @@ Supported members:
 - `tree`
 - `tree_sha`
 
+### `Syrus::Host::RetryWorkflowEnqueuer`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::Run`
 
 Since: `0.1.16`
@@ -555,6 +765,37 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::StepDispatcher`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `MAIN_HEALTH_BLOCK_REASON`
+- `MAIN_HEALTH_EXEMPT_TRIGGERS`
+- `START_BLOCKED_BACKOFF`
+- `main_health_blocking?`
+
+### `Syrus::Host::StepsGraderFanoutTargetSelectionsArtifactKey`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::SyrusYmlDefaultGradeFailurePolicy`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::SyrusYmlGradeFailurePolicies`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
 
 ### `Syrus::Host::SystemAlert`
 
@@ -575,6 +816,37 @@ Defines the system-alert contribution plugins may provide; alert aggregation and
 Supported members:
 
 - `system_alerts`
+
+### `Syrus::Host::SystemAlerts`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `send`
+
+### `Syrus::Host::TargetHealthRecord`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `latest_for_reusable_inputs`
+
+### `Syrus::Host::TestEvidenceLookup`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `failed_grader_steps`
+- `failed_test_cases_for`
 
 ### `Syrus::Host::ToolContext`
 
@@ -612,6 +884,90 @@ Supported members:
 - `jobs`
 - `repositories`
 
+### `Syrus::Host::WorkDefinitionsAgentConcurrencyExempt`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkDefinitionsCheckpointPreemptable`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkDefinitionsManagesOwnJobLifecycle`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkDefinitionsOpensReviewPullRequest`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkDefinitionsRecordsGraderTargetSelectionInputs`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkDefinitionsResumesFailedSteps`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkEngineReconciler`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `request`
+
+### `Syrus::Host::WorkGate`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkPolicyVeto`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::WorkUnit`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkUnitsOwnershipActiveStates`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
+### `Syrus::Host::WorkUnitsWorkflowBlockProjection`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `record!`
+
 ### `Syrus::Host::Workflow`
 
 Since: `0.1.16`
@@ -625,6 +981,26 @@ Supported members:
 - `job`
 - `runs`
 - `state`
+
+### `Syrus::Host::WorkflowPhaseAdmissionJob`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `enqueue_once`
+
+### `Syrus::Host::WorkflowSourceSnapshots`
+
+Since: `0.1.16`
+
+Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+
+Supported members:
+
+- `current_for`
 
 ## Legacy compatibility APIs
 

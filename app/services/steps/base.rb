@@ -661,7 +661,7 @@ module Steps
         Prompts::GradeFailureFeedback.new(
           iterations: iterations,
           log_manifest: materialized_grade_log_manifest,
-          main_concern_already_reported: MainConcernReport.where(workflow_id: workflow.id).exists?
+          main_concern_already_reported: BaseBranchHealth.concern_reports.where(workflow_id: workflow.id).exists?
         ).to_s
       ].join("\n\n")
     end

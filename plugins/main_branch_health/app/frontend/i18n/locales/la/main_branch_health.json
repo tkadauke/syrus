@@ -1,4 +1,27 @@
 {
-  "plugin": { "display_name": "Main branch health", "description": "Plugin Main branch health pro Syro." },
-  "admin": { "title": "Main branch health", "message": "Plugin tuum paratum est." }
+  "plugin": {
+    "display_name": "Main branch health",
+    "description": "Plugin Main branch health pro Syro."
+  },
+  "admin": {
+    "title": "Main branch health",
+    "message": "Plugin tuum paratum est."
+  },
+  "banner": {
+    "broken_main_banner": "Ramus principalis fractus est — officia expectantia tenentur.",
+    "broken_main_banner_not_held": "Ramus principalis fractus est — opera non pausata sunt.",
+    "main_health_inconclusive_banner": "Sanitas rami principalis incerta est.",
+    "main_health_inconclusive_banner_not_held": "Sanitas rami principalis incerta est — opera non pausata sunt.",
+    "broken_main_view_details": "Vide details",
+    "broken_main_repair_active": "Reparatio agit:",
+    "broken_main_repair_waiting": "Reparatio exspectat:",
+    "broken_main_repair_landing": "Reparatio inserit:",
+    "broken_main_repair_failed_jobs": "Reparationes defectae:",
+    "broken_main_repair_waiting_for_signals": "Signa CI et examinatorum exspectantur.",
+    "broken_main_repair_cap": "Terminus reparationum attactus est.",
+    "broken_main_repair_start": "Incipe opus reparationis",
+    "broken_main_repair_starting": "Incipit...",
+    "broken_main_repair_start_failed": "Reparatio incipi non potuit.",
+    "broken_main_dismiss": "Dimitte"
+  }
 }

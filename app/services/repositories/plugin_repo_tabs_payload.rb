@@ -14,10 +14,8 @@ module Repositories
     end
 
     def self.core_tabs_for(repository)
-      health_badge = "!" if repository.main_health_broken?
       [
         core_tab(id: "overview", label: I18n.t("api.repositories.tabs.overview"), path: "/repositories/#{repository.id}", order: 0),
-        core_tab(id: "health", label: I18n.t("api.repositories.tabs.health"), path: "/repositories/#{repository.id}/health", order: 1, badge: health_badge),
         core_tab(id: "cognitive_debt", label: I18n.t("api.repositories.tabs.cognitive_debt"), path: "/repositories/#{repository.id}/cognitive_debt", order: 2),
         core_tab(id: "target_graph", label: I18n.t("api.repositories.tabs.target_graph"), path: "/repositories/#{repository.id}/target_graph", order: 3),
         core_tab(id: "documents", label: I18n.t("api.repositories.tabs.documents"), path: "/repositories/#{repository.id}/documents", order: 4)

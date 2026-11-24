@@ -220,8 +220,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/jobDetail/Timeline.tsx
     app/frontend/routes/jobDetail/components.tsx
     app/frontend/routes/repositoryDetail/DeliveryTracks.tsx
-    app/frontend/routes/repositoryDetail/MainBranchHealth.tsx
     app/frontend/routes/repositoryDetail/shared.tsx
+    plugins/main_branch_health/app/frontend/components/MainBranchHealth.tsx
   ].freeze
 
   CHAT_I18N_REVIEWED_FILES = %w[
