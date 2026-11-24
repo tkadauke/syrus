@@ -13,6 +13,7 @@ struct SyrusApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     Task { await model.push.refreshAuthorization() }
+                    model.web.resume()
                     model.syncPush()
                 }
         }
