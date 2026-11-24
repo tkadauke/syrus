@@ -162,6 +162,8 @@ RSpec.describe "admin API prefix ownership" do
   ROUTES
 
   REVIEWED_PLUGIN_APP_ADMIN_ROUTES = <<~ROUTES.lines.map(&:strip).reject(&:blank?).freeze
+    achievements POST /api/v1/app/admin/achievements/reset_acknowledgments api/v1/app/admin/achievements#reset_acknowledgments
+    achievements GET /api/v1/app/admin/achievements/workbench api/v1/app/admin/achievements_workbench#show
     admin_mysql GET /api/v1/app/admin/mysql api/v1/app/admin/mysql#show
     admin_mysql POST /api/v1/app/admin/mysql/kill_query api/v1/app/admin/mysql#kill_query
     agent_activity GET /api/v1/app/admin/agent_activity/sessions api/v1/app/admin/agent_activity#sessions

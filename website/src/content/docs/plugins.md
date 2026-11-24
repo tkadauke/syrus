@@ -394,6 +394,38 @@ snapshot calls out the launch-relevant groups:
 | Language and platform support | Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
 | Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache, Local Backups, S3 Backup Destination |
 
+Achievements is a removable plugin that records neutral, plugin-owned
+milestones from domain events. Instance-wide milestones unlock once per
+installation; per-user accomplishments are credited only to the operator who
+started the work, never to automated work or incidental interaction. Each user
+acknowledges reveals separately and can replay one reveal or reset their own
+acknowledgments; an admin can reset everyone's acknowledgments after an explicit
+confirmation. Resets never delete unlocks or change their timestamps. Enabling
+the plugin does not backfill history: only events after enablement are
+evaluated, and any future backfill will be a separate explicit operation.
+
+The plugin adds an **Achievements** page to the sidebar that shows instance
+milestones and your personal accomplishments separately, including locked ones
+(hidden achievements show only a placeholder), when each was earned, and a link
+to the Job or Epic that triggered it when you can open it. From there you can
+acknowledge or replay a reveal. A milestone tied to a Job is revealed the first
+time you open that Job and is acknowledged only once the reveal has actually
+been shown. Reveals respect reduced-motion settings, work with a keyboard and
+screen reader, and never play sound. The artwork is a neutral placeholder.
+
+When the Syrus Dev plugin is also enabled, an admin-only **Achievements
+Workbench** appears under Admin. It lists every registered achievement
+definition, hidden ones included, and can be filtered by scope, category,
+rarity, trigger, hidden status, and implementation status. It previews synthetic
+fixtures (locked, unlocked, acknowledged, and reset) with the same badge,
+collection card, and reveal components the rest of the product uses, and can
+replay animation phases, play a stack of reveals, and switch between phone,
+tablet, and desktop widths and between system, reduced, and full motion. Sound
+testing is offered once reveals have sound. **Discuss with an agent** starts a
+chat with a screenshot (optionally annotated), a link back to the exact view, and
+the selected definition, state, viewport, and motion settings. Disabling either
+plugin removes the page; normal achievements keep working.
+
 Local Backups can create sealed recovery bundles for installations that use an
 authoritative SQLite database and Disk Active Storage. It takes a consistent
 online database snapshot, streams and verifies every referenced blob, and

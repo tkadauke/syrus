@@ -1,0 +1,17 @@
+la:
+  achievements:
+    api:
+      not_found: "Res gesta non inventa est."
+      workbench_unavailable: "Officina honorum praesto non est."
+      confirmation_required: "Confirmatio requiritur ad omnes agnitiones reponendas."
+    errors:
+      not_registered: "non est inscripta res gesta"
+      scope_mismatch: "cum definitione non congruit"
+      subject_type_not_allowed: "huic definitioni non permittitur"
+      must_be_blank_for_instance: "in apertionibus instantiae vacuum esse debet"
+      must_be_instance_owner: "%{owner} esse debet"
+      user_required: "in apertionibus usoris requiritur"
+      must_be_user_owner: "user:%{user_id} esse debet"
+      subject_id_requires_type: "cum genere subiecti adesse debet"
+      subject_type_requires_id: "cum identitate subiecti adesse debet"
+      evidence_too_large: "maior est quam %{bytes} octeti"
