@@ -680,7 +680,7 @@ class ProcessRunner
                  workload_policy: nil,
                  resource_attribution: {},
                  backend: self.class.backend)
-    @env = env
+    @env = RuntimeImages::OciRegistry::WorkloadEnvironment.scrub(env, inherit: !unsetenv_others)
     @command = command
     @mounts = self.class.normalize_mounts(mounts)
     @network_name = network.to_s
