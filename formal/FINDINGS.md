@@ -4785,6 +4785,15 @@ suite must stay green throughout, so the change is staged:
    enforced order, switch write tracking to raise, and update `LockOrder.lean`
    and the docs.
 
+**Progress.** Part 1 converted `RunJob`'s claim and `Run#start`. Part 2
+converted `WorkflowCancellation.cancel!` and `WorkUnit#mark_terminal!`, which
+now take their ancestry first. It also made a terminal Workflow's descendant
+cleanup lock its Steps before any Run. Specs:
+`spec/services/lineage_funnels_spec.rb`, raising on the hierarchical order.
+Remaining from the focused survey: `StepDispatcher.advance_from`, the Workflow
+event hooks, `TerminalWorkflowSync`, `TerminalLockCleanup`, the repair
+executor, the reconciler and `WorkUnit#preempt!`.
+
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
 Job is in order after `Lineage.lock!`, and the same writes without it raise. It

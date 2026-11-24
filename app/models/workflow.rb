@@ -544,6 +544,9 @@ class Workflow < ApplicationRecord
     request_live_process_kill!
     Step.suppress_cancel_cascade do
       active_steps = step_scope.to_a
+      # Cancelling a Run writes its Step, so the Steps are locked before any
+      # Run, parents before children (NY40).
+      Step.lock.where(id: active_steps.map(&:id)).order(:id).to_a
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
       publication_failure_step_ids = active_steps.filter_map do |step|

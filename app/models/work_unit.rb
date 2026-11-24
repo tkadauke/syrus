@@ -218,6 +218,9 @@ class WorkUnit < ApplicationRecord
     raise ArgumentError, "state must be terminal" unless state.to_s.in?(TERMINAL_STATES)
 
     transaction do
+      # Retiring the unit settles its intent and rolls up to its Job, so its
+      # ancestry is locked first, top down (NY40).
+      Lineage.lock!(self)
       update!(
         state: state.to_s,
         finished_at: finished_at || Time.current,
