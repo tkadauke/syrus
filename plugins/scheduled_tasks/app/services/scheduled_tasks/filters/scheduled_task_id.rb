@@ -1,6 +1,6 @@
 module ScheduledTasks
   module Filters
-    class ScheduledTaskId < ::Filters::Chips::EnumColumn
+    class ScheduledTaskId < Syrus::Host::Filters::Chips::EnumColumn
       filter_name "scheduled_task_id"
       label "Schedule"
       column :scheduled_task_id

@@ -4,7 +4,7 @@ module Api
       class InsightSuggestionsController < Syrus::Host::AppController
         include ChatSessionLifecycle
         include ChatLockErrors
-        include Paginatable
+        include Syrus::Host::Paginatable
         prepend_before_action :require_agent_insights_feature
 
         PER_PAGE = 20
@@ -134,7 +134,7 @@ module Api
         private
 
         def current_filter(active_folder: self.active_smart_folder, raw_params: params)
-          ::Filters::SmartFolderResolution.call(
+          Syrus::Host::Filters::SmartFolderResolution.call(
             filter_class: AgentInsights::Filter, subject: AgentInsights::SmartFolders::SUBJECT,
             params: raw_params, active_smart_folder: active_folder, user: Syrus::Host::Current.user
           ).filter
@@ -142,7 +142,7 @@ module Api
 
         def active_smart_folder
           @active_smart_folder ||= begin
-            explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+            explicit_folder = Syrus::Host::SmartFolderNavigation.active_folder(
               subject: AgentInsights::SmartFolders::SUBJECT,
               user: Syrus::Host::Current.user,
               params: params
@@ -153,7 +153,7 @@ module Api
 
         def default_smart_folder
           return if smart_folder_param_present?
-          return if params[::Filters::QueryParam::PARAM_NAME].present?
+          return if params[Syrus::Host::Filters::QueryParam::PARAM_NAME].present?
           return if params[:state].present?
 
           AgentInsights::SmartFolders.default_folder
@@ -168,8 +168,8 @@ module Api
         end
 
         def smart_folders(repository)
-          ::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
-          ::Admin::SmartFolderNavigation.new(
+          Syrus::Host::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+          Syrus::Host::SmartFolderNavigation.new(
             subject: AgentInsights::SmartFolders::SUBJECT,
             user: Syrus::Host::Current.user,
             active_folder: active_smart_folder,
@@ -416,7 +416,7 @@ module Api
         def insight_evidence_lines(suggestion)
           evidence_json(suggestion.evidence).filter_map do |entry|
             links = []
-            links << "#{::App::Presentation.job_slug(entry[:job_id])}: #{entry[:job_path]}" if entry[:job_path]
+            links << "#{Syrus::Host::AppPresentation.job_slug(entry[:job_id])}: #{entry[:job_path]}" if entry[:job_path]
             links << "run transcript #{entry[:run_id]}: #{entry[:run_transcript_path]}" if entry[:run_transcript_path]
             next if links.empty?
 

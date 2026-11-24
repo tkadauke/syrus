@@ -28,6 +28,16 @@ Supported members:
 
 - `admin_pages`
 
+### `Syrus::Host::AdversarialReviewProjects`
+
+Since: `0.1.16`
+
+Base class for resolving which projects an adversarial review covers; plugins subclass it. Only subclassing is promised.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::AdversarialReviewStep`
 
 Since: `0.1.16`
@@ -126,6 +136,19 @@ Supported members:
 
 - `params`
 - `render`
+
+### `Syrus::Host::AppPresentation`
+
+Since: `0.1.16`
+
+Formats job and epic slugs, external PR URLs and agent provider labels the way the app presents them.
+
+Supported members:
+
+- `agent_provider_label`
+- `epic_slug`
+- `external_pr_url`
+- `job_slug`
 
 ### `Syrus::Host::ApplicationRecord`
 
@@ -279,6 +302,18 @@ Supported members:
 - `chat_media_context`
 - `chat_media_panel`
 - `list_chat_media`
+
+### `Syrus::Host::ChatMessageSearchIndex`
+
+Since: `0.1.16`
+
+Searches the chat message index for candidate messages and the chat sessions that match; index storage is not promised.
+
+Supported members:
+
+- `matching_chat_session_page`
+- `search_candidates`
+- `top_matches_by_chat_session`
 
 ### `Syrus::Host::ChatPayloadContributor`
 
@@ -877,6 +912,24 @@ Supported members:
 - `refresh`
 - `submit`
 
+### `Syrus::Host::Filters`
+
+Since: `0.1.16`
+
+The shared filter-bar contract. Ast (parse, serialize, EMPTY and the Chip, AndNode, OrNode, NotNode node types) is the filter tree wire format; QueryParam (decode, encode, PARAM_NAME) reads and writes it as the `q` request parameter; Compiler.call(ast, scope:, user:, subject:) compiles a tree onto a relation for a registered subject; Schema (for, chip_for, humanize_value) describes a subject's chips to the filter bar; Registry (exists?) answers whether a subject has a chip; SmartFolderResolution (call, PRESET_FIELD) resolves the effective filter for a request; UnknownFilterField is raised for an unsupported field; BaseFilter is the mixin for plugin filter classes (capped_count); Chips holds the chip base classes (Base, BooleanColumn, DateColumn, EnumColumn, FkColumn, FullTextStringColumn, NumberColumn, StringColumn, Jobs::JobType) a plugin subclasses to declare chips that it registers through its filter_chips surface. The built-in chip classes, registry storage and compiler internals are not promised.
+
+Supported members:
+
+- `Ast`
+- `BaseFilter`
+- `Chips`
+- `Compiler`
+- `QueryParam`
+- `Registry`
+- `Schema`
+- `SmartFolderResolution`
+- `UnknownFilterField`
+
 ### `Syrus::Host::FinalReviewVersion`
 
 Since: `0.1.16`
@@ -886,6 +939,16 @@ Resolves the diff review version a final review applies to for a job, workflow a
 Supported members:
 
 - `resolve`
+
+### `Syrus::Host::FtsQueryParser`
+
+Since: `0.1.16`
+
+Model concern that turns a user query into a full-text search expression for a search record; parsing rules are not promised.
+
+Supported members:
+
+- `parse_fts_query`
 
 ### `Syrus::Host::GateResult`
 
@@ -1230,6 +1293,17 @@ Supported members:
 - `Immutable`
 - `new`
 
+### `Syrus::Host::JobDiscussionChatResolver`
+
+Since: `0.1.16`
+
+Finds the chat session that discusses a job for a user.
+
+Supported members:
+
+- `new`
+- `resolve`
+
 ### `Syrus::Host::JobFilter`
 
 Since: `0.1.16`
@@ -1309,6 +1383,16 @@ Supported members:
 - `transaction`
 - `visible_to`
 - `where`
+
+### `Syrus::Host::JobStateSerializer`
+
+Since: `0.1.16`
+
+Builds the per-record degraded error entry used when one row of a list payload fails to serialize; other serializer methods are not promised.
+
+Supported members:
+
+- `per_record_error`
 
 ### `Syrus::Host::JobVisibilityRestriction`
 
@@ -1456,6 +1540,18 @@ Supported members:
 - `gauge`
 - `histogram`
 
+### `Syrus::Host::OperationalLogSearch`
+
+Since: `0.1.16`
+
+Searches the operational log index and supplies the matching MCP tool input schema; indexing and retention are not promised.
+
+Supported members:
+
+- `INPUT_SCHEMA_PROPERTIES`
+- `disabled_response`
+- `search_response`
+
 ### `Syrus::Host::OperationalLogging`
 
 Since: `0.1.16`
@@ -1465,6 +1561,28 @@ Emits structured plugin diagnostic events; subscribers and storage are not promi
 Supported members:
 
 - `ingest`
+
+### `Syrus::Host::OperationalLogsPayload`
+
+Since: `0.1.16`
+
+Builds the operational log browsing payload for an admin request; payload members are not promised beyond as_json.
+
+Supported members:
+
+- `as_json`
+- `new`
+
+### `Syrus::Host::Paginatable`
+
+Since: `0.1.16`
+
+Controller concern that adds the shared page and per_page parameter handling; the including controller defines PER_PAGE as the default page size. Only the listed helpers are promised.
+
+Supported members:
+
+- `page_param`
+- `per_page_param`
 
 ### `Syrus::Host::PathJail`
 
@@ -1637,6 +1755,16 @@ Supported members:
 - `probe_mounts`
 - `run`
 - `start`
+
+### `Syrus::Host::ProviderAvailability`
+
+Since: `0.1.16`
+
+Clears the cached availability of an agent provider for a user so the next check re-probes it; other availability queries are not promised.
+
+Supported members:
+
+- `clear_cache!`
 
 ### `Syrus::Host::PurgeContributor`
 
@@ -1881,6 +2009,16 @@ Supported members:
 - `job_detail_fields`
 - `review_gates`
 
+### `Syrus::Host::ReviewNoteProjects`
+
+Since: `0.1.16`
+
+Decides which projects a review note covers for a job; policy details are not promised.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::ReviewPresentationContributor`
 
 Since: `0.1.16`
@@ -1966,6 +2104,16 @@ Supported members:
 - `state`
 - `workflow`
 
+### `Syrus::Host::RunArtifactsPayload`
+
+Since: `0.1.16`
+
+Builds the run artifacts payload shown for a run; payload members are not promised.
+
+Supported members:
+
+- `build`
+
 ### `Syrus::Host::RunDiff`
 
 Since: `0.1.16`
@@ -2035,6 +2183,49 @@ Supported members:
 - `stop_session`
 - `visual_review_start_required?`
 
+### `Syrus::Host::SearchDatabaseTasks`
+
+Since: `0.1.16`
+
+Prepares the search database and reports whether an index table exists; migration internals are not promised.
+
+Supported members:
+
+- `prepare!`
+- `table_exists?`
+
+### `Syrus::Host::SearchIndexVersion`
+
+Since: `0.1.16`
+
+Reads and writes the content version of a plugin-owned search index so rebuilds know when an index is stale.
+
+Supported members:
+
+- `current`
+- `write!`
+
+### `Syrus::Host::SearchIndexWriteLimits`
+
+Since: `0.1.16`
+
+Bounds row and batch sizes of search-index writes; the limits may change between releases.
+
+Supported members:
+
+- `clamp_rows`
+- `row`
+
+### `Syrus::Host::SearchRecord`
+
+Since: `0.1.16`
+
+Abstract base for models stored in the dedicated search database; plugins subclass it for their index tables and may run raw statements through its connection. Schema management is not promised.
+
+Supported members:
+
+- `connection`
+
 ### `Syrus::Host::SidebarPage`
 
 Since: `0.1.16`
@@ -2044,6 +2235,32 @@ Marks a provider of plugin sidebar pages; the host navigation and routing around
 Supported members:
 
 - `sidebar_pages`
+
+### `Syrus::Host::SmartFolder`
+
+Since: `0.1.16`
+
+Registers smart-folder subjects and reads the built-in folders for a subject; persistence and per-user folder management are not promised. COUNT_CAP is the folder-count display cap.
+
+Supported members:
+
+- `COUNT_CAP`
+- `builtin_definition`
+- `builtins`
+- `ensure_builtins_for_subject!`
+- `register_subject!`
+
+### `Syrus::Host::SmartFolderNavigation`
+
+Since: `0.1.16`
+
+Builds the smart-folder navigation payload for a subject and resolves the explicitly requested folder; payload members beyond the folder list are not promised.
+
+Supported members:
+
+- `active_folder`
+- `folders`
+- `new`
 
 ### `Syrus::Host::SourceControlProvider`
 
@@ -2340,6 +2557,28 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::TimelineMacroQuery`
+
+Since: `0.1.16`
+
+Runs the worker timeline macro query for a time window and filter expression; query internals are not promised.
+
+Supported members:
+
+- `call`
+- `capped_count`
+- `new`
+
+### `Syrus::Host::TimelineWorkflowWaterfallQuery`
+
+Since: `0.1.16`
+
+Builds the per-workflow waterfall of workflow activity; payload members are not promised.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::ToolContext`
 
 Since: `0.1.16`
@@ -2592,9 +2831,6 @@ These core constants are recognized by the compatibility scanner because
 bundled plugins still reference them. They are not supported for new or
 external plugins. Migrate to a public `Syrus::Host` facade instead.
 
-- `Admin::JobStateSerializer`
-- `Admin::OperationalLogsPayload`
-- `Admin::SmartFolderNavigation`
 - `AdminAction`
 - `Agent`
 - `AgentEventAbbreviator`
@@ -2615,12 +2851,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentRole::WORKFLOW_ROLES`
 - `AgentRole::WORKFLOW_VISUAL_REVIEWER`
 - `AgentSidecarEnvironment`
-- `App::AdversarialReviewProjects`
-- `App::JobDiscussionChatResolver`
-- `App::Presentation`
-- `App::ProviderAvailability`
-- `App::ReviewNoteProjects`
-- `App::RunArtifactsPayload`
 - `AppEvents`
 - `AppSetting`
 - `Appearance::ColorPalette`
@@ -2638,7 +2868,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatLockErrors`
 - `ChatMediaLibrary`
 - `ChatMessage`
-- `ChatMessageSearchIndex`
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
 - `ChatProposal`
@@ -2670,32 +2899,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `CredentialProbe::TIMEOUT_SECONDS`
 - `Execution::ChatWorkloadPolicy`
 - `Feature`
-- `Filters::Ast`
-- `Filters::Ast::AndNode`
-- `Filters::Ast::Chip`
-- `Filters::Ast::EMPTY`
-- `Filters::Ast::NotNode`
-- `Filters::Ast::OrNode`
-- `Filters::BaseFilter`
-- `Filters::Chips::Base`
-- `Filters::Chips::BooleanColumn`
-- `Filters::Chips::DateColumn`
-- `Filters::Chips::DateColumn::UNITS`
-- `Filters::Chips::EnumColumn`
-- `Filters::Chips::FkColumn`
-- `Filters::Chips::FullTextStringColumn`
-- `Filters::Chips::Jobs::JobType`
-- `Filters::Chips::NumberColumn`
-- `Filters::Chips::StringColumn`
-- `Filters::Compiler`
-- `Filters::QueryParam`
-- `Filters::QueryParam::PARAM_NAME`
-- `Filters::Registry`
-- `Filters::Schema`
-- `Filters::SmartFolderResolution`
-- `Filters::SmartFolderResolution::PRESET_FIELD`
-- `Filters::UnknownFilterField`
-- `FtsQueryParser`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
 - `InstanceVersion`
@@ -2726,9 +2929,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `MysqlConnection::ADMIN_SURFACE`
 - `MysqlQueryAudit`
 - `Observability::EventSink`
-- `OperationalLogSearch`
-- `OperationalLogSearch::INPUT_SCHEMA_PROPERTIES`
-- `Paginatable`
 - `PendingActionItem`
 - `PendingActions::AuthorizedToolCall`
 - `PendingActions::Base`
@@ -2803,9 +3003,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RuntimeSession`
 - `RuntimeSessionProviders`
 - `RuntimeSessionProviders::ConfigurationError`
-- `SearchIndexVersion`
-- `SearchIndexWriteLimits`
-- `SearchRecord`
 - `Skills`
 - `Skills::NAME_PATTERN`
 - `Skills::NotFoundError`
@@ -2815,8 +3012,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Skills::Renderer`
 - `Skills::SkillMarkdown::ParseError`
 - `SkipIfPending`
-- `SmartFolder`
-- `SmartFolder::COUNT_CAP`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
@@ -2829,13 +3024,10 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::PluginApi`
 - `Syrus::PluginSettings`
 - `SyrusMcp::TypedArtifactProvenance`
-- `SyrusSearchDatabaseTasks`
 - `SyrusVersion`
 - `Theme`
 - `Theme::EXTENDED_TOKEN_GROUPS`
 - `Theme::TOKEN_KEYS`
-- `Timeline::MacroQuery`
-- `Timeline::WorkflowWaterfallQuery`
 - `ToolPayloadRedactor`
 - `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`

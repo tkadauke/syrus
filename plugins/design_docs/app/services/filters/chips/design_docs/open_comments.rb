@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module DesignDocs
-      class OpenComments < Base
+      class OpenComments < Syrus::Host::Filters::Chips::Base
         filter_name "open_comments"
         label "Open comments"
         bucket :boolean

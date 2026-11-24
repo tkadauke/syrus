@@ -110,19 +110,19 @@ module Api
         def serialize_summary(design_doc, include_preview: true)
           ::DesignDocs::Serializer.summary(design_doc, include_preview: include_preview)
         rescue => e
-          ::Admin::JobStateSerializer.per_record_error(design_doc, e)
+          Syrus::Host::JobStateSerializer.per_record_error(design_doc, e)
         end
 
         def serialize_detail(design_doc)
           ::DesignDocs::Serializer.detail(design_doc, user: current_api_user)
         rescue => e
-          ::Admin::JobStateSerializer.per_record_error(design_doc, e)
+          Syrus::Host::JobStateSerializer.per_record_error(design_doc, e)
         end
 
         def serialize_version(version, include_markdown: true)
           ::DesignDocs::Serializer.version(version, include_markdown: include_markdown)
         rescue => e
-          ::Admin::JobStateSerializer.per_record_error(version, e)
+          Syrus::Host::JobStateSerializer.per_record_error(version, e)
         end
 
         def page

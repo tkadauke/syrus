@@ -4,11 +4,11 @@ module Api
       class RepositorySdlcPipelineController < Syrus::Host::AppController
         def show
           repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
-          ::SmartFolder.ensure_builtins_for_subject!(::SdlcPipeline::SmartFolders::SUBJECT)
-          active_folder = ::Admin::SmartFolderNavigation.active_folder(
+          Syrus::Host::SmartFolder.ensure_builtins_for_subject!(::SdlcPipeline::SmartFolders::SUBJECT)
+          active_folder = Syrus::Host::SmartFolderNavigation.active_folder(
             subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user, params: params
           )
-          resolution = ::Filters::SmartFolderResolution.call(
+          resolution = Syrus::Host::Filters::SmartFolderResolution.call(
             filter_class: ::SdlcPipeline::Filter, subject: ::SdlcPipeline::SmartFolders::SUBJECT,
             params: params, active_smart_folder: active_folder, user: Syrus::Host::Current.user
           )
@@ -42,8 +42,8 @@ module Api
             **(history ? { history: history } : {}),
             repository: { id: repository.id, slug: repository.slug },
             active_smart_folder_id: active_folder&.id,
-            filter_schema: ::Filters::Schema.for(subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user),
-            smart_folders: ::Admin::SmartFolderNavigation.new(
+            filter_schema: Syrus::Host::Filters::Schema.for(subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user),
+            smart_folders: Syrus::Host::SmartFolderNavigation.new(
               subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user, active_folder: active_folder,
               base_scope: Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).where(repository_id: repository.id),
               filter_class: ::SdlcPipeline::Filter, path_context: { repository_id: repository.id }

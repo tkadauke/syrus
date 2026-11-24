@@ -3,7 +3,7 @@ module Coworkers
   # A project contributes only the configuration it owns: configuration a
   # nested project merely inherited from the root project is the root's own
   # contribution and is reported once, by the root project.
-  class ReviewProjects < App::AdversarialReviewProjects
+  class ReviewProjects < Syrus::Host::AdversarialReviewProjects
     private
 
     def config_for(project)
