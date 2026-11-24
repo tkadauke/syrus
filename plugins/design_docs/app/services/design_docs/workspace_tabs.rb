@@ -1,6 +1,6 @@
 module DesignDocs
   class WorkspaceTabs
-    include Syrus::Plugin::WorkspaceTab
+    include Syrus::Host::WorkspaceTab
 
     def self.workspace_tabs(chat_session = nil)
       data = workspace_data(chat_session)

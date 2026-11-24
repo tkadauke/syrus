@@ -49,30 +49,30 @@ module VideoWalkthroughs
         chat_session = server_context.fetch(:chat_session)
 
         walkthrough = chat_session.video_walkthroughs.find_by(id: walkthrough_id)
-        return Mcp::Tools.invalid("walkthrough not found in this chat: #{walkthrough_id.inspect}") unless walkthrough
+        return Syrus::Host::McpTools.invalid("walkthrough not found in this chat: #{walkthrough_id.inspect}") unless walkthrough
 
         seconds = VideoWalkthroughs::Gemini::FrameExtractor.parse_timestamp(timestamp)
-        return Mcp::Tools.invalid("timestamp must be mm:ss or whole seconds") if seconds.nil?
+        return Syrus::Host::McpTools.invalid("timestamp must be mm:ss or whole seconds") if seconds.nil?
 
         seconds = clamp(seconds, walkthrough.duration_seconds)
 
         unless walkthrough.file.attached?
-          return Mcp::Tools.invalid(
+          return Syrus::Host::McpTools.invalid(
             "This video has expired — Syrus prunes stored walkthroughs after a retention window and this one's video is gone. Record a fresh walkthrough to screenshot it."
           )
         end
 
         frame = extract_frame(walkthrough, seconds)
-        return Mcp::Tools.invalid(frameless_error(walkthrough, seconds)) if frame.nil?
+        return Syrus::Host::McpTools.invalid(frameless_error(walkthrough, seconds)) if frame.nil?
 
-        Mcp::Tools.image_result(
+        Syrus::Host::McpTools.image_result(
           jpeg: frame.jpeg,
           text: "Screenshot from walkthrough ##{walkthrough.id} at #{clock(seconds)}. " \
                 "Read any on-screen text directly off this image and use the exact characters you see — " \
                 "don't guess anything you can't actually read."
         )
       rescue StoredVideoUnavailable
-        Mcp::Tools.invalid(
+        Syrus::Host::McpTools.invalid(
           "Couldn't read the stored video — it may have been pruned. Record a fresh walkthrough to screenshot it."
         )
       end

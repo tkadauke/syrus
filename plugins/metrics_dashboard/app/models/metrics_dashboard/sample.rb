@@ -4,7 +4,7 @@
 # tables by that prefix, so this is what makes the plugin genuinely uninstallable
 # rather than merely disableable.
 module MetricsDashboard
-  class Sample < ApplicationRecord
+  class Sample < Syrus::Host::Record
     self.table_name = "metrics_dashboard_samples"
 
     include HasConfigurableRetention

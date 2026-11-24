@@ -1,6 +1,6 @@
 module TestInsights
   class RetentionPolicy
-    include Syrus::Plugin::RetentionPolicy
+    include Syrus::Host::RetentionPolicy
 
     def self.retention_definitions
       [

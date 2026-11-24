@@ -14,7 +14,7 @@ module TestInsights
       stats_by_id = ids.index_with { EMPTY_STATS.dup }
       return stats_by_id if ids.empty?
 
-      rows = PerformanceLogging.phase("test_insights.recent_stats", identity_count: ids.size) do
+      rows = Syrus::Host::PerformanceLogging.phase("test_insights.recent_stats", identity_count: ids.size) do
         ids.each_slice(QUERY_BATCH_SIZE).flat_map do |slice|
           TestCase.connection.select_rows(recent_cases_sql(slice, lookback: lookback))
         end

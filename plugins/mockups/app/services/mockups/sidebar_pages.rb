@@ -1,7 +1,7 @@
 module Mockups
   # The Mockups primary-nav entry and the pages behind it.
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     COMPONENT = "mockups/MockupsPage".freeze
 

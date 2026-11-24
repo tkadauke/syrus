@@ -6,11 +6,11 @@ module Api
       # sibling controller, which silently breaks unrelated lookups like
       # Repositories::PluginRepoTabsPayload. Core's own repository-scoped
       # controllers use this flat naming for the same reason.
-      class RepositoryThroughputController < BaseController
+      class RepositoryThroughputController < Syrus::Host::AppController
         def show
-          repository = ::Repository.accessible_to(Current.user).find(params[:repository_id])
+          repository = ::Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
 
-          payload = PerformanceLogging.phase("repository_throughput_metrics", repository_id: repository.id) do
+          payload = Syrus::Host::PerformanceLogging.phase("repository_throughput_metrics", repository_id: repository.id) do
             ::Throughput::RepositorySnapshot.new(repository: repository).read
           end
 

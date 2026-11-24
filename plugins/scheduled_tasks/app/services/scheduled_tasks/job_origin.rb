@@ -2,7 +2,7 @@ module ScheduledTasks
   # Behavior for the `job_origin` manifest declaration in scheduled_tasks.rb,
   # which owns the origin key. Loaded only when a Job's origin is rendered.
   class JobOrigin
-    include Syrus::Plugin::JobOrigin
+    include Syrus::Host::JobOrigin
 
     def self.label(origin_id:, repository: nil)
       task(origin_id)&.name.presence || "task ##{origin_id}"

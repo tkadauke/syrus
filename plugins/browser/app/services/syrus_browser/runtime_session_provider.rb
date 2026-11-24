@@ -12,7 +12,7 @@ module SyrusBrowser
   # provider's own capture paths through them keeps exactly one
   # implementation of "how a browser session is driven," not two.
   class RuntimeSessionProvider
-    include Syrus::Plugin::RuntimeSessionProvider
+    include Syrus::Host::RuntimeSessionProvider
 
     SessionNotFoundError = Class.new(StandardError)
 

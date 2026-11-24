@@ -70,7 +70,7 @@ module TestInsights
 
       class << self
         def call(server_context:, repository: nil, repository_id: nil, test_identity_ids: nil, query: nil, grader_name: nil, limit: nil, baseline_run_id: nil, comparison_run_id: nil, baseline_job_id: nil, comparison_job_id: nil, baseline_window: nil, comparison_window: nil)
-          Mcp::Tools.with_database_connection do
+          Syrus::Host::McpTools.with_database_connection do
             context = current_context(server_context)
             target_repository = repository_for(context, repository: repository, repository_id: repository_id)
             payload = TestInsights::RuntimeComparison.call(
@@ -88,13 +88,13 @@ module TestInsights
               comparison_window: comparison_window
             )
 
-            Mcp::Tools.success(payload)
+            Syrus::Host::McpTools.success(payload)
           end
         rescue ActiveRecord::RecordNotFound
-          Mcp::Tools.not_authorized
+          Syrus::Host::McpTools.not_authorized
         rescue StandardError => e
           Rails.logger.error("[Mcp::Tools::CompareTestRuntimeTool] #{e.class}: #{e.message}")
-          Mcp::Tools.invalid("#{e.class}: #{e.message}")
+          Syrus::Host::McpTools.invalid("#{e.class}: #{e.message}")
         end
       end
     end

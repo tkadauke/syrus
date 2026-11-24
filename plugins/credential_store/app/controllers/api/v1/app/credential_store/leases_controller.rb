@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module CredentialStore
-        class LeasesController < BaseController
+        class LeasesController < Syrus::Host::AppController
           class InvalidAudit < StandardError; end
 
           before_action :require_credential_store_enabled

@@ -5,7 +5,7 @@ module Api
       # write paths the app API uses, exposed under `/api/v1/admin/*` for
       # operators/orchestrators instead of borrowing the SPA's
       # session-shaped app API with an admin token.
-      class DesignDocsController < BaseController
+      class DesignDocsController < Syrus::Host::AdminController
         PER_PAGE = 50
         before_action :require_design_docs_enabled
 

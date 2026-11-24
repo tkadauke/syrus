@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class MysqlConnectionsController < BaseController
+        class MysqlConnectionsController < Syrus::Host::AppAdminController
           before_action :require_mysql_db_browser_enabled
 
           def index

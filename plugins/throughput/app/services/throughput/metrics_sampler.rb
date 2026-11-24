@@ -51,11 +51,11 @@ module Throughput
       totals = read_checkpoint.fetch("totals")
       return false if totals.blank?
 
-      units = Syrus::Metrics.counter(:syrus_throughput_landing_units_total)
+      units = Syrus::Host::Metrics.counter(:syrus_throughput_landing_units_total)
       Hash(totals["landing_units_total"]).each { |tags, total| units.reconcile!(total, tags: tags) }
 
       if totals["jobs_landed_total"]
-        Syrus::Metrics.counter(:syrus_throughput_jobs_landed_total).reconcile!(totals["jobs_landed_total"].to_i)
+        Syrus::Host::Metrics.counter(:syrus_throughput_jobs_landed_total).reconcile!(totals["jobs_landed_total"].to_i)
       end
       true
     end
