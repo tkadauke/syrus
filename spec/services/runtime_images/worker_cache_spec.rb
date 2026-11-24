@@ -1,0 +1,181 @@
+require "rails_helper"
+require "support/synthetic_runtime_image_provider"
+
+RSpec.describe RuntimeImages::WorkerCache do
+  # In-memory engine; no container runtime is touched.
+  class FakeCacheEngine < RuntimeImages::WorkerCache::Engine
+    attr_accessor :usage, :pull_error, :pull_delay, :corrupt
+    attr_reader :pulls, :removed
+
+    def initialize
+      @images = {}
+      @pulls = []
+      @removed = []
+      @usage = { total_bytes: 1000, free_bytes: 900 }
+    end
+
+    def pull(reference, timeout:, auth: nil)
+      @pulls << reference
+      sleep(pull_delay) if pull_delay
+      raise pull_error if pull_error
+      @images[reference] = corrupt ? "sha256:#{'f' * 64}" : reference.split("@").last
+    end
+
+    def digests(reference) = @images.key?(reference) ? [@images[reference]] : []
+    def size_bytes(_reference) = 100
+    def remove(reference)
+      @removed << reference
+      @images.delete(reference)
+    end
+    def disk_usage = usage
+    def drop!(reference) = @images.delete(reference)
+  end
+
+  let(:provider) { SyntheticRuntimeImageProvider.new }
+  let(:namespace) { RuntimeImageNamespace.create!(name: "acme/widgets", owner_kind: "k", owner_ref: "1", provider_key: provider.key) }
+  let(:service) { RuntimeImages::Service.new(provider: provider) }
+  let(:engine) { FakeCacheEngine.new }
+  let(:cache) { described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 0.2) }
+
+  def publish(payload)
+    service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "r-#{payload}", platform: "linux/amd64", payload: payload)
+  end
+
+  def outcomes = RuntimeImagePullEvent.order(:id).pluck(:outcome)
+
+  it "pulls by digest on a miss, verifies, and hits afterwards" do
+    image = publish("a")
+    first = cache.acquire(image)
+    second = cache.acquire(image)
+    expect(first.cache_hit).to be(false)
+    expect(second.cache_hit).to be(true)
+    expect(engine.pulls).to eq([image.locator])
+    expect(outcomes).to eq(%w[pulled hit])
+    expect(RuntimeImagePullEvent.hit_ratio).to eq(0.5)
+  end
+
+  it "does not touch worker capabilities or identity records" do
+    expect { cache.acquire(publish("a")) }.not_to change { WorkerHostHealthSample.count }
+  end
+
+  it "fails as corrupt, removes the copy, and records no cache entry" do
+    image = publish("a")
+    engine.corrupt = true
+    expect { cache.acquire(image) }.to raise_error(RuntimeImages::WorkerCache::CorruptImage)
+    expect(engine.removed).to eq([image.locator])
+    expect(RuntimeImageCacheEntry.count).to eq(0)
+    expect(outcomes).to eq(%w[corrupt])
+  end
+
+  it "re-pulls when a cached copy vanished or no longer matches" do
+    image = publish("a")
+    cache.acquire(image)
+    engine.drop!(image.locator)
+    expect(cache.acquire(image).cache_hit).to be(false)
+    expect(engine.pulls.size).to eq(2)
+  end
+
+  it "records an engine timeout" do
+    engine.pull_error = RuntimeImages::WorkerCache::EngineTimeout.new("slow")
+    expect { cache.acquire(publish("a")) }.to raise_error(RuntimeImages::WorkerCache::EngineTimeout)
+    expect(outcomes).to eq(%w[timeout])
+  end
+
+  it "records a registry outage reported by the provider" do
+    image = publish("a")
+    allow(provider).to receive(:pull).and_raise(RuntimeImages::ProviderError, "registry down")
+    expect { cache.acquire(image) }.to raise_error(RuntimeImages::ProviderError)
+    expect(outcomes).to eq(%w[registry_unavailable])
+    expect(engine.pulls).to be_empty
+  end
+
+  it "refuses a revoked digest without pulling and records it" do
+    image = publish("a")
+    service.revoke(image, reason: "cve")
+    expect { cache.acquire(image) }.to raise_error(RuntimeImages::NotPullable)
+    expect(engine.pulls).to be_empty
+    expect(outcomes).to eq(%w[revoked])
+  end
+
+  it "bounds concurrent pulls" do
+    bounded = described_class.new(engine: engine, service: service, hostname: "w1", max_concurrent_pulls: 1, acquire_timeout: 0.05)
+    a = publish("a")
+    b = publish("b")
+    engine.pull_delay = 0.5
+    t = Thread.new { ActiveRecord::Base.connection_pool.with_connection { bounded.acquire(a) } }
+    sleep 0.15
+    expect { bounded.acquire(b) }.to raise_error(RuntimeImages::WorkerCache::Busy)
+    t.join
+    expect(outcomes).to include("busy", "pulled")
+  end
+
+  describe "eviction" do
+    it "evicts least recently used first and never a leased entry" do
+      images = %w[a b c].map { |p| publish(p) }
+      images.each { |i| cache.acquire(i) { nil } }
+      RuntimeImageCacheEntry.find_by(digest: images[0].digest).update!(last_used_at: 3.hours.ago)
+      RuntimeImageCacheEntry.find_by(digest: images[1].digest).update!(last_used_at: 2.hours.ago)
+      RuntimeImageCacheEntry.find_by(digest: images[2].digest).update!(last_used_at: 1.hour.ago)
+      RuntimeImageCacheEntry.find_by(digest: images[0].digest).update!(leased_until: 1.hour.from_now)
+
+      expect(cache.evict(target_bytes: 200)).to eq([images[1].digest])
+      expect(engine.removed).to eq([images[1].locator])
+      expect(cache.evict(target_bytes: 0)).to eq([images[2].digest])
+      expect(RuntimeImageCacheEntry.pluck(:digest)).to eq([images[0].digest])
+    end
+
+    it "evicts revoked images first and purges them on demand" do
+      good = publish("a")
+      bad = publish("b")
+      cache.acquire(good) { nil }
+      cache.acquire(bad) { nil }
+      service.revoke(bad, reason: "cve")
+      expect(cache.purge_revoked).to eq([bad.digest])
+      expect(RuntimeImageCacheEntry.pluck(:digest)).to eq([good.digest])
+    end
+
+    it "relieves pressure only when pressure is not ok" do
+      cache.acquire(publish("a")) { nil }
+      expect(cache.relieve_pressure!).to eq([])
+      engine.usage = { total_bytes: 1000, free_bytes: 50 }
+      expect(cache.pressure[:level]).to eq("critical")
+      expect(cache.relieve_pressure!(fraction: 0).size).to eq(1)
+    end
+  end
+
+  describe "#inventory and #pressure" do
+    it "reports held digests and disk pressure" do
+      image = publish("a")
+      cache.acquire(image)
+      expect(cache.inventory.first).to include(digest: image.digest, state: "present", size_bytes: 100, leased: true)
+      expect(cache.pressure).to include(used_percent: 10.0, level: "ok", cache_bytes: 100)
+      engine.usage = { total_bytes: 1000, free_bytes: 150 }
+      expect(cache.pressure[:level]).to eq("high")
+    end
+  end
+
+  describe "#prefetch" do
+    it "warms the cache without leasing or counting as a use" do
+      image = publish("a")
+      results = cache.prefetch([image])
+      expect(results.map(&:outcome)).to eq(%w[ready])
+      entry = RuntimeImageCacheEntry.first
+      expect(entry).to have_attributes(prefetched: true, last_used_at: nil, leased_until: nil)
+      expect(RuntimeImagePullEvent.last).to have_attributes(prefetch: true)
+      expect(cache.acquire(image).cache_hit).to be(true)
+      expect(entry.reload.prefetched).to be(false)
+    end
+
+    it "skips under pressure, skips revoked images, and swallows failures" do
+      a = publish("a")
+      b = publish("b")
+      service.revoke(b, reason: "x")
+      expect(cache.prefetch([b]).map(&:outcome)).to eq(%w[skipped_not_pullable])
+      engine.pull_error = RuntimeImages::WorkerCache::EngineError.new("boom")
+      expect(cache.prefetch([a]).map(&:outcome)).to eq(%w[failed])
+      engine.pull_error = nil
+      engine.usage = { total_bytes: 1000, free_bytes: 100 }
+      expect(cache.prefetch([a]).map(&:outcome)).to eq(%w[skipped_pressure])
+    end
+  end
+end

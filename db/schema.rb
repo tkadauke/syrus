@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3946,6 +3946,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
     t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"
   end
 
+  create_table "runtime_image_cache_entries", force: :cascade do |t|
+    t.string "hostname", limit: 191, null: false
+    t.bigint "runtime_image_id", null: false
+    t.string "digest", limit: 191, null: false
+    t.string "state", limit: 32, default: "present", null: false
+    t.bigint "size_bytes"
+    t.boolean "prefetched", default: false, null: false
+    t.datetime "pulled_at"
+    t.datetime "last_used_at"
+    t.datetime "leased_until"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname", "runtime_image_id"], name: "idx_ri_cache_entries_host_image", unique: true
+    t.index ["hostname", "state", "last_used_at"], name: "idx_ri_cache_entries_lru"
+  end
+
   create_table "runtime_image_namespaces", force: :cascade do |t|
     t.string "name", limit: 191, null: false
     t.string "owner_kind", limit: 100, null: false
@@ -3956,6 +3972,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
     t.datetime "updated_at", null: false
     t.index ["name"], name: "idx_runtime_image_namespaces_name", unique: true
     t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
+  end
+
+  create_table "runtime_image_pull_events", force: :cascade do |t|
+    t.string "hostname", limit: 191, null: false
+    t.bigint "runtime_image_id"
+    t.string "digest", limit: 191, null: false
+    t.string "outcome", limit: 32, null: false
+    t.boolean "cache_hit", default: false, null: false
+    t.boolean "prefetch", default: false, null: false
+    t.integer "duration_ms"
+    t.string "error_class", limit: 191
+    t.string "error_message", limit: 500
+    t.datetime "created_at", null: false
+    t.index ["hostname", "created_at"], name: "idx_ri_pull_events_host_time"
+    t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
   end
 
   create_table "runtime_images", force: :cascade do |t|

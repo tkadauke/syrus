@@ -1,0 +1,261 @@
+require "socket"
+
+module RuntimeImages
+  # Worker-local cache of runtime images, keyed by immutable digest.
+  #
+  # Every image is pulled by digest and the engine must then prove it holds
+  # that digest, otherwise the local copy is removed and the pull fails as
+  # corrupt. Pull concurrency is bounded per process, concurrent requests for
+  # one digest share a single pull, and eviction is LRU over entries that are
+  # not leased. Image identity is deliberately not a worker capability: the
+  # cache only records what a host holds and how pulls went.
+  class WorkerCache
+    DEFAULT_MAX_PULLS = 2
+    DEFAULT_PULL_TIMEOUT = 600
+    DEFAULT_ACQUIRE_TIMEOUT = 60
+    DEFAULT_LEASE_SECONDS = 3600
+    HIGH_PRESSURE_PERCENT = 80.0
+    CRITICAL_PRESSURE_PERCENT = 92.0
+
+    Pulled = Data.define(:reference, :cache_hit)
+    PrefetchResult = Data.define(:image, :outcome, :error)
+
+    attr_reader :hostname
+
+    def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: DEFAULT_MAX_PULLS,
+                   pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
+                   lease_seconds: DEFAULT_LEASE_SECONDS, clock: -> { Time.current })
+      @engine = engine
+      @service = service
+      @hostname = hostname
+      @pull_timeout = pull_timeout
+      @acquire_timeout = acquire_timeout
+      @lease_seconds = lease_seconds
+      @clock = clock
+      @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
+      @inflight = {}
+      @inflight_mutex = Mutex.new
+    end
+
+    # Makes the image available locally and leases it so eviction cannot
+    # remove it while in use. Yields the pullable reference when a block is
+    # given and releases the lease afterwards.
+    def acquire(image, prefetch: false)
+      unless image.reload.pullable?
+        record(image, "revoked", monotonic, cache_hit: false, prefetch: prefetch)
+        raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
+      end
+      entry, hit = ensure_local(image, prefetch: prefetch)
+      lease(entry)
+      return Pulled.new(reference: reference_for(image), cache_hit: hit) unless block_given?
+      begin
+        yield reference_for(image)
+      ensure
+        release(entry)
+      end
+    end
+
+    def release(entry)
+      entry.reload.update!(leased_until: nil)
+    rescue ActiveRecord::RecordNotFound
+      nil
+    end
+
+    # Warms the cache. Never raises, never evicts, and stands down when disk
+    # pressure is already high so speculation cannot starve real work.
+    def prefetch(images)
+      Array(images).map do |image|
+        next PrefetchResult.new(image: image, outcome: "skipped_pressure", error: nil) if pressure[:level] != "ok"
+        next PrefetchResult.new(image: image, outcome: "skipped_not_pullable", error: nil) unless image.reload.pullable?
+        begin
+          ensure_local(image, prefetch: true)
+          PrefetchResult.new(image: image, outcome: "ready", error: nil)
+        rescue Error => e
+          PrefetchResult.new(image: image, outcome: "failed", error: e)
+        end
+      end
+    end
+
+    def inventory
+      RuntimeImageCacheEntry.for_host(hostname).includes(:runtime_image).lru.map do |entry|
+        { digest: entry.digest, state: entry.state, size_bytes: entry.size_bytes, prefetched: entry.prefetched,
+          last_used_at: entry.last_used_at, leased: entry.leased?(@clock.call), availability: entry.runtime_image.availability }
+      end
+    end
+
+    def pressure
+      usage = @engine.disk_usage
+      total = usage.fetch(:total_bytes).to_f
+      free = usage.fetch(:free_bytes).to_f
+      used_percent = total.zero? ? 0.0 : ((total - free) / total * 100).round(1)
+      level = if used_percent >= CRITICAL_PRESSURE_PERCENT then "critical"
+      elsif used_percent >= HIGH_PRESSURE_PERCENT then "high"
+      else "ok"
+      end
+      { total_bytes: total.to_i, free_bytes: free.to_i, used_percent: used_percent, level: level,
+        cache_bytes: RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes) }
+    end
+
+    # Removes least-recently-used unleased entries until the cache is at or
+    # below target_bytes. Revoked or deleted images go first regardless of age.
+    # Leased entries are never touched. Returns the evicted digests.
+    def evict(target_bytes:)
+      evicted = []
+      candidates = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call).includes(:runtime_image).lru.to_a
+      candidates.sort_by! { |entry| entry.runtime_image.pullable? ? 1 : 0 }
+      candidates.each do |entry|
+        break if cache_bytes <= target_bytes && entry.runtime_image.pullable?
+        evicted << entry.digest if remove_entry(entry)
+      end
+      evicted
+    end
+
+    # Brings the cache back under pressure by evicting to a percentage of the
+    # current cache size. A no-op while pressure is ok.
+    def relieve_pressure!(fraction: 0.5)
+      return [] if pressure[:level] == "ok"
+      evict(target_bytes: (cache_bytes * fraction).to_i)
+    end
+
+    # Drops local copies of revoked/deleted digests that no workload holds.
+    def purge_revoked
+      entries = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call).includes(:runtime_image).to_a
+      entries.reject { |entry| entry.runtime_image.pullable? }.filter_map { |entry| entry.digest if remove_entry(entry) }
+    end
+
+    private
+
+    def cache_bytes = RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes)
+
+    def ensure_local(image, prefetch:)
+      started = monotonic
+      entry = RuntimeImageCacheEntry.for_host(hostname).find_by(runtime_image: image)
+      if entry&.state == "present" && verified?(image)
+        touch(entry) unless prefetch
+        record(image, "hit", started, cache_hit: true, prefetch: prefetch)
+        return [entry, true]
+      end
+      [single_flight(image) { pull_and_verify(image, started, prefetch) }, false]
+    end
+
+    def pull_and_verify(image, started, prefetch)
+      # Re-check durable state: the image may have been revoked while waiting.
+      raise Revoked, "runtime image #{image.digest} was revoked" unless image.reload.pullable?
+      with_slot(image, started, prefetch) do
+        auth = grant_for(image)
+        # Provider.pull verifies the manifest hashes to the digest and the
+        # locator belongs to the namespace before any bytes move.
+        @service.pull(image)
+        @engine.pull(reference_for(image), timeout: @pull_timeout, auth: auth)
+        unless @engine.digests(reference_for(image)).include?(image.digest)
+          @engine.remove(reference_for(image)) rescue nil
+          drop_entry(image)
+          raise CorruptImage, "pulled content for #{image.digest} does not match the requested digest"
+        end
+        entry = upsert_entry(image, prefetch)
+        record(image, "pulled", started, cache_hit: false, prefetch: prefetch)
+        entry
+      end
+    rescue Error => e
+      record_failure(image, e, started, prefetch)
+      raise
+    end
+
+    def with_slot(image, started, prefetch)
+      unless @slots.try_acquire(1, @acquire_timeout)
+        raise Busy, "too many concurrent image pulls on #{hostname}"
+      end
+      begin
+        yield
+      ensure
+        @slots.release
+      end
+    end
+
+    # One pull per digest at a time; waiters reuse the result and then
+    # re-verify through the normal hit path.
+    def single_flight(image)
+      key = image.id
+      owner, gate = @inflight_mutex.synchronize do
+        existing = @inflight[key]
+        existing ? [false, existing] : [true, (@inflight[key] = Mutex.new.tap(&:lock))]
+      end
+      if owner
+        begin
+          yield
+        ensure
+          @inflight_mutex.synchronize { @inflight.delete(key) }
+          gate.unlock
+        end
+      else
+        gate.synchronize { nil }
+        entry = RuntimeImageCacheEntry.for_host(hostname).present.find_by(runtime_image: image)
+        entry || single_flight(image) { pull_and_verify(image, monotonic, false) }
+      end
+    end
+
+    def verified?(image)
+      return true if @engine.digests(reference_for(image)).include?(image.digest)
+      drop_entry(image)
+      false
+    end
+
+    def reference_for(image) = image.locator.to_s
+
+    def grant_for(image)
+      provider = Providers.fetch(image.runtime_image_namespace.provider_key)
+      provider.respond_to?(:worker_pull_grant) ? provider.worker_pull_grant(image.runtime_image_namespace) : nil
+    rescue Unsupported, NotFound
+      nil
+    end
+
+    def upsert_entry(image, prefetch)
+      now = @clock.call
+      entry = RuntimeImageCacheEntry.for_host(hostname).find_or_initialize_by(runtime_image: image)
+      entry.assign_attributes(digest: image.digest, state: "present", size_bytes: @engine.size_bytes(reference_for(image)),
+                              pulled_at: now, prefetched: prefetch, last_used_at: (prefetch ? entry.last_used_at : now))
+      entry.save!
+      entry
+    end
+
+    def drop_entry(image)
+      RuntimeImageCacheEntry.for_host(hostname).where(runtime_image: image).delete_all
+    end
+
+    def touch(entry) = entry.update!(last_used_at: @clock.call, prefetched: false)
+
+    def lease(entry) = entry.update!(leased_until: @clock.call + @lease_seconds)
+
+    def remove_entry(entry)
+      return false if entry.reload.leased?(@clock.call)
+      @engine.remove(entry.runtime_image.locator.to_s)
+      entry.destroy!
+      true
+    rescue EngineError
+      false
+    end
+
+    def record_failure(image, error, started, prefetch)
+      outcome = case error
+      when Revoked, NotPullable then "revoked"
+      when CorruptImage then "corrupt"
+      when EngineTimeout then "timeout"
+      when NotFound then "not_found"
+      when Busy then "busy"
+      when ProviderError, EngineError then "registry_unavailable"
+      else "failed"
+      end
+      record(image, outcome, started, cache_hit: false, prefetch: prefetch, error: error)
+    end
+
+    def record(image, outcome, started, cache_hit:, prefetch:, error: nil)
+      RuntimeImagePullEvent.create!(
+        hostname: hostname, runtime_image: image, digest: image.digest, outcome: outcome, cache_hit: cache_hit,
+        prefetch: prefetch, duration_ms: ((monotonic - started) * 1000).to_i,
+        error_class: error&.class&.name, error_message: error&.message.to_s.truncate(500).presence
+      )
+    end
+
+    def monotonic = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+end
