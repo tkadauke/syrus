@@ -14,7 +14,34 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_145347) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
+
+  create_table "achievements_acknowledgments", force: :cascade do |t|
+    t.bigint "unlock_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "acknowledged_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["unlock_id", "user_id"], name: "idx_achievements_acks_unlock_user", unique: true
+    t.index ["user_id"], name: "index_achievements_acknowledgments_on_user_id"
+  end
+
+  create_table "achievements_unlocks", force: :cascade do |t|
+    t.string "definition_key", null: false
+    t.integer "definition_version", null: false
+    t.string "scope", null: false
+    t.string "owner_key", null: false
+    t.bigint "user_id"
+    t.string "subject_type"
+    t.bigint "subject_id"
+    t.json "evidence"
+    t.datetime "unlocked_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["definition_key", "owner_key"], name: "idx_achievements_unlocks_definition_owner", unique: true
+    t.index ["subject_type", "subject_id"], name: "idx_achievements_unlocks_subject"
+    t.index ["user_id"], name: "index_achievements_unlocks_on_user_id"
+  end
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
