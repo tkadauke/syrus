@@ -56,6 +56,7 @@ class ChatEpicProposalMaterializer
 
       wire_sibling_dependencies(job_proposals, job_by_proposal_id)
       wire_child_job_id_dependencies(job_proposals, job_by_proposal_id)
+      apply_insertion!(epic_proposal, job_proposals, job_by_proposal_id)
       wire_epic_dependencies(epic_proposal, epic)
       wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
       ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(epic_proposal)
@@ -125,7 +126,50 @@ class ChatEpicProposalMaterializer
   end
 
   def validate_child_dependency_policy!(epic_proposal, job_proposals)
+    return validate_insertion!(epic_proposal, job_proposals) if epic_proposal.insert_after_job_id.present?
+
     policy_for(epic_proposal).validate_proposed_child_graph!(job_proposals, epic: epic_proposal.target_epic)
+  end
+
+  # insert_after_job_id: the children splice into the middle of the target
+  # Epic's chain, so validate the Epic's end state rather than requiring them
+  # to hang off its tail.
+  def validate_insertion!(epic_proposal, job_proposals)
+    raise ArgumentError, "insert_after_job_id requires an existing target Epic" unless epic_proposal.target_epic
+    raise ArgumentError, "insert_after_job_id requires at least one child Job" if job_proposals.empty?
+
+    order = insertion_order(job_proposals)
+    head = job_proposals.find { |proposal| proposal.id == order.first }
+    ids = job_proposals.map(&:id)
+    if Array(head.depends_on_job_ids).any? || head.dependencies.any? { |dependency| ids.exclude?(dependency.id) } || Array(head.dependency_requirements).any?
+      raise ArgumentError, "insert_after_job_id cannot be combined with explicit dependencies on the first child (#{head.slug})"
+    end
+
+    plan = EpicChainSplice.plan!(epic: epic_proposal.target_epic, anchor_job_id: epic_proposal.insert_after_job_id)
+    by_id = job_proposals.index_by(&:id)
+    EpicChainSplice.validate_final_chain!(
+      plan,
+      order.map { |id| [ EpicDependencyPolicy::Linear.proposal_key(id), by_id.fetch(id).slug ] }
+    )
+  end
+
+  # Proposal ids in chain order, head first.
+  def insertion_order(job_proposals)
+    ids = job_proposals.map(&:id)
+    EpicChainSplice.order_segment(ids, job_proposals.to_h { |proposal| [ proposal.id, proposal.dependencies.map(&:id) & ids ] })
+  end
+
+  def apply_insertion!(epic_proposal, job_proposals, job_by_proposal_id)
+    return if epic_proposal.insert_after_job_id.blank?
+
+    order = insertion_order(job_proposals)
+    EpicChainSplice.apply!(
+      epic: epic_proposal.target_epic,
+      anchor_job_id: epic_proposal.insert_after_job_id,
+      head_job: job_by_proposal_id.fetch(order.first),
+      tail_job: job_by_proposal_id.fetch(order.last),
+      user: user
+    )
   end
 
   def policy_for(_epic_proposal)

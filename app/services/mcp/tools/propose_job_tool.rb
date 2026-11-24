@@ -29,6 +29,17 @@ module Mcp::Tools
       together with a batch of new child Jobs in one call, prefer
       propose_epic_with_jobs instead, which also validates the whole batch
       as a single chain.
+      To put a Job in the MIDDLE of an Epic's chain instead of at its tail, set
+      insert_after_job_id (with epic_id) to the existing Epic Job it must run
+      after. Confirming the card makes the new Job depend on that anchor and
+      re-points the anchor's current downstream Job (if any) at the new Job,
+      in one transaction, keeping the chain a single line; the downstream
+      edge keeps its satisfaction mode and stage requirement. Do not combine
+      it with depends_on_job_ids, depends_on, or dependency_requirements. It
+      is rejected when the anchor is not in the Epic or when the Job that
+      would be pushed back has already started (is running or past queued).
+      Omit it to append at the tail as described above. Inserting after the
+      tail is the same as appending.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again with a
       new title or different input so a new slug is generated.
@@ -96,6 +107,7 @@ module Mcp::Tools
         repo: { type: "string", description: "Repository id, name, or owner/name slug." },
         title: { type: "string", description: "Job title." },
         description: { type: "string", description: "Markdown Job description, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
+        insert_after_job_id: { type: "integer", description: "Optional. Existing Job id in the target Epic (epic_id is required) to splice this Job in after, instead of appending at the Epic's tail. The anchor's current downstream Job is re-pointed at this Job when the card is confirmed. Mutually exclusive with depends_on_job_ids, depends_on, and dependency_requirements." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Job depends on. Required to include one of the target Epic's existing Jobs when epic_id targets a non-empty Epic — this is how a new Job chains onto that Epic's stack instead of becoming a disconnected parallel branch." },
         dependency_requirements: {
@@ -141,7 +153,7 @@ module Mcp::Tools
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", planned_execution: nil, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", planned_execution: nil, for_active_goal: false, insert_after_job_id: nil)
         # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
         context = McpToolContext.from_server_context(server_context)
         response_chat = context.chat_session
@@ -197,7 +209,12 @@ module Mcp::Tools
         dependency_error = dependency_target_error(accessible_jobs_for(chat_session), depends_on_job_ids)
         return Mcp::Tools.invalid(dependency_error) if dependency_error
         ProposalJobDependencyRequirements.validate!(user: chat_session.user, requirements: dependency_requirements)
-        if target_epic && target_epic.jobs.exists?
+        insert_after_job_id = Integer(insert_after_job_id, exception: false) if insert_after_job_id.present?
+        if insert_after_job_id
+          splice_error = insert_after_error(target_epic, insert_after_job_id, title, depends_on_job_ids, depends_on, dependency_requirements)
+          return Mcp::Tools.invalid(splice_error) if splice_error
+        end
+        if target_epic && target_epic.jobs.exists? && !insert_after_job_id
           if (depends_on_job_ids & target_epic.jobs.pluck(:id)).empty?
             return Mcp::Tools.invalid(
               "Epic #{epic_id} already has Jobs — Syrus Epics execute as one stacked branch, not parallel " \
@@ -222,6 +239,7 @@ module Mcp::Tools
             kind: "job",
             depends_on_epic_ids: depends_on_epic_ids,
             depends_on_job_ids: depends_on_job_ids,
+            insert_after_job_id: insert_after_job_id,
             dependency_requirements: dependency_requirements,
             media_ids: Array(media),
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
@@ -248,6 +266,20 @@ module Mcp::Tools
       end
 
       private
+
+      def insert_after_error(target_epic, insert_after_job_id, title, depends_on_job_ids, depends_on, dependency_requirements)
+        return "insert_after_job_id requires epic_id" unless target_epic
+        if depends_on_job_ids.any? || depends_on.any? || dependency_requirements.any?
+          return "insert_after_job_id cannot be combined with depends_on_job_ids, depends_on, or dependency_requirements: " \
+                 "the inserted Job's position is set by the anchor"
+        end
+
+        plan = EpicChainSplice.plan!(epic: target_epic, anchor_job_id: insert_after_job_id)
+        EpicChainSplice.validate_final_chain!(plan, [ [ "new_job", title ] ])
+        nil
+      rescue ArgumentError => e
+        e.message
+      end
 
       # The caller declares where the work runs. There is no fallback: this
       # used to build a probe Job and let PlannedExecutionPlanner guess from

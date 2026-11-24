@@ -45,6 +45,19 @@ module Mcp::Tools
       current tail Job (read the Epic's Jobs first if you don't already know
       it), or the new batch will float as a disconnected parallel branch and
       be rejected the same as any other fan-out.
+      To splice the new children into the MIDDLE of an existing Epic's chain
+      instead of appending them at its tail, set epic.insert_after_job_id
+      (with epic.epic_id) to the existing Epic Job they must run after. The
+      children stay a linear chain among themselves (omitted depends_on
+      defaults to the previous child), the first child depends on the anchor,
+      and confirming re-points the anchor's current downstream Job at the
+      last child in one transaction, keeping its satisfaction mode and stage
+      requirement. The first child must not set depends_on_job_ids,
+      dependency_requirements, or cross-card depends_on, and no child may
+      name an existing Epic Job in depends_on_job_ids. It is rejected when
+      the anchor is not in the Epic or when the Job that would be pushed back
+      has already started (running, or past queued). Omit it to append at the
+      tail.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again with a
       new slug. Reusing a withdrawn slug is an error.
@@ -104,6 +117,7 @@ module Mcp::Tools
           properties: {
             slug: { type: "string", description: "Stable epic proposal slug unique within this chat session." },
             epic_id: { type: "integer", description: "Optional existing Epic id to receive the proposed child Jobs." },
+            insert_after_job_id: { type: "integer", description: "Optional, requires epic_id. Existing Job id in that Epic to splice the child chain in after, instead of appending at the tail. The anchor's current downstream Job is re-pointed at the last child on confirmation. The first child must not declare its own upstream dependencies." },
             title: { type: "string", description: "Epic title." },
             description: { type: "string", description: "Markdown Epic description, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
@@ -206,7 +220,7 @@ module Mcp::Tools
         explicit_branching_error = explicit_sibling_branching_message(normalized_jobs)
         return Mcp::Tools.invalid(explicit_branching_error) if explicit_branching_error
 
-        default_linear_sibling_dependencies(normalized_jobs, target_epic)
+        default_linear_sibling_dependencies(normalized_jobs, target_epic, inserting: normalized_epic[:insert_after_given])
         normalized_jobs.each do |job|
           job[:dependency_requirements] = ProposalJobDependencyRequirements.normalize(
             job[:raw_dependency_requirements],
@@ -284,6 +298,8 @@ module Mcp::Tools
         {
           slug: epic["slug"].to_s.strip,
           epic_id: Integer(epic["epic_id"], exception: false),
+          insert_after_job_id: Integer(epic["insert_after_job_id"], exception: false),
+          insert_after_given: epic["insert_after_job_id"].present?,
           title: epic["title"].to_s.strip,
           description: normalize_proposal_markdown(epic["description"]).strip,
           target_repo: epic["target_repo"].to_s.strip,
@@ -367,8 +383,8 @@ module Mcp::Tools
         "Epic child dependency graph must be a single chain; child slugs are unordered or branching: #{ordered_offenders.join(', ')}. Add sibling depends_on edges to make one chain."
       end
 
-      def default_linear_sibling_dependencies(jobs, target_epic)
-        return if target_epic&.jobs&.exists?
+      def default_linear_sibling_dependencies(jobs, target_epic, inserting: false)
+        return if target_epic&.jobs&.exists? && !inserting
 
         jobs.each_with_index do |job, index|
           next if index.zero?
@@ -441,10 +457,39 @@ module Mcp::Tools
         target_error = invalid_dependency_target_message(visible_jobs.where(id: jobs.flat_map { |job| job[:depends_on_job_ids] }.uniq))
         return target_error if target_error
         return "depends_on would create a cycle" if cyclic?(jobs)
+        return insert_after_error(epic, jobs, target_epic) if epic[:insert_after_given]
+
         linear_chain_error = linear_chain_violation_message(jobs, target_epic)
         return linear_chain_error if linear_chain_error
 
         nil
+      end
+
+      # Validates epic.insert_after_job_id: the anchor must be a Job in the
+      # target Epic, the first child must not declare its own upstream, and
+      # the Epic's end state must still be one chain.
+      def insert_after_error(epic, jobs, target_epic)
+        return "epic.insert_after_job_id requires epic.epic_id" unless target_epic
+        return "epic.insert_after_job_id must be an integer Job id" unless epic[:insert_after_job_id]
+
+        slugs = jobs.map { |job| job[:slug] }
+        existing_ids = target_epic.jobs.pluck(:id)
+        named = jobs.flat_map { |job| job[:depends_on_job_ids] } & existing_ids
+        return "epic.insert_after_job_id cannot be combined with depends_on_job_ids on existing Jobs of the Epic" if named.any?
+
+        order = EpicChainSplice.order_segment(slugs, jobs.to_h { |job| [ job[:slug], job[:depends_on] & slugs ] })
+        head = jobs.find { |job| job[:slug] == order.first }
+        if head[:depends_on_job_ids].any? || (head[:depends_on] - slugs).any? || head[:dependency_requirements].any?
+          return "epic.insert_after_job_id cannot be combined with explicit dependencies on the first child (#{head[:slug]}): " \
+                 "its position is set by the anchor"
+        end
+
+        plan = EpicChainSplice.plan!(epic: target_epic, anchor_job_id: epic[:insert_after_job_id])
+        job_by_slug = jobs.index_by { |job| job[:slug] }
+        EpicChainSplice.validate_final_chain!(plan, order.map { |slug| [ slug, job_by_slug.fetch(slug)[:title] ] })
+        nil
+      rescue ArgumentError => e
+        e.message
       end
 
       def linear_chain_violation_message(jobs, target_epic)
@@ -562,6 +607,7 @@ module Mcp::Tools
           kind: "epic",
           labels: nil,
           depends_on_job_ids: epic[:depends_on_job_ids],
+          insert_after_job_id: epic[:insert_after_job_id],
           epic_depends_on_tokens: JSON.generate(epic[:depends_on]),
           state: "proposed",
           edited_at: proposal.persisted? ? Time.current : nil,
@@ -643,6 +689,7 @@ module Mcp::Tools
           depends_on: proposal.epic_dependency_tokens,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           depends_on_job_ids: proposal.depends_on_job_ids || [],
+          insertion: proposal.insertion_json,
           goal_provenance: App::GoalProvenancePayload.for(proposal),
           proposer: App::ChatMessagePayload.proposer_json(proposal),
           child_jobs: proposal.child_proposals.map do |child|
