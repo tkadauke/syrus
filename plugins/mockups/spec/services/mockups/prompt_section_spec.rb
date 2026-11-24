@@ -16,6 +16,7 @@ RSpec.describe Mockups::PromptSection do
     expect(section).to include("deferred or not currently loaded")
     expect(section).to include("Only tell the operator a preview is visible after the publish")
     expect(section).to include("`panel_id`, `version_id`, and `mockup_slug`")
+    expect(section).to include("`inspect_preview_versions`", "Do not reconstruct an old version from memory")
   end
 
   it "reaches the chat system prompt through the injection point" do

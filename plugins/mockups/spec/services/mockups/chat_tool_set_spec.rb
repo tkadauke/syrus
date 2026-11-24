@@ -45,7 +45,7 @@ RSpec.describe Mockups::ChatToolSet do
     it "exposes the write/edit/show/close tool names" do
       names = described_class.tool_definitions(tier: :essential).map { |tool| tool.fetch(:name) }
 
-      expect(names).to contain_exactly("write_preview_file", "edit_preview_file", "show_preview", "close_preview")
+      expect(names).to contain_exactly("write_preview_file", "edit_preview_file", "show_preview", "close_preview", "inspect_preview_versions")
     end
 
     it "describes show_preview as the preferred preview mockup submission flow" do
@@ -257,6 +257,77 @@ RSpec.describe Mockups::ChatToolSet do
         response = call("close_preview", { panel_id: "99999" })
 
         expect(response.error?).to be true
+      end
+    end
+
+    describe "inspect_preview_versions" do
+      let(:panel) { PreviewPanel::Service.open!(chat_session: chat_session, title: "Widget", files: { "index.html" => "<p>v1</p>", "css/app.css" => "a{}" }) }
+      let!(:v1) { panel.current_version }
+      let!(:v2) do
+        PreviewPanel::Service.new(panel).update!(files: { "index.html" => "<p>v2</p>", "logo.png" => "\x89PNG\x00\x01".b })
+        panel.reload.current_version
+      end
+
+      it "lists every version with entry path and stored files" do
+        data = json(call("inspect_preview_versions", { panel_id: panel.id.to_s }))
+
+        expect(data["current_version_id"]).to eq(v2.id)
+        expect(data["versions"].map { |v| v["version_id"] }).to eq([ v2.id, v1.id ])
+        old = data["versions"].last
+        expect(old).to include("entry_file" => "index.html", "created_at" => be_present)
+        expect(old["files"].map { |f| f["path"] }).to eq(%w[css/app.css index.html])
+      end
+
+      it "reads the current version by default and a historical one by id" do
+        expect(json(call("inspect_preview_versions", { panel_id: panel.id.to_s, path: "index.html" }))["content"]).to eq("<p>v2</p>")
+        old = json(call("inspect_preview_versions", { panel_id: panel.id.to_s, version_id: v1.id.to_s, path: "index.html" }))
+        expect(old).to include("content" => "<p>v1</p>", "version_id" => v1.id, "truncated" => false)
+        expect(json(call("inspect_preview_versions", { panel_id: panel.id.to_s, version_id: v1.id.to_s, path: "css/app.css" }))["content"]).to eq("a{}")
+      end
+
+      it "works for closed panels without changing state or versions" do
+        PreviewPanel::Service.new(panel).close!
+
+        expect { call("inspect_preview_versions", { panel_id: panel.id.to_s, version_id: v1.id.to_s, path: "index.html" }) }
+          .not_to change { [ panel.reload.state, panel.preview_panel_versions.count, panel.current_version.id ] }
+        expect(call("inspect_preview_versions", { panel_id: panel.id.to_s, version_id: v1.id.to_s, path: "index.html" }).error?).to be false
+      end
+
+      it "reports binary files as metadata only" do
+        data = json(call("inspect_preview_versions", { panel_id: panel.id.to_s, path: "logo.png" }))
+
+        expect(data).to include("binary" => true, "byte_size" => 6)
+        expect(data).not_to have_key("content")
+      end
+
+      it "truncates large text with metadata" do
+        big = "x" * (Mockups::InspectPreviewVersionsTool::MAX_TEXT_BYTES + 10)
+        PreviewPanel::Service.new(panel).update!(files: { "index.html" => big })
+
+        data = json(call("inspect_preview_versions", { panel_id: panel.id.to_s, path: "index.html" }))
+
+        expect(data).to include("truncated" => true, "total_bytes" => big.bytesize, "returned_bytes" => Mockups::InspectPreviewVersionsTool::MAX_TEXT_BYTES)
+        expect(data["content"].bytesize).to eq(Mockups::InspectPreviewVersionsTool::MAX_TEXT_BYTES)
+      end
+
+      it "rejects another chat's panel, foreign versions, and missing paths" do
+        other_chat = ChatSession.create!(user: user, repository: repository)
+        other_panel = PreviewPanel::Service.open!(chat_session: other_chat, title: "Other", files: { "index.html" => "x" })
+
+        expect(call("inspect_preview_versions", { panel_id: other_panel.id.to_s }).error?).to be true
+        expect(call("inspect_preview_versions", { panel_id: "99999" }).error?).to be true
+        foreign = call("inspect_preview_versions", { panel_id: panel.id.to_s, version_id: other_panel.current_version.id.to_s, path: "index.html" })
+        expect(foreign.error?).to be true
+        expect(foreign.content.first[:text]).to include("does not belong")
+        missing = call("inspect_preview_versions", { panel_id: panel.id.to_s, path: "nope.html" })
+        expect(missing.error?).to be true
+        expect(missing.content.first[:text]).to include("not found")
+      end
+
+      it "is discoverable by searching for historical versions" do
+        tool = described_class.tool_definitions(tier: :deferred).find { |t| t.fetch(:name) == "inspect_preview_versions" }
+
+        expect(tool.fetch(:description)).to include("old, previous, or historical versions", "mockup")
       end
     end
   end

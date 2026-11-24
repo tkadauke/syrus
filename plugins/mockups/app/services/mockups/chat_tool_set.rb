@@ -23,7 +23,8 @@ module Mockups
       WritePreviewFileTool,
       EditPreviewFileTool,
       ShowPreviewTool,
-      ClosePreviewTool
+      ClosePreviewTool,
+      InspectPreviewVersionsTool
     ].freeze
 
     def self.available_for?(chat_session, tier:)
