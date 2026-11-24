@@ -268,6 +268,38 @@ RSpec.describe ReapOrphanedSpawnedProcessesJob do
       described_class.perform_now
     end
 
+    it "rolls the row back to running when reconciliation exhausts, so a later sweep revisits it" do
+      row = fixture(hostname: "dead-pod", pid: nil, started_at: 2.minutes.ago)
+      allow(ChatTurnAutoRetryReconciler).to receive(:sweep!).and_return(0)
+      allow(ChatStopReconciler).to receive(:reconcile_stale_turns!).and_return(0)
+      allow(ChatTurnAutoRetryReconciler).to receive(:reconcile_spawned_process!).and_return(false)
+      allow(ChatStopReconciler).to receive(:reconcile_spawned_process!)
+        .and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded; UPDATE chat_sessions")
+
+      expect { described_class.perform_now }
+        .to raise_error(described_class::ContentionExhausted, /pidless/)
+      expect(row.reload).not_to be_finished
+
+      allow(ChatStopReconciler).to receive(:reconcile_spawned_process!).and_return(true)
+      described_class.perform_now
+      expect(row.reload.outcome).to eq("orphaned")
+      expect(ChatStopReconciler).to have_received(:reconcile_spawned_process!).at_least(:once)
+    end
+
+    it "reports lock waits in host discovery instead of silently skipping cross-host cleanup" do
+      allow_any_instance_of(described_class)
+        .to receive(:live_solid_queue_hostnames).and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded; SELECT solid_queue_processes")
+      allow(ChatTurnAutoRetryReconciler).to receive(:sweep!).and_return(0)
+      allow(ChatStopReconciler).to receive(:reconcile_stale_turns!).and_return(0)
+
+      expect { described_class.perform_now }
+        .to raise_error(described_class::ContentionExhausted) { |e|
+          failure = e.failures.find { |f| f[:phase] == :host_discovery }
+          expect(failure).to include(attempts: described_class::MAX_ATTEMPTS)
+          expect(failure[:statement]).to include("solid_queue_processes")
+        }
+    end
+
     it "keeps the cleanup queue" do
       expect(described_class.new.queue_name).to eq("cleanup")
     end

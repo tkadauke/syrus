@@ -30,10 +30,12 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
 
   def perform
     @failures = []
-    live_hosts = live_process_hostnames
+    live_hosts = nil
+    run_phase(:host_discovery) { live_hosts = live_process_hostnames }
     run_phase(:pidless) { reap_pidless_processes }
     run_phase(:previous_worker) { reap_rows_from_previous_worker_instances }
-    run_phase(:cross_host) { reap_cross_host_orphans(live_hosts) } if live_hosts # SQ unreachable — single-DB dev/test
+    # SQ unreachable (single-DB dev/test) or discovery contended (already recorded).
+    run_phase(:cross_host) { reap_cross_host_orphans(live_hosts) } if live_hosts
     run_phase(:crashed_chat_turns) { reap_crashed_chat_turns }
     run_phase(:stale_chat_turns) { reap_stale_chat_turns }
     raise ContentionExhausted.new(@failures) if @failures.any?
@@ -85,8 +87,9 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
   end
 
   # Per-row work: a contended row is recorded and skipped so later rows and
-  # phases still get their turn. Rows stay unfinished (conditional update is the
-  # guard), so the next sweep retries them.
+  # phases still get their turn. Finalization and reconciliation share one
+  # transaction, so a row whose reconciliation exhausted is rolled back to
+  # running and the next sweep retries both.
   def each_row(phase, relation)
     relation.find_each do |sp|
       scope = "spawned_process:#{sp.id}"
@@ -108,33 +111,26 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
   def reap_pidless_processes
     each_row(:pidless, SpawnedProcess.pidless_running) do |sp, scope|
       finished_at = Time.current
-      rows = with_lock_retry(:pidless, scope: scope) do
-        SpawnedProcess.where(id: sp.id, finished_at: nil, pid: nil)
-                      .update_all(finished_at: finished_at, outcome: "orphaned")
+      finalize_and_reconcile!(sp, SpawnedProcess.where(id: sp.id, finished_at: nil, pid: nil),
+                              finished_at: finished_at, phase: :pidless, scope: scope) do
+        "finalized pidless SpawnedProcess ##{sp.id} on #{sp.hostname} (kind #{sp.kind})"
       end
-      next if rows.zero?
-
-      Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized pidless SpawnedProcess ##{sp.id} on #{sp.hostname} (kind #{sp.kind})")
-      reconcile_finalized_spawned_process!(sp, finished_at: finished_at, phase: :pidless, scope: scope)
     end
   end
 
   def reap_cross_host_orphans(live_hosts)
     each_row(:cross_host, SpawnedProcess.running.where.not(hostname: live_hosts.to_a)) do |sp, scope|
       finished_at = Time.current
-      rows = with_lock_retry(:cross_host, scope: scope) do
-        SpawnedProcess.where(id: sp.id, finished_at: nil)
-                      .update_all(finished_at: finished_at, outcome: "orphaned")
+      finalize_and_reconcile!(sp, SpawnedProcess.where(id: sp.id, finished_at: nil),
+                              finished_at: finished_at, phase: :cross_host, scope: scope) do
+        "finalized SpawnedProcess ##{sp.id} on dead host #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind})"
       end
-      next if rows.zero?
-
-      Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized SpawnedProcess ##{sp.id} on dead host #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind})")
-      reconcile_finalized_spawned_process!(sp, finished_at: finished_at, phase: :cross_host, scope: scope)
     end
   end
 
   def reap_rows_from_previous_worker_instances
-    fresh_worker_starts_by_host.each do |hostname, started_at|
+    starts = fresh_worker_starts_by_host # contention propagates to run_phase(:previous_worker)
+    starts.each do |hostname, started_at|
       relation = SpawnedProcess.running.where(hostname: hostname).where("started_at < ?", started_at)
       each_row(:previous_worker, relation) do |sp, scope|
         finalize_orphaned_process!(sp, reason: "worker instance restarted", phase: :previous_worker, scope: scope)
@@ -158,6 +154,8 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
 
   def live_solid_queue_hostnames
     SolidQueue::Process.distinct.pluck(:hostname).to_set
+  rescue *LOCK_ERRORS
+    raise
   rescue ActiveRecord::StatementInvalid => e
     Rails.logger.debug("[ReapOrphanedSpawnedProcessesJob] SQ tables unreachable (#{e.class}); skipping cross-host sweep")
     nil
@@ -165,6 +163,8 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
 
   def live_instance_version_hostnames
     InstanceVersion.fresh.distinct.pluck(:hostname).to_set
+  rescue *LOCK_ERRORS
+    raise
   rescue ActiveRecord::StatementInvalid => e
     Rails.logger.debug("[ReapOrphanedSpawnedProcessesJob] instance_versions unreachable (#{e.class}); skipping instance-version host sweep")
     nil
@@ -175,31 +175,35 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
                    .where(role: "worker")
                    .group(:hostname)
                    .maximum(:started_at)
+  rescue *LOCK_ERRORS
+    raise
   rescue ActiveRecord::StatementInvalid => e
     Rails.logger.debug("[ReapOrphanedSpawnedProcessesJob] instance_versions unreachable (#{e.class}); skipping restarted-worker sweep")
     {}
   end
 
   def finalize_orphaned_process!(sp, reason:, phase:, scope:)
-    finished_at = Time.current
-    rows = with_lock_retry(phase, scope: scope) do
-      SpawnedProcess.where(id: sp.id, finished_at: nil)
-                    .update_all(finished_at: finished_at, outcome: "orphaned")
+    finalize_and_reconcile!(sp, SpawnedProcess.where(id: sp.id, finished_at: nil),
+                            finished_at: Time.current, phase: phase, scope: scope) do
+      "finalized SpawnedProcess ##{sp.id} on #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind}) — #{reason}"
     end
-    return if rows.zero?
-
-    Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized SpawnedProcess ##{sp.id} on #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind}) — #{reason}")
-    reconcile_finalized_spawned_process!(sp, finished_at: finished_at, phase: phase, scope: scope)
   end
 
-  # The row is already finalized by the conditional update (only one reaper can
-  # win it), so reconciliation is retried here in isolation; it must not rerun
-  # the update or be reachable by a second reaper.
-  def reconcile_finalized_spawned_process!(sp, finished_at:, phase:, scope:)
-    with_lock_retry(phase, scope: "#{scope}:reconcile") do
-      next if ChatTurnAutoRetryReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+  # The conditional update is the ownership guard (only one reaper wins the
+  # row). It and the reconciliation run in one transaction so a lock wait in
+  # either rolls both back: the row stays running and a later sweep revisits it
+  # rather than leaving a finalized row whose chat turn was never reconciled.
+  # The whole unit is idempotent, so it is retried with bounded backoff.
+  def finalize_and_reconcile!(sp, guarded_relation, finished_at:, phase:, scope:)
+    with_lock_retry(phase, scope: scope) do
+      SpawnedProcess.transaction do
+        next if guarded_relation.update_all(finished_at: finished_at, outcome: "orphaned").zero?
 
-      ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+        Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] #{yield}")
+        next if ChatTurnAutoRetryReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+
+        ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+      end
     end
   end
 end
