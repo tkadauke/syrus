@@ -1239,8 +1239,9 @@ documents and markup, structured data and configuration, logs and patches, and
 source files for Syrus's commonly used languages, plus recognized names such as
 `Dockerfile`, `Makefile`, `Gemfile`, and `Rakefile`. Filename and MIME checks
 allow normal browser fallbacks such as `text/plain` only for recognized files;
-archives, executables, Office files, media, and other binary formats remain
-unsupported. Each file is limited to 5 MB and attachments total 20 MB per
+ZIP archives are also accepted and stored as opaque files that Syrus never
+extracts automatically. Other archives, executables, disk images, Office files,
+media, and other binary formats remain unsupported. Each file is limited to 5 MB and attachments total 20 MB per
 message. Attachments upload as soon as they are selected, and drafts retain
 lightweight references while thumbnails and downloads use secure file URLs.
 HTML and SVG attachments are treated as untrusted source and download
