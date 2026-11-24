@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class ScheduledTasksController < BaseController
+      class ScheduledTasksController < Syrus::Host::AppController
         def index
           render json: scheduled_tasks_index_payload
         end
@@ -15,14 +15,14 @@ module Api
           repository = find_repository
           task = ScheduledTasks::Task.new(
             repository: repository,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             kind: "cron",
             pr_pileup_policy: "skip"
           )
           from_template = nil
 
           if params[:from_template].present?
-            from_template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).find_by(id: params[:from_template])
+            from_template = ScheduledTasks::CronTemplate.where(user_id: Syrus::Host::Current.user.id).find_by(id: params[:from_template])
             assign_from_template(task, from_template) if from_template
           elsif params[:preset].present?
             ScheduledTasks::RecommendationPresets.apply(task, params[:preset])
@@ -45,7 +45,7 @@ module Api
             input: params[:schedule_input].presence || params[:cron_expression],
             structured_intent: unsafe_hash(params[:structured_intent]),
             timezone: params[:schedule_timezone].presence || ScheduledTasks::Schedules::RecurringSchedule.server_timezone,
-            user: Current.user
+            user: Syrus::Host::Current.user
           )
 
           render json: schedule_preview_json(result)
@@ -57,10 +57,10 @@ module Api
 
           task = ScheduledTasks::Task.new(scheduled_task_params.merge(repository: repository))
           task.skill_args = scheduled_task_skill_args
-          task.user = Current.user
+          task.user = Syrus::Host::Current.user
           task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
           if params[:from_template].present?
-            template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).find_by(id: params[:from_template])
+            template = ScheduledTasks::CronTemplate.where(user_id: Syrus::Host::Current.user.id).find_by(id: params[:from_template])
             assign_from_template(task, template) if template
           end
 
@@ -176,11 +176,11 @@ module Api
         end
 
         def scheduled_tasks_index_payload
-          tasks = ScheduledTasks::Task.alive.where(user: Current.user).includes(:repository)
+          tasks = ScheduledTasks::Task.alive.where(user: Syrus::Host::Current.user).includes(:repository)
           {
             active_tasks: tasks.where(state: %w[ scheduled paused auto_paused ]).order(:created_at).map { |task| task_row_json(task) },
             fired_one_shots: tasks.where(state: "fired").order(updated_at: :desc).limit(20).map { |task| task_row_json(task) },
-            archived_tasks: ScheduledTasks::Task.archived.where(user: Current.user).includes(:repository).order(archived_at: :desc).limit(20).map { |task| task_row_json(task) },
+            archived_tasks: ScheduledTasks::Task.archived.where(user: Syrus::Host::Current.user).includes(:repository).order(archived_at: :desc).limit(20).map { |task| task_row_json(task) },
             options: scheduled_task_options
           }
         end
@@ -188,7 +188,7 @@ module Api
         def scheduled_task_detail_payload(task)
           {
             task: task_detail_json(task),
-            recent_jobs: Job.visible_to(Current.user, scope: task.jobs).order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
+            recent_jobs: Job.visible_to(Syrus::Host::Current.user, scope: task.jobs).order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
             options: scheduled_task_options
           }
         end
@@ -212,7 +212,7 @@ module Api
 
         def repository_scheduled_tasks_payload(repository)
           tasks = ScheduledTasks::Task
-            .where(repository_id: repository.id, user: Current.user)
+            .where(repository_id: repository.id, user: Syrus::Host::Current.user)
             .alive
             .includes(:repository)
             .order(Arel.sql("CASE state WHEN 'scheduled' THEN 0 ELSE 1 END"), created_at: :desc)
@@ -402,15 +402,15 @@ module Api
         end
 
         def find_repository
-          Repository.accessible_to(Current.user).find(params[:repository_id])
+          Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
         end
 
         def available_repositories
-          Repository.accessible_to(Current.user).merge(Repository.writable_by(Current.user)).active.order(:owner, :name)
+          Repository.accessible_to(Syrus::Host::Current.user).merge(Repository.writable_by(Syrus::Host::Current.user)).active.order(:owner, :name)
         end
 
         def find_task
-          ScheduledTasks::Task.where(user: Current.user).find(params[:id])
+          ScheduledTasks::Task.where(user: Syrus::Host::Current.user).find(params[:id])
         end
 
         def find_mutable_task
@@ -421,7 +421,7 @@ module Api
         end
 
         def find_repository_task(repository)
-          ScheduledTasks::Task.where(repository_id: repository.id, user: Current.user).find(params[:id])
+          ScheduledTasks::Task.where(repository_id: repository.id, user: Syrus::Host::Current.user).find(params[:id])
         end
 
         def scheduled_task_params

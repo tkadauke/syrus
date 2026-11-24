@@ -22,7 +22,7 @@ module Whiteboard
     class << self
       def call(type:, x:, y:, width:, height:, server_context:, label: nil, color: nil)
         type = type.to_s
-        return Mcp::Tools.invalid("type must be rectangle, ellipse, diamond, or sticky") unless Canvas::SHAPE_TYPES.include?(type)
+        return Syrus::Host::McpTools.invalid("type must be rectangle, ellipse, diamond, or sticky") unless Canvas::SHAPE_TYPES.include?(type)
 
         args = {
           "type" => type,
@@ -50,11 +50,11 @@ module Whiteboard
           { id: element.fetch("id") }
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

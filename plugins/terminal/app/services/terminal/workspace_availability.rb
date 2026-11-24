@@ -29,7 +29,7 @@ module Terminal
     end
 
     def result
-      path = WorkflowWorkspace.path_for(workflow).to_s
+      path = Syrus::Host::WorkflowWorkspace.path_for(workflow).to_s
       return unavailable(CLEANED_UP_REASON, path) if workflow.cleaned_up_at.present?
       return storage_key_result(path) if workflow.worker_storage_key.present?
       return hostname_result(path) if workflow.worker_hostname.present?

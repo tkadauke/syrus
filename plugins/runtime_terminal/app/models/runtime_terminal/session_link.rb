@@ -1,5 +1,5 @@
 module RuntimeTerminal
-  class SessionLink < ApplicationRecord
+  class SessionLink < Syrus::Host::Record
     self.table_name = "runtime_terminal_session_links"
 
     belongs_to :runtime_session

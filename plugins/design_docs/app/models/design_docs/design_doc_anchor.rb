@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocAnchor < ApplicationRecord
+  class DesignDocAnchor < Syrus::Host::Record
     self.table_name = "design_doc_anchors"
 
     ANCHOR_KINDS = %w[point range].freeze

@@ -2,7 +2,7 @@ module ScheduledTasks
   # A reusable prompt + schedule an operator can apply to several Tasks.
   # Applying copies the values; later template edits do not rewrite the Tasks
   # that already used it.
-  class CronTemplate < ApplicationRecord
+  class CronTemplate < Syrus::Host::Record
     self.table_name = "scheduled_task_cron_templates"
     PR_PILEUP_POLICIES = %w[ skip pile replace ].freeze
 

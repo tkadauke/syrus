@@ -22,7 +22,7 @@ module Whiteboard
     class << self
       def call(data_url:, x:, y:, width:, height:, server_context:, mime_type: nil, file_id: nil)
         data_url = data_url.to_s
-        return Mcp::Tools.invalid("data_url must be a data URL") unless data_url.start_with?("data:")
+        return Syrus::Host::McpTools.invalid("data_url must be a data URL") unless data_url.start_with?("data:")
 
         args = {
           "data_url" => data_url,
@@ -49,11 +49,11 @@ module Whiteboard
           { id: element.fetch("id"), file_id: file.fetch("id") }
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

@@ -1,6 +1,6 @@
 module SyrusDev
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     OPERATIONS = {
       "read_performance_diagnostics" => "syrus_dev.performance/read@v1",
@@ -28,7 +28,7 @@ module SyrusDev
     end
 
     def handle(tool_name, params, context)
-      run_context = McpToolContext.from_server_context(context)
+      run_context = Syrus::Host::ToolContext.from_server_context(context)
       klass = self.class.tool_classes_for(run_context.role).find { |k| k.tool_name == tool_name }
       raise "SyrusDev::WorkflowToolSet: unknown tool #{tool_name.inspect}" unless klass
 

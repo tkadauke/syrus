@@ -1,5 +1,5 @@
 module TestInsights
-  class RuntimeSummary < ApplicationRecord
+  class RuntimeSummary < Syrus::Host::Record
     self.table_name = "test_insight_runtime_summaries"
 
     ALL_GRADERS = "__all__".freeze

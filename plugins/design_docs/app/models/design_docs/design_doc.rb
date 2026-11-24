@@ -3,7 +3,7 @@ require "digest"
 require "json"
 
 module DesignDocs
-  class DesignDoc < ApplicationRecord
+  class DesignDoc < Syrus::Host::Record
     self.table_name = "design_docs"
 
     VISIBILITIES = %w[private public].freeze

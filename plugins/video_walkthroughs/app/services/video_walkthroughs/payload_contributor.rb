@@ -8,7 +8,7 @@ module VideoWalkthroughs
   # instead, so an installed-but-disabled plugin contributes nothing and the
   # intake disappears without core knowing why.
   module PayloadContributor
-    include Syrus::Plugin::ChatPayloadContributor
+    include Syrus::Host::ChatPayloadContributor
 
     def self.chat_payload(chat_session:, context:)
       {
@@ -16,7 +16,7 @@ module VideoWalkthroughs
         # Whether the *viewer* can actually analyze a video they upload. The
         # composer uses it to offer the setup sheet rather than let someone
         # record five minutes and then fail.
-        gemini_configured: Current.user&.gemini_configured? || false
+        gemini_configured: Syrus::Host::Current.user&.gemini_configured? || false
       }
     end
 

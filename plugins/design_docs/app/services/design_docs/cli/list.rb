@@ -2,7 +2,7 @@
 
 module DesignDocs
   module Cli
-    class List < Syrus::Plugin::CliCommandHandler
+    class List < Syrus::Host::CliCommandHandler
       def call(args:, flags:, user:)
         scope = DesignDocPolicy::Scope.new(user, DesignDoc).resolve
           .includes(:owner_user, :repositories)

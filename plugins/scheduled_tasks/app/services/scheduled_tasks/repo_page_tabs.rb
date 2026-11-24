@@ -4,7 +4,7 @@ module ScheduledTasks
   # Core used to append this itself, which meant naming a plugin's surface
   # and its route helper. The plugin decides whether its own tab appears.
   class RepoPageTabs
-    include Syrus::Plugin::RepoPageTab
+    include Syrus::Host::RepoPageTab
 
     def self.repo_page_tabs(repository:, user: nil)
       return [] if repository.blank?

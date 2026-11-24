@@ -53,7 +53,7 @@ module GitMirror
       failed = []
       batch, complete, starting_cursor = next_batch
       batch.each do |repository|
-        source = RepositoryContent.upstream_source_for(repository)
+        source = Syrus::Host::ContentReader.upstream_source_for(repository)
         next skipped << repository.id unless source
 
         @client.register(repository.id.to_s, source)

@@ -4,7 +4,7 @@
 # chat as a turn so the EXISTING chat agent can ask follow-ups or propose an
 # Epic through the normal proposal machinery. Gemini is the eyes; the chat
 # agent stays the brain.
-class VideoWalkthroughs::Walkthrough < ApplicationRecord
+class VideoWalkthroughs::Walkthrough < Syrus::Host::Record
   self.table_name = "video_walkthroughs"
 
   STATES = %w[uploaded analyzing analyzed failed].freeze

@@ -14,7 +14,7 @@ module Api
       #   POST /api/v1/admin/scheduled_tasks/:id/pause
       #   POST /api/v1/admin/scheduled_tasks/:id/unpause
       #   POST /api/v1/admin/scheduled_tasks/:id/fire
-      class ScheduledTasksController < BaseController
+      class ScheduledTasksController < Syrus::Host::AdminController
         before_action :require_scheduled_tasks_enabled
 
         DEFAULT_PER = 50

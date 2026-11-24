@@ -17,7 +17,7 @@ module MetricsDashboard
     def self.build = new.build
 
     def build
-      Syrus::PluginRegistry.providers_for("metrics_dashboard:tab")
+      Syrus::Host::PluginRegistry.providers_for("metrics_dashboard:tab")
         .flat_map { |provider| tabs_for(provider) }
         .sort_by { |tab| tab[:label] }
     end
@@ -25,7 +25,7 @@ module MetricsDashboard
     private
 
     def tabs_for(provider)
-      PerformanceLogging.plugin_call(extension_point: "metrics_dashboard:tab", provider: provider, operation: :metrics_dashboard_tabs) do
+      Syrus::Host::PerformanceLogging.plugin_call(extension_point: "metrics_dashboard:tab", provider: provider, operation: :metrics_dashboard_tabs) do
         Array(provider.metrics_dashboard_tabs).map { |tab| tab_payload(tab) }
       end
     end

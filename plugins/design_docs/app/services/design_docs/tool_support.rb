@@ -3,15 +3,15 @@ require "mcp"
 module DesignDocs
   module ToolSupport
     def success(payload)
-      Mcp::Tools.success(payload)
+      Syrus::Host::McpTools.success(payload)
     end
 
     def invalid(message)
-      Mcp::Tools.invalid(message)
+      Syrus::Host::McpTools.invalid(message)
     end
 
     def tool_error(message)
-      Mcp::Tools.tool_error(message)
+      Syrus::Host::McpTools.tool_error(message)
     end
 
     def symbolize(params)
@@ -19,7 +19,7 @@ module DesignDocs
     end
 
     def context_from(server_context)
-      McpToolContext.from_server_context(server_context)
+      Syrus::Host::ToolContext.from_server_context(server_context)
     end
 
     def chat_context?(server_context)

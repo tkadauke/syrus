@@ -65,7 +65,7 @@ module TestInsights
 
       class << self
         def call(server_context:, repository: nil, repository_id: nil, filter: nil, category: nil, sort: nil, direction: nil, query: nil, grader_name: nil, limit: nil, lookback: nil, filters: {})
-          Mcp::Tools.with_database_connection do
+          Syrus::Host::McpTools.with_database_connection do
             context = current_context(server_context)
             target_repository = repository_for(context, repository: repository, repository_id: repository_id)
             result = TestInsights::Query.call(
@@ -80,7 +80,7 @@ module TestInsights
               filters: normalize_filters(filters, lookback)
             )
 
-            Mcp::Tools.success(
+            Syrus::Host::McpTools.success(
               repository: repository_payload(result.repository),
               filter: result.category,
               sort: result.sort,
@@ -94,10 +94,10 @@ module TestInsights
             )
           end
         rescue ActiveRecord::RecordNotFound
-          Mcp::Tools.not_authorized
+          Syrus::Host::McpTools.not_authorized
         rescue StandardError => e
           Rails.logger.error("[Mcp::Tools::ListRepositoryTestInsightsTool] #{e.class}: #{e.message}")
-          Mcp::Tools.invalid("#{e.class}: #{e.message}")
+          Syrus::Host::McpTools.invalid("#{e.class}: #{e.message}")
         end
 
         private

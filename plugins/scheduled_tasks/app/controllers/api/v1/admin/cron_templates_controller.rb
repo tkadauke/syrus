@@ -8,7 +8,7 @@ module Api
       #
       #   GET /api/v1/admin/cron_templates
       #   GET /api/v1/admin/cron_templates/:id
-      class CronTemplatesController < BaseController
+      class CronTemplatesController < Syrus::Host::AdminController
         before_action :require_scheduled_tasks_enabled
         DEFAULT_PER = 50
         MAX_PER = 100

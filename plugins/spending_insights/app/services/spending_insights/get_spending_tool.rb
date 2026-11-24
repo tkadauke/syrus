@@ -24,12 +24,12 @@ module SpendingInsights
       def call(server_context:, window: "30d", repository_id: nil, epic_id: nil)
         chat_session = server_context.fetch(:chat_session)
         window = window.to_s.presence || "30d"
-        return Mcp::Tools.invalid("window must be one of 7d, 30d, 90d") unless WINDOW_DAYS.key?(window)
+        return Syrus::Host::McpTools.invalid("window must be one of 7d, 30d, 90d") unless WINDOW_DAYS.key?(window)
 
         params = payload_params(window: window, repository_id: repository_id, epic_id: epic_id, user: chat_session.user)
         payload = SpendingInsights::Payload.new(user: chat_session.user, params: params).as_json
 
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           total_cost_usd: total_cost(payload),
           total_input_tokens: windowed_runs(chat_session.user, params).sum(:input_tokens),
           total_output_tokens: windowed_runs(chat_session.user, params).sum(:output_tokens),

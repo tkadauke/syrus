@@ -1,6 +1,6 @@
 module TestInsights
   class UiSlots
-    include Syrus::Plugin::UiSlot
+    include Syrus::Host::UiSlot
 
     # The Job detail Tests tab. Contributed only when this Job actually has
     # results, which is why core no longer needs a has_test_results? of its own.

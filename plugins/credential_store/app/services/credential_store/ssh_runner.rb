@@ -23,7 +23,7 @@ module CredentialStore
     end
 
     def self.capture_workdir
-      WorkflowWorkspace.data_root.join(CAPTURE_SCRATCH_DIR).tap { |dir| FileUtils.mkdir_p(dir) }
+      Syrus::Host::WorkflowWorkspace.data_root.join(CAPTURE_SCRATCH_DIR).tap { |dir| FileUtils.mkdir_p(dir) }
     rescue SystemCallError
       Pathname.new(Dir.tmpdir)
     end
