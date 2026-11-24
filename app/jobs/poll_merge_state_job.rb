@@ -68,7 +68,7 @@ class PollMergeStateJob < ApplicationJob
       # The two endpoints of the ancestry comparison haven't moved since
       # the last time we fetched -- the distance between two fixed commits
       # can't have changed, so skip the redundant git fetch.
-      compute_commits_behind(@pr) if commits_behind_stale?(previous_head_sha, previous_base_sha)
+      compute_commits_behind(@pr) if commits_behind_stale?(previous_head_sha, previous_base_sha, live_base_sha(@pr))
 
       gate = AutoMergeGate.new(job: @job, client: @client, bypass_cache: true, pr: @pr).evaluate
       if gate.merge_ready?
@@ -92,24 +92,42 @@ class PollMergeStateJob < ApplicationJob
   # False once we already know the distance for this exact head/base
   # pair -- true on the first check for a Job, or the moment either
   # endpoint moves (a new push, or the base branch advancing).
-  def commits_behind_stale?(previous_head_sha, previous_base_sha)
+  def commits_behind_stale?(previous_head_sha, previous_base_sha, live_base_sha = nil)
     return true if @job.commits_behind_base.nil?
     return true if previous_head_sha != @job.mergeability_head_sha
     return true if previous_base_sha != @job.mergeability_base_sha
+    return true if live_base_sha.present? && live_base_sha != @job.commits_behind_base_sha
 
     false
   end
 
+  # GitHub's pull-request base.sha is the base branch as of the PR's last
+  # sync, not the branch now: it does not move when the base branch
+  # advances. Counted against it, a PR nobody had pushed to read "0 behind"
+  # while 169 commits behind main, so neither a proactive rebase nor an
+  # operator ever saw it was stale. Count against the live branch tip.
+  def live_base_sha(pr)
+    return @live_base_sha if defined?(@live_base_sha)
+
+    ref = pr&.base&.ref.to_s.presence
+    @live_base_sha = ref && RepositoryContent.for(@job.repository, user: @job.user).resolve(ref).id.to_s.presence
+  rescue RepositoryContent::Error => e
+    Rails.logger.info("[PollMergeStateJob] #{@job.slug} live base #{ref} unavailable, using the PR's base.sha: #{e.class}: #{e.message}")
+    @live_base_sha = nil
+  end
+
   def compute_commits_behind(pr)
     head_sha = pr&.head&.sha.to_s.presence
-    base_sha = pr&.base&.sha.to_s.presence
+    base_sha = live_base_sha(pr) || pr&.base&.sha.to_s.presence
     return unless head_sha && base_sha
 
     pr_repo = @job.effective_pr_repository
     distance = CommitsBehindCalculator.call(repository: pr_repo, user: @job.user, head_sha: head_sha, base_sha: base_sha)
-    return if @job.commits_behind_base == distance
+    if @job.commits_behind_base == distance && @job.commits_behind_base_sha == base_sha
+      return
+    end
 
-    @job.update_column(:commits_behind_base, distance)
+    @job.update_columns(commits_behind_base: distance, commits_behind_base_sha: base_sha)
   rescue StandardError => e
     Rails.logger.warn("[PollMergeStateJob] #{@job.slug} commits_behind_base skipped: #{e.class}: #{e.message}")
   end

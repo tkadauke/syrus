@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_042254) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2103,6 +2103,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_042254) do
     t.integer "landing_queue_entry_position"
     t.string "system_kind"
     t.integer "commits_behind_base"
+    t.string "commits_behind_base_sha"
     t.string "landed_sha"
     t.boolean "auto_merge_enabled", default: false, null: false
     t.string "job_provider_setting", default: "default", null: false

@@ -11,6 +11,12 @@ RSpec.describe PollMergeStateJob, :ci_only do
     WorkUnits::TerminalWorkflowSync.for_job(target)
   end
 
+  # Most examples exercise the PR-reported base; the live base-branch tip is
+  # covered by its own describe below.
+  before do
+    allow_any_instance_of(described_class).to receive(:live_base_sha).and_return(nil)
+  end
+
   def pr(mergeable_state: "clean", mergeable: true, merged: false, state: "open", head_sha: "abc", base_ref: "main", base_sha: "base", merge_commit_sha: nil)
     repo = OpenStruct.new(full_name: "acme/widgets")
     OpenStruct.new(
@@ -827,7 +833,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
     end
 
     it "does not rewrite the job when the computed distance is unchanged" do
-      job.update_column(:commits_behind_base, 5)
+      job.update_columns(commits_behind_base: 5, commits_behind_base_sha: "base")
       updates = []
       callback = lambda do |_name, _started, _finished, _unique_id, payload|
         sql = payload[:sql].to_s
@@ -867,6 +873,48 @@ RSpec.describe PollMergeStateJob, :ci_only do
       expect(RepositoryBareClone).to receive(:new).with(repository).and_return(fake_clone)
 
       described_class.perform_now(job.id)
+    end
+  end
+
+  # Regression: GitHub's base.sha is the base branch as of the PR's last
+  # sync. A PR nobody had pushed to read "0 behind" while 169 commits behind
+  # main, so no proactive rebase ever fired and an operator had to notice.
+  describe "commits_behind_base against the live base branch" do
+    let(:fake_clone) { instance_double(RepositoryBareClone) }
+
+    before do
+      allow(RepositoryBareClone).to receive(:new).and_return(fake_clone)
+      allow(fake_clone).to receive(:sync!)
+      allow_any_instance_of(described_class).to receive(:live_base_sha).and_return("livetip")
+    end
+
+    it "counts against the base branch tip, not the PR's stale base.sha" do
+      expect(fake_clone).to receive(:commits_behind).with(head_sha: "abc", base_sha: "livetip").and_return(169)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to eq(169)
+      expect(job.commits_behind_base_sha).to eq("livetip")
+    end
+
+    it "resolves the live tip of the PR's base ref through repository content" do
+      revision = stub_repository_content(repository, files: {}, ref: "main")
+      poller = described_class.new
+      poller.instance_variable_set(:@job, job)
+      allow(poller).to receive(:live_base_sha).and_call_original
+
+      expect(poller.send(:live_base_sha, pr(base_ref: "main"))).to eq(revision.id)
+    end
+
+    it "recounts when the base branch moved though the PR itself did not" do
+      job.update_columns(commits_behind_base: 0, commits_behind_base_sha: "oldtip",
+                         mergeability_head_sha: "abc", mergeability_base_sha: "base")
+      allow(fake_clone).to receive(:commits_behind).and_return(7)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to eq(7)
+      expect(job.commits_behind_base_sha).to eq("livetip")
     end
   end
 
