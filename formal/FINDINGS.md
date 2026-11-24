@@ -5484,6 +5484,31 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M84. Main through `6edc2c7761`
+
+A job bundle, mostly frontend touch handling, dead-code removal, dependency
+refreshes, bounded Test Insights reads and architecture docs. Two commits
+change behaviour the branch relies on:
+
+- **"Reuse live instance lookups during RunJob admission"** (`7065dda1b7`).
+  `RunQueueResolver` reads fresh worker instances once per resolver run, keyed
+  by hostname. *Relied-on invariant:* admission sees the same live workers as
+  before. Holds for the per-host lookup: the old `.first` already ordered by
+  primary key, and the lowest id per hostname matches it. One change for the
+  worker list: it now holds one instance per hostname, the oldest, where it
+  used to hold every fresh row. Just after a worker restarts, while both its
+  old and new rows are still fresh, admission sees the old row's capabilities
+  until that row's heartbeat lapses. That is transient, so it is recorded and
+  not fixed.
+- **"Replace policy case switch in MCP sidecar with predicate table"**
+  (`45501465c8`). *Relied-on invariant:* the same definitions are chosen for
+  every policy. Holds: the branches are unchanged, and the participant list,
+  a pure call, is now computed once instead of once per definition.
+
+The refreshed gems needed `bundle install` before the specs would boot. After
+the rebase, the resolver, formal, architecture and lock-order specs pass
+(1,079 examples).
+
 ## M83. Main through `d27d3490ae`
 
 A merge train for the Achievements Epic: a new `achievements` plugin with a
@@ -7634,7 +7659,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `d27d3490ae`. Each loop iteration continues from there:
+Checked through main `6edc2c7761`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
