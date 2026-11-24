@@ -229,7 +229,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         pr_checks_checked_at: Time.current, pr_checks_failing_names: [ "rspec" ],
         mergeability_base_sha: "base-sha"
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repo, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )

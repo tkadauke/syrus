@@ -71,7 +71,7 @@ RSpec.describe MainBranchFailureClassifier do
     it "treats a shard's failures as inherited when main failed them in a sibling shard" do
       _, base_one = failed_shard(base_workflow, "rspec-ci-1-of-4", 1)
       _, base_two = failed_shard(base_workflow, "rspec-ci-2-of-4", 2)
-      MainBranchHealthCheck.record_grader_workflow(
+      MainBranchHealth::HealthCheck.record_grader_workflow(
         repository: repository, sha: "base123", grader_health: "broken",
         grader_failed_names: %w[rspec-ci-1-of-4 rspec-ci-2-of-4], workflow: base_workflow
       )
@@ -90,7 +90,7 @@ RSpec.describe MainBranchFailureClassifier do
 
     it "still reports a failure no shard of main had" do
       _, base_one = failed_shard(base_workflow, "rspec-ci-1-of-4", 1)
-      MainBranchHealthCheck.record_grader_workflow(
+      MainBranchHealth::HealthCheck.record_grader_workflow(
         repository: repository, sha: "base123", grader_health: "broken",
         grader_failed_names: %w[rspec-ci-1-of-4], workflow: base_workflow
       )

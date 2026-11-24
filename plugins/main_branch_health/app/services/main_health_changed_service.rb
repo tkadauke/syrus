@@ -236,13 +236,13 @@ class MainHealthChangedService
       grader_health: "healthy"
     )
 
-    MainBranchHealthCheck.record_ci_poll(
+    MainBranchHealth::HealthCheck.record_ci_poll(
       repository: @repository,
       sha: sha,
       ci_health: ci_health,
       ci_failed_checks: []
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: @repository,
       workflow: job.latest_workflow,
       sha: sha,
@@ -681,7 +681,7 @@ class MainHealthChangedService
   def health_checks_for(sha)
     return [] if sha == "unknown"
 
-    MainBranchHealthCheck
+    MainBranchHealth::HealthCheck
       .where(repository: @repository, sha: sha)
       .includes(:workflow)
       .recent
@@ -769,12 +769,12 @@ class MainHealthChangedService
   def settled_broken_ci_signal?(sha)
     @repository.last_ci_evaluated_sha == sha &&
       @repository.ci_health_broken? &&
-      MainBranchHealthCheck.broken_ci_result_exists?(repository: @repository, sha: sha)
+      MainBranchHealth::HealthCheck.broken_ci_result_exists?(repository: @repository, sha: sha)
   end
 
   def settled_broken_grader_signal?(sha)
     @repository.grader_health_broken? &&
-      MainBranchHealthCheck.broken_grader_result_exists?(repository: @repository, sha: sha)
+      MainBranchHealth::HealthCheck.broken_grader_result_exists?(repository: @repository, sha: sha)
   end
 
   def truncate_attachment_body(body, max_bytes)

@@ -20,7 +20,7 @@ RSpec.describe MainConcernAggregator do
     run = Run.create!(
       job: job, user: user, trigger_kind: "initial", agent_provider: "claude"
     )
-    MainConcernReport.create!({
+    MainBranchHealth::ConcernReport.create!({
       repository: repo,
       job: job,
       workflow: workflow,
@@ -80,9 +80,9 @@ RSpec.describe MainConcernAggregator do
 
         expect {
           described_class.check!(repository)
-        }.to change { MainBranchHealthCheck.where(repository: repository, source: "concern_quorum").count }.by(1)
+        }.to change { MainBranchHealth::HealthCheck.where(repository: repository, source: "concern_quorum").count }.by(1)
 
-        check = MainBranchHealthCheck.where(repository: repository, source: "concern_quorum").last
+        check = MainBranchHealth::HealthCheck.where(repository: repository, source: "concern_quorum").last
         expect(check).to have_attributes(
           sha: sha,
           ci_health: repository.ci_health,
@@ -93,7 +93,7 @@ RSpec.describe MainConcernAggregator do
 
       it "does not override a conclusive healthy grader result for the same SHA" do
         repository.update!(ci_health: "healthy", grader_health: "healthy")
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           sha: sha,
           grader_health: "healthy"

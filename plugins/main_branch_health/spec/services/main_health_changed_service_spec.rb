@@ -225,7 +225,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           ci_health: "broken",
           grader_health: "unknown"
         )
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: "wait123def456",
           ci_health: "broken",
@@ -265,7 +265,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           ci_health: "broken",
           grader_health: "unknown"
         )
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: "wait123def456",
           ci_health: "healthy",
@@ -287,7 +287,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           ci_health: "healthy",
           grader_health: "broken"
         )
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           sha: "wait123def456",
           grader_health: "healthy",
@@ -309,7 +309,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           ci_health: "broken",
           grader_health: "unknown"
         )
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: "wait123def456",
           ci_health: "broken",
@@ -426,7 +426,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           ci_health: "broken",
           grader_health: "broken"
         )
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: sha,
           ci_health: "broken",
@@ -465,7 +465,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
             }
           ]
         ])
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           workflow: grader_workflow,
           sha: sha,
@@ -494,7 +494,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           ci_health: "broken",
           grader_health: "broken"
         )
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: sha,
           ci_health: "broken",
@@ -526,7 +526,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
             }
           ]
         ])
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           workflow: grader_workflow,
           sha: sha,
@@ -957,7 +957,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           state: "closed",
           closure_reason: "preflight_passed"
         )
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: "abc123def456",
           ci_health: "broken",
@@ -995,14 +995,14 @@ RSpec.describe MainHealthChangedService, :ci_only do
         )
 
         repository.update!(ci_health: "healthy", grader_health: "healthy")
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           sha: "abc123def456",
           grader_health: "healthy",
           grader_failed_names: []
         )
         repository.update!(ci_health: "broken", grader_health: "healthy")
-        MainBranchHealthCheck.record_ci_poll(
+        MainBranchHealth::HealthCheck.record_ci_poll(
           repository: repository,
           sha: "abc123def456",
           ci_health: "broken",
@@ -1043,7 +1043,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
 
         preflight_workflow = Factories.job(repository: repository).latest_workflow
         repository.update!(ci_health: "healthy", grader_health: "healthy")
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           workflow: preflight_workflow,
           sha: "abc123def456",
@@ -1051,7 +1051,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           grader_failed_names: []
         )
         repository.update!(grader_health: "broken")
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           workflow: original_workflow,
           sha: "abc123def456",
@@ -1064,7 +1064,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
 
         new_workflow = Factories.job(repository: repository).latest_workflow
-        MainBranchHealthCheck.record_grader_workflow(
+        MainBranchHealth::HealthCheck.record_grader_workflow(
           repository: repository,
           workflow: new_workflow,
           sha: "abc123def456",
@@ -1999,7 +1999,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         ci_health: "healthy",
         grader_health: "healthy"
       )
-      merged = MainBranchHealthCheck.where(repository: repository, sha: "fixed456", ci_health: "healthy", grader_health: "healthy")
+      merged = MainBranchHealth::HealthCheck.where(repository: repository, sha: "fixed456", ci_health: "healthy", grader_health: "healthy")
       expect(merged).to exist
       expect(merged.count).to eq(1)
       expect(merged.first.workflow).to eq(workflow)
@@ -2024,7 +2024,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
       }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id)
 
       expect(repository.reload).to have_attributes(landing_paused: true, ci_health: "broken", grader_health: "broken")
-      expect(MainBranchHealthCheck.where(repository: repository, sha: "later789", grader_health: "healthy")).not_to exist
+      expect(MainBranchHealth::HealthCheck.where(repository: repository, sha: "later789", grader_health: "healthy")).not_to exist
     end
 
     it "keeps repositories without CI configured as no-CI healthy" do
@@ -2124,13 +2124,13 @@ RSpec.describe MainHealthChangedService, :ci_only do
       ci_health: ci_health,
       grader_health: grader_health
     )
-    MainBranchHealthCheck.record_ci_poll(
+    MainBranchHealth::HealthCheck.record_ci_poll(
       repository: repository,
       sha: sha,
       ci_health: ci_health,
       ci_failed_checks: ci_failed_checks
     )
-    MainBranchHealthCheck.record_grader_workflow(
+    MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: repository,
       workflow: workflow,
       sha: sha,

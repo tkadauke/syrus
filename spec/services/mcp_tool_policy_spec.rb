@@ -57,7 +57,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitJobMetadataTool,
         Mcp::Tools::SubmitReportTool
       )
-      expect(tools.size).to eq(24)
+      expect(tools.size).to eq(23)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do

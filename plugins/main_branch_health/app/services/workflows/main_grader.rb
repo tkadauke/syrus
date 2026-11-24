@@ -90,7 +90,7 @@ module Workflows
         repository.update!(updates)
       end
       record_landing_parity!(workflow, repository, sha)
-      MainBranchHealthCheck.record_grader_workflow(
+      MainBranchHealth::HealthCheck.record_grader_workflow(
         repository: repository,
         branch: branch,
         workflow: workflow,
@@ -134,7 +134,7 @@ module Workflows
       end
       aggregate = aggregate_target_statuses(skipped_statuses)
       if aggregate == "unknown"
-        previous = MainBranchHealthCheck.where(
+        previous = MainBranchHealth::HealthCheck.where(
           repository: workflow.job.repository,
           branch: workflow.artifact("health_branch").presence || workflow.job.repository.default_branch
         ).recent.first&.grader_health
@@ -217,7 +217,7 @@ module Workflows
     private_class_method def self.record_interrupted_grader_check!(workflow, interrupted_steps)
       repository = workflow.job.repository
       interrupted_names = failed_required_grader_names(interrupted_steps)
-      MainBranchHealthCheck.record_grader_workflow(
+      MainBranchHealth::HealthCheck.record_grader_workflow(
         repository: repository,
         branch: workflow.artifact("health_branch").presence || repository.default_branch,
         workflow: workflow,
@@ -235,7 +235,7 @@ module Workflows
       sha = workflow.artifact("main_sha").to_s.presence
       return false unless sha
 
-      MainBranchHealthCheck.conclusive_grader_result_exists?(
+      MainBranchHealth::HealthCheck.conclusive_grader_result_exists?(
         repository: workflow.job.repository,
         branch: workflow.artifact("health_branch").presence || workflow.job.repository.default_branch,
         sha: sha

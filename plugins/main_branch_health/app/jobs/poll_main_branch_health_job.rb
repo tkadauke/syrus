@@ -55,8 +55,8 @@ class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
     branch, sha = health_head(repository, client, branch)
     return unless sha
 
-    latest = MainBranchHealthCheck.where(repository: repository, branch: branch).recent.first
-    current = MainBranchHealthCheck.where(repository: repository, branch: branch, sha: sha)
+    latest = MainBranchHealth::HealthCheck.where(repository: repository, branch: branch).recent.first
+    current = MainBranchHealth::HealthCheck.where(repository: repository, branch: branch, sha: sha)
                                    .where.not(source: "concern_quorum").recent.first
     previous_sha = latest&.sha || (repository.last_health_checked_sha if default_track_branch)
     if default_track_branch && repository.last_health_checked_sha != sha
@@ -68,7 +68,7 @@ class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
       )
       repository.reload
     end
-    grading_needed = !MainBranchHealthCheck.conclusive_grader_result_exists?(
+    grading_needed = !MainBranchHealth::HealthCheck.conclusive_grader_result_exists?(
       repository: repository, branch: branch, sha: sha
     )
     if default_track_branch && repository.last_graded_sha == sha
@@ -119,7 +119,7 @@ class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
     return if ci_health == "not_configured" && current&.ci_health == "not_configured"
 
     previous_health = repository.main_health if default_track_branch
-    MainBranchHealthCheck.record_ci_poll(
+    MainBranchHealth::HealthCheck.record_ci_poll(
       repository: repository,
       branch: branch,
       sha: sha,
@@ -145,7 +145,7 @@ class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
   end
 
   def update_default_branch_summary!(repository, branch, sha, ci_health, previous_health)
-    check = MainBranchHealthCheck.where(repository: repository, branch: branch, sha: sha)
+    check = MainBranchHealth::HealthCheck.where(repository: repository, branch: branch, sha: sha)
                                 .where.not(source: "concern_quorum").recent.first
     repository.update_columns(
       last_health_checked_sha: sha,

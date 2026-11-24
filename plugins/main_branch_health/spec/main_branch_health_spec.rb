@@ -21,6 +21,6 @@ RSpec.describe "Main branch health plugin" do
 
     expect(RetentionPolicyRegistry::CORE_DEFINITIONS.map(&:key)).not_to include(:main_branch_health_check)
     expect(definition.table_name).to eq("main_branch_health_health_checks")
-    expect(definition.model_class).to eq(MainBranchHealthCheck)
+    expect(definition.model_class).to eq(MainBranchHealth::HealthCheck)
   end
 end

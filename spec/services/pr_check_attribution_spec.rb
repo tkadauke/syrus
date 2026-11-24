@@ -9,7 +9,7 @@ RSpec.describe PrCheckAttribution do
   end
 
   def record_base!(ci_health:, failed:, sha: "base-sha")
-    MainBranchHealthCheck.create!(
+    MainBranchHealth::HealthCheck.create!(
       repository: repository, sha: sha, checked_at: Time.current, source: "ci_poll",
       ci_health: ci_health, ci_failed_checks: failed
     )
