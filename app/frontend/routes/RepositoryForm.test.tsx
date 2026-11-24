@@ -195,6 +195,23 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     vi.restoreAllMocks()
   })
 
+  it("lets the landing concurrency field be cleared and retyped without clamping mid-edit", async () => {
+    mockFetch()
+    renderRoute()
+
+    await screen.findByLabelText("Trigger label")
+    const input = screen.getByDisplayValue("1", { selector: 'input[type="number"][max="5"]' })
+
+    fireEvent.change(input, { target: { value: "" } })
+    expect(input).toHaveValue(null)
+
+    fireEvent.change(input, { target: { value: "3" } })
+    expect(input).toHaveValue(3)
+
+    fireEvent.blur(input)
+    expect(input).toHaveValue(3)
+  })
+
   it("preserves unsaved settings when the edit payload refetches", async () => {
     mockFetch()
     const { client } = renderRoute()
