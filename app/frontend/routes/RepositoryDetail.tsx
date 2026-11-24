@@ -553,16 +553,19 @@ export function RecommendedActions({
           </div>
         </div>
         {hasMultiple ? (
-          <div className="mt-2 flex items-center justify-center gap-2 sm:hidden" data-testid="recommendation-dots">
+          <div className="-mb-2 mt-1 flex items-center justify-center sm:hidden" data-testid="recommendation-dots">
             {recommendations.map((item, index) => (
               <button
                 aria-current={index === activeIndex ? "true" : undefined}
                 aria-label={t("repository.go_to_tip", { index: index + 1 })}
-                className={`h-2 w-2 rounded-full bg-current ${index === activeIndex ? "opacity-80" : "opacity-25"}`}
+                className="flex h-11 w-8 items-center justify-center"
+                data-testid="recommendation-dot"
                 key={item.id}
                 onClick={() => setCurrentIndex(index)}
                 type="button"
-              />
+              >
+                <span className={`h-2 w-2 rounded-full bg-current ${index === activeIndex ? "opacity-80" : "opacity-25"}`} />
+              </button>
             ))}
           </div>
         ) : null}
