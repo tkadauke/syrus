@@ -1054,7 +1054,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `LandedCommit`
 - `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
-- `Mcp::CoworkerToolExposure`
+- `Mcp::ChatToolParity`
 - `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`

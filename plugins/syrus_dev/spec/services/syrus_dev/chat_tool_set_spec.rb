@@ -26,8 +26,11 @@ RSpec.describe SyrusDev::ChatToolSet do
 
   it "registers its grant and exactly two coworker-safe tools" do
     expect(chat_tool_sets).to include(described_class)
-    expect(Mcp::CoworkerToolExposure.coworker_only_exception(described_class))
-      .to have_attributes(reason_code: "coworker_sanitized_surface", owner: "syrus-dev")
+    expect(Mcp::ChatToolParity.provider_exceptions(described_class))
+      .to contain_exactly(have_attributes(reason_code: "syrus_dev_sanitized_diagnostics", owner: "syrus-dev",
+                                          absent_from: %i[planner coding local]))
+    expect(Mcp::ChatToolParity.plugin_report([ described_class ])).to eq([])
+    expect(Rails.root.join(Mcp::ChatToolParity.provider_exceptions(described_class).first.test_ref)).to exist
     expect(described_class.coworker_grants).to contain_exactly(include(
       name: "syrus_dev.read_diagnostics",
       default_policy: "confirm",

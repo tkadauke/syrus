@@ -27,7 +27,7 @@ RSpec.describe "coworker Job lifecycle tools" do
     end.map(&:tool_name)
     eligible_chat_tools = McpToolRegistry.entries(surface: :chat).select do |entry|
       entry.descriptor.capability == Permissions::JobLifecycle::JOBS &&
-        Mcp::CoworkerToolExposure.core_entry?(entry)
+        Mcp::ChatToolParity.core_entry_in_context?(entry, :coworker)
     end.map(&:tool_name)
 
     expect(coworker_tools).to match_array(eligible_chat_tools)

@@ -192,7 +192,7 @@ constants:
 - name: LandedCommit
 - name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
-- name: Mcp::CoworkerToolExposure
+- name: Mcp::ChatToolParity
 - name: Mcp::Pagination
 - name: Mcp::Tools
 - name: Mcp::Tools::AdminPendingActionToolSupport
