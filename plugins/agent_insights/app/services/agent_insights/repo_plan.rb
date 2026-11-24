@@ -1,6 +1,6 @@
 module AgentInsights
   class RepoPlan
-    CONFIG_FILE = SyrusYml::CONFIG_FILE
+    CONFIG_FILE = Syrus::Host::SyrusYmlConfig::CONFIG_FILE
 
     Result = Data.define(:prepare, :source, :note) do
       def prepare?
@@ -18,7 +18,7 @@ module AgentInsights
     end
 
     def resolve
-      loaded = RepoDefaultBranchSyrusYml.new(repository: repository, user: user).resolve
+      loaded = Syrus::Host::RepoDefaultBranchSyrusYml.new(repository: repository, user: user).resolve
       return default(source: loaded.source, note: loaded.note) unless loaded.loaded?
 
       insight = loaded.config.agent_insight

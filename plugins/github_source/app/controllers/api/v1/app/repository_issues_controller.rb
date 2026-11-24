@@ -7,7 +7,7 @@ module Api
       # issues are GitHub-specific operations, and an instance whose work
       # arrives from somewhere else has no use for them.
       class RepositoryIssuesController < Syrus::Host::AppController
-        include RepositorySummarySerialization
+        include Syrus::Host::RepositorySummarySerialization
 
         # Smart folders over the poll-synchronized local issue cache.
         FOLDERS = %w[all inbox delegated open closed].freeze
@@ -25,7 +25,7 @@ module Api
           return unless repository
 
           issue_number = params.require(:issue_number).to_i
-          GithubClient.for(repository: repository, user: Syrus::Host::Current.user).close_issue(repository.slug, issue_number)
+          Syrus::Host::GithubClient.for(repository: repository, user: Syrus::Host::Current.user).close_issue(repository.slug, issue_number)
           GithubSource::Issue.where(repository: repository).where(number: issue_number).update_all(state: "closed", synced_at: Time.current)
 
           render json: issue_mutation_payload(repository, [ issue_number ], I18n.t("api.repositories.issue_closed", number: issue_number))
@@ -39,7 +39,7 @@ module Api
           return unless repository
 
           issue_number = params.require(:issue_number).to_i
-          GithubClient.for(repository: repository, user: Syrus::Host::Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
+          Syrus::Host::GithubClient.for(repository: repository, user: Syrus::Host::Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
           mark_cached_issues_delegated!(repository, [ issue_number ])
 
           render json: issue_mutation_payload(repository, [ issue_number ], I18n.t("api.repositories.issue_delegated", number: issue_number))
@@ -211,7 +211,7 @@ module Api
 
 
         def bulk_delegate_issues(repository, issue_numbers)
-          client = GithubClient.for(repository: repository, user: Syrus::Host::Current.user)
+          client = Syrus::Host::GithubClient.for(repository: repository, user: Syrus::Host::Current.user)
           issue_numbers.each do |issue_number|
             client.add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
             mark_cached_issues_delegated!(repository, [ issue_number ])
@@ -224,7 +224,7 @@ module Api
 
 
         def bulk_close_issues(repository, issue_numbers)
-          client = GithubClient.for(repository: repository, user: Syrus::Host::Current.user)
+          client = Syrus::Host::GithubClient.for(repository: repository, user: Syrus::Host::Current.user)
           issue_numbers.each do |issue_number|
             client.close_issue(repository.slug, issue_number)
             GithubSource::Issue.where(repository: repository, number: issue_number).update_all(state: "closed", synced_at: Time.current)

@@ -11,7 +11,7 @@ module Api
         end
 
         def repository_index
-          repository = Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
+          repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
           design_docs = scoped_design_docs.joins(:design_doc_repositories)
             .where(design_doc_repositories: { repository_id: repository.id })
 
@@ -304,8 +304,8 @@ module Api
         def design_doc_controls
           {
             columns: {
-              required: design_doc_column_options(User::DASHBOARD_REQUIRED_COLUMNS.fetch("design_docs")),
-              optional: design_doc_column_options(User::DASHBOARD_OPTIONAL_COLUMNS.fetch("design_docs"))
+              required: design_doc_column_options(Syrus::Host::UserRecord::DASHBOARD_REQUIRED_COLUMNS.fetch("design_docs")),
+              optional: design_doc_column_options(Syrus::Host::UserRecord::DASHBOARD_OPTIONAL_COLUMNS.fetch("design_docs"))
             }
           }
         end

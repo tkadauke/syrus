@@ -402,11 +402,11 @@ module Api
         end
 
         def find_repository
-          Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
         end
 
         def available_repositories
-          Repository.accessible_to(Syrus::Host::Current.user).merge(Repository.writable_by(Syrus::Host::Current.user)).active.order(:owner, :name)
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).merge(Syrus::Host::RepositoryRecord.writable_by(Syrus::Host::Current.user)).active.order(:owner, :name)
         end
 
         def find_task

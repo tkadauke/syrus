@@ -16,7 +16,7 @@ module SdlcPipeline
     end
 
     def call
-      entries = Stage.entries(RepoDeploymentStagesReader.for_repository(repository).stages)
+      entries = Stage.entries(Syrus::Host::RepoDeploymentStagesReader.for_repository(repository).stages)
       job_scope = filter.apply(Syrus::Host::JobRecord.visible_to(user)).where(repository_id: repository.id)
         .where("jobs.created_at <= ?", to).includes(:epic, :deployment_stage_statuses)
         .order(created_at: :asc, id: :asc)

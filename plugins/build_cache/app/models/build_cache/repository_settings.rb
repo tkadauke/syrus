@@ -16,7 +16,7 @@ module BuildCache
     validates :repository_id, uniqueness: true
 
     def self.for_repository(repository)
-      find_by(repository_id: repository.is_a?(::Repository) ? repository.id : repository)
+      find_by(repository_id: repository.is_a?(Syrus::Host::RepositoryRecord) ? repository.id : repository)
     end
 
     # A repository has proven (config/syrus_docs/sccache_build_cache.md's

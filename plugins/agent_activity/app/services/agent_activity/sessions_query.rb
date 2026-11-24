@@ -129,7 +129,7 @@ module AgentActivity
         )",
         user.id,
         user.id,
-        Repository.accessible_to(user).select(:id)
+        Syrus::Host::RepositoryRecord.accessible_to(user).select(:id)
       ])
     end
 
