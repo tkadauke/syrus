@@ -27,7 +27,7 @@ module Coworkers
         body = text.to_s.strip
         return Mcp::Tools.invalid("text is required") if body.blank?
 
-        thread = ChatBridgeThread.find_by(id: thread_id)
+        thread = Syrus::Host::ChatBridgeThread.find_by(id: thread_id)
         return inaccessible unless thread_member?(thread, chat_session)
         return inaccessible unless owner_thread?(thread, chat_session, coworker)
         return Mcp::Tools.invalid("chat bridge thread #{thread.id} is closed") unless thread.open?

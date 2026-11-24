@@ -27,7 +27,7 @@ class Coworkers::SpawnSyrusChat
           }
         }
       )
-      thread = ChatBridgeThread.create!(
+      thread = Syrus::Host::ChatBridgeThread.create!(
         origin_chat_session: @origin_chat,
         target_chat_session: chat,
         opened_by_user: @coworker.owner_user
