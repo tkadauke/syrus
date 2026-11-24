@@ -401,7 +401,7 @@ class MainHealthChangedService
         next unless workflow&.queued?
         next if workflow.steps.joins(:runs).exists?
 
-        WorkUnits::Launcher.start!(workflow)
+        Syrus::Host::WorkLauncher.start!(workflow)
       end
   end
 
@@ -497,9 +497,9 @@ class MainHealthChangedService
         job: job,
         artifacts: { "repair_reason" => "main branch recovered; PR checks were failing against the broken base" }
       )
-      result = WorkUnits::Launcher.start!(workflow)
+      result = Syrus::Host::WorkLauncher.start!(workflow)
       rebased += 1 if result.started?
-    rescue WorkUnits::Launcher::LockConflict => e
+    rescue Syrus::Host::WorkLauncher::LockConflict => e
       Rails.logger.info(
         "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
         "#{e.lock_key} is already owned by #{e.work_unit&.slug}"

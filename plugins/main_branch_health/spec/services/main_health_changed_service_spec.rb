@@ -1868,7 +1868,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         )
         conflicting_workflow = instance_double(Workflow)
         remaining_workflow = instance_double(Workflow)
-        conflict = WorkUnits::Launcher::LockConflict.new(
+        conflict = Syrus::Host::WorkLauncher::LockConflict.new(
           lock_key: "job:#{conflicting_job.id}",
           work_unit: WorkUnit.new(id: -1)
         )

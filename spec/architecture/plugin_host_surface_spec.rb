@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Built-in plugin host surface", :ci_only do
   def member_exists?(constant, name)
     return true if constant.respond_to?(name) || constant.method_defined?(name)
-    return true if constant.respond_to?(:const_defined?) && name.match?(/\A[A-Z][A-Z0-9_]*\z/) && constant.const_defined?(name)
+    return true if constant.respond_to?(:const_defined?) && name.match?(/\A[A-Z]/) && constant.const_defined?(name)
     return true if constant.is_a?(Class) && constant.allocate.respond_to?(name)
 
     constant.const_defined?(:ClassMethods, false) && constant.const_get(:ClassMethods, false).method_defined?(name)
