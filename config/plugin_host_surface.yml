@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 352
+legacy_baseline: 349
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
