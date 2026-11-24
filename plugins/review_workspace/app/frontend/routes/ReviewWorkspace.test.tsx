@@ -1077,10 +1077,9 @@ describe("ReviewWorkspaceRoute", () => {
       expect(window.sessionStorage.getItem("syrus.review_workspace.sessions")).toBe(stored)
       const sessionId = Object.keys(JSON.parse(stored!).sessions)[0]
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      const router = createMemoryRouter(
-        [{ path: "/review/:job_id", element: <ReviewWorkspaceRoute /> }],
-        { initialEntries: [{ pathname: "/review/JOB-42", state: { reviewWorkspaceSessionId: sessionId, reviewWorkspaceCanReturn: false } }] }
-      )
+      const router = createMemoryRouter([{ path: "/review/:job_id", element: <ReviewWorkspaceRoute /> }], {
+        initialEntries: [{ pathname: "/review/JOB-42", state: { reviewWorkspaceSessionId: sessionId, reviewWorkspaceCanReturn: false } }]
+      })
       render(
         <QueryClientProvider client={client}>
           <RouterProvider router={router} />
