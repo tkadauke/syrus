@@ -149,7 +149,7 @@ module GitHistory
         classification: "external_pr",
         job: job_payload(job),
         pr_number: job.external_pr_number,
-        pr_url: ::App::Presentation.external_pr_url(job),
+        pr_url: Syrus::Host::AppPresentation.external_pr_url(job),
         author: { name: entry[:author_name], email: entry[:author_email] },
         committer: { name: entry[:committer_name], email: entry[:committer_email] },
         github_author: job.external_pr_author

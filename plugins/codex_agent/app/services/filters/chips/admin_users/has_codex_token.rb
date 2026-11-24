@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AdminUsers
-      class HasCodexToken < Base
+      class HasCodexToken < Syrus::Host::Filters::Chips::Base
         filter_name "has_codex_token"
         label "Codex credential"
         bucket :enum

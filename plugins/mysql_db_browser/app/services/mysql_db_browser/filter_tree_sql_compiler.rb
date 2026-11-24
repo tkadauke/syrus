@@ -28,8 +28,8 @@ module MysqlDbBrowser
     # nil when the tree has no chips, so callers can skip the WHERE clause
     # entirely instead of emitting a vacuous "WHERE 1=1".
     def compile(tree)
-      ast = Filters::Ast.parse(tree)
-      return nil if ast.is_a?(Filters::Ast::AndNode) && ast.children.empty?
+      ast = Syrus::Host::Filters::Ast.parse(tree)
+      return nil if ast.is_a?(Syrus::Host::Filters::Ast::AndNode) && ast.children.empty?
 
       compile_node(ast)
     end
@@ -40,14 +40,14 @@ module MysqlDbBrowser
 
     def compile_node(node)
       case node
-      when Filters::Ast::AndNode
+      when Syrus::Host::Filters::Ast::AndNode
         join(node.children, " AND ")
-      when Filters::Ast::OrNode
+      when Syrus::Host::Filters::Ast::OrNode
         join(node.children, " OR ")
-      when Filters::Ast::NotNode
+      when Syrus::Host::Filters::Ast::NotNode
         clause = compile_node(node.child)
         clause.present? ? "NOT (#{clause})" : nil
-      when Filters::Ast::Chip
+      when Syrus::Host::Filters::Ast::Chip
         compile_chip(node)
       else
         raise ArgumentError, "unknown filter node: #{node.class}"

@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class ProposalType < EnumColumn
+      class ProposalType < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "proposal_type"
         label "Proposal type"
         column :proposal_type

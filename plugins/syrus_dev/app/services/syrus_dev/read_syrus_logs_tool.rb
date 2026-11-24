@@ -15,7 +15,7 @@ module SyrusDev
 
     description DESCRIPTION
 
-    input_schema(properties: OperationalLogSearch::INPUT_SCHEMA_PROPERTIES)
+    input_schema(properties: Syrus::Host::OperationalLogSearch::INPUT_SCHEMA_PROPERTIES)
 
     class << self
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
@@ -24,9 +24,9 @@ module SyrusDev
           return Syrus::Host::McpTools.not_authorized unless authorized_role?(context.role)
           return Syrus::Host::McpTools.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
         end
-        return OperationalLogSearch.disabled_response unless Syrus::Host::OperationalLogging.enabled_for_instance?
+        return Syrus::Host::OperationalLogSearch.disabled_response unless Syrus::Host::OperationalLogging.enabled_for_instance?
 
-        OperationalLogSearch.search_response(query: query, since: since, level: level, role: role, hostname: hostname, limit: limit)
+        Syrus::Host::OperationalLogSearch.search_response(query: query, since: since, level: level, role: role, hostname: hostname, limit: limit)
       rescue StandardError => e
         Rails.logger.error("[SyrusDev::ReadSyrusLogsTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)

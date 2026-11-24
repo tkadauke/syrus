@@ -199,7 +199,7 @@ module Api
         end
 
         def explicit_issue_filter?
-          params.key?(::Filters::QueryParam::PARAM_NAME) || params.key?(::Filters::QueryParam::PARAM_NAME.to_s)
+          params.key?(Syrus::Host::Filters::QueryParam::PARAM_NAME) || params.key?(Syrus::Host::Filters::QueryParam::PARAM_NAME.to_s)
         end
 
 

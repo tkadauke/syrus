@@ -1,6 +1,6 @@
 module GlobalSearch
-  class EpicIndex < ::SearchRecord
-    include FtsQueryParser
+  class EpicIndex < Syrus::Host::SearchRecord
+    include Syrus::Host::FtsQueryParser
 
     class << self
       def upsert(epic)
@@ -75,7 +75,7 @@ module GlobalSearch
       private
 
       def index_fields(epic)
-        SearchIndexWriteLimits.row(
+        Syrus::Host::SearchIndexWriteLimits.row(
           { title: epic.title, description: [ epic.description, epic.proposer&.handle ].compact_blank.join("\n\n") },
           index: "epic",
           record_id: epic.id

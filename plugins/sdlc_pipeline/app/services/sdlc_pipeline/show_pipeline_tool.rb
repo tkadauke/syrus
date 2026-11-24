@@ -21,9 +21,9 @@ module SdlcPipeline
       def call(repository_id:, filter:, server_context:, at: nil, range_start: nil, range_end: nil)
         chat_session = server_context.fetch(:chat_session)
         repository = Syrus::Host::RepositoryRecord.accessible_to(chat_session.user).active.find(repository_id)
-        ast = Filters::Ast.parse(filter)
-        Filters::Compiler.call(ast, scope: Syrus::Host::JobRecord.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
-        validated = Filters::Ast.serialize(ast)
+        ast = Syrus::Host::Filters::Ast.parse(filter)
+        Syrus::Host::Filters::Compiler.call(ast, scope: Syrus::Host::JobRecord.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
+        validated = Syrus::Host::Filters::Ast.serialize(ast)
         at, range_start, range_end = [ at, range_start, range_end ].map { |value| validated_time(value) }
         path = pipeline_path(repository.id, validated, at:, range_start:, range_end:)
 
@@ -50,7 +50,7 @@ module SdlcPipeline
       end
 
       def pipeline_path(repository_id, filter, at:, range_start:, range_end:)
-        params = { q: Filters::QueryParam.encode(filter), at: at, range_start: range_start, range_end: range_end }.compact
+        params = { q: Syrus::Host::Filters::QueryParam.encode(filter), at: at, range_start: range_start, range_end: range_end }.compact
         "/repositories/#{repository_id}/plugin/sdlc-pipeline?#{params.to_query}"
       end
     end

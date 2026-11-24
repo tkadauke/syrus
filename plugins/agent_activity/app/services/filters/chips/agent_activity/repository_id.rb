@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentActivity
-      class RepositoryId < FkColumn
+      class RepositoryId < Syrus::Host::Filters::Chips::FkColumn
         filter_name "repository_id"
         label "Repository"
         column :repository_id
