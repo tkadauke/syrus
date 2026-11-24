@@ -143,6 +143,28 @@ RSpec.describe RuntimeImages::WorkerCache do
     end
   end
 
+  describe "leases" do
+    it "keeps an entry protected until every overlapping holder releases, including non-block acquires" do
+      image = publish("a")
+      first = cache.acquire(image)
+      second = cache.acquire(image)
+      cache.release(first.entry)
+      expect(cache.evict(target_bytes: 0)).to eq([])
+      cache.release(second.entry)
+      expect(RuntimeImageCacheEntry.first).to have_attributes(lease_count: 0, leased_until: nil)
+      expect(cache.evict(target_bytes: 0)).to eq([image.digest])
+    end
+
+    it "protects an entry from eviction while a block-form holder overlaps a released one" do
+      image = publish("a")
+      held = cache.acquire(image)
+      cache.acquire(image) { expect(cache.evict(target_bytes: 0)).to eq([]) }
+      expect(cache.evict(target_bytes: 0)).to eq([])
+      cache.release(held.entry)
+      expect(cache.evict(target_bytes: 0)).to eq([image.digest])
+    end
+  end
+
   describe "#inventory and #pressure" do
     it "reports held digests and disk pressure" do
       image = publish("a")

@@ -17,7 +17,7 @@ module RuntimeImages
     HIGH_PRESSURE_PERCENT = 80.0
     CRITICAL_PRESSURE_PERCENT = 92.0
 
-    Pulled = Data.define(:reference, :cache_hit)
+    Pulled = Data.define(:reference, :cache_hit, :entry)
     PrefetchResult = Data.define(:image, :outcome, :error)
 
     attr_reader :hostname
@@ -47,7 +47,7 @@ module RuntimeImages
       end
       entry, hit = ensure_local(image, prefetch: prefetch)
       lease(entry)
-      return Pulled.new(reference: reference_for(image), cache_hit: hit) unless block_given?
+      return Pulled.new(reference: reference_for(image), cache_hit: hit, entry: entry) unless block_given?
       begin
         yield reference_for(image)
       ensure
@@ -55,9 +55,13 @@ module RuntimeImages
       end
     end
 
+    # Drops one lease. The entry stays protected until every concurrent
+    # holder has released (or the lease expires). Non-block callers pass
+    # Pulled#entry.
     def release(entry)
-      entry.reload.update!(leased_until: nil)
-    rescue ActiveRecord::RecordNotFound
+      scope = RuntimeImageCacheEntry.where(id: entry.id)
+      scope.where("lease_count > 0").update_all("lease_count = lease_count - 1")
+      scope.where(lease_count: 0).update_all(leased_until: nil)
       nil
     end
 
@@ -103,9 +107,12 @@ module RuntimeImages
       evicted = []
       candidates = RuntimeImageCacheEntry.for_host(hostname).unleased(@clock.call).includes(:runtime_image).lru.to_a
       candidates.sort_by! { |entry| entry.runtime_image.pullable? ? 1 : 0 }
+      total = cache_bytes
       candidates.each do |entry|
-        break if cache_bytes <= target_bytes && entry.runtime_image.pullable?
-        evicted << entry.digest if remove_entry(entry)
+        break if total <= target_bytes && entry.runtime_image.pullable?
+        next unless remove_entry(entry)
+        evicted << entry.digest
+        total -= entry.size_bytes.to_i
       end
       evicted
     end
@@ -135,7 +142,7 @@ module RuntimeImages
         record(image, "hit", started, cache_hit: true, prefetch: prefetch)
         return [entry, true]
       end
-      [single_flight(image) { pull_and_verify(image, started, prefetch) }, false]
+      [single_flight(image, prefetch) { pull_and_verify(image, started, prefetch) }, false]
     end
 
     def pull_and_verify(image, started, prefetch)
@@ -174,7 +181,7 @@ module RuntimeImages
 
     # One pull per digest at a time; waiters reuse the result and then
     # re-verify through the normal hit path.
-    def single_flight(image)
+    def single_flight(image, prefetch)
       key = image.id
       owner, gate = @inflight_mutex.synchronize do
         existing = @inflight[key]
@@ -190,7 +197,7 @@ module RuntimeImages
       else
         gate.synchronize { nil }
         entry = RuntimeImageCacheEntry.for_host(hostname).present.find_by(runtime_image: image)
-        entry || single_flight(image) { pull_and_verify(image, monotonic, false) }
+        entry || single_flight(image, prefetch) { pull_and_verify(image, monotonic, prefetch) }
       end
     end
 
@@ -224,7 +231,15 @@ module RuntimeImages
 
     def touch(entry) = entry.update!(last_used_at: @clock.call, prefetched: false)
 
-    def lease(entry) = entry.update!(leased_until: @clock.call + @lease_seconds)
+    # Counted per acquisition so overlapping users do not release each
+    # other's protection; an expired lease starts over so crashed holders
+    # cannot pin an entry forever.
+    def lease(entry)
+      now = @clock.call
+      scope = RuntimeImageCacheEntry.where(id: entry.id)
+      scope.where("leased_until IS NULL OR leased_until <= ?", now).update_all(lease_count: 0)
+      scope.update_all(["lease_count = lease_count + 1, leased_until = ?", now + @lease_seconds])
+    end
 
     def remove_entry(entry)
       return false if entry.reload.leased?(@clock.call)
