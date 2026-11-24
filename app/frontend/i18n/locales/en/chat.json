@@ -3370,5 +3370,8 @@
   "tool_card_reset_job": "Reset Job",
   "tool_card_reset_requested": "Reset requested",
   "tool_card_replace_job_dependency": "Replace Job Dependency",
-  "tool_card_dependency_replaced": "Dependency replaced"
+  "tool_card_dependency_replaced": "Dependency replaced",
+  "insertion_label": "Insertion",
+  "insertion_position": "Inserted after {{after}}, before {{before}}",
+  "insertion_position_tail": "Inserted after {{after}} (end of chain)"
 }

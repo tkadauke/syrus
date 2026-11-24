@@ -3370,5 +3370,8 @@
   "tool_card_reset_job": "Job zurücksetzen",
   "tool_card_reset_requested": "Zurücksetzen angefordert",
   "tool_card_replace_job_dependency": "Job-Abhängigkeit ersetzen",
-  "tool_card_dependency_replaced": "Abhängigkeit ersetzt"
+  "tool_card_dependency_replaced": "Abhängigkeit ersetzt",
+  "insertion_label": "Einfügung",
+  "insertion_position": "Eingefügt nach {{after}}, vor {{before}}",
+  "insertion_position_tail": "Eingefügt nach {{after}} (Ende der Kette)"
 }

@@ -85,10 +85,13 @@ class EpicChainSplice
   # Validates the chain the Epic would have after the splice. `new_keys` are
   # [key, label] pairs for the inserted segment, head first. Raises
   # ArgumentError (Linear.validate_chain!) when the end state is not one chain.
-  def self.validate_final_chain!(plan, new_keys)
+  # `already_created_ids` names inserted Jobs that already exist in the Epic
+  # (the single-Job confirmation path creates the Job before splicing); they
+  # are represented by `new_keys`, not as pre-existing Epic members.
+  def self.validate_final_chain!(plan, new_keys, already_created_ids: [])
     epic = plan.epic
-    existing_ids = epic.jobs.pluck(:id)
-    labels_by_key = epic.jobs.to_h { |job| [ EpicDependencyPolicy::Linear.job_key(job.id), job.slug ] }
+    existing_ids = epic.jobs.where.not(id: already_created_ids).pluck(:id)
+    labels_by_key = epic.jobs.where(id: existing_ids).to_h { |job| [ EpicDependencyPolicy::Linear.job_key(job.id), job.slug ] }
     new_keys.each { |key, label| labels_by_key[key] = label }
 
     edges = JobDependency.where(job_id: existing_ids, depends_on_job_id: existing_ids)

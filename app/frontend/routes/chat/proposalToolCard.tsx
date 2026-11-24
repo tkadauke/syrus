@@ -37,6 +37,7 @@ export type ProposalOutcome = {
   dependencyRequirements: DependencyRequirement[]
   targetEpicId: string | null
   targetEpicLabel: string | null
+  insertionText: string | null
   investigation: boolean
   initialJobState: string | null
   providerSetting: string | null
@@ -219,6 +220,7 @@ export function parseProposalOutcome(
     dependencyRequirements: dependencyRequirements(value.dependency_requirements ?? input.dependency_requirements),
     targetEpicId: targetEpic ? displayValue(targetEpic.id ?? targetEpic.epic_id) : displayValue(value.target_epic_id ?? input.epic_id),
     targetEpicLabel: targetEpic ? displayValue(targetEpic.label ?? targetEpic.title ?? targetEpic.slug) : displayValue(value.target_epic_label),
+    insertionText: parseInsertion(value.insertion),
     investigation: value.investigation === true,
     initialJobState: displayValue(value.initial_job_state) || (value.route_to_backlog === true ? "backlog" : null),
     providerSetting: displayValue(value.provider_setting) || displayValue(input.provider),
@@ -229,6 +231,18 @@ export function parseProposalOutcome(
     media: proposalMedia(stringList(input.media), presentation),
     materialized: parseMaterialized(value.materialized)
   }
+}
+
+function parseInsertion(value: unknown): string | null {
+  if (!isPlainObject(value)) return null
+  const afterId = displayValue(value.insert_after_job_id)
+  const after = displayValue(value.insert_after_slug) || (afterId ? `JOB-${afterId}` : null)
+  if (!after) return null
+  const beforeId = displayValue(value.insert_before_job_id)
+  const before = displayValue(value.insert_before_slug) || (beforeId ? `JOB-${beforeId}` : null)
+  return before
+    ? i18n.t("chat:insertion_position", { after, before })
+    : i18n.t("chat:insertion_position_tail", { after })
 }
 
 function humanizeKind(kind: string): string {
@@ -299,6 +313,7 @@ export function ProposalOutcomeCard({ proposal, onLinkClick }: { proposal: Propo
     proposal.repository ||
     proposal.targetEpicLabel ||
     proposal.targetEpicId ||
+    proposal.insertionText ||
     proposal.dependencies.length > 0 ||
     proposal.jobDependencyIds.length > 0 ||
     proposal.epicDependencyIds.length > 0 ||
@@ -360,6 +375,7 @@ export function ProposalOutcomeCard({ proposal, onLinkClick }: { proposal: Propo
               </span>
             </DetailValue>
           ) : null}
+          {proposal.insertionText ? <DetailValue label={i18n.t("chat:insertion_label")}>{proposal.insertionText}</DetailValue> : null}
           {proposal.jobDependencyIds.length > 0 ? (
             <DetailValue label={i18n.t("chat:job_dependencies")}>
               <span className="flex flex-wrap gap-2">
