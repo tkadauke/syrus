@@ -93,3 +93,24 @@ workers; pool size `RUNTIME_IMAGE_BUILD_THREADS`). Retryable failures back off
 and stop after `RUNTIME_IMAGE_BUILD_MAX_ATTEMPTS` (default 3). Nothing is
 claimed until an executor is registered via `RuntimeImages::Builds.builder=`,
 so the plane is inert by default.
+
+### Isolated builder
+
+`RuntimeImages::Builds::IsolatedBuilder` is the executor registered through
+`RuntimeImages::Builds.builder=` once an operator enables the build plane; it
+is not registered by default. It drives rootless `buildah` (chroot isolation,
+no daemon) as a `ProcessRunner` child, so the worker's Docker socket is never
+mounted. The child environment is an allowlist (no inherited variables, empty
+registry auth), so no repository, provider, coworker-memory, MCP, runtime-secret,
+or deployment-registry credential reaches a build.
+
+The source is unpacked from the request's archive into a private scratch
+directory (entry, byte, and symlink checks); the context and Dockerfile paths
+are rejected on traversal and re-checked after resolution. Layer storage is a
+per-namespace cache with an exclusive lock (`cache_busy` is retryable) that is
+wiped once over its ceiling. Ceilings, all environment-overridable:
+`RUNTIME_IMAGE_BUILD_CPUS`, `_MEMORY_BYTES`, `_PIDS`, `_STORAGE_BYTES`,
+`_TIMEOUT_SECONDS`, `_LOG_BYTES`, `_MAX_OUTPUT_BYTES`, `_CACHE_MAX_BYTES`,
+`_MAX_SOURCE_BYTES`, `_MAX_SOURCE_ENTRIES`; `RUNTIME_IMAGE_BUILD_BINARY` and
+`_STORAGE_DRIVER` select the tool and driver. Accepted recipe keys are
+`dockerfile`, `context`, `target`, and `build_args`.
