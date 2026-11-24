@@ -33,7 +33,7 @@ module Coworkers
         return unless owns_turn
 
         trigger = chat_session.chat_participants.count <= 1 || Array(mentions).any? do |mention|
-          mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+          mentionable = Syrus::Host::MentionablesResolver.find(kind: mention["kind"], id: mention["id"])
           mentionable&.agentic? && mentionable.addressable_in?(chat_session)
         end
         { trigger: trigger, reason: trigger ? "addressed coworker turn" : "unaddressed group turn" }
