@@ -53,12 +53,12 @@ module CognitiveReview
     end
 
     def self.memory_context(job)
-      context = Prompts::MemoryContext.new(
+      context = Syrus::Host::PromptsMemoryContext.new(
         user: job&.user,
         repository_ids: [ job&.repository_id ].compact
       ).to_s
       return "Agent Memory context:\n\n#{context}" if context.present?
-      return "Agent Memory context: enabled, but no relevant memories were found." if Syrus::Memory.available?
+      return "Agent Memory context: enabled, but no relevant memories were found." if Syrus::Host::Memory.available?
 
       "Agent Memory context: unavailable; rely on the Job prompt, repository context, and final diff."
     rescue StandardError => e

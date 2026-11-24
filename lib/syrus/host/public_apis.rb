@@ -145,7 +145,22 @@ module Syrus
         PermissionAuthorizationDecision: "Permissions::AuthorizationDecision",
         PendingActionBase: "PendingActions::Base",
         PendingActionAuthorizedToolCall: "PendingActions::AuthorizedToolCall",
-        PendingActionPermissionManagement: "PendingActions::PermissionManagement"
+        PendingActionPermissionManagement: "PendingActions::PermissionManagement",
+        Memory: "Syrus::Memory",
+        PromptsMemoryContext: "Prompts::MemoryContext",
+        PromptsAdversarialReview: "Prompts::AdversarialReview",
+        McpAuthorizationSupport: "Mcp::Tools::AuthorizationSupport",
+        McpPendingActionToolSupport: "Mcp::Tools::PendingActionToolSupport",
+        McpProposalToolSupport: "Mcp::Tools::ProposalToolSupport",
+        McpEvidenceRedactor: "Mcp::Tools::EvidenceRedactor",
+        McpPagination: "Mcp::Pagination",
+        ChatBridgeThread: "ChatBridgeThread",
+        Mentionable: "Mentionable",
+        MentionablesResolver: "Mentionables::Resolver",
+        ColorPalette: "Appearance::ColorPalette",
+        CommandRedactor: "CommandRedactor",
+        Paginatable: "Paginatable",
+        ChatLockErrors: "ChatLockErrors"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -271,7 +286,22 @@ module Syrus
         WorkGate: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
         BaseBranchHealth: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
         RepairClassifier: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
-        WorkPolicyVeto: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[new] ]
+        WorkPolicyVeto: [ "Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal.", %w[new] ],
+        Memory: [ "Reads agent-memory availability and the memories selected for a review; memory storage and ranking are not promised.", %w[available? selected_review_memories] ],
+        PromptsMemoryContext: [ "Renders the agent-memory prompt context for a user and repositories; ranking and prompt wording are not promised.", %w[new to_s] ],
+        PromptsAdversarialReview: [ "Bases plugin review prompts that reuse the adversarial-review prompt; overridable hooks beyond new are not promised.", %w[new] ],
+        McpAuthorizationSupport: [ "Raises AuthorizationError and creates pending coworker approvals for plugin tool calls; permission evaluation is not promised.", %w[AuthorizationError pending_coworker_approval pending_coworker_plugin_approval with_server_context] ],
+        McpPendingActionToolSupport: [ "Extends plugin MCP tools that queue pending actions; the helper methods are not promised.", %w[] ],
+        McpProposalToolSupport: [ "Extends plugin MCP tools that file proposals; the helper methods are not promised.", %w[] ],
+        McpEvidenceRedactor: [ "Redacts secrets from evidence values returned by plugin MCP tools; redaction rules are not promised.", %w[call] ],
+        McpPagination: [ "Normalizes the page parameter of paginated plugin MCP tools; page sizing is not promised.", %w[normalize_page] ],
+        ChatBridgeThread: [ "Creates and looks up the thread linking an origin chat to a spawned chat; other associations and persistence are not promised.", %w[create! find_by] ],
+        Mentionable: [ "Marks a plugin model as an @-mentionable chat target; mention storage is not promised.", %w[] ],
+        MentionablesResolver: [ "Finds a mentionable by kind and id and resolves the mentions in a message; resolution order is not promised.", %w[find resolve] ],
+        ColorPalette: [ "Validates accent colors and picks the next unused default agent color; the palette itself is not promised.", %w[HEX_PATTERN next_default_color default_agent_order] ],
+        CommandRedactor: [ "Redacts secrets from command output and structured values; redaction rules are not promised.", %w[redact redact_value] ],
+        Paginatable: [ "Adds page-parameter handling to plugin API controllers; page sizing is not promised.", %w[] ],
+        ChatLockErrors: [ "Adds chat-lock error rendering to plugin API controllers; error payloads are not promised.", %w[] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

@@ -255,6 +255,17 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::ChatBridgeThread`
+
+Since: `0.1.16`
+
+Creates and looks up the thread linking an origin chat to a spawned chat; other associations and persistence are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `create!`
+- `find_by`
+
 ### `Syrus::Host::ChatDelivery`
 
 Since: `0.1.16`
@@ -265,6 +276,12 @@ Supported members:
 
 - `deliver_next_if_idle!`
 - `internal_role_key`
+
+### `Syrus::Host::ChatLockErrors`
+
+Since: `0.1.16`
+
+Adds chat-lock error rendering to plugin API controllers; error payloads are not promised. Only the listed members are supported.
 
 ### `Syrus::Host::ChatMessages`
 
@@ -363,6 +380,29 @@ Normalizes tool-reported source paths to repository-relative paths. Only the lis
 Supported members:
 
 - `normalize`
+
+### `Syrus::Host::ColorPalette`
+
+Since: `0.1.16`
+
+Validates accent colors and picks the next unused default agent color; the palette itself is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `HEX_PATTERN`
+- `default_agent_order`
+- `next_default_color`
+
+### `Syrus::Host::CommandRedactor`
+
+Since: `0.1.16`
+
+Redacts secrets from command output and structured values; redaction rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `redact`
+- `redact_value`
 
 ### `Syrus::Host::CoverageParsers`
 
@@ -714,6 +754,51 @@ Supported members:
 - `manifest_for_landed_sha`
 - `record_main_parity!`
 
+### `Syrus::Host::McpAuthorizationSupport`
+
+Since: `0.1.16`
+
+Raises AuthorizationError and creates pending coworker approvals for plugin tool calls; permission evaluation is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `AuthorizationError`
+- `pending_coworker_approval`
+- `pending_coworker_plugin_approval`
+- `with_server_context`
+
+### `Syrus::Host::McpEvidenceRedactor`
+
+Since: `0.1.16`
+
+Redacts secrets from evidence values returned by plugin MCP tools; redaction rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::McpPagination`
+
+Since: `0.1.16`
+
+Normalizes the page parameter of paginated plugin MCP tools; page sizing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `normalize_page`
+
+### `Syrus::Host::McpPendingActionToolSupport`
+
+Since: `0.1.16`
+
+Extends plugin MCP tools that queue pending actions; the helper methods are not promised. Only the listed members are supported.
+
+### `Syrus::Host::McpProposalToolSupport`
+
+Since: `0.1.16`
+
+Extends plugin MCP tools that file proposals; the helper methods are not promised. Only the listed members are supported.
+
 ### `Syrus::Host::McpTools`
 
 Since: `0.1.16`
@@ -725,6 +810,34 @@ Supported members:
 - `invalid`
 - `success`
 - `with_database_connection`
+
+### `Syrus::Host::Memory`
+
+Since: `0.1.16`
+
+Reads agent-memory availability and the memories selected for a review; memory storage and ranking are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available?`
+- `selected_review_memories`
+
+### `Syrus::Host::Mentionable`
+
+Since: `0.1.16`
+
+Marks a plugin model as an @-mentionable chat target; mention storage is not promised. Only the listed members are supported.
+
+### `Syrus::Host::MentionablesResolver`
+
+Since: `0.1.16`
+
+Finds a mentionable by kind and id and resolves the mentions in a message; resolution order is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find`
+- `resolve`
 
 ### `Syrus::Host::Metrics`
 
@@ -757,6 +870,12 @@ Emits structured plugin diagnostic events; subscribers and storage are not promi
 Supported members:
 
 - `ingest`
+
+### `Syrus::Host::Paginatable`
+
+Since: `0.1.16`
+
+Adds page-parameter handling to plugin API controllers; page sizing is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::PendingActionAuthorizedToolCall`
 
@@ -1040,6 +1159,16 @@ Supported members:
 - `run`
 - `start`
 
+### `Syrus::Host::PromptsAdversarialReview`
+
+Since: `0.1.16`
+
+Bases plugin review prompts that reuse the adversarial-review prompt; overridable hooks beyond new are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::PromptsGradeFailureFeedback`
 
 Since: `0.1.16`
@@ -1060,6 +1189,17 @@ Supported members:
 
 - `detect?`
 - `outcome`
+
+### `Syrus::Host::PromptsMemoryContext`
+
+Since: `0.1.16`
+
+Renders the agent-memory prompt context for a user and repositories; ranking and prompt wording are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `to_s`
 
 ### `Syrus::Host::RebaseTarget`
 
@@ -1705,8 +1845,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `App::RunArtifactsPayload`
 - `AppEvents`
 - `AppSetting`
-- `Appearance::ColorPalette`
-- `Appearance::ColorPalette::HEX_PATTERN`
 - `ApplicationCable::Channel`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
@@ -1718,7 +1856,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `BugReports::Router`
 - `ChatAssociatedJobs`
 - `ChatAttachment`
-- `ChatBridgeThread`
 - `ChatContextCompactor`
 - `ChatHistoryTranscriptRenderer`
 - `ChatLockErrors`
@@ -1849,7 +1986,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
 - `Mcp::Tools::AgentPreviewRegistry`
-- `Mcp::Tools::AuthorizationSupport`
 - `Mcp::Tools::AuthorizationSupport::AuthorizationError`
 - `Mcp::Tools::BulkPendingActionToolSupport`
 - `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
@@ -1862,8 +1998,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `McpToolPayloads::WorkflowPayload`
 - `McpToolPolicy`
 - `McpToolRegistry`
-- `Mentionable`
-- `Mentionables::Resolver`
 - `MergeTrain`
 - `MergeTrainDispatcher::RETRY_COOLDOWN`
 - `MergeTrainMember`
@@ -1916,7 +2050,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PreviewPanelVersion`
 - `PreviewProcessLauncher`
 - `ProcessRunner`
-- `Prompts::AdversarialReview`
 - `Prompts::ChatSystem`
 - `Prompts::GitSafety::TEXT`
 - `Prompts::MemoryContext`
@@ -1998,7 +2131,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
-- `Syrus::Memory`
 - `Syrus::Metrics`
 - `Syrus::PathJail`
 - `Syrus::PathJail::PathEscape`
