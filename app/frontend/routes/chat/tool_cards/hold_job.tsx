@@ -22,10 +22,7 @@ function InputDetails({ context, showJob = true }: { context: ToolCardContext; s
   return (
     <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
       {showJob ? (
-        <Row
-          label={i18n.t("chat:hold_job.job")}
-          value={jobId ? <EntityReference id={jobId} kind="job" /> : i18n.t("chat:hold_job.not_provided")}
-        />
+        <Row label={i18n.t("chat:hold_job.job")} value={jobId ? <EntityReference id={jobId} kind="job" /> : i18n.t("chat:hold_job.not_provided")} />
       ) : null}
       <Row label={i18n.t("chat:hold_job.effect")} value={i18n.t(toBacklog ? "chat:hold_job.effect_backlog" : "chat:hold_job.effect_waiting")} />
       <Row label={i18n.t("chat:hold_job.kept")} value={i18n.t("chat:hold_job.kept_value")} />
