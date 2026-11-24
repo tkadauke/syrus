@@ -164,6 +164,7 @@ RSpec.describe PollScheduledTasksJob do
         scan = sqls.select { |q| q =~ /FROM "scheduled_tasks"/ }
         expect(scan).not_to be_empty
         expect(scan.join).not_to match(/JOIN/i)
+        expect(scan.join).to match(/LIMIT/i)
       end
     end
 
@@ -190,6 +191,17 @@ RSpec.describe PollScheduledTasksJob do
       end
     end
 
+    it "pages through tasks in bounded primary-key pages without skipping any" do
+      stub_const("PollScheduledTasksJob::BATCH_SIZE", 2)
+      tasks = Array.new(5) { |i| cron_task(name: "t#{i}").tap { |t| t.update_columns(last_fired_at: 2.hours.ago) } }
+      seen = []
+      allow_any_instance_of(described_class).to receive(:process_task) { |_, t, _| seen << t.id }
+
+      described_class.new.perform
+
+      expect(seen).to eq(tasks.map(&:id).sort)
+    end
+
     it "raises an attributed failure once retries are exhausted and fires nothing" do
       freeze_time Time.current.change(min: 2, sec: 0, usec: 0) do
         due_task
@@ -197,10 +209,10 @@ RSpec.describe PollScheduledTasksJob do
           .and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded")
         expect_any_instance_of(ScheduledTasks::Fire).not_to receive(:call)
         expect(Rails.logger).to receive(:error)
-          .with(/phase=scan_candidate_ids attempts=3 outcome=retries_exhausted ActiveRecord::LockWaitTimeout/)
+          .with(/phase=load_page attempts=3 outcome=retries_exhausted ActiveRecord::LockWaitTimeout/)
 
         expect { described_class.new.perform }
-          .to raise_error(described_class::ScanFailed, /scan_candidate_ids.*retries_exhausted.*3 attempt/)
+          .to raise_error(described_class::ScanFailed, /load_page.*retries_exhausted.*3 attempt/)
       end
     end
 
