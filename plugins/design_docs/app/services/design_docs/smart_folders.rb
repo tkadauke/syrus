@@ -28,7 +28,7 @@ module DesignDocs
 
     def install_into(scope)
       scope.effect("design doc smart folders") do
-        ::SmartFolder.register_subject!(
+        Syrus::Host::SmartFolder.register_subject!(
           SUBJECT,
           builtins: BUILTINS,
           label: "Design Docs",

@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentMemory
-      class Published < Base
+      class Published < Syrus::Host::Filters::Chips::Base
         filter_name "published"
         label "Published"
         bucket :boolean

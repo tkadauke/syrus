@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class ProfilesController < Syrus::Host::AppController
-        include Paginatable
+        include Syrus::Host::Paginatable
 
         RECENT_LIMIT = 8
         PER_PAGE = 50

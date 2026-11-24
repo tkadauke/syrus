@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class RepositoryTestsController < Syrus::Host::AppController
-        include Paginatable
+        include Syrus::Host::Paginatable
 
         DEFAULT_INTERESTING_LIMIT = TestInsights::TestIdentity::INTERESTING_LIMIT
         DEFAULT_SEARCH_LIMIT = 50

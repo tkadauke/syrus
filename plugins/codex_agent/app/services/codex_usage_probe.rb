@@ -215,7 +215,7 @@ class CodexUsageProbe
       http_status: snapshot["http_status"],
       observed_at: observed_at
     )
-    App::ProviderAvailability.clear_cache!(user: @user, provider: "codex")
+    Syrus::Host::ProviderAvailability.clear_cache!(user: @user, provider: "codex")
     Result.new(status: status, snapshot: snapshot, message: message)
   end
 

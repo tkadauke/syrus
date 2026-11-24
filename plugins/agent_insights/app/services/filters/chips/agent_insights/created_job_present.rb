@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class CreatedJobPresent < BooleanColumn
+      class CreatedJobPresent < Syrus::Host::Filters::Chips::BooleanColumn
         filter_name "created_job_present"
         label "Created job"
         true_scope :with_created_job

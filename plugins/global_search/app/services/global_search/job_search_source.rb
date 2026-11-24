@@ -15,11 +15,11 @@ module GlobalSearch
 
     def self.search_database_rebuild_key = "jobs"
     def self.search_database_content_version = "2"
-    def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
-    def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
+    def self.current_content_version = Syrus::Host::SearchIndexVersion.current(search_database_rebuild_key)
+    def self.finish_content_version! = Syrus::Host::SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
     def self.search_database_tables = [ TABLE_NAME ]
     def self.search_database_rebuild_units = Syrus::Host::JobRecord.count
-    def self.search_database_initialize_content_version! = finish_content_version! unless current_content_version
+    def self.search_database_initialize_content_version! = (finish_content_version! unless current_content_version)
     def self.search_database_integrity_repair_needed? = search_database_rebuild_pending?
 
     def self.search_database_rebuild_pending?
@@ -32,7 +32,7 @@ module GlobalSearch
       last_id = after_id.to_i
       processed = 0
 
-      Syrus::Host::JobRecord.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |job|
+      Syrus::Host::JobRecord.order(:id).where("id > ?", last_id).limit(Syrus::Host::SearchIndexWriteLimits.clamp_rows(limit)).find_each do |job|
         JobIndex.upsert(job)
         last_id = job.id
         processed += 1
@@ -45,7 +45,7 @@ module GlobalSearch
       task.current_step_key = "jobs"
       task.current_step_title = "Index jobs"
       if reason == "version_mismatch" && !task.checkpoint["jobs_prepared"]
-        SearchRecord.connection.execute("DELETE FROM #{TABLE_NAME}")
+        Syrus::Host::SearchRecord.connection.execute("DELETE FROM #{TABLE_NAME}")
         task.checkpoint_will_change!
         task.checkpoint["jobs_prepared"] = true
         task.checkpoint["last_job_id"] = 0
@@ -61,9 +61,9 @@ module GlobalSearch
     end
 
     def self.indexed_count(table = TABLE_NAME, id_column = ID_COLUMN)
-      return 0 unless SyrusSearchDatabaseTasks.table_exists?(table)
+      return 0 unless Syrus::Host::SearchDatabaseTasks.table_exists?(table)
 
-      SearchRecord.connection.select_value("SELECT COUNT(DISTINCT #{id_column}) FROM #{table}").to_i
+      Syrus::Host::SearchRecord.connection.select_value("SELECT COUNT(DISTINCT #{id_column}) FROM #{table}").to_i
     end
     private_class_method :indexed_count
   end
