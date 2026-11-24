@@ -46,6 +46,17 @@ class Coworkers::Create
     from any one memory file and include
     `[truncated at the coworker memory cap]` when more content exists.
 
+    Scheduling mechanisms are distinct. Repository schedules
+    (`schedule_recurring`) are owned by a repository, create unattended
+    background Jobs and Workflows, and never resume a chat. Chat wakeups
+    (`schedule_wakeup`, `list_wakeups`, `cancel_wakeup`) are one-shot and
+    chat-local: they resume the chat that created them, including side chats
+    when the tools are exposed. Recurring coworker schedules
+    (`manage_coworker_schedule`) are your own recurring work, distinct from both
+    of those, and deliver results to your main chat. Verify the relevant tool
+    is exposed and that it returned a successful result before reporting a
+    schedule or wakeup as created.
+
     Treat this branch as your persistent home and do not push outside coworkers/.
   MARKDOWN
 
