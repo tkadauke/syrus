@@ -23,7 +23,10 @@ import type { MotionSetting, ViewportId } from "./search"
 // another plugin's catalog tooling.
 
 export type DiscussionContext = {
-  definition: Pick<WorkbenchDefinition, "key" | "version" | "scope" | "category" | "rarity" | "trigger" | "evaluator" | "visibility" | "implementation_status" | "presentation">
+  definition: Pick<
+    WorkbenchDefinition,
+    "key" | "version" | "scope" | "category" | "rarity" | "trigger" | "evaluator" | "visibility" | "implementation_status" | "presentation"
+  >
   fixture_state: FixtureState
   viewport: { id: ViewportId; width: number }
   motion: MotionSetting
@@ -42,7 +45,11 @@ export type DiscussionInput = {
   deepLink: string
 }
 
-export function buildDiscussionContext(input: DiscussionInput, screenshot: { attached: boolean; error: string | null }, annotations: Shape[] = []): DiscussionContext {
+export function buildDiscussionContext(
+  input: DiscussionInput,
+  screenshot: { attached: boolean; error: string | null },
+  annotations: Shape[] = []
+): DiscussionContext {
   const { definition } = input
   return {
     definition: {
@@ -203,7 +210,11 @@ export function DiscussDialog({ input, previewRef }: Props) {
             ) : null}
             {screenshot ? (
               <div className="space-y-2">
-                <img alt={t("workbench.discuss.screenshot_alt", { key: input.definition.key })} className="max-h-64 w-full rounded border border-border object-contain" src={screenshot.dataUrl} />
+                <img
+                  alt={t("workbench.discuss.screenshot_alt", { key: input.definition.key })}
+                  className="max-h-64 w-full rounded border border-border object-contain"
+                  src={screenshot.dataUrl}
+                />
                 <div className="flex justify-end">
                   <Button onClick={() => setAnnotating(true)} size="sm" type="button" variant="secondary">
                     {t("workbench.discuss.annotate")}
@@ -213,7 +224,13 @@ export function DiscussDialog({ input, previewRef }: Props) {
             ) : null}
             <label className="block text-sm font-medium text-text-primary">
               {t("workbench.discuss.prompt_label")}
-              <Textarea className="mt-1" onChange={(event) => setPromptText(event.target.value)} placeholder={t("workbench.discuss.prompt_placeholder")} rows={4} value={promptText} />
+              <Textarea
+                className="mt-1"
+                onChange={(event) => setPromptText(event.target.value)}
+                placeholder={t("workbench.discuss.prompt_placeholder")}
+                rows={4}
+                value={promptText}
+              />
             </label>
             <details className="rounded border border-border">
               <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-text-secondary">{t("workbench.discuss.context_summary")}</summary>

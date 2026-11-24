@@ -18,9 +18,17 @@ const FIXTURE_TIME = "2026-01-01T09:00:00Z"
 const ACK_TIME = "2026-01-01T09:05:00Z"
 
 export function buildFixture(definition: WorkbenchDefinition, state: FixtureState, index = 0): Fixture {
-  const locked: LockedAchievement = definition.visibility === "hidden"
-    ? { hidden: true, scope: definition.scope }
-    : { hidden: false, key: definition.key, scope: definition.scope, category: definition.category, rarity: definition.rarity, presentation: definition.presentation }
+  const locked: LockedAchievement =
+    definition.visibility === "hidden"
+      ? { hidden: true, scope: definition.scope }
+      : {
+          hidden: false,
+          key: definition.key,
+          scope: definition.scope,
+          category: definition.category,
+          rarity: definition.rarity,
+          presentation: definition.presentation
+        }
   if (state === "locked") return { state, definition, unlock: null, locked }
 
   const acknowledged = state === "acknowledged"

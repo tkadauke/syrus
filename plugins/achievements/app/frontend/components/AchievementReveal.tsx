@@ -126,7 +126,18 @@ type ContentProps = {
 
 // The reveal's body, shared by the production dialog and the development
 // workbench so the workbench previews the real markup, not an imitation.
-export function AchievementRevealContent({ unlock, position, total, ackStatus, reducedMotion, titleId, descriptionId, continueRef, onRetry, onContinue }: ContentProps) {
+export function AchievementRevealContent({
+  unlock,
+  position,
+  total,
+  ackStatus,
+  reducedMotion,
+  titleId,
+  descriptionId,
+  continueRef,
+  onRetry,
+  onContinue
+}: ContentProps) {
   const { t } = useT("achievements")
   const title = unlock.presentation.title_key ? t(unlock.presentation.title_key) : unlock.key
   const description = unlock.presentation.description_key ? t(unlock.presentation.description_key) : null
