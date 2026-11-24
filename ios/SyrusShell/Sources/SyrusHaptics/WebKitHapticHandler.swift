@@ -1,6 +1,8 @@
+#if canImport(WebKit)
+import WebKit
+#endif
 #if os(iOS)
 import UIKit
-import WebKit
 
 /// Plays haptics through UIKit feedback generators.
 public final class UIKitHapticPlayer: HapticPlayer {
@@ -35,6 +37,9 @@ extension HapticRequest.ImpactStyle {
     }
 }
 
+#endif
+
+#if canImport(WebKit)
 /// Registers as the `syrusHaptics` script message handler. Only main-frame messages from the
 /// Syrus origin are honored.
 public final class WebKitHapticHandler: NSObject, WKScriptMessageHandler {
@@ -51,6 +56,23 @@ public final class WebKitHapticHandler: NSObject, WKScriptMessageHandler {
               let host = allowedHost(), message.frameInfo.securityOrigin.host == host
         else { return }
         bridge.handle(message.body)
+    }
+}
+
+/// Single integration point for the shell: call once while building the `WKWebViewConfiguration`
+/// so the page can reach the haptics bridge. The returned handler is retained by the
+/// configuration's user content controller.
+public enum HapticsInstaller {
+    @discardableResult
+    public static func install(
+        on configuration: WKWebViewConfiguration,
+        bridge: HapticBridge,
+        allowedHost: @escaping () -> String?
+    ) -> WebKitHapticHandler {
+        let handler = WebKitHapticHandler(bridge: bridge, allowedHost: allowedHost)
+        configuration.userContentController.removeScriptMessageHandler(forName: HapticBridge.messageHandlerName)
+        configuration.userContentController.add(handler, name: HapticBridge.messageHandlerName)
+        return handler
     }
 }
 #endif
