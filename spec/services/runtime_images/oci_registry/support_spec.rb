@@ -125,6 +125,38 @@ RSpec.describe "OCI registry configuration, diagnostics, and workload isolation"
       expect(cancel).to have_been_requested
     end
 
+    context "when the probe upload cannot be cancelled" do
+      before do
+        stub_challenge
+        stub_token { { status: 200, body: { token: "opaque" }.to_json } }
+        stub_tags(status: 404, body: '{"errors":[{"code":"NAME_UNKNOWN"}]}')
+      end
+
+      def builder_check
+        described_class.new(provider).run.find { |c| c.name == "builder credential" }
+      end
+
+      it "fails when the upload Location is missing" do
+        stub_request(:post, "https://registry.test/v2/#{probe}/blobs/uploads/").to_return(status: 202)
+        expect(builder_check.status).to eq(:fail)
+        expect(builder_check.detail).to include("not cancelled")
+      end
+
+      it "fails when the upload Location points outside the probe repository" do
+        stub_request(:post, "https://registry.test/v2/#{probe}/blobs/uploads/")
+          .to_return(status: 202, headers: { "Location" => "/v2/other/blobs/uploads/u1" })
+        expect(builder_check.status).to eq(:fail)
+      end
+
+      it "fails when the cancellation DELETE returns an error" do
+        stub_request(:post, "https://registry.test/v2/#{probe}/blobs/uploads/")
+          .to_return(status: 202, headers: { "Location" => "/v2/#{probe}/blobs/uploads/u1" })
+        stub_request(:delete, "https://registry.test/v2/#{probe}/blobs/uploads/u1").to_return(status: 500)
+        expect(builder_check.status).to eq(:fail)
+        expect(builder_check.detail).to include("HTTP 500")
+      end
+    end
+
     it "fails a builder whose push is denied by the registry" do
       stub_challenge
       stub_token { { status: 200, body: { token: "opaque" }.to_json } }
