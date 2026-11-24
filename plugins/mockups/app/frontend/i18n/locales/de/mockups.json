@@ -55,5 +55,11 @@
   "tool_replace_all": "Alle ersetzen",
   "tool_yes": "Ja",
   "tool_no": "Nein",
-  "tool_changes": "Änderungen"
+  "tool_changes": "Änderungen",
+  "tool_render_preview": "Vorschau rendern",
+  "tool_rendered_summary": "Panel #{{id}} gerendert (unveröffentlicht)",
+  "tool_viewport": "Viewport",
+  "tool_capture": "Aufnahme",
+  "tool_wait_ms": "Wartezeit (ms)",
+  "tool_unpublished": "Unveröffentlicht"
 }

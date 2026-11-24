@@ -17,6 +17,9 @@ module Mockups
     category "agent_capability"
     default_enabled true
     disableable true
+    # Optional: render_preview needs the Browser plugin's Playwright session and
+    # answers an actionable error without it; every other tool is unaffected.
+    optionally_depends_on [ "browser" ]
     data_policy preview_panel_retentions: "Mockups::PreviewPanelRetention"
     provides sidebar_pages: "Mockups::SidebarPages"
     chat_integration media_sources: "Mockups::MediaSource",

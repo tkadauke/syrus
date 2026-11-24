@@ -19,6 +19,13 @@ The bundled `mockups` plugin provides these planning-mode tools:
   file for the panel.
 - `edit_preview_file(panel_id, path, old_string, new_string, replace_all:)`
   edits a scratch file; `old_string` must be unique unless `replace_all` is set.
+- `render_preview(panel_id, viewport: "desktop"|"tablet"|"mobile", width?, height?,
+  full_page?, wait_ms?, entry_file?)` renders the panel's current unpublished
+  scratch files and returns a PNG screenshot the agent can inspect, without
+  creating a version, changing the current version, or notifying anyone. It
+  requires the Browser plugin and only reaches the panel's own scratch files.
+  Agents are instructed to open, write, render desktop and mobile states, fix
+  defects, then publish with `show_preview`; this is guidance, not a gate.
 - `close_preview(panel_id)` closes the transient chat tab. A published mockup
   remains reachable through the returned `mockup_slug`.
 
