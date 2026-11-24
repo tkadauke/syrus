@@ -71,7 +71,7 @@ module Api
         private
 
         def find_job
-          find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
+          find_job_by_ref(policy_scope(Syrus::Host::JobRecord).includes(:repository), params[:job_id])
         end
 
         def find_note(job)

@@ -42,7 +42,7 @@ module AttentionReport
       proposals = proposal_scope.where(confirmed_at: @from..@to).order(:chat_session_id, :confirmed_at, :id)
       {
         figures: {
-          human_created_jobs: figure(Job.where(user_id: @user.id, kind: HUMAN_JOB_KINDS, created_at: @from..@to).count),
+          human_created_jobs: figure(Syrus::Host::JobRecord.where(user_id: @user.id, kind: HUMAN_JOB_KINDS, created_at: @from..@to).count),
           messages_before_confirmed_proposals: figure(messages_before(proposals)),
           proposal_edits: figure(proposal_scope.where(edited_at: @from..@to).count),
           proposal_discards: figure(proposal_scope.where(discarded_at: @from..@to).count)
@@ -91,9 +91,9 @@ module AttentionReport
       active_review_ms = cleaned_visits.select { |visit| visit.route_id == "job.review" }.sum(&:active_ms)
       {
         figures: {
-          job_approvals: figure(JobApproval.where(user_id: @user.id, approved_at: @from..@to).count, estimate: false),
+          job_approvals: figure(Syrus::Host::JobApproval.where(user_id: @user.id, approved_at: @from..@to).count, estimate: false),
           pr_review_comments: figure(review_handle_count),
-          feedback_workflows: figure(Workflow.where(user_id: @user.id, trigger_kind: FEEDBACK_TRIGGER_KINDS, created_at: @from..@to).count),
+          feedback_workflows: figure(Syrus::Host::WorkflowRecord.where(user_id: @user.id, trigger_kind: FEEDBACK_TRIGGER_KINDS, created_at: @from..@to).count),
           active_review_page_time: duration_figure(active_review_ms, cleaned_visits.count { |visit| visit.route_id == "job.review" }, estimate: false)
         },
         estimate: true
@@ -101,10 +101,10 @@ module AttentionReport
     end
 
     def wasted
-      operator_transitions = StateTransition.where(user_id: @user.id, source: "operator", created_at: @from..@to)
+      operator_transitions = Syrus::Host::StateTransition.where(user_id: @user.id, source: "operator", created_at: @from..@to)
       reason_counts = operator_transitions.group(metadata_reason_sql).count
       rechecks = LANDING_RECHECK_REASON_KEYS.sum { |key| reason_counts.fetch(key, 0) }
-      overrides = Job.where(
+      overrides = Syrus::Host::JobRecord.where(
         landing_blocker_override_requested_by_user_id: @user.id,
         landing_blocker_override_requested_at: @from..@to
       )
@@ -128,7 +128,7 @@ module AttentionReport
       direct_workflow_ids = operator_transitions.where(subject_type: "Workflow").pluck(:subject_id)
       job_transitions = operator_transitions.where(subject_type: "Job").group_by(&:subject_id)
 
-      Workflow.where(user_id: @user.id, trigger_kind: WASTED_WORKFLOW_TRIGGER_KINDS, created_at: @from..@to).filter_map do |workflow|
+      Syrus::Host::WorkflowRecord.where(user_id: @user.id, trigger_kind: WASTED_WORKFLOW_TRIGGER_KINDS, created_at: @from..@to).filter_map do |workflow|
         direct_workflow_ids.include?(workflow.id) || Array(job_transitions[workflow.job_id]).any? do |transition|
           (transition.created_at - workflow.created_at).abs <= 5.seconds
         end ? workflow.job_id : nil
@@ -137,12 +137,12 @@ module AttentionReport
 
     def job_ids_for_transitions(transitions)
       workflow_ids = transitions.where(subject_type: "Workflow").limit(JOB_ID_LIMIT).pluck(:subject_id)
-      workflow_job_ids = Workflow.where(id: workflow_ids).limit(JOB_ID_LIMIT).pluck(:job_id)
+      workflow_job_ids = Syrus::Host::WorkflowRecord.where(id: workflow_ids).limit(JOB_ID_LIMIT).pluck(:job_id)
       capped_job_ids(workflow_job_ids + transitions.where(subject_type: "Job").limit(JOB_ID_LIMIT).pluck(:subject_id))
     end
 
     def reapproval_after_unchanged_diff_job_ids
-      approval_scope = StateTransition.where(
+      approval_scope = Syrus::Host::StateTransition.where(
         user_id: @user.id,
         source: "operator",
         subject_type: "Job",
@@ -192,7 +192,7 @@ module AttentionReport
     end
 
     def machine_time
-      runs = Run.where(user_id: @user.id, created_at: @from..@to)
+      runs = Syrus::Host::RunRecord.where(user_id: @user.id, created_at: @from..@to)
       runtime_scope = runs.where.not(started_at: nil, finished_at: nil)
       queue_scope = runs.where.not(started_at: nil)
       runtime_ms = duration_sum(runtime_scope, :started_at, :finished_at)

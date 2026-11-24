@@ -1,5 +1,5 @@
 module Coworkers
-  class PostToChat < ::Steps::Base
+  class PostToChat < Syrus::Host::StepHandlerBase
     MESSAGE_ARTIFACT = "coworker_chat_message_id"
     MERGE_ARTIFACT = "coworker_merge_state"
 
@@ -80,7 +80,7 @@ module Coworkers
     def self.finalize_workspace!(chat:, workflow:, source_run:, path: nil)
       return :unavailable unless source_run
 
-      path ||= StepWorkspace.for(source_run.step, run: source_run).path
+      path ||= Syrus::Host::StepWorkspace.for(source_run.step, run: source_run).path
       Coworkers::ChatWorkspaceLifecycle.new(chat).finalize_background!(path:, workflow:)
     end
 

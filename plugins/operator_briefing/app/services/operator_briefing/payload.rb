@@ -137,7 +137,7 @@ module OperatorBriefing
       @current_briefings ||= Briefing
         .joins(:job)
         .where(owner_user: user, repository_id: enabled_repository_ids)
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::JobRecord::TERMINAL_STATES })
         .includes(:job)
         .order(created_at: :desc, id: :desc)
         .each_with_object({}) do |briefing, index|
@@ -224,7 +224,7 @@ module OperatorBriefing
             payload["workflow_id"] if %w[image artifact].include?((block["kind"] || block[:kind]).to_s)
           end
         end.map(&:to_i).select(&:positive?).uniq
-        ::Workflow.joins(:job)
+        Syrus::Host::WorkflowRecord.joins(:job)
           .where(id: workflow_ids, jobs: { repository_id: enabled_repository_ids })
           .each_with_object({}) do |workflow, index|
             index[workflow.id] = TypedArtifactRenderer.enrich(Array(workflow.artifact("typed_artifacts")))
@@ -290,7 +290,7 @@ module OperatorBriefing
     end
 
     def job_activity_rows
-      scope = Job.where(repository_id: enabled_repository_ids).where.not(kind: ActivityGate::EXCLUDED_JOB_KINDS)
+      scope = Syrus::Host::JobRecord.where(repository_id: enabled_repository_ids).where.not(kind: ActivityGate::EXCLUDED_JOB_KINDS)
       scope = scope.where("jobs.created_at > :since OR jobs.updated_at > :since OR jobs.finished_at > :since", since: activity_since_floor) if activity_since_floor.present?
       scope
         .group(:repository_id)
@@ -303,7 +303,7 @@ module OperatorBriefing
     end
 
     def workflow_activity_rows
-      scope = ::Workflow
+      scope = Syrus::Host::WorkflowRecord
         .joins(:job)
         .where(jobs: { repository_id: enabled_repository_ids })
         .where.not(jobs: { kind: ActivityGate::EXCLUDED_JOB_KINDS })

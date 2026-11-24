@@ -11,7 +11,7 @@ module Coworkers
         worker = confined_workers.first
         return { outcome: "confinement_unavailable" } unless worker
 
-        { queue: ::Workflow.resume_queue_name(worker.hostname) }
+        { queue: Syrus::Host::WorkflowRecord.resume_queue_name(worker.hostname) }
       end
 
       def availability(descriptor)

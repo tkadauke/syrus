@@ -7,10 +7,10 @@ module GlobalSearch
     def self.search_backfill_step_key = "epics"
     def self.search_backfill_step_title = "Index epics"
     def self.search_backfill_record_label = "epic"
-    def self.search_backfill_total_count = Epic.count
+    def self.search_backfill_total_count = Syrus::Host::Epic.count
 
     def self.search_backfill_needed?
-      indexed_count < Epic.count
+      indexed_count < Syrus::Host::Epic.count
     end
 
     def self.search_database_rebuild_key = "epics"
@@ -18,27 +18,27 @@ module GlobalSearch
     def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
     def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
     def self.search_database_tables = [ TABLE_NAME ]
-    def self.search_database_rebuild_units = Epic.count
+    def self.search_database_rebuild_units = Syrus::Host::Epic.count
     def self.search_database_initialize_content_version! = finish_content_version! unless current_content_version
     def self.search_database_integrity_repair_needed? = search_database_rebuild_pending?
 
     def self.search_database_rebuild_pending?
       search_backfill_needed?
     rescue StandardError
-      Epic.exists?
+      Syrus::Host::Epic.exists?
     end
 
     def self.search_backfill_batch(after_id:, limit:)
       last_id = after_id.to_i
       processed = 0
 
-      Epic.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |epic|
+      Syrus::Host::Epic.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |epic|
         EpicIndex.upsert(epic)
         last_id = epic.id
         processed += 1
       end
 
-      { processed: processed, last_id: last_id, done: processed.zero? || last_id >= Epic.maximum(:id).to_i }
+      { processed: processed, last_id: last_id, done: processed.zero? || last_id >= Syrus::Host::Epic.maximum(:id).to_i }
     end
 
     def self.search_database_rebuild_batch(task:, reason:)

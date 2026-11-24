@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 349
+legacy_baseline: 296
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -41,7 +41,6 @@ constants:
 - name: ApplicationPolicy::Scope
 - name: AuthorizationCheckpointOrigin
 - name: AuthorizedInvocation
-- name: AutoApproveModes
 - name: BackendExceptionLogging
 - name: BugReports::Router
 - name: ChatAssociatedJobs
@@ -86,15 +85,7 @@ constants:
 - name: DiffReviewComment
 - name: DiffReviewVersion
 - name: DiffReviewVersions::FinalReviewVersion
-- name: DirectJobs::Creator
-- name: DirectJobs::Creator::Attachment
 - name: Document::MAX_ATTACHMENTS_PER_JOB
-- name: Epic
-- name: Epic::ARCHIVED_STATE
-- name: Epic::MERGED_JOB_CLOSURE_REASONS
-- name: Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
-- name: EpicMarkerParser
-- name: Epics::Filter
 - name: Execution::ChatWorkloadPolicy
 - name: Feature
 - name: Filters::Ast
@@ -139,25 +130,8 @@ constants:
 - name: InputSources::PendingWorkWakeup
 - name: InstanceVersion
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-- name: InvestigationJobs::Creator
 - name: IssueImageExtractor
-- name: Job
-- name: Job::Kind
-- name: Job::Origin
-- name: Job::ProviderSetting::Base
-- name: Job::ProviderSetting::Base::DEFAULT_VALUE
-- name: Job::TERMINAL_STATES
-- name: JobApproval
-- name: JobDefinitionUpdater
-- name: JobDefinitionUpdater::Immutable
-- name: JobLog
-- name: JobPin
-- name: Jobs::Filter
-- name: JunitXmlParser
-- name: JunitXmlParser::ParseError
 - name: KubernetesCluster
-- name: LandedCommit
-- name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
 - name: Mcp::CoworkerToolExposure
 - name: Mcp::Pagination
@@ -178,9 +152,6 @@ constants:
 - name: McpToolRegistry
 - name: Mentionable
 - name: Mentionables::Resolver
-- name: MergeTrain
-- name: MergeTrainDispatcher::RETRY_COOLDOWN
-- name: MergeTrainMember
 - name: Metrics::ClusterCounterSampler
 - name: MysqlConnection
 - name: MysqlConnection::ADMIN_SURFACE
@@ -255,7 +226,6 @@ constants:
 - name: ProviderUsageLimit::OUTCOME
 - name: RebaseAttemptGuard
 - name: RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
-- name: RepairEligibility::Ineligible
 - name: RepoDefaultBranchSyrusYml
 - name: RepoDeploymentStagesReader
 - name: Repository
@@ -269,11 +239,6 @@ constants:
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
 - name: ReviewEvidence::VerdictSubmission
-- name: Run
-- name: Run::ACTIVE_STATES
-- name: RunDiff
-- name: RunHeartbeat
-- name: RunJob
 - name: RuntimeControlLease
 - name: RuntimeSession
 - name: RuntimeSessionProviders
@@ -292,16 +257,6 @@ constants:
 - name: SkipIfPending
 - name: SmartFolder
 - name: SmartFolder::COUNT_CAP
-- name: SpawnedProcess
-- name: StateTransition
-- name: Step
-- name: Step::AGENTIC_KINDS
-- name: Step::Kind
-- name: StepWorkspace
-- name: Steps::AdversarialReview
-- name: Steps::AdversarialReview::MemoryPersistenceFailed
-- name: Steps::Base
-- name: Steps::MergeTrainLand::STALE_BASE_ARTIFACT
 - name: Syrus::DataCleanup
 - name: Syrus::Events
 - name: Syrus::Installer
@@ -322,7 +277,6 @@ constants:
 - name: Team
 - name: TeamMembership
 - name: TeamRepository
-- name: TestCaseIdentity
 - name: Theme
 - name: Theme::EXTENDED_TOKEN_GROUPS
 - name: Theme::TOKEN_KEYS
@@ -337,18 +291,11 @@ constants:
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
 - name: User::DASHBOARD_REQUIRED_COLUMNS
 - name: ValidatesAgentProvider
-- name: WorkDefinitions::Base
 - name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis
 - name: WorkerHostHealthSample
 - name: WorkerQueueTopology
 - name: WorkerStorageIdentity
-- name: Workflow
-- name: Workflow::TriggerKind
-- name: WorkflowActivityEvent
-- name: WorkflowVisualEvidence
-- name: WorkflowWarnings
-- name: Workflows::Base
 - name: WorkspaceDependencyEnv
 - name: WorkspaceReuseOutcomes::Summary

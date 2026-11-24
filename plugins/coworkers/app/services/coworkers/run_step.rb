@@ -1,5 +1,5 @@
 module Coworkers
-  class RunStep < ::Steps::Base
+  class RunStep < Syrus::Host::StepHandlerBase
     class PersistenceFailed < StepFailed; end
 
     def call

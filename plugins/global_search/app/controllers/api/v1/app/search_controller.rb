@@ -195,7 +195,7 @@ module Api
         def job_search_rows(query, limit)
           rows = merge_slug_rows(
             ranked_accessible_rows(
-              type: "job", query: query, limit: limit, index: GlobalSearch::JobIndex, model: Job, id_key: :job_id
+              type: "job", query: query, limit: limit, index: GlobalSearch::JobIndex, model: Syrus::Host::JobRecord, id_key: :job_id
             ),
             job_slug_rows(query)
           )
@@ -205,7 +205,7 @@ module Api
         def epic_search_rows(query, limit)
           rows = merge_slug_rows(
             ranked_accessible_rows(
-              type: "epic", query: query, limit: limit, index: GlobalSearch::EpicIndex, model: Epic, id_key: :epic_id
+              type: "epic", query: query, limit: limit, index: GlobalSearch::EpicIndex, model: Syrus::Host::Epic, id_key: :epic_id
             ),
             epic_slug_rows(query)
           )
@@ -373,7 +373,7 @@ module Api
           exact_slug = query.to_s.strip
           return [] if job_ids.empty? && exact_slug.blank?
 
-          jobs = Job.visible_to(Syrus::Host::Current.user)
+          jobs = Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user)
           jobs.where(id: job_ids)
             .or(jobs.where(slug: job_ids.map { |id| "JOB-#{id}" }))
             .or(jobs.where(slug: exact_slug))
@@ -391,7 +391,7 @@ module Api
           epic_numbers = query.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i).uniq
           return [] if epic_numbers.empty?
 
-          Epic.accessible_to(Syrus::Host::Current.user).where(number: epic_numbers).map do |epic|
+          Syrus::Host::Epic.accessible_to(Syrus::Host::Current.user).where(number: epic_numbers).map do |epic|
             {
               epic_id: epic.id,
               priority: -1,
@@ -517,11 +517,11 @@ module Api
         end
 
         def jobs_by_id
-          @jobs_by_id ||= Job.visible_to(Syrus::Host::Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
+          @jobs_by_id ||= Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
         end
 
         def epics_by_id
-          @epics_by_id ||= Epic.accessible_to(Syrus::Host::Current.user).includes(:repository).where(id: result_ids(:epic_id)).index_by(&:id)
+          @epics_by_id ||= Syrus::Host::Epic.accessible_to(Syrus::Host::Current.user).includes(:repository).where(id: result_ids(:epic_id)).index_by(&:id)
         end
 
         def chat_messages_by_id
@@ -613,14 +613,14 @@ module Api
         class JobSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:job_search_rows, query, limit)
           def row_id_key = :job_id
-          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(Job.visible_to(user).where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Syrus::Host::JobFilter.from_tree(tree, user: user).apply(Syrus::Host::JobRecord.visible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:job_result_json, row)
         end
 
         class EpicSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:epic_search_rows, query, limit)
           def row_id_key = :epic_id
-          def filtered_scope(ids:, tree:, user:) = Epics::Filter.from_tree(tree, user: user).apply(Epic.accessible_to(user).where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Syrus::Host::EpicFilter.from_tree(tree, user: user).apply(Syrus::Host::Epic.accessible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:epic_result_json, row)
         end
 

@@ -200,7 +200,7 @@ class Coworkers::WorkspaceBrowser
 
   def source_runs(commits)
     shas = commits.map(&:sha)
-    candidates = Run.joins(:job)
+    candidates = Syrus::Host::RunRecord.joins(:job)
       .where(user_id: @coworker.owner_user_id, jobs: { repository_id: @repository.id })
       .where(head_sha: shas + shas.map { |sha| sha.first(12) })
       .where.not(head_sha: [ nil, "" ])

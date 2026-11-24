@@ -28,6 +28,16 @@ Supported members:
 
 - `admin_pages`
 
+### `Syrus::Host::AdversarialReviewStep`
+
+Since: `0.1.16`
+
+Adversarial-review step handler, exposing only the MemoryPersistenceFailed error plugins rescue.
+
+Supported members:
+
+- `MemoryPersistenceFailed`
+
 ### `Syrus::Host::AgentProvider`
 
 Since: `0.1.16`
@@ -128,6 +138,17 @@ Supported members:
 - `abstract_class`
 - `table_name`
 - `table_name=`
+
+### `Syrus::Host::AutoApproveModes`
+
+Since: `0.1.16`
+
+Reads the auto-approve mode vocabulary.
+
+Supported members:
+
+- `option_for`
+- `options`
 
 ### `Syrus::Host::BackgroundJob`
 
@@ -611,6 +632,17 @@ Supported members:
 
 - `review_annotations`
 
+### `Syrus::Host::DirectJobCreator`
+
+Since: `0.1.16`
+
+Creates direct jobs from an operator prompt; Attachment describes an attached file.
+
+Supported members:
+
+- `Attachment`
+- `new`
+
 ### `Syrus::Host::DiskUsage`
 
 Since: `0.1.16`
@@ -669,6 +701,47 @@ Supported members:
 - `new`
 - `span_labels`
 - `version_file`
+
+### `Syrus::Host::Epic`
+
+Since: `0.1.16`
+
+Reads and queries epics through find and scoped lookups, plus the closure-reason and archived-state vocabularies; transitions and unlisted associations are not promised.
+
+Supported members:
+
+- `ARCHIVED_STATE`
+- `MERGED_JOB_CLOSURE_REASONS`
+- `SUCCESSFUL_JOB_CLOSURE_REASONS`
+- `accessible_to`
+- `count`
+- `exists?`
+- `find`
+- `find_by`
+- `find_or_create_by!`
+- `maximum`
+- `order`
+- `where`
+
+### `Syrus::Host::EpicFilter`
+
+Since: `0.1.16`
+
+Builds an epic scope from a shared filter tree.
+
+Supported members:
+
+- `from_tree`
+
+### `Syrus::Host::EpicMarkerParser`
+
+Since: `0.1.16`
+
+Parses epic markers from source text.
+
+Supported members:
+
+- `parse`
 
 ### `Syrus::Host::ExecutionBackend`
 
@@ -926,6 +999,16 @@ Since: `0.1.16`
 
 Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
 
+### `Syrus::Host::InvestigationJobCreator`
+
+Since: `0.1.16`
+
+Creates an investigation job.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
@@ -967,6 +1050,49 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::JobApproval`
+
+Since: `0.1.16`
+
+Queries job approval records.
+
+Supported members:
+
+- `joins`
+- `where`
+
+### `Syrus::Host::JobDefinitionUpdater`
+
+Since: `0.1.16`
+
+Updates a job's definition; Immutable is the error raised for locked definitions.
+
+Supported members:
+
+- `Immutable`
+- `new`
+
+### `Syrus::Host::JobFilter`
+
+Since: `0.1.16`
+
+Builds a job scope from a shared filter tree.
+
+Supported members:
+
+- `from_tree`
+
+### `Syrus::Host::JobLog`
+
+Since: `0.1.16`
+
+Appends to and queries run transcript chunks.
+
+Supported members:
+
+- `append!`
+- `where`
+
 ### `Syrus::Host::JobOrigin`
 
 Since: `0.1.16`
@@ -982,6 +1108,50 @@ Supported members:
 - `synthetic_issue`
 - `url`
 
+### `Syrus::Host::JobPin`
+
+Since: `0.1.16`
+
+Queries a user's pinned jobs.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::JobRecord`
+
+Since: `0.1.16`
+
+Reads and queries jobs through identity, state, ownership, and visibility-scoped lookups, plus the Kind, Origin, ProviderSetting and TERMINAL_STATES vocabularies; transitions, callbacks, and unlisted associations are not promised.
+
+Supported members:
+
+- `Kind`
+- `Origin`
+- `ProviderSetting`
+- `TERMINAL_STATES`
+- `accessible_to`
+- `all`
+- `approval_blocking_job_ids`
+- `count`
+- `create!`
+- `effectively_owned_by`
+- `exists?`
+- `find`
+- `find_by`
+- `initial_state_for_creator`
+- `maximum`
+- `new`
+- `none`
+- `open_threads`
+- `order`
+- `priority_rank`
+- `sanitize_sql_like`
+- `select`
+- `transaction`
+- `visible_to`
+- `where`
+
 ### `Syrus::Host::JobVisibilityRestriction`
 
 Since: `0.1.16`
@@ -992,6 +1162,37 @@ Supported members:
 
 - `origin_key`
 - `visible_origin_ids`
+
+### `Syrus::Host::JunitXmlParser`
+
+Since: `0.1.16`
+
+Parses JUnit XML test reports; ParseError is raised on malformed input.
+
+Supported members:
+
+- `ParseError`
+- `parse`
+
+### `Syrus::Host::LandedCommit`
+
+Since: `0.1.16`
+
+Queries landed-commit records.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::LandingFailureHandler`
+
+Since: `0.1.16`
+
+Classifies landing failures.
+
+Supported members:
+
+- `stale_merge_train_base?`
 
 ### `Syrus::Host::LocalExecution`
 
@@ -1044,6 +1245,46 @@ Supported members:
 - `utf8`
 - `with_database_connection`
 - `write_log`
+
+### `Syrus::Host::MergeTrain`
+
+Since: `0.1.16`
+
+Queries merge trains.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::MergeTrainDispatcher`
+
+Since: `0.1.16`
+
+Exposes the RETRY_COOLDOWN used for landing retries.
+
+Supported members:
+
+- `RETRY_COOLDOWN`
+
+### `Syrus::Host::MergeTrainLandStep`
+
+Since: `0.1.16`
+
+Merge-train landing step handler, exposing only the STALE_BASE_ARTIFACT key.
+
+Supported members:
+
+- `STALE_BASE_ARTIFACT`
+
+### `Syrus::Host::MergeTrainMember`
+
+Since: `0.1.16`
+
+Queries merge-train members.
+
+Supported members:
+
+- `where`
 
 ### `Syrus::Host::Metrics`
 
@@ -1230,6 +1471,17 @@ Supported members:
 - `has_many`
 - `sanitize_sql_like`
 - `transaction`
+
+### `Syrus::Host::RepairIneligible`
+
+Since: `0.1.16`
+
+Raised when a repair is not eligible for the target.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::RepoPageTab`
 
@@ -1427,6 +1679,52 @@ Supported members:
 - `state`
 - `workflow`
 
+### `Syrus::Host::RunDiff`
+
+Since: `0.1.16`
+
+Builds the SQL fragment that selects a run's preferred diff.
+
+Supported members:
+
+- `preferred_diff_sql`
+
+### `Syrus::Host::RunHeartbeat`
+
+Since: `0.1.16`
+
+Records liveness for a running run.
+
+Supported members:
+
+- `touch`
+
+### `Syrus::Host::RunJob`
+
+Since: `0.1.16`
+
+Reads the injectable agent runner used by agent-provider plugins.
+
+Supported members:
+
+- `agent_runner`
+
+### `Syrus::Host::RunRecord`
+
+Since: `0.1.16`
+
+Queries runs by state and association, and reads the ACTIVE_STATES vocabulary; dispatch, lifecycle transitions, and unlisted associations are not promised.
+
+Supported members:
+
+- `ACTIVE_STATES`
+- `find`
+- `find_by`
+- `joins`
+- `select`
+- `terminal`
+- `where`
+
 ### `Syrus::Host::RuntimeSessionProvider`
 
 Since: `0.1.16`
@@ -1472,6 +1770,18 @@ Supported members:
 - `client_for`
 - `display_name`
 - `provider_key`
+
+### `Syrus::Host::SpawnedProcess`
+
+Since: `0.1.16`
+
+Queries tracked spawned processes (live_agent, running scopes).
+
+Supported members:
+
+- `live_agent`
+- `running`
+- `where`
 
 ### `Syrus::Host::SpeechToTextBase`
 
@@ -1575,6 +1885,50 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::StateTransition`
+
+Since: `0.1.16`
+
+Queries state-transition audit records and scopes a block of work to a transition source.
+
+Supported members:
+
+- `where`
+- `with_source`
+
+### `Syrus::Host::Step`
+
+Since: `0.1.16`
+
+Queries workflow steps and reads the step-kind vocabulary (Kind.label_for, AGENTIC_KINDS); dispatch and transitions are not promised.
+
+Supported members:
+
+- `AGENTIC_KINDS`
+- `Kind`
+- `joins`
+- `where`
+
+### `Syrus::Host::StepHandlerBase`
+
+Since: `0.1.16`
+
+Base class for plugin-contributed step handlers; the dispatcher contract is not promised beyond subclassing.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::StepWorkspace`
+
+Since: `0.1.16`
+
+Resolves the workspace of a step.
+
+Supported members:
+
+- `for`
+
 ### `Syrus::Host::SyrusYmlParseError`
 
 Since: `0.1.16`
@@ -1605,6 +1959,16 @@ Defines the system-alert contribution plugins may provide; alert aggregation and
 Supported members:
 
 - `system_alerts`
+
+### `Syrus::Host::TestCaseIdentity`
+
+Since: `0.1.16`
+
+Canonicalizes test-case identity.
+
+Supported members:
+
+- `canonical_suite`
 
 ### `Syrus::Host::TestCaseResult`
 
@@ -1703,6 +2067,16 @@ Supported members:
 - `jobs`
 - `repositories`
 
+### `Syrus::Host::WorkDefinitionBase`
+
+Since: `0.1.16`
+
+Base class for plugin-contributed work definitions; only subclassing is promised.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::WorkLaunchConflict`
 
 Since: `0.1.16`
@@ -1750,6 +2124,16 @@ Supported members:
 - `runs`
 - `state`
 
+### `Syrus::Host::WorkflowActivityEvent`
+
+Since: `0.1.16`
+
+Queryable workflow activity events; columns are not promised.
+
+Supported members:
+
+- `where`
+
 ### `Syrus::Host::WorkflowArtifactContributor`
 
 Since: `0.1.16`
@@ -1759,6 +2143,53 @@ Lets a plugin contribute workflow artifacts; artifact storage is not promised. O
 Supported members:
 
 - `for_job`
+
+### `Syrus::Host::WorkflowBase`
+
+Since: `0.1.16`
+
+Base class for plugin-contributed workflow kinds; resolve_plan is the supported hook.
+
+Supported members:
+
+- `resolve_plan`
+
+### `Syrus::Host::WorkflowRecord`
+
+Since: `0.1.16`
+
+Queries workflows by state and association, and reads the TriggerKind vocabulary; scheduling, transitions, and unlisted associations are not promised.
+
+Supported members:
+
+- `TriggerKind`
+- `find_by`
+- `from`
+- `joins`
+- `none`
+- `resume_queue_name`
+- `terminal`
+- `where`
+
+### `Syrus::Host::WorkflowVisualEvidence`
+
+Since: `0.1.16`
+
+Draft visual evidence value plugins may type-check; shape is not promised.
+
+Supported members:
+
+- `stable_id`
+
+### `Syrus::Host::WorkflowWarnings`
+
+Since: `0.1.16`
+
+Records a warning against a workflow.
+
+Supported members:
+
+- `record!`
 
 ### `Syrus::Host::WorkflowWorkspace`
 
@@ -1844,7 +2275,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ApplicationPolicy::Scope`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
-- `AutoApproveModes`
 - `BackendExceptionLogging`
 - `BugReports::Router`
 - `ChatAssociatedJobs`
@@ -1889,15 +2319,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `DiffReviewComment`
 - `DiffReviewVersion`
 - `DiffReviewVersions::FinalReviewVersion`
-- `DirectJobs::Creator`
-- `DirectJobs::Creator::Attachment`
 - `Document::MAX_ATTACHMENTS_PER_JOB`
-- `Epic`
-- `Epic::ARCHIVED_STATE`
-- `Epic::MERGED_JOB_CLOSURE_REASONS`
-- `Epic::SUCCESSFUL_JOB_CLOSURE_REASONS`
-- `EpicMarkerParser`
-- `Epics::Filter`
 - `Execution::ChatWorkloadPolicy`
 - `Feature`
 - `Filters::Ast`
@@ -1942,25 +2364,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `InputSources::PendingWorkWakeup`
 - `InstanceVersion`
 - `InstanceVersion::HEARTBEAT_STALE_THRESHOLD`
-- `InvestigationJobs::Creator`
 - `IssueImageExtractor`
-- `Job`
-- `Job::Kind`
-- `Job::Origin`
-- `Job::ProviderSetting::Base`
-- `Job::ProviderSetting::Base::DEFAULT_VALUE`
-- `Job::TERMINAL_STATES`
-- `JobApproval`
-- `JobDefinitionUpdater`
-- `JobDefinitionUpdater::Immutable`
-- `JobLog`
-- `JobPin`
-- `Jobs::Filter`
-- `JunitXmlParser`
-- `JunitXmlParser::ParseError`
 - `KubernetesCluster`
-- `LandedCommit`
-- `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
 - `Mcp::CoworkerToolExposure`
 - `Mcp::Pagination`
@@ -1981,9 +2386,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `McpToolRegistry`
 - `Mentionable`
 - `Mentionables::Resolver`
-- `MergeTrain`
-- `MergeTrainDispatcher::RETRY_COOLDOWN`
-- `MergeTrainMember`
 - `Metrics::ClusterCounterSampler`
 - `MysqlConnection`
 - `MysqlConnection::ADMIN_SURFACE`
@@ -2058,7 +2460,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ProviderUsageLimit::OUTCOME`
 - `RebaseAttemptGuard`
 - `RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD`
-- `RepairEligibility::Ineligible`
 - `RepoDefaultBranchSyrusYml`
 - `RepoDeploymentStagesReader`
 - `Repository`
@@ -2072,11 +2473,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RetentionPruner::DEFAULT_BATCH_SIZE`
 - `RetentionPruner::DEFAULT_MAX_BATCHES`
 - `ReviewEvidence::VerdictSubmission`
-- `Run`
-- `Run::ACTIVE_STATES`
-- `RunDiff`
-- `RunHeartbeat`
-- `RunJob`
 - `RuntimeControlLease`
 - `RuntimeSession`
 - `RuntimeSessionProviders`
@@ -2095,16 +2491,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `SkipIfPending`
 - `SmartFolder`
 - `SmartFolder::COUNT_CAP`
-- `SpawnedProcess`
-- `StateTransition`
-- `Step`
-- `Step::AGENTIC_KINDS`
-- `Step::Kind`
-- `StepWorkspace`
-- `Steps::AdversarialReview`
-- `Steps::AdversarialReview::MemoryPersistenceFailed`
-- `Steps::Base`
-- `Steps::MergeTrainLand::STALE_BASE_ARTIFACT`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
@@ -2125,7 +2511,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Team`
 - `TeamMembership`
 - `TeamRepository`
-- `TestCaseIdentity`
 - `Theme`
 - `Theme::EXTENDED_TOKEN_GROUPS`
 - `Theme::TOKEN_KEYS`
@@ -2140,18 +2525,11 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `User::DASHBOARD_OPTIONAL_COLUMNS`
 - `User::DASHBOARD_REQUIRED_COLUMNS`
 - `ValidatesAgentProvider`
-- `WorkDefinitions::Base`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`
 - `WorkerHostHealthSample`
 - `WorkerQueueTopology`
 - `WorkerStorageIdentity`
-- `Workflow`
-- `Workflow::TriggerKind`
-- `WorkflowActivityEvent`
-- `WorkflowVisualEvidence`
-- `WorkflowWarnings`
-- `Workflows::Base`
 - `WorkspaceDependencyEnv`
 - `WorkspaceReuseOutcomes::Summary`

@@ -41,7 +41,7 @@ module AgentInsights
           per_page = normalized_limit(limit)
           page_num = Mcp::Pagination.normalize_page(page)
 
-          scope = ::Workflow
+          scope = Syrus::Host::WorkflowRecord
             .joins(:job)
             .includes(:job, :workflow_warnings)
             .where(jobs: { repository_id: repository.id, user_id: context_run.job.user_id })
@@ -54,7 +54,7 @@ module AgentInsights
           workflows = scope.offset((page_num - 1) * per_page).limit(per_page).to_a
           workflow_ids = workflows.map(&:id)
           @runs_by_workflow = runs_by_workflow(workflow_ids)
-          @step_counts = ::Step.where(workflow_id: workflow_ids).group(:workflow_id).count
+          @step_counts = Syrus::Host::Step.where(workflow_id: workflow_ids).group(:workflow_id).count
           @summaries = summaries_by_workflow(workflow_ids)
 
           MCP::Tool::Response.new([
@@ -126,7 +126,7 @@ module AgentInsights
         def summaries_by_workflow(workflow_ids)
           return {} if workflow_ids.empty?
 
-          ::Workflow.joins(:workflow_artifact_values)
+          Syrus::Host::WorkflowRecord.joins(:workflow_artifact_values)
             .where(id: workflow_ids, workflow_artifact_values: { key: "summary" })
             .pluck(:id, "workflow_artifact_values.value")
             .to_h { |id, raw| [ id, (JSON.parse(raw) rescue raw) ] }
@@ -135,7 +135,7 @@ module AgentInsights
         def runs_by_workflow(workflow_ids)
           return {} if workflow_ids.empty?
 
-          ::Run.joins(:step)
+          Syrus::Host::RunRecord.joins(:step)
             .where(steps: { workflow_id: workflow_ids })
             .select(RUN_COLUMNS)
             .order("runs.created_at DESC, runs.id DESC")

@@ -67,7 +67,7 @@ module Throughput
       return cursor["auto_merge_through"] = now.iso8601(6) if after.nil?
 
       sample_source("succeeded auto_merge workflows") do
-        count = Workflow.where(trigger_kind: "auto_merge", state: "succeeded")
+        count = Syrus::Host::WorkflowRecord.where(trigger_kind: "auto_merge", state: "succeeded")
                         .where(finished_at: Time.iso8601(after)...now)
                         .count
         increment_unit_totals!(totals, unit_type: "auto_merge", attempts: count, jobs: count)
@@ -81,8 +81,8 @@ module Throughput
       return cursor["merge_train_through"] = now.iso8601(6) if after.nil?
 
       sample_source("succeeded merge trains and members") do
-        trains = MergeTrain.where(state: "succeeded").where(finished_at: Time.iso8601(after)...now).pluck(:id)
-        jobs_landed = trains.empty? ? 0 : MergeTrainMember.where(merge_train_id: trains).count
+        trains = Syrus::Host::MergeTrain.where(state: "succeeded").where(finished_at: Time.iso8601(after)...now).pluck(:id)
+        jobs_landed = trains.empty? ? 0 : Syrus::Host::MergeTrainMember.where(merge_train_id: trains).count
         increment_unit_totals!(totals, unit_type: "merge_train", attempts: trains.size, jobs: jobs_landed)
 
         cursor["merge_train_through"] = now.iso8601(6)
