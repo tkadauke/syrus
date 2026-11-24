@@ -325,6 +325,24 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(workflow.auto_retry_attempts).to be_empty
     end
 
+    # Regression: teardown follows only a preservation decision, yet members
+    # went through fail_landing and lost their approval -- eight Jobs needed
+    # manual re-approval after one train's relaunch was refused.
+    it "returns every member to the queue with its approval when a preserved train is torn down" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(train, b, failure_reason: "merge_train: refusing to land abc: validation evidence is for def")
+      record_non_retryable_failure!(workflow, b, step_kind: "merge_train_land", classification: "unclassified")
+      allow_any_instance_of(described_class).to receive(:delete_integration_branch)
+
+      described_class.call(workflow: workflow, allow_preservation: false)
+
+      expect(train.reload).to be_terminal
+      expect([ a.reload, b.reload ]).to all(be_approved)
+      expect(a.landing_failure_code).to eq(LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED)
+    end
+
     # The conservative half of the same gate: a member that broke the build
     # must still fail out, or the train wedges on that defect forever.
     it "tears the assembly down when a member-attributable step failed" do

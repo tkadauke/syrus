@@ -71,6 +71,17 @@ class MergeTrainFailureHandler
         next
       end
 
+      # Teardown only follows a preservation decision, and a train is only
+      # preserved when its failure was not attributed to a member. The relaunch
+      # failing to start says nothing about any member's work either, so they
+      # go back to the queue with their approval rather than through
+      # fail_landing, which made an operator re-approve every member.
+      if !@allow_preservation
+        defer_torn_down_member!(job, reason) if job.landing?
+        member.update!(state: "failed", reason: reason.truncate(500))
+        next
+      end
+
       # LandingFailureHandler classifies the reason: transient/infra
       # blockers defer_landing (stay approved, auto-retry), genuine
       # failures fail_landing (-> implemented, approval cleared, requires
@@ -81,6 +92,15 @@ class MergeTrainFailureHandler
   end
 
   private
+
+  def defer_torn_down_member!(job, reason)
+    return unless job.may_defer_landing?
+
+    job.landing_failure_reason = reason.truncate(500)
+    job.landing_failure_code = LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED
+    job.defer_landing!
+    job.save! if job.changed?
+  end
 
   # Positive evidence a member's commits are already safely on base: the
   # train actually landed a real integration merge (record_integration_merge_commit!
