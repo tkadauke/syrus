@@ -185,7 +185,7 @@ module SyrusDev
       def scrub_text(value, limit)
         return nil if value.nil?
 
-        CommandRedactor.redact_assignments(value)
+        Syrus::Host::CommandRedactor.redact_assignments(value)
           .safe_byteslice(0, limit)
       end
     end

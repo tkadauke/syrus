@@ -179,6 +179,19 @@ Supported members:
 
 - `broadcast`
 
+### `Syrus::Host::AppPresentation`
+
+Since: `0.1.16`
+
+Formats job and epic slugs, external PR URLs and agent provider labels the way the app presents them. Only the listed members are supported.
+
+Supported members:
+
+- `agent_provider_label`
+- `epic_slug`
+- `external_pr_url`
+- `job_slug`
+
 ### `Syrus::Host::ApplicationPolicy`
 
 Since: `0.1.16`
@@ -297,6 +310,17 @@ Supported members:
 - `on_shutdown`
 - `on_tick`
 
+### `Syrus::Host::CapabilityDescriptor`
+
+Since: `0.1.16`
+
+Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised. AUTHORITY_DURATIONS lists the approval durations a capability may allow, from shortest to longest. Only the listed members are supported.
+
+Supported members:
+
+- `AUTHORITY_DURATIONS`
+- `for_plugin_definition`
+
 ### `Syrus::Host::CapabilityDispatch`
 
 Since: `0.1.16`
@@ -317,6 +341,16 @@ Supported members:
 
 - `define`
 - `fetch`
+
+### `Syrus::Host::CapabilityPresentation`
+
+Since: `0.1.16`
+
+Builds the human-facing capability and operation names and descriptions a capability descriptor carries from its capability and operation identifiers; the wording may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::CapabilityValidationError`
 
@@ -372,6 +406,18 @@ Adds chat-lock error rendering to plugin API controllers; error payloads are not
 Since: `0.1.16`
 
 Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ChatMessageSearchIndex`
+
+Since: `0.1.16`
+
+Searches the chat message index for candidate messages and the chat sessions that match; index storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `matching_chat_session_page`
+- `search_candidates`
+- `top_matches_by_chat_session`
 
 ### `Syrus::Host::ChatMessages`
 
@@ -585,6 +631,7 @@ Redacts secrets from command output and structured values; redaction rules are n
 Supported members:
 
 - `redact`
+- `redact_assignments`
 - `redact_value`
 
 ### `Syrus::Host::CoverageParsers`
@@ -596,6 +643,18 @@ Parses the shared lcov and Cobertura coverage report formats for the ecosystem c
 Supported members:
 
 - `for`
+
+### `Syrus::Host::CredentialProbe`
+
+Since: `0.1.16`
+
+Carries the outcome of validating a saved credential (Result) and the probe timeout (TIMEOUT_SECONDS) that agent-provider credential probes share, and validates a saved credential through call; the individual probes are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Result`
+- `TIMEOUT_SECONDS`
+- `call`
 
 ### `Syrus::Host::Current`
 
@@ -706,6 +765,16 @@ Supported members:
 
 - `archived_state`
 - `where`
+
+### `Syrus::Host::EvidenceRedactor`
+
+Since: `0.1.16`
+
+Redacts a nested evidence value (hashes, arrays and strings) before it is surfaced in an MCP tool result. Only the listed members are supported.
+
+Supported members:
+
+- `call`
 
 ### `Syrus::Host::ExternalReviewArtifact`
 
@@ -824,6 +893,34 @@ Parses the shared filter query parameter; the grammar is not promised. Only the 
 Supported members:
 
 - `decode`
+
+### `Syrus::Host::Filters`
+
+Since: `0.1.16`
+
+The shared filter-bar contract. Ast (parse, serialize, EMPTY and the Chip, AndNode, OrNode, NotNode node types) is the filter tree wire format; QueryParam (decode, encode, PARAM_NAME) reads and writes it as the `q` request parameter; Compiler.call(ast, scope:, user:, subject:) compiles a tree onto a relation for a registered subject; Schema (for, chip_for, humanize_value) describes a subject's chips to the filter bar; Registry (exists?) answers whether a subject has a chip; SmartFolderResolution (call, PRESET_FIELD) resolves the effective filter for a request; UnknownFilterField is raised for an unsupported field; BaseFilter is the mixin for plugin filter classes (capped_count); Chips holds the chip base classes (Base, BooleanColumn, DateColumn, EnumColumn, FkColumn, FullTextStringColumn, NumberColumn, StringColumn, Jobs::JobType) a plugin subclasses to declare chips that it registers through its filter_chips surface. The built-in chip classes, registry storage and compiler internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Ast`
+- `BaseFilter`
+- `Chips`
+- `Compiler`
+- `QueryParam`
+- `Registry`
+- `Schema`
+- `SmartFolderResolution`
+- `UnknownFilterField`
+
+### `Syrus::Host::FtsQueryParser`
+
+Since: `0.1.16`
+
+Model concern that turns a user query into a full-text search expression for a search record; parsing rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `parse_fts_query`
 
 ### `Syrus::Host::GitMergeDrivers`
 
@@ -1027,6 +1124,16 @@ Supported members:
 
 - `fetch`
 
+### `Syrus::Host::JobStateSerializer`
+
+Since: `0.1.16`
+
+Builds the per-record degraded error entry used when one row of a list payload fails to serialize; other serializer methods are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `per_record_error`
+
 ### `Syrus::Host::JobSystemKindMainBranchRepair`
 
 Since: `0.1.16`
@@ -1220,6 +1327,18 @@ Supported members:
 
 - `create_for`
 
+### `Syrus::Host::OperationalLogSearch`
+
+Since: `0.1.16`
+
+Searches the operational log index and supplies the matching MCP tool input schema; indexing and retention are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `INPUT_SCHEMA_PROPERTIES`
+- `disabled_response`
+- `search_response`
+
 ### `Syrus::Host::OperationalLogging`
 
 Since: `0.1.16`
@@ -1230,11 +1349,27 @@ Supported members:
 
 - `ingest`
 
+### `Syrus::Host::OperationalLogsPayload`
+
+Since: `0.1.16`
+
+Builds the operational log browsing payload for an admin request; payload members are not promised beyond as_json. Only the listed members are supported.
+
+Supported members:
+
+- `as_json`
+- `new`
+
 ### `Syrus::Host::Paginatable`
 
 Since: `0.1.16`
 
-Adds page-parameter handling to plugin API controllers; page sizing is not promised. Only the listed members are supported.
+Controller concern that adds the shared page and per_page parameter handling; the including controller defines PER_PAGE as the default page size. Only the listed helpers are promised. Only the listed members are supported.
+
+Supported members:
+
+- `page_param`
+- `per_page_param`
 
 ### `Syrus::Host::PathJail`
 
@@ -1588,6 +1723,16 @@ Supported members:
 - `new`
 - `to_s`
 
+### `Syrus::Host::ProviderAvailability`
+
+Since: `0.1.16`
+
+Clears the cached availability of an agent provider for a user so the next check re-probes it; other availability queries are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `clear_cache!`
+
 ### `Syrus::Host::ProviderContentRefusals`
 
 Since: `0.1.16`
@@ -1909,6 +2054,16 @@ Supported members:
 - `state`
 - `workflow`
 
+### `Syrus::Host::RunArtifactsPayload`
+
+Since: `0.1.16`
+
+Builds the run artifacts payload shown for a run; payload members are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `build`
+
 ### `Syrus::Host::RunJob`
 
 Since: `0.1.16`
@@ -1944,6 +2099,49 @@ Supported members:
 - `find`
 - `publish_local`
 
+### `Syrus::Host::SearchDatabaseTasks`
+
+Since: `0.1.16`
+
+Prepares the search database and reports whether an index table exists; migration internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `prepare!`
+- `table_exists?`
+
+### `Syrus::Host::SearchIndexVersion`
+
+Since: `0.1.16`
+
+Reads and writes the content version of a plugin-owned search index so rebuilds know when an index is stale. Only the listed members are supported.
+
+Supported members:
+
+- `current`
+- `write!`
+
+### `Syrus::Host::SearchIndexWriteLimits`
+
+Since: `0.1.16`
+
+Bounds row and batch sizes of search-index writes; the limits may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `clamp_rows`
+- `row`
+
+### `Syrus::Host::SearchRecord`
+
+Since: `0.1.16`
+
+Abstract base for models stored in the dedicated search database; plugins subclass it for their index tables and may run raw statements through its connection. Schema management is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `connection`
+
 ### `Syrus::Host::Settings`
 
 Since: `0.1.16`
@@ -1969,6 +2167,45 @@ Bases plugin-contributed built-in skills; instruction rendering is not promised.
 Supported members:
 
 - `definition`
+
+### `Syrus::Host::SmartFolder`
+
+Since: `0.1.16`
+
+Registers smart-folder subjects and reads the built-in folders for a subject; persistence and per-user folder management are not promised. COUNT_CAP is the folder-count display cap. Only the listed members are supported.
+
+Supported members:
+
+- `COUNT_CAP`
+- `builtin_definition`
+- `builtins`
+- `ensure_builtins_for_subject!`
+- `register_subject!`
+
+### `Syrus::Host::SmartFolderNavigation`
+
+Since: `0.1.16`
+
+Builds the smart-folder navigation payload for a subject and resolves the explicitly requested folder; payload members beyond the folder list are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `active_folder`
+- `folders`
+- `new`
+
+### `Syrus::Host::Step`
+
+Since: `0.1.16`
+
+Queries workflow steps and reads the step-kind vocabulary (Kind.label_for, AGENTIC_KINDS); dispatch and transitions are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `AGENTIC_KINDS`
+- `Kind`
+- `joins`
+- `where`
 
 ### `Syrus::Host::StepBase`
 
@@ -2100,6 +2337,28 @@ Supported members:
 - `failed_grader_steps`
 - `failed_test_cases_for`
 
+### `Syrus::Host::TimelineMacroQuery`
+
+Since: `0.1.16`
+
+Runs the worker timeline macro query for a time window and filter expression; query internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+- `capped_count`
+- `new`
+
+### `Syrus::Host::TimelineWorkflowWaterfallQuery`
+
+Since: `0.1.16`
+
+Builds the per-workflow waterfall of workflow activity; payload members are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::ToolContext`
 
 Since: `0.1.16`
@@ -2121,6 +2380,18 @@ Supported members:
 - `surface`
 - `user`
 - `workflow`
+
+### `Syrus::Host::ToolPayloadRedactor`
+
+Since: `0.1.16`
+
+Redacts secret-looking keys, values and inline assignments from a tool payload or text before it is returned to an agent; REDACTED is the placeholder it writes. The patterns it recognizes may grow. Only the listed members are supported.
+
+Supported members:
+
+- `REDACTED`
+- `redact`
+- `redact_text`
 
 ### `Syrus::Host::Toolkit`
 
@@ -2478,24 +2749,13 @@ These core constants are recognized by the compatibility scanner because
 bundled plugins still reference them. They are not supported for new or
 external plugins. Migrate to a public `Syrus::Host` facade instead.
 
-- `Admin::JobStateSerializer`
-- `Admin::OperationalLogsPayload`
-- `Admin::SmartFolderNavigation`
 - `AdminAction`
 - `Agent`
 - `AgentEventAbbreviator`
-- `AgentInvocation`
-- `AgentInvocation::DEFAULT_MAX_TURNS`
-- `AgentInvocation::DEFAULT_TIMEOUT_SECONDS`
-- `AgentInvocation::ENV_FORWARD`
-- `AgentInvocation::MAX_EVENT_BYTES`
-- `AgentInvocation::Result`
-- `AgentInvocation::SILENT_TIMEOUT_SECONDS`
 - `AgentProviders`
 - `AgentProviders::Base`
 - `AgentProviders::ConfigurationError`
 - `AgentProviders::SessionStore`
-- `AgentRole`
 - `AgentRole::AGENT_INSIGHT`
 - `AgentRole::CHAT_CODING`
 - `AgentRole::CHAT_LOCAL`
@@ -2508,18 +2768,11 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentRole::WORKFLOW_ROLES`
 - `AgentRole::WORKFLOW_VISUAL_REVIEWER`
 - `AgentSidecarEnvironment`
-- `Api::V1::Admin::BaseController`
-- `Api::V1::App::Admin::BaseController`
-- `Api::V1::App::BaseController`
-- `App::Presentation`
-- `App::ProviderAvailability`
-- `App::RunArtifactsPayload`
 - `AppEvents`
 - `AppSetting`
 - `ApplicationCable::Channel`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
-- `ApplicationRecord`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
 - `AutoApproveModes`
@@ -2532,7 +2785,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatLockErrors`
 - `ChatMediaLibrary`
 - `ChatMessage`
-- `ChatMessageSearchIndex`
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
 - `ChatProviders::Base`
@@ -2543,14 +2795,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatSession::MODES`
 - `ChatSessionLifecycle`
 - `ChatSessionRehydrator`
-- `ChatSpeechToText::Providers::Base`
-- `ChatSpeechToText::Providers::InvalidAudio`
-- `ChatSpeechToText::Providers::StreamingDelta`
-- `ChatSpeechToText::Providers::TranscriptionError`
-- `ChatSpeechToText::Providers::TranscriptionResult`
-- `ChatSpeechToText::Providers::TranscriptionTimeout`
-- `ChatSpeechToText::Providers::TranscriptionUnavailable`
-- `ChatSpeechToText::Telemetry`
 - `ChatSpendEntry`
 - `ChatWakeup`
 - `ChatWorkEvents`
@@ -2559,12 +2803,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ClaudeTranscript`
 - `ClaudeTranscript::Event`
 - `CodexAccountScope`
-- `CommandRedactor`
-- `CoverageAnalysis::Parsers::Base::ParseResult`
-- `CredentialProbe`
-- `CredentialProbe::Result`
-- `CredentialProbe::TIMEOUT_SECONDS`
-- `Current`
 - `DirectJobs::Creator`
 - `DirectJobs::Creator::Attachment`
 - `Document::MAX_ATTACHMENTS_PER_JOB`
@@ -2573,42 +2811,10 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Epic::SUCCESSFUL_JOB_CLOSURE_REASONS`
 - `EpicMarkerParser`
 - `Epics::Filter`
-- `Execution::Backend`
-- `Execution::Local`
 - `Feature`
-- `Filters::Ast`
-- `Filters::Ast::AndNode`
-- `Filters::Ast::Chip`
-- `Filters::Ast::EMPTY`
-- `Filters::Ast::NotNode`
-- `Filters::Ast::OrNode`
-- `Filters::BaseFilter`
-- `Filters::Chips::Base`
-- `Filters::Chips::BooleanColumn`
-- `Filters::Chips::DateColumn`
-- `Filters::Chips::DateColumn::UNITS`
-- `Filters::Chips::EnumColumn`
-- `Filters::Chips::FkColumn`
-- `Filters::Chips::FullTextStringColumn`
-- `Filters::Chips::Jobs::JobType`
-- `Filters::Chips::NumberColumn`
-- `Filters::Chips::StringColumn`
-- `Filters::Compiler`
-- `Filters::QueryParam`
-- `Filters::QueryParam::PARAM_NAME`
-- `Filters::Registry`
-- `Filters::Schema`
-- `Filters::SmartFolderResolution`
-- `Filters::SmartFolderResolution::PRESET_FIELD`
-- `Filters::UnknownFilterField`
-- `FtsQueryParser`
-- `GitRunner`
-- `GitRunner::GitError`
 - `GithubApiUsageRollup`
 - `GithubClient`
 - `GithubIssueJobAttributes`
-- `GraderResourceRequest`
-- `GraderResourceRequest::ALL`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
 - `IngestIssueImagesJob`
@@ -2633,25 +2839,20 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Jobs::Filter`
 - `JunitXmlParser`
 - `JunitXmlParser::ParseError`
-- `JunitXmlParser::ParsedCase`
-- `JunitXmlParser::ParsedRun`
 - `KubernetesCluster`
 - `LandedCommit`
 - `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
-- `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
 - `Mcp::Tools::AgentPreviewRegistry`
 - `Mcp::Tools::AuthorizationSupport::AuthorizationError`
 - `Mcp::Tools::BulkPendingActionToolSupport`
 - `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
-- `Mcp::Tools::EvidenceRedactor`
 - `Mcp::Tools::PendingActionToolSupport`
 - `Mcp::Tools::ProposalToolSupport`
 - `McpInvocationContext`
 - `McpSidecarLog`
-- `McpToolContext`
 - `McpToolPayloads::WorkflowPayload`
 - `McpToolPolicy`
 - `MergeTrain`
@@ -2662,14 +2863,9 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `MysqlConnection::ADMIN_SURFACE`
 - `MysqlQueryAudit`
 - `Observability::EventSink`
-- `OperationalLogSearch`
-- `OperationalLogSearch::INPUT_SCHEMA_PROPERTIES`
-- `OperationalLogging`
-- `Paginatable`
 - `PendingActionItem`
 - `PendingActions::Base`
 - `PerformanceLogEvent`
-- `PerformanceLogging`
 - `PerformanceLogging::BROWSER_TRACE_EVENT`
 - `PerformanceLogging::FEATURE_SLUG`
 - `PerformanceLogging::SLOW_JOB_EVENT`
@@ -2680,9 +2876,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PerformanceLogging::Store::MAX_EVENTS`
 - `PermissionLease`
 - `PermissionRule`
-- `Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS`
 - `Permissions::CapabilityDescriptorAdapter`
-- `Permissions::CapabilityPresentation`
 - `Permissions::Management`
 - `Permissions::Management::PROFILE_SOURCE_PREFIX`
 - `PersistentMcpDaemon`
@@ -2701,7 +2895,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PreviewPanel::Service`
 - `PreviewPanelVersion`
 - `PreviewProcessLauncher`
-- `ProcessRunner`
 - `Prompts::ChatSystem`
 - `Prompts::GitSafety::TEXT`
 - `Prompts::MemoryContext`
@@ -2723,23 +2916,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RepoDeploymentStagesReader`
 - `Repository`
 - `RepositoryBareClone`
-- `RepositoryContent`
-- `RepositoryContent::Blob`
-- `RepositoryContent::Change`
-- `RepositoryContent::Commit`
-- `RepositoryContent::CommitHistory`
-- `RepositoryContent::Divergence`
-- `RepositoryContent::Entry`
-- `RepositoryContent::Error`
-- `RepositoryContent::NotFound`
-- `RepositoryContent::Ref`
-- `RepositoryContent::Revision`
-- `RepositoryContent::Source`
-- `RepositoryContent::TooLarge`
-- `RepositoryContent::Truncated`
-- `RepositoryContent::Unavailable`
-- `RepositoryContent::UnknownRevision`
-- `RepositoryContent::Unsupported`
 - `RepositoryMembership`
 - `RepositoryPolicy`
 - `RepositorySummarySerialization`
@@ -2757,9 +2933,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RuntimeSession`
 - `RuntimeSessionProviders`
 - `RuntimeSessionProviders::ConfigurationError`
-- `SearchIndexVersion`
-- `SearchIndexWriteLimits`
-- `SearchRecord`
 - `Skills`
 - `Skills::NAME_PATTERN`
 - `Skills::NotFoundError`
@@ -2769,54 +2942,25 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Skills::Renderer`
 - `Skills::SkillMarkdown::ParseError`
 - `SkipIfPending`
-- `SmartFolder`
-- `SmartFolder::COUNT_CAP`
 - `SpawnedProcess`
 - `StateTransition`
-- `Step`
-- `Step::AGENTIC_KINDS`
-- `Step::Kind`
 - `Steps::Base`
 - `Steps::MergeTrainLand::STALE_BASE_ARTIFACT`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
-- `Syrus::Metrics`
-- `Syrus::PathJail`
-- `Syrus::PathJail::PathEscape`
-- `Syrus::Plugin::AdminPage`
-- `Syrus::Plugin::AgentProvider`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
-- `Syrus::Plugin::AgenticConnection`
-- `Syrus::Plugin::Callbacks`
-- `Syrus::Plugin::ChatJobStatusExtension`
-- `Syrus::Plugin::ChatMcpToolSet`
-- `Syrus::Plugin::ChatMediaSource`
-- `Syrus::Plugin::ChatPayloadContributor`
-- `Syrus::Plugin::ChatPromptInjector`
 - `Syrus::Plugin::ChatProvider`
 - `Syrus::Plugin::MemoryStore`
-- `Syrus::Plugin::PermissionProvider`
 - `Syrus::Plugin::PlatformDelivery`
 - `Syrus::Plugin::WorkflowArtifactContributor`
-- `Syrus::Plugin::WorkspaceGitTransport`
-- `Syrus::Plugin::WorkspaceTab`
 - `Syrus::PluginApi`
-- `Syrus::PluginRegistry`
 - `Syrus::PluginSettings`
-- `SyrusMcp`
 - `SyrusMcp::TypedArtifactProvenance`
-- `SyrusSearchDatabaseTasks`
 - `SyrusVersion`
 - `SyrusYml`
-- `SyrusYml::BaseRetry`
 - `SyrusYml::CONFIG_FILE`
-- `SyrusYml::DEFAULT_GRADE_PHASES`
-- `SyrusYml::GradeStep`
-- `SyrusYml::MAX_GRADE_TIMEOUT_MINUTES`
-- `SyrusYml::ParseError`
 - `SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV`
-- `TargetGraph::ExecutionCapabilities`
 - `Team`
 - `TeamMembership`
 - `TeamRepository`
@@ -2824,16 +2968,11 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Theme`
 - `Theme::EXTENDED_TOKEN_GROUPS`
 - `Theme::TOKEN_KEYS`
-- `Timeline::MacroQuery`
-- `Timeline::WorkflowWaterfallQuery`
-- `ToolPayloadRedactor`
-- `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`
 - `User`
 - `User::DASHBOARD_OPTIONAL_COLUMNS`
 - `User::DASHBOARD_REQUIRED_COLUMNS`
 - `WorkDefinitions::Base`
-- `WorkUnits::Launcher`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`
 - `WorkerHostHealthSample`
@@ -2844,7 +2983,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `WorkflowActivityEvent`
 - `WorkflowVisualEvidence`
 - `WorkflowWarnings`
-- `WorkflowWorkspace`
 - `Workflows::Base`
 - `WorkspaceDependencyEnv`
 - `WorkspaceReuseOutcomes::Summary`

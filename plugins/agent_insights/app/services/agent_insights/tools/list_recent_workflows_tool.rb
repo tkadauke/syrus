@@ -39,7 +39,7 @@ module AgentInsights
           repository = context_run.job.repository
           cutoff = parse_since(since) || default_cutoff(context_run)
           per_page = normalized_limit(limit)
-          page_num = Mcp::Pagination.normalize_page(page)
+          page_num = Syrus::Host::McpPagination.normalize_page(page)
 
           scope = Syrus::Host::WorkflowRecord
             .joins(:job)
@@ -178,7 +178,7 @@ module AgentInsights
             kind: warning.kind,
             severity: warning.severity,
             title: text_snippet(redact(warning.title), 200),
-            evidence: CommandRedactor.redact_value(warning.evidence),
+            evidence: Syrus::Host::CommandRedactor.redact_value(warning.evidence),
             state: warning.state,
             created_job_id: warning.created_job_id,
             created_at: warning.created_at&.iso8601
@@ -198,7 +198,7 @@ module AgentInsights
         end
 
         def redact(value)
-          ::Mcp::Tools::EvidenceRedactor.call(value)
+          Syrus::Host::EvidenceRedactor.call(value)
         end
       end
     end

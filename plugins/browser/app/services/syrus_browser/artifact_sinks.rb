@@ -53,7 +53,7 @@ module SyrusBrowser
       end
 
       def redact(value)
-        CommandRedactor.redact_value(value)
+        Syrus::Host::CommandRedactor.redact_value(value)
       end
     end
 

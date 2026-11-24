@@ -90,8 +90,8 @@ module AgentInsights
                  stale_memory_evidence: nil, target_insight_id: nil)
           run = Syrus::Host::McpTools.run_from_context(server_context)
 
-          title_s     = CommandRedactor.redact(Syrus::Host::McpTools.utf8(title)).strip
-          category_s  = CommandRedactor.redact(Syrus::Host::McpTools.utf8(category)).strip
+          title_s     = Syrus::Host::CommandRedactor.redact(Syrus::Host::McpTools.utf8(title)).strip
+          category_s  = Syrus::Host::CommandRedactor.redact(Syrus::Host::McpTools.utf8(category)).strip
           severity_s  = Syrus::Host::McpTools.utf8(severity).strip
           confidence_f = confidence.to_f
           suggested_prompt_s = redact_optional(suggested_prompt)
@@ -136,7 +136,7 @@ module AgentInsights
             suggested_prompt:  suggested_prompt_s.presence,
             memory_suggestion: memory_suggestion_s.presence,
             target_memory:     memory,
-            stale_memory_text: stale_memory_text_s.presence || CommandRedactor.redact(memory&.content),
+            stale_memory_text: stale_memory_text_s.presence || Syrus::Host::CommandRedactor.redact(memory&.content),
             stale_memory_evidence: stale_memory_evidence_s.presence
           )
           ChatWorkEvents.publish!(
@@ -178,7 +178,7 @@ module AgentInsights
 
         def redact_optional(value)
           text = Syrus::Host::McpTools.utf8(value).strip
-          text.present? ? CommandRedactor.redact(text) : nil
+          text.present? ? Syrus::Host::CommandRedactor.redact(text) : nil
         end
 
         def normalize_evidence(evidence)
@@ -190,7 +190,7 @@ module AgentInsights
             normalized = {
               "job_id" => integer_value(entry, "job_id"),
               "run_id" => integer_value(entry, "run_id"),
-              "kind"   => CommandRedactor.redact(string_value(entry, "kind")).presence
+              "kind"   => Syrus::Host::CommandRedactor.redact(string_value(entry, "kind")).presence
             }.compact
 
             normalized.presence
