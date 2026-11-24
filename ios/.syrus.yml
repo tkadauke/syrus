@@ -21,7 +21,7 @@ grade:
     description: |
       Generates the Xcode project and runs the unit tests on an iOS simulator
       (unsigned build).
-    run: make test
+    run: cd ios && make test
     phases: [review, landing, ci]
     when_files_changed:
       - "Syrus/**/*"
