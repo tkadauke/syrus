@@ -6,6 +6,11 @@ de:
       one: "Genehmigung erforderlich: %{purpose}"
       other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
       fallback: "Ein Agent wartet auf eine Berechtigung"
+  mobile_devices:
+    test_push:
+      body: "Testbenachrichtigung: Tippe darauf, um zu prüfen, dass der Deep Link sich öffnet."
+      not_configured: "APNs ist auf diesem Server nicht konfiguriert."
+      no_devices: "Kein aktives registriertes Gerät gefunden. Aktiviere zuerst Benachrichtigungen in der App."
   coworkers:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
