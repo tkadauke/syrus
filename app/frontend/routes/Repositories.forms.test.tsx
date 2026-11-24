@@ -220,6 +220,9 @@ describe("App repositories", () => {
     fireEvent.change(await screen.findByLabelText("Working owner"), { target: { value: "acme" } })
     const nameLabel = screen.getByText("Working name").closest("label") as HTMLElement
     await waitFor(() => expect(within(nameLabel).getByRole("status")).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText("Working owner"), { target: { value: "" } })
+    await waitFor(() => expect(within(nameLabel).queryByRole("status")).toBeNull())
   })
 
   it("creates a repository and navigates within the React shell", async () => {

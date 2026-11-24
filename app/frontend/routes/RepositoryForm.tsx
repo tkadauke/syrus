@@ -157,7 +157,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   }, [owners.isSuccess, owners.data])
 
   useEffect(() => {
-    if (ownerMode !== "select" || !values.owner) return
+    if (ownerMode !== "select" || !values.owner) {
+      setReposLoading(false)
+      return
+    }
 
     let active = true
     setReposLoading(true)
