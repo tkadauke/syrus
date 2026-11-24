@@ -79,7 +79,7 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
     it "starts a fresh request after a failure" do
       failed = submit
       _, attempt = orchestrator.claim_next
-      orchestrator.fail_attempt(attempt, code: "x", message: "boom", retryable: false)
+      orchestrator.fail_attempt(attempt, code: "x", detail: "boom", retryable: false)
 
       expect(failed.reload).to be_failed
       expect(submit).not_to eq(failed)
@@ -182,7 +182,7 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
     it "ignores late completions for a request that is no longer in flight" do
       request = submit
       _, attempt = orchestrator.claim_next
-      orchestrator.fail_attempt(attempt, code: "x", message: "boom", retryable: false)
+      orchestrator.fail_attempt(attempt, code: "x", detail: "boom", retryable: false)
 
       expect(orchestrator.succeed(attempt, image: image_for(request))).to eq(request.reload.result)
       expect(request).to be_failed
@@ -196,14 +196,14 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
       now = Time.current
 
       _, attempt = orchestrator.claim_next(now: now)
-      orchestrator.fail_attempt(attempt, code: "infra", message: "flaky", retryable: true, now: now)
+      orchestrator.fail_attempt(attempt, code: "infra", detail: "flaky", retryable: true, now: now)
       expect(request.reload).to be_queued
       expect(request.next_attempt_at).to be > now
       expect(orchestrator.claim_next(now: now)).to be_nil
 
       _, second = orchestrator.claim_next(now: request.next_attempt_at + 1)
       expect(second.number).to eq(2)
-      orchestrator.fail_attempt(second, code: "infra", message: "flaky", retryable: true)
+      orchestrator.fail_attempt(second, code: "infra", detail: "flaky", retryable: true)
 
       expect(request.reload).to be_failed
       expect(request.result).to have_attributes(outcome: "failed", error_code: "infra", attempts_used: 2)
@@ -213,7 +213,7 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
     it "does not retry a non-retryable failure" do
       request = submit
       _, attempt = orchestrator.claim_next
-      orchestrator.fail_attempt(attempt, code: "bad", message: "nope", retryable: false)
+      orchestrator.fail_attempt(attempt, code: "bad", detail: "nope", retryable: false)
       expect(request.reload).to be_failed
     end
 
@@ -264,7 +264,7 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
       request = submit
       _, attempt = orchestrator.claim_next
       orchestrator.cancel(request)
-      orchestrator.fail_attempt(attempt, code: "infra", message: "flaky", retryable: true)
+      orchestrator.fail_attempt(attempt, code: "infra", detail: "flaky", retryable: true)
       expect(request.reload).to be_canceled
     end
 

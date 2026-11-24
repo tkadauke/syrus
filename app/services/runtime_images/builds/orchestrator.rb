@@ -105,12 +105,12 @@ module RuntimeImages
 
       # Records a failed attempt. A retryable failure with attempts left
       # re-queues the request with backoff; otherwise it is terminal.
-      def fail_attempt(attempt, code:, message:, retryable:, now: Time.current)
+      def fail_attempt(attempt, code:, detail:, retryable:, now: Time.current)
         locked(attempt) do |request, attempt|
           next request.result unless request.in_flight? && attempt.active?
 
           attempt.update!(state: "failed", finished_at: now, lease_expires_at: nil, error_code: code.to_s,
-                          error_message: message.to_s.truncate(500), retryable: retryable)
+                          error_message: detail.to_s.truncate(500), retryable: retryable)
           if request.cancel_requested?
             cancel_now(request, now: now)
           elsif retryable && !request.attempts_exhausted?
@@ -119,7 +119,7 @@ module RuntimeImages
             nil
           else
             request.transition_to!("failed", finished_at: now)
-            finish(request, outcome: "failed", error_code: code.to_s, message: message, now: now)
+            finish(request, outcome: "failed", error_code: code.to_s, message: detail, now: now)
           end
         end
       end
@@ -153,7 +153,7 @@ module RuntimeImages
       # a vanished worker says nothing about the build itself.
       def reap_expired(now: Time.current)
         RuntimeImageBuildAttempt.lease_expired(now).includes(:request).filter_map do |attempt|
-          fail_attempt(attempt, code: "lease_expired", message: "build worker stopped reporting progress", retryable: true, now: now)
+          fail_attempt(attempt, code: "lease_expired", detail: "build worker stopped reporting progress", retryable: true, now: now)
           attempt
         end
       end
