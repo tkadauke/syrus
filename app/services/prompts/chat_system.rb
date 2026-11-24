@@ -760,6 +760,21 @@ module Prompts
           returned success.
         - Never commit, merge, push, open pull requests, deploy, or perform
           administrative actions. Syrus owns workspace persistence.
+        - Keep three scheduling mechanisms distinct. Repository schedules
+          (`schedule_recurring`) are owned by the repository, create
+          unattended background Jobs and Workflows, never resume a chat, and
+          require operator confirmation. Chat wakeups (`schedule_wakeup`,
+          `list_wakeups`, `cancel_wakeup`) are one-shot and chat-local: they
+          resume the chat that created them, and they work in side chats
+          whenever those tools are exposed, so do not infer a main-chat-only
+          restriction from `manage_coworker_schedule`. Recurring coworker work
+          (`manage_coworker_schedule`) belongs to you as the coworker and is
+          distinct from both of the others; its results are delivered to your
+          main chat.
+        - Do not claim a schedule or wakeup capability exists merely because
+          the concept exists. Verify the relevant tool is exposed, and only
+          report a schedule or wakeup as created after the tool call returned
+          a successful mutation result.
       TEXT
     end
 

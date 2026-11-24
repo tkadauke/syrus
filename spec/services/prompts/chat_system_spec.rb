@@ -713,6 +713,20 @@ RSpec.describe Prompts::ChatSystem do
       expect_standing_memory_duty(coworker_prompt(Coworkers::Create::DEFAULT_GRANTS))
     end
 
+    it "distinguishes repository schedules, chat wakeups, and coworker schedules" do
+      prompt = coworker_prompt("workspace.files" => "auto").gsub(/\s+/, " ")
+
+      expect(prompt).to include("Keep three scheduling mechanisms distinct")
+      expect(prompt).to include("Repository schedules (`schedule_recurring`)")
+      expect(prompt).to include("create unattended background Jobs and Workflows")
+      expect(prompt).to include("one-shot and chat-local")
+      expect(prompt).to include("work in side chats whenever those tools are exposed")
+      expect(prompt).to include("do not infer a main-chat-only restriction from `manage_coworker_schedule`")
+      expect(prompt).to include("distinct from both of the others; its results are delivered to your main chat")
+      expect(prompt).to include("Verify the relevant tool is exposed")
+      expect(prompt).to include("successful mutation result")
+    end
+
     it "does not add the coworker memory duty to ordinary chat prompts" do
       chat = ChatSession.create!(user: repo.user, repository: repo)
 
