@@ -1,7 +1,7 @@
 module OperatorBriefing
-  class BriefingSettings < ApplicationRecord
+  class BriefingSettings < Syrus::Host::Record
     self.table_name = "operator_briefing_settings"
-    include ValidatesAgentProvider
+    include Syrus::Host::ValidatesAgentProvider
 
     DEFAULT_CADENCE_EXPRESSION = "0 9 * * 1".freeze unless const_defined?(:DEFAULT_CADENCE_EXPRESSION, false)
     # Zone a five-field cadence is interpreted in. UTC keeps a shipped plugin

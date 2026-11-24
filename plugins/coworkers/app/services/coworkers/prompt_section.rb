@@ -120,21 +120,21 @@ class Coworkers::PromptSection
   end
 
   def self.safe_conflict_read(root, relative)
-    candidate = Syrus::PathJail.resolve!(root, relative)
+    candidate = Syrus::Host::PathJail.resolve!(root, relative)
     return if candidate.symlink? || !candidate.file?
 
-    path = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    path = Syrus::Host::PathJail.resolve!(root, relative, resolve_symlinks: true)
     bounded_read(path, MAX_FILE_BYTES)
-  rescue Syrus::PathJail::PathEscape
+  rescue Syrus::Host::PathJail::PathEscape
     nil
   end
 
   def self.safe_workspace_read(root, relative)
-    path = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    path = Syrus::Host::PathJail.resolve!(root, relative, resolve_symlinks: true)
     return unless path.file?
 
     bounded_read(path, MAX_FILE_BYTES)
-  rescue Syrus::PathJail::PathEscape
+  rescue Syrus::Host::PathJail::PathEscape
     nil
   end
 

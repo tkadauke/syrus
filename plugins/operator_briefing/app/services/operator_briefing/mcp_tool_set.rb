@@ -2,7 +2,7 @@ require "mcp"
 
 module OperatorBriefing
   class McpToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [
       Tools::SubmitBriefingBlockTool,
@@ -34,9 +34,9 @@ module OperatorBriefing
     end
 
     def handle(tool_name, params, server_context)
-      context = McpToolContext.from_run(Mcp::Tools.run_from_context(server_context))
+      context = Syrus::Host::ToolContext.from_run(Syrus::Host::McpTools.run_from_context(server_context))
       klass = self.class.tool_classes_for(context).find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown Operator Briefing tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown Operator Briefing tool: #{tool_name.inspect}") unless klass
 
       klass.call(**self.class.symbolize(params), server_context: server_context)
     rescue StandardError => e

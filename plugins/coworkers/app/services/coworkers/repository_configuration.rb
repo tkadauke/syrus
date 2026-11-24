@@ -3,7 +3,7 @@ module Coworkers
   # `coworker_review:` key is a plugin-owned compatibility alias for the
   # namespaced `plugins: { coworkers.review: ... }` envelope.
   class RepositoryConfiguration
-    include Syrus::Plugin::RepositoryConfiguration
+    include Syrus::Host::RepositoryConfiguration
 
     MIN_ROUNDS = 1
     MAX_ROUNDS = 10
@@ -34,13 +34,13 @@ module Coworkers
 
     def self.parse_config(raw)
       return nil if raw.nil?
-      raise SyrusYml::ParseError, "coworker_review: must be a mapping" unless raw.is_a?(Hash)
+      raise Syrus::Host::SyrusYml::ParseError, "coworker_review: must be a mapping" unless raw.is_a?(Hash)
 
       enabled = ActiveModel::Type::Boolean.new.cast(raw.fetch("enabled", false)) || false
       rounds = Integer(raw.fetch("rounds", 1))
       valid_rounds = enabled ? rounds.between?(MIN_ROUNDS, MAX_ROUNDS) : rounds.between?(0, MAX_ROUNDS)
       unless valid_rounds
-        raise SyrusYml::ParseError, "coworker_review.rounds: must be between #{MIN_ROUNDS} and #{MAX_ROUNDS}"
+        raise Syrus::Host::SyrusYml::ParseError, "coworker_review.rounds: must be between #{MIN_ROUNDS} and #{MAX_ROUNDS}"
       end
 
       Config.new(
@@ -50,15 +50,15 @@ module Coworkers
         required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
       )
     rescue ArgumentError, TypeError
-      raise SyrusYml::ParseError, "coworker_review.rounds: must be an integer"
+      raise Syrus::Host::SyrusYml::ParseError, "coworker_review.rounds: must be an integer"
     end
 
     def self.parse_string_array(raw, label)
       return [] if raw.nil?
-      raise SyrusYml::ParseError, "#{label}: must be an array of strings" unless raw.is_a?(Array)
+      raise Syrus::Host::SyrusYml::ParseError, "#{label}: must be an array of strings" unless raw.is_a?(Array)
 
       raw.each_with_index.map do |item, index|
-        raise SyrusYml::ParseError, "#{label}[#{index}]: must be a string" unless item.is_a?(String)
+        raise Syrus::Host::SyrusYml::ParseError, "#{label}[#{index}]: must be a string" unless item.is_a?(String)
 
         item.strip
       end.reject(&:empty?)

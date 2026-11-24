@@ -1,4 +1,4 @@
-class Coworkers::WorkspaceConflict < ApplicationRecord
+class Coworkers::WorkspaceConflict < Syrus::Host::Record
   self.table_name = "coworker_workspace_conflicts"
 
   belongs_to :chat_session

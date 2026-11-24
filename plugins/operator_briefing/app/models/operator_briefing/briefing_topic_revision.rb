@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingTopicRevision < ApplicationRecord
+  class BriefingTopicRevision < Syrus::Host::Record
     self.table_name = "operator_briefing_topic_revisions"
 
     belongs_to :topic, class_name: "OperatorBriefing::BriefingTopic"

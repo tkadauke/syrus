@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class Workflow < ::Workflows::Base
+  class Workflow < Syrus::Host::WorkflowBase
     steps :prepare, :briefing_generate_run
 
     def self.trigger_kind = "briefing_generate"

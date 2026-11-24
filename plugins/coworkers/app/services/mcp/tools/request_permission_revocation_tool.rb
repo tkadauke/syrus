@@ -10,14 +10,14 @@ module Mcp::Tools
 
     class << self
       def call(server_context:, permission_rule_id:, rationale: nil)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         result = Permissions::CoworkerPermissionRevocationRequest.new(
           context:, permission_rule_id:, rationale:, origin_message: server_context[:current_message]
         ).call
-        Mcp::Tools.success(status: result.status.to_s, pending_action_id: result.pending_action.id, revoked: false,
+        Syrus::Host::McpTools.success(status: result.status.to_s, pending_action_id: result.pending_action.id, revoked: false,
           message: I18n.t("server.permissions.coworker_permission.revocation_requested"))
       rescue Permissions::CoworkerPermissionRequest::Rejected => error
-        Mcp::Tools.invalid("#{error.code}: #{error.message}")
+        Syrus::Host::McpTools.invalid("#{error.code}: #{error.message}")
       end
     end
   end

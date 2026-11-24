@@ -8,7 +8,7 @@ module Mcp
 
     class << self
       def resolve(tool_or_name, chat_session: nil)
-        name = tool_or_name.is_a?(String) || tool_or_name.is_a?(Symbol) ? tool_or_name.to_s : McpToolRegistry.tool_name_for(tool_or_name)
+        name = tool_or_name.is_a?(String) || tool_or_name.is_a?(Symbol) ? tool_or_name.to_s : Syrus::Host::McpToolRegistry.tool_name_for(tool_or_name)
         core_descriptors.find { |descriptor| descriptor.tool == tool_or_name || descriptor.tool_name == name } ||
           plugin_descriptors(chat_session: chat_session).find { |descriptor| descriptor.tool_name == name }
       end
@@ -18,7 +18,7 @@ module Mcp
       private
 
       def core_descriptors
-        McpToolRegistry.entries(surface: :coworker).map do |entry|
+        Syrus::Host::McpToolRegistry.entries(surface: :coworker).map do |entry|
           Descriptor.new(tool_name: entry.tool_name, capability: entry.capability&.to_s, ungated: entry.ungated,
             approval_effect: entry.approval_effect,
             tier: entry.tier, tool: entry.tool, provider: nil, description: entry.tool.description_value)
@@ -100,8 +100,8 @@ module Mcp
       end
 
       def plugin_providers
-        manifests = Syrus::PluginRegistry.all_plugins
-        health = Syrus::PluginRegistry.health(enabled_names: manifests.select(&:enabled?).map(&:name))
+        manifests = Syrus::Host::PluginRegistry.all_plugins
+        health = Syrus::Host::PluginRegistry.health(enabled_names: manifests.select(&:enabled?).map(&:name))
         manifests.flat_map do |manifest|
           state = if !manifest.enabled?
             :plugin_disabled
@@ -111,7 +111,7 @@ module Mcp
             :available
           end
           providers = Syrus::Host::Toolkit.chat_tool_set_for(manifest)
-          Array(providers).reject { |provider| Mcp::ChatToolParity.provider_hidden?(provider, :coworker) }
+          Array(providers).reject { |provider| Syrus::Host::ChatToolParity.provider_hidden?(provider, :coworker) }
             .map { |provider| [ provider, state ] }
         end
       end
@@ -139,7 +139,7 @@ module Mcp
           Array(provider.tool_definitions(tier: nil))
         end
         definitions = definitions.select do |definition|
-          Mcp::ChatToolParity.plugin_definition_in_context?(definition, :coworker, user: chat_session&.user, provider: provider)
+          Syrus::Host::ChatToolParity.plugin_definition_in_context?(definition, :coworker, user: chat_session&.user, provider: provider)
         end
         tiers_by_name = tiers.each_with_object({}) do |(tier, tier_definitions), result|
           tier_definitions.each { |definition| result[value(definition, :name).to_s] ||= tier }

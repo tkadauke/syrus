@@ -6,7 +6,11 @@ module Syrus
     module Handles
       extend SingleForwardable
 
+      FORMAT = ::Handle::FORMAT
+
       def_delegators "::HandleRegistry", :normalize, :claim!, :rename!, :release!
+
+      def self.taken?(handle) = ::Handle.exists?(handle: handle)
     end
   end
 end

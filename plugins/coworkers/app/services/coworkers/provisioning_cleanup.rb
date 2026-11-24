@@ -57,5 +57,5 @@ class Coworkers::ProvisioningCleanup
     @attempt
   end
 
-  def redacted(error) = GitRunner.redact("#{error.class}: #{error.message}")
+  def redacted(error) = Syrus::Host::GitRunner.redact("#{error.class}: #{error.message}")
 end

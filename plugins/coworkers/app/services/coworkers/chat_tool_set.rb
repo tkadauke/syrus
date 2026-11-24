@@ -1,6 +1,6 @@
 module Coworkers
   class ChatToolSet
-    include Syrus::Plugin::ChatMcpToolSet
+    include Syrus::Host::ChatMcpToolSet
 
     TOOLS = [
       McpTools::ListCoworkersTool,
@@ -55,9 +55,9 @@ module Coworkers
           default_policy: "confirm",
           maximum_policy: "confirm",
           tools: [ SpawnSyrusChatTool.tool_name ],
-          scope_options_callback: ->(user:) { Mcp::Tools::CoworkerRepositoryAccess.scope_options(user:) },
-          scope_label_callback: ->(value) { Mcp::Tools::CoworkerRepositoryAccess.scope_label(value) },
-          valid_scope_callback: ->(value, user:) { Mcp::Tools::CoworkerRepositoryAccess.valid_scope?(value, user:) }
+          scope_options_callback: ->(user:) { Syrus::Host::McpTools::CoworkerRepositoryAccess.scope_options(user:) },
+          scope_label_callback: ->(value) { Syrus::Host::McpTools::CoworkerRepositoryAccess.scope_label(value) },
+          valid_scope_callback: ->(value, user:) { Syrus::Host::McpTools::CoworkerRepositoryAccess.valid_scope?(value, user:) }
         }
       ]
     end
@@ -151,7 +151,7 @@ module Coworkers
       return tool.call(**(params || {}).symbolize_keys, server_context: server_context) if tool
 
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown coworker tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown coworker tool: #{tool_name.inspect}") unless klass
 
       klass.call(**symbolize(params), server_context: server_context)
     end

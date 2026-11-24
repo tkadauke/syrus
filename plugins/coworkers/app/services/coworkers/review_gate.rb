@@ -3,7 +3,7 @@ module Coworkers
   # ordering and loop mechanics; this provider owns enablement, round budget,
   # and the execution metadata.
   class ReviewGate
-    include Syrus::Plugin::ReviewGate
+    include Syrus::Host::ReviewGate
 
     def self.review_gates
       [
@@ -29,7 +29,7 @@ module Coworkers
     end
 
     def self.plan(job, syrus_yml)
-      Workflows::Base.resolve_plan(Coworkers::ReviewPlan, job, syrus_yml)
+      Syrus::Host::WorkflowBase.resolve_plan(Coworkers::ReviewPlan, job, syrus_yml)
     end
   end
 end

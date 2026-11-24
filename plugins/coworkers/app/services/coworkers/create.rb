@@ -7,7 +7,7 @@ class Coworkers::Create
     def initialize(outcome:, attempt:, cause:)
       @outcome = outcome
       @attempt_id = attempt.id
-      super("coworker creation failed; remote cleanup #{outcome == :fully_rolled_back ? 'completed' : 'is pending'}: #{GitRunner.redact(cause.message)}")
+      super("coworker creation failed; remote cleanup #{outcome == :fully_rolled_back ? 'completed' : 'is pending'}: #{Syrus::Host::GitRunner.redact(cause.message)}")
     end
   end
 
@@ -108,7 +108,7 @@ class Coworkers::Create
         @attempt.update!(expected_seeded_commit: expected_sha)
       end
       @attempt.update!(expected_seeded_commit: sha, seeded_at: Time.current)
-      ApplicationRecord.transaction do
+      Syrus::Host::Record.transaction do
         coworker = create_records!(register_repository!)
         Coworkers::SystemSchedules.reconcile!(coworker)
         create_kickoff!(coworker)
@@ -142,19 +142,19 @@ class Coworkers::Create
   end
 
   def redacted_error(error)
-    GitRunner.redact("#{error.class}: #{error.message}")
+    Syrus::Host::GitRunner.redact("#{error.class}: #{error.message}")
   end
 
   def branch = "coworkers/#{@handle}"
 
   def register_repository!
-    existing = Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", @remote.repository.owner.downcase, @remote.repository.name.downcase).first
+    existing = Syrus::Host::Repositories.where("LOWER(owner) = ? AND LOWER(name) = ?", @remote.repository.owner.downcase, @remote.repository.name.downcase).first
     if existing
       grant_repository_access!(existing)
       return existing
     end
 
-    repository = Repository.create!(
+    repository = Syrus::Host::Repositories.create!(
       user: @owner, owner: @remote.repository.owner, name: @remote.repository.name,
       polling_enabled: false, auto_merge_enabled: false, external_pr_ingestion_enabled: false,
       main_branch_health_enabled: false, main_branch_repair_enabled: false,
@@ -179,7 +179,7 @@ class Coworkers::Create
     Coworkers::AvatarUpload.attach!(coworker, @avatar) if @avatar
     # Phase 1 attaches the workspace Repository directly to the main chat. The
     # per-chat coworker branch and merge-at-turn-end flow replaces this in Phase 3.
-    chat = ChatSession.create!(user: @owner, repository: repository, title: @name, **coworker.chat_configuration)
+    chat = Syrus::Host::ChatSessions.create!(user: @owner, repository: repository, title: @name, **coworker.chat_configuration)
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     coworker
   end

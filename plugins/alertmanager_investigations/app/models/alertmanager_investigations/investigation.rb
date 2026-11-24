@@ -1,5 +1,5 @@
 module AlertmanagerInvestigations
-  class Investigation < ApplicationRecord
+  class Investigation < Syrus::Host::Record
     self.table_name = "alertmanager_investigations"
 
     belongs_to :job, optional: true
@@ -16,7 +16,7 @@ module AlertmanagerInvestigations
     scope :open_for_host, ->(host) {
       escaped_host = sanitize_sql_like(host)
       joins(:job)
-        .merge(Job.open_threads)
+        .merge(Syrus::Host::Jobs.open_threads)
         .where("host = :host OR host LIKE :with_port OR host LIKE :bracketed_with_port",
           host: host,
           with_port: "#{escaped_host}:%",
@@ -24,7 +24,7 @@ module AlertmanagerInvestigations
     }
 
     scope :open_for_repository, ->(repository) {
-      joins(:job).merge(Job.open_threads).where(repository: repository)
+      joins(:job).merge(Syrus::Host::Jobs.open_threads).where(repository: repository)
     }
   end
 end
