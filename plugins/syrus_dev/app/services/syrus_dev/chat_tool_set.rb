@@ -29,7 +29,15 @@ module SyrusDev
 
     def self.available_for?(_chat_session, tier:) = false
 
-    def self.coworker_specific_availability? = true
+    def self.coworker_only_surface
+      {
+        reason_code: "coworker_sanitized_surface",
+        explanation: "Sanitized Syrus diagnostics are offered through coworker grants; ordinary chats read " \
+                     "diagnostics through admin tools.",
+        owner: "syrus-dev",
+        test_ref: "plugins/syrus_dev/spec/services/syrus_dev/chat_tool_set_spec.rb"
+      }
+    end
 
     def self.available_for_coworker?(_chat_session, tier:)
       SyrusDev.enabled? && tier.to_sym == :essential
