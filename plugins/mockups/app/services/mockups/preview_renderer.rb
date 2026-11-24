@@ -68,8 +68,9 @@ module Mockups
       raise InvalidRequest, "entry_file #{@entry_file.inspect} was not found in the scratch directory" unless path.file?
 
       server = ScratchServer.new(@scratch)
-      session = self.class.session_factory.call("mockup_render:#{@panel_id}:#{SecureRandom.hex(4)}")
+      session = nil
       begin
+        session = self.class.session_factory.call("mockup_render:#{@panel_id}:#{SecureRandom.hex(4)}")
         url = server.url_for(@entry_file)
         raise Unavailable, "refusing to navigate to non-loopback URL #{url}" if loopback_guard && !loopback_guard.allowed?(url)
 
@@ -84,8 +85,11 @@ module Mockups
                    viewport: @viewport, preset: @preset, full_page: @full_page, wait_ms: @wait_ms,
                    entry_file: @entry_file)
       ensure
-        session&.close
-        server.stop
+        begin
+          session&.close
+        ensure
+          server.stop
+        end
       end
     end
 
