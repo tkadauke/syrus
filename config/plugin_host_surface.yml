@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 397
+legacy_baseline: 396
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -384,7 +384,6 @@ constants:
 - name: ValidatesAgentProvider
 - name: WorkDefinitions::Base
 - name: WorkUnits::Launcher
-- name: WorkUnits::Launcher::LockConflict
 - name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis

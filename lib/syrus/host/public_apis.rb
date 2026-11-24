@@ -130,7 +130,9 @@ module Syrus
         ReviewerTargetRequired: "ReviewerTargets::TargetRequired",
         ReviewerTargetUnavailable: "ReviewerTargets::TargetUnavailable",
         GateResult: "WorkUnits::GateResult",
-        HandleRegistry: "HandleRegistry"
+        HandleRegistry: "HandleRegistry",
+        WorkLauncher: "WorkUnits::Launcher",
+        WorkLaunchConflict: "WorkUnits::Launcher::LockConflict"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -151,7 +153,7 @@ module Syrus
         InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
         ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive from_server_context from_run] ],
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],
-        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many transaction] ],
+        Record: [ "Bases plugin-owned records in the primary database; private core helpers are not promised.", %w[belongs_to has_many transaction connection sanitize_sql_like] ],
         BackgroundJob: [ "Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised.", %w[queue_as operational_log_context] ],
         McpTools: [ "Provides database-connection and MCP response helpers; core tool implementations are not promised.", %w[with_database_connection success invalid unauthorized not_authorized truncate_text run_from_context utf8 write_log] ],
         AdminController: [ "Bases admin-token plugin API controllers; core filters and implementation details are not promised.", %w[params render] ],
@@ -246,7 +248,9 @@ module Syrus
         ReviewerTargetRequired: [ "Raised when a review requires a reviewer target and none was pinned.", %w[new message] ],
         ReviewerTargetUnavailable: [ "Raised when a pinned reviewer target cannot currently be resolved.", %w[new message] ],
         GateResult: [ "Value a plugin gate returns to let a start proceed or to hold it, with an optional reason, retry time and details; the scheduling that consumes it is not promised.", %w[pass block blocked? pass? reason retry_at details] ],
-        HandleRegistry: [ "Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised.", %w[normalize claim! rename! release!] ]
+        HandleRegistry: [ "Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised.", %w[normalize claim! rename! release!] ],
+        WorkLauncher: [ "Instantiates, starts, or creates-and-starts a workflow of a registered kind for a job and returns the launch result; scheduling, locking, and landing policy are not promised.", %w[instantiate start! create_and_start!] ],
+        WorkLaunchConflict: [ "Raised when a launch collides with work that already holds the same lock, so callers may retry later.", %w[new message] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

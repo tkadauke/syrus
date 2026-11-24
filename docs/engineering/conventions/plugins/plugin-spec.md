@@ -229,7 +229,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::PostImplementationReviewProvider` (since 0.1.16) — Lets a plugin request a best-effort agentic pass after an implementation workflow produced its final diff; the host step that runs it is not promised. Only the listed members are supported. Supported members: `prompt_sections`, `required_mcp_tools`, `review_needed?`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `agent_mounts`, `capture`, `forwarded_env`, `mounts`, `new`, `probe_mounts`, `run`, `start`.
 - `Syrus::Host::PurgeContributor` (since 0.1.16) — Lets a plugin remove its own external resources when it is purged; purge ordering is not promised. Only the listed members are supported. Supported members: `purge!`, `purge_report`.
-- `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`, `transaction`.
+- `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `connection`, `has_many`, `sanitize_sql_like`, `transaction`.
 - `Syrus::Host::Repository` (since 0.1.16) — Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised. Supported members: `accessible_to`, `active`, `archived_at`, `find`, `id`, `jobs`, `name`, `owner`, `writable_by`.
 - `Syrus::Host::RepositoryConfiguration` (since 0.1.16) — Defines one namespaced .syrus.yml contribution a plugin owns; parsing, storage and project resolution are not promised. Only the listed members are supported. Supported members: `affected_project?`, `legacy_keys`, `overlay`.
 - `Syrus::Host::RepositoryContentProvider` (since 0.1.16) — Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised. Only the listed members are supported. Supported members: `available_for?`, `build`, `changes`, `children`, `commits`, `display_name`, `divergence`, `history`, `provider_key`, `read`, `refs`, `relation`, `resolve`, `role`, `tree`, `tree_sha`.
@@ -263,13 +263,15 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::Toolkit` (since 0.1.16) — Discovers enabled Toolkit-family providers for plugin-owned cross-tool composition. Only the listed members are supported. Supported members: `chat_tool_set_for`, `chat_tool_sets`.
 - `Syrus::Host::UiSlot` (since 0.1.16) — Marks a provider of panels rendered inside an existing core page; slot rendering, caching and ordering are not promised. Only the listed members are supported. Supported members: `SLOTS`, `ui_slots`, `valid_slot?`.
 - `Syrus::Host::User` (since 0.1.16) — Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised. Supported members: `admin?`, `display_name`, `find`, `handle`, `id`, `jobs`, `repositories`.
+- `Syrus::Host::WorkLaunchConflict` (since 0.1.16) — Raised when a launch collides with work that already holds the same lock, so callers may retry later. Only the listed members are supported. Supported members: `message`, `new`.
+- `Syrus::Host::WorkLauncher` (since 0.1.16) — Instantiates, starts, or creates-and-starts a workflow of a registered kind for a job and returns the launch result; scheduling, locking, and landing policy are not promised. Only the listed members are supported. Supported members: `create_and_start!`, `instantiate`, `start!`.
 - `Syrus::Host::WorkerCapabilityProbe` (since 0.1.16) — Lets a plugin advertise worker capabilities; capability routing is not promised. Only the listed members are supported. Supported members: `capability_probes`.
 - `Syrus::Host::Workflow` (since 0.1.16) — Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `runs`, `state`.
 - `Syrus::Host::WorkflowArtifactContributor` (since 0.1.16) — Lets a plugin contribute workflow artifacts; artifact storage is not promised. Only the listed members are supported. Supported members: `for_job`.
 - `Syrus::Host::WorkflowWorkspace` (since 0.1.16) — Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised. Only the listed members are supported. Supported members: `REQUIRED_BRANCH_ARTIFACT`, `agent_home_for`, `base_ref`, `data_root`, `new`, `path_for`.
 - `Syrus::Host::WorkspaceGitTransport` (since 0.1.16) — Defines how a plugin supplies git transport for a workflow workspace; clone orchestration is not promised. Only the listed members are supported. Supported members: `available_for?`, `build`, `env`, `register!`, `url`.
 
-The compatibility scanner also recognizes 397 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 396 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
@@ -283,4 +285,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 58870 bytes (UTF-8, including this line).
+Size: 59466 bytes (UTF-8, including this line).
