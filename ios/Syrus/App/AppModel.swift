@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
 
     /// Deep link from a tapped notification, consumed once the web view is ready.
     @Published var pendingPath: String?
+    @Published var showsDiagnostics = false
 
     init(servers: ServerStore? = nil, web: WebViewModel? = nil, push: PushCoordinator? = nil) {
         let web = web ?? WebViewModel()
@@ -41,6 +42,8 @@ final class AppModel: ObservableObject {
     func switchServer() async {
         if let server = servers.selected {
             await push.service.unregister(via: web)
+            push.resetServerState()
+            showsDiagnostics = false
             web.tearDown()
             await web.resetWebsiteData(for: server)
         }

@@ -7,6 +7,7 @@ struct WebContainerView: View {
     @ObservedObject var model: WebViewModel
     let onSwitchServer: () -> Void
     let onEnableNotifications: () -> Void
+    let onShowDiagnostics: () -> Void
     let notificationsStatus: String
 
     var body: some View {
@@ -31,6 +32,7 @@ struct WebContainerView: View {
         Menu {
             Button("Reload", systemImage: "arrow.clockwise", action: model.reload)
             Button(notificationsStatus, systemImage: "bell", action: onEnableNotifications)
+            Button("Diagnostics", systemImage: "stethoscope", action: onShowDiagnostics)
             Divider()
             Text(server.description)
             Button("Switch server", systemImage: "server.rack", role: .destructive, action: onSwitchServer)

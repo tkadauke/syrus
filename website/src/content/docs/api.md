@@ -82,7 +82,23 @@ curl -X DELETE -H "Authorization: Bearer $SYRUS_API_TOKEN" -H "Content-Type: app
 ```
 
 Registration returns `201` with a `mobile_device` object; invalid tokens return
-`422`. Delivery requires the APNs environment variables described in
+`422`. Two further calls help debug push setup:
+
+```bash
+# List your registered devices (tokens are masked to their last six characters)
+# and whether the server has APNs credentials.
+curl -H "Authorization: Bearer $SYRUS_API_TOKEN" https://syrus.example.com/api/v1/app/mobile_devices
+
+# Send a test push to your own device(s); optionally narrow with {"token":"<hex>"}.
+curl -X POST -H "Authorization: Bearer $SYRUS_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{}' https://syrus.example.com/api/v1/app/mobile_devices/test_notification
+```
+
+The test push deep-links to `/notifications` and creates no notification
+record. It answers `503` (`apns_not_configured`) when the server has no APNs
+credentials and `422` (`no_registered_device`) when you have no active device;
+otherwise `results` reports `delivered`, `token_rejected`, `failed`, or `error`
+per device. Delivery requires the APNs environment variables described in
 `ios/README.md`.
 
 ## Browser Sessions

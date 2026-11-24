@@ -23,3 +23,16 @@ stored in the database. A process restart is needed after changing them.
 Team ID, key ID, and one of the key variables are required. When they are
 missing, push delivery is skipped silently; device registration still works.
 Debug builds register against the APNs sandbox, release builds against production.
+
+## Diagnosing push setup
+
+`GET /api/v1/app/mobile_devices` returns the signed-in user's registered
+devices (tokens masked to their last six characters, never the full token),
+their APNs environment, any disabled reason, and `apns_configured`.
+`POST /api/v1/app/mobile_devices/test_notification` sends a labelled test push
+to only that user's active devices (optionally narrowed with `token`) and
+reports `delivered`, `token_rejected`, `failed`, or `error` per device. It
+answers `503 apns_not_configured` or `422 no_registered_device` when push cannot
+work. The test push deep-links to `/notifications` and creates no notification.
+The iOS app's **⋯ → Diagnostics** screen uses both.
+

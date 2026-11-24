@@ -113,3 +113,40 @@ make upload    # export with destination=upload: sends the build to TestFlight
 Without the ASC variables, `archive`/`export` use the signing identities and
 profiles in your login keychain/Xcode account. Each upload needs a unique
 build number. `make upload` requires the app record to exist in App Store Connect.
+
+## Diagnostics and physical-device acceptance
+
+**⋯ → Diagnostics** shows each push-setup step with a pass/warn/fail marker:
+selected server, session state, notification permission, APNs token (last six
+characters only), APNs environment and bundle id, token sync outcome, what the
+server has registered for you (including "APNs not configured", "device
+disabled: …" and sandbox/production mismatch), app version/build, and the last
+push and deep-link events. No secret or full token is ever displayed. **Send test
+notification** calls `POST /api/v1/app/mobile_devices/test_notification`, which
+pushes only to your own registered device(s) and deep-links to `/notifications`.
+
+Run this checklist on a physical device once for the **sandbox** (Xcode Debug
+build) and once for **production** (TestFlight/Release build). The simulator
+cannot do it.
+
+1. Install the build; connect to the server and sign in.
+2. ⋯ → *Enable notifications* and allow. Open ⋯ → *Diagnostics*, tap *Refresh*.
+3. Every row is green: Session *Signed in*, Permission *Authorized*, APNs token
+   present, Token sync *Registered with server*, Server push status *Registered
+   (sandbox|production)* matching the build. If a row is red, it names the failing
+   step (permission denied, no token → check the Push Notifications capability
+   and signing; *APNs is not configured* → server `SYRUS_APNS_*`; environment
+   mismatch → wrong build type for the key's environment).
+4. Tap *Send test notification*; expect “Sent”. A *token rejected* message means
+   APNs refused the token (BadDeviceToken/DeviceTokenNotForTopic → environment or
+   bundle id mismatch).
+5. With the app **in the foreground**, the banner appears; *Last push* shows
+   `test (foreground)`.
+6. Send again, background the app, tap the notification: the app opens the
+   Notifications page; *Last push* shows `test (tapped)` and *Last deep link*
+   shows `opened /notifications`. Repeat from a force-quit state.
+7. Sign out in the web UI (or ⋯ → *Switch server*): Diagnostics/the server no
+   longer lists the device, and a test push sends nothing to it.
+8. Switch to a second server, sign in, and confirm the device registers there and
+   not on the first.
+

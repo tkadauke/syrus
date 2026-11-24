@@ -20,11 +20,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     // Show banners while the app is in the foreground too.
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound, .badge]
+        let userInfo = notification.request.content.userInfo
+        await MainActor.run { AppModel.shared.push.notificationPresented(userInfo: userInfo) }
+        return [.banner, .list, .sound, .badge]
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let path = NotificationRoute.targetPath(from: response.notification.request.content.userInfo) else { return }
-        await MainActor.run { AppModel.shared.open(path: path) }
+        let userInfo = response.notification.request.content.userInfo
+        await MainActor.run {
+            if let path = AppModel.shared.push.notificationTapped(userInfo: userInfo) { AppModel.shared.open(path: path) }
+        }
     }
 }
