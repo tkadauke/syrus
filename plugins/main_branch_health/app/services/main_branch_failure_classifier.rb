@@ -36,7 +36,7 @@ class MainBranchFailureClassifier
 
     class RepositoryHealth < Base
       def value
-        MainBranchHealthCheck.where(repository: repository, branch: job.effective_base_branch).recent.pick(:sha) ||
+        MainBranchHealth::HealthCheck.where(repository: repository, branch: job.effective_base_branch).recent.pick(:sha) ||
           (repository.last_health_checked_sha.presence if job.effective_base_branch == repository.default_branch)
       end
     end
@@ -97,7 +97,7 @@ class MainBranchFailureClassifier
   end
 
   def broken_grader_evidence(base_sha)
-    check = MainBranchHealthCheck
+    check = MainBranchHealth::HealthCheck
       .where(repository: @repository, sha: base_sha, grader_health: "broken")
       .where(branch: @workflow.job.effective_base_branch)
       .where.not(grader_failed_names: [ nil, [] ])

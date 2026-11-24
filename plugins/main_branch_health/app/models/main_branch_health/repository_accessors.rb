@@ -15,6 +15,11 @@ module MainBranchHealth
         class_name: "MainBranchHealth::RepositoryState",
         foreign_key: :repository_id,
         inverse_of: :repository
+      base.has_many :main_branch_health_checks,
+        class_name: "MainBranchHealth::HealthCheck",
+        foreign_key: :repository_id,
+        inverse_of: :repository,
+        dependent: :destroy
       base.send(:default_scope, -> { includes(:main_branch_health_state) })
       base.enum :ci_health, base::CI_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
       base.enum :grader_health, base::GRADER_HEALTH_STATES.index_with(&:itself), prefix: true, validate: true

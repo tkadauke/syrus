@@ -247,7 +247,7 @@ RSpec.describe MainGraderWorkflowJob do
   end
 
   it "skips creation when a conclusive grader result already exists for the SHA" do
-    MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
+    MainBranchHealth::HealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
 
     expect {
       described_class.perform_now(repository.id, sha)
@@ -257,7 +257,7 @@ RSpec.describe MainGraderWorkflowJob do
   end
 
   it "allows creation when the only prior grader result for the SHA is unknown" do
-    MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "unknown")
+    MainBranchHealth::HealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "unknown")
 
     expect {
       described_class.perform_now(repository.id, sha)

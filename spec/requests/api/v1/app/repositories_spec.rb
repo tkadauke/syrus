@@ -1176,10 +1176,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       issue_number: nil
     )
     workflow = Workflows::MainGrader.instantiate(job: grader_job, artifacts: { "main_sha" => "abc123" })
-    check_with = MainBranchHealthCheck.record_grader_workflow(
+    check_with = MainBranchHealth::HealthCheck.record_grader_workflow(
       repository: repository, sha: "abc123", grader_health: "healthy", workflow: workflow
     )
-    check_without = MainBranchHealthCheck.record_ci_poll(
+    check_without = MainBranchHealth::HealthCheck.record_ci_poll(
       repository: repository, sha: "def456", ci_health: "healthy"
     )
 
@@ -1198,7 +1198,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     repository = Factories.repository(user: user, main_branch_health_enabled: true)
     old_sha = "old1234567890"
     current_sha = "new1234567890"
-    MainBranchHealthCheck.record_ci_poll(
+    MainBranchHealth::HealthCheck.record_ci_poll(
       repository: repository,
       sha: old_sha,
       ci_health: "broken",
@@ -1239,7 +1239,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     sign_in_as(user)
     repository = Factories.repository(user: user)
     stale_sha = "stale1234567890"
-    MainBranchHealthCheck.record_concern_quorum(
+    MainBranchHealth::HealthCheck.record_concern_quorum(
       repository: repository,
       sha: stale_sha,
       grader_failed_names: [ "rspec", "react-tests" ]
@@ -2042,7 +2042,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       ci_health: "broken",
       grader_health: "unknown"
     )
-    MainBranchHealthCheck.record_ci_poll(
+    MainBranchHealth::HealthCheck.record_ci_poll(
       repository: repository,
       sha: "abc1234def5678",
       ci_health: "broken",

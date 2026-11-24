@@ -38,10 +38,10 @@ module MainBranchHealth
       MainHealthChangedService.new(repository).stuck_blocking_repair_job(now: now)
     end
 
-    def self.settled_ci_health = MainBranchHealthCheck::SETTLED_CI_HEALTH
+    def self.settled_ci_health = MainBranchHealth::HealthCheck::SETTLED_CI_HEALTH
 
-    def self.checks = MainBranchHealthCheck
+    def self.checks = MainBranchHealth::HealthCheck
 
-    def self.concern_reports = MainConcernReport
+    def self.concern_reports = MainBranchHealth::ConcernReport
   end
 end

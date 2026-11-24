@@ -23,7 +23,7 @@ class MainConcernAggregator
       return
     end
 
-    reports = MainConcernReport
+    reports = MainBranchHealth::ConcernReport
       .for_repository_since(@repository, WINDOW_MINUTES.minutes.ago)
       .for_observed_sha(sha)
 
@@ -37,7 +37,7 @@ class MainConcernAggregator
     )
 
     failed_names = reports.flat_map { |report| Array(report.failing_tests) }.compact_blank.uniq.presence
-    MainBranchHealthCheck.record_concern_quorum(
+    MainBranchHealth::HealthCheck.record_concern_quorum(
       repository: @repository,
       sha: sha,
       grader_failed_names: failed_names
@@ -49,7 +49,7 @@ class MainConcernAggregator
   private
 
   def conclusive_healthy_grader_result_exists?(sha)
-    MainBranchHealthCheck.exists?(
+    MainBranchHealth::HealthCheck.exists?(
       repository: @repository,
       sha: sha,
       source: "grader_workflow",

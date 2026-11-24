@@ -1009,7 +1009,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
           ci_health: "broken",
           grader_health: "broken"
         )
-        MainBranchHealthCheck.create!(
+        MainBranchHealth::HealthCheck.create!(
           repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
           ci_health: "broken", grader_health: "broken",
           ci_failed_checks: [ { "name" => "rspec" }, { "name" => "e2e" } ]
@@ -1704,7 +1704,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
         landing_paused: true,
         main_branch_repair_blocks_work: false
       )
-      MainBranchHealthCheck.create!(
+      MainBranchHealth::HealthCheck.create!(
         repository: repository,
         sha: base_sha,
         checked_at: 1.minute.ago,
