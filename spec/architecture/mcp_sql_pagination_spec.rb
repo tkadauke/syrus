@@ -15,7 +15,8 @@ RSpec.describe "MCP SQL pagination" do
   it "bounds page numbers for every SQL-offset MCP tool" do
     missing_normalization = PAGINATED_TOOL_PATHS.reject do |path|
       source = Rails.root.join(path).read
-      source.include?("Mcp::Pagination.normalize_page") || source.include?("Syrus::Host::McpPagination.normalize_page")
+      source.include?("Mcp::Pagination.normalize_page") ||
+        source.include?("Syrus::Host::McpPagination.normalize_page")
     end
 
     expect(missing_normalization).to be_empty,

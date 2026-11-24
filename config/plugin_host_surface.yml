@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 270
+legacy_baseline: 269
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -141,7 +141,6 @@ constants:
 - name: Mcp::Tools::AuthorizationSupport::AuthorizationError
 - name: Mcp::Tools::BulkPendingActionToolSupport
 - name: Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE
-- name: Mcp::Tools::EvidenceRedactor
 - name: Mcp::Tools::PendingActionToolSupport
 - name: Mcp::Tools::ProposalToolSupport
 - name: McpInvocationContext
