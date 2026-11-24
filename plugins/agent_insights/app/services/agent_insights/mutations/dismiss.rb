@@ -3,7 +3,7 @@ module AgentInsights
     class Dismiss < Base
       def initialize(reason:, **kwargs)
         super(**kwargs)
-        @reason = CommandRedactor.redact(Syrus::Host::McpTools.utf8(reason)).strip
+        @reason = Syrus::Host::CommandRedactor.redact(Syrus::Host::McpTools.utf8(reason)).strip
       end
 
       attr_reader :reason
