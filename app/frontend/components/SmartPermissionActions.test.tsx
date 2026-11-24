@@ -314,15 +314,23 @@ describe("SmartPermissionActions prefix editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() =>
-      expect(handlers.onConfirm).toHaveBeenCalledWith(
-        expect.objectContaining({ digest: "digest-widened", prefix: expect.objectContaining({ value: "git" }) })
-      )
+      expect(handlers.onConfirm).toHaveBeenCalledWith(expect.objectContaining({ digest: "digest-widened", prefix: expect.objectContaining({ value: "git" }) }))
     )
   })
 
   it("refuses a prefix the server will not grant rather than sending it anyway", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ preview: { valid: false, errors: [{ code: "constraint_invalid_value", message: "That prefix is not allowed." }], warnings: [], digest: null, draft: {}, summary: {}, ceiling: {} } })
+      jsonResponse({
+        preview: {
+          valid: false,
+          errors: [{ code: "constraint_invalid_value", message: "That prefix is not allowed." }],
+          warnings: [],
+          digest: null,
+          draft: {},
+          summary: {},
+          ceiling: {}
+        }
+      })
     )
     const handlers = openPreview()
 
