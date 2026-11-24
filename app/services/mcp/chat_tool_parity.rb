@@ -190,12 +190,10 @@ module Mcp
       # has enabled it: parity and the generated docs must not depend on the
       # instance's enablement state.
       def installed_chat_tool_sets
-        context = Struct.new(:enabled).new(true)
-        Syrus::PluginRegistry.all_plugins.filter_map do |manifest|
-          provider = Syrus::Plugin::Toolkit.provider_for_manifest(manifest)
-          provider&.chat_tools(context)
-        rescue StandardError, LoadError
-          nil
+        Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+          Array(Syrus::Plugin::Toolkit.chat_tool_set_for(manifest)).map do |tool_set|
+            tool_set.is_a?(String) ? Object.const_get(tool_set) : tool_set
+          end
         end.uniq
       end
 
@@ -220,25 +218,32 @@ module Mcp
         end
       end
 
-      # Every reviewed exception installed plugins declare, resolved to its
-      # absent contexts and tools.
-      def plugin_exceptions(providers = installed_chat_tool_sets)
-        providers.flat_map do |provider|
-          names = Array(provider.tool_definitions(tier: nil)).map { |d| (d[:name] || d["name"]).to_s }
+      # Reviewed exceptions declared by each provider, keyed by provider so one
+      # provider's exception can never authorize another's omission.
+      def plugin_exceptions_by_provider(providers = installed_chat_tool_sets)
+        providers.to_h do |provider|
+          definitions = Array(provider.tool_definitions(tier: nil))
+          names = definitions.map { |d| (d[:name] || d["name"]).to_s }
           provider_level = [ Mcp::CoworkerToolExposure.coworker_exception(provider),
                              Mcp::CoworkerToolExposure.coworker_only_exception(provider) ].compact
             .map { |exception| exception.with(tools: names.freeze) }
-          definition_level = Array(provider.tool_definitions(tier: nil)).filter_map do |definition|
-            Mcp::CoworkerToolExposure.definition_exception(definition)
-          end
-          provider_level + definition_level
+          definition_level = definitions.filter_map { |definition| Mcp::CoworkerToolExposure.definition_exception(definition) }
+          [ provider, provider_level + definition_level ]
         end
       end
 
-      # Plugin differences across contexts that no declared exception covers.
+      # Every reviewed exception installed plugins declare, resolved to its
+      # absent contexts and tools.
+      def plugin_exceptions(providers = installed_chat_tool_sets)
+        plugin_exceptions_by_provider(providers).values.flatten
+      end
+
+      # Plugin differences across contexts that no declared exception of the
+      # same provider covers.
       def plugin_report(providers = installed_chat_tool_sets)
-        exceptions = plugin_exceptions(providers)
+        by_provider = plugin_exceptions_by_provider(providers)
         plugin_catalogs(providers).flat_map do |provider, by_context|
+          exceptions = by_provider.fetch(provider)
           names = by_context.values.reduce(:|)
           all_names = Array(provider.tool_definitions(tier: nil)).map { |d| (d[:name] || d["name"]).to_s }
           (names | all_names.to_set).sort.flat_map do |name|
