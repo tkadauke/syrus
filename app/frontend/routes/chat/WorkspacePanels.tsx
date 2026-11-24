@@ -100,6 +100,7 @@ import {
   storedFilesTreeWidth,
   workspaceTabLabel
 } from "./workspaceTabs"
+import { workspaceTabBadge, type TabAttentionMap } from "./workspaceTabAttention"
 import { useResizableSplitter } from "./useResizableSplitter"
 import { useMediaQuery } from "../dashboard/components"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
@@ -115,6 +116,7 @@ import { ContextFindBar } from "../../components/ContextFindBar"
 
 export function ChatWorkspacePanel({
   activeTab,
+  attention = {},
   contextFindOpenerRef,
   showTabs = true,
   onSelectTab,
@@ -126,6 +128,7 @@ export function ChatWorkspacePanel({
   onSurfaceActive
 }: {
   activeTab: WorkspaceTab | null
+  attention?: TabAttentionMap
   contextFindOpenerRef?: MutableRefObject<(() => boolean) | null>
   showTabs?: boolean
   onSelectTab: (tab: WorkspaceTab | null) => void
@@ -171,6 +174,7 @@ export function ChatWorkspacePanel({
           key: tab,
           label,
           title: label,
+          badge: workspaceTabBadge(attention[tab], t),
           labelClassName: pluginTab?.closable ? "max-w-[8rem] truncate" : undefined,
           closeLabel: pluginTab?.closable ? t("aria_close_workspace_tab", { title: label }) : undefined,
           onClose: pluginTab?.closable ? () => setClosedPluginTabs((current) => (tabId && !current.includes(tabId) ? [...current, tabId] : current)) : undefined
@@ -186,6 +190,7 @@ export function ChatWorkspacePanel({
         key: tab,
         label: panel.title,
         title: panel.title,
+        badge: workspaceTabBadge(attention[tab], t),
         labelClassName: "max-w-[8rem] truncate",
         closeLabel: t("aria_close_preview_panel", { title: panel.title }),
         disabled: closePreviewPanel.isPending,
