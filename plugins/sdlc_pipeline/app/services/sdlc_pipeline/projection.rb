@@ -18,7 +18,7 @@ module SdlcPipeline
     end
 
     def call
-      deployment_plan = RepoDeploymentStagesReader.for_repository(repository)
+      deployment_plan = Syrus::Host::RepoDeploymentStagesReader.for_repository(repository)
       entries = Stage.entries(deployment_plan.stages)
       jobs = load_jobs.select { |job| Stage.for(job, entries) }
       job_ids = jobs.map(&:id)

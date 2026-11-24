@@ -35,7 +35,7 @@ module ScheduledTasks
 
     def tasks
       ScheduledTasks::Task.where(user:, coworker_id: nil)
-        .where(repository_id: Repository.accessible_repository_ids_for(user))
+        .where(repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(user))
         .includes(:repository)
     end
 

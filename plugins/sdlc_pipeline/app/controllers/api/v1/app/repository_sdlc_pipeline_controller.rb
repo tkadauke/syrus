@@ -3,7 +3,7 @@ module Api
     module App
       class RepositorySdlcPipelineController < Syrus::Host::AppController
         def show
-          repository = ::Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
+          repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
           ::SmartFolder.ensure_builtins_for_subject!(::SdlcPipeline::SmartFolders::SUBJECT)
           active_folder = ::Admin::SmartFolderNavigation.active_folder(
             subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Syrus::Host::Current.user, params: params

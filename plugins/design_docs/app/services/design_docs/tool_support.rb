@@ -47,7 +47,7 @@ module DesignDocs
       return nil if repository_id.blank?
 
       ids = context.allowed_repository_ids
-      repository = Repository.accessible_to(context.user).find_by(id: repository_id)
+      repository = Syrus::Host::RepositoryRecord.accessible_to(context.user).find_by(id: repository_id)
       return repository if repository && (ids.empty? || ids.include?(repository.id))
 
       nil

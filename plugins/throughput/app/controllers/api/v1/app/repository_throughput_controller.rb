@@ -8,7 +8,7 @@ module Api
       # controllers use this flat naming for the same reason.
       class RepositoryThroughputController < Syrus::Host::AppController
         def show
-          repository = ::Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
+          repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
 
           payload = Syrus::Host::PerformanceLogging.phase("repository_throughput_metrics", repository_id: repository.id) do
             ::Throughput::RepositorySnapshot.new(repository: repository).read

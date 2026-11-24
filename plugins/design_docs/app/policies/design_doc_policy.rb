@@ -1,4 +1,4 @@
-class DesignDocPolicy < ApplicationPolicy
+class DesignDocPolicy < Syrus::Host::PolicyBase
   def show?
     admin? || visible?
   end
@@ -23,7 +23,7 @@ class DesignDocPolicy < ApplicationPolicy
     owner? && archived?
   end
 
-  class Scope < ApplicationPolicy::Scope
+  class Scope < Syrus::Host::PolicyBase::Scope
     def resolve
       return scope.all if admin?
 

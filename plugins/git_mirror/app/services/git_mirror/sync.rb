@@ -76,7 +76,7 @@ module GitMirror
       starting_cursor = prune_cursor
       page = @client.list_page(cursor: starting_cursor.presence, limit: BATCH_SIZE)
       mirrored_ids = page.fetch("repositories").map { |entry| entry.fetch("id") }
-      active_ids = Repository.active.git.where(id: mirrored_ids).pluck(:id).map(&:to_s)
+      active_ids = Syrus::Host::RepositoryRecord.active.git.where(id: mirrored_ids).pluck(:id).map(&:to_s)
       removed = (mirrored_ids - active_ids).filter_map do |id|
         @client.remove(id)
         id
@@ -100,7 +100,7 @@ module GitMirror
 
     def next_batch
       starting_cursor = cursor
-      repositories = Repository.active.git.where("id > ?", starting_cursor).order(:id).limit(BATCH_SIZE + 1).to_a
+      repositories = Syrus::Host::RepositoryRecord.active.git.where("id > ?", starting_cursor).order(:id).limit(BATCH_SIZE + 1).to_a
       complete = repositories.length <= BATCH_SIZE
       [ repositories.first(BATCH_SIZE), complete, starting_cursor ]
     end

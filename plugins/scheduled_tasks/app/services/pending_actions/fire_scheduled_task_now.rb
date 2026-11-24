@@ -4,7 +4,7 @@ module PendingActions
 
     def authorize_execution!
       task = scheduled_task
-      raise ArgumentError, "Repository write access is required to fire this scheduled task." unless RepositoryPolicy.new(user, task.repository).write?
+      raise ArgumentError, "Repository write access is required to fire this scheduled task." unless Syrus::Host::RepositoryPolicy.new(user, task.repository).write?
     end
 
     def execute

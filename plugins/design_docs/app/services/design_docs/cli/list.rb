@@ -10,7 +10,7 @@ module DesignDocs
 
         if flags["repo"].present?
           owner, name = flags.fetch("repo").split("/", 2)
-          repository = Repository.accessible_to(user).find_by!(owner: owner, name: name)
+          repository = Syrus::Host::RepositoryRecord.accessible_to(user).find_by!(owner: owner, name: name)
           scope = scope.joins(:design_doc_repositories)
             .where(design_doc_repositories: { repository_id: repository.id })
         end
