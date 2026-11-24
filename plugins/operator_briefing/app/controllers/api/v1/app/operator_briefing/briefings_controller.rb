@@ -57,7 +57,7 @@ module Api
 
           def discuss
             current_briefing = briefing
-            chat_session = ::App::JobDiscussionChatResolver.new(job: current_briefing.job, user: Syrus::Host::Current.user).resolve
+            chat_session = Syrus::Host::JobDiscussionChatResolver.new(job: current_briefing.job, user: Syrus::Host::Current.user).resolve
             message = chat_session.messages.create!(
               role: "user",
               content: { "text" => discussion_message(current_briefing) },

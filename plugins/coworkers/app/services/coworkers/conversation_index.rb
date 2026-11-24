@@ -11,7 +11,7 @@ class Coworkers::ConversationIndex
   def initialize(coworker:, user:, filter: nil, sort: nil, cursor: nil)
     @coworker = coworker
     @user = user
-    @filter = Filters::QueryParam.decode(filter)
+    @filter = Syrus::Host::Filters::QueryParam.decode(filter)
     @sort = SORTS.include?(sort) ? sort : "last_activity"
     @cursor = cursor
   end
@@ -65,7 +65,7 @@ class Coworkers::ConversationIndex
         candidate_ids = ordered(relation).limit(SEARCH_SCAN_LIMIT + 1).pluck(:id)
         result_count_exact &&= candidate_ids.length <= SEARCH_SCAN_LIMIT
         candidate_ids = candidate_ids.first(SEARCH_SCAN_LIMIT)
-        message_ids = ChatMessageSearchIndex.matching_chat_session_page(
+        message_ids = Syrus::Host::ChatMessageSearchIndex.matching_chat_session_page(
           query, chat_session_ids: candidate_ids, limit: SEARCH_SCAN_LIMIT, offset: 0
         ).fetch(:chat_session_ids)
         title_ids = relation.where(id: candidate_ids)
@@ -168,7 +168,7 @@ class Coworkers::ConversationIndex
   def search_rows_for(query, records)
     return {} if query.blank? || records.empty?
 
-    ChatMessageSearchIndex.top_matches_by_chat_session(
+    Syrus::Host::ChatMessageSearchIndex.top_matches_by_chat_session(
       query, chat_session_ids: records.map(&:id), matches_per_session: 1,
       snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: SNIPPET_TOKENS
     ).group_by { |row| row.fetch(:chat_session_id).to_i }

@@ -61,7 +61,7 @@ module SpendingInsights
 
     def controls_json
       {
-        filter_schema: Filters::Schema.for(subject: :spending_report, user: user)
+        filter_schema: Syrus::Host::Filters::Schema.for(subject: :spending_report, user: user)
       }
     end
 
@@ -178,7 +178,7 @@ module SpendingInsights
         providers = base_accessible_runs.distinct.pluck(:agent_provider).compact
         providers.concat(scoped_chat_spend_entries.distinct.pluck(:agent_provider))
         Syrus::Host::UserRecord.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
-          { value: provider, label: App::Presentation.agent_provider_label(provider) }
+          { value: provider, label: Syrus::Host::AppPresentation.agent_provider_label(provider) }
         end
       end
     end
@@ -234,7 +234,7 @@ module SpendingInsights
           path: "/epics/#{id}",
           jobs_count: jobs_count,
           total: total,
-          extra: { display_number: App::Presentation.epic_slug(number) }
+          extra: { display_number: Syrus::Host::AppPresentation.epic_slug(number) }
         )
       end
       append_other_breakdown(result, filtered_runs.joins(job: :epic).where.not(epics: { id: result.pluck(:id) }))

@@ -1,6 +1,6 @@
 module Coworkers
   module Filters
-    class CoworkerId < ::Filters::Chips::Base
+    class CoworkerId < Syrus::Host::Filters::Chips::Base
       SYRUS_VALUE = "syrus"
 
       filter_name "coworker_id"

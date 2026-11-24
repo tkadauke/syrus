@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module SpendingReport
-      class AgentProvider < EnumColumn
+      class AgentProvider < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "agent_provider"
         label "Agent"
         column :agent_provider

@@ -3,9 +3,9 @@ module GlobalSearch
     include Syrus::Host::Callbacks
 
     def self.on_enable
-      Rails.application.load_tasks unless defined?(SyrusSearchDatabaseTasks)
+      Rails.application.load_tasks unless defined?(Syrus::Host::SearchDatabaseTasks)
 
-      SyrusSearchDatabaseTasks.prepare!
+      Syrus::Host::SearchDatabaseTasks.prepare!
       GlobalSearch::SourceBackfill.run!
     end
   end

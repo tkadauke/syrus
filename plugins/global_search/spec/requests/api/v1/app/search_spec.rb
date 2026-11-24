@@ -424,7 +424,7 @@ RSpec.describe "App API unified search", type: :request do
       { chat_message_id: 10_000 + index, rank: index.to_f, snippet: "needle" }
     end
     search_index = double("ChatMessageSearchIndex", search_candidates: inaccessible_batch)
-    stub_const("ChatMessageSearchIndex", search_index)
+    stub_const("Syrus::Host::ChatMessageSearchIndex", search_index)
 
     get "/api/v1/app/search", params: { query: "needle", types: [ "chat" ] }
 

@@ -81,14 +81,14 @@ module Api
         end
 
         def legacy_search_query
-          raw_q = params[::Filters::QueryParam::PARAM_NAME].to_s
+          raw_q = params[Syrus::Host::Filters::QueryParam::PARAM_NAME].to_s
           return "" if raw_q.blank? || active_filter_tree.present?
 
           raw_q.strip
         end
 
         def active_filter_tree
-          @active_filter_tree ||= ::Filters::QueryParam.decode(params[::Filters::QueryParam::PARAM_NAME])
+          @active_filter_tree ||= Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME])
         end
 
         # Built-in types plus whatever enabled plugins contribute through
@@ -218,7 +218,7 @@ module Api
           batches_scanned = 0
 
           loop do
-            batch = ChatMessageSearchIndex.search_candidates(query, limit: FTS_BATCH_SIZE, offset: offset)
+            batch = Syrus::Host::ChatMessageSearchIndex.search_candidates(query, limit: FTS_BATCH_SIZE, offset: offset)
             batches_scanned += 1
             eligible_batch = reject_unsearchable_chat_rows(batch)
             rows.concat(apply_filter_to_rows("chat", eligible_batch, :chat_message_id))
@@ -317,8 +317,8 @@ module Api
           pruned = prune_filter_node(tree, subject)
           return if pruned.blank?
 
-          serialized = ::Filters::Ast.serialize(::Filters::Ast.parse(pruned))
-          return if serialized == ::Filters::Ast.serialize(::Filters::Ast::EMPTY)
+          serialized = Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast.parse(pruned))
+          return if serialized == Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY)
 
           serialized
         end
@@ -340,15 +340,15 @@ module Api
             child = prune_filter_node(node["not"], subject)
             child ? { "not" => child } : nil
           elsif node["field"].present?
-            ::Filters::Registry.exists?(node["field"], subject: subject) ? node : nil
+            Syrus::Host::Filters::Registry.exists?(node["field"], subject: subject) ? node : nil
           end
         end
 
         def filter_schema(selected_types)
           if selected_types.length == 1
-            ::Filters::Schema.for(subject: filter_subjects.fetch(selected_types.first), user: Syrus::Host::Current.user)
+            Syrus::Host::Filters::Schema.for(subject: filter_subjects.fetch(selected_types.first), user: Syrus::Host::Current.user)
           else
-            COMMON_FILTER_FIELDS.map { |field| ::Filters::Schema.chip_for(field, user: Syrus::Host::Current.user, subject: :job) }
+            COMMON_FILTER_FIELDS.map { |field| Syrus::Host::Filters::Schema.chip_for(field, user: Syrus::Host::Current.user, subject: :job) }
           end
         end
 
@@ -629,8 +629,8 @@ module Api
           def row_id_key = :chat_message_id
 
           def filtered_scope(ids:, tree:, user:)
-            ::Filters::Compiler.call(
-              ::Filters::Ast.parse(tree),
+            Syrus::Host::Filters::Compiler.call(
+              Syrus::Host::Filters::Ast.parse(tree),
               scope: ChatMessage
                 .active
                 .joins(chat_session: :chat_participants)
@@ -650,8 +650,8 @@ module Api
           def row_id_key = :repository_id
 
           def filtered_scope(ids:, tree:, user:)
-            ::Filters::Compiler.call(
-              ::Filters::Ast.parse(tree),
+            Syrus::Host::Filters::Compiler.call(
+              Syrus::Host::Filters::Ast.parse(tree),
               scope: Syrus::Host::RepositoryRecord.accessible_to(user).where(id: ids),
               user: user,
               subject: :repository

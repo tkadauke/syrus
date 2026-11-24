@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class Severity < EnumColumn
+      class Severity < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "severity"
         label "Severity"
         column :severity

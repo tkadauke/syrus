@@ -132,7 +132,7 @@ module Api
             updated_at: task.updated_at
           }
         rescue => e
-          ::Admin::JobStateSerializer.per_record_error(task, e)
+          Syrus::Host::JobStateSerializer.per_record_error(task, e)
         end
 
         def task_detail_json(task)
@@ -146,7 +146,7 @@ module Api
             recent_jobs: task.jobs.order(created_at: :desc).limit(10).map { |job| recent_job_json(job) }
           )
         rescue => e
-          ::Admin::JobStateSerializer.per_record_error(task, e)
+          Syrus::Host::JobStateSerializer.per_record_error(task, e)
         end
 
         def pause_reason(task)
