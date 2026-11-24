@@ -240,9 +240,7 @@ function parseInsertion(value: unknown): string | null {
   if (!after) return null
   const beforeId = displayValue(value.insert_before_job_id)
   const before = displayValue(value.insert_before_slug) || (beforeId ? `JOB-${beforeId}` : null)
-  return before
-    ? i18n.t("chat:insertion_position", { after, before })
-    : i18n.t("chat:insertion_position_tail", { after })
+  return before ? i18n.t("chat:insertion_position", { after, before }) : i18n.t("chat:insertion_position_tail", { after })
 }
 
 function humanizeKind(kind: string): string {
