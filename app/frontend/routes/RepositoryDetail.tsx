@@ -19,7 +19,7 @@ import { formatRelativeDate } from "../lib/relativeTime"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -436,6 +436,7 @@ export function RecommendedActions({
   const search = ""
   const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
   const [currentIndex, setCurrentIndex] = useState(0)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const recommendationAction = useMutation({
     mutationFn: (recommendation: RepositoryFeatureRecommendation) =>
       runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
@@ -476,21 +477,41 @@ export function RecommendedActions({
     }
   }
 
+  function handleTouchEnd(event: React.TouchEvent) {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+    const touch = event.changedTouches[0]
+    if (!start || !touch || !hasMultiple) return
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    const step = dx < 0 ? 1 : -1
+    setCurrentIndex((index) => (Math.min(index, recommendations.length - 1) + step + recommendations.length) % recommendations.length)
+  }
+
   return (
     <section aria-label={t("repository.recommended_actions")} className="space-y-2">
-      <div className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`} key={recommendation.id}>
+      <div
+        className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`}
+        key={recommendation.id}
+        onTouchEnd={handleTouchEnd}
+        onTouchStart={(event) => {
+          const touch = event.touches[0]
+          touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+        }}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{recommendation.title}</span>
               <span className="text-xs opacity-75">{recommendation.category}</span>
-              <span className="text-xs opacity-75">{t("repository.tip_position", { index: activeIndex + 1, count: recommendations.length })}</span>
+              <span className="hidden text-xs opacity-75 sm:inline">{t("repository.tip_position", { index: activeIndex + 1, count: recommendations.length })}</span>
             </div>
             <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {hasMultiple ? (
-              <div className="flex items-center gap-1">
+              <div className="hidden items-center gap-1 sm:flex">
                 <button
                   aria-label={t("repository.previous_tip")}
                   className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
@@ -531,6 +552,20 @@ export function RecommendedActions({
             <DismissButton label={t("repository.dismiss_recommendation", { title: recommendation.title })} onClick={() => dismiss(recommendation)} />
           </div>
         </div>
+        {hasMultiple ? (
+          <div className="mt-2 flex items-center justify-center gap-2 sm:hidden" data-testid="recommendation-dots">
+            {recommendations.map((item, index) => (
+              <button
+                aria-current={index === activeIndex ? "true" : undefined}
+                aria-label={t("repository.go_to_tip", { index: index + 1 })}
+                className={`h-2 w-2 rounded-full bg-current ${index === activeIndex ? "opacity-80" : "opacity-25"}`}
+                key={item.id}
+                onClick={() => setCurrentIndex(index)}
+                type="button"
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
       {recommendationAction.isError ? (
         <PanelMessage tone="error">{errorMessage(recommendationAction.error, t("repository.recommendation_action_failed"))}</PanelMessage>

@@ -855,6 +855,7 @@
     "recommendation_job_created": "Recommendation job created.",
     "tip_position": "Tip {{index}} of {{count}}",
     "previous_tip": "Previous tip",
+    "go_to_tip": "Go to tip {{index}}",
     "next_tip": "Next tip",
     "working": "Working...",
     "dismiss_recommendation": "Dismiss {{title}}",
