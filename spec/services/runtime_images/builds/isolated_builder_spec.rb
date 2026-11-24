@@ -202,6 +202,35 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
   end
 
+  describe "filesystem allocation unit" do
+    it "charges tiny files at a 64 KiB allocation unit that a 4 KiB model would under-count" do
+      files = (1..20).to_h { |i| ["f#{i}", "x"] }.merge("Dockerfile" => "FROM scratch\n")
+      request = request_for(files)
+      raw = request.source_archive.blob.byte_size
+      # 21 files at 4 KiB blocks (~170 KB) would fit; at 64 KiB (~2.7 MB) they do not.
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(raw + 1_000_000)
+      big = RuntimeImages::Builds::SourceExtractor.new(block: 65_536)
+      expect { build(request, builder(extractor: big)) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("source_too_large") }
+    end
+
+    it "measures the unit from the filesystem and never goes below 4 KiB" do
+      extractor = RuntimeImages::Builds::SourceExtractor.new
+      Dir.mktmpdir do |dir|
+        expect(extractor.allocation_unit(File.join(dir, "missing", "deeper"))).to be >= 4096
+        allow(File).to receive(:stat).and_call_original
+        allow(File).to receive(:stat).with(dir).and_return(instance_double(File::Stat, blksize: 131_072))
+        expect(extractor.allocation_unit(dir)).to eq(131_072)
+      end
+    end
+
+    it "charges the archive's rounded allocation plus its inode" do
+      extractor = RuntimeImages::Builds::SourceExtractor.new(block: 65_536)
+      expect(extractor.allocated_bytes(1, "/tmp")).to eq(131_072)
+      expect(extractor.allocated_bytes(65_537, "/tmp")).to eq(196_608)
+    end
+  end
+
   describe "ceilings" do
     let(:request) { request_for({ "Dockerfile" => "FROM scratch\n" }) }
 
@@ -212,11 +241,11 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
 
     it "fails when scratch storage exceeds its ceiling" do
-      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 10_000)
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 40_000)
       l = launcher { |_c, _chunk, stop| stop.call }
       l1 = l
       l = lambda do |command:, env:, **rest|
-        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 20_000)
+        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 60_000)
         l1.call(command: command, env: env, **rest)
       end
       expect { build(request, builder(launcher: l)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }
@@ -275,10 +304,10 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
 
     it "rejects storage overshoot found after the command exits, without any poll" do
-      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 10_000)
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 40_000)
       l = launcher
       l2 = lambda do |command:, env:, **rest|
-        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 20_000)
+        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 60_000)
         l.call(command: command, env: env, **rest)
       end
       expect { build(request, builder(launcher: l2)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }

@@ -158,7 +158,10 @@ module RuntimeImages
             file.write(chunk)
           end
         end
-        digest = @extractor.extract(archive, dir, max_bytes: [ Config.build_storage_bytes - written, 0 ].max)
+        # Charge the archive's own allocation (rounded blocks plus inode) on this
+        # filesystem, not its logical size, before budgeting the extracted tree.
+        remaining = Config.build_storage_bytes - @extractor.allocated_bytes(written, archive)
+        digest = @extractor.extract(archive, dir, max_bytes: [ remaining, 0 ].max)
         revision = request.source_manifest["revision"].to_s
         if revision.start_with?("sha256:") && revision != digest
           raise Rejected.new("source_mismatch", "source archive digest #{digest} does not match captured #{revision}")
