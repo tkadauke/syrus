@@ -25,6 +25,7 @@ module RuntimeImages
     #  - CPU, memory, PIDs, wall-clock duration, log volume, scratch
     #    storage, and output archive size all have ceilings.
     class IsolatedBuilder
+      MIN_TMPFS_BYTES = 4096
       EXTRACT_SCRIPT = Rails.root.join("bin/extract-runtime-image-source")
       REJECT_FILE = "source.rejected.json"
       NAMESPACE_PREFIX = %w[unshare --user --map-root-user --mount --].freeze
@@ -221,11 +222,25 @@ module RuntimeImages
       def wrapped(scratch, work, paths, build, push)
         extract = [ RbConfig.ruby, EXTRACT_SCRIPT.to_s, File.join(scratch, "source.archive"), File.join(work, "source"), work,
                     File.join(scratch, REJECT_FILE), Config.max_source_bytes.to_s, Config.max_source_entries.to_s, *paths ]
-        script = "set -eu; mount -t tmpfs -o size=#{Config.build_storage_bytes},mode=0700 tmpfs #{Shellwords.escape(work)}; " \
+        script = "set -eu; mount -t tmpfs -o size=#{tmpfs_bytes(scratch)},mode=0700 tmpfs #{Shellwords.escape(work)}; " \
                  "mkdir -p #{Shellwords.escape(File.join(work, "home"))} #{Shellwords.escape(File.join(work, "tmp"))}; " \
                  "#{Shellwords.join(extract)}; " \
                  "#{Shellwords.join(build)} && #{Shellwords.join(push)}"
         [ *NAMESPACE_PREFIX, "sh", "-c", script ]
+      end
+
+      # The staged archive stays on host disk for the whole build, so the tmpfs
+      # only gets what is left of the aggregate storage ceiling after the
+      # archive's actual allocation (blocks, not logical bytes). Archive plus
+      # tmpfs capacity therefore never exceeds build_storage_bytes.
+      def tmpfs_bytes(scratch)
+        stat = File.stat(File.join(scratch, "source.archive"))
+        used = [ stat.size, stat.blocks.to_i * 512 ].max
+        remaining = Config.build_storage_bytes - used
+        if remaining < MIN_TMPFS_BYTES
+          raise Rejected.new("source_too_large", "source archive leaves no room for the build within the #{Config.build_storage_bytes} byte storage ceiling")
+        end
+        remaining
       end
 
       def raise_if_source_rejected!(scratch)

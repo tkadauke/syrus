@@ -114,7 +114,8 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
 
     roots = calls.map { |c| c[:command].last[%r{--root (\S+)}, 1] }
     expect(roots.uniq.size).to eq(2)
-    expect(calls.map { |c| c[:command].last }).to all(include("mount -t tmpfs -o size=#{RuntimeImages::Builds::Config.build_storage_bytes}"))
+    sizes = calls.map { |c| c[:command].last[/mount -t tmpfs -o size=(\d+)/, 1].to_i }
+    expect(sizes).to all(be_positive.and(be < RuntimeImages::Builds::Config.build_storage_bytes))
   end
 
   it "passes only validated build args and target" do
@@ -190,6 +191,25 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect(mount).to be < script.index("extract-runtime-image-source")
       expect(script.index("extract-runtime-image-source")).to be < script.index(" build ")
       expect(Dir.glob(File.join(data_root, "runtime-image-builds", "**", "source"))).to be_empty
+    end
+
+    it "sizes the tmpfs from what the staged archive leaves, so archive plus tmpfs never exceed the ceiling" do
+      request = request_for({ "Dockerfile" => "FROM scratch\n" })
+      ceiling = 50_000_000
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(ceiling)
+      allow(RuntimeImages::Builds::Config).to receive(:max_source_bytes).and_return(ceiling)
+      calls = []
+      build(request, builder(launcher: launcher(calls: calls)))
+      size = calls.first[:command].last[/mount -t tmpfs -o size=(\d+)/, 1].to_i
+      archive = request.source_archive.blob.byte_size
+      expect(size).to be <= ceiling - archive
+      expect(size).to be > 0
+    end
+
+    it "rejects a source whose archive leaves no room for the tmpfs within the ceiling" do
+      request = request_for({ "Dockerfile" => "FROM scratch\n" })
+      allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 100)
+      expect { build(request) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("source_too_large") }
     end
 
     it "rejects an archive larger than a lower storage ceiling before it is written" do
