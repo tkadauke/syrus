@@ -89,7 +89,11 @@ module Adjudicators
           consecutive_failures: consecutive_failures,
           persistent_failure: consecutive_failures >= MAX_CONSECUTIVE_FAILURES,
           mostly_failing: mostly_failing,
-          confirmed_flaky: !mostly_failing && score[:flaky] && score[:score] >= min_score
+          same_code_flip: score[:same_code_flip] == true,
+          # A failure that only ever appears on the branches that cause it is
+          # a real failure, however often other branches pass; only a flip on
+          # identical code proves the test is nondeterministic.
+          confirmed_flaky: !mostly_failing && score[:flaky] && score[:same_code_flip] == true && score[:score] >= min_score
         }
       end
     end

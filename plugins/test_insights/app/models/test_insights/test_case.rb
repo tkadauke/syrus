@@ -67,15 +67,17 @@ module TestInsights
     # A test is flaky if it has both passed and failed within the lookback window.
     # Returns nil if no history exists.
     def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK, exclude_workflow: nil)
-      statuses = PerformanceLogging.phase("test_insights.flakiness_score", repository_id: repository.id) do
+      rows = PerformanceLogging.phase("test_insights.flakiness_score", repository_id: repository.id) do
         score_scope_for(repository: repository, suite_name: suite_name, name: name, exclude_workflow: exclude_workflow)
           .scored
+          .left_joins(test_run: :run)
           .limit(lookback)
-          .pluck(:status)
+          .pluck(:status, "runs.head_sha")
       end
 
-      return nil if statuses.empty?
+      return nil if rows.empty?
 
+      statuses = rows.map(&:first)
       total  = statuses.size
       failed = statuses.count { |s| s == "failed" || s == "error" }
       passed = statuses.count { |s| s == "passed" }
@@ -85,8 +87,22 @@ module TestInsights
         failed_count: failed,
         total_count:  total,
         flaky:        failed > 0 && passed > 0,
+        same_code_flip: same_code_flip?(rows),
         run_statuses: statuses.reverse # oldest to newest for sparkline
       }
+    end
+
+    # Passing on some branches and failing on others is what any
+    # deterministic check looks like while branches come and go -- a lint
+    # spec fails on every branch that adds a violation. Only a pass and a
+    # failure on the same commit show the test itself is nondeterministic.
+    def self.same_code_flip?(rows)
+      outcomes = rows.each_with_object(Hash.new { |hash, sha| hash[sha] = Set.new }) do |(status, sha), by_sha|
+        next if sha.blank?
+
+        by_sha[sha] << (status == "passed" ? :passed : :failed) if status.in?(%w[passed failed error])
+      end
+      outcomes.values.any? { |seen| seen.size == 2 }
     end
 
     # Returns avg, p50, p95 duration_ms for the lookback window.

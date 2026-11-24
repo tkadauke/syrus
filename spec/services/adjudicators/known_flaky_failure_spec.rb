@@ -44,7 +44,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     repository.update!(known_flaky_failure_dismissal_enabled: false)
     stub_provider(fake_provider(
       failed_test_cases: [ { "suite_name" => "S", "name" => "n" } ],
-      scores: { [ "S", "n" ] => { score: 1.0, flaky: true } }
+      scores: { [ "S", "n" ] => { score: 1.0, flaky: true, same_code_flip: true } }
     ))
 
     verdict = adjudicate
@@ -56,7 +56,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
   it "dismisses a failure whose every failing test is confirmed flaky" do
     stub_provider(fake_provider(
       failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing", "failure_message" => "historical failure" } ],
-      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, failed_count: 4, total_count: 10, flaky: true } }
+      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, failed_count: 4, total_count: 10, flaky: true, same_code_flip: true } }
     ))
 
     verdict = adjudicate
@@ -68,11 +68,36 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     )
   end
 
+  # Regression: a deterministic source-scan spec failed on every branch that
+  # added a violation and passed elsewhere, so it "both passed and failed" and
+  # was dismissed as flaky -- a merge train's real regression was accepted.
+  it "declines a test that only passes and fails across different commits" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing", "failure_message" => "historical failure" } ],
+      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, failed_count: 4, total_count: 10, flaky: true, same_code_flip: false } }
+    ))
+
+    verdict = adjudicate
+
+    expect(verdict).to be_inconclusive
+    expect(verdict.reason).to eq("not_all_confirmed_flaky")
+    expect(verdict.evidence).to be_blank.or(be_a(Hash))
+  end
+
+  it "declines a provider that cannot say whether the test flipped on the same commit" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing", "failure_message" => "historical failure" } ],
+      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, failed_count: 4, total_count: 10, flaky: true } }
+    ))
+
+    expect(adjudicate).to be_inconclusive
+  end
+
   it "derives the failed grader steps from the workflow when step: is not given" do
     grader_step.update!(kind: "grader", state: "failed")
     stub_provider(fake_provider(
       failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing" } ],
-      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, flaky: true } }
+      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, flaky: true, same_code_flip: true } }
     ))
 
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
@@ -90,7 +115,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
         { "suite_name" => "spec/foo_spec.rb", "name" => "real regression" }
       ],
       scores: {
-        [ "spec/foo_spec.rb", "flaky one" ] => { score: 0.4, flaky: true },
+        [ "spec/foo_spec.rb", "flaky one" ] => { score: 0.4, flaky: true, same_code_flip: true },
         [ "spec/foo_spec.rb", "real regression" ] => { score: 0.4, flaky: false }
       }
     ))
@@ -117,7 +142,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     repository.update!(known_flaky_failure_min_score: 0.5)
     stub_provider(fake_provider(
       failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "barely flaky" } ],
-      scores: { [ "spec/foo_spec.rb", "barely flaky" ] => { score: 0.05, flaky: true } }
+      scores: { [ "spec/foo_spec.rb", "barely flaky" ] => { score: 0.05, flaky: true, same_code_flip: true } }
     ))
 
     verdict = adjudicate
@@ -150,7 +175,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
       failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "currently broken" } ],
       scores: {
         [ "spec/foo_spec.rb", "currently broken" ] => {
-          score: 0.2, failed_count: 2, total_count: 10, flaky: true,
+          score: 0.2, failed_count: 2, total_count: 10, flaky: true, same_code_flip: true,
           run_statuses: %w[passed passed passed passed passed passed passed passed failed failed]
         }
       }
@@ -173,7 +198,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
 
         def flakiness_score(repository:, suite_name:, name:, exclude_workflow: nil)
           @excluded_workflow = exclude_workflow
-          { score: 0.4, failed_count: 4, total_count: 10, flaky: true }
+          { score: 0.4, failed_count: 4, total_count: 10, flaky: true, same_code_flip: true }
         end
 
         def grader_failure_explained_by_tests?(**) = true
@@ -207,7 +232,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
 
   it "declines when the PR changed the failing test file" do
     test_case = { "suite_name" => "Foo", "name" => "bar", "file_path" => "spec/foo_spec.rb", "failure_message" => "boom" }
-    stub_provider(fake_provider(failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true } }))
+    stub_provider(fake_provider(failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true, same_code_flip: true } }))
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
     allow_any_instance_of(GitRunner).to receive(:run).and_return("spec/foo_spec.rb\n")
 
@@ -220,7 +245,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
   it "declines when the current failure signature differs from history" do
     test_case = { "suite_name" => "Foo", "name" => "bar", "failure_message" => "new regression" }
     stub_provider(fake_provider(
-      failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true } },
+      failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true, same_code_flip: true } },
       signatures: { [ "Foo", "bar" ] => "old flaky failure" }
     ))
 
@@ -230,7 +255,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
   it "declines when a mixed non-test cause means the parsed flaky case does not explain the grader exit" do
     test_case = { "suite_name" => "Foo", "name" => "bar", "failure_message" => "known failure" }
     stub_provider(fake_provider(
-      failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true } },
+      failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true, same_code_flip: true } },
       failure_explained: false
     ))
 

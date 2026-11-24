@@ -49,11 +49,14 @@ RSpec.describe Steps::GraderCollect, "known-flaky test-case failures" do
   # Historical cases live on a separate Workflow -- never on `workflow` itself
   # -- so they cannot be mistaken for this iteration's grader Step by
   # `workflow.steps.find_by!(kind: "grader")` (mirrors grader_collect_inherited_spec.rb).
-  def seed_flakiness_history!(suite_name:, name:, statuses:)
+  # `shas` defaults to one commit for every attempt: re-running main's graders
+  # on the same commit and seeing both outcomes is what makes a test flaky.
+  def seed_flakiness_history!(suite_name:, name:, statuses:, shas: nil)
     history_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
     history_step = Step.create!(workflow: history_workflow, kind: "grader", position: 1, state: "succeeded", details: { "name" => "history" })
-    statuses.each do |status|
-      history_run = history_step.runs.create!(job: job, trigger_kind: history_workflow.trigger_kind, state: "succeeded")
+    statuses.each_with_index do |status, index|
+      sha = shas ? shas.fetch(index) : "f" * 40
+      history_run = history_step.runs.create!(job: job, trigger_kind: history_workflow.trigger_kind, state: "succeeded", head_sha: sha)
       test_run = TestInsights::TestRun.create!(
         run: history_run, repository: job.repository, grader_name: "rspec",
         total_count: 1, passed_count: status == "passed" ? 1 : 0, failed_count: status == "passed" ? 0 : 1
@@ -100,6 +103,31 @@ RSpec.describe Steps::GraderCollect, "known-flaky test-case failures" do
       "confirmed_flaky" => true
     )
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("treating as known-flaky:")
+  end
+
+  # Regression: a deterministic source-scan spec failed on every branch that
+  # broke it and passed elsewhere, and was dismissed as flaky.
+  it "does not dismiss a failure whose passes and failures were on different commits" do
+    seed_flakiness_history!(
+      suite_name: "spec/i18n/untranslated_source_strings_spec.rb",
+      name: "keeps obvious user-visible literals out of source files",
+      statuses: %w[passed passed passed passed failed],
+      shas: %w[a b c d e].map { |c| c * 40 }
+    )
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    candidate_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    candidate_test_run = TestInsights::TestRun.create!(run: candidate_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
+    TestInsights::TestCase.create!(
+      test_run: candidate_test_run, repository: job.repository,
+      suite_name: "spec/i18n/untranslated_source_strings_spec.rb",
+      name: "keeps obvious user-visible literals out of source files",
+      status: "failed",
+      failure_message: "expected fanout to settle"
+    )
+    grader_step.update!(state: "failed", details: { "name" => "rspec", "required" => true, "exit_code" => 1 })
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /required graders failed: rspec/)
+    expect(workflow.reload.artifact("known_flaky_grader_failure")).to be_nil
   end
 
   it "does not dismiss a required grader failure with no flakiness history yet" do

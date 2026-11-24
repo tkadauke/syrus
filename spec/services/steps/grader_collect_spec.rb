@@ -500,7 +500,7 @@ RSpec.describe Steps::GraderCollect do
       end
 
       def self.flakiness_score(repository:, suite_name:, name:)
-        { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
+        { score: 0.3, failed_count: 3, total_count: 10, flaky: true, same_code_flip: true }
       end
 
       def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
@@ -549,7 +549,7 @@ RSpec.describe Steps::GraderCollect do
       end
 
       def self.flakiness_score(repository:, suite_name:, name:)
-        { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
+        { score: 0.3, failed_count: 3, total_count: 10, flaky: true, same_code_flip: true }
       end
 
       def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
@@ -611,7 +611,7 @@ RSpec.describe Steps::GraderCollect do
       end
 
       def self.flakiness_score(repository:, suite_name:, name:)
-        { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
+        { score: 0.3, failed_count: 3, total_count: 10, flaky: true, same_code_flip: true }
       end
 
       def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)

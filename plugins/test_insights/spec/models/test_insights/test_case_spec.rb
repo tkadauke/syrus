@@ -172,6 +172,35 @@ RSpec.describe TestInsights::TestCase do
       expect(result[:flaky]).to be(false)
     end
 
+    def create_case_at(sha, status)
+      sha_run = Run.create!(job: job, user: run.user, step: run.step, trigger_kind: run.trigger_kind,
+                            agent_provider: run.agent_provider, state: "succeeded", head_sha: sha)
+      sha_test_run = TestInsights::TestRun.create!(run: sha_run, repository: repo, grader_name: "rspec",
+                                                   total_count: 1, passed_count: 0, failed_count: 0,
+                                                   skipped_count: 0, error_count: 0)
+      create_case(test_run: sha_test_run, status: status)
+    end
+
+    it "reports no same-commit flip for a check that fails only on the commits that break it" do
+      create_case_at("a" * 40, "passed")
+      create_case_at("b" * 40, "failed")
+      create_case_at("c" * 40, "passed")
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result[:flaky]).to be(true)
+      expect(result[:same_code_flip]).to be(false)
+    end
+
+    it "reports a same-commit flip when one commit both passed and failed" do
+      create_case_at("a" * 40, "failed")
+      create_case_at("a" * 40, "passed")
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result[:same_code_flip]).to be(true)
+    end
+
     it "identifies a flaky test with mixed pass/fail history" do
       2.times { create_case(status: "passed") }
       1.times { create_case(status: "failed") }

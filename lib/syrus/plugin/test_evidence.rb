@@ -20,7 +20,12 @@ module Syrus
     #                                                          "failure_message" [optional, short/bounded])
     #   .failed_test_summary(run:, grader_name:, limit:) => Hash ("failed_count", "failures")
     #   .flakiness_score(repository:, suite_name:, name:, exclude_workflow: nil)
-    #     => Hash (:score, :failed_count, :total_count, :flaky) or nil
+    #     => Hash (:score, :failed_count, :total_count, :flaky, :same_code_flip) or nil
+    #
+    # `:flaky` only says the test has both passed and failed; a deterministic
+    # check failing on the branches that break it looks the same.
+    # `:same_code_flip` says it both passed and failed on one commit -- the
+    # evidence the adjudicator requires before calling a failure flaky.
     #
     # `flakiness_score` backs Adjudicators::KnownFlakyFailure: a rung-0 check
     # that dismisses a required-grader failure whose every failing test
