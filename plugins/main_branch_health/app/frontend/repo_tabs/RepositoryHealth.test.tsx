@@ -123,9 +123,9 @@ function renderRoute(payloadOverrides: Partial<RepositoryDetailPayload> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/repositories/1/health"]}>
+      <MemoryRouter initialEntries={["/app-shell/repositories/1/plugin/health"]}>
         <Routes>
-          <Route element={<RepositoryHealthRoute />} path="/app-shell/repositories/:repositoryId/health" />
+          <Route element={<RepositoryHealthRoute />} path="/app-shell/repositories/:repositoryId/plugin/health" />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
