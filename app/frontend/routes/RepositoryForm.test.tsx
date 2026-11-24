@@ -200,7 +200,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     renderRoute()
 
     await screen.findByLabelText("Trigger label")
-    const input = screen.getByDisplayValue("1", { selector: 'input[type="number"][max="5"]' })
+    const input = document.querySelector<HTMLInputElement>('input[type="number"][max="5"][min="1"]')!
 
     fireEvent.change(input, { target: { value: "" } })
     expect(input).toHaveValue(null)
