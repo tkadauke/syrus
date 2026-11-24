@@ -195,6 +195,38 @@ RSpec.describe RuntimeImages::WorkerCache do
       expect(cache.evict(target_bytes: 0)).to eq([])
     end
 
+    it "waits for an in-progress eviction instead of re-promoting the claimed entry" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      acquired = nil
+      waits = 0
+      waiter = described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 5,
+                                   sleeper: lambda { |_|
+                                     waits += 1
+                                     # Eviction's engine removal finishes while the acquirer waits.
+                                     RuntimeImageCacheEntry.where(state: "evicting").delete_all
+                                   })
+      allow(engine).to receive(:remove).and_wrap_original do |m, ref|
+        m.call(ref)
+        acquired = waiter.acquire(image)
+        expect(RuntimeImageCacheEntry.count).to eq(1)
+        nil
+      end
+      expect(cache.evict(target_bytes: 0)).to eq([image.digest])
+      expect(waits).to eq(1)
+      expect(acquired.cache_hit).to be(false)
+      expect(engine.pulls.size).to eq(2)
+      expect(RuntimeImageCacheEntry.first).to have_attributes(state: "present", lease_count: 1)
+    end
+
+    it "times out as busy when an eviction claim never resolves" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      RuntimeImageCacheEntry.update_all(state: "evicting")
+      stuck = described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 0.01, sleeper: ->(_) { sleep 0.02 })
+      expect { stuck.acquire(image) }.to raise_error(RuntimeImages::WorkerCache::Busy)
+    end
+
     it "restores the entry when the engine fails to remove it" do
       image = publish("a")
       cache.acquire(image) { nil }

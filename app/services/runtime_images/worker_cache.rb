@@ -24,7 +24,7 @@ module RuntimeImages
 
     def initialize(engine:, service: Service.new, hostname: Socket.gethostname, max_concurrent_pulls: DEFAULT_MAX_PULLS,
                    pull_timeout: DEFAULT_PULL_TIMEOUT, acquire_timeout: DEFAULT_ACQUIRE_TIMEOUT,
-                   lease_seconds: DEFAULT_LEASE_SECONDS, clock: -> { Time.current })
+                   lease_seconds: DEFAULT_LEASE_SECONDS, clock: -> { Time.current }, sleeper: ->(seconds) { sleep(seconds) })
       @engine = engine
       @service = service
       @hostname = hostname
@@ -32,6 +32,7 @@ module RuntimeImages
       @acquire_timeout = acquire_timeout
       @lease_seconds = lease_seconds
       @clock = clock
+      @sleeper = sleeper
       @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
       @inflight = {}
       @inflight_mutex = Mutex.new
@@ -135,13 +136,27 @@ module RuntimeImages
 
     def ensure_local(image, prefetch:)
       started = monotonic
-      entry = RuntimeImageCacheEntry.for_host(hostname).find_by(runtime_image: image)
+      entry = settled_entry(image)
       if entry&.state == "present" && verified?(image)
         touch(entry) unless prefetch
         record(image, "hit", started, cache_hit: true, prefetch: prefetch)
         return [entry, true]
       end
       [single_flight(image, prefetch) { pull_and_verify(image, started, prefetch) }, false]
+    end
+
+    # An "evicting" row means eviction owns the engine removal. Pulling into
+    # or promoting it would race that removal, so wait for the claim to
+    # resolve: it either returns to "present" (removal failed) or the row is
+    # deleted (removal done, safe to pull again).
+    def settled_entry(image)
+      deadline = monotonic + @acquire_timeout
+      loop do
+        entry = RuntimeImageCacheEntry.for_host(hostname).find_by(runtime_image: image)
+        return entry unless entry&.state == "evicting"
+        raise Busy, "runtime image #{image.digest} is being evicted on #{hostname}" if monotonic >= deadline
+        @sleeper.call(EVICTION_POLL_SECONDS)
+      end
     end
 
     def pull_and_verify(image, started, prefetch)
@@ -250,6 +265,7 @@ module RuntimeImages
     # Ensures the image is local and leased. If eviction claimed the entry
     # between ensure_local and the lease, the image is pulled again.
     LEASE_ATTEMPTS = 3
+    EVICTION_POLL_SECONDS = 0.05
 
     def lease_local(image, prefetch)
       LEASE_ATTEMPTS.times do
@@ -268,7 +284,7 @@ module RuntimeImages
         RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").update_all(state: "present")
         return false
       end
-      RuntimeImageCacheEntry.where(id: entry.id).delete_all
+      RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").delete_all
       true
     end
 
