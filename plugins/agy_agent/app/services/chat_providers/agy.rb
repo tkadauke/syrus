@@ -1,7 +1,7 @@
 require "json"
 
 module ChatProviders
-  class Agy < Base
+  class Agy < Syrus::Host::ChatProviderBase
     include Syrus::Plugin::ChatProvider
 
     def self.provider_key = "agy"
@@ -13,7 +13,7 @@ module ChatProviders
 
     def self.invoke_event_evaluator(chat_session:, workspace_path:, prompt:, session_id:, transcript_jsonl:, mcp_config:, timeout:, max_turns:, runner:)
       api_key = chat_session.user.gemini_api_key.presence
-      raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
+      raise Syrus::Host::ChatProviderConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
       AgyInvocation.new(
         workspace_path,
@@ -43,7 +43,7 @@ module ChatProviders
                stop_requested:, process_started:, workload_policy: nil)
       require_full_coworker_workspace_access!
       api_key = credential(:gemini_api_key).presence
-      raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
+      raise Syrus::Host::ChatProviderConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
       AgyInvocation.new(
         workspace_path,

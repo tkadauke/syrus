@@ -2,8 +2,8 @@ module Api
   module V1
     module App
       class CoworkersController < Syrus::Host::AppController
-        include ChatProviderOptions
-        include AgentProviderCatalogOptions
+        include Syrus::Host::ChatProviderOptions
+        include Syrus::Host::AgentProviderCatalogOptions
 
         def index
           coworkers = scope.includes(avatar_attachment: :blob).order(Arel.sql("LOWER(name) ASC"), :id).to_a

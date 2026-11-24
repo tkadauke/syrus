@@ -45,7 +45,7 @@ module ScheduledTasks
                               numericality: { only_integer: true, in: 0..59 }
     validates :consecutive_failure_count,
               presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-    validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
+    validates :skill_name, format: { with: Syrus::Host::SkillCatalog.name_pattern }, allow_blank: true
     validate  :prompt_or_skill
     validate  :system_schedule_attributes_are_owned_by_code, on: :update
     before_destroy :prevent_system_schedule_destruction
@@ -362,11 +362,11 @@ module ScheduledTasks
     end
 
     def skill_args_match_parameter_schema
-      resolution = Skills.for(repository: repository, name: skill_name, user: user)
-      Skills::ParameterSchema.validate!(resolution.definition.parameters, skill_args.presence || {})
-    rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
+      resolution = Syrus::Host::SkillCatalog.resolve(repository: repository, name: skill_name, user: user)
+      Syrus::Host::SkillCatalog.validate_arguments!(resolution, skill_args.presence || {})
+    rescue *Syrus::Host::SkillCatalog.resolution_errors => e
       errors.add(:skill_name, "could not be resolved: #{e.message}")
-    rescue Skills::ParameterSchema::ValidationError => e
+    rescue *Syrus::Host::SkillCatalog.argument_errors => e
       errors.add(:skill_args, e.message)
     end
 

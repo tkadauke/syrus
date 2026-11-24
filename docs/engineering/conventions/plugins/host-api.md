@@ -38,6 +38,16 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::AdversarialReviewPrompt`
+
+Since: `0.1.16`
+
+Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::AdversarialReviewStep`
 
 Since: `0.1.16`
@@ -47,6 +57,30 @@ Adversarial-review step handler, exposing only the MemoryPersistenceFailed error
 Supported members:
 
 - `MemoryPersistenceFailed`
+
+### `Syrus::Host::AgentEventAbbreviator`
+
+Since: `0.1.16`
+
+Abbreviates tool use and tool results into the compact form shown in transcripts; the abbreviation rules may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `tool_result`
+- `tool_use`
+
+### `Syrus::Host::AgentPrompts`
+
+Since: `0.1.16`
+
+Renders shared prompt fragments for plugin agent prompts: memory_context, chat_system, git_safety_text and submit_summary_instructions_text; the fragment wording may change between releases.
+
+Supported members:
+
+- `chat_system`
+- `git_safety_text`
+- `memory_context`
+- `submit_summary_instructions_text`
 
 ### `Syrus::Host::AgentProvider`
 
@@ -71,21 +105,83 @@ Supported members:
 - `usage_status`
 - `usage_windows`
 
+### `Syrus::Host::AgentProviderBase`
+
+Since: `0.1.16`
+
+Bases agent-provider classes plugins contribute; only subclassing is promised, with the hooks AgentProvider documents. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::AgentProviderCatalogOptions`
+
+Since: `0.1.16`
+
+Controller concern that adds the agent-provider and effort-level catalog helpers; only the listed helpers are promised. Only the listed members are supported.
+
+Supported members:
+
+- `agent_provider_catalog_options`
+- `agent_provider_label`
+- `agent_provider_model_json`
+- `agent_provider_option_json`
+
+### `Syrus::Host::AgentProviderConfigurationError`
+
+Since: `0.1.16`
+
+Raised by a provider when it is not configured for the requesting user; callers treat it as unavailable rather than failed. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::AgentProviderRegistry`
+
+Since: `0.1.16`
+
+Resolves an agent provider class by key (for) and runs a one-shot prompt through one (run_one_shot); provider selection and availability policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+- `run_one_shot`
+
+### `Syrus::Host::AgentRecord`
+
+Since: `0.1.16`
+
+The durable identity of an agent session; find_or_create_for! resolves it for a run, chat session or design doc. Columns and other associations are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find_or_create_for!`
+- `where`
+
 ### `Syrus::Host::AgentRole`
 
 Since: `0.1.16`
 
-Names the agent roles a plugin may pass as the role of a tool context or workflow run; only the listed role identifiers are promised, not the role groupings or authorization derived from them. Only the listed members are supported.
+Names the agent roles a plugin may pass as the role of a tool context or workflow run and the CHAT_ROLES and WORKFLOW_ROLES groupings of them; only the listed role identifiers are promised, not authorization derived from them. Only the listed members are supported.
 
 Supported members:
 
 - `AGENT_INSIGHT`
+- `CHAT_CODING`
+- `CHAT_LOCAL`
 - `CHAT_PLANNER`
+- `CHAT_ROLES`
 - `COWORKER`
 - `COWORKER_CHAT`
+- `WORKFLOW_ADVERSARIAL_REVIEWER`
 - `WORKFLOW_COWORKER_REVIEWER`
+- `WORKFLOW_IMPLEMENT`
 - `WORKFLOW_MANUAL`
 - `WORKFLOW_ROLES`
+- `WORKFLOW_VISUAL_REVIEWER`
 
 ### `Syrus::Host::AgentRuntime`
 
@@ -95,12 +191,45 @@ Reads the shared timeout, turn, event-size, and environment-forwarding defaults 
 
 Supported members:
 
+- `chat_workload_policy`
 - `default_max_turns`
 - `default_timeout_seconds`
 - `forwarded_env_keys`
 - `max_event_bytes`
 - `oversized_event_handler`
 - `silent_timeout_seconds`
+
+### `Syrus::Host::AgentSessionStore`
+
+Since: `0.1.16`
+
+Reads the stored transcript of a provider session for a job; storage layout is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `transcript_for`
+
+### `Syrus::Host::AgentSidecarEnvironment`
+
+Since: `0.1.16`
+
+Filters the environment passed to an agent's MCP sidecar server config; the allowed keys may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `filter_for_agent_config`
+
+### `Syrus::Host::AgentTranscript`
+
+Since: `0.1.16`
+
+Parses a provider's JSONL transcript into events and defines the Event value (kind, timestamp, data) providers emit; the parsing rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Event`
+- `events`
+- `new`
 
 ### `Syrus::Host::AgenticConnection`
 
@@ -349,6 +478,40 @@ Supported members:
 
 - `chat_prompt_section`
 
+### `Syrus::Host::ChatProviderBase`
+
+Since: `0.1.16`
+
+Bases chat-provider classes plugins contribute alongside an agent provider; only subclassing is promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::ChatProviderConfigurationError`
+
+Since: `0.1.16`
+
+Raised by a chat provider when it is not configured for the requesting user. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ChatProviderOptions`
+
+Since: `0.1.16`
+
+Controller concern that adds chat-provider option and parameter helpers; only the listed helpers are promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_provider_label`
+- `chat_provider_options`
+- `normalized_chat_provider_param`
+- `validated_chat_provider_param`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
@@ -432,6 +595,16 @@ Supported members:
 - `raw_text`
 - `table`
 - `text`
+
+### `Syrus::Host::CodexAccountScope`
+
+Since: `0.1.16`
+
+Derives the Codex usage-account scope for a user; the derivation may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `for_user`
 
 ### `Syrus::Host::CommandRedactor`
 
@@ -1699,6 +1872,16 @@ Supported members:
 - `register_resource_scope`
 - `retire_permission_identifier`
 
+### `Syrus::Host::PlatformConfigBase`
+
+Since: `0.1.16`
+
+Bases the per-platform configuration class a chat-platform plugin defines; only subclassing is promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::PlatformDelivery`
 
 Since: `0.1.16`
@@ -1711,6 +1894,16 @@ Supported members:
 - `deliver`
 - `platform_config_class`
 - `platform_key`
+
+### `Syrus::Host::PlatformIdentityRecord`
+
+Since: `0.1.16`
+
+Finds or creates the identity a chat-platform user maps to; columns and linking policy beyond find_or_initialize_by are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find_or_initialize_by`
 
 ### `Syrus::Host::PluginApi`
 
@@ -1811,6 +2004,17 @@ Supported members:
 - `run`
 - `start`
 
+### `Syrus::Host::ProviderAuthFailure`
+
+Since: `0.1.16`
+
+Detects provider authentication failures in output text and names the OUTCOME a run records for one; the detection patterns may grow. Provider outcome classes are promised together. Only the listed members are supported.
+
+Supported members:
+
+- `OUTCOME`
+- `detect?`
+
 ### `Syrus::Host::ProviderAvailability`
 
 Since: `0.1.16`
@@ -1820,6 +2024,77 @@ Clears the cached availability of an agent provider for a user so the next check
 Supported members:
 
 - `clear_cache!`
+
+### `Syrus::Host::ProviderAvailabilityEvidence`
+
+Since: `0.1.16`
+
+Records and queries per-user provider availability evidence from credential and usage probes; columns and suppression rules beyond the listed members are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `create!`
+- `false_positive_codex_usage_limit?`
+- `record_claude_probe!`
+- `record_codex_probe!`
+- `sanitized_details`
+- `suppressed_by_positive_after?`
+- `where`
+
+### `Syrus::Host::ProviderModelUnsupported`
+
+Since: `0.1.16`
+
+Detects a provider rejecting the requested model and names the OUTCOME a run records for it; the detection patterns may grow. Only the listed members are supported.
+
+Supported members:
+
+- `OUTCOME`
+- `detect?`
+
+### `Syrus::Host::ProviderQuotaReset`
+
+Since: `0.1.16`
+
+Carries the RETRY_BUFFER added to a provider's reported quota reset time before retrying. Only the listed members are supported.
+
+Supported members:
+
+- `RETRY_BUFFER`
+
+### `Syrus::Host::ProviderRateLimitEvidence`
+
+Since: `0.1.16`
+
+Recognizes rate-limit wording in probe output; the patterns may grow. Only the listed members are supported.
+
+Supported members:
+
+- `text_match?`
+
+### `Syrus::Host::ProviderSession`
+
+Since: `0.1.16`
+
+Locates a provider's on-disk session transcripts (canonical_path_for, canonical_subagents_dir_for) and its recorded session rows (find_by); file layout beyond those paths is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `canonical_path_for`
+- `canonical_subagents_dir_for`
+- `find_by`
+
+### `Syrus::Host::ProviderUsageLimit`
+
+Since: `0.1.16`
+
+Detects provider usage-limit failures in output text, names the OUTCOME a run records for one, and flags suspicious model names; the detection patterns may grow. Only the listed members are supported.
+
+Supported members:
+
+- `OUTCOME`
+- `detect?`
+- `suspicious_model?`
 
 ### `Syrus::Host::PurgeContributor`
 
@@ -1831,6 +2106,17 @@ Supported members:
 
 - `purge!`
 - `purge_report`
+
+### `Syrus::Host::RebaseAttemptGuard`
+
+Since: `0.1.16`
+
+Counts consecutive failed rebase attempts for a job (consecutive_failures) and names the MEMORY_WRITE_RETRY_STORM_THRESHOLD at which memory writes are held back; the rest of the rebase retry policy is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `MEMORY_WRITE_RETRY_STORM_THRESHOLD`
+- `consecutive_failures`
 
 ### `Syrus::Host::Record`
 
@@ -2291,6 +2577,21 @@ Supported members:
 
 - `sidebar_pages`
 
+### `Syrus::Host::SkillCatalog`
+
+Since: `0.1.16`
+
+Resolves, validates and renders named skills (resolve, validate_arguments!, render) and exposes the name_pattern and the resolution_errors and argument_errors they raise; skill discovery and markdown parsing are not promised.
+
+Supported members:
+
+- `argument_errors`
+- `name_pattern`
+- `render`
+- `resolution_errors`
+- `resolve`
+- `validate_arguments!`
+
 ### `Syrus::Host::SmartFolder`
 
 Since: `0.1.16`
@@ -2728,6 +3029,12 @@ Supported members:
 - `order`
 - `where`
 
+### `Syrus::Host::ValidatesAgentProvider`
+
+Since: `0.1.16`
+
+Model concern validating an agent provider attribute against the registered providers; only inclusion is promised. Only the listed members are supported.
+
 ### `Syrus::Host::WorkDefinitionBase`
 
 Since: `0.1.16`
@@ -2899,25 +3206,6 @@ bundled plugins still reference them. They are not supported for new or
 external plugins. Migrate to a public `Syrus::Host` facade instead.
 
 - `AdminAction`
-- `Agent`
-- `AgentEventAbbreviator`
-- `AgentProviderCatalogOptions`
-- `AgentProviders`
-- `AgentProviders::Base`
-- `AgentProviders::ConfigurationError`
-- `AgentProviders::SessionStore`
-- `AgentRole::AGENT_INSIGHT`
-- `AgentRole::CHAT_CODING`
-- `AgentRole::CHAT_LOCAL`
-- `AgentRole::CHAT_PLANNER`
-- `AgentRole::CHAT_ROLES`
-- `AgentRole::COWORKER`
-- `AgentRole::COWORKER_CHAT`
-- `AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER`
-- `AgentRole::WORKFLOW_IMPLEMENT`
-- `AgentRole::WORKFLOW_ROLES`
-- `AgentRole::WORKFLOW_VISUAL_REVIEWER`
-- `AgentSidecarEnvironment`
 - `AppEvents`
 - `AppSetting`
 - `Appearance::ColorPalette`
@@ -2938,9 +3226,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
 - `ChatProposal`
-- `ChatProviderOptions`
-- `ChatProviders::Base`
-- `ChatProviders::ConfigurationError`
 - `ChatQueuedMessage::INTERNAL_ROLE_KEY`
 - `ChatQueuedMessagePromoter`
 - `ChatResultBadges`
@@ -2957,10 +3242,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatWakeup`
 - `ChatWorkEvents`
 - `ChatWorkspace`
-- `ClaudeTranscript`
-- `ClaudeTranscript::Event`
-- `CodexAccountScope`
-- `Execution::ChatWorkloadPolicy`
 - `Feature`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
@@ -3022,8 +3303,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PersistentMcpDaemon`
 - `PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER`
 - `PersistentMcpDaemon::MCP_PATH`
-- `PlatformIdentity`
-- `PlatformIdentity::PlatformConfig::Base`
 - `PlatformPollingJob`
 - `PluginDataCleanup`
 - `PluginJob`
@@ -3036,23 +3315,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PreviewPanel::Service`
 - `PreviewPanelVersion`
 - `PreviewProcessLauncher`
-- `Prompts::AdversarialReview`
-- `Prompts::ChatSystem`
-- `Prompts::GitSafety::TEXT`
-- `Prompts::MemoryContext`
-- `Prompts::SubmitSummaryInstructions::TEXT`
-- `ProviderAuthFailure`
-- `ProviderAuthFailure::OUTCOME`
-- `ProviderAvailabilityEvidence`
-- `ProviderModelUnsupported`
-- `ProviderModelUnsupported::OUTCOME`
-- `ProviderQuotaReset::RETRY_BUFFER`
-- `ProviderRateLimitEvidence`
-- `ProviderSession`
-- `ProviderUsageLimit`
-- `ProviderUsageLimit::OUTCOME`
-- `RebaseAttemptGuard`
-- `RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD`
 - `RetentionPolicyExecutors::Default`
 - `RetentionPolicyExecutors::Result`
 - `RetentionPolicyRegistry::Definition`
@@ -3062,14 +3324,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RuntimeSession`
 - `RuntimeSessionProviders`
 - `RuntimeSessionProviders::ConfigurationError`
-- `Skills`
-- `Skills::NAME_PATTERN`
-- `Skills::NotFoundError`
-- `Skills::ParameterSchema`
-- `Skills::ParameterSchema::ParseError`
-- `Skills::ParameterSchema::ValidationError`
-- `Skills::Renderer`
-- `Skills::SkillMarkdown::ParseError`
 - `SkipIfPending`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
@@ -3090,7 +3344,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `TracksFinishedAt`
 - `TypedArtifactRenderer`
 - `UiEngagementSample`
-- `ValidatesAgentProvider`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`

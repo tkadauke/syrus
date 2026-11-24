@@ -4,7 +4,7 @@ module CredentialStore
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ].freeze
     ASK_DEFAULTS = ROLES.index_with { :ask }.freeze
 
     class << self
@@ -244,7 +244,7 @@ module CredentialStore
       description: "Ask for each exact SSH command against a selected credential and destination.",
       rules: %w[ssh.execute/read@v1 ssh.execute/risky@v1].map do |operation|
         { capability: "ssh.execute@v1", operation:,
-          role: AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {} }
+          role: Syrus::Host::AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {} }
       end
     )
   end

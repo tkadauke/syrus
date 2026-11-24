@@ -126,7 +126,7 @@ module OperatorBriefing
     end
 
     def memory_context
-      Prompts::MemoryContext.new(user: user, repository_ids: [ briefing.repository_id ]).to_s.presence
+      Syrus::Host::AgentPrompts.memory_context(user: user, repository_ids: [ briefing.repository_id ]).presence
     end
   end
 end

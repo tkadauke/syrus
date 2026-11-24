@@ -125,7 +125,7 @@ module Discord
       payload = Rails.application.message_verifier(:platform_linking).verify(token)
       user = Syrus::Host::UserRecord.find(payload["user_id"])
 
-      identity = PlatformIdentity.find_or_initialize_by(platform: "discord", external_id: author["id"].to_s)
+      identity = Syrus::Host::PlatformIdentityRecord.find_or_initialize_by(platform: "discord", external_id: author["id"].to_s)
       identity.assign_attributes(user_id: user.id, external_handle: author["username"], linked_at: Time.current)
       identity.save!
 

@@ -88,7 +88,7 @@ module ConnectedAccounts
     end
 
     def coworker_context?
-      [ AgentRole::COWORKER, AgentRole::COWORKER_CHAT ].include?(context.role)
+      [ Syrus::Host::AgentRole::COWORKER, Syrus::Host::AgentRole::COWORKER_CHAT ].include?(context.role)
     end
 
     def account_denial_reason(account)
