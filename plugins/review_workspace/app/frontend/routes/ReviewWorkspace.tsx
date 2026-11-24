@@ -13,7 +13,9 @@ import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDeta
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Link, Navigate, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom"
-import { fetchReviewWorkspace, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
+import { fetchReviewWorkspace, fetchReviewWorkspaceSummary, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
+import { buildDecisionBrief, type BriefRow, type ChangeScope } from "../lib/decisionBrief"
+import { useGestureHelp } from "../lib/gestureHelp"
 
 const WORKSPACE_SCROLL_CLASS =
   "h-[calc(100dvh-4rem)] shrink-0 overflow-x-hidden overflow-y-scroll overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:h-auto lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden"
@@ -27,6 +29,14 @@ const MOBILE_EVIDENCE_CAROUSEL_CLASS =
   "flex w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 const MOBILE_GESTURE_ACTION_CLASS =
   "flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-brand/20 bg-brand-subtle text-center"
+const CONTEXT_LINK_CLASS =
+  "inline-flex min-h-11 max-w-full items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text break-words hover:bg-surface-subtle"
+const BRIEF_TONE_CLASS: Record<BriefRow["tone"], string> = {
+  success: "text-success-text",
+  warning: "text-warning-text",
+  danger: "text-danger-text",
+  neutral: "text-text"
+}
 const MAX_CARD_ROTATION_DEGREES = 4
 const REVIEW_SESSION_STATE_KEY = "reviewWorkspaceCanReturn"
 
@@ -49,6 +59,7 @@ export default function ReviewWorkspaceRoute() {
   const [evidenceNavigation, setEvidenceNavigation] = useState<{ jobId: number; direction: -1 | 1; sequence: number }>()
   const [gestureIntent, setGestureIntent] = useState<{ jobId: number; sequence: number }>()
   const [detailsJobId, setDetailsJobId] = useState<number | null>(null)
+  const gestureHelp = useGestureHelp()
   const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
   const canReturnToEntry = useRef(canReturnFromState(location.state) || entryNavigationType === "PUSH")
@@ -148,17 +159,32 @@ export default function ReviewWorkspaceRoute() {
       <div className={WORKSPACE_SCROLL_CLASS} data-review-workspace-scroll-container data-testid="review-workspace-scroll-container">
         <JobRail active={active} jobs={jobs} prefix={prefix} sessionState={sessionState} />
         <MobileGestureSurface
-          onApprove={() => setGestureIntent((current) => ({ jobId: active.id, sequence: (current?.sequence ?? 0) + 1 }))}
-          onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
-          onDetails={() => setDetailsJobId(active.id)}
-          onMove={selectJob}
+          onApprove={() => {
+            gestureHelp.acknowledge()
+            setGestureIntent((current) => ({ jobId: active.id, sequence: (current?.sequence ?? 0) + 1 }))
+          }}
+          onDefer={() => {
+            gestureHelp.acknowledge()
+            setDeferred((current) => new Set(current).add(active.id))
+          }}
+          onDetails={() => {
+            gestureHelp.acknowledge()
+            setDetailsJobId(active.id)
+          }}
+          onMove={(offset) => {
+            gestureHelp.acknowledge()
+            selectJob(offset)
+          }}
         >
           <JobReview
             conversationTarget={conversationTarget}
             isDesktop={isDesktop}
+            gestureHelpVisible={gestureHelp.visible}
             job={active}
             onDetail={handleDetail}
             onDetails={() => setDetailsJobId(active.id)}
+            onDismissGestureHelp={gestureHelp.acknowledge}
+            sessionState={sessionState}
             visualEvidenceNavigation={evidenceNavigation?.jobId === active.id ? evidenceNavigation : undefined}
           />
         </MobileGestureSurface>
@@ -179,7 +205,15 @@ export default function ReviewWorkspaceRoute() {
         />
       </div>
       {detailsJobId === active.id && loadedDetail?.jobId === active.id ? (
-        <DetailsSheet job={active} payload={loadedDetail.payload} onClose={() => setDetailsJobId(null)} />
+        <DetailsSheet
+          job={active}
+          payload={loadedDetail.payload}
+          onClose={() => setDetailsJobId(null)}
+          onGestureHelp={() => {
+            gestureHelp.reopen()
+            setDetailsJobId(null)
+          }}
+        />
       ) : null}
       <p aria-live="polite" className="sr-only">
         {t("position", { current: jobs.indexOf(active) + 1, count: jobs.length })}
@@ -202,8 +236,14 @@ function useDesktopReviewLayout() {
 }
 
 const SWIPE_THRESHOLD = 72
-const DIRECTION_SLOP = 12
+// Touch intent needs enough travel to absorb finger jitter, while this ratio
+// lets deliberate diagonal swipes resolve without requiring a straight line.
+const GESTURE_ACTIVATION_DISTANCE = 16
+const GESTURE_AXIS_DOMINANCE = 1.25
 const LONG_PRESS_MS = 550
+
+type GestureDirection = "left" | "right" | "up" | "down"
+type GestureMode = "pending" | "gesture" | "scroll" | "invalid"
 
 function MobileGestureSurface({
   children,
@@ -226,7 +266,10 @@ function MobileGestureSurface({
     pointerId: number
     pointerType: string
     edge: boolean
-    mode?: "gesture" | "scroll"
+    mode: GestureMode
+    direction?: GestureDirection
+    armed: boolean
+    scrollOnly: boolean
     scroller: HTMLElement | null
   }>()
   const longPress = useRef<number>()
@@ -245,7 +288,10 @@ function MobileGestureSurface({
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (window.innerWidth >= 1024) return
     if (event.pointerType === "mouse" && event.button !== 0) return
-    if ((event.target as HTMLElement).closest("button, a, input, textarea, [role='button'], [data-review-gesture-exempt]")) return
+    const target = event.target as HTMLElement
+    if (target.closest("[data-review-gesture-exempt]")) return
+    const scrollOnly = Boolean(target.closest("button, a, input, textarea, [role='button']"))
+    if (scrollOnly && event.pointerType !== "touch") return
     const edge = event.clientX < 28 || event.clientX > window.innerWidth - 28
     start.current = {
       x: event.clientX,
@@ -254,56 +300,74 @@ function MobileGestureSurface({
       pointerId: event.pointerId,
       pointerType: event.pointerType,
       edge,
+      mode: "pending",
+      armed: false,
+      scrollOnly,
       scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
     }
     setDragging(true)
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    longPress.current = window.setTimeout(() => {
-      if (!start.current) return
-      reset()
-      onDetails()
-    }, LONG_PRESS_MS)
+    target.setPointerCapture?.(event.pointerId)
+    if (!scrollOnly) {
+      longPress.current = window.setTimeout(() => {
+        if (!start.current) return
+        reset()
+        onDetails()
+      }, LONG_PRESS_MS)
+    }
   }
   function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
     if (!origin || origin.pointerId !== event.pointerId) return
     const x = event.clientX - origin.x
     const y = event.clientY - origin.y
-    if (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP) clearLongPress()
-    if (origin.edge && x > 0) return
-    if (!origin.mode && (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP)) {
-      if (origin.pointerType !== "touch" || Math.abs(x) > Math.abs(y)) origin.mode = "gesture"
-      else {
+    const absoluteX = Math.abs(x)
+    const absoluteY = Math.abs(y)
+    if (absoluteX > GESTURE_ACTIVATION_DISTANCE || absoluteY > GESTURE_ACTIVATION_DISTANCE) clearLongPress()
+    if (origin.mode === "pending" && (absoluteX >= GESTURE_ACTIVATION_DISTANCE || absoluteY >= GESTURE_ACTIVATION_DISTANCE)) {
+      const horizontal = absoluteX >= absoluteY * GESTURE_AXIS_DOMINANCE
+      const vertical = absoluteY >= absoluteX * GESTURE_AXIS_DOMINANCE
+      if (!horizontal && !vertical) return
+
+      origin.direction = horizontal ? (x > 0 ? "right" : "left") : y > 0 ? "down" : "up"
+      if (origin.scrollOnly) {
+        origin.mode = vertical ? "scroll" : "invalid"
+      } else if (origin.edge && origin.direction === "right") {
+        origin.mode = "invalid"
+        clearLongPress()
+        return
+      } else if (vertical && origin.pointerType === "touch") {
         const scroller = origin.scroller
         const atTop = !scroller || scroller.scrollTop <= 0
         const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
-        origin.mode = (y > 0 && atTop) || (y < 0 && atBottom) ? "gesture" : "scroll"
-      }
+        origin.mode = (origin.direction === "down" && atTop) || (origin.direction === "up" && atBottom) ? "gesture" : "scroll"
+      } else origin.mode = "gesture"
     }
     if (origin.mode === "scroll" && origin.scroller) {
+      event.preventDefault()
       origin.scroller.scrollTop += origin.lastY - event.clientY
       origin.lastY = event.clientY
       return
     }
-    setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
+    if (origin.mode !== "gesture" || !origin.direction) return
+    event.preventDefault()
+    const horizontal = origin.direction === "left" || origin.direction === "right"
+    const signedDistance = horizontal ? (origin.direction === "right" ? x : -x) : origin.direction === "down" ? y : -y
+    if (signedDistance >= SWIPE_THRESHOLD) origin.armed = true
+    const distance = Math.max(0, signedDistance)
+    setOffset(
+      horizontal
+        ? { x: Math.min(120, distance) * (origin.direction === "right" ? 1 : -1), y: 0 }
+        : { x: 0, y: Math.min(80, distance) * (origin.direction === "down" ? 1 : -1) }
+    )
   }
   function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
     if (!origin || origin.pointerId !== event.pointerId) return
-    const x = event.clientX - origin.x
-    const y = event.clientY - origin.y
-    if (!origin.mode && origin.pointerType === "touch" && Math.abs(y) > Math.abs(x)) {
-      const scroller = origin.scroller
-      const atTop = !scroller || scroller.scrollTop <= 0
-      const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
-      origin.mode = (y > 0 && atTop) || (y < 0 && atBottom) ? "gesture" : "scroll"
-    }
     reset()
-    if (origin.mode === "scroll") return
-    if (Math.abs(x) > Math.abs(y) && Math.abs(x) >= SWIPE_THRESHOLD) {
-      if (x > 0 && !origin.edge) onApprove()
-      else if (x < 0) onDefer()
-    } else if (Math.abs(y) >= SWIPE_THRESHOLD) onMove(y < 0 ? 1 : -1)
+    if (origin.mode !== "gesture" || !origin.armed) return
+    if (origin.direction === "right") onApprove()
+    else if (origin.direction === "left") onDefer()
+    else onMove(origin.direction === "up" ? 1 : -1)
   }
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   const horizontal = Math.abs(offset.x) > Math.abs(offset.y)
@@ -345,11 +409,13 @@ function MobileGestureSurface({
         </div>
       )}
       <div
+        aria-describedby="review-gesture-instructions"
         aria-label={t("gesture_surface")}
-        className={`relative z-10 touch-pan-x touch-pan-y motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
+        className={`relative z-10 motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
         data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
+        onLostPointerCapture={reset}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
@@ -358,6 +424,9 @@ function MobileGestureSurface({
           transformOrigin: "50% 75%"
         }}
       >
+        <p className="sr-only" id="review-gesture-instructions">
+          {t("gesture_sr_instructions")}
+        </p>
         {children}
       </div>
     </div>
@@ -373,7 +442,17 @@ function GestureDirectionIcon({ direction }: { direction: "left" | "right" | "up
   )
 }
 
-function DetailsSheet({ job, payload, onClose }: { job: ReviewWorkspaceJob; payload: JobDetailPayload; onClose: () => void }) {
+function DetailsSheet({
+  job,
+  payload,
+  onClose,
+  onGestureHelp
+}: {
+  job: ReviewWorkspaceJob
+  payload: JobDetailPayload
+  onClose: () => void
+  onGestureHelp: () => void
+}) {
   const { t } = useT("review_workspace")
   const closeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -408,6 +487,9 @@ function DetailsSheet({ job, payload, onClose }: { job: ReviewWorkspaceJob; payl
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>
+        <button className="mt-3 min-h-11 rounded border border-border px-3 text-sm" onClick={onGestureHelp} type="button">
+          {t("gesture_help")}
+        </button>
         <div className="mt-4 w-full min-w-0 max-w-full" data-testid="mobile-details-content">
           <CanonicalReviewWorkspace key={job.id} payload={payload} />
         </div>
@@ -455,17 +537,23 @@ function JobRail({
 
 function JobReview({
   conversationTarget,
+  gestureHelpVisible,
   isDesktop,
   job,
   onDetail,
   onDetails,
+  onDismissGestureHelp,
+  sessionState,
   visualEvidenceNavigation
 }: {
   conversationTarget: HTMLDivElement | null
+  gestureHelpVisible: boolean
   isDesktop: boolean
   job: ReviewWorkspaceJob
   onDetail: (jobId: number, payload: JobDetailPayload) => void
   onDetails: () => void
+  onDismissGestureHelp: () => void
+  sessionState: Record<string, boolean>
   visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("review_workspace")
@@ -494,6 +582,14 @@ function JobReview({
       )
     }
   })
+  // Aggregates come from a tiny stored-diff summary so the phone never downloads
+  // the diff; a failure simply omits the change-scope signal.
+  const summary = useQuery({
+    queryKey: ["review_workspace_summary", job.id],
+    queryFn: () => fetchReviewWorkspaceSummary(job.id),
+    enabled: !isDesktop,
+    retry: false
+  })
   useEffect(() => {
     if (detail.data) onDetail(job.id, detail.data)
   }, [detail.data, job.id, onDetail])
@@ -511,7 +607,7 @@ function JobReview({
     )
   return (
     <section aria-label={t("evidence")} className="min-w-0 bg-page p-4 sm:p-6 lg:overflow-y-auto">
-      <div className="mb-5 touch-pan-y">
+      <div className="mb-5 touch-none">
         <p className="text-xs text-text-secondary">
           {job.slug} · {job.repository.slug}
         </p>
@@ -527,21 +623,42 @@ function JobReview({
           visualEvidenceNavigation={visualEvidenceNavigation}
         />
       ) : (
-        <MobileReviewCard key={job.id} job={job} onDetails={onDetails} payload={detail.data} visualEvidenceNavigation={visualEvidenceNavigation} />
+        <MobileReviewCard
+          changeScope={summary.data?.change_scope ?? null}
+          currentHeadSha={summary.data?.current_head_sha ?? null}
+          gestureHelpVisible={gestureHelpVisible}
+          key={job.id}
+          job={job}
+          onDetails={onDetails}
+          onDismissGestureHelp={onDismissGestureHelp}
+          payload={detail.data}
+          sessionState={sessionState}
+          visualEvidenceNavigation={visualEvidenceNavigation}
+        />
       )}
     </section>
   )
 }
 
 function MobileReviewCard({
+  changeScope,
+  currentHeadSha,
+  gestureHelpVisible,
   job,
   onDetails,
+  onDismissGestureHelp,
   payload,
+  sessionState,
   visualEvidenceNavigation
 }: {
+  changeScope: ChangeScope | null
+  currentHeadSha: string | null
+  gestureHelpVisible: boolean
   job: ReviewWorkspaceJob
   onDetails: () => void
+  onDismissGestureHelp: () => void
   payload: JobDetailPayload
+  sessionState: Record<string, boolean>
   visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("review_workspace")
@@ -594,90 +711,132 @@ function MobileReviewCard({
   }, [evidenceIndex])
   const evidence = screenshots[evidenceIndex]
   const canApprove = Boolean(payload.actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
+  const prefix = routePrefix(useLocation().pathname)
+  const prNumber = payload.job.pr_number ?? payload.job.external_pr_number ?? job.pr_number
+  const prUrl = payload.job.pr_url ?? payload.job.external_pr_url
+  const brief = buildDecisionBrief({
+    canApprove,
+    changeScope,
+    currentHeadSha,
+    dependencyBlocked: job.dependency_blocked,
+    payload,
+    screenshotCount: screenshots.length
+  })
   return (
     <article className="relative space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
-      <div aria-hidden="true" className="absolute inset-0 touch-pan-y" data-testid="mobile-decision-touch-region" />
-      <div className="relative z-10 touch-pan-y">
+      {/* Gesture-start regions disable native panning so the pending lock owns
+          arbitration. The evidence section remains exempt and keeps native pan. */}
+      <div aria-hidden="true" className="absolute inset-0 touch-none" data-testid="mobile-decision-touch-region" />
+      <div className="relative z-10 touch-none">
         {payload.summary?.text ? (
           <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
         ) : (
           <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
         )}
       </div>
-      <section
-        aria-label={t("visual_evidence")}
-        className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle"
-        data-review-gesture-exempt={evidence ? "true" : undefined}
-      >
-        {evidence ? (
-          <>
-            <div data-review-gesture-exempt>
-              <div
-                aria-label={t("visual_evidence_carousel")}
-                className={MOBILE_EVIDENCE_CAROUSEL_CLASS}
-                data-testid="mobile-evidence-carousel"
-                onScroll={handleCarouselScroll}
-                ref={carouselRef}
-                role="region"
-              >
-                {screenshots.map((screenshot) => (
-                  <button className="block min-h-11 w-full shrink-0 snap-center" key={screenshot.id} onClick={onDetails} type="button">
-                    <img
-                      alt={screenshot.page?.title || screenshot.page?.path || t("visual_evidence")}
-                      className="max-h-[42dvh] w-full object-contain"
-                      src={screenshot.image_url}
-                    />
-                  </button>
+      {evidence ? (
+        <section
+          aria-label={t("visual_evidence")}
+          className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle"
+          data-review-gesture-exempt="true"
+        >
+          <div data-review-gesture-exempt>
+            <div
+              aria-label={t("visual_evidence_carousel")}
+              className={MOBILE_EVIDENCE_CAROUSEL_CLASS}
+              data-testid="mobile-evidence-carousel"
+              onScroll={handleCarouselScroll}
+              ref={carouselRef}
+              role="region"
+            >
+              {screenshots.map((screenshot) => (
+                <button className="block min-h-11 w-full shrink-0 snap-center" key={screenshot.id} onClick={onDetails} type="button">
+                  <img
+                    alt={screenshot.page?.title || screenshot.page?.path || t("visual_evidence")}
+                    className="max-h-[42dvh] w-full object-contain"
+                    src={screenshot.image_url}
+                  />
+                </button>
+              ))}
+            </div>
+            {screenshots.length > 1 ? (
+              <div aria-label={t("visual_evidence_pagination")} className="flex min-h-8 items-center justify-center gap-2 px-2" role="group">
+                {screenshots.map((screenshot, index) => (
+                  <button
+                    aria-label={t("show_visual_evidence", { current: index + 1, count: screenshots.length })}
+                    aria-pressed={index === evidenceIndex}
+                    className={`h-2.5 w-2.5 rounded-full border ${index === evidenceIndex ? "scale-125 border-brand bg-brand" : "border-text-muted bg-transparent"}`}
+                    key={screenshot.id}
+                    onClick={() => scrollToEvidence(index)}
+                    type="button"
+                  />
                 ))}
               </div>
-              {screenshots.length > 1 ? (
-                <div aria-label={t("visual_evidence_pagination")} className="flex min-h-8 items-center justify-center gap-2 px-2" role="group">
-                  {screenshots.map((screenshot, index) => (
-                    <button
-                      aria-label={t("show_visual_evidence", { current: index + 1, count: screenshots.length })}
-                      aria-pressed={index === evidenceIndex}
-                      className={`h-2.5 w-2.5 rounded-full border ${index === evidenceIndex ? "scale-125 border-brand bg-brand" : "border-text-muted bg-transparent"}`}
-                      key={screenshot.id}
-                      onClick={() => scrollToEvidence(index)}
-                      type="button"
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex min-h-11 items-center px-2 py-1 text-xs text-text-secondary" data-testid="mobile-evidence-caption">
-              <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
-              <span aria-live="polite" className="sr-only">
-                {t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}
-              </span>
-            </div>
-          </>
-        ) : (
-          <div className="grid min-h-40 place-items-center p-5 text-center text-sm text-text-secondary">{t("no_visual_evidence")}</div>
-        )}
-      </section>
-      <div className="relative z-10 space-y-4 touch-pan-y">
-        <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
-          <span
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
-          >
-            {canApprove ? t("checks_ready") : t("checks_blocked")}
-          </span>
-          {job.pr_number ? (
-            <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">
-              {t("pull_request_number", { number: job.pr_number })}
+            ) : null}
+          </div>
+          <div className="flex min-h-11 items-center px-2 py-1 text-xs text-text-secondary" data-testid="mobile-evidence-caption">
+            <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
+            <span aria-live="polite" className="sr-only">
+              {t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}
             </span>
-          ) : null}
+          </div>
+        </section>
+      ) : (
+        <p className="relative z-10 touch-none text-xs text-text-secondary" data-testid="mobile-no-evidence">
+          {t("no_visual_evidence")}
+        </p>
+      )}
+      <section aria-label={t("decision_brief")} className="relative z-10 touch-none" data-testid="mobile-decision-brief">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("decision_brief")}</h2>
+        <dl className="mt-2 space-y-1.5">
+          {brief.map((row) => (
+            <BriefLine key={row.id} row={row} />
+          ))}
+        </dl>
+      </section>
+      {gestureHelpVisible ? (
+        <div
+          className="relative z-10 flex items-start gap-2 rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary"
+          data-review-gesture-exempt="true"
+          data-testid="mobile-gesture-coach"
+          role="region"
+          aria-label={t("gesture_coach_title")}
+        >
+          <p className="min-w-0 flex-1">{t("gesture_coach")}</p>
+          <button className="min-h-11 shrink-0 rounded border border-border bg-surface px-3 text-sm" onClick={onDismissGestureHelp} type="button">
+            {t("gesture_coach_dismiss")}
+          </button>
         </div>
-        <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
-          <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
-        </div>
-        <p className="text-center text-xs text-text-secondary">{t("gesture_cue")}</p>
-        <div className="rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary" data-testid="mobile-gesture-coach">
-          {t("gesture_coach")}
-        </div>
-      </div>
+      ) : null}
+      <nav aria-label={t("context_links")} className="relative z-10 flex flex-wrap gap-2" data-review-gesture-exempt="true" data-testid="mobile-context-links">
+        <Link className={CONTEXT_LINK_CLASS} data-review-gesture-exempt="true" state={sessionState} to={withRoutePrefix(payload.paths.job_path, prefix)}>
+          {t("link_job", { slug: job.slug })}
+        </Link>
+        {payload.epic ? (
+          <Link className={CONTEXT_LINK_CLASS} data-review-gesture-exempt="true" state={sessionState} to={withRoutePrefix(payload.epic.epic_path, prefix)}>
+            {t("link_epic", { number: payload.epic.display_number })}
+          </Link>
+        ) : null}
+        {prUrl && prNumber ? (
+          <a className={CONTEXT_LINK_CLASS} data-review-gesture-exempt="true" href={prUrl} rel="noopener noreferrer" target="_blank">
+            {t("link_pr", { number: prNumber })}
+          </a>
+        ) : null}
+        <button className={CONTEXT_LINK_CLASS} data-review-gesture-exempt="true" onClick={onDetails} type="button">
+          {t("link_full_diff")}
+        </button>
+      </nav>
     </article>
+  )
+}
+
+function BriefLine({ row }: { row: BriefRow }) {
+  const { t } = useT("review_workspace")
+  return (
+    <div className="flex min-w-0 flex-wrap gap-x-2 text-sm" data-brief-row={row.id}>
+      <dt className="shrink-0 text-text-secondary">{t(row.labelKey)}</dt>
+      <dd className={`min-w-0 break-words font-medium ${BRIEF_TONE_CLASS[row.tone]}`}>{t(row.valueKey, row.values)}</dd>
+    </div>
   )
 }
 

@@ -24,7 +24,7 @@ const jobApi = vi.hoisted(() => ({
   fetchJobDetail: vi.fn(async (id = "42") => ({
     job: { id: Number(id), summary_state: "implemented" },
     actions: { can_approve: true },
-    paths: { app_approve_path: "/canonical/jobs/42/approve" }
+    paths: { app_approve_path: "/canonical/jobs/42/approve", job_path: "/jobs/JOB-42" }
   })),
   fetchJobTab: vi.fn(async (_id: string, tab: string): Promise<Record<string, unknown>> =>
     tab === "review"
@@ -74,6 +74,7 @@ vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
 }))
 
 afterEach(() => {
+  window.localStorage.clear()
   document.documentElement.classList.remove("dark")
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -92,6 +93,10 @@ function renderRoute(path = "/review", width = 390) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function railLink(name: RegExp) {
+  return within(screen.getByRole("complementary", { name: "Ready now" })).getByRole("link", { name })
 }
 
 function LocationProbe() {
@@ -144,10 +149,12 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByRole("heading", { name: "Review 2" })
     let card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 31, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 31, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 31, pointerType: "touch" })
     await screen.findByRole("heading", { name: "Review 3" })
     card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 32, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 32, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 32, pointerType: "touch" })
     await screen.findByRole("heading", { name: "Review 4" })
 
@@ -231,7 +238,7 @@ describe("ReviewWorkspaceRoute", () => {
     renderRoute("/review/JOB-999")
 
     expect(await screen.findByRole("heading", { name: "Review me" })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/review/JOB-42"))
+    await waitFor(() => expect(railLink(/JOB-42/)).toHaveAttribute("href", "/review/JOB-42"))
   })
 
   it("renders the caught-up state for an empty stack", async () => {
@@ -250,7 +257,7 @@ describe("ReviewWorkspaceRoute", () => {
 
     expect(await screen.findByTestId("mobile-review-summary")).toBeInTheDocument()
     expect(screen.queryByText("Canonical review evidence")).not.toBeInTheDocument()
-    expect(screen.getByText(/Swipe up or down/)).toBeInTheDocument()
+    expect(screen.getByTestId("mobile-gesture-coach")).toBeInTheDocument()
     expect(screen.queryByText(/J \/ K move/)).not.toBeInTheDocument()
     expect(screen.queryByText("Security review approved")).not.toBeInTheDocument()
     const actions = screen.getByRole("complementary", { name: "Decision context" })
@@ -318,7 +325,7 @@ describe("ReviewWorkspaceRoute", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Exit review workspace" })).toHaveFocus())
     fireEvent.keyDown(window, { key: "j" })
-    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+    await waitFor(() => expect(railLink(/JOB-43/)).toHaveAttribute("aria-current", "page"))
   })
 
   it("navigates mobile visual evidence with both arrow keys", async () => {
@@ -343,7 +350,7 @@ describe("ReviewWorkspaceRoute", () => {
     jobApi.fetchJobDetail.mockResolvedValueOnce({
       job: { id: 42, summary_state: "implemented" },
       actions: { can_approve: false },
-      paths: { app_approve_path: "/canonical/jobs/42/approve" }
+      paths: { app_approve_path: "/canonical/jobs/42/approve", job_path: "/jobs/JOB-42" }
     })
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -385,8 +392,8 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     const decisionTouchRegion = screen.getByTestId("mobile-decision-touch-region")
-    expect(decisionTouchRegion).toHaveClass("touch-pan-y")
-    expect(decisionTouchRegion).not.toHaveClass("touch-pan-x")
+    expect(decisionTouchRegion).toHaveClass("touch-none")
+    expect(decisionTouchRegion).not.toHaveClass("touch-pan-x", "touch-pan-y")
     fireEvent.pointerDown(decisionTouchRegion, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
     fireEvent.pointerMove(decisionTouchRegion, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
     expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Approve")
@@ -403,6 +410,98 @@ describe("ReviewWorkspaceRoute", () => {
     expect(card.style.transform).toBe("")
     expect(await screen.findByText("Approve JOB-42 for landing?")).toBeInTheDocument()
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
+  })
+
+  it("keeps ambiguous touch motion pending, then locks and arms one horizontal action", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+    const scroller = screen.getByTestId("review-workspace-scroll-container")
+    scroller.scrollTop = 40
+
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 501, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 104, clientY: 208, pointerId: 501, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 125, clientY: 223, pointerId: 501, pointerType: "touch" })
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    expect(scroller.scrollTop).toBe(40)
+
+    fireEvent.pointerMove(card, { clientX: 135, clientY: 220, pointerId: 501, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "right")
+    fireEvent.pointerMove(card, { clientX: 140, clientY: 320, pointerId: 501, pointerType: "touch" })
+    expect(card.style.transform).toContain("translate3d(40px, 0px, 0)")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Approve")
+    expect(scroller.scrollTop).toBe(40)
+
+    fireEvent.pointerMove(card, { clientX: 190, clientY: 320, pointerId: 501, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 120, clientY: 100, pointerId: 501, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "right")
+    fireEvent.pointerUp(card, { clientX: 120, clientY: 100, pointerId: 501, pointerType: "touch" })
+
+    expect(await screen.findByRole("dialog", { name: "Approve JOB-42 for landing?" })).toBeInTheDocument()
+    expect(screen.getAllByRole("dialog", { name: "Approve JOB-42 for landing?" })).toHaveLength(1)
+  })
+
+  it("keeps interactive summary targets action-free while allowing locked vertical reading scroll", async () => {
+    jobApi.fetchJobTab
+      .mockImplementationOnce(async () => ({ summary: { text: "Read the [review guide](https://example.com/review)." } }))
+      .mockImplementationOnce(async () => ({ visual_evidence: { screenshots: [] } }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    const link = await screen.findByRole("link", { name: "review guide" })
+    const scroller = screen.getByTestId("review-workspace-scroll-container")
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 300 })
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
+    scroller.scrollTop = 200
+
+    fireEvent.pointerDown(link, { clientX: 120, clientY: 240, pointerId: 505, pointerType: "touch" })
+    fireEvent.pointerMove(link, { clientX: 126, clientY: 232, pointerId: 505, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(200)
+    fireEvent.pointerMove(link, { clientX: 128, clientY: 160, pointerId: 505, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(280)
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    fireEvent.pointerUp(link, { clientX: 128, clientY: 160, pointerId: 505, pointerType: "touch" })
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+
+    fireEvent.pointerDown(link, { clientX: 100, clientY: 200, pointerId: 506, pointerType: "touch" })
+    fireEvent.pointerMove(link, { clientX: 190, clientY: 205, pointerId: 506, pointerType: "touch" })
+    fireEvent.pointerUp(link, { clientX: 190, clientY: 205, pointerId: 506, pointerType: "touch" })
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+  })
+
+  it("cancels unarmed, cancelled, and lost-capture gestures without replaying intent", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 502, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 100, clientY: 190, pointerId: 502, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "left")
+    fireEvent.pointerUp(card, { clientX: 100, clientY: 190, pointerId: 502, pointerType: "touch" })
+    expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
+
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 503, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 55, clientY: 210, pointerId: 503, pointerType: "touch" })
+    fireEvent.pointerCancel(card, { pointerId: 503, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 55, clientY: 210, pointerId: 503, pointerType: "touch" })
+
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 504, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 245, clientY: 190, pointerId: 504, pointerType: "touch" })
+    fireEvent.lostPointerCapture(card, { pointerId: 504, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 245, clientY: 190, pointerId: 504, pointerType: "touch" })
+
+    expect(card.style.transform).toBe("")
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
   })
 
   it.each([320, 430])("keeps horizontal action cues stable across drag progress at a %ipx viewport", async (viewport) => {
@@ -555,10 +654,11 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 11, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 170, clientY: 200, pointerId: 11, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 11, pointerType: "touch" })
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
     fireEvent.keyDown(window, { key: "j" })
-    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+    await waitFor(() => expect(railLink(/JOB-43/)).toHaveAttribute("aria-current", "page"))
     await waitFor(() => expect(jobApi.fetchJobDetail).toHaveBeenCalledWith("43"))
     expect(screen.queryByText("Approve JOB-43 for landing?")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Job details" }))
@@ -566,7 +666,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.queryByText("Canonical review evidence for Job 42")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close Job details" }))
     fireEvent.keyDown(window, { key: "k" })
-    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page"))
+    await waitFor(() => expect(railLink(/JOB-42/)).toHaveAttribute("aria-current", "page"))
     expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
   })
 
@@ -582,24 +682,27 @@ describe("ReviewWorkspaceRoute", () => {
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
     scroller.scrollTop = 200
     let card = screen.getByTestId("mobile-review-card")
-    expect(card).toHaveClass("touch-pan-x", "touch-pan-y")
-    expect(card).not.toHaveClass("touch-none")
+    expect(card).not.toHaveClass("touch-pan-x", "touch-pan-y", "touch-none")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 12, pointerType: "touch" })
-    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 158, clientY: 244, pointerId: 12, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 172, clientY: 228, pointerId: 12, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(200)
+    fireEvent.pointerMove(card, { clientX: 170, clientY: 150, pointerId: 12, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
     expect(scroller.scrollTop).toBe(300)
-    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page")
+    expect(railLink(/JOB-42/)).toHaveAttribute("aria-current", "page")
 
     scroller.scrollTop = 700
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 13, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 13, pointerType: "touch" })
     fireEvent.pointerCancel(card, { clientX: 150, clientY: 150, pointerId: 13, pointerType: "touch" })
-    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page")
+    expect(railLink(/JOB-42/)).toHaveAttribute("aria-current", "page")
 
     card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 14, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 14, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 14, pointerType: "touch" })
-    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+    await waitFor(() => expect(railLink(/JOB-43/)).toHaveAttribute("aria-current", "page"))
   })
 
   it("supports mouse vertical navigation in both directions and cancels short gestures", async () => {
@@ -614,10 +717,12 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerUp(card, { button: 0, clientX: 153, clientY: 260, pointerId: 2, pointerType: "mouse" })
     expect(screen.getAllByText("1 of 2 ready now")).toHaveLength(2)
     fireEvent.pointerDown(card, { button: 0, clientX: 150, clientY: 300, pointerId: 3, pointerType: "mouse" })
+    fireEvent.pointerMove(card, { button: 0, clientX: 150, clientY: 210, pointerId: 3, pointerType: "mouse" })
     fireEvent.pointerUp(card, { button: 0, clientX: 150, clientY: 210, pointerId: 3, pointerType: "mouse" })
     await waitFor(() => expect(screen.getAllByText("2 of 2 ready now")).toHaveLength(2))
     card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { button: 0, clientX: 150, clientY: 200, pointerId: 4, pointerType: "mouse" })
+    fireEvent.pointerMove(card, { button: 0, clientX: 150, clientY: 290, pointerId: 4, pointerType: "mouse" })
     fireEvent.pointerUp(card, { button: 0, clientX: 150, clientY: 290, pointerId: 4, pointerType: "mouse" })
     await waitFor(() => expect(screen.getAllByText("1 of 2 ready now")).toHaveLength(2))
   })
@@ -700,9 +805,11 @@ describe("ReviewWorkspaceRoute", () => {
     await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 5, clientY: 200, pointerId: 7, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 100, clientY: 200, pointerId: 7, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 100, clientY: 200, pointerId: 7, pointerType: "touch" })
     expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
     fireEvent.pointerDown(card, { clientX: 150, clientY: 200, pointerId: 8, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 60, clientY: 200, pointerId: 8, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 60, clientY: 200, pointerId: 8, pointerType: "touch" })
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
@@ -729,8 +836,9 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.getByText("1 of 2")).toHaveClass("sr-only")
     first.unmount()
     renderRoute("/review/JOB-42")
-    expect(await screen.findByText("No submitted visual evidence for this Job.")).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "Visual evidence" })).not.toHaveAttribute("data-review-gesture-exempt")
+    expect(await screen.findByText("No visual evidence submitted.")).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Visual evidence" })).not.toBeInTheDocument()
+    expect(screen.getByTestId("mobile-no-evidence")).not.toHaveClass("min-h-40")
   })
 
   it("resets the evidence position when navigating between cached Jobs", async () => {
@@ -761,7 +869,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByRole("heading", { name: "Review next" })).toBeInTheDocument()
     expect(screen.getByText("1 of 1")).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Screenshot 4" })).toBeInTheDocument()
-    expect(screen.queryByText("No submitted visual evidence for this Job.")).not.toBeInTheDocument()
+    expect(screen.queryByText("No visual evidence submitted.")).not.toBeInTheDocument()
   })
 
   it("synchronizes dots and captions from settled swipes in both directions", async () => {
@@ -825,8 +933,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
     const gestureSurface = screen.getByTestId("mobile-review-card")
     expect(gestureSurface.style.transform).toBe("")
-    expect(gestureSurface).toHaveClass("touch-pan-x", "touch-pan-y")
-    expect(gestureSurface).not.toHaveClass("touch-none")
+    expect(gestureSurface).not.toHaveClass("touch-pan-x", "touch-pan-y", "touch-none")
     const touchActionAncestors = Array.from(carousel.element.parentElement ? [carousel.element.parentElement] : []).flatMap((ancestor) => {
       const elements: HTMLElement[] = []
       for (let element: HTMLElement | null = ancestor; element; element = element.parentElement) elements.push(element)
@@ -839,7 +946,9 @@ describe("ReviewWorkspaceRoute", () => {
 
   it("refreshes eligibility and clears a stale Job after an approval error", async () => {
     let workspaceRequests = 0
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/summary"))
+        return new Response(JSON.stringify({ change_scope: null }), { status: 200, headers: { "Content-Type": "application/json" } })
       workspaceRequests += 1
       const jobs = workspaceRequests === 1 ? [job()] : []
       return new Response(JSON.stringify({ count: jobs.length, jobs }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -855,7 +964,9 @@ describe("ReviewWorkspaceRoute", () => {
 
   it("reconciles the active stack when realtime Job eligibility changes", async () => {
     let workspaceRequests = 0
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/summary"))
+        return new Response(JSON.stringify({ change_scope: null }), { status: 200, headers: { "Content-Type": "application/json" } })
       workspaceRequests += 1
       const jobs = workspaceRequests === 1 ? [job()] : []
       return new Response(JSON.stringify({ count: jobs.length, jobs }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -867,6 +978,250 @@ describe("ReviewWorkspaceRoute", () => {
 
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
     expect(workspaceRequests).toBe(2)
+  })
+
+  describe("decision brief and context", () => {
+    function mockDetail(header: Record<string, unknown>, review: Record<string, unknown> = {}, summary: Record<string, unknown> = {}) {
+      jobApi.fetchJobDetail.mockImplementationOnce(
+        async () =>
+          ({
+            job: { id: 42, summary_state: "implemented", pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7", pr_checks: null },
+            actions: { can_approve: true },
+            paths: { app_approve_path: "/canonical/jobs/42/approve", job_path: "/jobs/JOB-42" },
+            workflows: [],
+            epic: null,
+            ...header
+          }) as never
+      )
+      jobApi.fetchJobTab.mockImplementation(async (_id: string, tab: string) =>
+        tab === "review" ? { typed_artifacts: [], visual_evidence: { screenshots: [] }, ...review } : summary
+      )
+    }
+    function mockList(scope: unknown = null, head: string | null = "h1") {
+      vi.spyOn(globalThis, "fetch").mockImplementation(
+        async (input) =>
+          new Response(JSON.stringify(String(input).includes("/summary") ? { change_scope: scope, current_head_sha: head } : { count: 1, jobs: [job()] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+      )
+    }
+    const rowText = (id: string) => document.querySelector(`[data-brief-row="${id}"]`)?.textContent
+
+    it("renders a full brief with only present signals and canonical links", async () => {
+      mockDetail(
+        {
+          job: { id: 42, summary_state: "implemented", pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7", pr_checks: { state: "passing" } },
+          epic: { id: 9, display_number: "EPIC-9", title: "Big work", epic_path: "/epics/EPIC-9" },
+          workflows: [
+            {
+              id: 1,
+              artifacts: {
+                adversarial_review_iterations: [{ iteration: 1, verdict: "approved", reviewed_head_sha: "h1", non_blocking_findings: [{}] }],
+                security_review_iterations: [{ iteration: 1, verdict: "approved", reviewed_head_sha: "h1" }]
+              }
+            }
+          ]
+        },
+        { visual_evidence: { screenshots: [screenshot(1)] } },
+        { test_plan: { steps: ["a", "b"] } }
+      )
+      mockList({ files_changed: 3, additions: 10, deletions: 2 })
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      await waitFor(() => expect(rowText("scope")).toContain("3 files"))
+      expect(rowText("scope")).toContain("+10")
+      expect(rowText("readiness")).toContain("Ready to approve")
+      expect(rowText("checks")).toContain("Passing")
+      expect(rowText("adversarial")).toContain("1 non-blocking")
+      expect(rowText("security")).toContain("Ran, no findings")
+      expect(rowText("tests")).toContain("2 steps")
+      expect(rowText("visual")).toContain("1 screenshots")
+      expect(rowText("epic")).toContain("EPIC-9")
+      const links = within(screen.getByRole("navigation", { name: "Job context" }))
+      expect(links.getByRole("link", { name: "Open JOB-42" })).toHaveAttribute("href", "/jobs/JOB-42")
+      expect(links.getByRole("link", { name: "Open EPIC-9" })).toHaveAttribute("href", "/epics/EPIC-9")
+      const pr = links.getByRole("link", { name: /PR #7/ })
+      expect(pr).toHaveAttribute("href", "https://github.com/acme/widgets/pull/7")
+      expect(pr).toHaveAttribute("target", "_blank")
+      expect(links.getByRole("button", { name: "Full diff and details" })).toBeInTheDocument()
+      expect(screen.queryByText("Why it needs you:")).not.toBeInTheDocument()
+    })
+
+    it("omits unavailable signals and never claims findings or backend-only work", async () => {
+      mockDetail({ job: { id: 42, summary_state: "implemented", pr_checks: null }, workflows: [{ id: 1, artifacts: {} }] })
+      mockList(null)
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("scope")).toBeUndefined()
+      expect(rowText("checks")).toBeUndefined()
+      expect(rowText("tests")).toBeUndefined()
+      expect(rowText("epic")).toBeUndefined()
+      expect(rowText("reviews")).toContain("None recorded")
+      expect(screen.queryByText(/no findings/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/backend/i)).not.toBeInTheDocument()
+      const links = within(screen.getByRole("navigation", { name: "Job context" }))
+      expect(links.queryByRole("link", { name: /EPIC/ })).not.toBeInTheDocument()
+      expect(links.queryByRole("link", { name: /PR #/ })).not.toBeInTheDocument()
+      expect(screen.getByTestId("mobile-no-evidence")).toHaveTextContent("No visual evidence submitted.")
+    })
+
+    it("shows blocked, failing-check and blocking-review states", async () => {
+      mockDetail({
+        job: {
+          id: 42,
+          summary_state: "implemented",
+          pr_checks: { state: "failing", attribution: { verdict: "own", own_names: ["rspec"], failing_names: ["rspec"] } }
+        },
+        actions: { can_approve: false },
+        workflows: [{ id: 2, artifacts: { security_review_iterations: [{ iteration: 2, verdict: "needs_work", reviewed_head_sha: "h1" }] } }]
+      })
+      mockList()
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("readiness")).toContain("checks are failing")
+      expect(rowText("checks")).toContain("Failing: rspec")
+      expect(rowText("security")).toContain("Blocking findings")
+      expect(rowText("adversarial")).toBeUndefined()
+    })
+
+    it("does not present review evidence from a superseded commit as current", async () => {
+      mockDetail({
+        workflows: [
+          { id: 1, artifacts: { adversarial_review_iterations: [{ iteration: 1, verdict: "approved", reviewed_head_sha: "old" }] } },
+          { id: 2, artifacts: {} }
+        ]
+      })
+      mockList(null, "h2")
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("adversarial")).toBeUndefined()
+      expect(rowText("reviews_unconfirmed")).toContain("Not confirmed for the current commit")
+      expect(screen.queryByText(/no findings/i)).not.toBeInTheDocument()
+    })
+
+    it("treats unstamped review evidence as unconfirmed when the current head is unknown", async () => {
+      mockDetail({ workflows: [{ id: 1, artifacts: { security_review_iterations: [{ iteration: 1, verdict: "approved" }] } }] })
+      mockList(null, null)
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("security")).toBeUndefined()
+      expect(rowText("reviews_unconfirmed")).toBeTruthy()
+    })
+
+    it("keeps unknown and pending checks and skipped reviews honest", async () => {
+      mockDetail({
+        job: { id: 42, summary_state: "implemented", pr_checks: { state: "unknown" } },
+        workflows: [{ id: 2, artifacts: { adversarial_review_iterations: [{ iteration: 1, verdict: "skipped", reviewed_head_sha: "h1" }] } }]
+      })
+      mockList()
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(rowText("checks")).toContain("Unknown")
+      expect(rowText("adversarial")).toContain("Skipped")
+    })
+
+    it("isolates every context link from swipe gestures", async () => {
+      mockDetail({ epic: { id: 9, display_number: "EPIC-9", title: "Big", epic_path: "/epics/EPIC-9" } })
+      mockList()
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      const nav = screen.getByRole("navigation", { name: "Job context" })
+      const targets = [...nav.querySelectorAll("a, button")]
+      expect(targets).toHaveLength(4)
+      for (const target of targets) {
+        expect(target).toHaveAttribute("data-review-gesture-exempt")
+        fireEvent.pointerDown(target, { clientX: 80, clientY: 200, pointerId: 21, pointerType: "touch" })
+        fireEvent.pointerMove(target, { clientX: 200, clientY: 200, pointerId: 21, pointerType: "touch" })
+        fireEvent.pointerUp(target, { clientX: 200, clientY: 200, pointerId: 21, pointerType: "touch" })
+      }
+      expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+      expect(window.localStorage.getItem("syrus.reviewWorkspace.gestureHelpAcknowledged")).toBeNull()
+    })
+
+    it("keeps long titles and many signals in wrapping, non-overflowing rows", async () => {
+      mockDetail({
+        job: {
+          id: 42,
+          summary_state: "implemented",
+          pr_checks: { state: "failing", attribution: { verdict: "own", own_names: ["a-very-long-check-name-".repeat(5)] } }
+        },
+        epic: { id: 9, display_number: "EPIC-9", title: "An extremely long epic title ".repeat(6), epic_path: "/epics/EPIC-9" },
+        test_plan: { steps: ["a"] }
+      })
+      mockList({ files_changed: 1, additions: 1, deletions: 1 })
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      for (const row of document.querySelectorAll("[data-brief-row] dd")) expect(row).toHaveClass("break-words", "min-w-0")
+      expect(screen.getByTestId("mobile-context-links")).toHaveClass("flex-wrap")
+    })
+  })
+
+  describe("gesture help", () => {
+    const KEY = "syrus.reviewWorkspace.gestureHelpAcknowledged"
+    function mockJobs() {
+      vi.spyOn(globalThis, "fetch").mockImplementation(
+        async (input) =>
+          new Response(JSON.stringify(String(input).includes("/summary") ? { change_scope: null } : { count: 1, jobs: [job()] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+      )
+    }
+
+    it("shows one first-use coach and no permanent duplicate instruction copy", async () => {
+      mockJobs()
+      renderRoute("/review/JOB-42")
+      expect(await screen.findByTestId("mobile-gesture-coach")).toBeInTheDocument()
+      expect(screen.queryByText("Swipe up or down to move · right to approve · left to defer · hold for details")).not.toBeInTheDocument()
+      expect(screen.getAllByText(/hold for details|press and hold for details/)).toHaveLength(2) // coach + sr-only instructions
+      expect(screen.getByLabelText("Current Job gesture area")).toHaveAttribute("aria-describedby", "review-gesture-instructions")
+      expect(document.getElementById("review-gesture-instructions")).toHaveClass("sr-only")
+    })
+
+    it("persists a versioned dismissal and stays hidden on the next visit", async () => {
+      mockJobs()
+      const first = renderRoute("/review/JOB-42")
+      fireEvent.click(await screen.findByRole("button", { name: "Got it" }))
+      expect(screen.queryByTestId("mobile-gesture-coach")).not.toBeInTheDocument()
+      expect(window.localStorage.getItem(KEY)).toBe("1")
+      first.unmount()
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(screen.queryByTestId("mobile-gesture-coach")).not.toBeInTheDocument()
+    })
+
+    it("reintroduces the coach when the stored acknowledgement is from an older version", async () => {
+      window.localStorage.setItem(KEY, "0")
+      mockJobs()
+      renderRoute("/review/JOB-42")
+      expect(await screen.findByTestId("mobile-gesture-coach")).toBeInTheDocument()
+    })
+
+    it("acknowledges the first successful gesture", async () => {
+      mockJobs()
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-gesture-coach")
+      const card = screen.getByTestId("mobile-review-card")
+      fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 31, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 170, clientY: 200, pointerId: 31, pointerType: "touch" })
+      fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 31, pointerType: "touch" })
+      await waitFor(() => expect(screen.queryByTestId("mobile-gesture-coach")).not.toBeInTheDocument())
+      expect(window.localStorage.getItem(KEY)).toBe("1")
+    })
+
+    it("reopens gesture help from the details sheet without clearing the acknowledgement", async () => {
+      window.localStorage.setItem(KEY, "1")
+      mockJobs()
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-decision-brief")
+      expect(screen.queryByTestId("mobile-gesture-coach")).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Job details" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Gesture help" }))
+      expect(await screen.findByTestId("mobile-gesture-coach")).toBeInTheDocument()
+      expect(screen.queryByTestId("mobile-details-sheet")).not.toBeInTheDocument()
+      expect(window.localStorage.getItem(KEY)).toBe("1")
+    })
   })
 })
 
