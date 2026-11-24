@@ -76,6 +76,8 @@ la:
       unland_confirmation:
         job: "%{subject} revocare? Confirmatio operatoris requiritur."
         epic: "%{subject} revocare? Confirmatio operatoris requiritur."
+      hold_job_confirmation:
+        message: "%{job} retinere?"
       bulk_confirmation:
         cleanup_workspaces: "%{count} spatia laboris workflow delere?"
         cancel_stale_work: "Opera obsoleta pro %{count} Job abrogare?"

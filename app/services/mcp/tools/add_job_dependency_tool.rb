@@ -23,13 +23,15 @@ module Mcp::Tools
           enum: JobDependency::SATISFACTION_MODES,
           description: "success may release execution from an implemented PR; landed requires a successfully closed Job with durable landing evidence (or a genuine no_changes close); closed waits for any terminal close; deployment_stage waits for a configured deployment stage. Defaults to success."
         },
-        required_deployment_stage_name: { type: "string", description: "Deployment stage name required when satisfaction_mode is deployment_stage." }
+        required_deployment_stage_name: { type: "string", description: "Deployment stage name required when satisfaction_mode is deployment_stage." },
+        hold_running: { type: "boolean", description: "When the new dependency is unsatisfied and the Job has an active Run, hold the Job (cancel its active work and return it to waiting) instead of rejecting the edit. Defaults to false: the edit is rejected, naming the active Run." },
+        reason: { type: "string", description: "Audit reason recorded when hold_running holds the Job." }
       },
       required: %w[job_id]
     )
 
     class << self
-      def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, satisfaction_mode: "success", required_deployment_stage_name: nil, server_context:)
+      def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, satisfaction_mode: "success", required_deployment_stage_name: nil, hold_running: false, reason: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         user = chat_session.user
         satisfaction_mode = satisfaction_mode.presence || "success"
@@ -43,15 +45,27 @@ module Mcp::Tools
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         if depends_on_job_id
-          add_job_target(job, depends_on_job_id, user, satisfaction_mode, required_deployment_stage_name)
+          guarded_edit(job, hold_running, reason) { add_job_target(job, depends_on_job_id, user, satisfaction_mode, required_deployment_stage_name) }
         else
-          add_epic_target(job, depends_on_epic_id, user, satisfaction_mode, required_deployment_stage_name)
+          guarded_edit(job, hold_running, reason) { add_epic_target(job, depends_on_epic_id, user, satisfaction_mode, required_deployment_stage_name) }
         end
+      rescue JobDependencyEditGuard::ActiveRunRejection => e
+        Mcp::Tools.invalid(e.message)
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
 
       private
+
+      # Runs the edit and the post-edit start-gate check in one transaction so a
+      # rejection (an active Run under unsatisfied dependencies) rolls the edit back.
+      def guarded_edit(job, hold_running, reason)
+        ApplicationRecord.transaction do
+          response = yield
+          JobDependencyEditGuard.enforce!(job, hold_running: hold_running == true, reason: reason)
+          response
+        end
+      end
 
       def add_job_target(job, depends_on_job_id, user, satisfaction_mode, required_deployment_stage_name)
         depends_on_job = job_scope_for(user).find_by(id: depends_on_job_id)
