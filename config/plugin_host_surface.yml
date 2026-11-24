@@ -294,11 +294,8 @@ constants:
 - name: Syrus::Plugin::AdminPage
 - name: Syrus::Plugin::AgentProvider::ModelInfo
 - name: Syrus::Plugin::ChatProvider
-- name: Syrus::Plugin::GraderFailureSummarizer
 - name: Syrus::Plugin::MemoryStore
 - name: Syrus::Plugin::PlatformDelivery
-- name: Syrus::Plugin::RepositoryRecommendation
-- name: Syrus::Plugin::TestEvidence
 - name: Syrus::Plugin::WorkflowArtifactContributor
 - name: Syrus::PluginApi
   reason: Every plugin entry file extends it while the plugin loader runs, before the Syrus::Host alias table can be installed; moving it needs a loader-safe Host entry point.
