@@ -138,6 +138,16 @@ RSpec.describe EpicChainSplice do
         .to raise_error(ArgumentError, /explicit dependencies on the first child/)
     end
 
+    it "rejects at confirmation time when the downstream Job started after the card was proposed" do
+      proposal = card
+      child(proposal, "first", 0)
+      b.update_columns(state: "running")
+
+      expect { ChatEpicProposalMaterializer.new(user: user).file!(proposal) }
+        .to raise_error(ArgumentError, /already started/)
+      expect(edge.reload.depends_on_job_id).to eq(a.id)
+    end
+
     it "rejects an anchor that is not in the Epic" do
       other = Factories.job_record(user: user, repository: repository, issue_number: 60)
       proposal = card(insert_after_job_id: other.id)

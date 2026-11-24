@@ -235,6 +235,13 @@ export type ChatMcpHealth = {
   unavailable_tools: string[]
 }
 
+export type ChatProposalInsertion = {
+  insert_after_job_id: number
+  insert_after_slug: string | null
+  insert_before_job_id: number | null
+  insert_before_slug: string | null
+}
+
 export type ChatProposal = {
   id: number
   kind: string
@@ -254,6 +261,7 @@ export type ChatProposal = {
   has_dependencies: boolean
   target_epic_id: number | null
   target_epic_label: string | null
+  insertion?: ChatProposalInsertion | null
   route_to_backlog?: boolean
   route_label?: string
   investigation?: boolean
