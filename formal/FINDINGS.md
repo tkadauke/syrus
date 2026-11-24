@@ -4754,6 +4754,33 @@ the dispatchers do in production, so it has the WorkUnit the lock is held on.
 **Not yet.** Emergency landing (`EmergencyLand::Lander#merge!`) has no WorkUnit,
 and a `WorkUnitLock` requires one. How it should hold the lock is NY43.
 
+## F130. Groundwork for the hierarchical lock order (NY40: A, part 0)
+
+NY40 moves the row-lock order to the hierarchy: AppSetting, User, Epic, Job,
+WorkIntent, WorkUnit, Workflow, Step, Run, parents before children. The
+rollups that write up the tree stay atomic, because each transaction that can
+change a Workflow's state first locks the ancestry with `Lineage.lock!`. The
+suite must stay green throughout, so the change is staged:
+
+1. **Target order (this entry).** `Syrus::LockOrder.target` selects which order
+   the checker evaluates. It is `:current` by default (still enforced) and
+   `:hierarchical` via `SYRUS_LOCK_ORDER_TARGET=hierarchical` or in a spec, so
+   progress can be surveyed without failing the suite.
+2. **`Lineage.lock!(record)` (this entry).** It locks a Run's, Step's,
+   Workflow's, WorkUnit's or Job's ancestry top-down with locking queries,
+   never `lock!`, so the caller's unsaved changes are kept.
+3. **Next.** Convert the funnels the survey found (about 15 production entry
+   points), largest first: `RunJob`'s claim, then the after-commit state
+   callbacks, `TerminalWorkflowSync`, the reconciler and repair executor,
+   `JobClosure`, `WorkflowCancellation` and the dispatcher. Then flip the
+   enforced order, switch write tracking to raise, and update `LockOrder.lean`
+   and the docs.
+
+**Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
+writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
+Job is in order after `Lineage.lock!`, and the same writes without it raise. It
+also checks that the helper names the full ancestry and keeps unsaved changes.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)

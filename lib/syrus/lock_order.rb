@@ -10,6 +10,33 @@ module Syrus
     MODELS = %w[ AppSetting Epic Run Job WorkIntent Workflow Step WorkUnit User ].freeze
     RANKS = MODELS.each_with_index.to_h.freeze
 
+    # NY40 (decided A): the order is moving to the hierarchy, parents before
+    # children, with Lineage.lock! taking a record's ancestry first. Until every
+    # entry point is converted, MODELS stays enforced and the target is
+    # selectable for surveying: SYRUS_LOCK_ORDER_TARGET=hierarchical, or
+    # LockOrder.target = :hierarchical in a spec.
+    HIERARCHICAL = %w[ AppSetting User Epic Job WorkIntent WorkUnit Workflow Step Run ].freeze
+    ORDERS = { current: MODELS, hierarchical: HIERARCHICAL }.freeze
+
+    class << self
+      def target
+        @target ||= ENV["SYRUS_LOCK_ORDER_TARGET"] == "hierarchical" ? :hierarchical : :current
+      end
+
+      def target=(name)
+        raise ArgumentError, "unknown lock order #{name.inspect}" unless ORDERS.key?(name.to_sym)
+
+        @target = name.to_sym
+      end
+
+      def models = ORDERS.fetch(target)
+
+      def ranks
+        @ranks ||= {}
+        @ranks[target] ||= models.each_with_index.to_h.freeze
+      end
+    end
+
     # `entry` is the outermost application frame: where the transaction's work
     # came in (a job's perform, a controller action, a service a spec called).
     Violation = Data.define(:held, :taking, :site, :held_site, :entry) do
@@ -38,7 +65,7 @@ module Syrus
     class Error < StandardError; end
 
     def self.rank_for(model_class)
-      RANKS[model_class.base_class.name]
+      ranks[model_class.base_class.name]
     rescue NoMethodError
       nil
     end
@@ -150,7 +177,7 @@ module Syrus
             violations << violation
           else
             raise Error, "row lock order violated: took #{violation.taking} at #{violation.site} while holding " \
-                         "#{violation.held} from #{violation.held_site} (order: #{MODELS.join(' -> ')})"
+                         "#{violation.held} from #{violation.held_site} (order: #{LockOrder.models.join(' -> ')})"
           end
         end
 
