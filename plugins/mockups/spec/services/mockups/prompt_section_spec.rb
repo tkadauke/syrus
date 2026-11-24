@@ -18,6 +18,23 @@ RSpec.describe Mockups::PromptSection do
     expect(section).to include("`panel_id`, `version_id`, and `mockup_slug`")
   end
 
+  it "recommends render-and-inspect before publishing without making it a gate" do
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repo)
+
+    flat = section.squish
+    expect(flat).to include("Strongly recommended before publishing", "`render_preview`", "desktop and mobile")
+    expect(flat).to include("bounded `wait_ms`", "guidance, not a gate")
+    expect(section.index("`render_preview` and visually inspect")).to be < section.index("publish with `show_preview`")
+  end
+
+  it "mentions render-and-inspect in the publishing tool descriptions" do
+    descriptions = Mockups::ChatToolSet.tool_definitions(tier: :essential).to_h { |tool| [ tool[:name], tool[:description] ] }
+
+    expect(descriptions.fetch("show_preview")).to include("render_preview", "not a hard gate")
+    expect(descriptions.fetch("write_preview_file")).to include("render_preview")
+    expect(descriptions.fetch("render_preview")).to include("guidance, not a gate", "does not create a version")
+  end
+
   it "reaches the chat system prompt through the injection point" do
     expect(Prompts::ChatSystem.new(repository: repo, chat_session: chat).to_s)
       .to include("use Syrus preview-panel tools by default")

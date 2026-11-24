@@ -55,5 +55,11 @@
   "tool_replace_all": "Omnia substituere",
   "tool_yes": "Ita",
   "tool_no": "Non",
-  "tool_changes": "Mutationes"
+  "tool_changes": "Mutationes",
+  "tool_render_preview": "Praevisum reddere",
+  "tool_rendered_summary": "Tabula #{{id}} reddita (non edita)",
+  "tool_viewport": "Fenestra",
+  "tool_capture": "Captura",
+  "tool_wait_ms": "Mora (ms)",
+  "tool_unpublished": "Non edita"
 }
