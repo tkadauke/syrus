@@ -104,6 +104,31 @@ RSpec.describe Mcp::ChatToolParity do
       expect(described_class.plugin_report([ silent ])).to include(a_string_matching(/plugin_probe: unexplained absence from coworker/))
     end
 
+    it "includes legacy chat_mcp_tool_set registrations in the installed catalogs" do
+      legacy = Class.new { def self.tool_definitions(tier:) = [] }
+      manifest = Struct.new(:provides).new({ chat_mcp_tool_set: [ legacy ] })
+      allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest ])
+      allow(Syrus::Plugin::Toolkit).to receive(:chat_tool_set_for).with(manifest).and_return([ legacy ])
+      expect(described_class.installed_chat_tool_sets).to eq([ legacy ])
+    end
+
+    it "does not let one provider's exception authorize another provider's omission" do
+      excepted = Class.new do
+        def self.tool_definitions(tier:) = [ { name: "shared_name" } ]
+        def self.coworker_exception = { reason_code: "requires_coding_checkout", explanation: "x", owner: "o", test_ref: "t", absent_from: %i[coworker] }
+        def self.to_s = "ExceptedSet"
+      end
+      other = Class.new do
+        def self.tool_definitions(tier:) = [ { name: "shared_name" } ]
+        def self.to_s = "OtherSet"
+      end
+      allow(Mcp::CoworkerToolExposure).to receive(:plugin_provider?) { |provider| provider != excepted }
+      allow(Mcp::CoworkerToolExposure).to receive(:plugin_definition?).and_return(false)
+      report = described_class.plugin_report([ excepted, other ])
+      expect(report.join("\n")).not_to include("ExceptedSet#shared_name: unexplained")
+      expect(report).to include(a_string_matching(/OtherSet#shared_name: unexplained absence from coworker/))
+    end
+
     it "lists coworker-only plugin exceptions with their own rationale in generated docs" do
       markdown = Syrus::SurfaceCatalogs.render_parity_exceptions
       expect(markdown).to include("Coworker workspace, reply, schedule and spawn tools", "Sanitized Syrus diagnostics")
