@@ -206,6 +206,23 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
       expect(described_class.verify(manifest("ci_phase_target_set" => set), expected_sha: sha)).to be_ok
     end
 
+    # Regression: a shard failure the collect accepted as inherited from main
+    # satisfied the per-target gate but not this contract, and the train was
+    # refused as "required by main grading ... has no passing landing result".
+    it "accepts a CI target whose landing failure the collect accepted" do
+      accepted = target("rspec", outcome: "test_failed").merge("accepted_failure" => Adjudicators::InheritedGraderFailure.name)
+      set = { "targets" => [ ci_target("rspec") ] }
+
+      expect(described_class.verify(manifest(targets: [ accepted ], "ci_phase_target_set" => set), expected_sha: sha)).to be_ok
+    end
+
+    it "still blocks a CI target whose only landing result is an unaccepted failure" do
+      set = { "targets" => [ ci_target("rspec") ] }
+      verdict = described_class.verify(manifest(targets: [ target("rspec", outcome: "test_failed") ], "ci_phase_target_set" => set), expected_sha: sha)
+
+      expect(verdict.blockers.map(&:code)).to include("ci_phase_target_not_validated")
+    end
+
     it "accepts a CI target covered by a passing landing result" do
       set = { "targets" => [ ci_target("rspec") ] }
       expect(described_class.verify(manifest("ci_phase_target_set" => set), expected_sha: sha)).to be_ok

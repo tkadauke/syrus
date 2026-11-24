@@ -224,9 +224,17 @@ class LandingValidationManifest
     def ci_delta(manifest)
       return [] unless manifest.is_a?(Hash)
 
-      covered = Array(manifest["targets"]).select { |t| t["outcome"] == GraderOutcome::PASSED }.to_set { |t| t["target_label"] }
+      # An accepted failure covers its target here exactly as it satisfies the
+      # per-target gate (target_blockers); otherwise the main-grading contract
+      # refused a train the collect and the gate had both let through.
+      covered = Array(manifest["targets"]).select { |t| covers_ci_target?(t) }.to_set { |t| t["target_label"] }
       Array(manifest.dig("ci_phase_target_set", "targets")).select { |t| t["affected"] && !covered.include?(t["target_label"]) }
                                                               .map { |t| delta(t, "ci_phase_target_not_validated_pre_merge") }
+    end
+
+    def covers_ci_target?(target)
+      target["outcome"] == GraderOutcome::PASSED ||
+        (target["outcome"] == GraderOutcome::TEST_FAILED && target["accepted_failure"].present?)
     end
 
     # --- diagnostics --------------------------------------------------
