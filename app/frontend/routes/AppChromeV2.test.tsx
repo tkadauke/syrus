@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { useRef, type ReactElement } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as chatsApi from "../api/chats"
 import * as maintenanceApi from "../api/maintenanceTasks"
@@ -35,6 +35,17 @@ const html2canvasMock = vi.hoisted(() =>
 vi.mock("html2canvas-pro", () => ({
   default: html2canvasMock
 }))
+
+const PLUGIN_ALERT = {
+    id: "plugin_fleet_divergence",
+    dismissal_key: "plugin_fleet_divergence:3",
+    severity: "alarm",
+    title: "Plugin fleet has not converged.",
+    message: "Diverged.",
+    action_steps: ["Review."],
+    cta: null,
+    actions: []
+  }
 
 describe("AppChromeV2", () => {
   beforeEach(() => {
@@ -379,6 +390,70 @@ describe("AppChromeV2", () => {
       )
     })
     expect(document.documentElement.getAttribute("data-theme")).toBe("forest")
+  })
+
+  describe("system alert recovery polling", () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    function mockBootstrap(responses: BootstrapPayload[]) {
+      let calls = 0
+      return {
+        count: () => calls,
+        spy: vi.spyOn(window, "fetch").mockImplementation((input) => {
+          const path = String(input)
+          if (path === "/api/v1/app/bootstrap") {
+            const next = responses[Math.min(calls, responses.length - 1)]
+            calls += 1
+            return Promise.resolve(jsonResponse(next))
+          }
+          if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse(chatsIndexPayload()))
+          return Promise.resolve(jsonResponse({}))
+        })
+      }
+    }
+
+    it("removes the banner after a recovery refetch and stops polling", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const bootstrap = mockBootstrap([bootstrapPayload({ system_alerts: [] })])
+      window.localStorage.removeItem("syrus.system_alert_dismissals")
+
+      renderAppChrome(<div>Settings</div>, {
+        bootstrap: bootstrapPayload({ system_alerts: [PLUGIN_ALERT] })
+      })
+      expect(screen.getByText("Plugin fleet has not converged.")).toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000)
+      })
+      await waitFor(() => expect(screen.queryByText("Plugin fleet has not converged.")).not.toBeInTheDocument())
+      const callsAfterRecovery = bootstrap.count()
+      expect(callsAfterRecovery).toBeGreaterThan(0)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000)
+      })
+      expect(bootstrap.count()).toBe(callsAfterRecovery)
+    })
+
+    it("keeps a dismissed alert hidden across refreshes while it remains active", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      window.localStorage.removeItem("syrus.system_alert_dismissals")
+      const bootstrap = mockBootstrap([bootstrapPayload({ system_alerts: [PLUGIN_ALERT] })])
+
+      renderAppChrome(<div>Settings</div>, {
+        bootstrap: bootstrapPayload({ system_alerts: [PLUGIN_ALERT] })
+      })
+      fireEvent.click(screen.getByRole("button", { name: /dismiss/i }))
+      expect(screen.queryByText("Plugin fleet has not converged.")).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(65_000)
+      })
+      expect(bootstrap.count()).toBeGreaterThanOrEqual(2)
+      expect(screen.queryByText("Plugin fleet has not converged.")).not.toBeInTheDocument()
+    })
   })
 
   it("removes a resolved system alert without refetching bootstrap", async () => {
