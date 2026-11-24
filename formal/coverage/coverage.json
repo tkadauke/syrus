@@ -3785,6 +3785,18 @@
         "C. Leave the intent's write out of the write-order work: settle it after commit instead. That gives up F97's atomicity, so a crash in between leaves a terminal unit with an open intent for the reconciler."
       ],
       "recommendation": "A. The evidence says the intent is only locked before the Workflow on paths that create that Workflow, so the position was never load-bearing. B repeats NY35's spreading pattern, and C undoes F97."
+    },
+    {
+      "id": "NY39",
+      "item": "row-lock-order",
+      "title": "A Job's state change rewrites its Epic in the same transaction, against the lock order. Lock the Epic first, or roll up after commit?",
+      "context": "The last group from NY37's write survey (23 hits). Job#refresh_epic_auto_state is an after_save on every Job state, validity, epic or closure change, and it calls Epic#refresh_auto_state!, which can auto-ready, auto-complete or release the Epic's next children. That writes the Epic inside the Job's transaction, after the Job is locked and written. The order puts Epic before Job, because merge trains lock the Epic and then its members. InnoDB would detect a resulting deadlock and roll one side back; none has been seen.",
+      "options": [
+        "A. Lock the Epic before the Job at every Job transition that can change the rollup (a Job.lock_with_epic! helper used by the transition entry points). This keeps the rollup atomic, but the entry points are many: the same spreading as NY35's A.",
+        "B. Run the rollup after the Job's transaction commits (after_commit), and add a reconciler check that re-runs it for an Epic whose state disagrees with its children. The order holds by construction. A reader can briefly see an Epic behind its children, and a crash between commit and rollup leaves it stale until the next child change or the reconciler's next pass.",
+        "C. Keep the in-transaction rollup and scope the write-order guarantee to exclude it, relying on InnoDB's deadlock detection for this one pattern."
+      ],
+      "recommendation": "B. The rollup is derived state, recomputed from the children every time, so applying it after commit is safe to repeat, and any later child change re-derives it. Nothing repairs a stale Epic today (no reconciler check, no periodic refresh), so B includes adding that check for the crash window. A is invasive, and C leaves a known gap."
     }
   ]
 }
