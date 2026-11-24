@@ -35,6 +35,11 @@ module RuntimeImages
       @acquire_timeout = acquire_timeout
       @lease_seconds = lease_seconds
       @claim_ttl = claim_ttl
+      # Takeover of a stale claim is only safe if the original owner's engine
+      # removal cannot still be running, so the Engine#remove bound must be
+      # shorter than the TTL.
+      bound = @engine.respond_to?(:remove_timeout) ? @engine.remove_timeout : nil
+      raise ArgumentError, "claim_ttl (#{claim_ttl}s) must exceed the engine remove timeout (#{bound}s)" if bound && claim_ttl <= bound
       @clock = clock
       @sleeper = sleeper
       @slots = Concurrent::Semaphore.new(Integer(max_concurrent_pulls))
@@ -171,16 +176,24 @@ module RuntimeImages
     def reconcile_abandoned_claim(entry)
       now = @clock.call
       return false if entry.updated_at > now - @claim_ttl
-      taken = RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", updated_at: entry.updated_at).update_all(updated_at: now)
+      token = SecureRandom.hex(8)
+      taken = RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", claim_token: entry.claim_token).update_all(claim_token: token, updated_at: now)
       return false unless taken == 1
+      finish_claim(entry, token)
+      true
+    end
+
+    # Resolves a claim this process owns (identified by its token). Every
+    # write is scoped to the token, so an owner whose claim was taken over
+    # while its removal was running cannot roll back or delete the row.
+    def finish_claim(entry, token)
       begin
         @engine.remove(entry.runtime_image.locator.to_s)
       rescue EngineError
-        RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").update_all(state: "present", updated_at: now)
-        return true
+        RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", claim_token: token).update_all(state: "present", claim_token: nil)
+        return false
       end
-      RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").delete_all
-      true
+      RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", claim_token: token).delete_all == 1
     end
 
     def pull_and_verify(image, started, prefetch)
@@ -300,16 +313,10 @@ module RuntimeImages
     end
 
     def remove_entry(entry)
-      claimed = RuntimeImageCacheEntry.where(id: entry.id, state: "present").unleased(@clock.call).update_all(state: "evicting", updated_at: @clock.call)
+      token = SecureRandom.hex(8)
+      claimed = RuntimeImageCacheEntry.where(id: entry.id, state: "present").unleased(@clock.call).update_all(state: "evicting", claim_token: token, updated_at: @clock.call)
       return false unless claimed == 1
-      begin
-        @engine.remove(entry.runtime_image.locator.to_s)
-      rescue EngineError
-        RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").update_all(state: "present")
-        return false
-      end
-      RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").delete_all
-      true
+      finish_claim(entry, token)
     end
 
     def record_failure(image, error, started, prefetch)

@@ -11,6 +11,7 @@ class CreateRuntimeImageWorkerCache < ActiveRecord::Migration[8.1]
       t.datetime :last_used_at
       t.datetime :leased_until
       t.integer :lease_count, null: false, default: 0
+      t.string :claim_token, limit: 32
       t.timestamps
     end
     add_index :runtime_image_cache_entries, %i[hostname runtime_image_id], unique: true, name: "idx_ri_cache_entries_host_image" unless index_exists?(:runtime_image_cache_entries, %i[hostname runtime_image_id], name: "idx_ri_cache_entries_host_image")

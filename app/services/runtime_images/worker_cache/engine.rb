@@ -11,6 +11,11 @@ module RuntimeImages
       def digests(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #digests")
 
       def size_bytes(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #size_bytes")
+      # Upper bound, in seconds, on #remove. WorkerCache requires its eviction
+      # claim TTL to exceed this so a stale-claim takeover never overlaps a
+      # removal that is still running.
+      def remove_timeout = 120
+
       def remove(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #remove")
 
       # { total_bytes:, free_bytes: } for the filesystem backing the cache.

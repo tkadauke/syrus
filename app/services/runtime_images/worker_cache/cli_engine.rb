@@ -34,7 +34,7 @@ module RuntimeImages
       end
 
       def remove(reference)
-        out, status, = run({}, "image", "rm", reference, timeout: 120)
+        out, status, = run({}, "image", "rm", reference, timeout: remove_timeout)
         raise EngineError, "could not remove #{reference}: #{out.to_s.strip}" unless status&.success?
       end
 
