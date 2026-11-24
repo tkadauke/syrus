@@ -21,7 +21,7 @@ module Whiteboard
         snapshot_scene = Whiteboard::Board.normalize_scene!(snapshot.scene_json)
         mode = mode.to_s.presence || "merge"
 
-        return Mcp::Tools.invalid("mode must be merge or replace") unless %w[merge replace].include?(mode)
+        return Syrus::Host::McpTools.invalid("mode must be merge or replace") unless %w[merge replace].include?(mode)
 
         result = if mode == "replace"
           replace_canvas(chat_session, snapshot_scene)
@@ -29,11 +29,11 @@ module Whiteboard
           merge_canvas(chat_session, snapshot_scene)
         end
 
-        Mcp::Tools.success(result.merge(snapshot_id: snapshot.id, mode: mode, chat_session_id: chat_session.id))
+        Syrus::Host::McpTools.success(result.merge(snapshot_id: snapshot.id, mode: mode, chat_session_id: chat_session.id))
       rescue Canvas::ElementLimitExceeded => e
-        Mcp::Tools.tool_error(e.message)
+        Syrus::Host::McpTools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
 
       private

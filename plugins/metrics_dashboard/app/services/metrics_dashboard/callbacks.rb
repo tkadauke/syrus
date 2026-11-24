@@ -3,7 +3,7 @@ module MetricsDashboard
   # PluginTickSchedulerJob, which is what makes "disabled" actually stop the
   # recording rather than merely hide the page).
   class Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     def self.on_tick
       Recorder.record!

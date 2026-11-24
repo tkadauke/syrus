@@ -23,13 +23,13 @@ module ScheduledTasks
           chat_session = server_context.fetch(:chat_session)
           task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
           return error if error
-          return Mcp::Tools.invalid("scheduled task is already disabled") unless scheduled_task_enabled?(task)
+          return Syrus::Host::McpTools.invalid("scheduled task is already disabled") unless scheduled_task_enabled?(task)
 
           previous_state = task.state
           next_fire_at = task.next_fire_at&.utc&.iso8601
           task.pause!(reason: "operator")
 
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             scheduled_task_id: task.id,
             label: task.name,
             enabled: false,
@@ -40,7 +40,7 @@ module ScheduledTasks
             repository_slug: task.repository&.slug
           )
         rescue ActiveRecord::RecordInvalid => e
-          Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
         end
       end
     end

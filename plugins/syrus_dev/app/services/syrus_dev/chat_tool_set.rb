@@ -2,7 +2,7 @@ require "mcp"
 
 module SyrusDev
   class ChatToolSet
-    include Syrus::Plugin::ChatMcpToolSet
+    include Syrus::Host::ChatMcpToolSet
 
     CAPABILITY = "syrus_dev.read_diagnostics"
     TOOL_CLASSES = [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool ].freeze

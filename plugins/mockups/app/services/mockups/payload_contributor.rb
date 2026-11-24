@@ -3,7 +3,7 @@ module Mockups
   # ChatSerialization, which meant it knew PreviewPanel's URL scheme, entry
   # metadata, and version serialization.
   module PayloadContributor
-    include Syrus::Plugin::ChatPayloadContributor
+    include Syrus::Host::ChatPayloadContributor
 
     def self.chat_payload(chat_session:, context:)
       scheme = context[:ssl] ? "https" : "http"

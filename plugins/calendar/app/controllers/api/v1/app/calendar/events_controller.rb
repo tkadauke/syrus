@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Calendar
-        class EventsController < BaseController
+        class EventsController < Syrus::Host::AppController
           before_action :require_calendar_enabled
 
           def index

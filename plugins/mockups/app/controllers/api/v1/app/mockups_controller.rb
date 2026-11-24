@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class MockupsController < BaseController
+      class MockupsController < Syrus::Host::AppController
         PER_PAGE = 30
 
         def index
@@ -10,7 +10,7 @@ module Api
             return
           end
 
-          filter = Mockups::Filter.from_params(params, user: Current.user)
+          filter = Mockups::Filter.from_params(params, user: Syrus::Host::Current.user)
           scope = filter.apply(base_scope).recent_first
 
           page = [ params[:page].to_i, 1 ].max
@@ -49,12 +49,12 @@ module Api
         # the panel's own rule -- not a second, looser one defined here.
         def base_scope
           Mockups::Mockup
-            .where(preview_panel_id: PreviewPanel.accessible_to(Current.user).select(:id))
+            .where(preview_panel_id: PreviewPanel.accessible_to(Syrus::Host::Current.user).select(:id))
             .includes(preview_panel: :latest_version)
         end
 
         def filter_schema
-          ::Filters::Schema.for(subject: :mockup, user: Current.user)
+          ::Filters::Schema.for(subject: :mockup, user: Syrus::Host::Current.user)
         end
 
         def summary_json(mockup)

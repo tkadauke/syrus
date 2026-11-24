@@ -44,10 +44,10 @@ module VideoWalkthroughs
         chat_session = server_context.fetch(:chat_session)
 
         walkthrough = chat_session.video_walkthroughs.find_by(id: walkthrough_id)
-        return Mcp::Tools.invalid("walkthrough not found in this chat: #{walkthrough_id.inspect}") unless walkthrough
+        return Syrus::Host::McpTools.invalid("walkthrough not found in this chat: #{walkthrough_id.inspect}") unless walkthrough
 
         if walkthrough.analysis.blank?
-          return Mcp::Tools.invalid(
+          return Syrus::Host::McpTools.invalid(
             "Walkthrough ##{walkthrough.id} has no analysis yet — it may still be analyzing, or its analysis failed. " \
             "Nothing to review."
           )

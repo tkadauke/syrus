@@ -393,6 +393,16 @@ Since: `0.1.16`
 
 Adds chat-lock error rendering to plugin API controllers; error payloads are not promised. Only the listed members are supported.
 
+### `Syrus::Host::ChatJobStatusExtension`
+
+Since: `0.1.16`
+
+Lets a plugin add actions to the chat Jobs workspace by returning a hash merged into the job-status response's extensions member; response assembly is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `payload`
+
 ### `Syrus::Host::ChatMcpToolSet`
 
 Since: `0.1.16`
@@ -937,6 +947,16 @@ Reads filesystem capacity snapshots for plugin-managed storage; caching and host
 Supported members:
 
 - `read`
+
+### `Syrus::Host::DomainSubscriber`
+
+Since: `0.1.16`
+
+Lets a plugin observe domain events by declaring subscriptions; event delivery, ordering and retries are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `subscriptions`
 
 ### `Syrus::Host::EcosystemDependencyAuditPlan`
 
@@ -1878,6 +1898,16 @@ Supported members:
 - `required_mcp_tools`
 - `review_needed?`
 
+### `Syrus::Host::PreviewPanelRetention`
+
+Since: `0.1.16`
+
+Lets a plugin declare which preview panels must be retained; the retention sweep itself is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `retained_preview_panel?`
+
 ### `Syrus::Host::ProcessRunner`
 
 Since: `0.1.16`
@@ -2145,6 +2175,16 @@ Supported members:
 
 - `default_batch_size`
 - `default_max_batches`
+
+### `Syrus::Host::RepositoryRecommendation`
+
+Since: `0.1.16`
+
+Lets a plugin recommend plugins or settings for a repository; recommendation ranking and presentation are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `repository_recommendations`
 
 ### `Syrus::Host::RetentionPolicy`
 
@@ -3058,6 +3098,17 @@ Supported members:
 - `register!`
 - `url`
 
+### `Syrus::Host::WorkspaceTab`
+
+Since: `0.1.16`
+
+Contributes tabs to the chat workspace panel; panel layout and rendering are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `workspace_tabs`
+
 ## Legacy compatibility APIs
 
 These core constants are recognized by the compatibility scanner because
@@ -3081,7 +3132,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AgentProviders::Base`
 - `AgentProviders::ConfigurationError`
 - `AgentProviders::SessionStore`
-- `AgentRole`
 - `AgentRole::AGENT_INSIGHT`
 - `AgentRole::CHAT_CODING`
 - `AgentRole::CHAT_LOCAL`
@@ -3105,7 +3155,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ApplicationCable::Channel`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
-- `ApplicationRecord`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
 - `AutoApproveModes`
@@ -3236,7 +3285,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Mcp::Tools::ProposalToolSupport`
 - `McpInvocationContext`
 - `McpSidecarLog`
-- `McpToolContext`
 - `McpToolPayloads::WorkflowPayload`
 - `McpToolPolicy`
 - `MergeTrain`
@@ -3249,12 +3297,10 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Observability::EventSink`
 - `OperationalLogSearch`
 - `OperationalLogSearch::INPUT_SCHEMA_PROPERTIES`
-- `OperationalLogging`
 - `Paginatable`
 - `PendingActionItem`
 - `PendingActions::Base`
 - `PerformanceLogEvent`
-- `PerformanceLogging`
 - `PerformanceLogging::BROWSER_TRACE_EVENT`
 - `PerformanceLogging::FEATURE_SLUG`
 - `PerformanceLogging::SLOW_JOB_EVENT`
@@ -3308,7 +3354,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RepoDeploymentStagesReader`
 - `Repository`
 - `RepositoryBareClone`
-- `RepositoryContent`
 - `RepositoryMembership`
 - `RepositoryPolicy`
 - `RepositorySummarySerialization`
@@ -3355,41 +3400,14 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::PathJail::PathEscape`
 - `Syrus::Plugin::AdminPage`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
-- `Syrus::Plugin::Callbacks`
-- `Syrus::Plugin::ChatJobStatusExtension`
-- `Syrus::Plugin::ChatMcpToolSet`
-- `Syrus::Plugin::ChatMediaSource`
-- `Syrus::Plugin::ChatPayloadContributor`
-- `Syrus::Plugin::ChatPromptInjector`
 - `Syrus::Plugin::ChatProvider`
-- `Syrus::Plugin::ChatTurnOrientation`
-- `Syrus::Plugin::CliCommandHandler`
-- `Syrus::Plugin::DomainSubscriber`
-- `Syrus::Plugin::ExecutionBackend`
 - `Syrus::Plugin::GraderFailureSummarizer`
-- `Syrus::Plugin::InputSource`
-- `Syrus::Plugin::JobOrigin`
-- `Syrus::Plugin::McpToolSet`
 - `Syrus::Plugin::MemoryStore`
-- `Syrus::Plugin::PermissionProvider`
 - `Syrus::Plugin::PlatformDelivery`
-- `Syrus::Plugin::PreviewPanelRetention`
-- `Syrus::Plugin::PurgeContributor`
-- `Syrus::Plugin::RepoPageTab`
 - `Syrus::Plugin::RepositoryRecommendation`
-- `Syrus::Plugin::RetentionPolicy`
-- `Syrus::Plugin::RuntimeSessionProvider`
-- `Syrus::Plugin::SidebarPage`
-- `Syrus::Plugin::SourceControlProvider`
-- `Syrus::Plugin::SpeechToTextProvider`
 - `Syrus::Plugin::TestEvidence`
-- `Syrus::Plugin::UiSlot`
-- `Syrus::Plugin::WorkerCapabilityProbe`
 - `Syrus::Plugin::WorkflowArtifactContributor`
-- `Syrus::Plugin::WorkspaceGitTransport`
-- `Syrus::Plugin::WorkspaceTab`
 - `Syrus::PluginApi`
-- `Syrus::PluginRegistry`
 - `Syrus::PluginSettings`
 - `SyrusMcp::TypedArtifactProvenance`
 - `SyrusSearchDatabaseTasks`
@@ -3424,7 +3442,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `WorkflowActivityEvent`
 - `WorkflowVisualEvidence`
 - `WorkflowWarnings`
-- `WorkflowWorkspace`
 - `Workflows::Base`
 - `WorkspaceDependencyEnv`
 - `WorkspaceReuseOutcomes::Summary`

@@ -19,7 +19,7 @@ module ThemingTools
         user = server_context.fetch(:chat_session).user
         themes = Theme.where(owner_user: user, built_in: false).order(:name)
 
-        Mcp::Tools.success(themes: themes.map(&:public_payload))
+        Syrus::Host::McpTools.success(themes: themes.map(&:public_payload))
       end
     end
   end

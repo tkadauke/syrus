@@ -1,10 +1,10 @@
 module WorkerTimeline
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     def self.sidebar_pages
       return [] unless WorkerTimeline.enabled?
-      return [] unless Current.user&.admin?
+      return [] unless Syrus::Host::Current.user&.admin?
 
       [
         {

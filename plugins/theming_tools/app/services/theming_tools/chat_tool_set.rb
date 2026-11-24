@@ -25,16 +25,16 @@ module ThemingTools
           description: klass.description_value,
           input_schema: klass.input_schema_value.to_h
         }
-        definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
+        definition.merge(capability_descriptor: Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition))
       end
     end
 
     def handle(tool_name, params, server_context)
       chat_session = server_context && server_context[:chat_session]
-      return Mcp::Tools.invalid("No chat session available in this context.") unless chat_session
+      return Syrus::Host::McpTools.invalid("No chat session available in this context.") unless chat_session
 
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown theming tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown theming tool: #{tool_name.inspect}") unless klass
 
       klass.call(**normalize_params(params), server_context: server_context)
     end

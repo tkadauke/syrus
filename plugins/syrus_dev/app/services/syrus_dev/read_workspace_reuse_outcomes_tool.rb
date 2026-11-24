@@ -24,13 +24,13 @@ module SyrusDev
 
     class << self
       def call(server_context:, since: nil, until_time: nil)
-        context = McpToolContext.from_server_context(server_context)
-        return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
-        return Mcp::Tools.invalid("workspace reuse outcomes are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
+        return Syrus::Host::McpTools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
+        return Syrus::Host::McpTools.invalid("workspace reuse outcomes are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
 
         window_end = parse_time(until_time) || Time.current
         window_start = parse_time(since) || 30.days.ago
-        return Mcp::Tools.invalid("since must be earlier than or equal to until_time") if window_start > window_end
+        return Syrus::Host::McpTools.invalid("since must be earlier than or equal to until_time") if window_start > window_end
 
         payload = {
           repository_id: context.repository.id,
@@ -44,7 +44,7 @@ module SyrusDev
         }
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ])
       rescue ArgumentError => error
-        Mcp::Tools.invalid(error.message)
+        Syrus::Host::McpTools.invalid(error.message)
       rescue StandardError => error
         Rails.logger.error("[SyrusDev::ReadWorkspaceReuseOutcomesTool] #{error.class}: #{error.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{error.class}: #{error.message}" } ], error: true)

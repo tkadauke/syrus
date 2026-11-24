@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class DesignDocsController < BaseController
+      class DesignDocsController < Syrus::Host::AppController
         PER_PAGE = 25
 
         before_action :require_design_docs_enabled
@@ -11,7 +11,7 @@ module Api
         end
 
         def repository_index
-          repository = Repository.accessible_to(Current.user).find(params[:repository_id])
+          repository = Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
           design_docs = scoped_design_docs.joins(:design_doc_repositories)
             .where(design_doc_repositories: { repository_id: repository.id })
 
@@ -21,7 +21,7 @@ module Api
         end
 
         def show
-          render json: { design_doc: serializer.detail(ensure_suggestion_threads(find_design_doc), user: Current.user) }
+          render json: { design_doc: serializer.detail(ensure_suggestion_threads(find_design_doc), user: Syrus::Host::Current.user) }
         end
 
         def preview
@@ -34,7 +34,7 @@ module Api
         def preferences
           columns = normalize_design_doc_visible_columns_param(design_doc_visible_columns_param)
           if columns
-            Current.user.update_dashboard_columns!(
+            Syrus::Host::Current.user.update_dashboard_columns!(
               subject: ::DesignDocs::SmartFolders::SUBJECT,
               columns: columns
             )
@@ -49,8 +49,8 @@ module Api
         end
 
         def create
-          result = ::DesignDocs::Create.call(user: Current.user, attributes: design_doc_params.to_h.symbolize_keys)
-          render json: { design_doc: serializer.detail(result.design_doc, user: Current.user), message: "Design doc created." }, status: :created
+          result = ::DesignDocs::Create.call(user: Syrus::Host::Current.user, attributes: design_doc_params.to_h.symbolize_keys)
+          render json: { design_doc: serializer.detail(result.design_doc, user: Syrus::Host::Current.user), message: "Design doc created." }, status: :created
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -59,7 +59,7 @@ module Api
           design_doc = find_design_doc
           result = ::DesignDocs::Update.call(
             design_doc: design_doc,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             attributes: design_doc_params.to_h.symbolize_keys,
             actor_kind: design_doc_actor_kind
           )
@@ -110,7 +110,7 @@ module Api
         def comments
           result = ::DesignDocs::CreateComment.call(
             design_doc: find_design_doc,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             attributes: comment_params.to_h.symbolize_keys,
             actor_kind: design_doc_actor_kind
           )
@@ -132,7 +132,7 @@ module Api
           design_doc = find_design_doc
           result = ::DesignDocs::ResolveThread.call(
             thread: design_doc.threads.find(params[:thread_id]),
-            user: Current.user
+            user: Syrus::Host::Current.user
           )
 
           render json: { canonical_revision: design_doc.reload.canonical_revision, thread: serializer.thread(result.thread), message: "Comment thread resolved." }
@@ -145,7 +145,7 @@ module Api
         def create_suggestion
           result = ::DesignDocs::CreateSuggestion.call(
             design_doc: find_design_doc,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             attributes: suggestion_params.to_h.symbolize_keys,
             actor_kind: design_doc_actor_kind
           )
@@ -176,7 +176,7 @@ module Api
             )
           end
 
-          payload = { design_doc: serializer.detail(result.design_doc, user: Current.user), suggestion: serializer.suggestion(result.suggestion), message: suggestion_review_message(result) }
+          payload = { design_doc: serializer.detail(result.design_doc, user: Syrus::Host::Current.user), suggestion: serializer.suggestion(result.suggestion), message: suggestion_review_message(result) }
           payload[:version] = serializer.version(result.version) if result.version
           render json: payload
         rescue ActiveRecord::RecordInvalid => e
@@ -226,13 +226,13 @@ module Api
           {
             active_smart_folder_id: active_smart_folder&.id,
             filter: current_filter.to_h,
-            filter_schema: ::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Current.user),
+            filter_schema: ::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Syrus::Host::Current.user),
             sort: current_sort,
             preferences: design_doc_preferences,
             controls: design_doc_controls,
             smart_folders: ::Admin::SmartFolderNavigation.new(
               subject: ::DesignDocs::SmartFolders::SUBJECT,
-              user: Current.user,
+              user: Syrus::Host::Current.user,
               active_folder: active_smart_folder,
               base_scope: base_scope,
               filter_class: ::DesignDocs::Filter
@@ -267,8 +267,8 @@ module Api
 
         def design_doc_preferences
           {
-            visible_columns: Current.user.dashboard_visible_columns(::DesignDocs::SmartFolders::SUBJECT),
-            raw: Current.user.dashboard_preferences.fetch("design_docs", {})
+            visible_columns: Syrus::Host::Current.user.dashboard_visible_columns(::DesignDocs::SmartFolders::SUBJECT),
+            raw: Syrus::Host::Current.user.dashboard_preferences.fetch("design_docs", {})
           }
         end
 
@@ -342,14 +342,14 @@ module Api
         def current_filter
           @current_filter ||= ::Filters::SmartFolderResolution.call(
             filter_class: ::DesignDocs::Filter, subject: ::DesignDocs::SmartFolders::SUBJECT,
-            params: params, active_smart_folder: active_smart_folder, user: Current.user
+            params: params, active_smart_folder: active_smart_folder, user: Syrus::Host::Current.user
           ).filter
         end
 
         def active_smart_folder
           @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
             subject: ::DesignDocs::SmartFolders::SUBJECT,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             params: params
           )
         end
@@ -470,9 +470,9 @@ module Api
           design_doc = find_design_doc
           suggestion = design_doc.suggestions.find(params[:suggestion_id])
           if decision == :accept
-            ::DesignDocs::ReviewSuggestion.accept(suggestion: suggestion, user: Current.user)
+            ::DesignDocs::ReviewSuggestion.accept(suggestion: suggestion, user: Syrus::Host::Current.user)
           else
-            ::DesignDocs::ReviewSuggestion.reject(suggestion: suggestion, user: Current.user)
+            ::DesignDocs::ReviewSuggestion.reject(suggestion: suggestion, user: Syrus::Host::Current.user)
           end
         end
 
