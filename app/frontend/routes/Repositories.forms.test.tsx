@@ -225,6 +225,46 @@ describe("App repositories", () => {
     await waitFor(() => expect(within(nameLabel).queryByRole("status")).toBeNull())
   })
 
+  it("shows a spinner next to the default branch label while branches load and removes it once they resolve", async () => {
+    let resolveBranches: ((r: Response) => void) | null = null
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/repositories/owners") return Promise.resolve(json({ user: "acme", orgs: [] }))
+      if (path.startsWith("/api/v1/app/repositories/repos")) {
+        return Promise.resolve(json({ repos: [{ name: "widgets", github_repository_id: 456, github_owner_id: 123 }] }))
+      }
+      if (path.startsWith("/api/v1/app/repositories/branches")) {
+        return new Promise<Response>((resolve) => {
+          resolveBranches = resolve
+        })
+      }
+      return Promise.resolve(json(repositoryFormPayload()))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/new"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByRole("option", { name: "acme" })
+    fireEvent.change(screen.getByLabelText("Working owner"), { target: { value: "acme" } })
+    await screen.findByRole("option", { name: "widgets" })
+    fireEvent.change(screen.getByLabelText("Working name"), { target: { value: "widgets" } })
+
+    const branchLabel = screen.getByText("Default branch").closest("label") as HTMLElement
+    await waitFor(() => expect(within(branchLabel).getByRole("status")).toBeInTheDocument())
+
+    // The branches request is debounced; wait for it to actually be issued.
+    await waitFor(() => expect(resolveBranches).not.toBeNull())
+    expect(within(branchLabel).getByRole("status")).toBeInTheDocument()
+    resolveBranches!(json({ branches: ["trunk", "main"], default_branch: "trunk" }))
+    await waitFor(() => expect(within(branchLabel).queryByRole("status")).toBeNull())
+  })
+
   it("creates a repository and navigates within the React shell", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
