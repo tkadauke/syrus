@@ -11,13 +11,15 @@ module Mcp::Tools
       properties: {
         job_id: { type: "integer", description: "Syrus Job id to update." },
         depends_on_job_id: { type: "integer", description: "Syrus Job id to remove as a dependency." },
-        depends_on_epic_id: { type: "integer", description: "Syrus Epic id to remove as a dependency." }
+        depends_on_epic_id: { type: "integer", description: "Syrus Epic id to remove as a dependency." },
+        hold_running: { type: "boolean", description: "When the remaining dependencies are unsatisfied and the Job has an active Run, hold the Job instead of rejecting the edit. Defaults to false." },
+        reason: { type: "string", description: "Audit reason recorded when hold_running holds the Job." }
       },
       required: %w[job_id]
     )
 
     class << self
-      def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, server_context:)
+      def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, hold_running: false, reason: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         user = chat_session.user
 
@@ -27,13 +29,19 @@ module Mcp::Tools
         job = job_scope_for(user).find_by(id: job_id)
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
+        depends_on_job = nil
         if depends_on_job_id
           depends_on_job = job_scope_for(user).find_by(id: depends_on_job_id)
           return Mcp::Tools.invalid("job not found: #{depends_on_job_id}") unless depends_on_job
+        end
 
-          JobDependency.where(job: job, depends_on_job: depends_on_job).destroy_all
-        else
-          JobDependency.where(job: job, depends_on_epic_id: depends_on_epic_id).destroy_all
+        ApplicationRecord.transaction do
+          if depends_on_job
+            JobDependency.where(job: job, depends_on_job: depends_on_job).destroy_all
+          else
+            JobDependency.where(job: job, depends_on_epic_id: depends_on_epic_id).destroy_all
+          end
+          JobDependencyEditGuard.enforce!(job, hold_running: hold_running == true, reason: reason)
         end
 
         Mcp::Tools.success(
@@ -41,6 +49,8 @@ module Mcp::Tools
           depends_on_job_ids: depends_on_job_ids(job.reload),
           depends_on_epic_ids: depends_on_epic_ids(job)
         )
+      rescue JobDependencyEditGuard::ActiveRunRejection => e
+        Mcp::Tools.invalid(e.message)
       end
 
       private

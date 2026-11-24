@@ -32,6 +32,7 @@ module Permissions
       "reconcile_job_state" => Operation.new(ADMIN_REPAIR, "reconcile_job_state", WORK_CONTROL, :medium),
       "force_state_transition" => Operation.new(ADMIN_REPAIR, "force_state_transition", DESTRUCTIVE_CONTROL, :critical),
       "cancel_stale_work" => Operation.new(ADMIN_REPAIR, "cancel_stale_work", DESTRUCTIVE_CONTROL, :high),
+      "hold_job" => Operation.new(ADMIN_REPAIR, "hold_job", DESTRUCTIVE_CONTROL, :high),
       "retire_terminal_work_unit" => Operation.new(ADMIN_REPAIR, "retire_terminal_work_unit", STATE_CHANGE, :medium),
       "reenqueue_work" => Operation.new(ADMIN_REPAIR, "reenqueue_work", WORK_CONTROL, :medium),
       "repair_queue_affinity" => Operation.new(ADMIN_REPAIR, "repair_queue_affinity", WORK_CONTROL, :medium),

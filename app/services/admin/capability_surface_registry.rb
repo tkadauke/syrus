@@ -148,6 +148,7 @@ module Admin
       force_rebase
       force_state_transition
       grant_permission
+      hold_job
       local_tool_call
       manual_agentic_run
       mark_ci_repair_noop
