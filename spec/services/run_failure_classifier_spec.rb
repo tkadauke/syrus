@@ -1142,6 +1142,26 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.reason).to include("storage capacity")
   end
 
+  # Regression: a rollout renamed coverage_snapshots while Runs on the
+  # previous release were still executing; both failed as a non-retryable
+  # application_error and their Jobs went to failed.
+  it "classifies a missing table from old code after a migration as retryable schema skew" do
+    run.update!(state: "failed")
+    diagnostic("ActiveRecord::StatementInvalid", "Mysql2::Error: Table 'syrus_production.coverage_snapshots' doesn't exist")
+
+    result = classification
+
+    expect(result.classification).to eq("schema_version_skew")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "classifies a missing column the same way" do
+    run.update!(state: "failed")
+    diagnostic("ActiveRecord::StatementInvalid", "Mysql2::Error: Unknown column 'jobs.retired_flag' in 'where clause'")
+
+    expect(classification.classification).to eq("schema_version_skew")
+  end
+
   it "classifies a bare 'record file full' message as retryable database capacity" do
     run.update!(state: "failed")
     diagnostic("ActiveRecord::StatementInvalid", "Mysql2::Error: record file full")

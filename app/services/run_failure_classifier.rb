@@ -186,6 +186,8 @@ class RunFailureClassifier
     # lower-level exceptions and rows created before Problems were recorded.
     when disk_full?
       result("disk_full", 0.90, true, "The run failed because the worker disk was full (e.g. Errno::ENOSPC); this is transient infrastructure capacity, not a code defect.")
+    when schema_version_skew?
+      result("schema_version_skew", 0.80, true, "The run's code expected a table or column the database no longer has, which is what a Run still on the previous release sees right after a deploy migrated; a retry runs on an updated worker.")
     when database_capacity?
       result("database_capacity", 0.85, true, "The run failed because the database ran out of storage capacity (e.g. a MySQL table-full condition); this is transient infrastructure capacity, not a code defect.")
     when database_lock?
@@ -610,6 +612,12 @@ class RunFailureClassifier
   def database_lock?
     diagnostic&.error_class.to_s.match?(/Deadlocked|LockWaitTimeout|StatementTimeout|ConnectionNotEstablished|ConnectionTimeoutError/) ||
       text_match?(/database is locked|SQLite3::BusyException|Deadlocked|LockWaitTimeout|StatementTimeout|ConnectionNotEstablished|ConnectionTimeoutError|too many connections|could not obtain a connection/i)
+  end
+
+  # A deploy migrates before every worker has the new release: draining pods
+  # and macOS workers run old code against the new schema for a while.
+  def schema_version_skew?
+    text_match?(/Table '[^']+' doesn't exist|Unknown column '[^']+' in|no such table:|no such column:/i)
   end
 
   def database_capacity?

@@ -33,6 +33,7 @@ module Steps
       workspace_checkout_invalid
       database_capacity
       database_lock
+      schema_version_skew
       disk_full
       git_transport_transient
       prepare_network_transient

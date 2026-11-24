@@ -72,6 +72,7 @@ class Problem
                 failure_codes: %w[timed_out silent_timed_out]),
       Entry.new(code: "database_lock", scope: :run, retryable: true, default_remediation: :retry_step),
       Entry.new(code: "database_capacity", scope: :run, retryable: true, default_remediation: :retry_step),
+      Entry.new(code: "schema_version_skew", scope: :run, retryable: true, default_remediation: :retry_step),
       Entry.new(code: "disk_full", scope: :external, retryable: true,
                 default_remediation: :defer,
                 label: "Disk full"),
