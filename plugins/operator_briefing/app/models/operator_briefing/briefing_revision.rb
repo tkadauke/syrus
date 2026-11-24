@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingRevision < ApplicationRecord
+  class BriefingRevision < Syrus::Host::Record
     self.table_name = "operator_briefing_revisions"
 
     BLOCK_KINDS = %w[narrative chart image artifact link_card].freeze
@@ -51,7 +51,7 @@ module OperatorBriefing
     end
 
     def broadcast_block(block)
-      AppEvents.broadcast(
+      Syrus::Host::AppEvents.broadcast(
         user: briefing.owner_user,
         type: "operator_briefing.block_submitted",
         resource: "operator_briefing",

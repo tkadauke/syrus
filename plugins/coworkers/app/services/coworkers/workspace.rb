@@ -3,7 +3,7 @@ class Coworkers::Workspace
 
   def self.for(server_context)
     run = server_context[:run]
-    root = StepWorkspace.for(run.step, run: run).path if run&.step&.kind == "coworker_run"
+    root = Syrus::Host::StepWorkspace.for(run.step, run: run).path if run&.step&.kind == "coworker_run"
     new(server_context.fetch(:chat_session), root: root)
   end
 

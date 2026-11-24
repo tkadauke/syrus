@@ -1,4 +1,4 @@
-class Coworkers::Grant < ApplicationRecord
+class Coworkers::Grant < Syrus::Host::Record
   self.table_name = "coworker_grants"
   APPROVAL_POLICIES = %w[auto confirm queue].freeze
 

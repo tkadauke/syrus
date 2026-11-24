@@ -20,7 +20,7 @@ module Coworkers
       end
       if background_jobs.exists?
         lines = background_jobs.order(:created_at).limit(100).map do |job|
-          summary = Run.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
+          summary = Syrus::Host::Runs.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
           "- JOB-#{job.id}: #{text(job.issue_title)}#{": #{text(summary).truncate(1_000)}" if summary.present?}"
         end
         sections << "### Background runs\n\n#{lines.join("\n")}"
@@ -73,7 +73,7 @@ module Coworkers
     end
 
     def background_jobs
-      Job.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
+      Syrus::Host::Jobs.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
     end
 
     def daily_memory
@@ -86,10 +86,10 @@ module Coworkers
         pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
         return @daily_memory = text(pending, label: daily_memory_path) if pending
       end
-      reader = RepositoryContent.for(repository, user: @coworker.owner_user)
+      reader = Syrus::Host::RepositoryContent.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
       @daily_memory = text(reader.read(revision, daily_memory_path, max_bytes: 64.kilobytes).text, label: daily_memory_path)
-    rescue RepositoryContent::NotFound, RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision
+    rescue Syrus::Host::RepositoryContent::NotFound, Syrus::Host::RepositoryContent::Unavailable, Syrus::Host::RepositoryContent::Unsupported, Syrus::Host::RepositoryContent::UnknownRevision
       @daily_memory = nil
     end
 

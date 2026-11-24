@@ -17,11 +17,11 @@ module Coworkers::McpTools
         owner = server_context.fetch(:chat_session).user
         coworker = Coworkers::OwnerResolver.new(owner: owner).find!(id: coworker_id, handle: handle)
         coworker.coworker_chats.includes(:chat_session).load
-        Mcp::Tools.success(coworker: Coworkers::McpPresenter.new(coworker).detail)
+        Syrus::Host::McpTools.success(coworker: Coworkers::McpPresenter.new(coworker).detail)
       rescue ActiveRecord::RecordNotFound
-        Mcp::Tools.invalid("coworker not found")
+        Syrus::Host::McpTools.invalid("coworker not found")
       rescue ArgumentError => error
-        Mcp::Tools.invalid(error.message)
+        Syrus::Host::McpTools.invalid(error.message)
       end
     end
   end

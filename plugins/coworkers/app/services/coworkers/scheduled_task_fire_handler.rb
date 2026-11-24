@@ -38,7 +38,7 @@ module Coworkers
     private
 
     def create_job(coworker:, prompt:, target_date: nil, catch_up_remaining: nil)
-      job = Job.create!(
+      job = Syrus::Host::Jobs.create!(
         user: task.user,
         repository: task.repository,
         kind: "coworker_task",

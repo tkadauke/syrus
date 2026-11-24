@@ -70,7 +70,7 @@ module Coworkers
 
     def descriptor_for(entry)
       if entry.tool
-        McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == entry.tool }&.descriptor
+        Syrus::Host::McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == entry.tool }&.descriptor
       elsif entry.definition
         Syrus::Host::PermissionCapabilityAdapter.for_plugin_definition(entry.definition)
       end

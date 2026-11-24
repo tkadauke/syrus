@@ -26,13 +26,13 @@ module OperatorBriefing
 
       class << self
         def call(narrative:, server_context:, topic_id: nil, title: nil, slug: nil, findings: nil, references: nil)
-          run = Mcp::Tools.run_from_context(server_context)
-          return Mcp::Tools.invalid("submit_dive_report is only available from submit_dive_report") unless run.step&.kind == "submit_dive_report"
+          run = Syrus::Host::McpTools.run_from_context(server_context)
+          return Syrus::Host::McpTools.invalid("submit_dive_report is only available from submit_dive_report") unless run.step&.kind == "submit_dive_report"
 
           context = run.workflow.artifact("briefing_dive_context") || {}
           briefing = Briefing.find_by(id: context["briefing_id"])
-          normalized_narrative = Mcp::Tools.utf8(narrative).strip.truncate(MAX_NARRATIVE_LENGTH)
-          return Mcp::Tools.invalid("narrative is required") if normalized_narrative.blank?
+          normalized_narrative = Syrus::Host::McpTools.utf8(narrative).strip.truncate(MAX_NARRATIVE_LENGTH)
+          return Syrus::Host::McpTools.invalid("narrative is required") if normalized_narrative.blank?
 
           topic = find_or_create_topic!(
             run: run,
@@ -52,11 +52,11 @@ module OperatorBriefing
           })
           InterestSignal.record_dive_completed!(user: run.user, briefing: briefing, topic_title: topic.title) if briefing
 
-          Mcp::Tools.success(topic_id: topic.id, topic_revision_id: revision.id, path: "/briefing/topics/#{topic.id}")
+          Syrus::Host::McpTools.success(topic_id: topic.id, topic_revision_id: revision.id, path: "/briefing/topics/#{topic.id}")
         rescue ActiveRecord::RecordInvalid => e
-          Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
         rescue ActiveRecord::RecordNotFound
-          Mcp::Tools.invalid("briefing topic not found")
+          Syrus::Host::McpTools.invalid("briefing topic not found")
         end
 
         private
@@ -64,7 +64,7 @@ module OperatorBriefing
         def find_or_create_topic!(run:, topic_id:, title:, slug:, briefing:)
           return BriefingTopic.where(repository: run.job.repository).find(topic_id) if topic_id.present?
 
-          normalized_title = Mcp::Tools.utf8(title).strip.truncate(MAX_TITLE_LENGTH)
+          normalized_title = Syrus::Host::McpTools.utf8(title).strip.truncate(MAX_TITLE_LENGTH)
           raise ActiveRecord::RecordInvalid.new(BriefingTopic.new.tap { |topic| topic.errors.add(:title, "is required") }) if normalized_title.blank?
 
           BriefingTopic.create!(
@@ -83,7 +83,7 @@ module OperatorBriefing
             revision_number: topic.revisions.maximum(:revision_number).to_i + 1,
             generated_at: Time.current,
             narrative: narrative,
-            findings: Array(findings).map { |finding| Mcp::Tools.utf8(finding).strip.truncate(300) }.reject(&:blank?).first(MAX_FINDINGS),
+            findings: Array(findings).map { |finding| Syrus::Host::McpTools.utf8(finding).strip.truncate(300) }.reject(&:blank?).first(MAX_FINDINGS),
             references: Array(references).first(MAX_REFERENCES)
           )
         end

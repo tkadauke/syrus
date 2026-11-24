@@ -3,7 +3,7 @@ module Permissions
   # source of truth for their default policy: core grant defaults are derived
   # from it (+grant_default_policy+), and McpToolRegistry refuses to register a
   # coworker entry whose descriptor defaults to +allow+ without being provably
-  # benign (see CoworkerDefaultPolicy). Plugins build theirs with +descriptor+.
+  # benign (see Syrus::Host::PermissionCoworkerDefaultPolicy). Plugins build theirs with +descriptor+.
   #
   # Capability and operation identifiers match the previous compatibility
   # descriptors so existing rules keep matching.
@@ -65,7 +65,7 @@ module Permissions
     class << self
       def covers?(tool_name) = OPERATIONS.key?(tool_name.to_s)
 
-      def descriptor_for(tool_name, required_roles: CoworkerDefaultPolicy::ROLES)
+      def descriptor_for(tool_name, required_roles: Syrus::Host::PermissionCoworkerDefaultPolicy::ROLES)
         operation = OPERATIONS.fetch(tool_name.to_s)
         descriptor(tool_name: tool_name, family: operation.family, effects: operation.effects, risk: operation.risk,
           default: operation.default, benign_internal: operation.benign_internal, roles: required_roles)
@@ -75,24 +75,24 @@ module Permissions
       def grant_default_policy(family, ungated: [])
         policies = OPERATIONS.select { |name, operation| operation.family == family.to_s && !ungated.include?(name) }
           .values.map(&:default)
-        CoworkerDefaultPolicy.grant_policy_for(policies)
+        Syrus::Host::PermissionCoworkerDefaultPolicy.grant_policy_for(policies)
       end
 
       # Builds a coworker descriptor and validates the default against the
       # shared safety rule, so a new tool cannot silently inherit +allow+.
-      def descriptor(tool_name:, family:, effects:, risk:, default:, roles: CoworkerDefaultPolicy::ROLES,
+      def descriptor(tool_name:, family:, effects:, risk:, default:, roles: Syrus::Host::PermissionCoworkerDefaultPolicy::ROLES,
         benign_internal: nil, maximum_autonomy: nil, durations: nil, essential: false, deniable_reason: nil)
         family = family.to_s
         operation = "#{family}/#{tool_name.to_s.tr('/', '.').gsub(/[^a-zA-Z0-9_.-]/, '_').downcase}@v1"
         effects = Array(effects)
         # Pure reads keep the historical permanent ceiling; any write stays per-invocation.
         maximum_autonomy ||= effects.all? { |effect| %i[local_read confidential_read].include?(effect) } ? :permanent : :invocation
-        durations ||= maximum_autonomy == :permanent ? CapabilityDescriptor::AUTHORITY_DURATIONS : [ :invocation ]
+        durations ||= maximum_autonomy == :permanent ? Syrus::Host::PermissionCapabilityDescriptor::AUTHORITY_DURATIONS : [ :invocation ]
 
-        CoworkerDefaultPolicy.validate!(CapabilityDescriptor.new(
+        Syrus::Host::PermissionCoworkerDefaultPolicy.validate!(Syrus::Host::PermissionCapabilityDescriptor.new(
           capability: "#{family}@v1",
           operation: operation,
-          presentation: CapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
+          presentation: Syrus::Host::PermissionCapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
           effects: effects,
           risk: risk,
           requestable_roles: roles,
@@ -105,13 +105,13 @@ module Permissions
           deniable_reason: deniable_reason,
           classifier: ->(_arguments) { { operation: operation, effects: effects, risk: risk, confidence: :certain } },
           fingerprint_normalizer: ->(arguments) { deep_normalize(arguments) },
-          redactor: ->(arguments) { CapabilityDescriptorAdapter.send(:deep_redact, arguments) }
+          redactor: ->(arguments) { Syrus::Host::PermissionCapabilityAdapter.redact_arguments(arguments) }
         ))
       end
 
       private
 
-      def deep_normalize(value) = CapabilityDescriptorAdapter.send(:deep_normalize, value)
+      def deep_normalize(value) = Syrus::Host::PermissionCapabilityAdapter.normalize_arguments(value)
     end
   end
 end

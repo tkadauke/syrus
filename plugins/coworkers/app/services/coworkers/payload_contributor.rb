@@ -1,6 +1,6 @@
 module Coworkers
   class PayloadContributor
-    include Syrus::Plugin::ChatPayloadContributor
+    include Syrus::Host::ChatPayloadContributor
 
     def self.chat_payload(chat_session:, context:)
       link = Coworkers::Chat.includes(coworker: { avatar_attachment: :blob }).find_by(chat_session_id: chat_session.id)
@@ -20,7 +20,7 @@ module Coworkers
         {
           id: coworker.id, name: coworker.name, handle: coworker.handle,
           accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url,
-          removable: chat_session.user_id == Current.user&.id, after_reply: entry.after_reply
+          removable: chat_session.user_id == Syrus::Host::Current.user&.id, after_reply: entry.after_reply
         }
       end
     end

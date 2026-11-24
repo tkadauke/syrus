@@ -7,7 +7,7 @@ class Coworkers::RemoteWorkspace
   attr_reader :repository
 
   class << self
-    def for_coworker(coworker, git: GitRunner.new, authenticated_url: nil)
+    def for_coworker(coworker, git: Syrus::Host::GitRunner.new, authenticated_url: nil)
       match = coworker.workspace_repo.to_s.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
       raise InvalidRemote, "invalid coworker workspace repository" unless match
 
@@ -15,8 +15,8 @@ class Coworkers::RemoteWorkspace
     end
   end
 
-  def initialize(owner:, name:, user:, git: GitRunner.new, authenticated_url: nil)
-    @repository = Repository.new(owner: owner, name: name, user: user)
+  def initialize(owner:, name:, user:, git: Syrus::Host::GitRunner.new, authenticated_url: nil)
+    @repository = Syrus::Host::Repositories.build(owner: owner, name: name, user: user)
     @user = user
     @git = git
     @authenticated_url = authenticated_url
@@ -133,7 +133,7 @@ class Coworkers::RemoteWorkspace
     with_seed_checkout do |path|
       @git.run("push", "--force-with-lease=#{ref}:#{expected_sha}", authenticated_url, ":#{ref}", chdir: path)
     end
-  rescue GitRunner::GitError => error
+  rescue Syrus::Host::GitRunner::GitError => error
     current = branch_sha(branch)
     return if current.nil? # Another cleanup already removed the proven ref.
     raise RefChanged, "the remote ref changed before cleanup could delete it" if current.present? && current != expected_sha

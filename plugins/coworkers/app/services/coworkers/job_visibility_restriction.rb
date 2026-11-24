@@ -1,5 +1,5 @@
 class Coworkers::JobVisibilityRestriction
-  include Syrus::Plugin::JobVisibilityRestriction
+  include Syrus::Host::JobVisibilityRestriction
 
   def self.origin_key = "coworkers"
 

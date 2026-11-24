@@ -9,7 +9,7 @@ module AlertmanagerInvestigations
 
     def self.repository_for(url)
       location = RunbookLocation.candidates(url).first
-      Repository.active.find_by(owner: location&.owner, name: location&.name) if location
+      Syrus::Host::Repositories.active.find_by(owner: location&.owner, name: location&.name) if location
     end
 
     def initialize(url, configuration: Configuration.current)
@@ -29,22 +29,22 @@ module AlertmanagerInvestigations
     private
 
     def resolve_location(location)
-      repository = Repository.active.find_by(owner: location.owner, name: location.name)
+      repository = Syrus::Host::Repositories.active.find_by(owner: location.owner, name: location.name)
       return nil unless repository
       return nil unless location.ref == repository.default_branch
       return nil unless safe_path?(location.path)
       return nil unless @configuration.runbook_allowed?(repository, location.path)
 
-      content = RepositoryContent.for(repository)
+      content = Syrus::Host::RepositoryContent.for(repository)
       revision = content.resolve(repository.default_branch)
       blob = content.read(revision, location.path, max_bytes: MAX_RUNBOOK_BYTES)
       return nil if blob.truncated
       return nil unless opted_in?(blob.text)
 
       Result.new(repository: repository, ref: revision.ref || location.ref, path: location.path, content: blob.text)
-    rescue RepositoryContent::NotFound
+    rescue Syrus::Host::RepositoryContent::NotFound
       nil
-    rescue RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision => e
+    rescue Syrus::Host::RepositoryContent::Unavailable, Syrus::Host::RepositoryContent::Unsupported, Syrus::Host::RepositoryContent::UnknownRevision => e
       Rails.logger.warn("[AlertmanagerInvestigations] runbook unavailable for #{@url}: #{e.class}: #{e.message}")
       nil
     end

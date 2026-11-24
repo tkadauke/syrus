@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingItem < ApplicationRecord
+  class BriefingItem < Syrus::Host::Record
     self.table_name = "operator_briefing_items"
 
     SEVERITIES = OperatorBriefing::SEVERITIES
