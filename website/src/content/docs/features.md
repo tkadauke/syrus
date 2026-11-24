@@ -2919,6 +2919,11 @@ an agent iterates. Closing the preview tab only dismisses it from chat; the
 published mockup remains viewable from the Mockups page. Mockups are visible to
 whoever can see the chat they came from.
 
+Chat agents can also inspect earlier versions of a preview read-only: they can
+list a preview's preserved versions and read a text file from any of them (binary
+files are reported as metadata), for open or closed previews in the same chat.
+This lets an agent reuse a design from an older version without restoring it.
+
 Preview and list payloads carry only the current revision's stored summary;
 the version picker loads older revisions when opened. Exporting the same
 revision again reuses its cached zip archive.

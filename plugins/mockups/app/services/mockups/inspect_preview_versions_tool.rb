@@ -39,7 +39,7 @@ module Mockups
         return error_response("No preview panel #{panel_id.inspect} for this chat.") unless panel
 
         versions = panel.preview_panel_versions.includes(files_attachments: :blob).to_a
-        current = panel.current_version
+        current = versions.first
         if path.blank? && version_id.blank?
           return ok_response(panel_id: panel.id, state: panel.state, current_version_id: current&.id,
                              versions: versions.map { |version| version_summary(version) })
