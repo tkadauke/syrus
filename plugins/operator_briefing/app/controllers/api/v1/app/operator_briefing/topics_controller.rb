@@ -7,7 +7,7 @@ module Api
 
           def show
             topic = ::OperatorBriefing::BriefingTopic
-              .where(repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
+              .where(repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(Syrus::Host::Current.user))
               .find(params[:id])
             render json: topic_payload(topic)
           end

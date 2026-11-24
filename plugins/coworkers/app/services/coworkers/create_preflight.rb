@@ -32,7 +32,7 @@ class Coworkers::CreatePreflight
     candidate = Coworkers::Coworker.new({ owner_user: @owner, name: @name, handle: @handle,
       workspace_repo: @workspace_repo }.merge(@attributes))
     candidate.validate!
-    raise ActiveRecord::RecordInvalid, candidate if Handle.exists?(handle: @handle)
+    raise ActiveRecord::RecordInvalid, candidate if Syrus::Host::Handle.exists?(handle: @handle)
   end
 
   def validate_grants!
@@ -52,7 +52,7 @@ class Coworkers::CreatePreflight
     model = @attributes[:chat_model]
     raise ArgumentError, "chat_provider is required when chat_model is set" if model.present? && provider.blank?
     return if provider.blank?
-    raise ArgumentError, "unknown chat provider: #{provider}" unless User.chat_providers.include?(provider)
+    raise ArgumentError, "unknown chat provider: #{provider}" unless Syrus::Host::UserRecord.chat_providers.include?(provider)
     raise ArgumentError, "chat provider is not configured: #{provider}" unless @owner.chat_provider_configured?(provider)
     return if model.blank?
 

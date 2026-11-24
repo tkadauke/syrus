@@ -19,14 +19,14 @@ module Mcp::Tools
     end
 
     def self.scope_options(user:)
-      repositories = Repository.accessible_to(user).active.order(:owner, :name, :id).to_a
+      repositories = Syrus::Host::RepositoryRecord.accessible_to(user).active.order(:owner, :name, :id).to_a
       [ ALL ] + repositories.map { |repository| [ repository.id ] }
     end
 
     def self.scope_label(value)
       return "All repositories you can read" if value == ALL
 
-      repositories = Repository.where(id: Array(value).map(&:to_i)).order(:owner, :name, :id)
+      repositories = Syrus::Host::RepositoryRecord.where(id: Array(value).map(&:to_i)).order(:owner, :name, :id)
       repositories.map(&:slug).join(", ").presence || "No repositories"
     end
 
@@ -35,7 +35,7 @@ module Mcp::Tools
       ids = Array(value)
       return false if ids.empty? || ids.any? { |id| id.to_s !~ /\A\d+\z/ }
 
-      accessible_ids = Repository.accessible_to(user).active.where(id: ids.map(&:to_i)).pluck(:id)
+      accessible_ids = Syrus::Host::RepositoryRecord.accessible_to(user).active.where(id: ids.map(&:to_i)).pluck(:id)
       accessible_ids.sort == ids.map(&:to_i).uniq.sort
     end
 
@@ -43,7 +43,7 @@ module Mcp::Tools
       private
 
       def find_repository(context, repository_id:, slug:)
-        scope = Repository.accessible_to(context.user).active
+        scope = Syrus::Host::RepositoryRecord.accessible_to(context.user).active
         return scope.find_by(id: repository_id) if repository_id.present?
 
         candidate = slug.presence || context.repository&.slug

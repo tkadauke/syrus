@@ -5,7 +5,7 @@ module Api
         class SubscriptionsController < Syrus::Host::AppController
           def update
             subscription = ::OperatorBriefing::BriefingSubscription
-              .where(user: Syrus::Host::Current.user, repository_id: Repository.accessible_repository_ids_for(Syrus::Host::Current.user))
+              .where(user: Syrus::Host::Current.user, repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(Syrus::Host::Current.user))
               .find(params[:id])
             subscription.update!(enabled: ActiveModel::Type::Boolean.new.cast(subscription_params.fetch(:enabled)))
             ::OperatorBriefing::OptOutCleanup.cancel_for_subscription!(subscription) unless subscription.enabled?

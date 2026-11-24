@@ -8,7 +8,7 @@ module AgentInsights
     # A has_one reads as "the one for this repository", so this returns the
     # record rather than a relation.
     def self.for_repository(repository)
-      find_by(repository_id: repository.is_a?(::Repository) ? repository.id : repository)
+      find_by(repository_id: repository.is_a?(Syrus::Host::RepositoryRecord) ? repository.id : repository)
     end
 
     validates :min_jobs_since_last_run, numericality: { only_integer: true, greater_than_or_equal_to: 1 }

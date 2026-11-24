@@ -79,7 +79,7 @@ class Coworkers::HomeBranchPersistence
     url = repository.authenticated_url(user: @chat_session.user)
     refresh_remote_branch!(url, path, branch)
     begin
-      GitMergeDrivers.register!(git: @git, path:)
+      Syrus::Host::GitMergeDrivers.register!(git: @git, path:)
       @git.run("rebase", "origin/#{branch}", chdir: path.to_s)
     rescue Syrus::Host::GitRunner::GitError => e
       raise Conflict,

@@ -128,7 +128,7 @@ class Coworkers::ReviewMemoryLifecycle
           with_git_auth(repository, run, operation_type: "coworker_review_reconcile") do |url, env|
             git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path, env:)
           end
-          GitMergeDrivers.register!(git:, path:)
+          Syrus::Host::GitMergeDrivers.register!(git:, path:)
           git.run("rebase", "origin/#{branch}", chdir: path)
           expected_sha = git.run("rev-parse", "origin/#{branch}", chdir: path).strip
           lease = "--force-with-lease=refs/heads/#{branch}:#{expected_sha}"
@@ -148,7 +148,7 @@ class Coworkers::ReviewMemoryLifecycle
     def with_git_auth(repository, run, operation_type:)
       user = run.job.owner_user || run.job.user
       git = Syrus::Host::GitRunner.new
-      GithubAuthenticatedGit.run(repository:, user:, git:, operation_type:) do |authenticated_url|
+      Syrus::Host::GithubAuthenticatedGit.run(repository:, user:, git:, operation_type:) do |authenticated_url|
         uri = URI.parse(authenticated_url)
         username, password = uri.userinfo.to_s.split(":", 2)
         uri.user = nil

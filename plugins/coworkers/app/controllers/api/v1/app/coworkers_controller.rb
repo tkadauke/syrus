@@ -557,7 +557,7 @@ module Api
           match = coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
           raise ActiveRecord::RecordNotFound unless match
 
-          Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
+          Syrus::Host::RepositoryRecord.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first!
         end
 
         def syrus_json

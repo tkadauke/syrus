@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 296
+legacy_baseline: 258
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -37,8 +37,6 @@ constants:
 - name: Appearance::ColorPalette
 - name: Appearance::ColorPalette::HEX_PATTERN
 - name: ApplicationCable::Channel
-- name: ApplicationPolicy
-- name: ApplicationPolicy::Scope
 - name: AuthorizationCheckpointOrigin
 - name: AuthorizedInvocation
 - name: BackendExceptionLogging
@@ -74,7 +72,6 @@ constants:
 - name: ChatWakeup
 - name: ChatWorkEvents
 - name: ChatWorkspace
-- name: ClassifyIssueJob
 - name: ClaudeTranscript
 - name: ClaudeTranscript::Event
 - name: CodexAccountScope
@@ -82,10 +79,6 @@ constants:
 - name: CredentialProbe
 - name: CredentialProbe::Result
 - name: CredentialProbe::TIMEOUT_SECONDS
-- name: DiffReviewComment
-- name: DiffReviewVersion
-- name: DiffReviewVersions::FinalReviewVersion
-- name: Document::MAX_ATTACHMENTS_PER_JOB
 - name: Execution::ChatWorkloadPolicy
 - name: Feature
 - name: Filters::Ast
@@ -114,23 +107,10 @@ constants:
 - name: Filters::SmartFolderResolution::PRESET_FIELD
 - name: Filters::UnknownFilterField
 - name: FtsQueryParser
-- name: GitMergeDrivers
-- name: GithubApiUsageRollup
-- name: GithubAuthenticatedGit
-- name: GithubClient
-- name: GithubIssueJobAttributes
-- name: Handle
-- name: Handle::FORMAT
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
-- name: IngestIssueImagesJob
-- name: IngestPolicy
-- name: IngestPolicy::SKIP_LABEL
-- name: InputSource
-- name: InputSources::PendingWorkWakeup
 - name: InstanceVersion
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-- name: IssueImageExtractor
 - name: KubernetesCluster
 - name: MaintenanceTasks::Definitions::Base::Result
 - name: Mcp::CoworkerToolExposure
@@ -201,7 +181,6 @@ constants:
 - name: PluginJob
 - name: PluginJob::DEFAULT_ATTEMPTS
 - name: PluginRecord
-- name: PrReviewComment
 - name: PreviewCommandSource
 - name: PreviewPanel
 - name: PreviewPanel::DEFAULT_ENTRY_FILENAME
@@ -226,19 +205,11 @@ constants:
 - name: ProviderUsageLimit::OUTCOME
 - name: RebaseAttemptGuard
 - name: RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
-- name: RepoDefaultBranchSyrusYml
-- name: RepoDeploymentStagesReader
-- name: Repository
-- name: RepositoryBareClone
-- name: RepositoryMembership
-- name: RepositoryPolicy
-- name: RepositorySummarySerialization
 - name: RetentionPolicyExecutors::Default
 - name: RetentionPolicyExecutors::Result
 - name: RetentionPolicyRegistry::Definition
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
-- name: ReviewEvidence::VerdictSubmission
 - name: RuntimeControlLease
 - name: RuntimeSession
 - name: RuntimeSessionProviders
@@ -271,12 +242,6 @@ constants:
 - name: SyrusMcp::TypedArtifactProvenance
 - name: SyrusSearchDatabaseTasks
 - name: SyrusVersion
-- name: SyrusYml
-- name: SyrusYml::CONFIG_FILE
-- name: SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV
-- name: Team
-- name: TeamMembership
-- name: TeamRepository
 - name: Theme
 - name: Theme::EXTENDED_TOKEN_GROUPS
 - name: Theme::TOKEN_KEYS
@@ -287,9 +252,6 @@ constants:
 - name: TracksFinishedAt
 - name: TypedArtifactRenderer
 - name: UiEngagementSample
-- name: User
-- name: User::DASHBOARD_OPTIONAL_COLUMNS
-- name: User::DASHBOARD_REQUIRED_COLUMNS
 - name: ValidatesAgentProvider
 - name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation

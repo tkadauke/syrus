@@ -16,7 +16,7 @@ module TestInsights
 
     # Replaces the injected `Repository has_many :test_identities`: this
     # plugin owns the rows, so it owns the way to reach them.
-    scope :for_repository, ->(repository) { where(repository_id: repository.is_a?(::Repository) ? repository.id : repository) }
+    scope :for_repository, ->(repository) { where(repository_id: repository.is_a?(Syrus::Host::RepositoryRecord) ? repository.id : repository) }
     has_many :test_cases, class_name: "TestInsights::TestCase", dependent: :nullify
     has_many :runtime_summaries, class_name: "TestInsights::RuntimeSummary", foreign_key: :test_identity_id, dependent: :destroy
 

@@ -5,7 +5,7 @@ module TeamDirectory
     # A directory of one person is not a directory. The nav entry stayed
     # hidden below two users when this was a core nav item; keep that.
     def self.sidebar_pages
-      return [] unless User.limit(2).count > 1
+      return [] unless Syrus::Host::UserRecord.limit(2).count > 1
 
       [
         {

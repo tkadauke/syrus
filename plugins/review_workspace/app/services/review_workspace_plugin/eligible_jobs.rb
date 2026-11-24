@@ -21,7 +21,7 @@ module ReviewWorkspacePlugin
     attr_reader :user, :scope
 
     def candidate_scope
-      writable_repository_ids = Repository.writable_by(user).select(:id)
+      writable_repository_ids = Syrus::Host::RepositoryRecord.writable_by(user).select(:id)
       writable_jobs = Syrus::Host::JobRecord.where(user_id: user.id).or(Syrus::Host::JobRecord.where(repository_id: writable_repository_ids))
       scoped_writable_jobs = scope.where(id: writable_jobs.select(:id))
 

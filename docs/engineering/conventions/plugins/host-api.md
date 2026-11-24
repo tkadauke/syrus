@@ -632,6 +632,28 @@ Supported members:
 
 - `review_annotations`
 
+### `Syrus::Host::DiffReviewComment`
+
+Since: `0.1.16`
+
+Queries diff review comments by job, version, anchor and state; columns beyond those filters are not promised.
+
+Supported members:
+
+- `none`
+- `where`
+
+### `Syrus::Host::DiffReviewVersion`
+
+Since: `0.1.16`
+
+Queries diff review versions and resolves the best match for a run; columns beyond the filters are not promised.
+
+Supported members:
+
+- `best_match_for`
+- `where`
+
 ### `Syrus::Host::DirectJobCreator`
 
 Since: `0.1.16`
@@ -652,6 +674,16 @@ Reads filesystem capacity snapshots for plugin-managed storage; caching and host
 Supported members:
 
 - `read`
+
+### `Syrus::Host::Document`
+
+Since: `0.1.16`
+
+Exposes the per-job attachment limit; document storage is not promised.
+
+Supported members:
+
+- `MAX_ATTACHMENTS_PER_JOB`
 
 ### `Syrus::Host::DomainSubscriber`
 
@@ -845,6 +877,16 @@ Supported members:
 - `refresh`
 - `submit`
 
+### `Syrus::Host::FinalReviewVersion`
+
+Since: `0.1.16`
+
+Resolves the diff review version a final review applies to for a job, workflow and run.
+
+Supported members:
+
+- `resolve`
+
 ### `Syrus::Host::GateResult`
 
 Since: `0.1.16`
@@ -881,6 +923,16 @@ Supported members:
 - `tool_classes`
 - `tool_definitions`
 
+### `Syrus::Host::GitMergeDrivers`
+
+Since: `0.1.16`
+
+Registers plugin-owned git merge drivers in a workspace checkout.
+
+Supported members:
+
+- `register!`
+
 ### `Syrus::Host::GitRunner`
 
 Since: `0.1.16`
@@ -893,6 +945,89 @@ Supported members:
 - `new`
 - `redact`
 - `run`
+
+### `Syrus::Host::GithubApiUsageRollup`
+
+Since: `0.1.16`
+
+GitHub-specific: queries hourly GitHub API usage rollups. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::GithubAuthenticatedGit`
+
+Since: `0.1.16`
+
+GitHub-specific: runs a git operation with an authenticated remote URL. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `run`
+
+### `Syrus::Host::GithubClient`
+
+Since: `0.1.16`
+
+GitHub-specific: builds an authenticated GitHub client for a repository and user and looks up the active app installation. Slated to move behind the source-host abstraction; only the listed members are supported.
+
+Supported members:
+
+- `active_installation_for`
+- `for`
+
+### `Syrus::Host::GithubIngestPolicy`
+
+Since: `0.1.16`
+
+GitHub-specific: decides whether an incoming issue is ingested and names the skip label. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `SKIP_LABEL`
+- `evaluate`
+
+### `Syrus::Host::GithubIssueClassifierJob`
+
+Since: `0.1.16`
+
+GitHub-specific: enqueues classification of a newly ingested issue job. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `enqueue_for_job!`
+
+### `Syrus::Host::GithubIssueImageExtractor`
+
+Since: `0.1.16`
+
+GitHub-specific: extracts image URLs from an issue body. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `urls`
+
+### `Syrus::Host::GithubIssueImageIngestJob`
+
+Since: `0.1.16`
+
+GitHub-specific: enqueues ingestion of issue images for a job. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `perform_later`
+
+### `Syrus::Host::GithubIssueJobAttributes`
+
+Since: `0.1.16`
+
+GitHub-specific: derives job attributes from a GitHub issue for creation and sync. Slated to move behind the source-host abstraction.
+
+Supported members:
+
+- `for_creation`
+- `for_sync`
 
 ### `Syrus::Host::GraderBaseRetry`
 
@@ -980,6 +1115,19 @@ Supported members:
 - `timeout_minutes`
 - `when_files_changed`
 
+### `Syrus::Host::Handle`
+
+Since: `0.1.16`
+
+Reserves and checks the unique @handle namespace shared by users, teams and coworkers; FORMAT is the validation pattern.
+
+Supported members:
+
+- `FORMAT`
+- `create!`
+- `exists?`
+- `find_or_create_by!`
+
 ### `Syrus::Host::HandleRegistry`
 
 Since: `0.1.16`
@@ -998,6 +1146,16 @@ Supported members:
 Since: `0.1.16`
 
 Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
+
+### `Syrus::Host::InputSourceBase`
+
+Since: `0.1.16`
+
+Base class for plugin-contributed input sources (issue intake); only subclassing is promised.
+
+Supported members:
+
+- `new`
 
 ### `Syrus::Host::InvestigationJobCreator`
 
@@ -1332,6 +1490,16 @@ Supported members:
 - `relative_path`
 - `root`
 
+### `Syrus::Host::PendingWorkWakeup`
+
+Since: `0.1.16`
+
+Wakes the scheduler after an input source finds pending work for a repository.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::PerformanceLogging`
 
 Since: `0.1.16`
@@ -1408,6 +1576,17 @@ Supported members:
 - `providers_with_owner_for`
 - `register`
 
+### `Syrus::Host::PolicyBase`
+
+Since: `0.1.16`
+
+Base class for plugin authorization policies; Scope is the base class for policy scopes. Authorization helpers beyond subclassing are not promised.
+
+Supported members:
+
+- `Scope`
+- `new`
+
 ### `Syrus::Host::PostImplementationReviewProvider`
 
 Since: `0.1.16`
@@ -1419,6 +1598,18 @@ Supported members:
 - `prompt_sections`
 - `required_mcp_tools`
 - `review_needed?`
+
+### `Syrus::Host::PrReviewComment`
+
+Since: `0.1.16`
+
+Queries synced pull-request review comments; columns beyond those used by filters are not promised.
+
+Supported members:
+
+- `arel_table`
+- `joins`
+- `where`
 
 ### `Syrus::Host::PreviewPanelRetention`
 
@@ -1483,6 +1674,27 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::RepoDefaultBranchSyrusYml`
+
+Since: `0.1.16`
+
+Reads a repository's .syrus.yml at its default branch, directly or for a job; caching is not promised.
+
+Supported members:
+
+- `for_job`
+- `new`
+
+### `Syrus::Host::RepoDeploymentStagesReader`
+
+Since: `0.1.16`
+
+Reads a repository's configured deployment stages.
+
+Supported members:
+
+- `for_repository`
+
 ### `Syrus::Host::RepoPageTab`
 
 Since: `0.1.16`
@@ -1510,6 +1722,16 @@ Supported members:
 - `name`
 - `owner`
 - `writable_by`
+
+### `Syrus::Host::RepositoryBareClone`
+
+Since: `0.1.16`
+
+Resolves the on-disk path of a repository's shared bare clone; clone management is not promised.
+
+Supported members:
+
+- `path_for`
 
 ### `Syrus::Host::RepositoryConfiguration`
 
@@ -1558,6 +1780,27 @@ Supported members:
 
 - `apply`
 
+### `Syrus::Host::RepositoryMembershipRecord`
+
+Since: `0.1.16`
+
+Queries repository memberships, including the at_least role-tier scope.
+
+Supported members:
+
+- `at_least`
+- `where`
+
+### `Syrus::Host::RepositoryPolicy`
+
+Since: `0.1.16`
+
+Answers repository authorization questions through the standard policy interface; the rules themselves are not promised.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::RepositoryRecommendation`
 
 Since: `0.1.16`
@@ -1567,6 +1810,38 @@ Lets a plugin recommend plugins or settings for a repository; recommendation ran
 Supported members:
 
 - `repository_recommendations`
+
+### `Syrus::Host::RepositoryRecord`
+
+Since: `0.1.16`
+
+Queries repositories through access-scoped lookups (accessible_to, writable_by, accessible_repository_ids_for) and basic finders; credentials, synchronization, transitions, callbacks, and unlisted associations are not promised.
+
+Supported members:
+
+- `accessible_repository_ids_for`
+- `accessible_to`
+- `active`
+- `all`
+- `arel_table`
+- `create!`
+- `find`
+- `find_by`
+- `ids`
+- `new`
+- `order`
+- `where`
+- `writable_by`
+
+### `Syrus::Host::RepositorySummarySerialization`
+
+Since: `0.1.16`
+
+Controller concern that renders the repository detail header payload (repository_detail_json); other payload members are not promised.
+
+Supported members:
+
+- `repository_detail_json`
 
 ### `Syrus::Host::RetentionPolicy`
 
@@ -1617,6 +1892,16 @@ Supported members:
 - `settings_summaries`
 - `target_editors`
 - `translation_namespaces`
+
+### `Syrus::Host::ReviewVerdictSubmission`
+
+Since: `0.1.16`
+
+Records a reviewer's verdict for a review artifact.
+
+Supported members:
+
+- `call!`
 
 ### `Syrus::Host::ReviewerTargetProvider`
 
@@ -1929,6 +2214,18 @@ Supported members:
 
 - `for`
 
+### `Syrus::Host::SyrusYmlConfig`
+
+Since: `0.1.16`
+
+Loads a repository's .syrus.yml and exposes the config file name and the environment keys visual review forbids; parsing internals are not promised.
+
+Supported members:
+
+- `CONFIG_FILE`
+- `VISUAL_REVIEW_FORBIDDEN_ENV`
+- `load_repo`
+
 ### `Syrus::Host::SyrusYmlParseError`
 
 Since: `0.1.16`
@@ -1959,6 +2256,41 @@ Defines the system-alert contribution plugins may provide; alert aggregation and
 Supported members:
 
 - `system_alerts`
+
+### `Syrus::Host::TeamMembershipRecord`
+
+Since: `0.1.16`
+
+Queries team memberships.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::TeamRecord`
+
+Since: `0.1.16`
+
+Queries teams through basic finders; membership management and unlisted associations are not promised.
+
+Supported members:
+
+- `find_by`
+- `ids`
+- `joins`
+- `order`
+- `where`
+
+### `Syrus::Host::TeamRepositoryRecord`
+
+Since: `0.1.16`
+
+Queries team repository grants, including the at_least role-tier scope.
+
+Supported members:
+
+- `at_least`
+- `where`
 
 ### `Syrus::Host::TestCaseIdentity`
 
@@ -2066,6 +2398,27 @@ Supported members:
 - `id`
 - `jobs`
 - `repositories`
+
+### `Syrus::Host::UserRecord`
+
+Since: `0.1.16`
+
+Queries users through basic finders and reads the provider vocabularies and dashboard column sets; credentials, preferences, callbacks, and unlisted associations are not promised.
+
+Supported members:
+
+- `DASHBOARD_OPTIONAL_COLUMNS`
+- `DASHBOARD_REQUIRED_COLUMNS`
+- `agent_providers`
+- `all`
+- `chat_providers`
+- `count`
+- `find`
+- `find_by`
+- `limit`
+- `none`
+- `order`
+- `where`
 
 ### `Syrus::Host::WorkDefinitionBase`
 
@@ -2271,8 +2624,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Appearance::ColorPalette`
 - `Appearance::ColorPalette::HEX_PATTERN`
 - `ApplicationCable::Channel`
-- `ApplicationPolicy`
-- `ApplicationPolicy::Scope`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
 - `BackendExceptionLogging`
@@ -2308,7 +2659,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatWakeup`
 - `ChatWorkEvents`
 - `ChatWorkspace`
-- `ClassifyIssueJob`
 - `ClaudeTranscript`
 - `ClaudeTranscript::Event`
 - `CodexAccountScope`
@@ -2316,10 +2666,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `CredentialProbe`
 - `CredentialProbe::Result`
 - `CredentialProbe::TIMEOUT_SECONDS`
-- `DiffReviewComment`
-- `DiffReviewVersion`
-- `DiffReviewVersions::FinalReviewVersion`
-- `Document::MAX_ATTACHMENTS_PER_JOB`
 - `Execution::ChatWorkloadPolicy`
 - `Feature`
 - `Filters::Ast`
@@ -2348,23 +2694,10 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Filters::SmartFolderResolution::PRESET_FIELD`
 - `Filters::UnknownFilterField`
 - `FtsQueryParser`
-- `GitMergeDrivers`
-- `GithubApiUsageRollup`
-- `GithubAuthenticatedGit`
-- `GithubClient`
-- `GithubIssueJobAttributes`
-- `Handle`
-- `Handle::FORMAT`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
-- `IngestIssueImagesJob`
-- `IngestPolicy`
-- `IngestPolicy::SKIP_LABEL`
-- `InputSource`
-- `InputSources::PendingWorkWakeup`
 - `InstanceVersion`
 - `InstanceVersion::HEARTBEAT_STALE_THRESHOLD`
-- `IssueImageExtractor`
 - `KubernetesCluster`
 - `MaintenanceTasks::Definitions::Base::Result`
 - `Mcp::CoworkerToolExposure`
@@ -2435,7 +2768,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PluginJob`
 - `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
-- `PrReviewComment`
 - `PreviewCommandSource`
 - `PreviewPanel`
 - `PreviewPanel::DEFAULT_ENTRY_FILENAME`
@@ -2460,19 +2792,11 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ProviderUsageLimit::OUTCOME`
 - `RebaseAttemptGuard`
 - `RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD`
-- `RepoDefaultBranchSyrusYml`
-- `RepoDeploymentStagesReader`
-- `Repository`
-- `RepositoryBareClone`
-- `RepositoryMembership`
-- `RepositoryPolicy`
-- `RepositorySummarySerialization`
 - `RetentionPolicyExecutors::Default`
 - `RetentionPolicyExecutors::Result`
 - `RetentionPolicyRegistry::Definition`
 - `RetentionPruner::DEFAULT_BATCH_SIZE`
 - `RetentionPruner::DEFAULT_MAX_BATCHES`
-- `ReviewEvidence::VerdictSubmission`
 - `RuntimeControlLease`
 - `RuntimeSession`
 - `RuntimeSessionProviders`
@@ -2505,12 +2829,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `SyrusMcp::TypedArtifactProvenance`
 - `SyrusSearchDatabaseTasks`
 - `SyrusVersion`
-- `SyrusYml`
-- `SyrusYml::CONFIG_FILE`
-- `SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV`
-- `Team`
-- `TeamMembership`
-- `TeamRepository`
 - `Theme`
 - `Theme::EXTENDED_TOKEN_GROUPS`
 - `Theme::TOKEN_KEYS`
@@ -2521,9 +2839,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `TracksFinishedAt`
 - `TypedArtifactRenderer`
 - `UiEngagementSample`
-- `User`
-- `User::DASHBOARD_OPTIONAL_COLUMNS`
-- `User::DASHBOARD_REQUIRED_COLUMNS`
 - `ValidatesAgentProvider`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`

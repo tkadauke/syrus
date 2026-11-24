@@ -201,7 +201,7 @@ module Api
         def find_repository
           # run_insight_analysis is routed with :id; the listing routes use
           # :repository_id.
-          repo = Repository.accessible_to(Syrus::Host::Current.user).find_by(id: params[:repository_id] || params[:id])
+          repo = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find_by(id: params[:repository_id] || params[:id])
           unless repo
             render_error("not_found", "Repository not found.", status: :not_found)
             return nil
@@ -224,7 +224,7 @@ module Api
 
           AgentInsights::Suggestion
             .joins(:repository)
-            .where(repositories: { id: Repository.accessible_to(Syrus::Host::Current.user).select(:id) })
+            .where(repositories: { id: Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).select(:id) })
         end
 
         def preview_suggestion
@@ -430,7 +430,7 @@ module Api
             slug: repository.slug,
             repository_path: repository_path(repository),
             insights_path: "/repositories/#{repository.id}/plugin/insights",
-            can_write: RepositoryPolicy.new(Syrus::Host::Current.user, repository).write?
+            can_write: Syrus::Host::RepositoryPolicy.new(Syrus::Host::Current.user, repository).write?
           }
         end
 

@@ -137,13 +137,13 @@ class Coworkers::Create
   def branch = "coworkers/#{@handle}"
 
   def register_repository!
-    existing = Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", @remote.repository.owner.downcase, @remote.repository.name.downcase).first
+    existing = Syrus::Host::RepositoryRecord.where("LOWER(owner) = ? AND LOWER(name) = ?", @remote.repository.owner.downcase, @remote.repository.name.downcase).first
     if existing
       grant_repository_access!(existing)
       return existing
     end
 
-    repository = Repository.create!(
+    repository = Syrus::Host::RepositoryRecord.create!(
       user: @owner, owner: @remote.repository.owner, name: @remote.repository.name,
       polling_enabled: false, auto_merge_enabled: false, external_pr_ingestion_enabled: false,
       main_branch_health_enabled: false, main_branch_repair_enabled: false,

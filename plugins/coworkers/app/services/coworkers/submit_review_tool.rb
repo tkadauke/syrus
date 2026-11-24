@@ -19,7 +19,7 @@ module Coworkers
         return ::Mcp::Tools.invalid("invalid verdict") unless VERDICTS.include?(verdict)
         reviewer = run.review_evidence&.then { |evidence| Coworkers::ReviewEvidenceTarget.resolve(evidence, run:) }
         return ::Mcp::Tools.invalid("key_learning is required") if reviewer&.respond_to?(:finalize_review_memory!) && key_learning.empty?
-        ReviewEvidence::VerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
+        Syrus::Host::ReviewVerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
           verdict: verdict, critique: critique, key_learning: key_learning)
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
       rescue Syrus::Host::AdversarialReviewStep::MemoryPersistenceFailed

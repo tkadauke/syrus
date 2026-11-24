@@ -115,7 +115,7 @@ module DesignDocs
 
     def sync_repositories!
       ids = Array(attributes[:repository_ids]).filter_map(&:presence).map(&:to_i).uniq
-      repositories = Repository.accessible_to(user).where(id: ids).to_a
+      repositories = Syrus::Host::RepositoryRecord.accessible_to(user).where(id: ids).to_a
       raise ActiveRecord::RecordNotFound, "Repository not found" if repositories.size != ids.size
 
       design_doc.repositories = repositories
@@ -123,7 +123,7 @@ module DesignDocs
 
     def sync_collaborators!
       ids = Array(attributes[:collaborator_user_ids]).filter_map(&:presence).map(&:to_i).uniq - [ design_doc.owner_user_id ]
-      users = User.where(id: ids).to_a
+      users = Syrus::Host::UserRecord.where(id: ids).to_a
       raise ActiveRecord::RecordNotFound, "User not found" if users.size != ids.size
 
       design_doc.collaborators.where.not(user_id: ids).destroy_all

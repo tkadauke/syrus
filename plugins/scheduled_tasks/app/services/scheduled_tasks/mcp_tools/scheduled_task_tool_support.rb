@@ -20,7 +20,7 @@ module ScheduledTasks
       def find_mutable_scheduled_task(chat_session, scheduled_task_id)
         task, error = find_scheduled_task(chat_session, scheduled_task_id)
         return [ nil, error ] if error
-        unless RepositoryPolicy.new(chat_session.user, task.repository).write?
+        unless Syrus::Host::RepositoryPolicy.new(chat_session.user, task.repository).write?
           return [ nil, Syrus::Host::McpTools.invalid("repository write access is required to change this scheduled task") ]
         end
 

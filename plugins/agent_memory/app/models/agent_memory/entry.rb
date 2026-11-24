@@ -17,7 +17,7 @@ module AgentMemory
 
     # Replaces the injected `User has_many :agent_memories`: this plugin owns
     # the rows, so it owns the way to reach them.
-    scope :for_user, ->(user) { where(user_id: user.is_a?(::User) ? user.id : user) }
+    scope :for_user, ->(user) { where(user_id: user.is_a?(Syrus::Host::UserRecord) ? user.id : user) }
     belongs_to :deleted_by_user, class_name: "::User", optional: true
     belongs_to :repository, class_name: "::Repository", optional: true, foreign_key: :scope_id
     has_many :audit_events, -> { order(created_at: :asc, id: :asc) }, class_name: "AgentMemory::AuditEvent", foreign_key: :entry_id, inverse_of: :entry
@@ -60,7 +60,7 @@ module AgentMemory
     end
 
     def soft_delete_by!(actor)
-      update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(::User) ? actor : nil)
+      update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(Syrus::Host::UserRecord) ? actor : nil)
       emit_deleted_audit_event(actor)
     end
 

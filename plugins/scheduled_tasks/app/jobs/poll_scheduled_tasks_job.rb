@@ -11,7 +11,7 @@ class PollScheduledTasksJob < PluginJob
     now = Time.current
     ScheduledTasks::Task.alive
                  .where(state: "scheduled")
-                 .joins(:repository).merge(Repository.active)
+                 .joins(:repository).merge(Syrus::Host::RepositoryRecord.active)
                  .joins(:user).where(users: { scheduling_paused: false })
                  .find_each do |task|
       next unless task.due?(now: now)

@@ -22,7 +22,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   normalizes :handle, with: ->(value) { Syrus::Host::HandleRegistry.normalize(value) }
 
   validates :name, :workspace_repo, presence: true
-  validates :handle, presence: true, format: { with: Handle::FORMAT }, uniqueness: { case_sensitive: false }
+  validates :handle, presence: true, format: { with: Syrus::Host::Handle::FORMAT }, uniqueness: { case_sensitive: false }
   validates :state, inclusion: { in: STATES }
   validates :chat_effort, inclusion: { in: ChatSession::EFFORT_LEVELS }, allow_nil: true
   validates :accent_hex, format: { with: Appearance::ColorPalette::HEX_PATTERN }
@@ -54,7 +54,7 @@ class Coworkers::Coworker < Syrus::Host::Record
     match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
     return unless match
 
-    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
+    Syrus::Host::RepositoryRecord.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
   end
 
   # Coworker chat reads are capability-gated and resource-scoped: native

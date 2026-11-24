@@ -19,7 +19,7 @@ module Api
         private
 
         def find_repository
-          Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
         end
 
         def flaky_test_json(test)

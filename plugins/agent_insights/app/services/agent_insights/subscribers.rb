@@ -17,7 +17,7 @@ module AgentInsights
       # schedule the next sweep, or sweeps would chain forever.
       return if event[:kind].to_s == "agent_insight"
 
-      repository = Repository.find_by(id: event[:repository_id])
+      repository = Syrus::Host::RepositoryRecord.find_by(id: event[:repository_id])
       return if repository.nil?
 
       config = AgentInsights::ScheduleConfig.for_repository(repository)

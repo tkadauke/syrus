@@ -14,7 +14,7 @@ module Coworkers
 
     def tasks
       @tasks ||= ScheduledTasks::Task.where(user: user).where.not(coworker_id: nil)
-        .where(repository_id: Repository.accessible_repository_ids_for(user))
+        .where(repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(user))
         .includes(:repository)
         .joins("INNER JOIN coworkers ON coworkers.id = scheduled_tasks.coworker_id")
         .where(coworkers: { owner_user_id: user.id })
