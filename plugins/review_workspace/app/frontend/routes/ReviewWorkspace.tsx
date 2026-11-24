@@ -322,10 +322,10 @@ function MobileGestureSurface({
     if (origin.mode === "scroll") return
     if (Math.abs(x) > Math.abs(y) && Math.abs(x) >= SWIPE_THRESHOLD) {
       if (x > 0 && !origin.edge) {
-        impactHaptic("medium")
+        if (!prefersReducedMotion()) impactHaptic("medium")
         onApprove()
       } else if (x < 0) {
-        impactHaptic("medium")
+        if (!prefersReducedMotion()) impactHaptic("medium")
         onDefer()
       }
     } else if (Math.abs(y) >= SWIPE_THRESHOLD) onMove(y < 0 ? 1 : -1)

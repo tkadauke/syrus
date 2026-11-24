@@ -435,16 +435,24 @@ describe("ReviewWorkspaceRoute", () => {
       )
       fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
       fireEvent.pointerMove(region, touch(200))
+      fireEvent.pointerUp(region, touch(200))
       expect(post).not.toHaveBeenCalled()
       vi.unstubAllGlobals()
     })
 
     it("does nothing in an ordinary browser", async () => {
       const region = await openCard()
+      expect(window.webkit).toBeUndefined()
+      fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
+      fireEvent.pointerMove(region, touch(200))
+      expect(() => fireEvent.pointerUp(region, touch(200))).not.toThrow()
+      // A shell without the syrusHaptics handler must never be messaged.
+      const other = vi.fn()
+      window.webkit = { messageHandlers: { other: { postMessage: other } } } as never
       fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
       fireEvent.pointerMove(region, touch(200))
       fireEvent.pointerUp(region, touch(200))
-      expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+      expect(other).not.toHaveBeenCalled()
     })
   })
 
