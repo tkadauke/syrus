@@ -2,6 +2,7 @@ de:
   achievements:
     api:
       not_found: "Erfolg nicht gefunden."
+      workbench_unavailable: "Die Achievements-Werkbank ist nicht verfügbar."
       confirmation_required: "Zum Zurücksetzen aller Bestätigungen ist eine Bestätigung erforderlich."
     errors:
       not_registered: "ist keine registrierte Errungenschaft"

@@ -1,10 +1,11 @@
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState, type RefObject } from "react"
 import { Button } from "@app/components/Button"
 import { Modal } from "@app/components/Modal"
 import { Text } from "@app/components/ui"
 import { reportHandledError } from "@app/lib/handledErrorReporting"
 import { useT } from "@app/hooks/useT"
 import type { AchievementUnlock } from "../api/achievements"
+import { AchievementBadge } from "./AchievementBadge"
 
 export type AckStatus = "idle" | "saving" | "done" | "failed"
 
@@ -44,18 +45,26 @@ type Props = {
   onPresented: (unlock: AchievementUnlock) => void
   onRetry: (unlock: AchievementUnlock) => void
   onContinue: (unlock: AchievementUnlock) => void
+  motion?: MotionPreference
+}
+
+// "system" follows prefers-reduced-motion (production). The workbench forces
+// either side to review both without changing OS settings.
+export type MotionPreference = "system" | "reduced" | "full"
+
+export function resolveReducedMotion(preference: MotionPreference, system: boolean) {
+  return preference === "system" ? system : preference === "reduced"
 }
 
 // One reveal, as a modal dialog. Neutral placeholder art (a plain ring) stands in
 // for the final badge. It never plays sound. The reveal counts as "presented"
 // once it is mounted while the tab is visible -- only then is `onPresented`
 // called, so the caller acknowledges what the user could actually see.
-export function AchievementReveal({ unlock, position, total, ackStatus, onPresented, onRetry, onContinue }: Props) {
-  const { t } = useT("achievements")
+export function AchievementReveal({ unlock, position, total, ackStatus, onPresented, onRetry, onContinue, motion = "system" }: Props) {
   const titleId = useId()
   const descriptionId = useId()
   const visible = useDocumentVisible()
-  const reducedMotion = usePrefersReducedMotion()
+  const reducedMotion = resolveReducedMotion(motion, usePrefersReducedMotion())
   const [entered, setEntered] = useState(reducedMotion)
   const continueRef = useRef<HTMLButtonElement>(null)
   const presentedRef = useRef<number | null>(null)
@@ -72,52 +81,87 @@ export function AchievementReveal({ unlock, position, total, ackStatus, onPresen
     onPresented(unlock)
   }, [visible, unlock, onPresented])
 
-  const title = unlock.presentation.title_key ? t(unlock.presentation.title_key) : unlock.key
-  const description = unlock.presentation.description_key ? t(unlock.presentation.description_key) : null
-  const motionClasses = reducedMotion ? "" : "transition duration-500 ease-out"
-  const stateClasses = entered ? "scale-100 opacity-100" : reducedMotion ? "" : "scale-95 opacity-0"
-
   return (
     <Modal
       open
       onClose={() => onContinue(unlock)}
       labelledBy={titleId}
       initialFocusRef={continueRef}
-      className={`w-full max-w-md rounded-[var(--radius-panel)] bg-surface p-6 text-center shadow-[var(--shadow-panel)] ${motionClasses} ${stateClasses}`}
+      className={`w-full max-w-md rounded-[var(--radius-panel)] bg-surface p-6 text-center shadow-[var(--shadow-panel)] ${revealMotionClasses(reducedMotion, entered)}`}
     >
-      <div data-testid="achievement-reveal" data-reduced-motion={reducedMotion ? "true" : "false"}>
-        <div aria-hidden="true" className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border-4 border-border bg-surface-raised">
-          <span className="h-8 w-8 rounded-full border-2 border-brand" />
-        </div>
-        <Text as="p" tone="muted" variant="caption" className="uppercase">
-          {t(unlock.scope === "instance" ? "reveal_instance" : "reveal_user")}
-        </Text>
-        <h2 className="mt-1 text-lg font-semibold text-text-primary" id={titleId}>
-          {title}
-        </h2>
-        {description ? (
-          <p className="mt-2 text-sm text-text-secondary" id={descriptionId}>
-            {description}
-          </p>
-        ) : null}
-        <div aria-live="polite" className="mt-3 min-h-5 text-xs text-text-secondary" role="status">
-          {total > 1 ? <span>{t("reveal_position", { position, total })}</span> : null}
-        </div>
-        {ackStatus === "failed" ? (
-          <div className="mt-2 flex items-center justify-center gap-2 text-xs text-danger" role="alert">
-            <span>{t("reveal_ack_failed")}</span>
-            <Button onClick={() => onRetry(unlock)} size="sm" variant="secondary">
-              {t("reveal_retry")}
-            </Button>
-          </div>
-        ) : null}
-        <div className="mt-4">
-          <Button onClick={() => onContinue(unlock)} ref={continueRef} variant="primary">
-            {position < total ? t("reveal_next") : t("reveal_continue")}
+      <AchievementRevealContent
+        ackStatus={ackStatus}
+        continueRef={continueRef}
+        descriptionId={descriptionId}
+        onContinue={onContinue}
+        onRetry={onRetry}
+        position={position}
+        reducedMotion={reducedMotion}
+        titleId={titleId}
+        total={total}
+        unlock={unlock}
+      />
+    </Modal>
+  )
+}
+
+export function revealMotionClasses(reducedMotion: boolean, entered: boolean) {
+  const motion = reducedMotion ? "" : "transition duration-500 ease-out"
+  const state = entered ? "scale-100 opacity-100" : reducedMotion ? "" : "scale-95 opacity-0"
+  return `${motion} ${state}`
+}
+
+type ContentProps = {
+  unlock: AchievementUnlock
+  position: number
+  total: number
+  ackStatus: AckStatus
+  reducedMotion: boolean
+  titleId: string
+  descriptionId: string
+  continueRef?: RefObject<HTMLButtonElement>
+  onRetry: (unlock: AchievementUnlock) => void
+  onContinue: (unlock: AchievementUnlock) => void
+}
+
+// The reveal's body, shared by the production dialog and the development
+// workbench so the workbench previews the real markup, not an imitation.
+export function AchievementRevealContent({ unlock, position, total, ackStatus, reducedMotion, titleId, descriptionId, continueRef, onRetry, onContinue }: ContentProps) {
+  const { t } = useT("achievements")
+  const title = unlock.presentation.title_key ? t(unlock.presentation.title_key) : unlock.key
+  const description = unlock.presentation.description_key ? t(unlock.presentation.description_key) : null
+
+  return (
+    <div data-testid="achievement-reveal" data-reduced-motion={reducedMotion ? "true" : "false"}>
+      <AchievementBadge category={unlock.category} className="mx-auto mb-4" rarity={unlock.rarity} scope={unlock.scope} size="lg" />
+      <Text as="p" tone="muted" variant="caption" className="uppercase">
+        {t(unlock.scope === "instance" ? "reveal_instance" : "reveal_user")}
+      </Text>
+      <h2 className="mt-1 text-lg font-semibold text-text-primary" id={titleId}>
+        {title}
+      </h2>
+      {description ? (
+        <p className="mt-2 text-sm text-text-secondary" id={descriptionId}>
+          {description}
+        </p>
+      ) : null}
+      <div aria-live="polite" className="mt-3 min-h-5 text-xs text-text-secondary" role="status">
+        {total > 1 ? <span>{t("reveal_position", { position, total })}</span> : null}
+      </div>
+      {ackStatus === "failed" ? (
+        <div className="mt-2 flex items-center justify-center gap-2 text-xs text-danger" role="alert">
+          <span>{t("reveal_ack_failed")}</span>
+          <Button onClick={() => onRetry(unlock)} size="sm" variant="secondary">
+            {t("reveal_retry")}
           </Button>
         </div>
+      ) : null}
+      <div className="mt-4">
+        <Button onClick={() => onContinue(unlock)} ref={continueRef} variant="primary">
+          {position < total ? t("reveal_next") : t("reveal_continue")}
+        </Button>
       </div>
-    </Modal>
+    </div>
   )
 }
 
@@ -125,13 +169,14 @@ type QueueProps = {
   reveals: AchievementUnlock[]
   acknowledge: (unlock: AchievementUnlock) => Promise<unknown>
   onFinished?: () => void
+  motion?: MotionPreference
 }
 
 // Presents `reveals` one at a time in a stable order. A reveal is acknowledged
 // only after it has been presented; a failed acknowledgment can be retried and
 // never traps the user -- the reveal simply stays pending server-side and
 // returns next time. Unmounting before presentation acknowledges nothing.
-export function AchievementRevealQueue({ reveals, acknowledge, onFinished }: QueueProps) {
+export function AchievementRevealQueue({ reveals, acknowledge, onFinished, motion }: QueueProps) {
   const [dismissed, setDismissed] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState<Record<number, AckStatus>>({})
   const statusRef = useRef<Record<number, AckStatus>>({})
@@ -191,6 +236,7 @@ export function AchievementRevealQueue({ reveals, acknowledge, onFinished }: Que
     <AchievementReveal
       ackStatus={status[current.id] ?? "idle"}
       key={current.id}
+      motion={motion}
       onContinue={(unlock) => setDismissed((previous) => new Set(previous).add(unlock.id))}
       onPresented={ack}
       onRetry={ack}

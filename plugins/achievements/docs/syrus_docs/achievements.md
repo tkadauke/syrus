@@ -3,8 +3,7 @@
 The `achievements` plugin owns achievement definitions, canonical unlocks, and
 per-user acknowledgments. It is disabled by default, experimental, and can be
 toggled in **Admin → Plugins**. The bundled definitions are neutral `example.*`
-fixtures rather than a launch catalog; presentation and the development
-workbench arrive separately.
+fixtures rather than a launch catalog.
 
 ## Definitions
 
@@ -114,3 +113,53 @@ routes are not served and events are not evaluated.
 Enabling the plugin does **not** award achievements for history. Only events
 that happen after it is enabled are evaluated, so a first enable starts with an
 empty set. Any future backfill will be a separate, explicit operator action.
+
+## Development workbench
+
+The plugin contributes an admin page, **Achievements Workbench**
+(`/admin/achievements_workbench`), only while both Achievements and Syrus Dev
+are effectively enabled. Disabling either one removes the navigation entry and
+makes `GET /api/v1/app/admin/achievements/workbench` return `404`; reveals,
+the collection page, and evaluation are unaffected. It is admin only. Syrus Dev
+contains nothing about achievements: the page, its API, its discussion flow, and
+its tests all live in this plugin.
+
+The workbench lists every registered definition (hidden ones included) with
+filters for scope, category, rarity, trigger, visibility, and implementation
+status. An implementation status is `implemented` when the trigger has an event
+adapter and the evaluator class exists, `partial` when only one of those is true,
+and `planned` otherwise. Fixtures are synthetic and never touch real unlocks;
+each definition gets locked, unlocked, acknowledged, and reset states. They are
+drawn by the production badge (`AchievementBadge`), collection cards, and reveal
+(`AchievementRevealContent`, `AchievementRevealQueue`), not a copy of them.
+Controls cover replaying the animation phases, a stack of reveals, phone, tablet
+and desktop widths, system, reduced, or full motion, and an opt-in sound toggle
+that is disabled until reveals have sound. The whole view (filters, definition,
+state, viewport, motion, audio) is in the URL for sharing.
+
+**Discuss with an agent** captures a screenshot of the preview (which can be
+annotated; if capture fails the discussion still starts, noting that no
+screenshot is attached), your prompt, and a structured context block with the
+definition, fixture state, viewport, motion and audio settings, and a deep link,
+then opens a new chat.
+
+### Adding badge designs and animation variants
+
+The later badge-design round works through the workbench:
+
+1. Add or edit definitions in `Achievements::Catalog` (keep `example.*` fixtures
+   until real names exist) with their `presentation` copy keys in the
+   `achievements.json` locale files for English, German, and Latin.
+2. Change artwork and animation only inside `AchievementBadge` and
+   `AchievementRevealContent`/`revealMotionClasses`; the `data-rarity`,
+   `data-category`, `data-scope`, and `data-state` attributes are the hooks for
+   variants. Do not draw a second badge in the workbench.
+3. Review each definition in every fixture state, at phone, tablet and desktop
+   widths, with reduced motion on (the reveal must still convey the unlock
+   without movement) and off, using **Replay animation** and the start/end phase
+   buttons. Check a stacked reveal and the hidden definition's locked state,
+   which must reveal nothing.
+4. If sound is added, export the player from `workbench/soundSupport.ts` so the
+   sound toggle and discussion payload pick it up.
+5. Use **Discuss with an agent** on each definition to record the reviewed
+   state; the deep link reproduces it exactly.
