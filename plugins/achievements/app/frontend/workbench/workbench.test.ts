@@ -53,26 +53,56 @@ describe("fixtures", () => {
 describe("selection and filters", () => {
   it("round-trips every setting through the deep link", () => {
     const selection = selectionFromSearch("?scope=user&rarity=rare&definition=a.b&state=reset&viewport=phone&motion=reduced&audio=1")
-    expect(selection).toMatchObject({ filters: { scope: "user", rarity: "rare" }, definition: "a.b", state: "reset", viewport: "phone", motion: "reduced", audio: true })
+    expect(selection).toMatchObject({
+      filters: { scope: "user", rarity: "rare" },
+      definition: "a.b",
+      state: "reset",
+      viewport: "phone",
+      motion: "reduced",
+      audio: true
+    })
     expect(selectionFromSearch(selectionToSearch(selection))).toEqual(selection)
   })
 
   it("falls back to defaults for unknown values", () => {
-    expect(selectionFromSearch("?state=nope&viewport=huge&motion=wild")).toMatchObject({ state: "unlocked", viewport: "desktop", motion: "system", audio: false })
+    expect(selectionFromSearch("?state=nope&viewport=huge&motion=wild")).toMatchObject({
+      state: "unlocked",
+      viewport: "desktop",
+      motion: "system",
+      audio: false
+    })
     expect(selectionToSearch(selectionFromSearch(""))).toBe("")
   })
 
   it("filters on scope, category, rarity, trigger, visibility and implementation status", () => {
     const d = definition()
-    expect(matchesFilters(d, { scope: "user", category: "landing", rarity: "common", trigger: "job.closed", visibility: "visible", implementation_status: "implemented" })).toBe(true)
-    for (const filters of [{ scope: "instance" }, { category: "work" }, { rarity: "rare" }, { trigger: "epic.upserted" }, { visibility: "hidden" }, { implementation_status: "planned" }]) {
+    expect(
+      matchesFilters(d, {
+        scope: "user",
+        category: "landing",
+        rarity: "common",
+        trigger: "job.closed",
+        visibility: "visible",
+        implementation_status: "implemented"
+      })
+    ).toBe(true)
+    for (const filters of [
+      { scope: "instance" },
+      { category: "work" },
+      { rarity: "rare" },
+      { trigger: "epic.upserted" },
+      { visibility: "hidden" },
+      { implementation_status: "planned" }
+    ]) {
       expect(matchesFilters(d, filters)).toBe(false)
     }
   })
 
   it("translates FilterBar's encoded tree into flat params", () => {
     const encoded = btoa(JSON.stringify({ and: [{ field: "rarity", op: "is", value: "rare" }] }))
-    expect(buildFilterLink("/admin/achievements_workbench", "?viewport=phone&scope=user", { q: encoded })).toBe("/admin/achievements_workbench?viewport=phone&rarity=rare")
+    expect(buildFilterLink("/admin/achievements_workbench", "?viewport=phone&scope=user", { q: encoded })).toBe(
+      "/admin/achievements_workbench?viewport=phone&rarity=rare"
+    )
     expect(buildFilterLink("/admin/achievements_workbench", "?viewport=phone&scope=user", { q: null })).toBe("/admin/achievements_workbench?viewport=phone")
   })
 })

@@ -16,7 +16,11 @@ const mocks = vi.hoisted(() => ({
   uploadChatAttachment: vi.fn(),
   html2canvas: vi.fn()
 }))
-vi.mock("@app/api/chats", () => ({ createEmptyChat: mocks.createEmptyChat, sendChatMessage: mocks.sendChatMessage, uploadChatAttachment: mocks.uploadChatAttachment }))
+vi.mock("@app/api/chats", () => ({
+  createEmptyChat: mocks.createEmptyChat,
+  sendChatMessage: mocks.sendChatMessage,
+  uploadChatAttachment: mocks.uploadChatAttachment
+}))
 vi.mock("html2canvas-pro", () => ({ default: mocks.html2canvas }))
 
 function definition(overrides: Partial<WorkbenchDefinition>): WorkbenchDefinition {
@@ -39,8 +43,23 @@ function definition(overrides: Partial<WorkbenchDefinition>): WorkbenchDefinitio
 const catalog: WorkbenchCatalog = {
   definitions: [
     definition({}),
-    definition({ key: "example.first_epic_landed", scope: "instance", trigger: "epic.upserted", category: "milestone", rarity: "rare", presentation: { title_key: "achievements:example.first_epic_landed.title" } }),
-    definition({ key: "example.secret_milestone", scope: "instance", visibility: "hidden", category: "milestone", rarity: "legendary", implementation_status: "planned", presentation: { title_key: "achievements:example.secret_milestone.title" } })
+    definition({
+      key: "example.first_epic_landed",
+      scope: "instance",
+      trigger: "epic.upserted",
+      category: "milestone",
+      rarity: "rare",
+      presentation: { title_key: "achievements:example.first_epic_landed.title" }
+    }),
+    definition({
+      key: "example.secret_milestone",
+      scope: "instance",
+      visibility: "hidden",
+      category: "milestone",
+      rarity: "legendary",
+      implementation_status: "planned",
+      presentation: { title_key: "achievements:example.secret_milestone.title" }
+    })
   ],
   problems: [],
   vocabulary: {
@@ -76,7 +95,11 @@ describe("AchievementsWorkbench", () => {
   it("enumerates every registered definition, including hidden ones", async () => {
     renderPage()
     const list = await screen.findByRole("navigation", { name: "Achievement definitions" })
-    expect(within(list).getAllByRole("link").map((link) => link.textContent)).toEqual([
+    expect(
+      within(list)
+        .getAllByRole("link")
+        .map((link) => link.textContent)
+    ).toEqual([
       expect.stringContaining("example.first_job_landed"),
       expect.stringContaining("example.first_epic_landed"),
       expect.stringContaining("example.secret_milestone")
@@ -196,7 +219,10 @@ describe("AchievementsWorkbench", () => {
   })
 
   it("localizes the page in German and Latin", async () => {
-    for (const [lang, title] of [["de", "Achievements-Werkbank"], ["la", "Officina honorum"]] as const) {
+    for (const [lang, title] of [
+      ["de", "Achievements-Werkbank"],
+      ["la", "Officina honorum"]
+    ] as const) {
       await i18n.changeLanguage(lang)
       const { unmount } = renderPage()
       expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
@@ -220,7 +246,10 @@ describe("AchievementsWorkbench", () => {
       mocks.createEmptyChat.mockResolvedValue({ chat: { id: 7 }, redirect_to: "/chats/7" })
       mocks.uploadChatAttachment.mockResolvedValue({ id: 1, name: "a.png", mime_type: "image/png", size: 4, url: "/x" })
       mocks.sendChatMessage.mockResolvedValue({})
-      vi.stubGlobal("fetch", vi.fn(async () => new Response(new Blob(["x"]))))
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(new Blob(["x"])))
+      )
 
       const dialog = await openDialog()
       expect(await within(dialog).findByAltText("Screenshot of the example.first_job_landed preview")).toBeInTheDocument()
@@ -265,7 +294,10 @@ describe("AchievementsWorkbench", () => {
     it("surfaces a chat failure and stays open", async () => {
       mocks.html2canvas.mockResolvedValue(pngCanvas())
       mocks.createEmptyChat.mockRejectedValue(new Error("down"))
-      vi.stubGlobal("fetch", vi.fn(async () => new Response(new Blob(["x"]))))
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(new Blob(["x"])))
+      )
 
       const dialog = await openDialog()
       await within(dialog).findByAltText(/Screenshot of/)
