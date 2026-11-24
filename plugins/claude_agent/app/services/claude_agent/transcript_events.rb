@@ -5,7 +5,7 @@ module ClaudeAgent
     # may put the same info elsewhere; degrade gracefully.
     def system_event(parsed)
       if parsed["subtype"] == "init"
-        ClaudeTranscript::Event.new(
+        Syrus::Host::AgentTranscript::Event.new(
           kind: :system_init,
           timestamp: parsed["timestamp"],
           data: {
@@ -16,7 +16,7 @@ module ClaudeAgent
           }
         )
       else
-        ClaudeTranscript::Event.new(kind: :other, timestamp: parsed["timestamp"], data: parsed)
+        Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: parsed["timestamp"], data: parsed)
       end
     end
 
@@ -29,11 +29,11 @@ module ClaudeAgent
       meta = sidechain_metadata(parsed)
 
       if content.is_a?(String)
-        [ ClaudeTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: content }.merge(meta)) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: content }.merge(meta)) ]
       elsif content.is_a?(Array)
         content.filter_map do |c|
           next unless c["type"] == "tool_result"
-          ClaudeTranscript::Event.new(
+          Syrus::Host::AgentTranscript::Event.new(
             kind: :tool_result,
             timestamp: timestamp,
             data: {
@@ -44,7 +44,7 @@ module ClaudeAgent
           )
         end
       else
-        [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
       end
     end
 
@@ -57,9 +57,9 @@ module ClaudeAgent
       content.filter_map do |block|
         case block["type"]
         when "text"
-          ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: block["text"] }.merge(meta))
+          Syrus::Host::AgentTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: block["text"] }.merge(meta))
         when "tool_use"
-          ClaudeTranscript::Event.new(
+          Syrus::Host::AgentTranscript::Event.new(
             kind: :tool_use,
             timestamp: timestamp,
             data: { name: block["name"], input: block["input"], id: block["id"] }.merge(meta)
@@ -85,7 +85,7 @@ module ClaudeAgent
     end
 
     def result_event(parsed)
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :result,
         timestamp: parsed["timestamp"],
         data: {

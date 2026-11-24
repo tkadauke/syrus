@@ -17,7 +17,7 @@ class AgyCredentialProbe
   end
 
   def self.record_evidence!(user:, result:, observed_at: Time.current)
-    ProviderAvailabilityEvidence.create!(
+    Syrus::Host::ProviderAvailabilityEvidence.create!(
       user: user,
       provider: "agy",
       account_id: nil,
@@ -25,7 +25,7 @@ class AgyCredentialProbe
       status: evidence_status(result),
       source: "usage_probe",
       observed_at: observed_at,
-      details: ProviderAvailabilityEvidence.sanitized_details(
+      details: Syrus::Host::ProviderAvailabilityEvidence.sanitized_details(
         message: result.message,
         snapshot: result.details.fetch(:snapshot, {})
       )
@@ -134,11 +134,11 @@ class AgyCredentialProbe
   def failure_details(output)
     text = output.to_s
     status =
-      if ProviderAuthFailure.detect?(text)
+      if Syrus::Host::ProviderAuthFailure.detect?(text)
         "auth_error"
-      elsif ProviderUsageLimit.detect?(text)
+      elsif Syrus::Host::ProviderUsageLimit.detect?(text)
         "exhausted"
-      elsif ProviderRateLimitEvidence.text_match?(text)
+      elsif Syrus::Host::ProviderRateLimitEvidence.text_match?(text)
         "warning"
       else
         "probe_inconclusive"

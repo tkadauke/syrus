@@ -72,7 +72,7 @@ module ScheduledTasks
 
     validates :name, presence: true, length: { maximum: 200 }
     validates :prompt, presence: true, if: -> { skill_name.blank? }
-    validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
+    validates :skill_name, format: { with: Syrus::Host::SkillCatalog.name_pattern }, allow_blank: true
     validate :prompt_or_skill, :skill_args_are_an_object, :skill_args_match_parameter_schema
     validates :schedule_expression, presence: true
     validates :pr_pileup_policy, presence: true, inclusion: { in: PR_PILEUP_POLICIES }
@@ -130,11 +130,11 @@ module ScheduledTasks
         return
       end
 
-      resolution = Skills.for(repository: skill_validation_repository, name: skill_name, user: user)
-      Skills::ParameterSchema.validate!(resolution.definition.parameters, skill_args.presence || {})
-    rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
+      resolution = Syrus::Host::SkillCatalog.resolve(repository: skill_validation_repository, name: skill_name, user: user)
+      Syrus::Host::SkillCatalog.validate_arguments!(resolution, skill_args.presence || {})
+    rescue *Syrus::Host::SkillCatalog.resolution_errors => e
       errors.add(:skill_name, "could not be resolved: #{e.message}")
-    rescue Skills::ParameterSchema::ValidationError => e
+    rescue *Syrus::Host::SkillCatalog.argument_errors => e
       errors.add(:skill_args, e.message)
     end
 
