@@ -98,7 +98,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         job = Factories.job_record(user: user, repository: repository, state: "queued")
         workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
         unrelated = Syrus::Plugin::WorkPolicy::Veto.new(
-          reason: :maintenance,
+          reason: :resource_safety,
           message: "Maintenance is in progress."
         )
         allow(WorkGates).to receive(:evaluate).and_return(WorkGates::Result.new(vetoes: [ unrelated ]))

@@ -2453,8 +2453,10 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
     it "rebuilds volatile plugin panels without rebuilding stable chrome" do
       volatile_revision = 0
-      allow(App::UiSlotsPayload).to receive(:panels_for) do |cacheable:, **|
-        if cacheable
+      allow(App::UiSlotsPayload).to receive(:panels_for) do |slot:, cacheable:, **|
+        if slot == "dashboard.banner"
+          []
+        elsif cacheable
           [ { id: "stable", component: "test/Stable", order: 20 } ]
         else
           volatile_revision += 1

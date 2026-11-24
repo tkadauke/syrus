@@ -14,6 +14,7 @@ module MainBranchHealth
     display_name "Main branch health"
     category "tooling"
     author "Thomas Kadauke"
+    icon_url "/plugin-icons/main_branch_health.svg"
     description "Checks main-branch health, pauses landing while main is broken, and repairs it."
     experimental false
     requires_syrus nil

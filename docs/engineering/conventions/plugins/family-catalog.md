@@ -70,6 +70,7 @@ Fail-closed capabilities: `purge_contributors` (a failed provider contributes `[
 | `connected_accounts` | `ConnectedAccounts::DataPolicy` | - | - | `retention_policies` |
 | `coworkers` | `Coworkers::DataPolicy` | - | - | `retention_policies` |
 | `credential_store` | `CredentialStore::DataPolicy` | - | - | `purge_contributors` |
+| `main_branch_health` | `MainBranchHealth::DataPolicy` | - | - | `retention_policies` |
 | `metrics_dashboard` | `MetricsDashboard::DataPolicy` | - | - | `retention_policies` |
 | `mockups` | `Mockups::DataPolicy` | - | - | `preview_panel_retentions` |
 | `plugin_runtime` | `PluginRuntime::DataPolicy` | - | - | `purge_contributors` |
@@ -156,6 +157,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `global_search` | `GlobalSearch::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
 | `k8s_cluster` | `K8sCluster::Lifecycle` | - | - | `callback_providers` |
 | `local_backups` | `LocalBackups::Lifecycle` | - | - | `callback_providers` |
+| `main_branch_health` | `MainBranchHealth::Lifecycle` | - | - | `callback_providers` |
 | `metrics_dashboard` | `MetricsDashboard::Lifecycle` | - | - | `callback_providers` |
 | `operator_briefing` | `OperatorBriefing::Lifecycle` | - | - | `callback_providers` |
 | `plugin_runtime` | `PluginRuntime::Lifecycle` | - | - | `callback_providers` |
@@ -238,6 +240,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 |---|---|---|---|---|
 | `cognitive_review` | `CognitiveReview::ReviewContributions` | - | - | `post_implementation_review_providers`, `diff_review_annotation_providers` |
 | `coworkers` | `Coworkers::ReviewContributions` | - | - | `reviewer_target_providers`, `review_context_contributors`, `review_presentation_contributors`, `review_gates` |
+| `main_branch_health` | `MainBranchHealth::ReviewContributions` | - | - | `adjudicators` |
 
 ## `runtime_session`
 
@@ -327,6 +330,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `global_search` | `GlobalSearch::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
 | `k8s_cluster` | `K8sCluster::Surface` | - | `sidebar_pages` | - |
 | `local_backups` | `LocalBackups::Surface` | - | `admin_pages` | - |
+| `main_branch_health` | `MainBranchHealth::Surface` | - | `repo_page_tabs`, `ui_slots` | - |
 | `metrics_dashboard` | `MetricsDashboard::Surface` | - | `sidebar_pages` | - |
 | `mockups` | `Mockups::Surface` | - | `sidebar_pages`, `filter_subjects` | - |
 | `muse_agent` | `SyrusMuseAgent::Surface` | - | `filter_chips` | - |
@@ -378,6 +382,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `credential_store` | `CredentialStore::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
 | `design_docs` | `DesignDocs::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
 | `k8s_cluster` | `K8sCluster::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
+| `main_branch_health` | `MainBranchHealth::Toolkit` | - | `workflow_tools`, `permissions` | - |
 | `mockups` | `Mockups::Toolkit` | - | `chat_tools` | - |
 | `muse_agent` | `SyrusMuseAgent::Toolkit` | - | `credential_probes`, `secret_extractors` | - |
 | `mysql_db_browser` | `MysqlDbBrowser::Toolkit` | - | `workflow_tools`, `chat_tools`, `permissions` | - |
@@ -391,38 +396,6 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `theming_tools` | `ThemingTools::Toolkit` | - | `chat_tools` | - |
 | `video_walkthroughs` | `VideoWalkthroughs::Toolkit` | - | `chat_tools`, `credential_probes` | - |
 | `whiteboard` | `Whiteboard::Toolkit` | - | `chat_tools` | - |
-
-## `work_policy`
-
-Shape: `facet`. Required core: `key`, `display_name`.
-
-| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
-|---|---|---|---|---|---|---|
-| `repair_classifier` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::Context::RepairContext` | `Object` |
-| `system_alerts` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::JobContext` | `Array` |
-| `work_gate` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::WorkContext` | `Array<Veto> or nil` |
-
-For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
-
-| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
-|---|---|---|---|---|
-| - | - | - | - | - |
-
-## `work_policy`
-
-Shape: `facet`. Required core: `key`, `display_name`.
-
-| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
-|---|---|---|---|---|---|---|
-| `repair_classifier` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::Context::RepairContext` | `Object` |
-| `system_alerts` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::JobContext` | `Array` |
-| `work_gate` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::WorkContext` | `Array<Veto> or nil` |
-
-For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
-
-| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
-|---|---|---|---|---|
-| - | - | - | - | - |
 
 ## `work_policy`
 

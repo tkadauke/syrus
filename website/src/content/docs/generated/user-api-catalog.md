@@ -378,11 +378,9 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/repositories/:id` | `api/v1/app/repositories#update` |
 | core | PUT | `/api/v1/app/repositories/:id` | `api/v1/app/repositories#update` |
 | core | POST | `/api/v1/app/repositories/:id/archive` | `api/v1/app/repositories#archive` |
-| core | POST | `/api/v1/app/repositories/:id/check_ci_now` | `api/v1/app/repositories#check_ci_now` |
 | core | GET | `/api/v1/app/repositories/:id/cognitive_debt` | `api/v1/app/repositories#cognitive_debt` |
 | core | GET | `/api/v1/app/repositories/:id/delivery` | `api/v1/app/repositories#delivery` |
 | core | GET | `/api/v1/app/repositories/:id/edit` | `api/v1/app/repositories#edit` |
-| core | GET | `/api/v1/app/repositories/:id/health_history` | `api/v1/app/repositories#health_history` |
 | core | GET | `/api/v1/app/repositories/:id/jobs` | `api/v1/app/repositories#jobs` |
 | core | POST | `/api/v1/app/repositories/:id/override_readiness_probe` | `api/v1/app/repositories#override_readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/poll` | `api/v1/app/repositories#poll` |
@@ -390,9 +388,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/repositories/:id/readiness_probe` | `api/v1/app/repositories#readiness_probe_status` |
 | core | POST | `/api/v1/app/repositories/:id/readiness_probe` | `api/v1/app/repositories#readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/release_needs_triage_job` | `api/v1/app/repositories#release_needs_triage_job` |
-| core | POST | `/api/v1/app/repositories/:id/repair_main_branch` | `api/v1/app/repositories#repair_main_branch` |
 | core | POST | `/api/v1/app/repositories/:id/resume_landing` | `api/v1/app/repositories#resume_landing` |
-| core | POST | `/api/v1/app/repositories/:id/run_main_branch_graders` | `api/v1/app/repositories#run_main_branch_graders` |
 | core | POST | `/api/v1/app/repositories/:id/sync_fork` | `api/v1/app/repositories#sync_fork` |
 | core | GET | `/api/v1/app/repositories/:id/syrus_yml` | `api/v1/app/repositories#syrus_yml` |
 | core | GET | `/api/v1/app/repositories/:id/target_graph` | `api/v1/app/target_graphs#repository` |
