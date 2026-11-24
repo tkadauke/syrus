@@ -4575,6 +4575,38 @@ Job.
 the WorkIntent the same transitions settle ranks before Workflow. The
 Step-then-Workflow and Job-then-Epic groups are not yet traced.
 
+## F125. A finishing Workflow wrote its own row after its Steps — fixed (NY37: A, part 2)
+
+**Before.** `Workflows::LifecyclePropagation`'s terminal methods run inside the
+AASM event, before AASM saves the Workflow row. They cancel and write the
+Steps (`cancel_active_descendants!` locks each one), and only then is the
+Workflow row written. When a caller did not already hold the Workflow, for
+example a direct `workflow.cancel!`, the transaction wrote a Workflow while
+holding its Steps (Step ranks after Workflow). That was 64 hits in the
+write-tracking survey.
+
+**Fix.** Every terminal method (`succeeded!`, `failed!`, `cancelled!`,
+`blocked!`) first takes the Workflow's own row with a locking query, which does
+not reload, so the transition's unsaved state is kept. A caller that already
+holds it re-locks for free. The order is now the cancelling Workflow, then the
+pending closure's Workflows by id (F121), then Steps.
+
+**Specs.** `spec/services/workflows/lifecycle_propagation_spec.rb` "locks the
+Workflow's row before its Steps when it finishes" (red before). The workflow,
+work-unit, step-dispatcher, job-closure, lock-order, Workflow model and
+simulation specs pass (1,057 examples).
+
+**Rest of NY37.**
+
+- **WorkUnit last:** written, and waits on NY38 (the WorkIntent's rank).
+- **Job, then Epic (23 hits):** a different shape. A Job's state change rolls
+  up into its Epic's state (`Job#refresh_epic_auto_state`, an `after_save`)
+  inside the same transaction, and the order puts Epic first because merge
+  trains lock the Epic before its members. Fixing it means either locking the
+  Epic before the Job at every Job transition, which spreads as NY35's A did,
+  or running the rollup after commit, which lets a reader briefly see an Epic
+  behind its children. Not changed; to be asked.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
