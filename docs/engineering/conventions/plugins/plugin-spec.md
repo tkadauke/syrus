@@ -461,7 +461,7 @@ The compatibility scanner also recognizes 393 legacy core constants used by bund
 - `Syrus::Host::WorkspaceGitTransport` (since 0.1.16) — Defines how a plugin supplies git transport for a workflow workspace; clone orchestration is not promised. Only the listed members are supported. Supported members: `available_for?`, `build`, `env`, `register!`, `url`.
 - `Syrus::Host::WorkspaceTab` (since 0.1.16) — Contributes tabs to the chat workspace panel; panel layout and rendering are not promised. Only the listed members are supported. Supported members: `available_for?`, `workspace_tabs`.
 
-The compatibility scanner also recognizes 352 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 349 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
