@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class LocalBackupsController < BaseController
+        class LocalBackupsController < Syrus::Host::AppAdminController
           def index
             root = LocalBackups::StorageRoot.new
             scan = LocalBackups::InventoryScanner.new(root:).call

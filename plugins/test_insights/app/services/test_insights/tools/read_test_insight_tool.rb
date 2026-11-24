@@ -34,7 +34,7 @@ module TestInsights
 
       class << self
         def call(server_context:, test_identity_id:, history_limit: nil, include_failures: true)
-          Mcp::Tools.with_database_connection do
+          Syrus::Host::McpTools.with_database_connection do
             context = current_context(server_context)
             identity = TestInsights::TestIdentity.find(test_identity_id)
             repository_for(context, repository_id: identity.repository_id)
@@ -45,13 +45,13 @@ module TestInsights
               include_failures: truthy?(include_failures)
             )
 
-            Mcp::Tools.success(payload)
+            Syrus::Host::McpTools.success(payload)
           end
         rescue ActiveRecord::RecordNotFound
-          Mcp::Tools.not_authorized
+          Syrus::Host::McpTools.not_authorized
         rescue StandardError => e
           Rails.logger.error("[Mcp::Tools::ReadTestInsightTool] #{e.class}: #{e.message}")
-          Mcp::Tools.invalid("#{e.class}: #{e.message}")
+          Syrus::Host::McpTools.invalid("#{e.class}: #{e.message}")
         end
       end
     end

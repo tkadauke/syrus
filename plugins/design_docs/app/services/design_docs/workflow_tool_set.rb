@@ -1,6 +1,6 @@
 module DesignDocs
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [
       ListDesignDocsTool,
@@ -31,7 +31,7 @@ module DesignDocs
 
     def handle(tool_name, params, server_context)
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown design docs workflow tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown design docs workflow tool: #{tool_name.inspect}") unless klass
 
       klass.call(**symbolize(params), server_context: server_context)
     end

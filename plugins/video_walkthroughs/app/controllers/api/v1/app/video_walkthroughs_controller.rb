@@ -7,11 +7,11 @@ module Api
       # VideoWalkthroughs::Walkthrough, kicks the Gemini analysis job, and returns the
       # row; progress then streams over AppUserChannel
       # (video_walkthrough.analyzing → .analyzed | .failed).
-      class VideoWalkthroughsController < BaseController
+      class VideoWalkthroughsController < Syrus::Host::AppController
         def create
-          chat = Current.user.accessible_chat_sessions.find(params[:chat_id])
+          chat = Syrus::Host::Current.user.accessible_chat_sessions.find(params[:chat_id])
 
-          unless Current.user.gemini_configured?
+          unless Syrus::Host::Current.user.gemini_configured?
             render_error("gemini_not_configured",
                          "Add a Gemini API key under Credentials to analyze walkthrough videos.",
                          status: :unprocessable_content)
@@ -25,7 +25,7 @@ module Api
           end
 
           walkthrough = chat.video_walkthroughs.new(
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             title: params[:title].presence,
             # Persisted (not a transient job kwarg) so retries re-inject the
             # user's guidance instead of silently dropping it.
@@ -52,7 +52,7 @@ module Api
         # succeeded, the job skips Gemini and just re-delivers the turn.
         def retry
           walkthrough = VideoWalkthroughs::Walkthrough
-            .where(chat_session_id: Current.user.accessible_chat_sessions.select(:id), user_id: Current.user.id)
+            .where(chat_session_id: Syrus::Host::Current.user.accessible_chat_sessions.select(:id), user_id: Syrus::Host::Current.user.id)
             .find(params[:id])
           unless walkthrough.failed?
             render_error("not_retryable", "Only failed analyses can be retried.", status: :unprocessable_content)

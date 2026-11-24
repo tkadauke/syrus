@@ -1,6 +1,6 @@
 module SourceControl
   class GithubOperations
-    include Syrus::Plugin::SourceControlProvider
+    include Syrus::Host::SourceControlProvider
 
     def self.provider_key = "github"
 

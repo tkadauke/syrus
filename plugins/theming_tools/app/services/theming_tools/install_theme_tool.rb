@@ -43,10 +43,10 @@ module ThemingTools
           user, theme_id: theme_id, name: name, light: light, dark: dark,
           shape: shape, shadow: shadow, spacing: spacing, density: density, typography: typography
         )
-        return Mcp::Tools.invalid(error) if error
+        return Syrus::Host::McpTools.invalid(error) if error
 
         issues = theme.contrast_issues
-        return Mcp::Tools.invalid(rejection_message(issues)) if issues.any?
+        return Syrus::Host::McpTools.invalid(rejection_message(issues)) if issues.any?
 
         if theme.new_record?
           theme.owner_user = user
@@ -55,9 +55,9 @@ module ThemingTools
 
         if theme.save
           user.update!(color_theme: theme)
-          Mcp::Tools.success(theme.public_payload)
+          Syrus::Host::McpTools.success(theme.public_payload)
         else
-          Mcp::Tools.invalid(theme.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(theme.errors.full_messages.to_sentence)
         end
       end
 

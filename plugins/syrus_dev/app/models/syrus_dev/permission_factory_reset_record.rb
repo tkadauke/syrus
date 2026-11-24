@@ -1,5 +1,5 @@
 module SyrusDev
-  class PermissionFactoryResetRecord < ApplicationRecord
+  class PermissionFactoryResetRecord < Syrus::Host::Record
     self.table_name = "syrus_dev_permission_factory_resets"
 
     OUTCOMES = %w[started succeeded failed].freeze

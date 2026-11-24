@@ -1,6 +1,6 @@
 module CredentialStore
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [ ListCredentialsTool, SshExecTool ].freeze
 

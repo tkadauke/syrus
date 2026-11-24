@@ -19,12 +19,12 @@ module SyrusDev
 
     class << self
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         unless coworker_diagnostics_authorized?(context)
-          return Mcp::Tools.not_authorized unless authorized_role?(context.role)
-          return Mcp::Tools.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+          return Syrus::Host::McpTools.not_authorized unless authorized_role?(context.role)
+          return Syrus::Host::McpTools.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
         end
-        return OperationalLogSearch.disabled_response unless OperationalLogging.enabled_for_instance?
+        return OperationalLogSearch.disabled_response unless Syrus::Host::OperationalLogging.enabled_for_instance?
 
         OperationalLogSearch.search_response(query: query, since: since, level: level, role: role, hostname: hostname, limit: limit)
       rescue StandardError => e

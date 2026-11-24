@@ -1,6 +1,6 @@
 module InputSources
   class Linear < InputSource
-    include Syrus::Plugin::InputSource
+    include Syrus::Host::InputSource
 
     def poll!
       return unless polling_enabled?

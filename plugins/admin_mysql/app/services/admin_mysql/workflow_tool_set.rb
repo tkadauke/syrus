@@ -1,6 +1,6 @@
 module AdminMysql
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [
       StatusTool

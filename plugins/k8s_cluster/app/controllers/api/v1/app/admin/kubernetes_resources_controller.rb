@@ -9,7 +9,7 @@ module Api
         # MysqlSchemaController expresses as separate routes - kept as one
         # route per resource kind here to match the plugin's declared route
         # list one-for-one.
-        class KubernetesResourcesController < BaseController
+        class KubernetesResourcesController < Syrus::Host::AppAdminController
           before_action :require_k8s_cluster_enabled
           before_action :set_cluster
           before_action :validate_resource_identifiers

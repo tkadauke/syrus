@@ -7,7 +7,7 @@ module TestInsights
   # because the path points inside the workflow workspace, which is torn down
   # when the workflow reaches a terminal state.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       { "step.grader.completed" => :on_grader_completed }
@@ -49,7 +49,7 @@ module TestInsights
     def self.report_failure(run:, event:, parser_name:, error:)
       return if run.nil?
 
-      OperationalLogging.ingest(
+      Syrus::Host::OperationalLogging.ingest(
         level: "error",
         source: "test_insights_subscribers",
         message: "[grader:#{event[:grader_name]}] test output ingestion failed via #{parser_name}: #{error.class}: #{error.message}",
@@ -75,13 +75,13 @@ module TestInsights
     def self.parse(path, format_hint)
       return [ "JunitXmlParser", ::JunitXmlParser.parse(path.read) ] if junit_xml?(path, format_hint)
 
-      Syrus::PluginRegistry.providers_for("test_insights:parser").each do |provider|
-        can_parse = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :can_parse) do
+      Syrus::Host::PluginRegistry.providers_for("test_insights:parser").each do |provider|
+        can_parse = Syrus::Host::PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :can_parse) do
           provider.can_parse?(output_path: path, format_hint: format_hint)
         end
         next unless can_parse
 
-        parsed = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :call) do
+        parsed = Syrus::Host::PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :call) do
           provider.call(output_path: path, format_hint: format_hint)
         end
         return [ provider.to_s, parsed ]

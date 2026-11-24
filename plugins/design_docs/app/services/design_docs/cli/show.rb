@@ -2,7 +2,7 @@
 
 module DesignDocs
   module Cli
-    class Show < Syrus::Plugin::CliCommandHandler
+    class Show < Syrus::Host::CliCommandHandler
       def call(args:, flags:, user:)
         id = DocRef.parse(args.fetch(0))
         design_doc = DesignDocPolicy::Scope.new(user, DesignDoc)
