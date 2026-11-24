@@ -88,11 +88,20 @@ RSpec.describe RuntimeImages::Reconciler do
 
   it "reports an unreachable namespace without aborting the pass" do
     publish("a")
-    allow(provider).to receive(:inspect).and_call_original
     allow(provider).to receive(:inspect_image).and_raise(RuntimeImages::AuthenticationError, "denied")
 
     findings = reconcile
 
     expect(findings.map(&:kind)).to eq([ :namespace_unreachable ])
+  end
+
+  it "inspects every record, not just the first batch" do
+    images = %w[a b c].map { |p| publish(p) }
+    provider.store.clear
+
+    findings = reconcile(batch: 1)
+
+    expect(findings.map(&:kind)).to eq([ :missing_in_registry ] * 3)
+    expect(images.map { |i| i.reload.availability }).to all(eq("deleted"))
   end
 end
