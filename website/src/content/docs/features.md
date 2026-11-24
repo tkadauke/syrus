@@ -3074,3 +3074,18 @@ going stale and is independent of the per-Job base branch.
 
 For command examples, continue to [Recipes](/docs/recipes). For failure
 paths, use [Troubleshooting](/docs/troubleshooting).
+
+## Permission decision cards
+
+When an agent needs your approval, the chat card and the permission inbox show
+the same decision layout. It leads with a plain-language question such as
+"Allow Syrus to capture a screenshot?", followed by the target, whether data is
+read or changed, who asked, and how long the approval lasts. Session IDs, raw
+arguments, and capability details stay behind a collapsed "Technical details"
+section.
+
+"Allow once" is the primary action and "Deny" is secondary. To remember a
+decision, pick one option from the scope control, for example "Allow
+screenshots for this chat". Before anything is saved, the card summarizes what
+will be remembered, where it applies, how long it lasts, and how to revoke it
+under Settings → Permissions.

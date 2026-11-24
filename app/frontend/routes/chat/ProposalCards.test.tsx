@@ -639,6 +639,44 @@ describe("PendingActionCard", () => {
     expect(screen.getByRole("link", { name: "Open in Permissions Hub" })).toHaveAttribute("href", "/settings/permissions")
   })
 
+  it("names the operation in remembered-scope labels when only the request-level presentation carries the statement", () => {
+    const option = {
+      kind: "allow_chat",
+      duration: "chat_session",
+      breadth: "resource",
+      digest: "chat-digest",
+      summary: { allows: ["Allow screenshots in this chat."], excludes: [] },
+      draft: {},
+      ceiling: {},
+      context: { coworker: "Maya", operation: "screen.capture", repository: "acme/app", resource_scope_label: "Screen", duration: "chat_session" }
+    }
+    renderCard(
+      pendingAction({
+        action: "coworker_tool_call",
+        request_kind: "authorization_request",
+        authorization_presentation: { statement: "capture a screenshot" },
+        authorization_items: [
+          {
+            id: 42,
+            kind: "operation",
+            state: "pending",
+            capability: "screen",
+            operation: "screen.capture",
+            effects: [],
+            prerequisite_ids: [],
+            app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/decision",
+            app_smart_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/smart_decision",
+            smart_option: option,
+            smart_options: [option]
+          }
+        ]
+      })
+    )
+
+    const labels = Array.from(screen.getByLabelText("Remember this decision").querySelectorAll("option")).map((o) => o.textContent)
+    expect(labels.join("|")).toContain("capture a screenshot")
+  })
+
   it("previews and confirms the adaptive permission through the smart decision endpoint", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Permission decision recorded." }))
     const { onNotice } = renderCard(
