@@ -152,6 +152,7 @@ la:
       content_cache_too_large: "non maius quam %{size} KB esse debet"
       too_many_job_attachments: "Jobs non plus quam %{count} adiuncta habere possunt"
       already_recorded: "huic fonti et ancorae iam relatum est"
+      hex_device_token: "debet esse tessera machinae hexadecimaliter codificata"
       required_for_range_anchor: "ancoris intervalli adesse debet"
       required_for_file_anchor: "ancoris fasciculi adesse debet"
       blank_for_file_anchor: "ancoris fasciculi vacuum esse debet"

@@ -152,6 +152,7 @@ de:
       content_cache_too_large: "darf höchstens %{size} KB groß sein"
       too_many_job_attachments: "Jobs dürfen höchstens %{count} Anhänge haben"
       already_recorded: "wurde für diese Quelle und Verankerung bereits erfasst"
+      hex_device_token: "muss ein hexadezimal codiertes Geräte-Token sein"
       required_for_range_anchor: "muss bei Bereichsverankerungen vorhanden sein"
       required_for_file_anchor: "muss bei Dateiverankerungen vorhanden sein"
       blank_for_file_anchor: "muss bei Dateiverankerungen leer sein"
