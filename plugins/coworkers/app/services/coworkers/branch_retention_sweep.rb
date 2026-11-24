@@ -18,7 +18,7 @@ class Coworkers::BranchRetentionSweep
       .pluck(:source_branch, :recovery_ref).flatten.compact.to_set
     entries = merged_refs
     workflow_ids = entries.to_h { |entry| [ workflow_id(entry), true ] }.keys
-    existing_workflow_ids = Syrus::Host::Workflows.where(id: workflow_ids).pluck(:id).to_set
+    existing_workflow_ids = Syrus::Host::WorkflowRecord.where(id: workflow_ids).pluck(:id).to_set
     deleted = 0
     entries.each do |entry|
       break if deleted >= @limit

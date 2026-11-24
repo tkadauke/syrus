@@ -79,7 +79,7 @@ module AgentProviders
         prompt: prompt,
         api_key: credential(:muse_api_key, user: job.user.reload),
         log_sink: log_sink,
-        runner: RunJob.agent_runner,
+        runner: Syrus::Host::RunJob.agent_runner,
         timeout: timeout,
         session_id: resume_session_id,
         max_model_steps: max_turns,

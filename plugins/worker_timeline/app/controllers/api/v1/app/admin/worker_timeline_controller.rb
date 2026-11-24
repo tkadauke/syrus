@@ -23,7 +23,7 @@ module Api
               from: filter.from,
               to: filter.to,
               expression: filter,
-              allowed_job_ids: ::Job.visible_to(Syrus::Host::Current.user).select(:id)
+              allowed_job_ids: Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).select(:id)
             )
             render json: payload.merge(
               filter: filter.to_h,
@@ -65,7 +65,7 @@ module Api
           def smart_folders
             ::Admin::SmartFolderNavigation.new(
               subject: :worker_timeline, user: Syrus::Host::Current.user,
-              active_folder: active_smart_folder, base_scope: ::Workflow.none,
+              active_folder: active_smart_folder, base_scope: Syrus::Host::WorkflowRecord.none,
               filter_class: ::WorkerTimeline::MacroQueryFilter,
               count_provider: ->(folder) { smart_folder_count(folder) }
             ).folders
@@ -76,7 +76,7 @@ module Api
               filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Syrus::Host::Current.user)
               ::Timeline::MacroQuery.new(
                 from: filter.from, to: filter.to, expression: filter,
-                allowed_job_ids: ::Job.visible_to(Syrus::Host::Current.user).select(:id)
+                allowed_job_ids: Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user).select(:id)
               ).capped_count
             end
           end

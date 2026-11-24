@@ -22,7 +22,7 @@ module SdlcPipeline
         chat_session = server_context.fetch(:chat_session)
         repository = Repository.accessible_to(chat_session.user).active.find(repository_id)
         ast = Filters::Ast.parse(filter)
-        Filters::Compiler.call(ast, scope: Job.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
+        Filters::Compiler.call(ast, scope: Syrus::Host::JobRecord.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
         validated = Filters::Ast.serialize(ast)
         at, range_start, range_end = [ at, range_start, range_end ].map { |value| validated_time(value) }
         path = pipeline_path(repository.id, validated, at:, range_start:, range_end:)

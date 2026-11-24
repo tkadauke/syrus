@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class GenerateRunStep < Syrus::Host::StepBase
+  class GenerateRunStep < Syrus::Host::StepHandlerBase
     GENERATION_TURN_BUDGET = 25
 
     def call

@@ -182,7 +182,7 @@ module AgentProviders
           prompt: prompt,
           api_key: auth.api_key,
           log_sink: log_sink,
-          runner: RunJob.agent_runner,
+          runner: Syrus::Host::RunJob.agent_runner,
           timeout: timeout,
           codex_home: codex_home,
           mcp_server: (mcp ? mcp_server : nil),

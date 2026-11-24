@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class DiveInvestigateStep < Syrus::Host::StepBase
+  class DiveInvestigateStep < Syrus::Host::StepHandlerBase
     def call
       workspace.setup
       run.update!(prompt: prompt) if run.prompt.blank?

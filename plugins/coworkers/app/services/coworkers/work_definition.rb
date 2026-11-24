@@ -1,5 +1,5 @@
 module Coworkers
-  class WorkDefinition < Syrus::Host::WorkDefinition
+  class WorkDefinition < Syrus::Host::WorkDefinitionBase
     self.plugin = "coworkers"
     self.kind = "coworker_run"
     self.workflow_trigger_kind = "coworker_run"

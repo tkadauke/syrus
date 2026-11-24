@@ -14,10 +14,10 @@ class Coworkers::Activity
     ids = coworkers.map(&:id)
     return {} if ids.empty?
     range = now.beginning_of_week..now
-    chat = Syrus::Host::ActivityRecords.chat_spend_entries.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+    chat = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
       .where(coworker_chats: { coworker_id: ids }, incurred_at: range).group("coworker_chats.coworker_id").sum(:cost_usd)
-    visible = Syrus::Host::Jobs.visible_to(user).where(kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s))
-    run = Syrus::Host::Runs.joins(:job).where(job_id: visible.select(:id), finished_at: range).group("jobs.origin_id").sum(:cost_usd)
+    visible = Syrus::Host::JobRecord.visible_to(user).where(kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s))
+    run = Syrus::Host::RunRecord.joins(:job).where(job_id: visible.select(:id), finished_at: range).group("jobs.origin_id").sum(:cost_usd)
     ids.index_with { |id| (chat.fetch(id, 0).to_d + run.fetch(id.to_s, 0).to_d).to_f }
   end
 
@@ -29,9 +29,9 @@ class Coworkers::Activity
   def call
     job_page = page(filtered_jobs, @jobs_cursor)
     chat_page = page(side_chats, @side_chats_cursor)
-    runs = Syrus::Host::Runs.where(job_id: job_page.map(&:id)).includes(:step).order(:created_at, :id).to_a
-    counts = Syrus::Host::ActivityRecords.job_logs.where(run_id: runs.map(&:id), kind: "tool_call").group(:run_id).count
-    workflows = Syrus::Host::Workflows.where(job_id: job_page.map(&:id)).order(:created_at, :id).to_a.group_by(&:job_id)
+    runs = Syrus::Host::RunRecord.where(job_id: job_page.map(&:id)).includes(:step).order(:created_at, :id).to_a
+    counts = Syrus::Host::JobLog.where(run_id: runs.map(&:id), kind: "tool_call").group(:run_id).count
+    workflows = Syrus::Host::WorkflowRecord.where(job_id: job_page.map(&:id)).order(:created_at, :id).to_a.group_by(&:job_id)
     names = schedule_names(job_page)
     {
       spend: spend_json,
@@ -48,13 +48,13 @@ class Coworkers::Activity
 
   def week_range = @now.beginning_of_week..@now
   def chat_ids = @chat_ids ||= @coworker.coworker_chats.select(:chat_session_id)
-  def chats = Syrus::Host::ChatSessions.where(id: chat_ids)
-  def side_chats = Syrus::Host::ChatSessions.where(id: @coworker.coworker_chats.where(role: "side").select(:chat_session_id))
-  def jobs = @jobs ||= Syrus::Host::Jobs.visible_to(@user).where(kind: "coworker_task", origin: "coworkers", origin_id: @coworker.id.to_s)
-  def all_runs = @all_runs ||= Syrus::Host::Runs.where(job_id: jobs.select(:id))
+  def chats = ChatSession.where(id: chat_ids)
+  def side_chats = ChatSession.where(id: @coworker.coworker_chats.where(role: "side").select(:chat_session_id))
+  def jobs = @jobs ||= Syrus::Host::JobRecord.visible_to(@user).where(kind: "coworker_task", origin: "coworkers", origin_id: @coworker.id.to_s)
+  def all_runs = @all_runs ||= Syrus::Host::RunRecord.where(job_id: jobs.select(:id))
 
   def spend_json
-    chat_entries = Syrus::Host::ActivityRecords.chat_spend_entries.where(chat_session_id: chat_ids)
+    chat_entries = ChatSpendEntry.where(chat_session_id: chat_ids)
     {
       week_usd: decimal(chat_entries.where(incurred_at: week_range).sum(:cost_usd) + all_runs.where(finished_at: week_range).sum(:cost_usd)),
       total_usd: decimal(chats.sum(:cumulative_cost_usd) + all_runs.sum(:cost_usd))
@@ -66,7 +66,7 @@ class Coworkers::Activity
     relation = relation.where(state: @filters[:state].to_s.split(",")) if @filters[:state].present?
     relation = relation.where("jobs.created_at >= ?", Time.zone.parse(@filters[:created_after].to_s)) if @filters[:created_after].present?
     relation = relation.where("jobs.created_at <= ?", Time.zone.parse(@filters[:created_before].to_s).end_of_day) if @filters[:created_before].present?
-    relation = relation.where(id: Syrus::Host::Workflows.where(trigger_kind: @filters[:source]).select(:job_id)) if @filters[:source].present?
+    relation = relation.where(id: Syrus::Host::WorkflowRecord.where(trigger_kind: @filters[:source]).select(:job_id)) if @filters[:source].present?
     if @filters[:failures_only] == "true"
       unsuccessful = relation.where(state: FAILURE_STATES)
       closed = relation.where.not(closure_reason: [ nil, "", *SUCCESSFUL_CLOSURE_REASONS ])

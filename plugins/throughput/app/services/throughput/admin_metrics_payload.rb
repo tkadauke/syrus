@@ -144,7 +144,7 @@ module Throughput
 
     def implemented_ats
       @implemented_ats ||= begin
-        scope = Step.joins(workflow: :job)
+        scope = Syrus::Host::Step.joins(workflow: :job)
           .where(kind: IMPLEMENTED_PROXY_STEP_KIND, state: "succeeded")
           .where(finished_at: since..until_time)
         scope = scope.where(jobs: { repository_id: repository.id }) if repository
@@ -161,7 +161,7 @@ module Throughput
     end
 
     def jobs_scope
-      repository ? Job.where(repository_id: repository.id) : Job.all
+      repository ? Syrus::Host::JobRecord.where(repository_id: repository.id) : Syrus::Host::JobRecord.all
     end
 
     def parse_time(value)

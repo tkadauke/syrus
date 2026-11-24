@@ -117,7 +117,7 @@ class Coworkers::ConflictResolver
   def default_agent
     provider = @user.agent_provider
     lambda do |workspace_path:, prompt:|
-      Syrus::Host::AgentProviders.for(provider).invoke_one_shot(
+      AgentProviders.for(provider).invoke_one_shot(
         workspace_path:, user: @user, runner: Syrus::Host::RunJob.agent_runner, scope: "coworker-conflict-resolution",
         prompt:, log_sink: ->(*, **) { }, timeout: AGENT_TIMEOUT, max_turns: AGENT_MAX_TURNS
       )

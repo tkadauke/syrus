@@ -2,13 +2,13 @@ module Api
   module V1
     module App
       class ProfilesController < Syrus::Host::AppController
-        include Syrus::Host::Paginatable
+        include Paginatable
 
         RECENT_LIMIT = 8
         PER_PAGE = 50
 
         def index
-          relation = Syrus::Host::Users.order(Arel.sql("LOWER(email_address) ASC"), :id)
+          relation = User.order(Arel.sql("LOWER(email_address) ASC"), :id)
           if params[:q].present?
             term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].strip)}%"
             relation = relation.where("LOWER(first_name) LIKE LOWER(:term) OR LOWER(last_name) LIKE LOWER(:term) OR LOWER(name) LIKE LOWER(:term) OR LOWER(github_handle) LIKE LOWER(:term)", term: term)
@@ -27,10 +27,10 @@ module Api
         end
 
         def show
-          user = Syrus::Host::Users.find(params[:id])
+          user = User.find(params[:id])
 
           render json: {
-            team_user_count: Syrus::Host::Users.count,
+            team_user_count: User.count,
             profile: profile_json(user)
           }
         end
@@ -69,16 +69,16 @@ module Api
             counts: directory_counts([ user ]).fetch(user.id),
             profile_path: profile_path(user),
             repositories: user.repositories.active.order(:owner, :name, :id).limit(RECENT_LIMIT).map { |repository| repository_json(repository) },
-            epics: user.epics.includes(:repository).where.not(state: Syrus::Host::Epics.archived_state).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |epic| epic_json(epic) },
+            epics: user.epics.includes(:repository).where.not(state: Syrus::Host::Epic::ARCHIVED_STATE).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |epic| epic_json(epic) },
             jobs: visible_jobs_for(user).includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) }
           }
         end
 
         def directory_counts(users)
           user_ids = users.map(&:id)
-          repository_counts = Syrus::Host::Repositories.active.where(user_id: user_ids).group(:user_id).count
-          epic_counts = Syrus::Host::Epics.where(user_id: user_ids).where.not(state: Syrus::Host::Epics.archived_state).group(:user_id).count
-          visible_jobs = Syrus::Host::Jobs.visible_to(Syrus::Host::Current.user, scope: Syrus::Host::Jobs.where(user_id: user_ids))
+          repository_counts = Repository.active.where(user_id: user_ids).group(:user_id).count
+          epic_counts = Syrus::Host::Epic.where(user_id: user_ids).where.not(state: Syrus::Host::Epic::ARCHIVED_STATE).group(:user_id).count
+          visible_jobs = Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: Syrus::Host::JobRecord.where(user_id: user_ids))
           job_counts = visible_jobs.group(:user_id).count
           open_job_counts = visible_jobs.where.not(state: "closed").group(:user_id).count
 
@@ -138,11 +138,11 @@ module Api
         end
 
         def visible_jobs_for(profile_user)
-          Syrus::Host::Jobs.visible_to(Syrus::Host::Current.user, scope: profile_user.jobs)
+          Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: profile_user.jobs)
         end
 
         def show_owner_labels_for?(profile_user)
-          Syrus::Host::Current.user.id != profile_user.id && Syrus::Host::Users.where.not(id: Syrus::Host::Current.user.id).exists?
+          Syrus::Host::Current.user.id != profile_user.id && User.where.not(id: Syrus::Host::Current.user.id).exists?
         end
       end
     end

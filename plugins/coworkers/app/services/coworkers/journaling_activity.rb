@@ -13,14 +13,14 @@ module Coworkers
       sections = []
       sections << "### Daily memory\n\n#{daily_memory}" if daily_memory.present?
       if messages.exists?
-        lines = ordered_messages.map do |message|
+        lines = messages.order(:created_at).limit(500).map do |message|
           "- CHAT-#{message.chat_session_id} #{message.created_at.iso8601} #{message.role}: #{text(message.extract_text_from_content).truncate(1_000)}"
         end
         sections << "### Messages\n\n#{lines.join("\n")}"
       end
       if background_jobs.exists?
         lines = background_jobs.order(:created_at).limit(100).map do |job|
-          summary = Syrus::Host::Runs.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
+          summary = Syrus::Host::RunRecord.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
           "- JOB-#{job.id}: #{text(job.issue_title)}#{": #{text(summary).truncate(1_000)}" if summary.present?}"
         end
         sections << "### Background runs\n\n#{lines.join("\n")}"
@@ -59,21 +59,10 @@ module Coworkers
       ).uniq
     end
 
-    def messages = Syrus::Host::ChatMessages.where(chat_session_id: chat_ids, created_at: range)
-
-    # Ordering full message rows made MySQL file-sort their large content
-    # columns, and a busy day failed the journaling run with "Out of sort
-    # memory". Sort only the narrow columns, then load the rows by id.
-    MESSAGE_LIMIT = 500
-
-    def ordered_messages
-      ids = messages.order(:created_at, :id).limit(MESSAGE_LIMIT).pluck(:id)
-      by_id = Syrus::Host::ChatMessages.where(id: ids).index_by(&:id)
-      ids.filter_map { |id| by_id[id] }
-    end
+    def messages = ChatMessage.where(chat_session_id: chat_ids, created_at: range)
 
     def background_jobs
-      Syrus::Host::Jobs.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
+      Syrus::Host::JobRecord.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
     end
 
     def daily_memory
@@ -82,14 +71,14 @@ module Coworkers
       repository = @coworker.workspace_repository
       return @daily_memory = nil unless repository
       if (chat = @coworker.coworker_chats.find_by(role: "main")&.chat_session)
-        root = Syrus::Host::ChatWorkspaces.repo_path_for(chat, repository)
+        root = ChatWorkspace.repo_path_for(chat, repository)
         pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
         return @daily_memory = text(pending, label: daily_memory_path) if pending
       end
-      reader = Syrus::Host::RepositoryContent.for(repository, user: @coworker.owner_user)
+      reader = Syrus::Host::ContentReader.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
       @daily_memory = text(reader.read(revision, daily_memory_path, max_bytes: 64.kilobytes).text, label: daily_memory_path)
-    rescue Syrus::Host::RepositoryContent::NotFound, Syrus::Host::RepositoryContent::Unavailable, Syrus::Host::RepositoryContent::Unsupported, Syrus::Host::RepositoryContent::UnknownRevision
+    rescue Syrus::Host::ContentNotFound, Syrus::Host::ContentUnavailable, Syrus::Host::ContentUnsupported, Syrus::Host::ContentUnknownRevision
       @daily_memory = nil
     end
 

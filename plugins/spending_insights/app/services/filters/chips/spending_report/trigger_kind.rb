@@ -9,7 +9,7 @@ module Filters
         # kinds, and a chip list captured at autoload time would never show
         # one enabled afterwards.
         def self.values(*list)
-          list.any? ? super : (::Workflow::TriggerKind.values - %w[resume])
+          list.any? ? super : (Syrus::Host::WorkflowRecord::TriggerKind.values - %w[resume])
         end
       end
     end

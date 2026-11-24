@@ -11,7 +11,7 @@ module Coworkers
         worker = confined_workers.first
         return { outcome: "confinement_unavailable" } unless worker
 
-        { queue: Syrus::Host::Workflows.resume_queue_name(worker.hostname) }
+        { queue: Syrus::Host::WorkflowRecord.resume_queue_name(worker.hostname) }
       end
 
       def availability(descriptor)
@@ -51,7 +51,7 @@ module Coworkers
       private
 
       def current_worker_confined?
-        Array(Syrus::Host::WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)
+        Array(WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)
       end
 
       def confined_worker_available?
@@ -59,15 +59,15 @@ module Coworkers
       end
 
       def confined_workers
-        Syrus::Host::InstanceWorkers.fresh.select do |worker|
-          Array(Syrus::Host::WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?(CONFINEMENT_RUNTIME)
+        InstanceVersion.fresh.where(role: "worker").select do |worker|
+          Array(WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?(CONFINEMENT_RUNTIME)
         end
       rescue ActiveRecord::StatementInvalid
         []
       end
 
       def confinement_unavailability_reason
-        workers = Syrus::Host::InstanceWorkers.fresh.to_a
+        workers = InstanceVersion.fresh.where(role: "worker").to_a
         return "confinement_worker_unavailable" if workers.empty?
         diagnostics = workers.map { |worker| worker.capability_diagnostics || {} }
         return "confinement_configuration_missing" if diagnostics.any? { |entry| entry["confined_coworker_configuration"] == "missing" }

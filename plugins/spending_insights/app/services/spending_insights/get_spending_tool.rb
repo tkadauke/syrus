@@ -55,7 +55,7 @@ module SpendingInsights
         start_date = Date.iso8601(params.fetch(:start_date))
         end_date = Date.iso8601(params.fetch(:end_date))
         zone = ActiveSupport::TimeZone[user.time_zone]
-        relation = Run.where(finished_at: zone.local(start_date.year, start_date.month, start_date.day)...zone.local(end_date.next_day.year, end_date.next_day.month, end_date.next_day.day))
+        relation = Syrus::Host::RunRecord.where(finished_at: zone.local(start_date.year, start_date.month, start_date.day)...zone.local(end_date.next_day.year, end_date.next_day.month, end_date.next_day.day))
         relation = relation.joins(:job).where(jobs: { repository_id: params[:repository_id] }) if params[:repository_id].present?
         relation = relation.joins(:job).where(jobs: { epic_id: params[:epic_id] }) if params[:epic_id].present?
         return relation if user.admin?
