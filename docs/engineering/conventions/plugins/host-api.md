@@ -1967,7 +1967,9 @@ Bases plugin-owned records in the primary database; private core helpers are not
 Supported members:
 
 - `belongs_to`
+- `connection`
 - `has_many`
+- `sanitize_sql_like`
 - `transaction`
 
 ### `Syrus::Host::RepairClassifier`
@@ -2913,6 +2915,29 @@ Supported members:
 
 - `current`
 - `normalize`
+
+### `Syrus::Host::WorkLaunchConflict`
+
+Since: `0.1.16`
+
+Raised when a launch collides with work that already holds the same lock, so callers may retry later. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::WorkLauncher`
+
+Since: `0.1.16`
+
+Instantiates, starts, or creates-and-starts a workflow of a registered kind for a job and returns the launch result; scheduling, locking, and landing policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `create_and_start!`
+- `instantiate`
+- `start!`
 
 ### `Syrus::Host::WorkerCapabilityProbe`
 

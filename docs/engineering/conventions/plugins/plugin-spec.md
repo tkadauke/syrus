@@ -355,7 +355,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::PostImplementationReviewProvider` (since 0.1.16) — Lets a plugin request a best-effort agentic pass after an implementation workflow produced its final diff; the host step that runs it is not promised. Only the listed members are supported. Supported members: `prompt_sections`, `required_mcp_tools`, `review_needed?`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `agent_mounts`, `capture`, `forwarded_env`, `mounts`, `new`, `probe_mounts`, `run`, `start`.
 - `Syrus::Host::PurgeContributor` (since 0.1.16) — Lets a plugin remove its own external resources when it is purged; purge ordering is not promised. Only the listed members are supported. Supported members: `purge!`, `purge_report`.
-- `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`, `transaction`.
+- `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `connection`, `has_many`, `sanitize_sql_like`, `transaction`.
 - `Syrus::Host::Repository` (since 0.1.16) — Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised. Supported members: `accessible_to`, `active`, `archived_at`, `find`, `id`, `jobs`, `name`, `owner`, `writable_by`.
 - `Syrus::Host::RepositoryAccess` (since 0.1.16) — Answers whether a user may write to a repository; policy evaluation details are not promised. Supported members: `write?`.
 - `Syrus::Host::RepositoryConfiguration` (since 0.1.16) — Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
@@ -455,7 +455,7 @@ The compatibility scanner also recognizes 393 legacy core constants used by bund
 - `Syrus::Host::WorkflowWorkspace` (since 0.1.16) — Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised. Only the listed members are supported. Supported members: `REQUIRED_BRANCH_ARTIFACT`, `agent_home_for`, `base_ref`, `data_root`, `new`, `path_for`.
 - `Syrus::Host::WorkspaceGitTransport` (since 0.1.16) — Defines how a plugin supplies git transport for a workflow workspace; clone orchestration is not promised. Only the listed members are supported. Supported members: `available_for?`, `build`, `env`, `register!`, `url`.
 
-The compatibility scanner also recognizes 397 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 396 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
