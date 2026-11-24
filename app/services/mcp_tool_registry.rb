@@ -427,7 +427,7 @@ class McpToolRegistry
     end
 
     def coworker_entries
-      participants = Mcp::ChatToolParity.participants
+      participants = Mcp::ChatToolParity.participants(enabled_only: true)
       shared_chat_entries = chat_entries.select { |entry| Mcp::ChatToolParity.core_entry_in_context?(entry, :coworker, participants:) }
       family_defaults = shared_chat_entries.group_by { |entry| entry.descriptor.capability }.transform_values do |entries|
         entries.all? do |entry|
