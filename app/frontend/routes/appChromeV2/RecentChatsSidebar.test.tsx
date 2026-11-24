@@ -1109,6 +1109,50 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(within(popover).getByText("3 entries")).toBeInTheDocument()
   })
 
+  it("opens the indicator only from its marker on touch devices", () => {
+    const restoreMatchMedia = withMatchMedia(false)
+    try {
+      renderSidebar([
+        chatNav({
+          job_summary: {
+            active_count: 1,
+            outcome: "ready",
+            epics: {},
+            jobs: [{ id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }]
+          }
+        })
+      ])
+
+      const marker = screen.getByTestId("job-running-marker")
+      const reference = marker.closest('[role="button"]')!
+      const markerSlot = screen.getByTestId("recent-chat-marker-slot")
+      expect(reference).toHaveAttribute("aria-expanded", "false")
+      expect(markerSlot).toHaveClass("h-11", "min-w-11", "justify-center")
+      expect(reference).toHaveClass("h-full", "w-full", "items-center", "justify-center")
+      const row = screen.getByTitle("Chat").parentElement!
+      fireEvent.mouseEnter(row)
+      expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
+
+      fireEvent.mouseEnter(reference)
+      expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
+
+      fireEvent.pointerDown(reference)
+      fireEvent.focus(reference)
+      expect(screen.getByTestId("recent-chat-indicator-popover")).toBeInTheDocument()
+
+      fireEvent.click(marker)
+      expect(screen.getByTestId("recent-chat-indicator-popover")).toBeInTheDocument()
+      expect(reference).toHaveAttribute("aria-expanded", "true")
+      expect(screen.getByTestId("location")).toHaveTextContent("/")
+
+      fireEvent.pointerDown(reference)
+      fireEvent.click(marker)
+      expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("keeps the portaled popover interactive across pointer and focus transitions", () => {
     vi.useFakeTimers()
     try {

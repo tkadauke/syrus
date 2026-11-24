@@ -522,6 +522,42 @@ RSpec.describe "maintenance task definitions" do
     end
   end
 
+  describe MaintenanceTasks::Definitions::TestInsightsGraderNameBackfill do
+    let(:definition) { described_class.new }
+
+    before do
+      result_struct = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
+      stub_const("TestInsights::GraderNameBackfill", Class.new do
+        define_singleton_method(:pending_count) { |after_id: 0, up_to_id: nil| [ (up_to_id || 7) - after_id, 0 ].max }
+        define_singleton_method(:max_test_case_id) { 7 }
+        define_method(:call) do |after_id: 0, up_to_id: nil, limit:|
+          processed = [ limit, (up_to_id || 7) - after_id ].min
+          result_struct.new(done: false, processed: processed, next_after_id: after_id + processed)
+        end
+      end)
+    end
+
+    it "wraps the plugin backfill service with a durable upper bound" do
+      task = maintenance_task_for(definition)
+      result = definition.perform_batch(task)
+
+      expect(result.processed).to eq(7)
+      expect(task.checkpoint).to include(
+        "after_id" => 7,
+        "upper_bound_test_case_id" => 7
+      )
+    end
+
+    it "reports not installed when Test Insights is unavailable" do
+      hide_const("TestInsights::GraderNameBackfill")
+
+      result = definition.perform_batch(maintenance_task_for(definition))
+
+      expect(result).to have_attributes(done: true, processed: 0)
+      expect(result.message).to include("not installed")
+    end
+  end
+
   describe MaintenanceTasks::Definitions::TestInsightsWipRepairFailureBackfill do
     let(:definition) { described_class.new }
 

@@ -1,0 +1,49 @@
+require "rails_helper"
+
+RSpec.describe TestInsights::GraderNameBackfill do
+  let(:job) { Factories.job }
+  let(:repository) { job.repository }
+  let(:test_run) do
+    TestInsights::TestRun.create!(
+      run: job.initial_run, repository: repository, grader_name: "rspec",
+      total_count: 2, passed_count: 2, failed_count: 0, skipped_count: 0, error_count: 0
+    )
+  end
+
+  def create_case!
+    TestInsights::TestCase.create!(
+      test_run: test_run, repository: repository, name: "example", suite_name: "Suite",
+      status: "passed", duration_ms: 100
+    )
+  end
+
+  it "backfills bounded batches resumably and idempotently" do
+    first = create_case!
+    second = create_case!
+
+    first_batch = described_class.new.call(limit: 1)
+    expect(first_batch).to have_attributes(done: false, processed: 1, next_after_id: first.id)
+    expect(first.reload.grader_name).to eq("rspec")
+    expect(second.reload.grader_name).to be_nil
+
+    second_batch = described_class.new.call(after_id: first_batch.next_after_id, limit: 1)
+    expect(second_batch).to have_attributes(done: false, processed: 1, next_after_id: second.id)
+    expect(second.reload.grader_name).to eq("rspec")
+
+    final_batch = described_class.new.call(after_id: second_batch.next_after_id, limit: 1)
+    expect(final_batch).to have_attributes(done: true, processed: 0)
+    expect { described_class.new.call(limit: 10) }.not_to change { TestInsights::TestCase.pluck(:grader_name) }
+  end
+
+  it "honors a captured upper bound while live ingestion creates newer rows" do
+    historical = create_case!
+    upper_bound = described_class.max_test_case_id
+    live = create_case!
+
+    result = described_class.new.call(up_to_id: upper_bound, limit: 10)
+
+    expect(result.processed).to eq(1)
+    expect(historical.reload.grader_name).to eq("rspec")
+    expect(live.reload.grader_name).to be_nil
+  end
+end

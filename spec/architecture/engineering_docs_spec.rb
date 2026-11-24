@@ -67,6 +67,9 @@ RSpec.describe "engineering documentation hierarchy" do
     overview = root.join("ARCHITECTURE.md").read
 
     expect(overview).to include("canonical system-wide overview")
+    expect(overview).to include("Capability families group related extension points")
+    expect(overview).to include("External plugins cross a separate supply-chain boundary")
+    expect(overview).to include("A separate Lean 4 model under `formal/`")
     focused_guides.keys.each do |section|
       expect(overview).to include("docs/engineering/#{section}/")
     end

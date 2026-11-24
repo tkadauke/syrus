@@ -86,7 +86,7 @@ const SIDEBAR_DIALOG_CLOSE_CLASS = "rounded p-1 text-text-secondary hover:bg-sur
 const RECENT_CHATS_ICON_BUTTON_CLASS =
   "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded p-0 text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
 const RECENT_CHAT_ACTION_SLOT_CLASS = "relative flex h-6 w-6 shrink-0 items-center justify-center"
-const RECENT_CHAT_MARKER_SLOT_CLASS = "relative flex h-6 min-w-6 shrink-0 items-center justify-end pr-[0.3125rem]"
+const RECENT_CHAT_MARKER_SLOT_CLASS = "relative flex shrink-0 items-center"
 const RECENT_CHAT_MARKER_CELL_CLASS = "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
@@ -234,6 +234,7 @@ export function RecentChatsSidebar({
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
   const [openActionChatId, setOpenActionChatId] = useState<number | null>(null)
   const [hoveredChatId, setHoveredChatId] = useState<number | null>(null)
+  const canHover = useMediaQuery("(hover: hover) and (pointer: fine)", true)
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
@@ -739,10 +740,10 @@ export function RecentChatsSidebar({
                           </span>
                           {chat.archived_at ? <span className="shrink-0 text-xs text-text-muted">{t("chat:archived")}</span> : null}
                           <span
-                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} ${canHover ? "h-6 min-w-6 justify-end pr-[0.3125rem]" : "h-11 min-w-11 justify-center"} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                             data-testid="recent-chat-marker-slot"
                           >
-                            <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
+                            <IndicatorPopover canHover={canHover} chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
                               <span className="flex items-center gap-1">
                                 <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
                                 <JobStateMarkers summary={chat.job_summary} />
@@ -1333,7 +1334,19 @@ function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   return { active_count, outcome, jobs, epics }
 }
 
-function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNavRecord; children: ReactNode; prefix: string; rowHovered: boolean }) {
+function IndicatorPopover({
+  canHover,
+  chat,
+  children,
+  prefix,
+  rowHovered
+}: {
+  canHover: boolean
+  chat: ChatNavRecord
+  children: ReactNode
+  prefix: string
+  rowHovered: boolean
+}) {
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
   const { floatingStyles, refs } = useFloating({
@@ -1344,6 +1357,7 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
   const referenceRef = useRef<HTMLSpanElement>(null)
   const floatingRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchClickStartedOpenRef = useRef<boolean | null>(null)
   const mergedReferenceRef = useMergeRefs([referenceRef, refs.setReference])
   const mergedFloatingRef = useMergeRefs([floatingRef, refs.setFloating])
   const cancelClose = () => {
@@ -1360,13 +1374,13 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
   }
   useEffect(() => () => cancelClose(), [])
   useEffect(() => {
-    if (rowHovered) {
+    if (canHover && rowHovered) {
       cancelClose()
       setOpen(true)
     } else {
       scheduleClose()
     }
-  }, [rowHovered])
+  }, [canHover, rowHovered])
   const replying = Boolean(chat.turn_in_flight || chat.agent_busy)
   const jobs = chat.job_summary?.jobs.filter((job) => job.group) || []
   const goal = chat.active_goal && ["active", "paused"].includes(chat.active_goal.status) ? chat.active_goal : null
@@ -1432,6 +1446,18 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
   return (
     <>
       <span
+        aria-expanded={open}
+        className={canHover ? undefined : "inline-flex h-full w-full items-center justify-center"}
+        role="button"
+        onClick={(event) => {
+          if (canHover) return
+          event.preventDefault()
+          event.stopPropagation()
+          cancelClose()
+          const startedOpen = touchClickStartedOpenRef.current
+          touchClickStartedOpenRef.current = null
+          setOpen((current) => (startedOpen === null ? !current : !startedOpen))
+        }}
         onBlur={(event) => {
           if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose()
         }}
@@ -1440,10 +1466,17 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
           setOpen(true)
         }}
         onMouseEnter={() => {
+          if (!canHover) return
           cancelClose()
           setOpen(true)
         }}
-        onMouseLeave={scheduleClose}
+        onMouseLeave={() => {
+          if (!canHover) return
+          scheduleClose()
+        }}
+        onPointerDown={() => {
+          if (!canHover) touchClickStartedOpenRef.current = open
+        }}
         ref={mergedReferenceRef}
         tabIndex={0}
       >

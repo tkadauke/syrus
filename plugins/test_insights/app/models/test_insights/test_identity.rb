@@ -9,7 +9,6 @@ module TestInsights
     HISTORY_LIMIT = 100
     LIST_LOOKBACK = 20
     INTERESTING_LIMIT = 10
-    REFRESH_BATCH_SIZE = 1_000
     LATEST_CASE_QUERY_BATCH_SIZE = 100
 
     belongs_to :repository
@@ -168,17 +167,15 @@ module TestInsights
     end
 
     def self.latest_status_times_for(ids)
-      ids.each_slice(REFRESH_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
-        maxima = PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
-          TestCase
-            .from("#{TestCase.quoted_table_name}#{TestCase.scored_status_created_index_hint}")
-            .where(test_identity_id: slice, status: %w[failed error passed])
-            .scored
-            .group(:test_identity_id, :status)
-            .maximum(:created_at)
+      ids.each_slice(LATEST_CASE_QUERY_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
+        rows = PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
+          sql = slice.product(%w[failed error passed]).map do |identity_id, status|
+            latest_status_time_sql(identity_id, status)
+          end.join(" UNION ALL ")
+          connection.select_rows(sql)
         end
 
-        maxima.each do |(identity_id, status), occurred_at|
+        rows.each do |identity_id, status, occurred_at|
           if status == "passed"
             result[:passed][identity_id] = occurred_at
           else
@@ -187,6 +184,23 @@ module TestInsights
           end
         end
       end
+    end
+
+    def self.latest_status_time_sql(identity_id, status)
+      table = TestCase.quoted_table_name
+      <<~SQL.squish
+        SELECT * FROM (
+          SELECT #{table}.#{connection.quote_column_name(:test_identity_id)},
+                 #{table}.#{connection.quote_column_name(:status)},
+                 #{table}.#{connection.quote_column_name(:created_at)}
+          FROM #{table}#{TestCase.scored_status_created_index_hint}
+          WHERE #{table}.#{connection.quote_column_name(:test_identity_id)} = #{identity_id.to_i}
+            AND #{table}.#{connection.quote_column_name(:wip_repair_failure)} = #{connection.quote(false)}
+            AND #{table}.#{connection.quote_column_name(:status)} = #{connection.quote(status)}
+          ORDER BY #{table}.#{connection.quote_column_name(:created_at)} DESC
+          LIMIT 1
+        ) syrus_latest_status_time
+      SQL
     end
 
     def self.bulk_update_summary_columns!(updates)

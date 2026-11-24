@@ -66,6 +66,18 @@ RSpec.describe Kotlin::Engine do
       expect(described_class.detect?(@dir)).to be true
     end
 
+    it "detects a Kotlin file at the repository root" do
+      write("Main.kt", "fun main() = Unit\n")
+
+      expect(described_class.detect?(@dir)).to be true
+    end
+
+    it "ignores a directory whose name merely ends in .kt" do
+      FileUtils.mkdir_p(File.join(@dir, "not-source.kt"))
+
+      expect(described_class.detect?(@dir)).to be false
+    end
+
     it "detects Kotlin scripts" do
       write("scripts/bootstrap.kts", "println(\"hello\")\n")
 
