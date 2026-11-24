@@ -20,8 +20,8 @@ RSpec.describe WorkGates do
   it "composes one or many typed vetoes" do
     first = Syrus::Plugin::WorkPolicy::Veto.new(reason: :maintenance, message: "Maintenance", landing: true)
     second = Syrus::Plugin::WorkPolicy::Veto.new(reason: :quota, message: "Quota exhausted")
-    Syrus::PluginRegistry.register(:work_gate, provider { |_context| [ first ] })
-    Syrus::PluginRegistry.register(:work_gate, provider { |_context| [ second ] })
+    Syrus::PluginRegistry.register_direct(:work_gate, provider { |_context| [ first ] })
+    Syrus::PluginRegistry.register_direct(:work_gate, provider { |_context| [ second ] })
 
     result = described_class.evaluate
 
@@ -35,7 +35,7 @@ RSpec.describe WorkGates do
     runtime_health = instance_double(Syrus::PluginRuntimeHealth, allow?: true, record_success: nil, record_failure: nil)
     allow(Syrus::PluginInvocation).to receive(:runtime_health).and_return(runtime_health)
     broken = provider { |_context| raise "gate unavailable" }
-    Syrus::PluginRegistry.register(:work_gate, broken)
+    Syrus::PluginRegistry.register_direct(:work_gate, broken)
 
     expect(described_class.evaluate).to be_pass
     expect(runtime_health).to have_received(:record_failure).with(

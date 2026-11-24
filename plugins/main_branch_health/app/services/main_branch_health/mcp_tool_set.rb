@@ -11,7 +11,7 @@ module MainBranchHealth
     TOOL_CLASSES = [ Tools::ReportMainConcernTool ].freeze
     REPORTING_ROLES = [
       AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+      "workflow:summary_test_plan",
       "workflow:rebase_conflict",
       AgentRole::WORKFLOW_MANUAL
     ].freeze

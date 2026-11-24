@@ -7,8 +7,7 @@ RSpec.describe "Main branch health plugin" do
   it "satisfies the host contract" do
     expect(plugin).to be_plugin_loaded
     expect(plugin).to be_plugin_healthy
-    expect(plugin).to register_plugin_provider(:callbacks)
-    expect(plugin).to register_plugin_provider(:retention_policy)
+    expect(Syrus::Plugin::Lifecycle.callback_providers_for(plugin.manifest)).to eq([ MainBranchHealth::Callbacks ])
     expect(plugin).to have_valid_plugin_manifest
     expect(plugin).to satisfy_requires_syrus
     expect(plugin).to have_applicable_plugin_migrations
