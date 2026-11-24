@@ -71,7 +71,17 @@ function ChoiceLinks<T extends string>({
 // The reveal body inside the preview frame. `phase` is the animation phase the
 // operator is looking at; "play" runs start -> end through the same transition
 // classes the production dialog uses.
-function RevealPreview({ definition, reducedMotion, replayKey, phase }: { definition: WorkbenchDefinition; reducedMotion: boolean; replayKey: number; phase: "start" | "end" | "play" }) {
+function RevealPreview({
+  definition,
+  reducedMotion,
+  replayKey,
+  phase
+}: {
+  definition: WorkbenchDefinition
+  reducedMotion: boolean
+  replayKey: number
+  phase: "start" | "end" | "play"
+}) {
   const titleId = useId()
   const descriptionId = useId()
   const unlock = buildFixture(definition, "unlocked").unlock!
@@ -174,7 +184,13 @@ export default function AchievementsWorkbench() {
       {catalog.data ? (
         <>
           <Page.Nav className="space-y-3">
-            <FilterBar buildLink={buildFilterLink} filter={filterTree(selection.filters)} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
+            <FilterBar
+              buildLink={buildFilterLink}
+              filter={filterTree(selection.filters)}
+              filterSchema={filterSchema}
+              pathname={location.pathname}
+              search={location.search}
+            />
             <Text muted variant="caption">
               {t("workbench.showing", { count: visible.length, total: all.length })}
             </Text>
@@ -198,7 +214,9 @@ export default function AchievementsWorkbench() {
                         <span className="mt-1 flex flex-wrap gap-1">
                           <Pill>{definition.scope}</Pill>
                           <Pill>{definition.rarity}</Pill>
-                          <Pill tone={definition.implementation_status === "implemented" ? "success" : "warning"}>{t(`workbench.status_${definition.implementation_status}`)}</Pill>
+                          <Pill tone={definition.implementation_status === "implemented" ? "success" : "warning"}>
+                            {t(`workbench.status_${definition.implementation_status}`)}
+                          </Pill>
                         </span>
                       </Link>
                     </li>
@@ -230,7 +248,13 @@ export default function AchievementsWorkbench() {
                   </dl>
 
                   <div className="space-y-2">
-                    <ChoiceLinks hrefFor={(state) => hrefFor({ state })} label={t("workbench.control_state")} labelFor={(state) => t(`workbench.state_${state}`)} options={FIXTURE_STATES} selected={selection.state} />
+                    <ChoiceLinks
+                      hrefFor={(state) => hrefFor({ state })}
+                      label={t("workbench.control_state")}
+                      labelFor={(state) => t(`workbench.state_${state}`)}
+                      options={FIXTURE_STATES}
+                      selected={selection.state}
+                    />
                     <ChoiceLinks
                       hrefFor={(id) => hrefFor({ viewport: id })}
                       label={t("workbench.control_viewport")}
@@ -238,7 +262,13 @@ export default function AchievementsWorkbench() {
                       options={VIEWPORTS.map((preset) => preset.id)}
                       selected={selection.viewport}
                     />
-                    <ChoiceLinks hrefFor={(motion) => hrefFor({ motion })} label={t("workbench.control_motion")} labelFor={(motion) => t(`workbench.motion_${motion}`)} options={MOTION_SETTINGS} selected={selection.motion} />
+                    <ChoiceLinks
+                      hrefFor={(motion) => hrefFor({ motion })}
+                      label={t("workbench.control_motion")}
+                      labelFor={(motion) => t(`workbench.motion_${motion}`)}
+                      options={MOTION_SETTINGS}
+                      selected={selection.motion}
+                    />
                     <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
                       <span className="font-medium">{t("workbench.control_audio")}</span>
                       {achievementSoundSupport ? (
@@ -317,7 +347,11 @@ export default function AchievementsWorkbench() {
                       <ul className="grid gap-3">
                         {(() => {
                           const fixture = buildFixture(selected, selection.state)
-                          return fixture.unlock ? <UnlockedCard busy={false} onAcknowledge={() => undefined} onReplay={() => undefined} unlock={fixture.unlock} /> : <LockedCard locked={fixture.locked} />
+                          return fixture.unlock ? (
+                            <UnlockedCard busy={false} onAcknowledge={() => undefined} onReplay={() => undefined} unlock={fixture.unlock} />
+                          ) : (
+                            <LockedCard locked={fixture.locked} />
+                          )
                         })()}
                       </ul>
                       <RevealPreview definition={selected} phase={phase} reducedMotion={reducedMotion} replayKey={replayKey} />
