@@ -58,7 +58,10 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     lambda do |command:, env:, mounts:, timeout:, resource_limits:, stop_requested:, on_output_chunk:|
       calls << { command: command, env: env, mounts: mounts, timeout: timeout, limits: resource_limits }
       hook&.call(command, on_output_chunk, stop_requested)
-      File.binwrite(command.last.delete_prefix("oci-archive:"), archive) if command.include?("push") && archive
+      script = command.last
+      if archive && (m = script.match(/oci-archive:(\S+)/))
+        File.binwrite(m[1], archive)
+      end
       result
     end
   end
@@ -87,13 +90,13 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     expect(env.values.join).not_to include("ghp_secret")
     all = calls.flat_map { |c| c[:command] + c[:mounts].declared_mounts.map(&:host_path) }
     expect(all.join(" ")).not_to match(/docker\.sock|DOCKER_HOST/)
-    expect(calls.first[:command]).to include("--isolation", "chroot", "--memory", "--cpu-quota", "--ulimit")
+    expect(calls.first[:command].last).to include("--isolation chroot", "--memory", "--cpu-quota", "--ulimit")
     expect(calls.first[:limits].memory_max).to eq(RuntimeImages::Builds::Config.build_memory_bytes)
   ensure
     ENV.delete("GITHUB_TOKEN")
   end
 
-  it "isolates layer caches per namespace" do
+  it "gives every build its own bounded tmpfs storage root, never shared across builds or namespaces" do
     calls = []
     other = RuntimeImageNamespace.create!(name: "acme/other", owner_kind: "k", owner_ref: "2", provider_key: namespace.provider_key)
     build(request_for({ "Dockerfile" => "FROM scratch\n" }), builder(launcher: launcher(calls: calls)))
@@ -102,16 +105,16 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
                                  source_archive: { io: StringIO.new(bytes), filename: "s.tgz" })
     build(second, builder(launcher: launcher(calls: calls)))
 
-    roots = calls.map { |c| c[:command][c[:command].index("--root") + 1] }.uniq
-    expect(roots.size).to eq(2)
-    expect(roots.map { |r| r.split("/")[-2] }).to eq([ "ns-#{namespace.id}", "ns-#{other.id}" ])
+    roots = calls.map { |c| c[:command].last[%r{--root (\S+)}, 1] }
+    expect(roots.uniq.size).to eq(2)
+    expect(calls.map { |c| c[:command].last }).to all(include("mount -t tmpfs -o size=#{RuntimeImages::Builds::Config.build_storage_bytes}"))
   end
 
   it "passes only validated build args and target" do
     calls = []
     request = request_for({ "Dockerfile" => "FROM scratch\n" }, recipe: { "target" => "prod", "build_args" => { "FOO" => "bar" } })
     build(request, builder(launcher: launcher(calls: calls)))
-    expect(calls.first[:command]).to include("--target", "prod", "--build-arg", "FOO=bar")
+    expect(calls.first[:command].last).to include("--target prod", "--build-arg FOO\\=bar")
   end
 
   describe "path validation" do
@@ -184,24 +187,6 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect { build(request_for({ "Dockerfile" => "FROM scratch\n" }), builder(extractor: RuntimeImages::Builds::SourceExtractor.new)) }
         .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("source_too_large") }
     end
-
-    it "backs off retryably when the namespace cache is in use" do
-      cache = data_root.join("runtime-image-builds", "cache", "ns-#{namespace.id}")
-      FileUtils.mkdir_p(cache)
-      File.open(cache.join(".lock"), File::RDWR | File::CREAT) do |lock|
-        lock.flock(File::LOCK_EX)
-        expect { build(request) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect([ e.code, e.retryable ]).to eq([ "cache_busy", true ]) }
-      end
-    end
-
-    it "wipes a cache that outgrew its ceiling" do
-      cache = data_root.join("runtime-image-builds", "cache", "ns-#{namespace.id}")
-      FileUtils.mkdir_p(cache.join("storage"))
-      File.write(cache.join("storage", "big"), "x" * 100)
-      allow(RuntimeImages::Builds::Config).to receive(:cache_max_bytes).and_return(10)
-      build(request)
-      expect(File.exist?(cache.join("storage", "big"))).to be(false)
-    end
   end
 
   it "reports a corrupt output archive as a non-retryable failure" do
@@ -217,24 +202,48 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
   describe "confinement and hard ceilings" do
     let(:request) { request_for({ "Dockerfile" => "FROM scratch\n" }) }
 
-    it "wraps both build and push in prlimit with PID, file-size and CPU ceilings" do
+    it "runs build and push as one command in a private user+mount namespace under prlimit" do
       calls = []
       build(request, builder(launcher: launcher(calls: calls)))
-      expect(calls.size).to eq(2)
-      calls.each do |c|
-        expect(c[:command].first(2)).to eq([ "prlimit", "--nproc=#{RuntimeImages::Builds::Config.build_pids}" ])
-        expect(c[:command]).to include("--fsize=#{RuntimeImages::Builds::Config.build_storage_bytes}")
-      end
+      expect(calls.size).to eq(1)
+      cmd = calls.first[:command]
+      expect(cmd.first(2)).to eq([ "prlimit", "--nproc=#{RuntimeImages::Builds::Config.build_pids}" ])
+      expect(cmd).to include("--fsize=#{[ RuntimeImages::Builds::Config.build_storage_bytes, RuntimeImages::Builds::Config.max_output_bytes ].max}")
+      expect(cmd.each_cons(4).to_a).to include(%w[unshare --user --map-root-user --mount])
+      expect(cmd.last).to match(/mount -t tmpfs -o size=\d+,mode=0700 tmpfs .* build .* && .* push /)
     end
 
-    it "rejects storage overshoot found after a command exits, without any poll" do
+    it "keeps layer storage, HOME and TMPDIR on the bounded tmpfs" do
+      calls = []
+      build(request, builder(launcher: launcher(calls: calls)))
+      work = calls.first[:command].last[%r{--root (\S+)/storage}, 1]
+      env = calls.first[:env]
+      expect(env["HOME"]).to start_with(work)
+      expect(env["TMPDIR"]).to start_with(work)
+    end
+
+    it "rejects storage overshoot found after the command exits, without any poll" do
       allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(10)
       l = launcher
       l2 = lambda do |command:, env:, **rest|
-        File.binwrite(File.join(env["HOME"], "big"), "x" * 100)
+        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 100)
         l.call(command: command, env: env, **rest)
       end
       expect { build(request, builder(launcher: l2)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }
+    end
+
+    it "fails closed when a bounded tmpfs namespace cannot be created" do
+      allow(Process).to receive(:euid).and_return(1000)
+      c = described_class::Confinement.new
+      allow(c).to receive(:system).and_return(true, false)
+      expect { c.verify! }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
+    end
+
+    it "accepts the confinement probe when prlimit and the tmpfs namespace work" do
+      allow(Process).to receive(:euid).and_return(1000)
+      c = described_class::Confinement.new
+      allow(c).to receive(:system).and_return(true, true)
+      expect { c.verify! }.not_to raise_error
     end
 
     it "fails closed as root without a confinement attestation" do

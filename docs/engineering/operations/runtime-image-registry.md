@@ -106,17 +106,20 @@ or deployment-registry credential reaches a build.
 
 The source is unpacked from the request's archive into a private scratch
 directory (entry, byte, and symlink checks); the context and Dockerfile paths
-are rejected on traversal and re-checked after resolution. Layer storage is a
-per-namespace cache with an exclusive lock (`cache_busy` is retryable) that is
-wiped once over its ceiling. Ceilings, all environment-overridable:
+are rejected on traversal and re-checked after resolution. Layer storage,
+`HOME`, and `TMPDIR` live on a tmpfs sized to `RUNTIME_IMAGE_BUILD_STORAGE_BYTES`,
+mounted inside a private unprivileged user+mount namespace (`unshare`), so the
+aggregate storage ceiling is enforced by the kernel (ENOSPC) rather than
+sampled, and nothing persists between builds or is shared across namespaces
+(tmpfs pages are charged to the build's memory cgroup). Ceilings, all environment-overridable:
 `RUNTIME_IMAGE_BUILD_CPUS`, `_MEMORY_BYTES`, `_PIDS`, `_STORAGE_BYTES`,
-`_TIMEOUT_SECONDS`, `_LOG_BYTES`, `_MAX_OUTPUT_BYTES`, `_CACHE_MAX_BYTES`,
+`_TIMEOUT_SECONDS`, `_LOG_BYTES`, `_MAX_OUTPUT_BYTES`,
 `_MAX_SOURCE_BYTES`, `_MAX_SOURCE_ENTRIES`; `RUNTIME_IMAGE_BUILD_BINARY` and
 `_STORAGE_DRIVER` select the tool and driver. The builder fails closed (`builder_not_isolated`): it refuses to run as root
 unless `RUNTIME_IMAGE_BUILD_WORKER_CONFINED=1` attests the worker is itself a
-confined sandbox, requires `prlimit`, and rejects a command whose per-spawn
+confined sandbox, requires `prlimit` plus a working bounded-tmpfs user namespace (probed before each build), and rejects a command whose per-spawn
 cgroup memory/CPU limits were not applied (override only with
-`RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL=1`). Both `build` and `push` run under
-`prlimit` (process count, largest file, CPU seconds), and storage is re-checked
-after every command, not only on the periodic poll. Accepted recipe keys are
+`RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL=1`). Build and push run as one command under
+`prlimit` (process count, largest file, CPU seconds); the host-side source and
+output archive are re-checked after the command. Accepted recipe keys are
 `dockerfile`, `context`, `target`, and `build_args`.

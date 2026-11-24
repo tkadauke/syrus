@@ -19,7 +19,6 @@ module RuntimeImages
       def self.build_duration = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_TIMEOUT_SECONDS", 1500))
       def self.build_log_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_LOG_BYTES", 5.megabytes))
       def self.max_output_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_OUTPUT_BYTES", 2.gigabytes))
-      def self.cache_max_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_CACHE_MAX_BYTES", 20.gigabytes))
       def self.max_source_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_SOURCE_BYTES", 1.gigabyte))
       def self.max_source_entries = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_SOURCE_ENTRIES", 200_000))
       def self.worker_confined? = ENV["RUNTIME_IMAGE_BUILD_WORKER_CONFINED"] == "1"
