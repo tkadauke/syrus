@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class RetiredAt < DateColumn
+      class RetiredAt < Syrus::Host::Filters::Chips::DateColumn
         filter_name "retired_at"
         label "Retired at"
         column :retired_at

@@ -54,7 +54,7 @@ module Api
         end
 
         def filter_schema
-          ::Filters::Schema.for(subject: :mockup, user: Syrus::Host::Current.user)
+          Syrus::Host::Filters::Schema.for(subject: :mockup, user: Syrus::Host::Current.user)
         end
 
         def summary_json(mockup)

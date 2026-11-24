@@ -196,26 +196,26 @@ module AgentActivity
     end
 
     def self.count_for_smart_folder(base_scope, folder)
-      filter = folder.filter.presence || Filters::Ast.serialize(Filters::Ast::EMPTY)
-      ast = Filters::Ast.parse(filter)
+      filter = folder.filter.presence || Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY)
+      ast = Syrus::Host::Filters::Ast.parse(filter)
 
-      if ast == Filters::Ast::EMPTY
+      if ast == Syrus::Host::Filters::Ast::EMPTY
         count = capped_count(base_scope)
-        return { count: count, count_capped: count >= SmartFolder::COUNT_CAP }
+        return { count: count, count_capped: count >= Syrus::Host::SmartFolder::COUNT_CAP }
       end
       return exact_status_count(base_scope, ast.children.first.value) if single_status_filter?(ast)
 
       nil
     end
 
-    def self.capped_count(scope, limit: SmartFolder::COUNT_CAP)
-      Filters::BaseFilter.capped_count(scope, limit: limit)
+    def self.capped_count(scope, limit: Syrus::Host::SmartFolder::COUNT_CAP)
+      Syrus::Host::Filters::BaseFilter.capped_count(scope, limit: limit)
     end
 
     def self.single_status_filter?(ast)
-      ast.is_a?(Filters::Ast::AndNode) &&
+      ast.is_a?(Syrus::Host::Filters::Ast::AndNode) &&
         ast.children.one? &&
-        ast.children.first.is_a?(Filters::Ast::Chip) &&
+        ast.children.first.is_a?(Syrus::Host::Filters::Ast::Chip) &&
         ast.children.first.field == "status" &&
         ast.children.first.op == "is"
     end

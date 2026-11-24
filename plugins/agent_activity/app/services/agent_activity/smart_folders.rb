@@ -12,7 +12,7 @@ module AgentActivity
 
     def install_into(scope)
       scope.effect("agent_activity smart folders") do
-        ::SmartFolder.register_subject!(
+        Syrus::Host::SmartFolder.register_subject!(
           SUBJECT,
           builtins: BUILTINS,
           label: "Agent Activity",
@@ -28,8 +28,8 @@ module AgentActivity
     end
 
     def default_folder
-      ::SmartFolder.ensure_builtins_for_subject!(SUBJECT)
-      ::SmartFolder.builtins(SUBJECT).find_by(name: "Running")
+      Syrus::Host::SmartFolder.ensure_builtins_for_subject!(SUBJECT)
+      Syrus::Host::SmartFolder.builtins(SUBJECT).find_by(name: "Running")
     end
   end
 end

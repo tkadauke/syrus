@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class MemoriesController < Syrus::Host::AppController
-        include Paginatable
+        include Syrus::Host::Paginatable
 
         PER_PAGE = 20
         AUDIT_EVENTS_PER_PAGE = 50
@@ -136,7 +136,7 @@ module Api
             kinds: ::AgentMemory::Entry::KIND,
             scopes: ::AgentMemory::Entry::SCOPE,
             repositories: Syrus::Host::Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
-            controls: { filter_schema: ::Filters::Schema.for(subject: :memory, user: Syrus::Host::Current.user) }
+            controls: { filter_schema: Syrus::Host::Filters::Schema.for(subject: :memory, user: Syrus::Host::Current.user) }
           }
         end
 

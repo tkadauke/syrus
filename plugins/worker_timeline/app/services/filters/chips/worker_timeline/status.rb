@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module WorkerTimeline
-      class Status < EnumColumn
+      class Status < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "status"
         label "Status"
         column :state

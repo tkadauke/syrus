@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AdminUsers
-      class HasMuseToken < Base
+      class HasMuseToken < Syrus::Host::Filters::Chips::Base
         filter_name "has_muse_token"
         label "Muse credential"
         bucket :enum
