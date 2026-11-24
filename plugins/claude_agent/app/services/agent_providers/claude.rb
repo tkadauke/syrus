@@ -1,7 +1,7 @@
 require "tempfile"
 
 module AgentProviders
-  class Claude < Base
+  class Claude < Syrus::Host::AgentProviderBase
     include Syrus::Host::AgentProvider
 
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
@@ -53,7 +53,7 @@ module AgentProviders
       ].compact.min
       return if minutes.blank?
 
-      evidence.observed_at + Float(minutes).minutes + ProviderQuotaReset::RETRY_BUFFER
+      evidence.observed_at + Float(minutes).minutes + Syrus::Host::ProviderQuotaReset::RETRY_BUFFER
     rescue ArgumentError, TypeError
       nil
     end
@@ -109,7 +109,7 @@ module AgentProviders
       session_id = normalized_session_id(result.session_id)
       return missing_session_capture(result) unless session_id
 
-      path = ProviderSession.canonical_path_for(
+      path = Syrus::Host::ProviderSession.canonical_path_for(
         home: ENV.fetch("HOME"),
         cwd: workspace.path,
         session_id: session_id

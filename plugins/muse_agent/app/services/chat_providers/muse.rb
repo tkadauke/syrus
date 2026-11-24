@@ -1,7 +1,7 @@
 require "json"
 
 module ChatProviders
-  class Muse < Base
+  class Muse < Syrus::Host::ChatProviderBase
     include Syrus::Plugin::ChatProvider
 
     HELD_SESSION_WAIT_SECONDS = 10
@@ -151,7 +151,7 @@ module ChatProviders
     end
 
     def prompt_with_system(prompt)
-      system = Prompts::ChatSystem.new(repository: chat.repository, chat_session: chat).to_s
+      system = Syrus::Host::AgentPrompts.chat_system(repository: chat.repository, chat_session: chat)
       "#{system}\n\n---\n\n#{prompt}"
     end
 
@@ -193,7 +193,7 @@ module ChatProviders
     end
 
     def self.transcript_context(transcript_jsonl)
-      ClaudeTranscript.new(transcript_jsonl).events.filter_map do |event|
+      Syrus::Host::AgentTranscript.new(transcript_jsonl).events.filter_map do |event|
         case event.kind
         when :user_prompt
           "user: #{event.data.fetch(:text)}"

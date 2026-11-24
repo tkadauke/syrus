@@ -2,7 +2,7 @@ module AgentInsights
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = (AgentRole::CHAT_ROLES + [ AgentRole::AGENT_INSIGHT, AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq.freeze
+    ROLES = (Syrus::Host::AgentRole::CHAT_ROLES + [ Syrus::Host::AgentRole::AGENT_INSIGHT, Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]).uniq.freeze
     CAPABILITY = "agent_insights.investigation@v1"
     MUTATIONS = %w[submit_insight update_insight retire_insight accept_insight dismiss_insight].freeze
     TOOLS = (MUTATIONS + %w[list_insights read_insight read_run_transcript list_recent_workflows]).freeze
@@ -27,7 +27,7 @@ module AgentInsights
       mutation = MUTATIONS.include?(name)
       effects = mutation ? %i[internal_write] : %i[confidential_read]
       defaults = ROLES.index_with do |role|
-        mutation || role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? :ask : :allow
+        mutation || role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]) ? :ask : :allow
       end
       register_capability(
         capability: CAPABILITY, operation:, presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation:),

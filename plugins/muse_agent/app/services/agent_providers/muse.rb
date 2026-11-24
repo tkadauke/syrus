@@ -1,5 +1,5 @@
 module AgentProviders
-  class Muse < Base
+  class Muse < Syrus::Host::AgentProviderBase
     include Syrus::Host::AgentProvider
 
     def self.provider_key = "muse"

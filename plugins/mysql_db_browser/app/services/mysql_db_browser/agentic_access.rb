@@ -87,14 +87,14 @@ module MysqlDbBrowser
     end
 
     def self.coworker_connection_in_scope?(connection, context)
-      return true unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+      return true unless context&.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
       return false if connection.credential_store_credential_id.blank?
 
       context.capability_scopes["mysql.read"].to_s == connection.id.to_s
     end
 
     def self.audit_coworker_tool_call!(context:, tool_name:, success:, error_message: nil)
-      return unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+      return unless context&.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
 
       connection = MysqlConnection.find_by(id: context.capability_scopes["mysql.read"])
       return unless connection

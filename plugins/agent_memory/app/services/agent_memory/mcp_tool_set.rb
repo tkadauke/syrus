@@ -18,8 +18,8 @@ module AgentMemory
     ].freeze
 
     REVIEWER_ROLES = [
-      AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
-      AgentRole::WORKFLOW_VISUAL_REVIEWER
+      Syrus::Host::AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+      Syrus::Host::AgentRole::WORKFLOW_VISUAL_REVIEWER
     ].freeze
 
     # Chat gets the workflow set plus sharing controls and, for admins, the

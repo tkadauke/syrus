@@ -16,6 +16,9 @@ module Syrus
         def forwarded_env_keys = AgentInvocation::ENV_FORWARD
 
         def oversized_event_handler(provider) = AgentInvocation.oversized_event_handler(provider)
+
+        # The execution workload policy chat agents run under, per the current setting.
+        def chat_workload_policy = Execution::ChatWorkloadPolicy.for_current_setting
       end
     end
   end

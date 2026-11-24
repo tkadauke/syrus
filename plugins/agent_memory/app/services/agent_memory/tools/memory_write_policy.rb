@@ -35,8 +35,8 @@ module AgentMemory
         attr_reader :context
 
         def retry_storm?
-          prior_failures = RebaseAttemptGuard.consecutive_failures(context.job)
-          prior_failures >= RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
+          prior_failures = Syrus::Host::RebaseAttemptGuard.consecutive_failures(context.job)
+          prior_failures >= Syrus::Host::RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
         end
 
         def prescriptive_abort_guidance?(content)
