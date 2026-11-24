@@ -867,7 +867,9 @@ describe("RepositoriesIndex responsive gutter", () => {
 describe("RepositoriesIndex collection filter transitions", () => {
   it("keeps the previous result set on screen while a new filter's query is in flight", async () => {
     let releaseSecond: (() => void) | undefined
-    const second = new Promise<void>((resolve) => { releaseSecond = resolve })
+    const second = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("x=1")) {
         await second

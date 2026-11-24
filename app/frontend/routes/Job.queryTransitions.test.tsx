@@ -30,7 +30,9 @@ describe("App Job query transitions", () => {
 
   it("never shows the previous Job's workflows while another Job's workflows load", async () => {
     let releaseJob43: (() => void) | undefined
-    const job43Gate = new Promise<void>((resolve) => { releaseJob43 = resolve })
+    const job43Gate = new Promise<void>((resolve) => {
+      releaseJob43 = resolve
+    })
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       const path = String(input)
       const match = path.match(/^\/api\/v1\/app\/jobs\/(\d+)\/workflows(\?.*)?$/)
@@ -54,7 +56,9 @@ describe("App Job query transitions", () => {
 
     fireEvent.click(screen.getByText("other job"))
     expect(screen.queryByText("WF-42")).not.toBeInTheDocument()
-    await act(async () => { releaseJob43?.() })
+    await act(async () => {
+      releaseJob43?.()
+    })
     expect(await screen.findByText("WF-43")).toBeInTheDocument()
   })
 })

@@ -10,10 +10,7 @@ import type { QueryKey } from "@tanstack/react-query"
  * under another entity's key. Collection/filter-only screens should keep using
  * plain `keepPreviousData`.
  */
-export function keepPreviousDataWithin(
-  currentKey: QueryKey,
-  identityIndexes: readonly number[]
-) {
+export function keepPreviousDataWithin(currentKey: QueryKey, identityIndexes: readonly number[]) {
   return <TData>(previousData: TData | undefined, previousQuery: { queryKey: QueryKey } | undefined): TData | undefined => {
     const previousKey = previousQuery?.queryKey
     if (!previousKey) return undefined
