@@ -86,6 +86,7 @@ export function UnderlineTabs<Key extends TabKey>({
               <button className={item.labelClassName} onClick={() => onSelect?.(item.key)} title={item.title} type="button">
                 {item.label}
               </button>
+              {item.badge}
               <button
                 aria-label={item.closeLabel}
                 className={TAB_CLOSE_BUTTON_CLASS}

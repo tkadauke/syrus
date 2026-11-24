@@ -3370,5 +3370,9 @@
   "tool_card_reset_job": "Job restitue",
   "tool_card_reset_requested": "Restitutio petita",
   "tool_card_replace_job_dependency": "Dependentiam Job substitue",
-  "tool_card_dependency_replaced": "Dependentia substituta"
+  "tool_card_dependency_replaced": "Dependentia substituta",
+  "tab_attention_new_items_one": "{{count}} res nova",
+  "tab_attention_new_items_other": "{{count}} res novae",
+  "tab_attention_new_activity": "Nova actio",
+  "workspace_new_activity": "Spatium laboris novam actionem habet"
 }

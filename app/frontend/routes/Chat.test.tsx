@@ -4836,10 +4836,10 @@ describe("chat message image attachments", () => {
     await screen.findByRole("button", { name: "Remove uploaded.png" })
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
-    expect(await screen.findByRole("button", { name: "Media" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /^Media\s*1 new item$/ })).toBeInTheDocument()
     expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Media" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Media/ }))
     const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
     expect(await within(workspace).findByText("uploaded.png")).toBeInTheDocument()
   })
@@ -4891,7 +4891,36 @@ describe("chat message image attachments", () => {
     expect(onMessageSent.mock.invocationCallOrder[0]).toBeLessThan(setQueryData.mock.invocationCallOrder[0])
   })
 
-  it("switches back to media when a runtime screenshot adds another chat image", async () => {
+  it("keeps a collapsed workspace collapsed and signals new media on the open button", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
+    let chatFetches = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8") {
+        chatFetches += 1
+        return Promise.resolve(jsonResponse(chatPayload({ chat: { chat_image_count: chatFetches > 1 ? 2 : 1, has_chat_images: true } })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    expect(screen.queryByTestId("workspace-open-attention")).not.toBeInTheDocument()
+
+    act(() => {
+      actionCableSubscriptions
+        .find((subscription) => subscription.params.channel === "ChatChannel")
+        ?.mixin.received({ type: "updated", resource: "chat", id: 8, changed: ["media"] })
+    })
+
+    expect(await screen.findByTestId("workspace-open-attention")).toHaveTextContent("Workspace has new activity")
+    expect(screen.queryByRole("complementary", { name: "Chat workspace" })).not.toBeInTheDocument()
+  })
+
+  it("badges Media instead of switching to it when a runtime screenshot adds another chat image", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard.canvas")
     let chatFetches = 0
@@ -4950,7 +4979,15 @@ describe("chat message image attachments", () => {
         })
     })
 
+    const mediaTab = await within(workspace).findByRole("button", { name: /^Media\s*1 new item$/ })
+    expect(within(workspace).queryByText("runtime-capture.png")).not.toBeInTheDocument()
+    expect(within(workspace).getByRole("button", { name: "Whiteboard" })).toHaveClass("text-brand")
+
+    // A second addition accumulates, and viewing the tab clears the badge.
+    fireEvent.click(mediaTab)
     expect(await within(workspace).findByText("runtime-capture.png")).toBeInTheDocument()
+    expect(within(workspace).getByRole("button", { name: "Media" })).toBeInTheDocument()
+    expect(within(workspace).queryByTestId("workspace-tab-badge")).not.toBeInTheDocument()
   })
 
   it("hides the media tab and falls back to another tab when no media has been shared", async () => {
@@ -5087,7 +5124,9 @@ describe("chat jobs tab", () => {
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
 
-  it("switches to the Jobs sidebar tab after confirming the first job proposal", async () => {
+  it("reveals and badges the Jobs tab without selecting it after confirming the first job proposal", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard.canvas")
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -5124,8 +5163,14 @@ describe("chat jobs tab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument())
-    await waitFor(() => expect(screen.getByText("No confirmed proposals yet.")).toBeInTheDocument())
+    const jobsTab = await screen.findByRole("button", { name: /^Jobs\s*1 new item$/ })
+    expect(screen.queryByText("No confirmed proposals yet.")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Whiteboard" })).toHaveClass("text-brand")
+
+    fireEvent.click(jobsTab)
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
   })
 
   it("keeps Chat selected on mobile after confirming the first job proposal", async () => {
@@ -5166,15 +5211,16 @@ describe("chat jobs tab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument())
     const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+    await waitFor(() => expect(within(mobileTabs).getByRole("button", { name: /^Jobs\s*1 new item$/ })).toBeInTheDocument())
     expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
     expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
     expect(screen.queryByText("No confirmed proposals yet.")).not.toBeInTheDocument()
 
-    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Jobs" }))
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: /^Jobs/ }))
 
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+    expect(within(mobileTabs).getByRole("button", { name: "Jobs" })).toBeInTheDocument()
   })
 
   it("keeps the Jobs tab available on mobile after confirming a pending job proposal to backlog", async () => {
@@ -5226,11 +5272,11 @@ describe("chat jobs tab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal to backlog" }))
 
-    await waitFor(() => expect(within(mobileTabs).getByRole("button", { name: "Jobs" })).toBeInTheDocument())
+    await waitFor(() => expect(within(mobileTabs).getByRole("button", { name: /^Jobs\s*1 new item$/ })).toBeInTheDocument())
     expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
     expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
 
-    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Jobs" }))
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: /^Jobs/ }))
 
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })

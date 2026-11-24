@@ -137,30 +137,15 @@ export function requestedWorkspaceTab(payload: ChatPayload, search: string): Wor
   return requested && availableWorkspaceTabs(payload).includes(requested) ? requested : null
 }
 
-// The whiteboard used to be a hardcoded core tab, and this heuristic
-// preferred it as the initial active tab whenever the chat already had
-// drawn content (so returning to a chat with a sketch on it opens straight
-// to the canvas). Preserving that now that it's a plugin-registered tab
-// means reaching for its component key specifically -- an explicit,
-// intentional seam rather than the extension point routing "preferred
-// default tab" generically. No plugin-declared tab (or a chat with no
-// whiteboard content yet) falls back to the first available tab.
-const WHITEBOARD_TAB_COMPONENT = "whiteboard/WhiteboardTab"
-
 // Returns null when the chat currently has no workspace tabs to show at all
 // (e.g. a repository-less chat with no media/pins/jobs and no plugin tabs
 // registered) -- unlike the old hardcoded "context" tab, nothing here is
 // guaranteed to always be present, so callers must treat "no tab selected"
 // as a valid state rather than assuming a WorkspaceTab always exists.
+// Content never picks the tab: a stored preference or an explicit link
+// chooses it, and this is only the plain fallback (the first available tab).
 export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab | null {
-  const tabs = availableWorkspaceTabs(payload)
-  const whiteboardLoaded = payload.whiteboard?.loaded ?? false
-  const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
-  if (whiteboardLoaded && (payload.whiteboard?.elements.length ?? 0) > 0 && whiteboardTab) {
-    const preferred = pluginTabId(whiteboardTab.id)
-    if (tabs.includes(preferred)) return preferred
-  }
-  return tabs[0] ?? null
+  return availableWorkspaceTabs(payload)[0] ?? null
 }
 
 export function linkedWorkspaceTab(payload: ChatPayload, hash: string): WorkspaceTab | null {

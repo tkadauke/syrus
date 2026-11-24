@@ -3370,5 +3370,9 @@
   "tool_card_reset_job": "Job zurücksetzen",
   "tool_card_reset_requested": "Zurücksetzen angefordert",
   "tool_card_replace_job_dependency": "Job-Abhängigkeit ersetzen",
-  "tool_card_dependency_replaced": "Abhängigkeit ersetzt"
+  "tool_card_dependency_replaced": "Abhängigkeit ersetzt",
+  "tab_attention_new_items_one": "{{count}} neuer Eintrag",
+  "tab_attention_new_items_other": "{{count}} neue Einträge",
+  "tab_attention_new_activity": "Neue Aktivität",
+  "workspace_new_activity": "Workspace hat neue Aktivität"
 }
