@@ -4,7 +4,7 @@ module ReviewWorkspacePlugin
   # diff. Returns nil when no stored diff exists; never guesses.
   class ChangeScope
     def self.call(job)
-      version = DiffReviewVersion.default_for_review(job)
+      version = Syrus::Host::DiffReviews.versions.default_for_review(job)
       return nil unless version
 
       files = Array(version.files_snapshot).select { |file| file.is_a?(Hash) }
