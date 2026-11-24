@@ -80,7 +80,7 @@ RSpec.describe Mcp::Sidecar do
       plugin_names = Mcp::Sidecar.plugin_workflow_tools_for(context).map { |tool| McpToolRegistry.tool_name_for(tool) }
 
       expect(tool_names - plugin_names).to contain_exactly(
-        *%w[read_live_state read_run_worker_health report_cannot_proceed report_main_concern record_isolated_repro
+        *%w[read_live_state read_run_worker_health report_cannot_proceed record_isolated_repro
             start_preview stop_preview read_preview_log
             submit_summary submit_test_plan submit_artifact run_target_prepare patch_workflow submit_visual_artifact
             search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues

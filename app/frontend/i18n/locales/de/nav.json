@@ -85,7 +85,6 @@
     "queued_blocked_count": "{{count}} blockiert",
     "queued_blocked_filter_aria": "{{count}} blockierte wartende Jobs anzeigen",
     "landing_paused_broken_main": "Arbeit pausiert — Haupt-Branch ist kaputt.",
-    "landing_paused_main_health": "Arbeit pausiert — Repository-Gesundheit muss geprüft werden.",
     "all_items_job": "Alle Jobs",
     "all_items_epic": "Alle Epics",
     "all_items_workflow": "Alle Workflows",

@@ -20,12 +20,12 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
   end
 
   it "classifies host, legacy, and unlisted core references with locations" do
-    result = scan("Syrus::Host::Job.find(1)\nAgentRole.call\nMainHealthChangedService.call\n",
+    result = scan("Syrus::Host::Job.find(1)\nAgentRole.call\nProviderAvailabilityPause.call\n",
       public_apis: { "Syrus::Host::Job" => "0.1.16" })
 
     expect(result.public.first).to have_attributes(constant: "Syrus::Host::Job", path: "lib/fixture.rb", line: 1)
     expect(result.legacy.first).to have_attributes(constant: "AgentRole", tier: "non-public", line: 2)
-    expect(result.unlisted.first).to have_attributes(constant: "MainHealthChangedService", line: 3)
+    expect(result.unlisted.first).to have_attributes(constant: "ProviderAvailabilityPause", line: 3)
   end
 
   it "does not count constants in strings or comments" do

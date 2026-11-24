@@ -2812,7 +2812,7 @@ module WorkEngine
     def classify_stuck_main_branch_repair_jobs
       jobs.filter_map do |job|
         next unless job.main_branch_repair?
-        next unless MainHealthChangedService.new(job.repository).stuck_blocking_repair_job(now: now) == job
+        next unless BaseBranchHealth.stuck_repair_job(job.repository, now: now) == job
 
         latest_workflow = latest_workflow_for_job(job)
         issue(
@@ -3905,7 +3905,7 @@ module WorkEngine
       return nil unless workflow.job&.repository_id
 
       candidates = Job.approved.where(repository_id: workflow.job.repository_id).to_a
-      repair_ids = candidates.select { |job| MainHealthChangedService.fix_main_job?(job) }.map(&:id)
+      repair_ids = candidates.select { |job| BaseBranchHealth.repair_job?(job) }.map(&:id)
       return nil if repair_ids.empty?
 
       LandingQueueProcessor.entries(Job.where(id: repair_ids))

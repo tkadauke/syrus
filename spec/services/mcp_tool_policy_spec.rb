@@ -49,7 +49,6 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::ListArtifactsTool,
         SyrusMcp::ReadArtifactTool,
         Mcp::Tools::ReportCannotProceedTool,
-        Mcp::Tools::ReportMainConcernTool,
         Mcp::Tools::RecordIsolatedReproTool
       )
       expect(tools).not_to include(
@@ -90,13 +89,6 @@ RSpec.describe McpToolPolicy do
       )
     end
 
-    it "excludes report_main_concern from the adversarial_reviewer role" do
-      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
-      tools   = described_class.for(context)
-
-      expect(tools).not_to include(Mcp::Tools::ReportMainConcernTool)
-    end
-
     it "returns submit_visual_review and submit_visual_artifact but not submit_summary for the visual_reviewer role" do
       context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
       tools   = described_class.for(context)
@@ -122,20 +114,6 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools.size).to eq(16)
-    end
-
-    it "excludes report_main_concern from the visual_reviewer role" do
-      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
-      tools   = described_class.for(context)
-
-      expect(tools).not_to include(Mcp::Tools::ReportMainConcernTool)
-    end
-
-    it "includes report_main_concern for the implement role" do
-      context = McpToolContext.from_run(run)
-      tools   = described_class.for(context)
-
-      expect(tools).to include(Mcp::Tools::ReportMainConcernTool)
     end
 
     it "includes record_isolated_repro for the implement role" do

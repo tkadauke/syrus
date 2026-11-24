@@ -64,7 +64,7 @@ module Api
           end
 
           PollPullRequestJob.perform_later(job.id, manual: true)
-          PollMainBranchHealthJob.perform_later(job.repository_id, manual: true) if job.repository.main_branch_health_enabled?
+          BaseBranchHealth.poll_later(job.repository_id, manual: true) if BaseBranchHealth.monitoring_enabled?(job.repository)
           LandingQueueProcessorJob.perform_later
 
           render_job(job.reload, message: t("api.job_run_commands.notices.rechecking_pr_checks"), changed: [ "checks", "mergeability" ])

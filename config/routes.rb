@@ -408,10 +408,7 @@ Rails.application.routes.draw do
             post :unarchive
             post :release_needs_triage_job
             post :resume_landing
-            post :run_main_branch_graders
-            post :repair_main_branch
             post :sync_fork
-            post :check_ci_now
             get :readiness
             get :readiness_probe, action: :readiness_probe_status
             post :readiness_probe
@@ -434,7 +431,6 @@ Rails.application.routes.draw do
         end
         get "repositories/:id/cognitive_debt", to: "repositories#cognitive_debt", constraints: { id: /\d+/ }
         get "repositories/:id/jobs", to: "repositories#jobs", constraints: { id: /\d+/ }
-        get "repositories/:id/health_history", to: "repositories#health_history", constraints: { id: /\d+/ }
         get "repositories/:id/delivery", to: "repositories#delivery", constraints: { id: /\d+/ }
         get "repositories/:id/syrus_yml", to: "repositories#syrus_yml", constraints: { id: /\d+/ }
         get "repositories/:repository_id/plugin_tabs", to: "repository_plugin_tabs#index"

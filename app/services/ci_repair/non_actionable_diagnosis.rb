@@ -52,14 +52,14 @@ module CiRepair
     attr_reader :workflow, :run
 
     def current_reports
-      @current_reports ||= MainConcernReport
+      @current_reports ||= BaseBranchHealth.concern_reports
         .where(workflow: workflow, run: run)
         .order(:created_at, :id)
         .to_a
     end
 
     def prior_report_for(signature)
-      MainConcernReport
+      BaseBranchHealth.concern_reports
         .where(workflow: workflow)
         .where.not(run_id: run.id)
         .order(created_at: :desc, id: :desc)
