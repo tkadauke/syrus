@@ -45,8 +45,7 @@ module RuntimeImages
         record(image, "revoked", monotonic, cache_hit: false, prefetch: prefetch)
         raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
       end
-      entry, hit = ensure_local(image, prefetch: prefetch)
-      lease(entry)
+      entry, hit = lease_local(image, prefetch)
       return Pulled.new(reference: reference_for(image), cache_hit: hit, entry: entry) unless block_given?
       begin
         yield reference_for(image)
@@ -234,20 +233,43 @@ module RuntimeImages
     # Counted per acquisition so overlapping users do not release each
     # other's protection; an expired lease starts over so crashed holders
     # cannot pin an entry forever.
+    #
+    # The lease is one conditional UPDATE that only matches a "present"
+    # entry, and eviction claims an entry with one conditional UPDATE that
+    # only matches an unleased "present" entry. The database serializes the
+    # two, so exactly one wins: an acquired image is never removed, and an
+    # evicted one is never reported as leased.
     def lease(entry)
       now = @clock.call
-      scope = RuntimeImageCacheEntry.where(id: entry.id)
-      scope.where("leased_until IS NULL OR leased_until <= ?", now).update_all(lease_count: 0)
-      scope.update_all(["lease_count = lease_count + 1, leased_until = ?", now + @lease_seconds])
+      RuntimeImageCacheEntry.where(id: entry.id, state: "present").update_all([
+        "lease_count = CASE WHEN leased_until IS NULL OR leased_until <= ? THEN 1 ELSE lease_count + 1 END, leased_until = ?",
+        now, now + @lease_seconds
+      ]) == 1
+    end
+
+    # Ensures the image is local and leased. If eviction claimed the entry
+    # between ensure_local and the lease, the image is pulled again.
+    LEASE_ATTEMPTS = 3
+
+    def lease_local(image, prefetch)
+      LEASE_ATTEMPTS.times do
+        entry, hit = ensure_local(image, prefetch: prefetch)
+        return [entry, hit] if lease(entry)
+      end
+      raise Busy, "runtime image #{image.digest} kept being evicted on #{hostname}"
     end
 
     def remove_entry(entry)
-      return false if entry.reload.leased?(@clock.call)
-      @engine.remove(entry.runtime_image.locator.to_s)
-      entry.destroy!
+      claimed = RuntimeImageCacheEntry.where(id: entry.id, state: "present").unleased(@clock.call).update_all(state: "evicting")
+      return false unless claimed == 1
+      begin
+        @engine.remove(entry.runtime_image.locator.to_s)
+      rescue EngineError
+        RuntimeImageCacheEntry.where(id: entry.id, state: "evicting").update_all(state: "present")
+        return false
+      end
+      RuntimeImageCacheEntry.where(id: entry.id).delete_all
       true
-    rescue EngineError
-      false
     end
 
     def record_failure(image, error, started, prefetch)

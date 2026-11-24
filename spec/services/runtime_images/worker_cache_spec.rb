@@ -165,6 +165,45 @@ RSpec.describe RuntimeImages::WorkerCache do
     end
   end
 
+  describe "lease and eviction atomicity" do
+    it "does not remove an entry that was leased after eviction picked it as a candidate" do
+      image = publish("a")
+      stale = cache.acquire(image) { |_| RuntimeImageCacheEntry.first }
+      held = cache.acquire(image)
+      expect(cache.send(:remove_entry, stale)).to be(false)
+      expect(engine.removed).to be_empty
+      expect(RuntimeImageCacheEntry.first).to have_attributes(state: "present", lease_count: 1)
+      cache.release(held.entry)
+    end
+
+    it "pulls again when eviction claims the entry between ensure_local and the lease" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      evicted = false
+      original = cache.method(:ensure_local)
+      allow(cache).to receive(:ensure_local) do |*args, **kw|
+        result = original.call(*args, **kw)
+        unless evicted
+          evicted = true
+          expect(cache.evict(target_bytes: 0)).to eq([image.digest])
+        end
+        result
+      end
+      pulled = cache.acquire(image)
+      expect(pulled.cache_hit).to be(false)
+      expect(RuntimeImageCacheEntry.first).to have_attributes(state: "present", lease_count: 1)
+      expect(cache.evict(target_bytes: 0)).to eq([])
+    end
+
+    it "restores the entry when the engine fails to remove it" do
+      image = publish("a")
+      cache.acquire(image) { nil }
+      allow(engine).to receive(:remove).and_raise(RuntimeImages::WorkerCache::EngineError, "busy")
+      expect(cache.evict(target_bytes: 0)).to eq([])
+      expect(RuntimeImageCacheEntry.first.state).to eq("present")
+    end
+  end
+
   describe "#inventory and #pressure" do
     it "reports held digests and disk pressure" do
       image = publish("a")
