@@ -70,6 +70,26 @@ RSpec.describe RuntimeImages::Service do
     expect(provider.store[[image.digest, image.platform]][:revoked]).to be(true)
   end
 
+  it "re-asserts revocation even when the republish has a conflicting source identity" do
+    image = publish
+    service.revoke(image, reason: "vulnerable")
+    allow(provider).to receive(:publish).and_wrap_original do |m, req|
+      m.call(req).tap { provider.store[[image.digest, image.platform]] = { revoked: false } }
+    end
+    expect { publish(source_ref: "rev-2") }.to raise_error(RuntimeImages::Error)
+    expect(provider.store[[image.digest, image.platform]][:revoked]).to be(true)
+  end
+
+  it "re-asserts deletion even when the republish has a conflicting source identity" do
+    image = publish
+    service.delete(image)
+    allow(provider).to receive(:publish).and_wrap_original do |m, req|
+      m.call(req).tap { provider.store[[image.digest, image.platform]] = { revoked: false } }
+    end
+    expect(provider).to receive(:delete).and_call_original
+    expect { publish(source_ref: "rev-2") }.to raise_error(RuntimeImages::Error)
+  end
+
   it "keeps a revoked image revoked even when the provider call fails" do
     image = publish
     allow(provider).to receive(:revoke).and_raise(RuntimeImages::ProviderError, "down")
