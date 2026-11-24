@@ -1169,6 +1169,7 @@
   },
   "repository_form": {
     "loading": "Forma receptaculi oneratur...",
+    "field_loading": "Oneratur...",
     "back": "Redi ad receptaculum",
     "working_section": "Receptaculum Operativum",
     "working_description": "Syrus quaestiones scindit, ramos creat, et petitiones tractationis aperit in hoc receptaculo.",
