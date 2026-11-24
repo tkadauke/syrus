@@ -542,13 +542,16 @@ describe("PendingActionCard", () => {
     )
 
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
-    expect(screen.getByText("Allow permission to read the database")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Allow permission to read the database?" })).toBeInTheDocument()
     expect(screen.getByText("Maya · Chat")).toBeInTheDocument()
     expect(screen.getByText("This one time")).toBeInTheDocument()
     expect(screen.getByText("Your settings require your approval before an agent does this.")).toBeInTheDocument()
-    expect(screen.getByText("Run a database query")).toBeInTheDocument()
-    expect(screen.getByText("Orders database · read confidential information")).toBeInTheDocument()
-    expect(screen.queryByText(/database\.read/)).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Allow: Run a database query?" })).toBeInTheDocument()
+    expect(screen.getByText("Orders database")).toBeInTheDocument()
+    expect(screen.getByText("read confidential information")).toBeInTheDocument()
+    // Capability and operation names are implementation metadata, kept behind a collapsed disclosure.
+    for (const details of screen.getAllByTestId("permission-technical-details") as HTMLDetailsElement[]) expect(details.open).toBe(false)
+    expect(screen.getAllByText("database.read · database.read/query")).toHaveLength(1)
     fireEvent.click(screen.getAllByRole("button", { name: "Allow once" })[0])
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
@@ -592,6 +595,8 @@ describe("PendingActionCard", () => {
     expect(screen.getByText("production deploy")).toBeInTheDocument()
     expect(screen.getByText(/Authorization: Bearer \[redacted\]/)).toBeInTheDocument()
     expect(screen.getByText("SSH deploy@app.example.test")).toBeInTheDocument()
+    // The raw invocation sits behind the Technical details disclosure.
+    expect((screen.getByTestId("authorization-technical-details") as HTMLDetailsElement).open).toBe(false)
     expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
   })
@@ -708,14 +713,17 @@ describe("PendingActionCard", () => {
 
     expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
-    // The adaptive chat-scoped action stays one click away; the permanent
-    // command grant is behind More options.
-    expect(screen.queryByRole("button", { name: "Always allow this command" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "More options…" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
+    // Remembered scopes live in one explicit scope control, not competing buttons.
+    expect(screen.queryByRole("button", { name: /Always allow/ })).not.toBeInTheDocument()
+    expect(Array.from(screen.getByLabelText("Remember this decision").querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+      "Remember this decision…",
+      "Allow this action for this chat",
+      "Always allow this action"
+    ])
+    fireEvent.change(screen.getByLabelText("Remember this decision"), { target: { value: "chat_session:resource" } })
     expect(screen.getByText("Maya")).toBeInTheDocument()
-    expect(screen.getByText("acme/app")).toBeInTheDocument()
-    expect(screen.getByText("SSH deploy@app.example.com")).toBeInTheDocument()
+    expect(screen.getByText("acme/app · SSH deploy@app.example.com")).toBeInTheDocument()
+    expect(screen.getByText("This chat only")).toBeInTheDocument()
     expect(screen.getByText("Other chats")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Customize" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
