@@ -30,10 +30,10 @@ RSpec.describe SyrusBrowser::ChatToolSet do
       expect(described_class.available_for?(chat, tier: :deferred)).to be true
     end
 
-    it "is not available for a planning chat" do
+    it "is available for a planning chat, which can start its own runtime session" do
       chat = ChatSession.create!(user: user, repository: repository, mode: "planning")
 
-      expect(described_class.available_for?(chat, tier: :essential)).to be false
+      expect(described_class.available_for?(chat, tier: :essential)).to be true
     end
 
     it "is not available for a Local Mode chat" do

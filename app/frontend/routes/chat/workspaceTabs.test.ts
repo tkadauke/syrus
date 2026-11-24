@@ -232,9 +232,16 @@ describe("availableWorkspaceTabs", () => {
     expect(availableWorkspaceTabs(payload)).toContain("runtime")
   })
 
-  it("excludes the runtime tab outside Coding Mode even with runtime sessions", () => {
+  it("includes the runtime tab in a planning or coworker chat that started a runtime session", () => {
     const payload = makePayload({ coding_mode_enabled: true })
     payload.chat.mode = "planning"
+    payload.chat.runtime_session_count = 1
+    expect(availableWorkspaceTabs(payload)).toContain("runtime")
+  })
+
+  it("excludes the runtime tab in Local Mode even with runtime sessions", () => {
+    const payload = makePayload({ coding_mode_enabled: true, local_mode_enabled: true })
+    payload.chat.mode = "local"
     payload.chat.runtime_session_count = 1
     expect(availableWorkspaceTabs(payload)).not.toContain("runtime")
   })

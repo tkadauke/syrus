@@ -72,6 +72,38 @@ RSpec.describe ChatWorkspace, :ci_only do
     end
   end
 
+  describe ".runtime_workspace_for!" do
+    it "runs a regular chat's runtime in its own attached checkout" do
+      path = described_class.attach_repository!(chat_session, repository)
+
+      expect(described_class.runtime_workspace_for!(chat_session, repository)).to eq(path)
+    end
+
+    it "is nil before the repository is attached" do
+      expect(described_class.runtime_workspace_for!(chat_session, repository)).to be_nil
+    end
+
+    it "gives a read-only coworker checkout a writable scratch clone that cannot push back" do
+      allow_any_instance_of(described_class).to receive(:coworker_product_repository?).and_return(true)
+      source = described_class.attach_repository!(chat_session, repository)
+      expect(File.writable?(source.join("README.md"))).to be false
+
+      runtime = described_class.runtime_workspace_for!(chat_session, repository)
+
+      expect(runtime).to eq(described_class.runtime_checkout_path_for(chat_session, repository))
+      expect(`git -C #{runtime} rev-parse HEAD`.strip).to eq(`git -C #{source} rev-parse HEAD`.strip)
+      expect(File.writable?(runtime.join("README.md"))).to be true
+      expect(File.writable?(source.join("README.md"))).to be false
+      expect(`git -C #{runtime} remote get-url origin`.strip).to eq(source.to_s)
+
+      add_remote_commit("second")
+      described_class.attach_repository!(chat_session, repository)
+      described_class.runtime_workspace_for!(chat_session, repository)
+
+      expect(runtime.join("README.md").read).to include("second")
+    end
+  end
+
   describe ".attach_repository!" do
     it "shallow-clones the repository on first use" do
       path = described_class.attach_repository!(chat_session, repository)

@@ -45,12 +45,21 @@ RSpec.describe Mcp::Tools::RuntimeListSessionsTool, full_chat_access: :all do
     expect(response.content.first[:text]).to include("not enabled")
   end
 
-  it "returns an error for a planning chat" do
+  it "lists sessions for a planning chat" do
     planning_chat = ChatSession.create!(user: user, repository: repository, mode: "planning")
 
     response = call(server_context: { chat_session: planning_chat })
 
+    expect(response).not_to be_error
+    expect(payload(response)[:sessions]).to eq([])
+  end
+
+  it "returns an error for a Local Mode chat" do
+    local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+
+    response = call(server_context: { chat_session: local_chat })
+
     expect(response).to be_error
-    expect(response.content.first[:text]).to match(/Coding Mode|permission policy denies this operation/)
+    expect(response.content.first[:text]).to match(/Local Mode|permission policy denies this operation/)
   end
 end

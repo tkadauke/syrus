@@ -14,7 +14,7 @@ module Api
 
         before_action :require_coding_mode_feature
         before_action :find_chat_session
-        before_action :require_coding_chat
+        before_action :require_runtime_capable_chat
         before_action :find_runtime_session, except: [ :index ]
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions
@@ -158,8 +158,8 @@ module Api
           @chat_session = Current.user.accessible_chat_sessions.active.find(params[:chat_id])
         end
 
-        def require_coding_chat
-          render_error("not_found", "Runtime Sessions are only available in Coding Mode chats.", status: :not_found) unless @chat_session.coding?
+        def require_runtime_capable_chat
+          render_error("not_found", "Runtime Sessions are not available in Local Mode chats.", status: :not_found) unless @chat_session.runtime_sessions_supported?
         end
 
         def find_runtime_session

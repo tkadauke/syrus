@@ -392,7 +392,7 @@ policy requires fail-closed execution.
 
 ## Runtime session tools
 
-Runtime-capable plugins expose these tools in Coding Mode:
+Runtime-capable plugins expose these tools in Coding, planning, and coworker chats (not Local Mode):
 
 `runtime_list_providers`, `runtime_list_sessions`, `runtime_start`,
 `runtime_stop`, `runtime_inspect`, `runtime_input`, `runtime_wait`,

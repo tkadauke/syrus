@@ -22,7 +22,8 @@ the entire surface Browser proxies -- `McpToolSet`'s granular tools
 (`browser_navigate`, `browser_click`, ...) forward almost 1:1 to it through
 `BrowserTool.call` -> `SessionRegistry.fetch` -> `Session#call_tool`. That
 one choke point is also the whole of Browser's service boundary: every
-owning session (a workflow Run, or a Coding Mode chat's RuntimeSession) gets
+owning session (a workflow Run, or a chat's RuntimeSession -- Coding Mode,
+planning, or coworker) gets
 its own `Session`, wrapping one `MCP::Client` connection reused across every
 tool call so a multi-step flow sees the same page Playwright left it in
 (`SessionRegistry`, keyed by `SessionContext#session_key`).
@@ -120,7 +121,7 @@ that runs them (`SyrusBrowser::Configuration.image`).
 **Browser only `optionally_depends_on` Plugin Runtime, not `depends_on`.**
 Unlike Git Mirror -- which is off by default and exists purely as a Plugin
 Runtime accelerator -- Browser is on by default and must keep offering all of
-its tools (workflow `visual_review`, Coding Mode's browser RuntimeSession)
+its tools (workflow `visual_review`, a chat's browser RuntimeSession)
 purely through the bundled stdio subprocess when Plugin Runtime is disabled,
 which it is out of the box on every fresh install (`plugin_runtime`'s own
 `default_enabled` is `false`). A hard `depends_on` would mark the whole

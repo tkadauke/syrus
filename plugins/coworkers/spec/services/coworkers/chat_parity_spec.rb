@@ -112,7 +112,11 @@ RSpec.describe Coworkers::ChatParity do
     end
 
     it "hide checkout-bound tools from coworkers" do
-      expect(coworker_names(admin)).not_to include("run_command", "runtime_start", "submit_coding_changes", "write_file")
+      expect(coworker_names(admin)).not_to include("run_command", "submit_coding_changes", "write_file")
+    end
+
+    it "shares the runtime-session tools, which are gated on the coworker chat role" do
+      expect(McpToolRegistry.entries(surface: :coworker).map(&:tool_name)).to include("runtime_start", "runtime_input", "runtime_stop")
     end
   end
 

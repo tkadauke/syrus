@@ -120,6 +120,7 @@ module Mcp
     }.freeze
 
     ROLE_CONTEXTS = {
+      AgentRole::CHAT_PLANNER => :planner,
       AgentRole::CHAT_CODING => :coding,
       AgentRole::CHAT_LOCAL => :local,
       AgentRole::CHAT_EVALUATOR => nil
@@ -185,12 +186,14 @@ module Mcp
       end
 
       # Contexts in which a chat registry entry is discoverable by its role gate.
-      def chat_contexts_for(entry)
+      # A participant that declares its +agent_role+ shares entries gated on it.
+      def chat_contexts_for(entry, participants: self.participants)
         roles = entry.required_roles
-        return CORE_CONTEXTS if roles.empty? || roles.include?(AgentRole::CHAT_PLANNER)
+        return CORE_CONTEXTS if roles.empty?
 
-        [ AgentRole::CHAT_CODING, AgentRole::CHAT_LOCAL ].filter_map do |role|
-          ROLE_CONTEXTS.fetch(role) if roles.include?(role)
+        core = ROLE_CONTEXTS.filter_map { |role, context| context if context && roles.include?(role) }
+        core + participants.filter_map do |participant|
+          participant.context if participant.respond_to?(:agent_role) && roles.include?(participant.agent_role)
         end
       end
 
@@ -200,7 +203,7 @@ module Mcp
         by_name = core_exceptions(participants:).select { |exception| exception.tools.include?(tool_name) }
         absent = by_name.flat_map { |exception| exception.resolved_absent_from(all) }
         role = entry && ROLE_EXCEPTIONS.keys.find { |candidate| entry.required_roles.include?(candidate) }
-        absent += all - chat_contexts_for(entry) if role
+        absent += all - chat_contexts_for(entry, participants:) if role
         absent.uniq
       end
 
@@ -209,7 +212,7 @@ module Mcp
         chat = McpToolRegistry.entries(surface: :chat).group_by(&:tool_name)
         by_context = contexts(participants:).index_with { Set.new }
         chat.each do |name, entries|
-          entries.flat_map { |entry| chat_contexts_for(entry) }.each { |context| by_context[context] << name }
+          entries.flat_map { |entry| chat_contexts_for(entry, participants:) }.each { |context| by_context[context] << name if by_context.key?(context) }
         end
         participants.each do |participant|
           by_context[participant.context] = McpToolRegistry.entries(surface: participant.context).map(&:tool_name).to_set

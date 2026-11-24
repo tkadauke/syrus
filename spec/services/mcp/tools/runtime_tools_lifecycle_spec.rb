@@ -117,9 +117,18 @@ RSpec.describe "runtime_* MCP tools (DOC-17)", full_chat_access: :all do
     end
   end
 
-  it "keeps runtime_* tools unavailable outside Coding Mode" do
+  it "exposes runtime_* tools to a planning chat, so coworkers can drive runtimes directly" do
     planning_chat = ChatSession.create!(user: user, repository: repository, mode: "planning")
     context = McpToolContext.from_chat_session(planning_chat)
+
+    tool_names = McpToolRegistry.tools_for_context(context, surface: :chat, tier: :essential).map { |t| McpToolRegistry.tool_name_for(t) }
+
+    expect(tool_names).to include(*%w[runtime_list_sessions runtime_start runtime_status runtime_input runtime_stop])
+  end
+
+  it "keeps runtime_* tools unavailable in Local Mode" do
+    local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+    context = McpToolContext.from_chat_session(local_chat)
 
     tool_names = McpToolRegistry.tools_for_context(context, surface: :chat, tier: :essential).map { |t| McpToolRegistry.tool_name_for(t) }
 
