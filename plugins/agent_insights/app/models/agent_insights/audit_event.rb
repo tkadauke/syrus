@@ -34,7 +34,7 @@ module AgentInsights
 
     def self.resolve_actor(actor)
       case actor
-      when User
+      when Syrus::Host::UserRecord
         [ "user", actor, nil ]
       when Syrus::Host::RunRecord
         [ "agent", nil, actor ]

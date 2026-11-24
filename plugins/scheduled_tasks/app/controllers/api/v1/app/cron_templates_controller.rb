@@ -114,7 +114,7 @@ module Api
         end
 
         def template_repositories
-          Repository.accessible_to(Syrus::Host::Current.user).merge(Repository.writable_by(Syrus::Host::Current.user)).active
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).merge(Syrus::Host::RepositoryRecord.writable_by(Syrus::Host::Current.user)).active
             .order(:owner, :name).map { |repository| repository_json(repository) }
         end
 
@@ -143,8 +143,8 @@ module Api
           repository_id = params.dig(:cron_template, :validation_repository_id).presence
           return if repository_id.nil?
 
-          template.skill_validation_repository = Repository.accessible_to(Syrus::Host::Current.user)
-            .merge(Repository.writable_by(Syrus::Host::Current.user)).active.find(repository_id)
+          template.skill_validation_repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user)
+            .merge(Syrus::Host::RepositoryRecord.writable_by(Syrus::Host::Current.user)).active.find(repository_id)
         end
 
         def schedule_preview_json(result)

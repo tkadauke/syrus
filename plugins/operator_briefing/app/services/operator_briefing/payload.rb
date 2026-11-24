@@ -81,7 +81,7 @@ module OperatorBriefing
 
     def subscriptions
       @subscriptions ||= BriefingSubscription
-        .where(user: user, repository_id: Repository.accessible_repository_ids_for(user))
+        .where(user: user, repository_id: Syrus::Host::RepositoryRecord.accessible_repository_ids_for(user))
         .includes(:repository)
         .order("repositories.owner ASC", "repositories.name ASC", :id)
         .references(:repository)

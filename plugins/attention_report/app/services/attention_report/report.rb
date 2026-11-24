@@ -83,7 +83,7 @@ module AttentionReport
 
     def judging
       review_handle_count = if @user.github_handle.present?
-        PrReviewComment.where("LOWER(github_handle) = ?", @user.github_handle.downcase)
+        Syrus::Host::PrReviewComment.where("LOWER(github_handle) = ?", @user.github_handle.downcase)
           .where(comment_created_at: @from..@to).count
       else
         0
@@ -153,7 +153,7 @@ module AttentionReport
 
       approvals = approval_scope.where(subject_id: job_ids, created_at: ..@to)
         .order(:subject_id, :created_at, :id).to_a
-      versions = DiffReviewVersion.where(job_id: job_ids, reason: "source_diff", created_at: ..@to)
+      versions = Syrus::Host::DiffReviewVersion.where(job_id: job_ids, reason: "source_diff", created_at: ..@to)
         .order(:job_id, :created_at, :id).group_by(&:job_id)
 
       approvals.group_by(&:subject_id).flat_map do |job_id, transitions|

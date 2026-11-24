@@ -50,7 +50,7 @@ module ScheduledTasks
     def self.on_user_created(event)
       return unless event[:first_user]
 
-      user = User.find_by(id: event[:user_id])
+      user = Syrus::Host::UserRecord.find_by(id: event[:user_id])
       ScheduledTasks::CronTemplate.seed_defaults_for(user) if user
     rescue StandardError => e
       Rails.logger.error("[ScheduledTasks] template seeding failed for user #{event[:user_id]}: #{e.class}: #{e.message}")
