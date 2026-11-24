@@ -28,13 +28,23 @@ function useAchievementText() {
     t,
     title: (presentation: { title_key?: string }, fallback: string) => (presentation.title_key ? t(presentation.title_key) : fallback),
     description: (presentation: { description_key?: string; teaser_key?: string }, locked = false) => {
-      const key = locked ? presentation.teaser_key ?? presentation.description_key : presentation.description_key
+      const key = locked ? (presentation.teaser_key ?? presentation.description_key) : presentation.description_key
       return key ? t(key) : null
     }
   }
 }
 
-function UnlockedCard({ unlock, busy, onAcknowledge, onReplay }: { unlock: AchievementUnlock; busy: boolean; onAcknowledge: () => void; onReplay: () => void }) {
+function UnlockedCard({
+  unlock,
+  busy,
+  onAcknowledge,
+  onReplay
+}: {
+  unlock: AchievementUnlock
+  busy: boolean
+  onAcknowledge: () => void
+  onReplay: () => void
+}) {
   const { t, title, description } = useAchievementText()
   const prefix = routePrefix(useLocation().pathname)
   const link = unlock.evidence_link
