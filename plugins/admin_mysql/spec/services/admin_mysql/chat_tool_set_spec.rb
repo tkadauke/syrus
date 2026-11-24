@@ -14,8 +14,9 @@ RSpec.describe AdminMysql::ChatToolSet do
     )
   end
 
-  it "excludes its admin-only surface from coworker chats" do
-    expect(described_class.coworker_excluded?).to be(true)
+  it "is shared with coworker chats; availability stays gated on the owner being an admin" do
+    expect(Mcp::CoworkerToolExposure.plugin_provider?(described_class)).to be(true)
+    expect(described_class).not_to respond_to(:coworker_excluded?)
   end
 
   it "is unavailable outside MySQL even for admins" do

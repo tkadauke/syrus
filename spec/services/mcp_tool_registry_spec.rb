@@ -160,10 +160,12 @@ RSpec.describe McpToolRegistry do
       expect(coworker_names).to include(
         "approve_job", "cancel_job", "read_workflow", "read_run_transcript", "list_pending_actions"
       )
+      # Admin tools are shared; `user.admin?` is applied to the owner.
+      expect(coworker_names).to include("admin_overview", "force_fail_job")
       expect(coworker_names).not_to include(
-        "admin_overview", "force_fail_job", "run_command", "runtime_start", "submit_coding_changes",
-        *Mcp::CoworkerToolExposure::WORKFLOW_ROLE_TOOL_NAMES,
-        *Mcp::CoworkerToolExposure::PERMISSION_ADMIN_TOOL_NAMES
+        "run_command", "runtime_start", "submit_coding_changes",
+        *Mcp::ChatToolParity::WORKFLOW_VERDICT_TOOLS,
+        *Mcp::ChatToolParity::PERMISSION_TOOLS
       )
     end
   end

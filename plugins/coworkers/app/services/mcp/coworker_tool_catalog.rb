@@ -138,7 +138,9 @@ module Mcp
         else
           Array(provider.tool_definitions(tier: nil))
         end
-        definitions = definitions.select { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) }
+        definitions = definitions.select do |definition|
+          Mcp::CoworkerToolExposure.plugin_definition?(definition, user: chat_session&.user)
+        end
         tiers_by_name = tiers.each_with_object({}) do |(tier, tier_definitions), result|
           tier_definitions.each { |definition| result[value(definition, :name).to_s] ||= tier }
         end
