@@ -5411,6 +5411,33 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M82. Main through `519fe10b07`
+
+- **"Relaunch a preserved merge train even when its failure asks for a
+  restart"** (`261caf0860`). A preserved attempt now always relaunches its own
+  failed step, instead of taking the fresh-workflow branch that landing Jobs
+  never qualify for. *Relied-on invariant:* the relaunch actually runs while
+  the train's members wait. Holds, and F127's 15-minute grace still bounds the
+  wait if it does not.
+- **"Classify a missing table or column as retryable schema version skew"**
+  (`5ac7ad0015`). *Relied-on invariant:* the retry is bounded even when the
+  missing column is a real bug on the current release, not skew. Holds: a
+  retryable classification goes through
+  `retry_step_after_infrastructure_failure!`, which checks
+  `INFRASTRUCTURE_STEP_RETRY_LIMIT` first (`CascadeReplay.lean`,
+  `replay_terminates`). "Reject in-place table and column renames in new
+  migrations" (`9c345f1a4b`) narrows how often real skew happens.
+- **"Let an accepted landing failure cover the main-grading contract too"**
+  (`2486957531`). An accepted test failure now covers its CI-phase target, as
+  `target_blockers` already did. *Relied-on invariant:* the acceptance is still
+  bound to the exact graded head. Holds: it is the same accepted target, with
+  M79's exact-head SHA and fingerprint binding.
+- The rest change the commits-behind count (now against the live base), merge
+  train patch ids, the reason a bundle is not forming, visual-review error
+  text, spec isolation, and schema-dump guidance.
+
+The affected specs pass after the rebase (1,257 examples).
+
 ## M81. Main through `97961c9fe5`
 
 A job bundle: plugins routed through `Syrus::Host` facades, interactive chat
@@ -7514,7 +7541,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `97961c9fe5`. Each loop iteration continues from there:
+Checked through main `519fe10b07`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
