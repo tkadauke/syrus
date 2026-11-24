@@ -284,7 +284,13 @@ registry, while `--index-repository OWNER/REPO` remains the explicit override.
 
 ### Reading fleet convergence
 
-**Admin → Plugins** compares the desired revision with every process heartbeat.
+**Admin → Plugins** compares the desired revision with every process heartbeat,
+but only while at least one enabled, externally synced (non-bundled) plugin is
+installed. Bundled plugins ship with the Syrus image and are not part of the
+desired set; on an installation that runs only bundled plugins there is nothing
+to converge, so heartbeat, revision, and digest differences are ignored and no
+convergence alarm is raised. Bundled plugin inventory and load health stay
+visible regardless.
 `Converged` means the process reports the role-specific desired digest. `Pending
 restart` means an applied revision has not started there yet; restart that
 process. `Behind` means it is running an older set without a current restart
