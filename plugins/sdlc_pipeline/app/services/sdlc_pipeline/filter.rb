@@ -1,6 +1,6 @@
 module SdlcPipeline
   class Filter
-    include Filters::BaseFilter
+    include Syrus::Host::Filters::BaseFilter
 
     def self.subject = SmartFolders::SUBJECT
 
@@ -9,7 +9,7 @@ module SdlcPipeline
     end
 
     def apply(scope)
-      Filters::Compiler.call(@ast, scope: scope, user: @user, subject: self.class.subject)
+      Syrus::Host::Filters::Compiler.call(@ast, scope: scope, user: @user, subject: self.class.subject)
     end
   end
 end

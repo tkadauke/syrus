@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentInsights
-      class Confidence < NumberColumn
+      class Confidence < Syrus::Host::Filters::Chips::NumberColumn
         filter_name "confidence"
         label "Confidence"
         column :confidence

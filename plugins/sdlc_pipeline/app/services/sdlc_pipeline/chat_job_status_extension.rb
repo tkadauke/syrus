@@ -11,7 +11,7 @@ module SdlcPipeline
           {
             id: "sdlc_pipeline.#{repository.id}", label_i18n_key: "sdlc_pipeline:chat_view_pipeline", repository_id: repository.id,
             repository_label: repository.slug,
-            path: "/repositories/#{repository.id}/plugin/sdlc-pipeline?#{ { q: Filters::QueryParam.encode(filter) }.to_query }"
+            path: "/repositories/#{repository.id}/plugin/sdlc-pipeline?#{ { q: Syrus::Host::Filters::QueryParam.encode(filter) }.to_query }"
           }
         end
       }

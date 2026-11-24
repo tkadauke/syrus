@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module DesignDocs
-      class OwnerUserId < Base
+      class OwnerUserId < Syrus::Host::Filters::Chips::Base
         filter_name "owner_user_id"
         label "Owner"
         bucket :enum
