@@ -1,0 +1,9 @@
+project:
+  id: achievements
+  label: "achievements plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
