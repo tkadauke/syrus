@@ -676,7 +676,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
     end
 
-    it "includes landing_paused in health_blocked_repositories entries" do
+    it "includes landing_paused in the health banner panel entries" do
       repo.update!(
         main_branch_health_enabled: true,
         main_branch_repair_enabled: true,
@@ -687,10 +687,11 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       other = Factories.repository(user: user, owner: "acme", name: "widgets2")
       other.update!(grader_health: "broken", landing_paused: false)
 
-      get "/api/v1/app/dashboard", params: { subject: "job" }
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
 
       expect(response).to have_http_status(:ok)
-      entries = parse_body["health_blocked_repositories"]
+      panel = parse_body.fetch("banner_panels").find { |entry| entry.fetch("id") == "main_branch_health.dashboard_banner" }
+      entries = panel.dig("props", "repositories")
       expect(entries.find { |r| r["id"] == repo.id }).to include(
         "landing_paused" => true,
         "main_branch_repair_blocks_work" => true,
@@ -711,7 +712,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       get "/api/v1/app/dashboard", params: { subject: "job" }
 
       expect(response).to have_http_status(:ok)
-      entry = parse_body.fetch("health_blocked_repositories").find { |repository| repository.fetch("id") == repo.id }
+      panel = parse_body.fetch("banner_panels").find { |entry| entry.fetch("id") == "main_branch_health.dashboard_banner" }
+      entry = panel&.dig("props", "repositories")&.find { |repository| repository.fetch("id") == repo.id }
       expect(entry).to be_nil
     end
 

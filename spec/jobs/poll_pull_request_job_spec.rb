@@ -1683,7 +1683,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
     it "does not treat an unrelated work-gate veto as a broken main branch" do
       unrelated = Syrus::Plugin::WorkPolicy::Veto.new(
-        reason: :maintenance,
+        reason: :resource_safety,
         message: "Maintenance is in progress."
       )
       allow(WorkGates).to receive(:evaluate).and_return(WorkGates::Result.new(vetoes: [ unrelated ]))

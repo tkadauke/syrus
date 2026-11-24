@@ -292,6 +292,7 @@ admin-only:
   - app/controllers/api/v1/app/setup_controller.rb
   - plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_clusters_controller.rb
   - plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_resources_controller.rb
+  - plugins/main_branch_health/app/controllers/api/v1/app/main_branch_health_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_connections_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_schema_controller.rb
@@ -452,6 +453,7 @@ instead of broader model scopes.
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/accounts_controller.rb` | per-user/private | Lists, updates, and disconnects only accounts owned by the signed-in user. |
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/instance_accounts_controller.rb` | admin-only | Instance-owned accounts (platform bot tokens) are administrator-managed; `Current.user` is the acting admin recorded on connect and disconnect, and non-administrators are refused. |
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/oauth_controller.rb` | per-user/private | Binds OAuth state and completed connections to the signed-in user and their current session. |
+| `plugins/main_branch_health/app/controllers/api/v1/app/main_branch_health_controller.rb` | admin-tier and admin affordance | Main-branch health reads and the manual CI check resolve the repository through `Repository.accessible_to(Current.user)`; mutations additionally require repository admin. |
 | `plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb` | admin-only with current-user scope | Worker Timeline queries are admin-only; macro results and smart-folder counts are additionally constrained to Jobs accessible to `Current.user`, and smart-folder navigation uses that user as its ownership context. |
 | `plugins/syrus_coverage/app/controllers/api/v1/app/coverage_controller.rb` | per-user/private | The coverage trend resolves the repository through `Repository.accessible_to(Current.user)`, and a workflow's hit map through the same visibility-scoped Job lookup the workflow endpoints use, so a user only reads coverage for repositories and Jobs they can already see. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |

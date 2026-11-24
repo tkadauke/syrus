@@ -728,13 +728,18 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "main_branch_repair_blocks_work" => false
     )
 
-    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
+    get "/api/v1/app/repositories/#{repository.id}"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "landing_paused")).to eq(false)
     expect(body.dig("repository", "main_branch_repair_enabled")).to eq(false)
     expect(body.dig("repository", "main_branch_repair_blocks_work")).to eq(false)
+
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
     expect(body.dig("health_history", "main_branch_repair_enabled")).to eq(false)
     expect(body.dig("health_history", "main_branch_repair_blocks_work")).to eq(false)
   end
@@ -786,7 +791,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     other_repository = Factories.repository(user: user, owner: "acme", name: "other")
     Factories.job_record(repository: other_repository, issue_number: 99, issue_title: "Private")
 
-    get "/api/v1/app/repositories/#{repository.id}?include=jobs,health_history,syrus_yml"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs,syrus_yml"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -804,12 +809,15 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body.dig("repository", "main_branch_repair_auto_approve")).to eq(false)
     expect(body.dig("repository", "treat_grader_timeouts_as_failures")).to eq(false)
     expect(body["can_edit"]).to eq(true)
-    expect(body.dig("health_history", "landing_paused")).to eq(true)
-    expect(body.dig("health_history", "main_branch_health_enabled")).to eq(true)
-    expect(body.dig("health_history", "main_branch_repair_enabled")).to eq(true)
-    expect(body.dig("health_history", "main_branch_repair_blocks_work")).to eq(true)
-    expect(body.dig("health_history", "main_branch_repair_auto_approve")).to eq(false)
-    expect(body.dig("health_history", "treat_grader_timeouts_as_failures")).to eq(false)
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
+    expect(response).to have_http_status(:ok)
+    health_body = parse_body
+    expect(health_body.dig("health_history", "landing_paused")).to eq(true)
+    expect(health_body.dig("health_history", "main_branch_health_enabled")).to eq(true)
+    expect(health_body.dig("health_history", "main_branch_repair_enabled")).to eq(true)
+    expect(health_body.dig("health_history", "main_branch_repair_blocks_work")).to eq(true)
+    expect(health_body.dig("health_history", "main_branch_repair_auto_approve")).to eq(false)
+    expect(health_body.dig("health_history", "treat_grader_timeouts_as_failures")).to eq(false)
     expect(body).not_to have_key("tabs")
     expect(body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 2)
     expect(body["provider_retry_status"]).to include("agent_provider_label" => "Codex")
@@ -870,7 +878,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["tabs"]).to include(
-      include("key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health", "badge" => "!")
+      include("key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/plugin/health", "badge" => "!")
     )
   end
 
@@ -888,7 +896,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["tabs"]).to include(
-      include("key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health")
+      include("key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/plugin/health")
     )
   end
 
@@ -1196,7 +1204,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       repository: repository, sha: "def456", ci_health: "healthy"
     )
 
-    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
 
     expect(response).to have_http_status(:ok)
     records = parse_body.dig("health_history", "records")
@@ -1226,7 +1234,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -1271,7 +1279,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -2425,9 +2433,9 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         original_for_user.call(*args)
       end
 
-      get "/api/v1/app/repositories/#{repository.id}", params: { include: "jobs,delivery,health_history" }
+      get "/api/v1/app/repositories/#{repository.id}", params: { include: "jobs,delivery" }
 
-      expect(parse_body.keys).to include("jobs", "pagination", "provider_availability", "delivery", "health_history")
+      expect(parse_body.keys).to include("jobs", "pagination", "provider_availability", "delivery")
       expect(provider_calls.group_by(&:last).transform_values(&:size).values).to all(eq(1))
     end
   end
