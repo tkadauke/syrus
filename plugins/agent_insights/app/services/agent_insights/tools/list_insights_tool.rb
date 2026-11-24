@@ -112,7 +112,7 @@ module AgentInsights
         end
 
         def admin_chat?(context)
-          context.user.admin? && !context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+          context.user.admin? && !context.role.in?([ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
         end
 
         def not_accessible(repository_id)

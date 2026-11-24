@@ -7,46 +7,6 @@ unlisted members are internal.
 
 ## Public APIs
 
-### `Syrus::Host::ActivityRecords`
-
-Since: `0.1.16`
-
-Returns relations over job approvals, state transitions, review comments, chat proposals, engagement samples, job logs, chat spend entries, steps, and agent processes; schema and persistence are not promised.
-
-Supported members:
-
-- `chat_proposals`
-- `chat_spend_entries`
-- `job_approvals`
-- `job_logs`
-- `pr_review_comments`
-- `spawned_processes`
-- `state_transitions`
-- `steps`
-- `ui_engagement_samples`
-
-### `Syrus::Host::Adjudication`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `dismiss`
-- `inconclusive`
-
-### `Syrus::Host::AdminActions`
-
-Since: `0.1.16`
-
-Writes audit entries and reads them by action; storage and retention are not promised.
-
-Supported members:
-
-- `log!`
-- `where`
-
 ### `Syrus::Host::AdminController`
 
 Since: `0.1.16`
@@ -72,23 +32,55 @@ Supported members:
 
 Since: `0.1.16`
 
-Resolves the adversarial-review project policy of a workspace; the policy shape is not promised. Only the listed members are supported.
+Base class for resolving which projects an adversarial review covers; plugins subclass it. Only subclassing is promised.
 
 Supported members:
 
-- `call`
+- `new`
+
+### `Syrus::Host::AdversarialReviewPrompt`
+
+Since: `0.1.16`
+
+Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change. Only the listed members are supported.
+
+Supported members:
+
+- `new`
 
 ### `Syrus::Host::AdversarialReviewStep`
 
 Since: `0.1.16`
 
-Bases plugin review steps that reuse the adversarial-review loop and raises MemoryPersistenceFailed; the loop internals and overridable hooks beyond call are not promised. Only the listed members are supported.
+Adversarial-review step handler, exposing only the MemoryPersistenceFailed error plugins rescue.
 
 Supported members:
 
 - `MemoryPersistenceFailed`
-- `call`
-- `new`
+
+### `Syrus::Host::AgentEventAbbreviator`
+
+Since: `0.1.16`
+
+Abbreviates tool use and tool results into the compact form shown in transcripts; the abbreviation rules may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `tool_result`
+- `tool_use`
+
+### `Syrus::Host::AgentPrompts`
+
+Since: `0.1.16`
+
+Renders shared prompt fragments for plugin agent prompts: memory_context, chat_system, git_safety_text and submit_summary_instructions_text; the fragment wording may change between releases.
+
+Supported members:
+
+- `chat_system`
+- `git_safety_text`
+- `memory_context`
+- `submit_summary_instructions_text`
 
 ### `Syrus::Host::AgentProvider`
 
@@ -113,39 +105,144 @@ Supported members:
 - `usage_status`
 - `usage_windows`
 
+### `Syrus::Host::AgentProviderBase`
+
+Since: `0.1.16`
+
+Bases agent-provider classes plugins contribute; only subclassing is promised, with the hooks AgentProvider documents. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::AgentProviderCatalogOptions`
 
 Since: `0.1.16`
 
-Lists the agent-provider options offered to users; catalog contents are not promised. Only the listed members are supported.
-
-### `Syrus::Host::AgentProviders`
-
-Since: `0.1.16`
-
-Resolves agent providers and raises ConfigurationError; provider registration is not promised. Only the listed members are supported.
+Controller concern that adds the agent-provider and effort-level catalog helpers; only the listed helpers are promised. Only the listed members are supported.
 
 Supported members:
 
-- `ConfigurationError`
-- `for`
+- `agent_provider_catalog_options`
+- `agent_provider_label`
+- `agent_provider_model_json`
+- `agent_provider_option_json`
 
-### `Syrus::Host::AgentRoles`
+### `Syrus::Host::AgentProviderConfigurationError`
 
 Since: `0.1.16`
 
-Names the agent role identifiers plugins may compare against or declare; role-to-tool exposure is not promised.
+Raised by a provider when it is not configured for the requesting user; callers treat it as unavailable rather than failed. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::AgentProviderRegistry`
+
+Since: `0.1.16`
+
+Resolves an agent provider class by key (for) and runs a one-shot prompt through one (run_one_shot); provider selection and availability policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+- `run_one_shot`
+
+### `Syrus::Host::AgentRecord`
+
+Since: `0.1.16`
+
+The durable identity of an agent session; find_or_create_for! resolves it for a run, chat session or design doc. Columns and other associations are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `find_or_create_for!`
+- `where`
+
+### `Syrus::Host::AgentRole`
+
+Since: `0.1.16`
+
+Names the agent roles a plugin may pass as the role of a tool context or workflow run and the CHAT_ROLES and WORKFLOW_ROLES groupings of them; only the listed role identifiers are promised, not authorization derived from them. Only the listed members are supported.
 
 Supported members:
 
 - `AGENT_INSIGHT`
+- `CHAT_CODING`
+- `CHAT_LOCAL`
 - `CHAT_PLANNER`
+- `CHAT_ROLES`
 - `COWORKER`
 - `COWORKER_CHAT`
+- `WORKFLOW_ADVERSARIAL_REVIEWER`
 - `WORKFLOW_COWORKER_REVIEWER`
+- `WORKFLOW_IMPLEMENT`
 - `WORKFLOW_MANUAL`
 - `WORKFLOW_ROLES`
-- `WORKFLOW_SUMMARY_TEST_PLAN`
+- `WORKFLOW_VISUAL_REVIEWER`
+
+### `Syrus::Host::AgentRuntime`
+
+Since: `0.1.16`
+
+Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.
+
+Supported members:
+
+- `chat_workload_policy`
+- `default_max_turns`
+- `default_timeout_seconds`
+- `forwarded_env_keys`
+- `max_event_bytes`
+- `oversized_event_handler`
+- `silent_timeout_seconds`
+
+### `Syrus::Host::AgentSessionStore`
+
+Since: `0.1.16`
+
+Reads the stored transcript of a provider session for a job; storage layout is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `transcript_for`
+
+### `Syrus::Host::AgentSidecarEnvironment`
+
+Since: `0.1.16`
+
+Filters the environment passed to an agent's MCP sidecar server config; the allowed keys may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `filter_for_agent_config`
+
+### `Syrus::Host::AgentTranscript`
+
+Since: `0.1.16`
+
+Parses a provider's JSONL transcript into events and defines the Event value (kind, timestamp, data) providers emit; the parsing rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Event`
+- `events`
+- `new`
+
+### `Syrus::Host::AgenticConnection`
+
+Since: `0.1.16`
+
+Shared agentic-access gating for plugin-owned connection records; connection storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `agentic_credential_usable_by?`
+- `find_agentic!`
+- `find_agentic_with_write_access!`
+- `require_write_access!`
 
 ### `Syrus::Host::AppAdminController`
 
@@ -169,25 +266,18 @@ Supported members:
 - `params`
 - `render`
 
-### `Syrus::Host::AppEvents`
+### `Syrus::Host::AppPresentation`
 
 Since: `0.1.16`
 
-Broadcasts application events to connected clients; channels are not promised. Only the listed members are supported.
+Formats job and epic slugs, external PR URLs and agent provider labels the way the app presents them.
 
 Supported members:
 
-- `broadcast`
-
-### `Syrus::Host::ApplicationPolicy`
-
-Since: `0.1.16`
-
-Bases plugin Pundit policies and their Scope; the default rules are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `Scope`
+- `agent_provider_label`
+- `epic_slug`
+- `external_pr_url`
+- `job_slug`
 
 ### `Syrus::Host::ApplicationRecord`
 
@@ -201,15 +291,16 @@ Supported members:
 - `table_name`
 - `table_name=`
 
-### `Syrus::Host::AutoRetryAttempt`
+### `Syrus::Host::AutoApproveModes`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Reads the auto-approve mode vocabulary.
 
 Supported members:
 
-- `pending`
+- `option_for`
+- `options`
 
 ### `Syrus::Host::BackgroundJob`
 
@@ -246,40 +337,11 @@ Defines offsite backup destination operations plugins may provide; credential st
 
 Supported members:
 
-- `configured?`
 - `delete`
 - `health`
-- `identity`
 - `materialize_local`
 - `upload`
 - `verify`
-
-### `Syrus::Host::BaseBranchHealth`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::BaseRevisionRetry`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `call`
-
-### `Syrus::Host::BotIdentity`
-
-Since: `0.1.16`
-
-Recognizes comments authored by the Job's bot identity so a plugin can update only its own comments. Only the listed members are supported.
-
-Supported members:
-
-- `authored_github_comment?`
-- `for`
 
 ### `Syrus::Host::Callbacks`
 
@@ -297,26 +359,26 @@ Supported members:
 - `on_shutdown`
 - `on_tick`
 
-### `Syrus::Host::CapabilityDispatch`
+### `Syrus::Host::CapabilityDescriptor`
 
 Since: `0.1.16`
 
-Invokes declared capability providers through their composition and health boundaries. Only the listed members are supported.
+Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised. AUTHORITY_DURATIONS lists the approval durations a capability may allow, from shortest to longest. Only the listed members are supported.
 
 Supported members:
 
-- `call`
+- `AUTHORITY_DURATIONS`
+- `for_plugin_definition`
 
-### `Syrus::Host::CapabilityFamily`
+### `Syrus::Host::CapabilityPresentation`
 
 Since: `0.1.16`
 
-Defines provider-neutral capability families and their composition contracts; registry internals are not promised. Only the listed members are supported.
+Builds the human-facing capability and operation names and descriptions a capability descriptor carries from its capability and operation identifiers; the wording may change between releases. Only the listed members are supported.
 
 Supported members:
 
-- `define`
-- `fetch`
+- `for`
 
 ### `Syrus::Host::CapabilityValidationError`
 
@@ -331,97 +393,124 @@ Supported members:
 - `message`
 - `new`
 
-### `Syrus::Host::ChatBridge`
-
-Since: `0.1.16`
-
-Opens a thread linking an origin chat to a spawned chat, finds it, and replies within it, raising ClosedThreadError; the thread record's persistence is not promised.
-
-Supported members:
-
-- `ClosedThreadError`
-- `find_thread`
-- `open!`
-- `reply!`
-
-### `Syrus::Host::ChatDelivery`
-
-Since: `0.1.16`
-
-Delivers the next queued chat message when the chat is idle and names the internal-role metadata key; queue ordering and batching are not promised.
-
-Supported members:
-
-- `deliver_next_if_idle!`
-- `internal_role_key`
-
 ### `Syrus::Host::ChatIdentityProvider`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+Lets a plugin own participant or agent identities on generic chat surfaces; every hook is optional and defaults to declining, and envelope validation is not promised. Only the listed members are supported.
 
-### `Syrus::Host::ChatLockErrors`
+Supported members:
+
+- `chat_group_ownership`
+- `chat_identities`
+- `chat_message_presentations`
+- `chat_search_ownership`
+- `chat_status_contributions`
+- `chat_turn_identity`
+- `chat_turn_trigger`
+
+### `Syrus::Host::ChatJobStatusExtension`
 
 Since: `0.1.16`
 
-Adds chat-lock error rendering to plugin API controllers; error payloads are not promised. Only the listed members are supported.
+Lets a plugin add actions to the chat Jobs workspace by returning a hash merged into the job-status response's extensions member; response assembly is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `payload`
 
 ### `Syrus::Host::ChatMcpToolSet`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ChatMessages`
-
-Since: `0.1.16`
-
-Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised.
+Marks a class as a chat MCP tool set a plugin may contribute; the implementation must define .tool_definitions(tier:), .available_for?(chat_session, tier:) and #handle; tool policy flags other than the documented definition keys are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `active`
-- `find`
-- `find_by`
-- `install_after_commit_on_create`
-- `none`
-- `remove_after_commit_on_create`
-- `where`
+- `available_for?`
+- `handle`
+- `tool_definitions`
+
+### `Syrus::Host::ChatMediaSource`
+
+Since: `0.1.16`
+
+Lets a plugin list chat media and panel context for a chat session; media storage and panel rendering are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_media_context`
+- `chat_media_panel`
+- `list_chat_media`
+
+### `Syrus::Host::ChatMessageSearchIndex`
+
+Since: `0.1.16`
+
+Searches the chat message index for candidate messages and the chat sessions that match; index storage is not promised.
+
+Supported members:
+
+- `matching_chat_session_page`
+- `search_candidates`
+- `top_matches_by_chat_session`
 
 ### `Syrus::Host::ChatPayloadContributor`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ChatPendingActions`
-
-Since: `0.1.16`
-
-Reads chat pending actions; creation, confirmation, and state transitions are not promised.
+Lets a plugin add its own keys, paths and counts to the chat payload; payload assembly and the context keys beyond :params and :ssl are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `pending`
-- `where`
+- `chat_message_payload`
+- `chat_payload`
+- `chat_payload_counts`
+- `chat_payload_paths`
+
+### `Syrus::Host::ChatPromptInjector`
+
+Since: `0.1.16`
+
+Lets a plugin add a section to the chat agent's system prompt; prompt assembly and ordering beyond provider order are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `chat_prompt_section`
+
+### `Syrus::Host::ChatProviderBase`
+
+Since: `0.1.16`
+
+Bases chat-provider classes plugins contribute alongside an agent provider; only subclassing is promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::ChatProviderConfigurationError`
+
+Since: `0.1.16`
+
+Raised by a chat provider when it is not configured for the requesting user. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::ChatProviderOptions`
 
 Since: `0.1.16`
 
-Lists the chat-provider options offered to users; catalog contents are not promised. Only the listed members are supported.
-
-### `Syrus::Host::ChatSearch`
-
-Since: `0.1.16`
-
-Matches chat messages by text; index storage and ranking are not promised.
+Controller concern that adds chat-provider option and parameter helpers; only the listed helpers are promised. Only the listed members are supported.
 
 Supported members:
 
-- `matching_chat_session_page`
-- `top_matches_by_chat_session`
+- `chat_provider_label`
+- `chat_provider_options`
+- `normalized_chat_provider_param`
+- `validated_chat_provider_param`
 
 ### `Syrus::Host::ChatSession`
 
@@ -437,30 +526,6 @@ Supported members:
 - `title`
 - `user`
 
-### `Syrus::Host::ChatSessionLifecycle`
-
-Since: `0.1.16`
-
-Adds chat-session start and archive helpers to plugin API controllers; lifecycle internals are not promised. Only the listed members are supported.
-
-### `Syrus::Host::ChatSessions`
-
-Since: `0.1.16`
-
-Queries and creates chat sessions, enqueues a first turn, and extends the chat session model; turns, broadcasts, and other associations are not promised.
-
-Supported members:
-
-- `active`
-- `create!`
-- `effort_levels`
-- `enqueue_turn`
-- `extend_model`
-- `fallback_title_for`
-- `find`
-- `find_by`
-- `where`
-
 ### `Syrus::Host::ChatTitles`
 
 Since: `0.1.16`
@@ -471,74 +536,51 @@ Supported members:
 
 - `enqueue`
 
-### `Syrus::Host::ChatToolParity`
-
-Since: `0.1.16`
-
-Compares chat tool catalogs across surfaces; the comparison rules are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `plugin_definition_in_context?`
-- `provider_exceptions`
-- `provider_hidden?`
-
 ### `Syrus::Host::ChatTurnFinalizer`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+Lets a plugin run work after an agent turn and before the chat releases its serialization lock; the surrounding turn loop is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `after_chat_turn`
 
 ### `Syrus::Host::ChatTurnLifecycle`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+Lets an optional plugin own admission and execution context for a chat turn; the including class answers .applies_to?(chat_session:, user_message:) and, per turn, #admission, #context, #isolated_workspace? and #synchronize; the generic invocation loop is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `admission`
+- `applies_to?`
+- `context`
+- `isolated_workspace?`
+- `synchronize`
 
 ### `Syrus::Host::ChatTurnOrientation`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ChatTurns`
-
-Since: `0.1.16`
-
-Enqueues an agent turn for a chat message; turn execution is not promised.
+Lets a plugin take over how one chat turn opens, based on the message that triggered it; ordering among providers is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `enqueue`
-
-### `Syrus::Host::ChatWorkloadPolicy`
-
-Since: `0.1.16`
-
-Declares the execution workload policy of a chat; routing is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `for_current_setting`
+- `chat_turn_orientation`
 
 ### `Syrus::Host::ChatWorkspaceLifecycle`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ChatWorkspaces`
-
-Since: `0.1.16`
-
-Resolves a chat's repository checkout path and reports its git state; workspace layout beyond the returned paths is not promised.
+Lets an optional plugin provide a durable checkout around a chat turn; the including class answers .applies_to?(chat_session:) and implements #prepare!(chat_session:) and #finalize!(chat_session:); workspace allocation is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `ensure_root!`
-- `rebase_in_progress?`
-- `repo_path_for`
-- `uncommitted_changes?`
+- `applies_to?`
+- `finalize!`
+- `prepare!`
 
 ### `Syrus::Host::CliCommandHandler`
 
@@ -554,48 +596,263 @@ Supported members:
 - `table`
 - `text`
 
-### `Syrus::Host::CodePathNormalizer`
+### `Syrus::Host::CodexAccountScope`
 
 Since: `0.1.16`
 
-Normalizes tool-reported source paths to repository-relative paths. Only the listed members are supported.
+Derives the Codex usage-account scope for a user; the derivation may change between releases. Only the listed members are supported.
 
 Supported members:
 
-- `normalize`
-
-### `Syrus::Host::ColorPalette`
-
-Since: `0.1.16`
-
-Validates accent colors and picks the next unused default agent color; the palette itself is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `HEX_PATTERN`
-- `default_agent_order`
-- `next_default_color`
+- `for_user`
 
 ### `Syrus::Host::CommandRedactor`
 
 Since: `0.1.16`
 
-Redacts secrets from command output and structured values; redaction rules are not promised. Only the listed members are supported.
+Redacts credentials, tokens and secret-looking assignments from text and nested values before they are logged, stored or returned to an agent; the set of patterns it recognizes may grow. Only the listed members are supported.
 
 Supported members:
 
 - `redact`
+- `redact_assignments`
 - `redact_value`
 
-### `Syrus::Host::CoverageParsers`
+### `Syrus::Host::ContentBlob`
 
 Since: `0.1.16`
 
-Parses the shared lcov and Cobertura coverage report formats for the ecosystem coverage contract. Only the listed members are supported.
+File-content value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `bytes`
+- `content_id`
+- `new`
+- `path`
+- `size`
+- `truncated`
+
+### `Syrus::Host::ContentChange`
+
+Since: `0.1.16`
+
+Changed-file value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `additions`
+- `deletions`
+- `new`
+- `patch`
+- `patch_bytes`
+- `patch_status`
+- `path`
+- `previous_path`
+- `status`
+
+### `Syrus::Host::ContentCommit`
+
+Since: `0.1.16`
+
+Commit value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `authored_at`
+- `message`
+- `new`
+- `sha`
+
+### `Syrus::Host::ContentCommitHistory`
+
+Since: `0.1.16`
+
+Commit-range value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `commits`
+- `merge_base_id`
+- `new`
+
+### `Syrus::Host::ContentDivergence`
+
+Since: `0.1.16`
+
+Ahead/behind counts returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `ahead`
+- `behind`
+- `new`
+
+### `Syrus::Host::ContentEntry`
+
+Since: `0.1.16`
+
+Tree-entry value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `content_id`
+- `new`
+- `path`
+- `size`
+- `type`
+
+### `Syrus::Host::ContentError`
+
+Since: `0.1.16`
+
+Base error for repository-content failures; providers raise its subclasses. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentNotFound`
+
+Since: `0.1.16`
+
+A final answer that the requested path does not exist at the revision. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentReader`
+
+Since: `0.1.16`
+
+Resolves the repository-content reader for a repository; the provider chain and cache behind it are not promised, and only the content value and error facades are public beyond it. Only the listed members are supported.
 
 Supported members:
 
 - `for`
+
+### `Syrus::Host::ContentRef`
+
+Since: `0.1.16`
+
+Named ref (tag or branch) value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `name`
+- `new`
+- `observed_at`
+- `revision_id`
+
+### `Syrus::Host::ContentRevision`
+
+Since: `0.1.16`
+
+Immutable repository revision value returned by content providers. Only the listed members are supported.
+
+Supported members:
+
+- `id`
+- `new`
+- `observed_at`
+- `ref`
+
+### `Syrus::Host::ContentSource`
+
+Since: `0.1.16`
+
+Describes where a repository-content provider answered from; cache internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `expires_at`
+- `new`
+- `password`
+- `url`
+- `username`
+- `vcs`
+
+### `Syrus::Host::ContentTooLarge`
+
+Since: `0.1.16`
+
+The requested content exceeds what the provider will return. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentTruncated`
+
+Since: `0.1.16`
+
+Carries a partial answer that only display code may use. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentUnavailable`
+
+Since: `0.1.16`
+
+The provider cannot answer right now; callers fall through to the next provider and must not treat it as missing. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentUnknownRevision`
+
+Since: `0.1.16`
+
+The provider does not know the requested revision; callers fall through to the next provider. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ContentUnsupported`
+
+Since: `0.1.16`
+
+The provider does not support the requested operation; callers fall through to the next provider. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::CoverageParseResult`
+
+Since: `0.1.16`
+
+Carries a parsed coverage report (raw data and line percentage) returned by a coverage analyzer; the report parsers are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `lines_pct`
+- `new`
+- `raw`
+
+### `Syrus::Host::CredentialProbe`
+
+Since: `0.1.16`
+
+Carries the outcome of validating a saved credential (Result) and the probe timeout (TIMEOUT_SECONDS) that agent-provider credential probes share, and validates a saved credential through call; the individual probes are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Result`
+- `TIMEOUT_SECONDS`
+- `call`
 
 ### `Syrus::Host::Current`
 
@@ -608,17 +865,16 @@ Supported members:
 - `api_user`
 - `user`
 
-### `Syrus::Host::DataCleanup`
+### `Syrus::Host::DiffReviewAnnotationProvider`
 
 Since: `0.1.16`
 
-Runs a plugin's data cleanup when it is disabled or removed; scheduling is not promised. Only the listed members are supported.
+Lets a plugin enrich the Job review tab with annotations, panels, actions and counts; normalization of the returned payload is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `register`
+- `review_annotations`
 
-### `Syrus::Host::DeliveryPolicy`
 ### `Syrus::Host::DiffReviewComment`
 
 Since: `0.1.16`
@@ -645,32 +901,23 @@ Supported members:
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Creates direct jobs from an operator prompt; Attachment describes an attached file.
 
 Supported members:
 
-- `for`
-
-### `Syrus::Host::DiffReviewAnnotationProvider`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::DiffReviews`
-
-Since: `0.1.16`
-
-Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.
-
-Supported members:
-
-- `best_match_version`
-- `comments`
-- `final_review_version`
-- `versions`
+- `Attachment`
+- `new`
 
 ### `Syrus::Host::DiskUsage`
+
+Since: `0.1.16`
+
+Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.
+
+Supported members:
+
+- `read`
+
 ### `Syrus::Host::Document`
 
 Since: `0.1.16`
@@ -685,11 +932,11 @@ Supported members:
 
 Since: `0.1.16`
 
-Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.
+Lets a plugin observe domain events by declaring subscriptions; event delivery, ordering and retries are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `read`
+- `subscriptions`
 
 ### `Syrus::Host::EcosystemDependencyAuditPlan`
 
@@ -730,16 +977,76 @@ Supported members:
 - `span_labels`
 - `version_file`
 
-### `Syrus::Host::Epics`
+### `Syrus::Host::Epic`
 
 Since: `0.1.16`
 
-Queries epics and names the archived state; Epic transitions and persistence are not promised.
+Reads and queries epics through find and scoped lookups, plus the closure-reason and archived-state vocabularies; transitions and unlisted associations are not promised.
 
 Supported members:
 
-- `archived_state`
+- `ARCHIVED_STATE`
+- `MERGED_JOB_CLOSURE_REASONS`
+- `SUCCESSFUL_JOB_CLOSURE_REASONS`
+- `accessible_to`
+- `count`
+- `exists?`
+- `find`
+- `find_by`
+- `find_or_create_by!`
+- `maximum`
+- `order`
 - `where`
+
+### `Syrus::Host::EpicFilter`
+
+Since: `0.1.16`
+
+Builds an epic scope from a shared filter tree.
+
+Supported members:
+
+- `from_tree`
+
+### `Syrus::Host::EpicMarkerParser`
+
+Since: `0.1.16`
+
+Parses epic markers from source text.
+
+Supported members:
+
+- `parse`
+
+### `Syrus::Host::EvidenceRedactor`
+
+Since: `0.1.16`
+
+Redacts a nested evidence value (hashes, arrays and strings) before it is surfaced in an MCP tool result. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::ExecutionBackend`
+
+Since: `0.1.16`
+
+Marks a class as an alternate execution backend plugins may provide; request routing and fail-closed policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+
+### `Syrus::Host::ExecutionBackendBase`
+
+Since: `0.1.16`
+
+Bases an alternate execution backend; request routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `run`
 
 ### `Syrus::Host::ExternalReviewArtifact`
 
@@ -823,7 +1130,24 @@ Supported members:
 - `refresh`
 - `submit`
 
-### `Syrus::Host::FeatureFlags`
+### `Syrus::Host::Filters`
+
+Since: `0.1.16`
+
+The shared filter-bar contract. Ast (parse, serialize, EMPTY and the Chip, AndNode, OrNode, NotNode node types) is the filter tree wire format; QueryParam (decode, encode, PARAM_NAME) reads and writes it as the `q` request parameter; Compiler.call(ast, scope:, user:, subject:) compiles a tree onto a relation for a registered subject; Schema (for, chip_for, humanize_value) describes a subject's chips to the filter bar; Registry (exists?) answers whether a subject has a chip; SmartFolderResolution (call, PRESET_FIELD) resolves the effective filter for a request; UnknownFilterField is raised for an unsupported field; BaseFilter is the mixin for plugin filter classes (capped_count); Chips holds the chip base classes (Base, BooleanColumn, DateColumn, EnumColumn, FkColumn, FullTextStringColumn, NumberColumn, StringColumn, Jobs::JobType) a plugin subclasses to declare chips that it registers through its filter_chips surface. The built-in chip classes, registry storage and compiler internals are not promised.
+
+Supported members:
+
+- `Ast`
+- `BaseFilter`
+- `Chips`
+- `Compiler`
+- `QueryParam`
+- `Registry`
+- `Schema`
+- `SmartFolderResolution`
+- `UnknownFilterField`
+
 ### `Syrus::Host::FinalReviewVersion`
 
 Since: `0.1.16`
@@ -834,33 +1158,52 @@ Supported members:
 
 - `resolve`
 
+### `Syrus::Host::FtsQueryParser`
+
+Since: `0.1.16`
+
+Model concern that turns a user query into a full-text search expression for a search record; parsing rules are not promised.
+
+Supported members:
+
+- `parse_fts_query`
+
 ### `Syrus::Host::GateResult`
 
 Since: `0.1.16`
 
-Reads an instance feature flag by name; flag storage and defaults are not promised.
+Value a plugin gate returns to let a start proceed or to hold it, with an optional reason, retry time and details; the scheduling that consumes it is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `enabled?`
+- `block`
+- `blocked?`
+- `details`
+- `pass`
+- `pass?`
+- `reason`
+- `retry_at`
 
-### `Syrus::Host::FeedbackKind`
+### `Syrus::Host::GatedToolSet`
 
 Since: `0.1.16`
 
-Resolves the feedback object for a workflow; its review_text feeds review prompts. Only the listed members are supported.
+Bases tool sets exposed only when agentic access is enabled; gating internals are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `for`
+- `available_for?`
+- `available_for_context?`
+- `available_for_coworker?`
+- `coworker_discovery_state`
+- `coworker_grant`
+- `coworker_grants`
+- `find_tool_class`
+- `gated?`
+- `gated_by`
+- `tool_classes`
+- `tool_definitions`
 
-### `Syrus::Host::FilterChipBase`
-
-Since: `0.1.16`
-
-Bases plugin filter chips in the shared filter bar; chip rendering is not promised. Only the listed members are supported.
-
-### `Syrus::Host::FilterQueryParam`
 ### `Syrus::Host::GitMergeDrivers`
 
 Since: `0.1.16`
@@ -875,13 +1218,15 @@ Supported members:
 
 Since: `0.1.16`
 
-Parses the shared filter query parameter; the grammar is not promised. Only the listed members are supported.
+Runs git inside a workflow workspace and reports failures as GitError; command construction and logging are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `decode`
+- `GitError`
+- `new`
+- `redact`
+- `run`
 
-### `Syrus::Host::GitMergeDrivers`
 ### `Syrus::Host::GithubApiUsageRollup`
 
 Since: `0.1.16`
@@ -969,87 +1314,88 @@ Supported members:
 
 Since: `0.1.16`
 
-Installs the repository merge drivers a plugin workspace needs; driver contents are not promised. Only the listed members are supported.
+Names how a grader reruns against the base branch (strategy and optional command); retry orchestration is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `register!`
-
-### `Syrus::Host::GitRunner`
-
-Since: `0.1.16`
-
-Runs git commands in a plugin workspace and raises GitError; command construction and credentials are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `GitError`
+- `command`
 - `new`
-- `redact`
+- `strategy`
 
-### `Syrus::Host::GithubAuthenticatedGit`
+### `Syrus::Host::GraderDefaults`
 
 Since: `0.1.16`
 
-Runs git with GitHub credentials for a repository owner; credential handling is not promised. Only the listed members are supported.
+Supplies the default grading phases and the grader timeout ceiling that ecosystem grader types share; the values may change between releases. Only the listed members are supported.
 
 Supported members:
 
+- `default_phases`
+- `max_timeout_minutes`
+
+### `Syrus::Host::GraderExecutionCapabilities`
+
+Since: `0.1.16`
+
+Normalizes the execution capabilities (os, arch, toolchain, runtime) a grader target requires; worker routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `to_h`
+
+### `Syrus::Host::GraderFailureSummarizer`
+
+Since: `0.1.16`
+
+Lets a plugin summarize a failed grader step; summary storage and when the summarizer is asked are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `summarize_grader_failure`
+
+### `Syrus::Host::GraderResourceRequest`
+
+Since: `0.1.16`
+
+Declares the CPU and memory a grader can productively use; grant resolution against the host is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ALL`
+- `cpu`
+- `cpu_min`
+- `empty?`
+- `memory_bytes`
+- `new`
+- `parse`
+
+### `Syrus::Host::GraderStep`
+
+Since: `0.1.16`
+
+Describes one grader step an ecosystem grader-type provider returns; configuration parsing and plan expansion are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `base_retry`
+- `capabilities`
+- `ci`
+- `deps`
+- `description`
+- `display_name`
+- `failures`
+- `junit_output`
+- `metadata`
+- `name`
+- `new`
+- `phases`
+- `required`
+- `resources`
 - `run`
+- `timeout_minutes`
+- `when_files_changed`
 
-### `Syrus::Host::GithubContentTrust`
-
-Since: `0.1.16`
-
-Shares the GitHub-content prompt trust boundary. Only the listed members are supported.
-
-### `Syrus::Host::GithubPollingRateLimitGuard`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::GraderConclusion`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::GraderFailureSignal`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `timeout_like_step?`
-- `timeout_only_latest_failure?`
-
-### `Syrus::Host::GraderLoopProgressNoProgressReason`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::GraderLoopProgressStopArtifactKey`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::GraderOutcome`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `CANCELLED`
-- `for_step`
-
-### `Syrus::Host::Handles`
 ### `Syrus::Host::Handle`
 
 Since: `0.1.16`
@@ -1067,36 +1413,20 @@ Supported members:
 
 Since: `0.1.16`
 
-Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised.
+Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `FORMAT`
 - `claim!`
 - `normalize`
 - `release!`
 - `rename!`
-- `taken?`
 
-### `Syrus::Host::InstanceIdentity`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `for_repository`
-
-### `Syrus::Host::InstanceWorkers`
+### `Syrus::Host::InputSource`
 
 Since: `0.1.16`
 
-Reports the worker processes the instance has recently heard from; version bookkeeping is not promised.
-
-Supported members:
-
-- `fresh`
+Defines the input-source contract plugins implement to ingest external work items; polling orchestration is not promised. Only the listed members are supported.
 
 ### `Syrus::Host::InputSourceBase`
 
@@ -1112,7 +1442,7 @@ Supported members:
 
 Since: `0.1.16`
 
-Creates an investigation job from a plugin trigger; deduplication details are not promised. Only the listed members are supported.
+Creates an investigation job.
 
 Supported members:
 
@@ -1159,162 +1489,214 @@ Supported members:
 - `visible_to`
 - `workflows`
 
+### `Syrus::Host::JobApproval`
+
+Since: `0.1.16`
+
+Queries job approval records.
+
+Supported members:
+
+- `joins`
+- `where`
+
+### `Syrus::Host::JobDefinitionUpdater`
+
+Since: `0.1.16`
+
+Updates a job's definition; Immutable is the error raised for locked definitions.
+
+Supported members:
+
+- `Immutable`
+- `new`
+
 ### `Syrus::Host::JobDiscussionChatResolver`
 
 Since: `0.1.16`
 
-Finds or starts the discussion chat of a job; chat creation details are not promised. Only the listed members are supported.
+Finds the chat session that discusses a job for a user.
 
 Supported members:
 
 - `new`
+- `resolve`
 
-### `Syrus::Host::JobMainBranchRepairTitle`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::JobMainGraderClosureReason`
+### `Syrus::Host::JobFilter`
 
 Since: `0.1.16`
 
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::JobPriorityToSq`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Builds a job scope from a shared filter tree.
 
 Supported members:
 
-- `fetch`
+- `from_tree`
 
-### `Syrus::Host::JobSystemKindMainBranchRepair`
+### `Syrus::Host::JobLog`
 
 Since: `0.1.16`
 
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+Appends to and queries run transcript chunks.
+
+Supported members:
+
+- `append!`
+- `where`
+
+### `Syrus::Host::JobOrigin`
+
+Since: `0.1.16`
+
+Describes where a Job originated (label, url, icon, synthetic issue, auto-approve mode); origin resolution and storage are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `auto_approve_mode`
+- `icon`
+- `label`
+- `origin_key`
+- `synthetic_issue`
+- `url`
+
+### `Syrus::Host::JobPin`
+
+Since: `0.1.16`
+
+Queries a user's pinned jobs.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::JobRecord`
+
+Since: `0.1.16`
+
+Reads and queries jobs through identity, state, ownership, and visibility-scoped lookups, plus the Kind, Origin, ProviderSetting and TERMINAL_STATES vocabularies; transitions, callbacks, and unlisted associations are not promised.
+
+Supported members:
+
+- `Kind`
+- `Origin`
+- `ProviderSetting`
+- `TERMINAL_STATES`
+- `accessible_to`
+- `all`
+- `approval_blocking_job_ids`
+- `count`
+- `create!`
+- `effectively_owned_by`
+- `exists?`
+- `find`
+- `find_by`
+- `initial_state_for_creator`
+- `maximum`
+- `new`
+- `none`
+- `open_threads`
+- `order`
+- `priority_rank`
+- `sanitize_sql_like`
+- `select`
+- `transaction`
+- `visible_to`
+- `where`
+
+### `Syrus::Host::JobStateSerializer`
+
+Since: `0.1.16`
+
+Builds the per-record degraded error entry used when one row of a list payload fails to serialize; other serializer methods are not promised.
+
+Supported members:
+
+- `per_record_error`
 
 ### `Syrus::Host::JobVisibilityRestriction`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::Jobs`
-
-Since: `0.1.16`
-
-Queries Jobs by visibility, state, and ranking and creates them; every method returns a relation or plain value, and Job transitions, persistence, and callbacks are not promised.
+Restricts which Jobs of one origin a user may see; how the host combines the returned origin ids with repository visibility is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `all`
-- `approval_blocking_job_ids`
-- `create!`
-- `find`
-- `find_by`
-- `none`
-- `open_threads`
-- `priority_rank`
-- `terminal_states`
-- `transaction`
-- `user_facing_kinds`
-- `visible_to`
+- `origin_key`
+- `visible_origin_ids`
+
+### `Syrus::Host::JunitXmlParser`
+
+Since: `0.1.16`
+
+Parses JUnit XML test reports; ParseError is raised on malformed input.
+
+Supported members:
+
+- `ParseError`
+- `parse`
+
+### `Syrus::Host::LandedCommit`
+
+Since: `0.1.16`
+
+Queries landed-commit records.
+
+Supported members:
+
 - `where`
 
-### `Syrus::Host::LandingQueueProcessor`
+### `Syrus::Host::LandingFailureHandler`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Classifies landing failures.
 
 Supported members:
 
-- `try_land!`
+- `stale_merge_train_base?`
 
-### `Syrus::Host::LandingValidationManifest`
+### `Syrus::Host::LocalExecution`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+The default local execution backend an alternate backend may delegate to. Only the listed members are supported.
 
 Supported members:
 
-- `manifest_for_landed_sha`
-- `record_main_parity!`
-
-### `Syrus::Host::McpAuthorizationSupport`
-
-Since: `0.1.16`
-
-Raises AuthorizationError and creates pending coworker approvals for plugin tool calls; permission evaluation is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `AuthorizationError`
-- `pending_coworker_approval`
-- `pending_coworker_plugin_approval`
-- `with_server_context`
-
-### `Syrus::Host::McpEvidenceRedactor`
-
-Since: `0.1.16`
-
-Redacts secrets from evidence values returned by plugin MCP tools; redaction rules are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `call`
+- `new`
+- `run`
 
 ### `Syrus::Host::McpPagination`
 
 Since: `0.1.16`
 
-Normalizes the page parameter of paginated plugin MCP tools; page sizing is not promised. Only the listed members are supported.
+Normalizes a requested page number for paginated MCP tool results into the supported range. Only the listed members are supported.
 
 Supported members:
 
 - `normalize_page`
 
-### `Syrus::Host::McpPendingActionToolSupport`
-
-Since: `0.1.16`
-
-Extends plugin MCP tools that queue pending actions; the helper methods are not promised. Only the listed members are supported.
-
-### `Syrus::Host::McpProposalToolSupport`
-
-Since: `0.1.16`
-
-Extends plugin MCP tools that file proposals; the helper methods are not promised. Only the listed members are supported.
-
 ### `Syrus::Host::McpRunContextContributor`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::McpToolRegistry`
-
-Since: `0.1.16`
-
-Looks up registered MCP tools, their descriptors, and coworker grants; registration is not promised. Only the listed members are supported.
+Adds plugin-owned authorization attributes to workflow MCP runs; the receiving context's construction is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `coworker_grants`
-- `entries`
-- `entry_for`
-- `tool_name_for`
+- `context_attributes`
 
 ### `Syrus::Host::McpToolSet`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+Marks a class as a workflow MCP tool set a plugin may contribute; the tool-set implementation must define .tool_definitions, .available_for? and #handle, and may define .available_for_context?; registration, gating and dispatch are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `available_for_context?`
+- `handle`
+- `tool_definitions`
 
 ### `Syrus::Host::McpTools`
 
@@ -1328,38 +1710,51 @@ Supported members:
 - `not_authorized`
 - `run_from_context`
 - `success`
+- `truncate_text`
 - `unauthorized`
 - `utf8`
 - `with_database_connection`
 - `write_log`
 
-### `Syrus::Host::Memory`
+### `Syrus::Host::MergeTrain`
 
 Since: `0.1.16`
 
-Reads agent-memory availability and the memories selected for a review; memory storage and ranking are not promised. Only the listed members are supported.
+Queries merge trains.
 
 Supported members:
 
-- `available?`
-- `selected_review_memories`
+- `where`
 
-### `Syrus::Host::Mentionable`
-
-Since: `0.1.16`
-
-Marks a plugin model as an @-mentionable chat target; mention storage is not promised. Only the listed members are supported.
-
-### `Syrus::Host::MentionablesResolver`
+### `Syrus::Host::MergeTrainDispatcher`
 
 Since: `0.1.16`
 
-Finds a mentionable by kind and id and resolves the mentions in a message; resolution order is not promised. Only the listed members are supported.
+Exposes the RETRY_COOLDOWN used for landing retries.
 
 Supported members:
 
-- `find`
-- `resolve`
+- `RETRY_COOLDOWN`
+
+### `Syrus::Host::MergeTrainLandStep`
+
+Since: `0.1.16`
+
+Merge-train landing step handler, exposing only the STALE_BASE_ARTIFACT key.
+
+Supported members:
+
+- `STALE_BASE_ARTIFACT`
+
+### `Syrus::Host::MergeTrainMember`
+
+Since: `0.1.16`
+
+Queries merge-train members.
+
+Supported members:
+
+- `where`
 
 ### `Syrus::Host::Metrics`
 
@@ -1372,17 +1767,18 @@ Supported members:
 - `counter`
 - `gauge`
 - `histogram`
-- `registry`
 
-### `Syrus::Host::NotificationService`
+### `Syrus::Host::OperationalLogSearch`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Searches the operational log index and supplies the matching MCP tool input schema; indexing and retention are not promised.
 
 Supported members:
 
-- `create_for`
+- `INPUT_SCHEMA_PROPERTIES`
+- `disabled_response`
+- `search_response`
 
 ### `Syrus::Host::OperationalLogging`
 
@@ -1394,34 +1790,52 @@ Supported members:
 
 - `ingest`
 
+### `Syrus::Host::OperationalLogsPayload`
+
+Since: `0.1.16`
+
+Builds the operational log browsing payload for an admin request; payload members are not promised beyond as_json.
+
+Supported members:
+
+- `as_json`
+- `new`
+
 ### `Syrus::Host::Paginatable`
 
 Since: `0.1.16`
 
-Adds page-parameter handling to plugin API controllers; page sizing is not promised. Only the listed members are supported.
+Controller concern that adds the shared page and per_page parameter handling; the including controller defines PER_PAGE as the default page size. Only the listed helpers are promised.
+
+Supported members:
+
+- `page_param`
+- `per_page_param`
 
 ### `Syrus::Host::PathJail`
 
 Since: `0.1.16`
 
-Confines file paths to a root and raises PathEscape; resolution details are not promised. Only the listed members are supported.
+Resolves a relative path beneath a root directory and refuses anything that escapes it. Only the listed members are supported.
 
 Supported members:
 
-- `PathEscape`
 - `resolve!`
 
-### `Syrus::Host::PendingActionAuthorizedToolCall`
+### `Syrus::Host::PathJailEscape`
 
 Since: `0.1.16`
 
-Bases pending actions that replay an authorized tool call; replay internals are not promised. Only the listed members are supported.
+Raised when a path resolves outside its root; carries the reason, relative path and root. Only the listed members are supported.
 
 Supported members:
 
+- `message`
 - `new`
+- `reason`
+- `relative_path`
+- `root`
 
-### `Syrus::Host::PendingActionBase`
 ### `Syrus::Host::PendingWorkWakeup`
 
 Since: `0.1.16`
@@ -1436,67 +1850,98 @@ Supported members:
 
 Since: `0.1.16`
 
-Bases plugin pending-action handlers confirmed by an operator; queueing is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `new`
-
-### `Syrus::Host::PendingActionPermissionManagement`
-
-Since: `0.1.16`
-
-Bases pending actions that change durable permissions; permission storage is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `new`
-
-### `Syrus::Host::PerformanceLogging`
-
-Since: `0.1.16`
-
 Times named plugin phases; event storage and thresholds are not promised. Only the listed members are supported.
 
 Supported members:
 
 - `phase`
+- `report_duration`
 
-### `Syrus::Host::PermissionAuthorizationDecision`
+### `Syrus::Host::PermissionProvider`
 
 Since: `0.1.16`
 
-Bases plugin authorization decisions returned by the permission engine; persistence is not promised. Only the listed members are supported.
+Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `migrate_permission_scope`
+- `register_authorization_adapter`
+- `register_capability`
+- `register_permission_preset`
+- `register_resource_scope`
+- `retire_permission_identifier`
+
+### `Syrus::Host::PlatformConfigBase`
+
+Since: `0.1.16`
+
+Bases the per-platform configuration class a chat-platform plugin defines; only subclassing is promised. Only the listed members are supported.
 
 Supported members:
 
 - `new`
 
-### `Syrus::Host::PermissionAuthorizationRequest`
+### `Syrus::Host::PlatformDelivery`
 
 Since: `0.1.16`
 
-Bases plugin authorization requests evaluated by the permission engine; evaluation is not promised. Only the listed members are supported.
+Defines outbound chat-platform delivery plugins may provide; routing and retry policy are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `new`
+- `connector_job_class`
+- `deliver`
+- `platform_config_class`
+- `platform_key`
 
-### `Syrus::Host::PermissionCapabilityAdapter`
+### `Syrus::Host::PlatformIdentityRecord`
 
 Since: `0.1.16`
 
-Builds capability descriptors from plugin tool definitions, registry entries, and coworker-parity entries; the descriptor schema beyond essential? is not promised. Only the listed members are supported.
+Finds or creates the identity a chat-platform user maps to; columns and linking policy beyond find_or_initialize_by are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `for_coworker_parity`
-- `for_plugin_definition`
-- `for_registry_entry`
-- `normalize_arguments`
-- `redact_arguments`
+- `find_or_initialize_by`
 
-### `Syrus::Host::PermissionCapabilityDescriptor`
+### `Syrus::Host::PluginApi`
+
+Since: `0.1.16`
+
+Declares and installs plugin manifests; Definition internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `enabled?`
+- `register!`
+- `syrus_plugin`
+- `syrus_plugin_definition`
+
+### `Syrus::Host::PluginInvocation`
+
+Since: `0.1.16`
+
+Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::PluginRegistry`
+
+Since: `0.1.16`
+
+Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `capability_providers`
+- `extension_point?`
+- `providers_for`
+- `providers_with_owner_for`
+- `register`
+
 ### `Syrus::Host::PolicyBase`
 
 Since: `0.1.16`
@@ -1512,15 +1957,14 @@ Supported members:
 
 Since: `0.1.16`
 
-Describes one permission capability's policy defaults and authority durations; descriptor construction and storage are not promised. Only the listed members are supported.
+Lets a plugin request a best-effort agentic pass after an implementation workflow produced its final diff; the host step that runs it is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `AUTHORITY_DURATIONS`
-- `POLICIES`
-- `new`
+- `prompt_sections`
+- `required_mcp_tools`
+- `review_needed?`
 
-### `Syrus::Host::PermissionCapabilityPresentation`
 ### `Syrus::Host::PrReviewComment`
 
 Since: `0.1.16`
@@ -1537,70 +1981,168 @@ Supported members:
 
 Since: `0.1.16`
 
-Looks up the user-facing presentation of a capability operation; wording is not promised. Only the listed members are supported.
+Lets a plugin declare which preview panels must be retained; the retention sweep itself is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `for`
+- `retained_preview_panel?`
 
-### `Syrus::Host::PermissionCapabilityRegistryValidator`
+### `Syrus::Host::ProcessRunner`
 
 Since: `0.1.16`
 
-Lists the application's registered capabilities; validation rules are not promised. Only the listed members are supported.
+Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `for_application`
+- `agent_mounts`
+- `capture`
+- `forwarded_env`
+- `mounts`
+- `new`
+- `probe_mounts`
+- `run`
+- `start`
 
-### `Syrus::Host::PermissionCatalog`
+### `Syrus::Host::ProviderAuthFailure`
 
 Since: `0.1.16`
 
-Looks up a capability and operation in the permission catalog and raises UnknownCapability when absent; catalog contents are not promised. Only the listed members are supported.
+Detects provider authentication failures in output text and names the OUTCOME a run records for one; the detection patterns may grow. Provider outcome classes are promised together. Only the listed members are supported.
 
 Supported members:
 
-- `UnknownCapability`
-- `find!`
+- `OUTCOME`
+- `detect?`
 
-### `Syrus::Host::PermissionCoworkerDefaultPolicy`
+### `Syrus::Host::ProviderAvailability`
 
 Since: `0.1.16`
 
-Applies the default policy for coworker roles to capability descriptors; the rule table is not promised. Only the listed members are supported.
+Clears the cached availability of an agent provider for a user so the next check re-probes it; other availability queries are not promised.
 
 Supported members:
 
-- `ROLES`
-- `descriptor_auto_allowable?`
-- `grant_policy_for`
-- `requestable?`
-- `validate!`
-- `verdict`
-- `violations`
+- `clear_cache!`
 
-### `Syrus::Host::PermissionLeases`
+### `Syrus::Host::ProviderAvailabilityEvidence`
 
 Since: `0.1.16`
 
-Queries permission leases; issuance and expiry are not promised.
+Records and queries per-user provider availability evidence from credential and usage probes; columns and suppression rules beyond the listed members are not promised. Only the listed members are supported.
 
 Supported members:
 
+- `create!`
+- `false_positive_codex_usage_limit?`
+- `record_claude_probe!`
+- `record_codex_probe!`
+- `sanitized_details`
+- `suppressed_by_positive_after?`
 - `where`
 
-### `Syrus::Host::PermissionManagement`
+### `Syrus::Host::ProviderModelUnsupported`
 
 Since: `0.1.16`
 
-Reads and manages one user's durable permissions; storage and authorization checks are not promised. Only the listed members are supported.
+Detects a provider rejecting the requested model and names the OUTCOME a run records for it; the detection patterns may grow. Only the listed members are supported.
 
 Supported members:
 
+- `OUTCOME`
+- `detect?`
+
+### `Syrus::Host::ProviderQuotaReset`
+
+Since: `0.1.16`
+
+Carries the RETRY_BUFFER added to a provider's reported quota reset time before retrying. Only the listed members are supported.
+
+Supported members:
+
+- `RETRY_BUFFER`
+
+### `Syrus::Host::ProviderRateLimitEvidence`
+
+Since: `0.1.16`
+
+Recognizes rate-limit wording in probe output; the patterns may grow. Only the listed members are supported.
+
+Supported members:
+
+- `text_match?`
+
+### `Syrus::Host::ProviderSession`
+
+Since: `0.1.16`
+
+Locates a provider's on-disk session transcripts (canonical_path_for, canonical_subagents_dir_for) and its recorded session rows (find_by); file layout beyond those paths is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `canonical_path_for`
+- `canonical_subagents_dir_for`
+- `find_by`
+
+### `Syrus::Host::ProviderUsageLimit`
+
+Since: `0.1.16`
+
+Detects provider usage-limit failures in output text, names the OUTCOME a run records for one, and flags suspicious model names; the detection patterns may grow. Only the listed members are supported.
+
+Supported members:
+
+- `OUTCOME`
+- `detect?`
+- `suspicious_model?`
+
+### `Syrus::Host::PurgeContributor`
+
+Since: `0.1.16`
+
+Lets a plugin remove its own external resources when it is purged; purge ordering is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `purge!`
+- `purge_report`
+
+### `Syrus::Host::RebaseAttemptGuard`
+
+Since: `0.1.16`
+
+Counts consecutive failed rebase attempts for a job (consecutive_failures) and names the MEMORY_WRITE_RETRY_STORM_THRESHOLD at which memory writes are held back; the rest of the rebase retry policy is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `MEMORY_WRITE_RETRY_STORM_THRESHOLD`
+- `consecutive_failures`
+
+### `Syrus::Host::Record`
+
+Since: `0.1.16`
+
+Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `belongs_to`
+- `connection`
+- `has_many`
+- `sanitize_sql_like`
+- `transaction`
+
+### `Syrus::Host::RepairIneligible`
+
+Since: `0.1.16`
+
+Raised when a repair is not eligible for the target.
+
+Supported members:
+
+- `message`
 - `new`
 
-### `Syrus::Host::PermissionPolicies`
 ### `Syrus::Host::RepoDefaultBranchSyrusYml`
 
 Since: `0.1.16`
@@ -1626,28 +2168,30 @@ Supported members:
 
 Since: `0.1.16`
 
-Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.
+Marks a provider of repository-page tabs computed per repository and user; SPA routing and navigation are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `rank`
+- `repo_page_tabs`
 
-### `Syrus::Host::PermissionProvider`
+### `Syrus::Host::Repository`
 
 Since: `0.1.16`
 
-Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported.
+Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised.
 
 Supported members:
 
-- `migrate_permission_scope`
-- `register_authorization_adapter`
-- `register_capability`
-- `register_permission_preset`
-- `register_resource_scope`
-- `retire_permission_identifier`
+- `accessible_to`
+- `active`
+- `archived_at`
+- `find`
+- `id`
+- `jobs`
+- `name`
+- `owner`
+- `writable_by`
 
-### `Syrus::Host::PermissionRequest`
 ### `Syrus::Host::RepositoryBareClone`
 
 Since: `0.1.16`
@@ -1662,45 +2206,49 @@ Supported members:
 
 Since: `0.1.16`
 
-Bases plugin permission requests carried through pending actions; routing is not promised. Only the listed members are supported.
+Defines one namespaced .syrus.yml contribution a plugin owns; parsing, storage and project resolution are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `new`
+- `affected_project?`
+- `legacy_keys`
+- `overlay`
 
-### `Syrus::Host::PermissionRules`
+### `Syrus::Host::RepositoryContentProvider`
 
 Since: `0.1.16`
 
-Queries durable permission rules and groups changes in a transaction; evaluation and audit behavior are not promised.
+Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `active`
-- `create!`
-- `transaction`
-- `where`
+- `available_for?`
+- `build`
+- `changes`
+- `children`
+- `commits`
+- `display_name`
+- `divergence`
+- `history`
+- `provider_key`
+- `read`
+- `refs`
+- `relation`
+- `resolve`
+- `role`
+- `tree`
+- `tree_sha`
 
-### `Syrus::Host::PluginApi`
+### `Syrus::Host::RepositoryFilter`
 
 Since: `0.1.16`
 
-Declares and installs plugin manifests; Definition internals are not promised. Only the listed members are supported.
+Narrows repository relations on general discovery surfaces; direct repository access and authorization are separate and not promised here. Only the listed members are supported.
 
 Supported members:
 
-- `enabled?`
-- `register!`
-- `syrus_plugin`
-- `syrus_plugin_definition`
+- `apply`
 
-### `Syrus::Host::PluginDataCleanup`
-
-Since: `0.1.16`
-
-Marks a plugin-owned model for cleanup when its plugin is removed; cleanup ordering is not promised. Only the listed members are supported.
-
-### `Syrus::Host::PluginDispatch`
 ### `Syrus::Host::RepositoryMembershipRecord`
 
 Since: `0.1.16`
@@ -1726,13 +2274,12 @@ Supported members:
 
 Since: `0.1.16`
 
-Asks ecosystem capability providers a question and composes their answers. Only the listed members are supported.
+Lets a plugin recommend plugins or settings for a repository; recommendation ranking and presentation are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `call`
+- `repository_recommendations`
 
-### `Syrus::Host::PluginInvocation`
 ### `Syrus::Host::RepositoryRecord`
 
 Since: `0.1.16`
@@ -1771,57 +2318,62 @@ Supported members:
 
 Since: `0.1.16`
 
-Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported.
+Lets a plugin contribute retention definitions for the tables it owns; the retention registry and pruner are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `retention_definitions`
+
+### `Syrus::Host::ReviewContextContributor`
+
+Since: `0.1.16`
+
+Supplies restricted context and post-verdict persistence for an opaque reviewer target; the review lifecycle is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `operator_links`
+- `retention`
+- `tombstone`
+- `tool_capability`
+- `tool_set`
+
+### `Syrus::Host::ReviewGate`
+
+Since: `0.1.16`
+
+Contributes a review loop to a host workflow; the host owns ordering and loop mechanics. Only the listed members are supported.
+
+Supported members:
+
+- `SLOTS`
+- `job_detail_fields`
+- `review_gates`
+
+### `Syrus::Host::ReviewNoteProjects`
+
+Since: `0.1.16`
+
+Decides which projects a review note covers for a job; policy details are not promised.
 
 Supported members:
 
 - `call`
 
-### `Syrus::Host::PluginJob`
+### `Syrus::Host::ReviewPresentationContributor`
 
 Since: `0.1.16`
 
-Bases plugin-owned background jobs with a per-plugin queue, concurrency lease, and retry policy; DEFAULT_ATTEMPTS is the retry budget. Queue topology and health bookkeeping are not promised. Only the listed members are supported.
+Contributes metadata-only UI and audit renderers for review targets; frontend loading is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `DEFAULT_ATTEMPTS`
-- `plugin_queue_concurrency`
-- `plugin_slug`
+- `audit_renderers`
+- `evidence_renderers`
+- `settings_summaries`
+- `target_editors`
+- `translation_namespaces`
 
-### `Syrus::Host::PluginRecords`
-
-Since: `0.1.16`
-
-Finds or creates one plugin's persisted settings record by name; columns beyond those the plugin declares are not promised.
-
-Supported members:
-
-- `ensure!`
-- `find_by_name`
-
-### `Syrus::Host::PluginRegistry`
-
-Since: `0.1.16`
-
-Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `capability_providers`
-- `extension_point?`
-- `providers_for`
-- `providers_with_owner_for`
-- `register`
-- `register_direct`
-
-### `Syrus::Host::PostImplementationReviewProvider`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::PreviewPreparation`
 ### `Syrus::Host::ReviewVerdictSubmission`
 
 Since: `0.1.16`
@@ -1836,365 +2388,48 @@ Supported members:
 
 Since: `0.1.16`
 
-Prepares a preview for visual review. Only the listed members are supported.
+Defines the reviewer-target type a plugin owns: its options, resolution, availability, uniqueness and audit snapshot; target persistence is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `call`
-- `new`
-
-### `Syrus::Host::ProcessRunner`
-
-Since: `0.1.16`
-
-Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `capture`
-- `forwarded_env`
-- `mounts`
-- `new`
-- `run`
-- `start`
-
-### `Syrus::Host::PromptsAdversarialReview`
-
-Since: `0.1.16`
-
-Bases plugin review prompts that reuse the adversarial-review prompt; overridable hooks beyond new are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `new`
-
-### `Syrus::Host::PromptsGradeFailureFeedback`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `new`
-
-### `Syrus::Host::PromptsMemoryContext`
-
-Since: `0.1.16`
-
-Renders the agent-memory prompt context for a user and repositories; ranking and prompt wording are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `new`
-- `to_s`
-
-### `Syrus::Host::ProviderContentRefusals`
-
-Since: `0.1.16`
-
-Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.
-
-Supported members:
-
-- `detect?`
-- `outcome`
-
-### `Syrus::Host::RebaseTarget`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `artifacts`
-
-### `Syrus::Host::RebaseWorkflowSelector`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `active_for_stack?`
-- `active_merge_train_for_stack?`
-- `instantiate`
-
-### `Syrus::Host::Record`
-
-Since: `0.1.16`
-
-Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `belongs_to`
-- `has_many`
-
-### `Syrus::Host::RepairClassifier`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::RepoDefaultBranchSyrusYml`
-
-Since: `0.1.16`
-
-Reads .syrus.yml from a repository's default branch; fetching and caching are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `for_job`
-
-### `Syrus::Host::Repositories`
-
-Since: `0.1.16`
-
-Queries repositories by access and archival state and creates them; credentials, synchronization, and persistence are not promised.
-
-Supported members:
-
-- `accessible_repository_ids_for`
-- `accessible_to`
-- `active`
-- `arel_table`
-- `build`
-- `create!`
-- `find`
-- `find_by`
-- `find_by!`
-- `where`
-- `writable_by`
-
-### `Syrus::Host::Repository`
-
-Since: `0.1.16`
-
-Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised.
-
-Supported members:
-
-- `accessible_to`
-- `active`
-- `archived_at`
-- `find`
-- `id`
-- `jobs`
-- `name`
-- `owner`
-- `writable_by`
-
-### `Syrus::Host::RepositoryAccess`
-
-Since: `0.1.16`
-
-Answers whether a user may write to a repository; policy evaluation details are not promised.
-
-Supported members:
-
-- `write?`
-
-### `Syrus::Host::RepositoryConfiguration`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::RepositoryContent`
-
-Since: `0.1.16`
-
-Reads repository files at an immutable revision and raises its NotFound, Unavailable, UnknownRevision, Unsupported, Truncated, and Error outcomes; provider selection is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `Error`
-- `NotFound`
-- `Truncated`
-- `Unavailable`
-- `UnknownRevision`
-- `Unsupported`
-- `for`
-
-### `Syrus::Host::RepositoryContentProvider`
-
-Since: `0.1.16`
-
-Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `available_for?`
-- `build`
-- `changes`
-- `children`
-- `commits`
-- `display_name`
-- `divergence`
-- `history`
-- `provider_key`
-- `read`
-- `refs`
-- `relation`
+- `audit_snapshot`
+- `available?`
+- `options`
 - `resolve`
-- `role`
-- `tree`
-- `tree_sha`
+- `target_type`
+- `uniqueness_key`
 
-### `Syrus::Host::RepositoryFilter`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::RepositoryGlob`
+### `Syrus::Host::ReviewerTargetRequired`
 
 Since: `0.1.16`
 
-Matches repository paths against configured globs. Only the listed members are supported.
+Raised when a review requires a reviewer target and none was pinned. Only the listed members are supported.
 
 Supported members:
 
-- `match?`
-
-### `Syrus::Host::RetainedGraderCoverageOutputs`
-
-Since: `0.1.16`
-
-Reads the coverage files graders declared and the Run retained. Only the listed members are supported.
-
-Supported members:
-
-- `for`
-
-### `Syrus::Host::RetentionDefinition`
-
-Since: `0.1.16`
-
-Declares one retention policy (key, model, age column, setting, default, executor); registry storage is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `key`
-- `model_class`
-- `new`
-- `retention_window`
-- `scope_name`
-
-### `Syrus::Host::RetentionExecutor`
-
-Since: `0.1.16`
-
-Bases plugin retention executors that prune one declared policy; batching, scheduling, and archival are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `call`
+- `message`
 - `new`
 
-### `Syrus::Host::RetentionLimits`
+### `Syrus::Host::ReviewerTargetResolver`
 
 Since: `0.1.16`
 
-Names the default batch limits for retention executors; scheduling is not promised.
+Resolves a reviewer-target reference through the enabled providers; provider selection and failure containment are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `default_batch_size`
-- `default_max_batches`
-
-### `Syrus::Host::RetentionPolicy`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::RetentionResult`
-
-Since: `0.1.16`
-
-Reports how many records an executor deleted and whether a backlog remains. Only the listed members are supported.
-
-Supported members:
-
-- `backlog`
-- `deleted_count`
-- `new`
-
-### `Syrus::Host::RetryWorkflowEnqueuer`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `call`
-
-### `Syrus::Host::ReviewContextContributor`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ReviewExecutionPolicy`
-
-Since: `0.1.16`
-
-Shares review-step skip and failure policy. Only the listed members are supported.
-
-### `Syrus::Host::ReviewFindingEvents`
-
-Since: `0.1.16`
-
-Records structured review findings. Only the listed members are supported.
-
-Supported members:
-
-- `record`
-
-### `Syrus::Host::ReviewGate`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ReviewNoteProjects`
-
-Since: `0.1.16`
-
-Resolves the Review Notes project policy of a workspace; the policy shape is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `call`
-
-### `Syrus::Host::ReviewPresentationContributor`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ReviewerTargetProvider`
-
-Since: `0.1.16`
-
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::ReviewerTargets`
-
-Since: `0.1.16`
-
-Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised. Only the listed members are supported.
-
-Supported members:
-
-- `TargetRequired`
-- `TargetUnavailable`
 - `resolve`
+
+### `Syrus::Host::ReviewerTargetUnavailable`
+
+Since: `0.1.16`
+
+Raised when a pinned reviewer target cannot currently be resolved. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::Run`
 
@@ -2210,108 +2445,350 @@ Supported members:
 - `state`
 - `workflow`
 
+### `Syrus::Host::RunArtifactsPayload`
+
+Since: `0.1.16`
+
+Builds the run artifacts payload shown for a run; payload members are not promised.
+
+Supported members:
+
+- `build`
+
+### `Syrus::Host::RunDiff`
+
+Since: `0.1.16`
+
+Builds the SQL fragment that selects a run's preferred diff.
+
+Supported members:
+
+- `preferred_diff_sql`
+
+### `Syrus::Host::RunHeartbeat`
+
+Since: `0.1.16`
+
+Records liveness for a running run.
+
+Supported members:
+
+- `touch`
+
 ### `Syrus::Host::RunJob`
 
 Since: `0.1.16`
 
-Exposes the agent runner seam; run admission is not promised. Only the listed members are supported.
+Reads the injectable agent runner used by agent-provider plugins.
 
 Supported members:
 
 - `agent_runner`
 
-### `Syrus::Host::Runs`
+### `Syrus::Host::RunRecord`
 
 Since: `0.1.16`
 
-Queries runs; dispatch, lifecycle transitions, and persistence are not promised.
+Queries runs by state and association, and reads the ACTIVE_STATES vocabulary; dispatch, lifecycle transitions, and unlisted associations are not promised.
 
 Supported members:
 
+- `ACTIVE_STATES`
 - `find`
+- `find_by`
 - `joins`
+- `select`
+- `terminal`
 - `where`
 
-### `Syrus::Host::RuntimeImages`
+### `Syrus::Host::RuntimeSessionProvider`
 
 Since: `0.1.16`
 
-Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.
+Supplies an interactive runtime session (start, snapshot, input, logs, stop); session persistence, leases and routing are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `acquire`
-- `available?`
-- `find`
-- `publish_local`
+- `build_or_reload`
+- `capabilities`
+- `detect`
+- `display_name`
+- `environment_for_terminal`
+- `input`
+- `inspect`
+- `launch`
+- `logs`
+- `provider_key`
+- `snapshot`
+- `start_session`
+- `stop_session`
+- `visual_review_start_required?`
 
-### `Syrus::Host::Settings`
+### `Syrus::Host::SearchDatabaseTasks`
 
 Since: `0.1.16`
 
-Reads instance-wide operator settings; setting storage is not promised.
+Prepares the search database and reports whether an index table exists; migration internals are not promised.
 
 Supported members:
 
-- `ui_engagement_telemetry_enabled?`
+- `prepare!`
+- `table_exists?`
+
+### `Syrus::Host::SearchIndexVersion`
+
+Since: `0.1.16`
+
+Reads and writes the content version of a plugin-owned search index so rebuilds know when an index is stale.
+
+Supported members:
+
+- `current`
+- `write!`
+
+### `Syrus::Host::SearchIndexWriteLimits`
+
+Since: `0.1.16`
+
+Bounds row and batch sizes of search-index writes; the limits may change between releases.
+
+Supported members:
+
+- `clamp_rows`
+- `row`
+
+### `Syrus::Host::SearchRecord`
+
+Since: `0.1.16`
+
+Abstract base for models stored in the dedicated search database; plugins subclass it for their index tables and may run raw statements through its connection. Schema management is not promised.
+
+Supported members:
+
+- `connection`
 
 ### `Syrus::Host::SidebarPage`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-
-### `Syrus::Host::SkillBase`
-
-Since: `0.1.16`
-
-Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported.
+Marks a provider of plugin sidebar pages; the host navigation and routing around the returned metadata are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `definition`
+- `sidebar_pages`
 
-### `Syrus::Host::StepBase`
-
-Since: `0.1.16`
-
-Bases plugin workflow steps; the step lifecycle beyond call is not promised. Only the listed members are supported.
-
-### `Syrus::Host::StepDispatcher`
+### `Syrus::Host::SkillCatalog`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Resolves, validates and renders named skills (resolve, validate_arguments!, render) and exposes the name_pattern and the resolution_errors and argument_errors they raise; skill discovery and markdown parsing are not promised.
 
 Supported members:
 
-- `MAIN_HEALTH_BLOCK_REASON`
-- `MAIN_HEALTH_EXEMPT_TRIGGERS`
-- `START_BLOCKED_BACKOFF`
-- `main_health_blocking?`
+- `argument_errors`
+- `name_pattern`
+- `render`
+- `resolution_errors`
+- `resolve`
+- `validate_arguments!`
 
-### `Syrus::Host::StepFailed`
+### `Syrus::Host::SmartFolder`
 
 Since: `0.1.16`
 
-Signals a deliberate, retry-classified step failure from a plugin-owned step. Only the listed members are supported.
+Registers smart-folder subjects and reads the built-in folders for a subject; persistence and per-user folder management are not promised. COUNT_CAP is the folder-count display cap.
+
+Supported members:
+
+- `COUNT_CAP`
+- `builtin_definition`
+- `builtins`
+- `ensure_builtins_for_subject!`
+- `register_subject!`
+
+### `Syrus::Host::SmartFolderNavigation`
+
+Since: `0.1.16`
+
+Builds the smart-folder navigation payload for a subject and resolves the explicitly requested folder; payload members beyond the folder list are not promised.
+
+Supported members:
+
+- `active_folder`
+- `folders`
+- `new`
+
+### `Syrus::Host::SourceControlProvider`
+
+Since: `0.1.16`
+
+Defines the source-control operations a git-host plugin supplies; callers and orchestration are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `client_for`
+- `display_name`
+- `provider_key`
+
+### `Syrus::Host::SpawnedProcess`
+
+Since: `0.1.16`
+
+Queries tracked spawned processes (live_agent, running scopes).
+
+Supported members:
+
+- `live_agent`
+- `running`
+- `where`
+
+### `Syrus::Host::SpeechToTextBase`
+
+Since: `0.1.16`
+
+Bases speech-to-text providers; provider selection is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::SpeechToTextError`
+
+Since: `0.1.16`
+
+Base error for transcription failures. Only the listed members are supported.
 
 Supported members:
 
 - `message`
 - `new`
 
+### `Syrus::Host::SpeechToTextInvalidAudio`
+
+Since: `0.1.16`
+
+Raised when audio cannot be transcribed because it is invalid. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::SpeechToTextProvider`
+
+Since: `0.1.16`
+
+Marks a class as a speech-to-text provider plugins may contribute; provider selection is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available?`
+- `build`
+- `display_name`
+- `provider_key`
+
+### `Syrus::Host::SpeechToTextResult`
+
+Since: `0.1.16`
+
+A completed transcription result. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
+### `Syrus::Host::SpeechToTextStreamingDelta`
+
+Since: `0.1.16`
+
+One incremental streaming transcription update. Only the listed members are supported.
+
+Supported members:
+
+- `final`
+- `new`
+- `text`
+
+### `Syrus::Host::SpeechToTextTelemetry`
+
+Since: `0.1.16`
+
+Shared transcription telemetry helpers; log fields may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `duration_ms`
+- `log`
+- `monotonic_time`
+- `safe_error`
+
+### `Syrus::Host::SpeechToTextTimeout`
+
+Since: `0.1.16`
+
+Raised when transcription times out. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::SpeechToTextUnavailable`
+
+Since: `0.1.16`
+
+Raised when a transcription backend is unavailable. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::StateTransition`
+
+Since: `0.1.16`
+
+Queries state-transition audit records and scopes a block of work to a transition source.
+
+Supported members:
+
+- `where`
+- `with_source`
+
+### `Syrus::Host::Step`
+
+Since: `0.1.16`
+
+Queries workflow steps and reads the step-kind vocabulary (Kind.label_for, AGENTIC_KINDS); dispatch and transitions are not promised.
+
+Supported members:
+
+- `AGENTIC_KINDS`
+- `Kind`
+- `joins`
+- `where`
+
+### `Syrus::Host::StepHandlerBase`
+
+Since: `0.1.16`
+
+Base class for plugin-contributed step handlers; the dispatcher contract is not promised beyond subclassing.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::StepWorkspace`
 
 Since: `0.1.16`
 
-Resolves the workspace of a workflow step; directory layout beyond the returned paths is not promised. Only the listed members are supported.
+Resolves the workspace of a step.
 
 Supported members:
 
 - `for`
 
-### `Syrus::Host::StepsGraderFanoutTargetSelectionsArtifactKey`
 ### `Syrus::Host::SyrusYmlConfig`
 
 Since: `0.1.16`
@@ -2328,30 +2805,12 @@ Supported members:
 
 Since: `0.1.16`
 
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::SyrusYml`
-
-Since: `0.1.16`
-
-Parses repository .syrus.yml text and raises ParseError; configuration keys beyond those documented are not promised. Only the listed members are supported.
+Raised by a plugin's repository-configuration parser when its .syrus.yml contribution is invalid. Only the listed members are supported.
 
 Supported members:
 
-- `ParseError`
-- `load_repo`
-
-### `Syrus::Host::SyrusYmlDefaultGradeFailurePolicy`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::SyrusYmlGradeFailurePolicies`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+- `message`
+- `new`
 
 ### `Syrus::Host::SystemAlert`
 
@@ -2373,7 +2832,6 @@ Supported members:
 
 - `system_alerts`
 
-### `Syrus::Host::SystemAlerts`
 ### `Syrus::Host::TeamMembershipRecord`
 
 Since: `0.1.16`
@@ -2413,42 +2871,69 @@ Supported members:
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Canonicalizes test-case identity.
 
 Supported members:
 
-- `send`
+- `canonical_suite`
 
-### `Syrus::Host::TargetGraphCompiler`
+### `Syrus::Host::TestCaseResult`
 
 Since: `0.1.16`
 
-Compiles repository target configuration. Only the listed members are supported.
+Carries one parsed test case inside a TestRunResult; the XML parser that produces it is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `compile`
+- `new`
 
-### `Syrus::Host::TargetHealthRecord`
+### `Syrus::Host::TestEvidence`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Answers which tests failed in a run and optional flakiness and isolated-repro evidence; the main-branch failure classifier that consumes it is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `latest_for_reusable_inputs`
+- `failed_test_cases`
+- `failed_test_identities`
+- `failed_test_summary`
+- `flakiness_score`
+- `isolated_repro_evidence`
+- `record_isolated_repro!`
+- `test_case_count`
 
-### `Syrus::Host::TestEvidenceLookup`
+### `Syrus::Host::TestRunResult`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Carries one parsed test-suite run returned by a test-result parser; the XML parser that produces it is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `failed_grader_steps`
-- `failed_test_cases_for`
+- `new`
+
+### `Syrus::Host::TimelineMacroQuery`
+
+Since: `0.1.16`
+
+Runs the worker timeline macro query for a time window and filter expression; query internals are not promised.
+
+Supported members:
+
+- `call`
+- `capped_count`
+- `new`
+
+### `Syrus::Host::TimelineWorkflowWaterfallQuery`
+
+Since: `0.1.16`
+
+Builds the per-workflow waterfall of workflow activity; payload members are not promised.
+
+Supported members:
+
+- `call`
 
 ### `Syrus::Host::ToolContext`
 
@@ -2472,6 +2957,18 @@ Supported members:
 - `user`
 - `workflow`
 
+### `Syrus::Host::ToolPayloadRedactor`
+
+Since: `0.1.16`
+
+Redacts secret-looking keys, values and inline assignments from a tool payload or text before it is returned to an agent; REDACTED is the placeholder it writes. The patterns it recognizes may grow. Only the listed members are supported.
+
+Supported members:
+
+- `REDACTED`
+- `redact`
+- `redact_text`
+
 ### `Syrus::Host::Toolkit`
 
 Since: `0.1.16`
@@ -2483,21 +2980,17 @@ Supported members:
 - `chat_tool_set_for`
 - `chat_tool_sets`
 
-### `Syrus::Host::TypedArtifactRenderer`
-
-Since: `0.1.16`
-
-Renders typed workflow artifacts for display; markup is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `enrich`
-
 ### `Syrus::Host::UiSlot`
 
 Since: `0.1.16`
 
-Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+Marks a provider of panels rendered inside an existing core page; slot rendering, caching and ordering are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `SLOTS`
+- `ui_slots`
+- `valid_slot?`
 
 ### `Syrus::Host::User`
 
@@ -2514,14 +3007,6 @@ Supported members:
 - `id`
 - `jobs`
 - `repositories`
-
-### `Syrus::Host::Users`
-
-Since: `0.1.16`
-
-Queries users and reports the supported chat providers; credentials, preferences, and persistence are not promised.
-
-Supported members:
 
 ### `Syrus::Host::UserRecord`
 
@@ -2540,218 +3025,58 @@ Supported members:
 - `find`
 - `find_by`
 - `limit`
+- `none`
 - `order`
-- `user?`
 - `where`
 
 ### `Syrus::Host::ValidatesAgentProvider`
 
 Since: `0.1.16`
 
-Validates that a model's agent provider is configured; messages are not promised. Only the listed members are supported.
-
-### `Syrus::Host::VerdictSubmission`
-
-Since: `0.1.16`
-
-Submits a review verdict for a run; evidence storage is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `call!`
-
-### `Syrus::Host::VisualDiffSubmission`
-
-Since: `0.1.16`
-
-Coordinates deferred before/after visual comparisons. Only the listed members are supported.
-
-Supported members:
-
-- `enqueue_deferred_for_visual_review`
-
-### `Syrus::Host::VisualReviewEvidenceGuard`
-
-Since: `0.1.16`
-
-Validates visual review evidence. Only the listed members are supported.
-
-Supported members:
-
-- `blocked_evidence_reason`
-- `validate_visual_diff_after_artifacts`
-
-### `Syrus::Host::VisualReviewProjects`
-
-Since: `0.1.16`
-
-Resolves preview projects for a plugin-owned visual review step. Only the listed members are supported.
-
-Supported members:
-
-- `call`
-- `configured_when_files_changed`
-
-### `Syrus::Host::VisualReviewRuntimeSession`
-- `none`
-- `order`
-- `where`
+Model concern validating an agent provider attribute against the registered providers; only inclusion is promised. Only the listed members are supported.
 
 ### `Syrus::Host::WorkDefinitionBase`
 
 Since: `0.1.16`
 
-Manages a visual review runtime session. Only the listed members are supported.
-
-Supported members:
-
-- `new`
-- `start!`
-- `stop!`
-
-### `Syrus::Host::VisualReviewRuntimeTargets`
-
-Since: `0.1.16`
-
-Resolves runtime targets for a plugin-owned visual review step. Only the listed members are supported.
-
-Supported members:
-
-- `call`
-
-### `Syrus::Host::WorkDefinition`
-
-Since: `0.1.16`
-
-Bases plugin work definitions that declare retry, lock, and landing policy for a workflow kind; the scheduling engine is not promised. Only the listed members are supported.
+Base class for plugin-contributed work definitions; only subclassing is promised.
 
 Supported members:
 
 - `new`
 
-### `Syrus::Host::WorkDefinitionsAgentConcurrencyExempt`
+### `Syrus::Host::WorkLaunchConflict`
 
 Since: `0.1.16`
 
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkDefinitionsCheckpointPreemptable`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkDefinitionsManagesOwnJobLifecycle`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkDefinitionsOpensReviewPullRequest`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkDefinitionsRecordsGraderTargetSelectionInputs`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkDefinitionsResumesFailedSteps`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkEngineReconciler`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Raised when a launch collides with work that already holds the same lock, so callers may retry later. Only the listed members are supported.
 
 Supported members:
 
-- `request`
-
-### `Syrus::Host::WorkGate`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkGateResult`
-
-Since: `0.1.16`
-
-Carries a start-gate verdict: pass, or block with a reason and optional retry time. Only the listed members are supported.
-
-Supported members:
-
-- `block`
-- `blocked?`
-- `details`
-- `pass`
-- `pass?`
-- `reason`
-- `retry_at`
+- `message`
+- `new`
 
 ### `Syrus::Host::WorkLauncher`
 
 Since: `0.1.16`
 
-Instantiates and starts a workflow of a registered kind for a job, raising LockConflict when another unit holds the lock; ownership records, locks, and landing policy are not promised. Only the listed members are supported.
+Instantiates, starts, or creates-and-starts a workflow of a registered kind for a job and returns the launch result; scheduling, locking, and landing policy are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `LockConflict`
 - `create_and_start!`
 - `instantiate`
 - `start!`
 
-### `Syrus::Host::WorkPolicyVeto`
+### `Syrus::Host::WorkerCapabilityProbe`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Lets a plugin advertise worker capabilities; capability routing is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `new`
-
-### `Syrus::Host::WorkUnit`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkUnitsOwnershipActiveStates`
-
-Since: `0.1.16`
-
-Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
-
-### `Syrus::Host::WorkUnitsWorkflowBlockProjection`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
-
-Supported members:
-
-- `record!`
-
-### `Syrus::Host::WorkerCapabilities`
-
-Since: `0.1.16`
-
-Reports the capabilities advertised by this worker; probing is not promised. Only the listed members are supported.
-
-Supported members:
-
-- `current`
-- `normalize`
+- `capability_probes`
 
 ### `Syrus::Host::Workflow`
 
@@ -2767,77 +3092,112 @@ Supported members:
 - `runs`
 - `state`
 
+### `Syrus::Host::WorkflowActivityEvent`
+
+Since: `0.1.16`
+
+Queryable workflow activity events; columns are not promised.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::WorkflowArtifactContributor`
+
+Since: `0.1.16`
+
+Lets a plugin contribute workflow artifacts; artifact storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for_job`
+
 ### `Syrus::Host::WorkflowBase`
 
 Since: `0.1.16`
 
-Bases plugin workflow plans and resolves a plan for a job; scheduling is not promised. Only the listed members are supported.
+Base class for plugin-contributed workflow kinds; resolve_plan is the supported hook.
 
 Supported members:
 
 - `resolve_plan`
 
-### `Syrus::Host::WorkflowPayload`
+### `Syrus::Host::WorkflowRecord`
 
 Since: `0.1.16`
 
-Serializes a workflow for MCP tool results; the payload keys are not promised. Only the listed members are supported.
-
-### `Syrus::Host::WorkflowPhaseAdmissionJob`
-
-Since: `0.1.16`
-
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Queries workflows by state and association, and reads the TriggerKind vocabulary; scheduling, transitions, and unlisted associations are not promised.
 
 Supported members:
 
-- `enqueue_once`
+- `TriggerKind`
+- `find_by`
+- `from`
+- `joins`
+- `none`
+- `resume_queue_name`
+- `terminal`
+- `where`
 
-### `Syrus::Host::WorkflowSourceSnapshots`
+### `Syrus::Host::WorkflowVisualEvidence`
 
 Since: `0.1.16`
 
-Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported.
+Draft visual evidence value plugins may type-check; shape is not promised.
 
 Supported members:
 
-- `current_for`
+- `stable_id`
+
+### `Syrus::Host::WorkflowWarnings`
+
+Since: `0.1.16`
+
+Records a warning against a workflow.
+
+Supported members:
+
+- `record!`
 
 ### `Syrus::Host::WorkflowWorkspace`
 
 Since: `0.1.16`
 
-Resolves a workflow's checkout path and names the required branch artifact; workspace lifecycle is not promised. Only the listed members are supported.
+Resolves a workflow's checkout path and base ref; cloning, locking, and cleanup are not promised. Only the listed members are supported.
 
 Supported members:
 
 - `REQUIRED_BRANCH_ARTIFACT`
+- `agent_home_for`
+- `base_ref`
+- `data_root`
 - `new`
 - `path_for`
 
-### `Syrus::Host::Workflows`
+### `Syrus::Host::WorkspaceGitTransport`
 
 Since: `0.1.16`
 
-Queries workflows and names the queue a worker resumes them on; scheduling, transitions, and persistence are not promised.
+Defines how a plugin supplies git transport for a workflow workspace; clone orchestration is not promised. Only the listed members are supported.
 
 Supported members:
 
-- `all`
-- `find`
-- `joins`
-- `resume_queue_name`
-- `where`
+- `available_for?`
+- `build`
+- `env`
+- `register!`
+- `url`
 
-### `Syrus::Host::WorkspaceContext`
+### `Syrus::Host::WorkspaceTab`
 
 Since: `0.1.16`
 
-Carries the workspace path and format hint passed to ecosystem capability providers. Only the listed members are supported.
+Contributes tabs to the chat workspace panel; panel layout and rendering are not promised. Only the listed members are supported.
 
 Supported members:
 
-- `new`
+- `available_for?`
+- `workspace_tabs`
 
 ## Legacy compatibility APIs
 
@@ -2845,193 +3205,77 @@ These core constants are recognized by the compatibility scanner because
 bundled plugins still reference them. They are not supported for new or
 external plugins. Migrate to a public `Syrus::Host` facade instead.
 
-- `Admin::JobStateSerializer`
-- `Admin::OperationalLogsPayload`
-- `Admin::SmartFolderNavigation`
 - `AdminAction`
-- `Agent`
-- `AgentEventAbbreviator`
-- `AgentInvocation`
-- `AgentInvocation::DEFAULT_MAX_TURNS`
-- `AgentInvocation::DEFAULT_TIMEOUT_SECONDS`
-- `AgentInvocation::ENV_FORWARD`
-- `AgentInvocation::MAX_EVENT_BYTES`
-- `AgentInvocation::Result`
-- `AgentInvocation::SILENT_TIMEOUT_SECONDS`
-- `AgentProviders`
-- `AgentProviders::Base`
-- `AgentProviders::ConfigurationError`
-- `AgentProviders::SessionStore`
-- `AgentRole`
-- `AgentRole::AGENT_INSIGHT`
-- `AgentRole::CHAT_CODING`
-- `AgentRole::CHAT_LOCAL`
-- `AgentRole::CHAT_PLANNER`
-- `AgentRole::CHAT_ROLES`
-- `AgentRole::COWORKER`
-- `AgentRole::COWORKER_CHAT`
-- `AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER`
-- `AgentRole::WORKFLOW_IMPLEMENT`
-- `AgentRole::WORKFLOW_ROLES`
-- `AgentRole::WORKFLOW_VISUAL_REVIEWER`
-- `AgentSidecarEnvironment`
-- `Api::V1::Admin::BaseController`
-- `Api::V1::App::Admin::BaseController`
-- `Api::V1::App::BaseController`
-- `App::Presentation`
-- `App::ProviderAvailability`
-- `App::RunArtifactsPayload`
 - `AppEvents`
 - `AppSetting`
+- `Appearance::ColorPalette`
+- `Appearance::ColorPalette::HEX_PATTERN`
 - `ApplicationCable::Channel`
-- `ApplicationPolicy`
-- `ApplicationPolicy::Scope`
-- `ApplicationRecord`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
-- `AutoApproveModes`
 - `BackendExceptionLogging`
 - `BugReports::Router`
 - `ChatAssociatedJobs`
 - `ChatAttachment`
+- `ChatBridgeThread`
 - `ChatContextCompactor`
 - `ChatHistoryTranscriptRenderer`
 - `ChatLockErrors`
 - `ChatMediaLibrary`
 - `ChatMessage`
-- `ChatMessageSearchIndex`
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
-- `ChatProviders::Base`
-- `ChatProviders::ConfigurationError`
+- `ChatProposal`
+- `ChatQueuedMessage::INTERNAL_ROLE_KEY`
 - `ChatQueuedMessagePromoter`
 - `ChatResultBadges`
 - `ChatSession`
+- `ChatSession::CrossChatMessage`
+- `ChatSession::CrossChatMessage::ClosedThreadError`
+- `ChatSession::EFFORT_LEVELS`
 - `ChatSession::MODES`
 - `ChatSessionLifecycle`
 - `ChatSessionRehydrator`
-- `ChatSpeechToText::Providers::Base`
-- `ChatSpeechToText::Providers::InvalidAudio`
-- `ChatSpeechToText::Providers::StreamingDelta`
-- `ChatSpeechToText::Providers::TranscriptionError`
-- `ChatSpeechToText::Providers::TranscriptionResult`
-- `ChatSpeechToText::Providers::TranscriptionTimeout`
-- `ChatSpeechToText::Providers::TranscriptionUnavailable`
-- `ChatSpeechToText::Telemetry`
+- `ChatSessions::Creator`
 - `ChatSpendEntry`
+- `ChatTurnJob`
 - `ChatWakeup`
 - `ChatWorkEvents`
 - `ChatWorkspace`
-- `ClaudeTranscript`
-- `ClaudeTranscript::Event`
-- `CodexAccountScope`
-- `CommandRedactor`
-- `CoverageAnalysis::Parsers::Base::ParseResult`
-- `CredentialProbe`
-- `CredentialProbe::Result`
-- `CredentialProbe::TIMEOUT_SECONDS`
-- `Current`
-- `DirectJobs::Creator`
-- `DirectJobs::Creator::Attachment`
-- `Document::MAX_ATTACHMENTS_PER_JOB`
-- `Epic`
-- `Epic::MERGED_JOB_CLOSURE_REASONS`
-- `Epic::SUCCESSFUL_JOB_CLOSURE_REASONS`
-- `EpicMarkerParser`
-- `Epics::Filter`
-- `Execution::Backend`
-- `Execution::Local`
-- `Execution::ChatWorkloadPolicy`
 - `Feature`
-- `Filters::Ast`
-- `Filters::Ast::AndNode`
-- `Filters::Ast::Chip`
-- `Filters::Ast::EMPTY`
-- `Filters::Ast::NotNode`
-- `Filters::Ast::OrNode`
-- `Filters::BaseFilter`
-- `Filters::Chips::Base`
-- `Filters::Chips::BooleanColumn`
-- `Filters::Chips::DateColumn`
-- `Filters::Chips::DateColumn::UNITS`
-- `Filters::Chips::EnumColumn`
-- `Filters::Chips::FkColumn`
-- `Filters::Chips::FullTextStringColumn`
-- `Filters::Chips::Jobs::JobType`
-- `Filters::Chips::NumberColumn`
-- `Filters::Chips::StringColumn`
-- `Filters::Compiler`
-- `Filters::QueryParam`
-- `Filters::QueryParam::PARAM_NAME`
-- `Filters::Registry`
-- `Filters::Schema`
-- `Filters::SmartFolderResolution`
-- `Filters::SmartFolderResolution::PRESET_FIELD`
-- `Filters::UnknownFilterField`
-- `FtsQueryParser`
-- `GitRunner`
-- `GitRunner::GitError`
-- `GithubApiUsageRollup`
-- `GithubClient`
-- `GithubIssueJobAttributes`
-- `GraderResourceRequest`
-- `GraderResourceRequest::ALL`
 - `HasConfigurableRetention`
 - `InboundMessageRouter`
 - `InstanceVersion`
 - `InstanceVersion::HEARTBEAT_STALE_THRESHOLD`
-- `IssueImageExtractor`
-- `Job`
-- `Job::Kind`
-- `Job::Origin`
-- `Job::ProviderSetting::Base`
-- `Job::ProviderSetting::Base::DEFAULT_VALUE`
-- `Job::TERMINAL_STATES`
-- `JobApproval`
-- `JobDefinitionUpdater`
-- `JobDefinitionUpdater::Immutable`
-- `JobLog`
-- `JobPin`
-- `Jobs::Filter`
-- `JunitXmlParser`
-- `JunitXmlParser::ParseError`
-- `JunitXmlParser::ParsedCase`
-- `JunitXmlParser::ParsedRun`
 - `KubernetesCluster`
-- `LandedCommit`
-- `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
-- `Mcp::Pagination`
+- `Mcp::CoworkerToolExposure`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
 - `Mcp::Tools::AgentPreviewRegistry`
+- `Mcp::Tools::AuthorizationSupport`
 - `Mcp::Tools::AuthorizationSupport::AuthorizationError`
 - `Mcp::Tools::BulkPendingActionToolSupport`
 - `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
-- `Mcp::Tools::EvidenceRedactor`
 - `Mcp::Tools::PendingActionToolSupport`
 - `Mcp::Tools::ProposalToolSupport`
 - `McpInvocationContext`
 - `McpSidecarLog`
-- `McpToolContext`
 - `McpToolPayloads::WorkflowPayload`
 - `McpToolPolicy`
-- `MergeTrain`
-- `MergeTrainDispatcher::RETRY_COOLDOWN`
-- `MergeTrainMember`
+- `McpToolRegistry`
+- `Mentionable`
+- `Mentionables::Resolver`
 - `Metrics::ClusterCounterSampler`
 - `MysqlConnection`
 - `MysqlConnection::ADMIN_SURFACE`
 - `MysqlQueryAudit`
 - `Observability::EventSink`
-- `OperationalLogSearch`
-- `OperationalLogSearch::INPUT_SCHEMA_PROPERTIES`
-- `OperationalLogging`
-- `Paginatable`
 - `PendingActionItem`
+- `PendingActions::AuthorizedToolCall`
 - `PendingActions::Base`
+- `PendingActions::PermissionManagement`
 - `PerformanceLogEvent`
-- `PerformanceLogging`
 - `PerformanceLogging::BROWSER_TRACE_EVENT`
 - `PerformanceLogging::FEATURE_SLUG`
 - `PerformanceLogging::SLOW_JOB_EVENT`
@@ -3042,18 +3286,27 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PerformanceLogging::Store::MAX_EVENTS`
 - `PermissionLease`
 - `PermissionRule`
-- `Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS`
+- `Permissions::AuthorizationDecision`
+- `Permissions::AuthorizationRequest`
+- `Permissions::CapabilityDescriptor`
+- `Permissions::CapabilityDescriptor::POLICIES`
 - `Permissions::CapabilityDescriptorAdapter`
-- `Permissions::CapabilityPresentation`
+- `Permissions::CapabilityRegistryValidator`
+- `Permissions::Catalog`
+- `Permissions::Catalog::UnknownCapability`
+- `Permissions::CoworkerDefaultPolicy`
+- `Permissions::CoworkerDefaultPolicy::ROLES`
 - `Permissions::Management`
 - `Permissions::Management::PROFILE_SOURCE_PREFIX`
+- `Permissions::PermissionRequest`
+- `Permissions::PolicyEvaluator::POLICY_RANK`
 - `PersistentMcpDaemon`
 - `PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER`
 - `PersistentMcpDaemon::MCP_PATH`
-- `PlatformIdentity`
-- `PlatformIdentity::PlatformConfig::Base`
 - `PlatformPollingJob`
+- `PluginDataCleanup`
 - `PluginJob`
+- `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
 - `PreviewCommandSource`
 - `PreviewPanel`
@@ -3062,177 +3315,40 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PreviewPanel::Service`
 - `PreviewPanelVersion`
 - `PreviewProcessLauncher`
-- `ProcessRunner`
-- `Prompts::ChatSystem`
-- `Prompts::GitSafety::TEXT`
-- `Prompts::MemoryContext`
-- `Prompts::SubmitSummaryInstructions::TEXT`
-- `ProviderAuthFailure`
-- `ProviderAuthFailure::OUTCOME`
-- `ProviderAvailabilityEvidence`
-- `ProviderModelUnsupported`
-- `ProviderModelUnsupported::OUTCOME`
-- `ProviderQuotaReset::RETRY_BUFFER`
-- `ProviderRateLimitEvidence`
-- `ProviderSession`
-- `ProviderUsageLimit`
-- `ProviderUsageLimit::OUTCOME`
-- `RebaseAttemptGuard`
-- `RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD`
-- `RepairEligibility::Ineligible`
-- `RepoDefaultBranchSyrusYml`
-- `RepoDeploymentStagesReader`
-- `Repository`
-- `RepositoryBareClone`
-- `RepositoryContent`
-- `RepositoryContent::Blob`
-- `RepositoryContent::Change`
-- `RepositoryContent::Commit`
-- `RepositoryContent::CommitHistory`
-- `RepositoryContent::Divergence`
-- `RepositoryContent::Entry`
-- `RepositoryContent::Error`
-- `RepositoryContent::NotFound`
-- `RepositoryContent::Ref`
-- `RepositoryContent::Revision`
-- `RepositoryContent::Source`
-- `RepositoryContent::TooLarge`
-- `RepositoryContent::Truncated`
-- `RepositoryContent::Unavailable`
-- `RepositoryContent::UnknownRevision`
-- `RepositoryContent::Unsupported`
-- `RepositoryMembership`
-- `RepositoryPolicy`
-- `RepositorySummarySerialization`
 - `RetentionPolicyExecutors::Default`
 - `RetentionPolicyExecutors::Result`
 - `RetentionPolicyRegistry::Definition`
 - `RetentionPruner::DEFAULT_BATCH_SIZE`
 - `RetentionPruner::DEFAULT_MAX_BATCHES`
-- `Run`
-- `Run::ACTIVE_STATES`
-- `RunDiff`
-- `RunHeartbeat`
-- `RunJob`
 - `RuntimeControlLease`
 - `RuntimeSession`
 - `RuntimeSessionProviders`
 - `RuntimeSessionProviders::ConfigurationError`
-- `SearchIndexVersion`
-- `SearchIndexWriteLimits`
-- `SearchRecord`
-- `Skills`
-- `Skills::NAME_PATTERN`
-- `Skills::NotFoundError`
-- `Skills::ParameterSchema`
-- `Skills::ParameterSchema::ParseError`
-- `Skills::ParameterSchema::ValidationError`
-- `Skills::Renderer`
-- `Skills::SkillMarkdown::ParseError`
 - `SkipIfPending`
-- `SmartFolder`
-- `SmartFolder::COUNT_CAP`
-- `SpawnedProcess`
-- `StateTransition`
-- `Step`
-- `Step::AGENTIC_KINDS`
-- `Step::Kind`
-- `Steps::Base`
-- `Steps::MergeTrainLand::STALE_BASE_ARTIFACT`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
-- `Syrus::Metrics`
-- `Syrus::PathJail`
-- `Syrus::PathJail::PathEscape`
-- `Syrus::Plugin::AdminPage`
-- `Syrus::Plugin::AgentProvider`
+- `Syrus::Memory`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
-- `Syrus::Plugin::AgenticConnection`
-- `Syrus::Plugin::Callbacks`
-- `Syrus::Plugin::ChatJobStatusExtension`
-- `Syrus::Plugin::ChatMcpToolSet`
-- `Syrus::Plugin::ChatMediaSource`
-- `Syrus::Plugin::ChatPayloadContributor`
-- `Syrus::Plugin::ChatPromptInjector`
 - `Syrus::Plugin::ChatProvider`
-- `Syrus::Plugin::ChatTurnOrientation`
-- `Syrus::Plugin::CliCommandHandler`
-- `Syrus::Plugin::DomainSubscriber`
-- `Syrus::Plugin::ExecutionBackend`
-- `Syrus::Plugin::GatedToolSet`
-- `Syrus::Plugin::GraderFailureSummarizer`
-- `Syrus::Plugin::InputSource`
-- `Syrus::Plugin::JobOrigin`
-- `Syrus::Plugin::McpToolSet`
 - `Syrus::Plugin::MemoryStore`
-- `Syrus::Plugin::PermissionProvider`
 - `Syrus::Plugin::PlatformDelivery`
-- `Syrus::Plugin::PreviewPanelRetention`
-- `Syrus::Plugin::PurgeContributor`
-- `Syrus::Plugin::RepoPageTab`
-- `Syrus::Plugin::RepositoryConfiguration`
-- `Syrus::Plugin::RepositoryContentProvider`
-- `Syrus::Plugin::RepositoryRecommendation`
-- `Syrus::Plugin::RetentionPolicy`
-- `Syrus::Plugin::RuntimeSessionProvider`
-- `Syrus::Plugin::SidebarPage`
-- `Syrus::Plugin::SourceControlProvider`
-- `Syrus::Plugin::SpeechToTextProvider`
-- `Syrus::Plugin::TestEvidence`
-- `Syrus::Plugin::UiSlot`
-- `Syrus::Plugin::WorkerCapabilityProbe`
 - `Syrus::Plugin::WorkflowArtifactContributor`
-- `Syrus::Plugin::WorkspaceGitTransport`
-- `Syrus::Plugin::WorkspaceTab`
 - `Syrus::PluginApi`
-- `Syrus::PluginRegistry`
 - `Syrus::PluginSettings`
-- `SyrusMcp`
 - `SyrusMcp::TypedArtifactProvenance`
-- `SyrusSearchDatabaseTasks`
 - `SyrusVersion`
-- `SyrusYml`
-- `SyrusYml::BaseRetry`
-- `SyrusYml::CONFIG_FILE`
-- `SyrusYml::DEFAULT_GRADE_PHASES`
-- `SyrusYml::GradeStep`
-- `SyrusYml::MAX_GRADE_TIMEOUT_MINUTES`
-- `SyrusYml::ParseError`
-- `SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV`
-- `TargetGraph::ExecutionCapabilities`
-- `Team`
-- `TeamMembership`
-- `TeamRepository`
-- `TestCaseIdentity`
 - `Theme`
 - `Theme::EXTENDED_TOKEN_GROUPS`
 - `Theme::TOKEN_KEYS`
-- `Timeline::MacroQuery`
-- `Timeline::WorkflowWaterfallQuery`
-- `ToolPayloadRedactor`
-- `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`
-- `User`
-- `User::DASHBOARD_OPTIONAL_COLUMNS`
-- `User::DASHBOARD_REQUIRED_COLUMNS`
-- `WorkDefinitions::Base`
-- `WorkUnits::Launcher`
 - `TypedArtifactRenderer`
 - `UiEngagementSample`
-- `ValidatesAgentProvider`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`
 - `WorkerHostHealthSample`
 - `WorkerQueueTopology`
 - `WorkerStorageIdentity`
-- `Workflow`
-- `Workflow::TriggerKind`
-- `WorkflowActivityEvent`
-- `WorkflowVisualEvidence`
-- `WorkflowWarnings`
-- `WorkflowWorkspace`
-- `Workflows::Base`
 - `WorkspaceDependencyEnv`
 - `WorkspaceReuseOutcomes::Summary`

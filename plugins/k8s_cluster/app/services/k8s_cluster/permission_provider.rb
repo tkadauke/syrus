@@ -2,7 +2,7 @@ module K8sCluster
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ].freeze
     ASK_DEFAULTS = ROLES.index_with { :ask }.freeze
     # Observing a cluster reads and nothing else: the only effect beside the
     # reads is the credential the read travels on. An operator who is willing
