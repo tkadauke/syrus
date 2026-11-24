@@ -75,13 +75,15 @@ describe("PermissionInboxRoute", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Send a message to another chat")).toBeInTheDocument()
-    expect(screen.getByText("Send a message to another chat")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Allow: Send a message to another chat?" })).toBeInTheDocument()
     expect(screen.getByText("Release agent · Job: Ship 1.0")).toBeInTheDocument()
     expect(screen.getByText("Chat Release room")).toBeInTheDocument()
     expect(screen.getByText("Why is approval required?")).toBeInTheDocument()
     const card = screen.getByTestId("permission-request-12")
-    expect(card.textContent).not.toMatch(/communication\.chat|send@v1|job_id|\{|"|role_default/)
+    // Implementation metadata lives only inside the collapsed Technical details.
+    const visible = card.cloneNode(true) as HTMLElement
+    visible.querySelector("details")?.remove()
+    expect(visible.textContent).not.toMatch(/communication\.chat|send@v1|job_id|\{|"|role_default/)
     fireEvent.change(screen.getByLabelText("Authority duration"), { target: { value: "job" } })
     fireEvent.click(screen.getByRole("button", { name: "Approve" }))
     await waitFor(() => expect(api.decidePermissionRequest).toHaveBeenCalledWith(12, "approved", "job"))
@@ -126,7 +128,7 @@ describe("PermissionInboxRoute", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Send a message to another chat")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Allow: Send a message to another chat?" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Select request: Publish the release note")).not.toBeInTheDocument()
   })
