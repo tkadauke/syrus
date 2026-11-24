@@ -49,9 +49,9 @@ module ScheduledTasks
       end
 
       def skill_issue_body_preview(args)
-        resolution = Skills.for(repository: task.repository, name: task.skill_name, user: task.user)
-        Skills::Renderer.render(resolution.definition, args)
-      rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError
+        resolution = Syrus::Host::SkillCatalog.resolve(repository: task.repository, name: task.skill_name, user: task.user)
+        Syrus::Host::SkillCatalog.render(resolution, args)
+      rescue *Syrus::Host::SkillCatalog.resolution_errors
         "Skill: #{task.skill_name}"
       end
     end

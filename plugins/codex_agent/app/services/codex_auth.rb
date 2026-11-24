@@ -2,7 +2,7 @@ require "fileutils"
 require "json"
 
 class CodexAuth
-  class Error < AgentProviders::ConfigurationError; end
+  class Error < Syrus::Host::AgentProviderConfigurationError; end
 
   DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS = 30.minutes.to_i
   # MySQL rejects user-level lock names longer than 64 characters. Spelled

@@ -45,7 +45,7 @@ module AgentInsights
     end
 
     def self.handler_classes(context: nil)
-      return TOOL_CLASSES if context.nil? || context.role == AgentRole::AGENT_INSIGHT
+      return TOOL_CLASSES if context.nil? || context.role == Syrus::Host::AgentRole::AGENT_INSIGHT
 
       []
     end

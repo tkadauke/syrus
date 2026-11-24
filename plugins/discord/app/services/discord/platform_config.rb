@@ -1,9 +1,9 @@
 module Discord
   # Linking instructions for Discord's Connected Platforms entry. Wired up
   # via Discord::PlatformAdapter.platform_config_class, which
-  # PlatformIdentity::PlatformConfig::Base.for consults for platforms
+  # Syrus::Host::PlatformConfigBase.for consults for platforms
   # registered through the :platform_delivery extension point.
-  class PlatformConfig < PlatformIdentity::PlatformConfig::Base
+  class PlatformConfig < Syrus::Host::PlatformConfigBase
     def configured?
       Discord::BotAccess.configured?
     end
