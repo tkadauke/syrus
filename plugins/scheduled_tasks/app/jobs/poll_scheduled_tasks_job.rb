@@ -19,29 +19,39 @@ class PollScheduledTasksJob < PluginJob
   # arrived to ScheduledTasks::Fire (which applies the pr_pileup_policy,
   # spawns the cron Job, and stamps last_fired_at).
   #
-  # The scan is deliberately join-free and sort-free: candidate ids are read
-  # in primary-key order from the tasks table alone, then repository/user
-  # eligibility is checked per batch against small id sets. Every database
+  # The scan is deliberately join-free and sort-free: tasks are read in
+  # bounded primary-key-cursor pages, then repository/user eligibility is
+  # checked per page against small id sets. Every database
   # phase is read-only, so it can be retried safely; firing is never retried
   # here and stays idempotent through Fire's own due check.
   def perform
     return if AppSetting.polling_paused?
     now = Time.current
 
-    ids = with_retry(:scan_candidate_ids) do
-      ScheduledTasks::Task.alive.where(state: "scheduled").reorder(:id).pluck(:id)
-    end
+    cursor = 0
+    loop do
+      page = with_retry(:load_page) { load_page(cursor) }
+      break if page.empty?
 
-    ids.each_slice(BATCH_SIZE) do |slice|
-      eligible_tasks(slice).each { |task| process_task(task, now) }
+      cursor = page.last.id
+      eligible(page).each { |task| process_task(task, now) }
+      break if page.size < BATCH_SIZE
     end
   end
 
   private
 
-  def eligible_tasks(slice)
-    with_retry(:load_batch) do
-      tasks = ScheduledTasks::Task.alive.where(state: "scheduled", id: slice).order(:id).to_a
+  # One bounded, primary-key-cursor page: `id > cursor ORDER BY id LIMIT n`
+  # walks the primary key, so MySQL needs no filesort and each read and its
+  # in-memory result are capped at BATCH_SIZE rows regardless of table size.
+  def load_page(cursor)
+    ScheduledTasks::Task.alive.where(state: "scheduled")
+                        .where(ScheduledTasks::Task.arel_table[:id].gt(cursor))
+                        .order(:id).limit(BATCH_SIZE).to_a
+  end
+
+  def eligible(tasks)
+    with_retry(:check_eligibility) do
       repo_ids = Repository.active.where(id: tasks.map(&:repository_id).uniq).pluck(:id)
       user_ids = User.where(id: tasks.map(&:user_id).uniq, scheduling_paused: false).pluck(:id)
       tasks.select { |t| repo_ids.include?(t.repository_id) && user_ids.include?(t.user_id) }
