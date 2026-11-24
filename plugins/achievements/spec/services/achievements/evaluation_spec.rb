@@ -115,4 +115,30 @@ RSpec.describe Achievements::Evaluation do
     expect { described_class.call(epic_upserted) }.not_to raise_error
     expect(Achievements::Unlock.where(definition_key: "example.first_epic_landed").count).to eq(1)
   end
+
+  it "skips a definition whose outcome is invalid without raising" do
+    allow(Achievements::Unlock).to receive(:record!).and_raise(ArgumentError, "bad outcome")
+    allow(Rails.logger).to receive(:error)
+
+    expect { described_class.call(epic_upserted) }.not_to raise_error
+    expect(Rails.logger).to have_received(:error).with(/invalid outcome/)
+  end
+
+  it "re-raises a transient persistence failure so delivery is retried, after evaluating the rest" do
+    other = Achievements::Definition.build(
+      key: "example.other_epic", scope: :instance, trigger: "epic.upserted",
+      evaluator: Achievements::Catalog.definitions.first.evaluator,
+      subject_kinds: %i[epic], category: :milestone, rarity: :common
+    )
+    registry = Achievements::Registry.new([ other, *Achievements::Catalog.definitions ])
+    allow(Achievements::Unlock).to receive(:record!).and_wrap_original do |original, key, **kwargs|
+      raise ActiveRecord::StatementInvalid, "connection lost" if key == "example.other_epic"
+
+      original.call(key, **kwargs)
+    end
+    allow(Rails.logger).to receive(:error)
+
+    expect { described_class.call(epic_upserted, registry: registry) }.to raise_error(ActiveRecord::StatementInvalid)
+    expect(Achievements::Unlock.pluck(:definition_key)).to eq([ "example.first_epic_landed" ])
+  end
 end

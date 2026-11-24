@@ -394,6 +394,16 @@ snapshot calls out the launch-relevant groups:
 | Language and platform support | Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
 | Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache, Local Backups, S3 Backup Destination |
 
+Achievements is a removable plugin that records neutral, plugin-owned
+milestones from domain events. Instance-wide milestones unlock once per
+installation; per-user accomplishments are credited only to the operator who
+started the work, never to automated work or incidental interaction. Each user
+acknowledges reveals separately and can replay one reveal or reset their own
+acknowledgments; an admin can reset everyone's acknowledgments after an explicit
+confirmation. Resets never delete unlocks or change their timestamps. Enabling
+the plugin does not backfill history: only events after enablement are
+evaluated, and any future backfill will be a separate explicit operation.
+
 Local Backups can create sealed recovery bundles for installations that use an
 authoritative SQLite database and Disk Active Storage. It takes a consistent
 online database snapshot, streams and verifies every referenced blob, and
