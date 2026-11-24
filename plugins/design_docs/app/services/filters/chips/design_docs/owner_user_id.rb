@@ -17,7 +17,7 @@ module Filters
             { "value" => "me", "label" => "Me" },
             { "value" => "unclaimed", "label" => "Unclaimed" }
           ]
-          users = User.order(Arel.sql("LOWER(email_address) ASC"), :id)
+          users = Syrus::Host::UserRecord.order(Arel.sql("LOWER(email_address) ASC"), :id)
             .map { |record| { "value" => record.id.to_s, "label" => record.email_address } }
           base + users
         end

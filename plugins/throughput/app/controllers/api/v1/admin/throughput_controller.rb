@@ -35,10 +35,10 @@ module Api
             if params[:repository].blank?
               nil
             elsif params[:repository].to_s.match?(/\A\d+\z/)
-              ::Repository.find(params[:repository])
+              Syrus::Host::RepositoryRecord.find(params[:repository])
             else
               owner, name = params[:repository].to_s.split("/", 2)
-              ::Repository.find_by!(owner: owner, name: name)
+              Syrus::Host::RepositoryRecord.find_by!(owner: owner, name: name)
             end
         end
       end

@@ -3,7 +3,7 @@ module Throughput
     include Syrus::Host::RepoPageTab
 
     def self.repo_page_tabs(repository:, user:)
-      return [] unless Repository.accessible_to(user).exists?(id: repository.id)
+      return [] unless Syrus::Host::RepositoryRecord.accessible_to(user).exists?(id: repository.id)
 
       path = "/repositories/#{repository.id}/plugin/throughput"
       [

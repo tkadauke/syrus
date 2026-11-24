@@ -145,7 +145,7 @@ module GitHistory
     end
 
     def find_repository(repository_id)
-      with_connection { Repository.find_by(id: repository_id) }
+      with_connection { Syrus::Host::RepositoryRecord.find_by(id: repository_id) }
     end
 
     def not_found

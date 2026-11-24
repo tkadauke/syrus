@@ -11,11 +11,11 @@ module AgentInsights
         owner = context.user
         audit_actor = context.run || context.user
         scope = if context.run?
-          Repository.where(id: context.repository || context.run&.job&.repository)
+          Syrus::Host::RepositoryRecord.where(id: context.repository || context.run&.job&.repository)
         elsif context.user.admin?
-          Repository.all
+          Syrus::Host::RepositoryRecord.all
         else
-          Repository.where(id: context.allowed_repository_ids)
+          Syrus::Host::RepositoryRecord.where(id: context.allowed_repository_ids)
         end
         [ context, chat_session, owner, audit_actor, scope ]
       end

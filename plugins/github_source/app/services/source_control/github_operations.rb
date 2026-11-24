@@ -11,7 +11,7 @@ module SourceControl
     end
 
     def self.client_for(repository:, user: nil)
-      GithubClient.for(repository: repository, user: user)
+      Syrus::Host::GithubClient.for(repository: repository, user: user)
     end
   end
 end

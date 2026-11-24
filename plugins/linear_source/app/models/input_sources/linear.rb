@@ -1,5 +1,5 @@
 module InputSources
-  class Linear < InputSource
+  class Linear < Syrus::Host::InputSourceBase
     include Syrus::Host::InputSource
 
     def poll!
@@ -24,7 +24,7 @@ module InputSources
         end
 
         issues.each { |issue| ingest_with_quarantine(issue) }
-        InputSources::PendingWorkWakeup.call(repository)
+        Syrus::Host::PendingWorkWakeup.call(repository)
 
         repository.mark_poll_success!(clear_issue_errors: false)
       rescue => e

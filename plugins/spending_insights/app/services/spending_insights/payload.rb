@@ -177,7 +177,7 @@ module SpendingInsights
       @available_agent_providers ||= begin
         providers = base_accessible_runs.distinct.pluck(:agent_provider).compact
         providers.concat(scoped_chat_spend_entries.distinct.pluck(:agent_provider))
-        User.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
+        Syrus::Host::UserRecord.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
           { value: provider, label: App::Presentation.agent_provider_label(provider) }
         end
       end
