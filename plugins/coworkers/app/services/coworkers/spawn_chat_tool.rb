@@ -29,7 +29,7 @@ module Coworkers
         coworker = context.agent_actor
         return Mcp::Tools.invalid("spawn_coworker_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
 
-        requested_handle = HandleRegistry.normalize(handle.to_s.delete_prefix("@")) if handle.present?
+        requested_handle = Syrus::Host::Handles.normalize(handle.to_s.delete_prefix("@")) if handle.present?
         return Mcp::Tools.invalid("a coworker can only spawn a side chat of itself") if requested_handle && requested_handle != coworker.handle
         return Mcp::Tools.invalid("prompt is required") if prompt.to_s.strip.blank?
 

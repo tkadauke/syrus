@@ -427,7 +427,8 @@ class McpToolRegistry
     end
 
     def coworker_entries
-      shared_chat_entries = chat_entries.select { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }
+      participants = Mcp::ChatToolParity.participants(enabled_only: true)
+      shared_chat_entries = chat_entries.select { |entry| Mcp::ChatToolParity.core_entry_in_context?(entry, :coworker, participants:) }
       family_defaults = shared_chat_entries.group_by { |entry| entry.descriptor.capability }.transform_values do |entries|
         entries.all? do |entry|
           entry.descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
@@ -438,7 +439,7 @@ class McpToolRegistry
         descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
           entry.descriptor, default_policy: family_defaults.fetch(entry.descriptor.capability)
         )
-        coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag,
+        coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag, admin_only: entry.admin_only,
           feature_flags_by_role: entry.feature_flags_by_role, available_if: entry.available_if,
           interactive_only: entry.interactive_only, mutation: entry.mutation,
           approval_effect: entry.approval_effect || pending_action_tool?(entry.tool),

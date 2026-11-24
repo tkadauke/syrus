@@ -36,7 +36,7 @@ module Api
             current_briefing = briefing
             return render_error("briefing_archived", "Only the current live briefing can start a dive.", status: :unprocessable_content) unless current_briefing.live?
 
-            result = WorkUnits::Launcher.create_and_start!(
+            result = Syrus::Host::WorkLauncher.create_and_start!(
               kind: "briefing_dive",
               job: current_briefing.job,
               artifacts: {

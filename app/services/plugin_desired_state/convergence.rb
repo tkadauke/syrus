@@ -1,5 +1,6 @@
 class PluginDesiredState::Convergence
   DEFAULT_DIVERGENCE_THRESHOLD = 5.minutes
+  ALERT_EPISODE_KEY = "__alert".freeze
 
   def initialize(state: PluginDesiredState.current, now: Time.current, threshold: nil)
     @state = state
@@ -19,12 +20,71 @@ class PluginDesiredState::Convergence
     process_rows.any? { |row| row[:diverged_too_long] }
   end
 
+  # Stable for an uninterrupted sustained episode (the earliest sustained
+  # process's episode start); changes when a later, new episode begins, so
+  # dismissals and outbound deduplication do not leak across recoveries.
+  def prolonged_episode_key
+    process_rows
+    @alert_since&.to_i
+  end
+
   private
 
   attr_reader :state, :now, :threshold
 
   def process_rows
-    @process_rows ||= cohort.map { |process| serialize(process) }.sort_by { |row| [ row[:role], row[:hostname] ] }
+    @process_rows ||= begin
+      rows = cohort.map { |process| serialize(process) }.sort_by { |row| [ row[:role], row[:hostname] ] }
+      track_alert_episode(rows)
+      persist_episodes
+      rows
+    end
+  end
+
+  # A divergence episode starts when a specific process is first observed
+  # diverging from the current eligible desired set, and ends when it
+  # converges, leaves the cohort, or the desired set identity changes.
+  def episode_started_at(process)
+    key = episode_key(process)
+    identity = desired_digest(value(process, :role))
+    existing = stored_episodes[key]
+    started = existing && existing["identity"] == identity ? Time.zone.parse(existing["since"].to_s) : nil
+    started ||= now
+    next_episodes[key] = { "since" => started.iso8601(6), "identity" => identity }
+    started
+  end
+
+  # The global alert's episode is retained until no process remains sustained,
+  # so it stays stable when the earliest sustained process recovers while
+  # another one is still diverged. A new desired revision starts a new one.
+  def track_alert_episode(rows)
+    @alert_since = nil
+    starts = rows.select { |row| row[:diverged_too_long] }.filter_map { |row| row[:diverged_since] }
+    return if starts.empty?
+
+    existing = stored_episodes[ALERT_EPISODE_KEY]
+    kept = existing && existing["revision"] == state.revision ? Time.zone.parse(existing["since"].to_s) : nil
+    @alert_since = kept || Time.zone.parse(starts.min)
+    next_episodes[ALERT_EPISODE_KEY] = { "since" => @alert_since.iso8601(6), "revision" => state.revision }
+  end
+
+  def episode_key(process)
+    "#{value(process, :hostname)}|#{value(process, :role)}"
+  end
+
+  def stored_episodes
+    @stored_episodes ||= state.respond_to?(:divergence_episodes) ? state.divergence_episodes.to_h : {}
+  end
+
+  def next_episodes
+    @next_episodes ||= {}
+  end
+
+  def persist_episodes
+    return unless state.respond_to?(:divergence_episodes) && state.persisted?
+    return if next_episodes == stored_episodes
+
+    state.update_columns(divergence_episodes: next_episodes)
   end
 
   def cohort
@@ -51,7 +111,7 @@ class PluginDesiredState::Convergence
     heartbeat = value(process, :last_heartbeat_at)&.to_time
     revision = value(process, :plugin_set_revision)
     status = convergence_state(process, heartbeat, revision)
-    divergent_since = divergence_started_at(process, heartbeat, status)
+    divergent_since = status == "converged" ? nil : episode_started_at(process)
     {
       hostname: value(process, :hostname), role: value(process, :role), state: status,
       running_revision: revision, running_digest: value(process, :plugin_set_digest),
@@ -63,20 +123,13 @@ class PluginDesiredState::Convergence
   end
 
   def convergence_state(process, heartbeat, revision)
+    return "converged" if enabled_installations.empty?
     return "unreachable" if heartbeat.blank? || heartbeat < now - InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-    return "converged" if state.revision.zero? && enabled_installations.empty?
     return "converged" if value(process, :plugin_set_digest).present? && value(process, :plugin_set_digest) == desired_digest(value(process, :role))
     return "ahead" if revision.present? && revision.to_i > state.revision
     return "pending_restart" if state.apply_revision == state.revision && state.apply_requested_at.present? && revision.to_i < state.revision
 
     "behind"
-  end
-
-  def divergence_started_at(process, heartbeat, status)
-    return nil if status == "converged"
-    candidates = [ state.updated_at, value(process, :started_at)&.to_time ]
-    candidates << heartbeat + InstanceVersion::HEARTBEAT_STALE_THRESHOLD if status == "unreachable" && heartbeat
-    candidates.compact.max
   end
 
   def plugin_rows(process)
@@ -112,7 +165,7 @@ class PluginDesiredState::Convergence
   end
 
   def enabled_installations
-    @enabled_installations ||= installations.select(&:enabled_for_sync?)
+    @enabled_installations ||= installations.select { |installation| installation.enabled_for_sync? && installation.plugin_release.source != "bundled" }
   end
 
   def value(process, attribute)

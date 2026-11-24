@@ -13,7 +13,7 @@ module MainBranchHealth
       AgentRole::WORKFLOW_IMPLEMENT,
       "workflow:summary_test_plan",
       "workflow:rebase_conflict",
-      AgentRole::WORKFLOW_MANUAL
+      Syrus::Host::AgentRoles::WORKFLOW_MANUAL
     ].freeze
 
     def self.available_for?(_repository) = true

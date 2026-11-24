@@ -27,14 +27,17 @@ module Syrus
     # Permissions::CapabilityDescriptor contract. A plugin may temporarily
     # ratchet existing hashes through manifest-owned
     # +capability_descriptor_compatibility+ digests while it migrates.
-    # Coworkers inherit ordinary chat definitions and availability by default;
-    # canonical capability descriptors still decide whether calls run, ask, or
-    # are denied. A definition may opt out with +coworker_excluded:+ or
-    # +admin_only:+. A provider whose entire surface is incoherent for coworkers
-    # may return true from `.coworker_excluded?`. Providers that contribute a
-    # distinct coworker-only surface may return true from
-    # `.coworker_specific_availability?` and implement
-    # `.available_for_coworker?`.
+    # Every chat context inherits ordinary chat definitions and availability
+    # (interactive chat tool parity, see Mcp::ChatToolParity); canonical
+    # capability descriptors still decide whether calls run, ask, or are denied.
+    # A definition may set +admin_only:+. A context-specific exception is
+    # allowed only when the tool is semantically incoherent there; declare it
+    # with a +parity_exception:+ hash on the definition or a
+    # `.chat_parity_exceptions` provider method, each carrying reason_code,
+    # explanation, owner, test_ref, and +absent_from:+ (the contexts). A provider
+    # may own extra reason codes with `.chat_parity_reason_codes`. A plugin that
+    # contributes a whole chat context returns its participant from
+    # `.chat_parity_participant`. Boolean exclusion flags are not supported.
     #
     # A provider may declare `.coworker_grants`, returning hashes accepted by
     # `Coworkers::GrantCatalog::Descriptor`: name, label, description,

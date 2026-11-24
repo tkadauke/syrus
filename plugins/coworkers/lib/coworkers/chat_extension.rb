@@ -35,9 +35,8 @@ module Coworkers
   module ChatExtension
     def self.install_into(scope)
       scope.effect("chat coworker resolver") do
-        ChatMessage.include(Coworkers::MentionMessageCallback) unless ChatMessage < Coworkers::MentionMessageCallback
         ChatSession.prepend(Coworkers::MentionActivityProxy) unless ChatSession < Coworkers::MentionActivityProxy
-        ChatMessage.set_callback(:commit, :after, :delegate_coworker_mention, on: :create)
+        Syrus::Host::ChatMessages.install_after_commit_on_create(Coworkers::MentionMessageCallback, :delegate_coworker_mention)
         unless ChatSession.reflect_on_association(:coworker_chat)
           ChatSession.has_one :coworker_chat,
             class_name: "Coworkers::Chat",
@@ -92,7 +91,7 @@ module Coworkers
         end
 
         -> do
-          ChatMessage.skip_callback(:commit, :after, :delegate_coworker_mention, on: :create)
+          Syrus::Host::ChatMessages.remove_after_commit_on_create(:delegate_coworker_mention)
           %i[coworker ephemeral_agent_turn? owner_facing_chat_session workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end

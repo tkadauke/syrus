@@ -13,7 +13,7 @@ module Mcp::Tools
     class << self
       def call(server_context:, query: nil, include_non_requestable: false)
         context = McpToolContext.from_server_context(server_context)
-        unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        unless context.role.in?([ Syrus::Host::AgentRoles::COWORKER_CHAT, Syrus::Host::AgentRoles::COWORKER ])
           return Mcp::Tools.not_authorized
         end
 

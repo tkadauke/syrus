@@ -94,6 +94,30 @@ module Syrus
         | Tool | Surface | Tier | Mode | Admin | Roles | Step kinds | Capability | Feature flag | Permission |
         |---|---|---|---|---|---|---|---|---|---|
         #{rows.map { |row| "| #{row.join(' | ')} |" }.join("\n")}
+
+        #{render_parity_exceptions}
+      MD
+    end
+
+    def self.render_parity_exceptions
+      rows = (Mcp::ChatToolParity.exceptions + Mcp::ChatToolParity.plugin_exceptions).uniq.map do |exception|
+        tools = exception.tools.map { |name| "`#{name}`" }.join(", ").presence || "tools gated to a dedicated chat role"
+        [ "`#{exception.reason_code}`", exception.explanation, exception.owner,
+          exception.absent_from.map { |context| "`#{context}`" }.join(", ").presence || "-", tools ]
+      end
+
+      <<~MD.chomp
+        ## Interactive chat tool parity exceptions
+
+        Every tool meaningful in an interactive chat is discoverable in planner,
+        coding, local, and coworker chats unless a reviewed exception below says
+        the operation is semantically incoherent there. Authorization is never an
+        exception: risky, admin, destructive, external-write, and credential-using
+        tools stay shared and rely on canonical permission checks.
+
+        | Reason code | Explanation | Owner | Absent from | Tools |
+        |---|---|---|---|---|
+        #{rows.map { |row| "| #{row.join(' | ')} |" }.join("\n")}
       MD
     end
 

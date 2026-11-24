@@ -1,7 +1,8 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
+# An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 470
+legacy_baseline: 444
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -30,9 +31,7 @@ constants:
 - name: AgentRole::COWORKER
 - name: AgentRole::COWORKER_CHAT
 - name: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-- name: AgentRole::WORKFLOW_COWORKER_REVIEWER
 - name: AgentRole::WORKFLOW_IMPLEMENT
-- name: AgentRole::WORKFLOW_MANUAL
 - name: AgentRole::WORKFLOW_ROLES
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
 - name: AgentSidecarEnvironment
@@ -73,10 +72,11 @@ constants:
 - name: ChatProviderOptions
 - name: ChatProviders::Base
 - name: ChatProviders::ConfigurationError
-- name: ChatQueuedMessage::INTERNAL_ROLE_KEY
 - name: ChatQueuedMessagePromoter
 - name: ChatResultBadges
 - name: ChatSession
+  reason: The coworkers plugin prepends behavior onto ChatSession and queries it;
+    a contracted query/extension facade is still needed.
 - name: ChatSession::CrossChatMessage
 - name: ChatSession::CrossChatMessage::ClosedThreadError
 - name: ChatSession::EFFORT_LEVELS
@@ -93,7 +93,6 @@ constants:
 - name: ChatSpeechToText::Providers::TranscriptionUnavailable
 - name: ChatSpeechToText::Telemetry
 - name: ChatSpendEntry
-- name: ChatTurnJob
 - name: ChatWakeup
 - name: ChatWorkEvents
 - name: ChatWorkspace
@@ -107,9 +106,6 @@ constants:
 - name: CredentialProbe::Result
 - name: CredentialProbe::TIMEOUT_SECONDS
 - name: Current
-- name: DiffReviewComment
-- name: DiffReviewVersion
-- name: DiffReviewVersions::FinalReviewVersion
 - name: DirectJobs::Creator
 - name: DirectJobs::Creator::Attachment
 - name: Document::MAX_ATTACHMENTS_PER_JOB
@@ -160,7 +156,6 @@ constants:
 - name: GraderResourceRequest::ALL
 - name: Handle
 - name: Handle::FORMAT
-- name: HandleRegistry
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
 - name: IngestIssueImagesJob
@@ -173,6 +168,8 @@ constants:
 - name: InvestigationJobs::Creator
 - name: IssueImageExtractor
 - name: Job
+  reason: Plugins query and extend Jobs (scopes, associations); needs a contracted
+    query facade before it can leave the allowlist.
 - name: Job::Kind
 - name: Job::Origin
 - name: Job::ProviderSetting::Base
@@ -192,7 +189,7 @@ constants:
 - name: LandedCommit
 - name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
-- name: Mcp::CoworkerToolExposure
+- name: Mcp::ChatToolParity
 - name: Mcp::Pagination
 - name: Mcp::Tools
 - name: Mcp::Tools::AdminPendingActionToolSupport
@@ -225,9 +222,7 @@ constants:
 - name: OperationalLogging
 - name: Paginatable
 - name: PendingActionItem
-- name: PendingActions::AuthorizedToolCall
 - name: PendingActions::Base
-- name: PendingActions::PermissionManagement
 - name: PerformanceLogEvent
 - name: PerformanceLogging
 - name: PerformanceLogging::BROWSER_TRACE_EVENT
@@ -240,22 +235,14 @@ constants:
 - name: PerformanceLogging::Store::MAX_EVENTS
 - name: PermissionLease
 - name: PermissionRule
-- name: Permissions::AuthorizationDecision
-- name: Permissions::AuthorizationRequest
 - name: Permissions::CapabilityDescriptor
 - name: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS
-- name: Permissions::CapabilityDescriptor::POLICIES
 - name: Permissions::CapabilityDescriptorAdapter
 - name: Permissions::CapabilityPresentation
-- name: Permissions::CapabilityRegistryValidator
-- name: Permissions::Catalog
-- name: Permissions::Catalog::UnknownCapability
 - name: Permissions::CoworkerDefaultPolicy
 - name: Permissions::CoworkerDefaultPolicy::ROLES
 - name: Permissions::Management
 - name: Permissions::Management::PROFILE_SOURCE_PREFIX
-- name: Permissions::PermissionRequest
-- name: Permissions::PolicyEvaluator::POLICY_RANK
 - name: PersistentMcpDaemon
 - name: PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER
 - name: PersistentMcpDaemon::MCP_PATH
@@ -264,7 +251,6 @@ constants:
 - name: PlatformPollingJob
 - name: PluginDataCleanup
 - name: PluginJob
-- name: PluginJob::DEFAULT_ATTEMPTS
 - name: PluginRecord
 - name: PrReviewComment
 - name: PreviewCommandSource
@@ -296,6 +282,8 @@ constants:
 - name: RepoDefaultBranchSyrusYml
 - name: RepoDeploymentStagesReader
 - name: Repository
+  reason: Plugins query repositories and their jobs beyond the read-only Syrus::Host::Repository
+    contract.
 - name: RepositoryBareClone
 - name: RepositoryContent
 - name: RepositoryContent::Blob
@@ -323,10 +311,9 @@ constants:
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
 - name: ReviewEvidence::VerdictSubmission
-- name: ReviewerTargets
-- name: ReviewerTargets::TargetRequired
-- name: ReviewerTargets::TargetUnavailable
 - name: Run
+  reason: Plugins read run state and artifacts beyond the read-only Syrus::Host::Run
+    contract.
 - name: Run::ACTIVE_STATES
 - name: RunDiff
 - name: RunHeartbeat
@@ -355,8 +342,6 @@ constants:
 - name: Step::AGENTIC_KINDS
 - name: Step::Kind
 - name: StepWorkspace
-- name: Steps::AdversarialReview
-- name: Steps::AdversarialReview::MemoryPersistenceFailed
 - name: Steps::Base
 - name: Steps::MergeTrainLand::STALE_BASE_ARTIFACT
 - name: Syrus::DataCleanup
@@ -450,13 +435,13 @@ constants:
 - name: TypedArtifactRenderer
 - name: UiEngagementSample
 - name: User
+  reason: Plugins query users and their repositories beyond the read-only Syrus::Host::User
+    contract.
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
 - name: User::DASHBOARD_REQUIRED_COLUMNS
 - name: ValidatesAgentProvider
 - name: WorkDefinitions::Base
-- name: WorkUnits::GateResult
 - name: WorkUnits::Launcher
-- name: WorkUnits::Launcher::LockConflict
 - name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis
@@ -464,6 +449,8 @@ constants:
 - name: WorkerQueueTopology
 - name: WorkerStorageIdentity
 - name: Workflow
+  reason: Plugins read workflow state and artifacts beyond the read-only Syrus::Host::Workflow
+    contract.
 - name: Workflow::TriggerKind
 - name: WorkflowActivityEvent
 - name: WorkflowVisualEvidence

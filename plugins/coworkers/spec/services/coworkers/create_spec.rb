@@ -103,6 +103,11 @@ RSpec.describe Coworkers::Create, :allow_host_execution do
       "memory/repos/<owner>__<name>.md", "memory/banks/*", "Never store credentials",
       "one entry per event", "@handle", "at most 64 KiB", Coworkers::PromptSection::TRUNCATION_MARKER
     )
+    expect(remote.seeded_files.fetch("AGENTS.md")).to include(
+      "Scheduling mechanisms are distinct", "`schedule_recurring`", "`schedule_wakeup`",
+      "chat-local", "side chats", "`manage_coworker_schedule`", "deliver results to your main chat",
+      "successful result before reporting"
+    )
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
     expect(coworker).to have_attributes(accent_hex: "#0090FF", role_summary: "not set up yet")
     policies = coworker.permission_rules.entries.to_h { |entry| [ entry[:capability], entry[:approval_policy] ] }

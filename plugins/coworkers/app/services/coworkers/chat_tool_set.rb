@@ -63,7 +63,7 @@ module Coworkers
     end
 
     # Explicit descriptors so each default policy is justified by classified
-    # effects (see Permissions::CoworkerDefaultPolicy), never inherited.
+    # effects (see Syrus::Host::PermissionCoworkerDefaultPolicy), never inherited.
     def self.coworker_descriptor(klass)
       name = klass.tool_name
       if WORKSPACE_TOOLS.include?(klass)
@@ -89,7 +89,21 @@ module Coworkers
       chat_session.present? && Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
 
-    def self.coworker_specific_availability? = true
+    # The coworkers plugin owns the coworker chat context for parity.
+    def self.chat_parity_participant = Coworkers::ChatParity
+
+    def self.chat_parity_reason_codes = Coworkers::ChatParity::REASON_CODES
+
+    def self.chat_parity_exceptions
+      [ {
+        reason_code: "coworker_identity_lifecycle",
+        explanation: "Coworker workspace, reply, schedule and spawn tools operate on a coworker identity that " \
+                     "has no non-coworker subject; ordinary chats get only the deferred drafting tools.",
+        owner: "coworkers",
+        test_ref: "plugins/coworkers/spec/services/coworkers/chat_tool_set_spec.rb",
+        absent_from: Coworkers::ChatParity::CORE_CONTEXTS
+      } ]
+    end
 
     def self.available_for_coworker?(_chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :essential

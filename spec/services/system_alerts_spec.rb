@@ -23,6 +23,124 @@ RSpec.describe SystemAlerts do
       expect(alert).to have_attributes(severity: :warn, cta: { text: "Review plugins", path: "/admin/plugins" })
     end
 
+    it "keeps the recovery alert for a built-in-only install without a fleet divergence alert" do
+      user = Factories.user(admin: true)
+      allow(PluginDesiredState::Publisher).to receive(:publish!)
+      release = PluginRelease.create!(name: "core_thing", version: "1.0.0", content_digest: "b" * 64,
+        source: "bundled", trust_label: "official", size_bytes: 0)
+      PluginInstallation.create!(plugin_name: "core_thing", plugin_release: release)
+      PluginDesiredState.current.update!(revision: 5)
+      InstanceVersion.create!(hostname: "stale", role: "web", version: "sha", started_at: 2.hours.ago,
+        last_heartbeat_at: 1.hour.ago, plugin_set_revision: 1, plugin_set_details: { "plugins" => [] })
+      safety = instance_double(Syrus::PluginBootSafety, active?: true, mode: "recent", quarantines: { "core_thing" => "failed to load" })
+      allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      ids = described_class.active_for(user: user).map(&:id)
+
+      expect(ids).to include("plugin_recovery_mode")
+      expect(ids).not_to include("plugin_fleet_divergence")
+    end
+
+    describe "plugin fleet divergence lifecycle" do
+      let(:admin) { Factories.user(admin: true) }
+
+      before do
+        allow(PluginDesiredState::Publisher).to receive(:publish!)
+        allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+        release = PluginRelease.create!(name: "weather", version: "1.0.0", content_digest: Digest::SHA256.hexdigest("archive"),
+          source: "upload", trust_label: "unsigned_local", size_bytes: 7)
+        PluginArtifacts.store!(release, StringIO.new("archive"))
+        PluginInstallation.create!(plugin_name: "weather", plugin_release: release, roles: [ "web" ])
+        PluginDesiredState.current.update!(revision: 2)
+        PluginDesiredState.current.update_column(:updated_at, 3.hours.ago)
+        @process = InstanceVersion.create!(hostname: "lagging", role: "web", version: "sha", started_at: 4.hours.ago,
+          last_heartbeat_at: Time.current, plugin_set_revision: 1, plugin_set_details: { "plugins" => [] })
+      end
+
+      def divergence_ids = described_class.active_for(user: admin).map(&:id).grep("plugin_fleet_divergence")
+      def outbound_ids = described_class.outbound_alerts.map(&:id).grep("plugin_fleet_divergence")
+      def beat! = @process.update!(last_heartbeat_at: Time.current)
+
+      it "stays silent during the grace period, alerts after it, and clears on recovery" do
+        travel_to(Time.zone.parse("2026-11-20 12:00:00")) do
+          beat!
+          expect(divergence_ids).to be_empty
+          expect(outbound_ids).to be_empty
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:04:00")) do
+          beat!
+          expect(divergence_ids).to be_empty
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:05:30")) do
+          beat!
+          expect(divergence_ids).to eq([ "plugin_fleet_divergence" ])
+          expect(outbound_ids).to eq([ "plugin_fleet_divergence" ])
+          @process.update!(plugin_set_revision: 2, plugin_set_digest: Digest::SHA256.hexdigest(JSON.generate([
+            { "name" => "weather", "version" => "1.0.0", "digest" => Digest::SHA256.hexdigest("archive"), "size" => 7 }
+          ])))
+          expect(divergence_ids).to be_empty
+          expect(outbound_ids).to be_empty
+        end
+      end
+
+      it "never warns when convergence happens before the threshold and gives a later mismatch a fresh grace period" do
+        digest = Digest::SHA256.hexdigest(JSON.generate([
+          { "name" => "weather", "version" => "1.0.0", "digest" => Digest::SHA256.hexdigest("archive"), "size" => 7 }
+        ]))
+        travel_to(Time.zone.parse("2026-11-20 12:00:00")) { beat!; expect(divergence_ids).to be_empty }
+        travel_to(Time.zone.parse("2026-11-20 12:03:00")) do
+          @process.update!(plugin_set_revision: 2, plugin_set_digest: digest, last_heartbeat_at: Time.current)
+          expect(divergence_ids).to be_empty
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:20:00")) do
+          @process.update!(plugin_set_revision: 1, plugin_set_digest: nil, last_heartbeat_at: Time.current)
+          expect(divergence_ids).to be_empty
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:25:30")) do
+          beat!
+          expect(divergence_ids).to eq([ "plugin_fleet_divergence" ])
+        end
+      end
+
+      it "gives a later episode at the same revision a new fingerprint and lets it notify and render after the first was delivered and dismissed" do
+        digest = Digest::SHA256.hexdigest(JSON.generate([
+          { "name" => "weather", "version" => "1.0.0", "digest" => Digest::SHA256.hexdigest("archive"), "size" => 7 }
+        ]))
+        allow(SystemAlertDelivery).to receive(:configured?).and_return(true)
+        allow_any_instance_of(SystemAlertDelivery).to receive(:deliver_to_sinks)
+        def divergence_alert = described_class.active_for(user: admin).find { |a| a.id == "plugin_fleet_divergence" }
+
+        travel_to(Time.zone.parse("2026-11-20 12:00:00")) { beat!; divergence_alert }
+        first = travel_to(Time.zone.parse("2026-11-20 12:06:00")) do
+          beat!
+          alert = divergence_alert
+          SystemAlertDelivery.deliver(described_class.outbound_alerts)
+          alert
+        end
+        # Uninterrupted episode keeps a stable fingerprint across refreshes.
+        travel_to(Time.zone.parse("2026-11-20 12:08:00")) do
+          beat!
+          expect(divergence_alert.dismissal_key).to eq(first.dismissal_key)
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:09:00")) do
+          @process.update!(plugin_set_revision: 2, plugin_set_digest: digest, last_heartbeat_at: Time.current)
+          expect(divergence_alert).to be_nil
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:20:00")) do
+          @process.update!(plugin_set_revision: 1, plugin_set_digest: nil, last_heartbeat_at: Time.current)
+          expect(divergence_alert).to be_nil
+        end
+        travel_to(Time.zone.parse("2026-11-20 12:26:00")) do
+          beat!
+          second = divergence_alert
+          expect(second.dismissal_key).not_to eq(first.dismissal_key)
+          expect { SystemAlertDelivery.deliver(described_class.outbound_alerts) }
+            .to change { SystemAlertNotification.where(dismissal_key: second.dismissal_key).count }.from(0).to(1)
+        end
+      end
+    end
+
     it "surfaces a github-token-blocked alert when the user is flagged" do
       user = Factories.user
       user.mark_gh_api_blocked!("Resource not accessible by personal access token")

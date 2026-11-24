@@ -32,7 +32,7 @@ class PluginDesiredState::Publisher
     {
       schema_version: SCHEMA_VERSION,
       revision:,
-      plugins: PluginInstallation.includes(:plugin_release).where(enabled_for_sync: true).order(:plugin_name).map do |installation|
+      plugins: PluginInstallation.includes(:plugin_release).sync_managed.order(:plugin_name).map do |installation|
         release = installation.plugin_release
         {
           name: installation.plugin_name,

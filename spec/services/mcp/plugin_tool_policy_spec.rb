@@ -43,34 +43,31 @@ RSpec.describe "plugin chat tool policy" do
     expect(names_for(:evaluator)).to eq(%w[plugin_read])
   end
 
-  it "offers coworkers shared plugin tools by default with explicit exclusions" do
+  it "applies a parity context's filtering only to contexts a participant owns" do
+    probe = Class.new do
+      def self.context = :probe
+      def self.enabled? = true
+    end
+    allow(Mcp::ChatToolParity).to receive(:participants).and_return([ probe ])
     definitions = [
       { name: "shared" },
-      { name: "legacy_safe", coworker_safe: true },
       { name: "admin", admin_only: true },
-      { name: "mode_bound", coworker_excluded: true }
+      { name: "hidden", parity_exception: { reason_code: "requires_coding_checkout", explanation: "x", owner: "o",
+                                            test_ref: "spec/services/mcp/plugin_tool_policy_spec.rb", absent_from: %i[probe] } }
     ]
+    admin = Factories.user(admin: true)
 
-    expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker).map { |definition| definition[:name] })
-      .to eq(%w[shared legacy_safe])
-
-    excluded = class_double("ExcludedToolSet", coworker_excluded?: true)
-    expect(Mcp::CoworkerToolExposure.plugin_provider?(excluded)).to be(false)
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :probe).map { |d| d[:name] }).to eq(%w[shared])
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :probe, user: admin).map { |d| d[:name] }).to eq(%w[shared admin])
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :chat).map { |d| d[:name] }).to eq(%w[shared admin hidden])
+    expect(Mcp::Sidecar.filter_by_policy(definitions, nil).map { |d| d[:name] }).to eq(%w[shared admin hidden])
   end
 
-  it "uses ordinary availability by default and names coworker-only provider exceptions centrally" do
-    shared = class_double("SharedToolSet").as_stubbed_const
-    allow(shared).to receive(:name).and_return("Example::SharedToolSet")
+  it "uses ordinary availability when no participant owns the context" do
+    shared = class_double("SharedToolSet")
     allow(shared).to receive(:available_for?).with(chat, tier: :essential).and_return(true)
-    allow(shared).to receive(:available_for_coworker?).and_return(false)
 
-    expect(Mcp::CoworkerToolExposure.plugin_provider_available?(shared, chat, tier: :essential)).to be(true)
-
-    specific = class_double(
-      "SpecificToolSet", coworker_specific_availability?: true,
-      available_for_coworker?: false, coworker_excluded?: false
-    )
-    expect(Mcp::CoworkerToolExposure.plugin_provider_available?(specific, chat, tier: :essential)).to be(false)
+    expect(Mcp::ChatToolParity.plugin_provider_available?(shared, :coworker, chat, tier: :essential)).to be(true)
   end
 
   # A tool set written before the flags existed must behave exactly as it did.

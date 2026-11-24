@@ -4,10 +4,12 @@ module Coworkers
 
     def call
       workspace.setup
+      @base_sha = workspace_head
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking coworker for background run (#{workflow.slug})")
       result = run_agent(prompt: run.prompt, workload_policy: Execution::ChatWorkloadPolicy.for_current_setting)
       run.update!(agent_summary: result.final_text.to_s.strip.presence)
+      @written_paths = claims_present? ? written_paths : Set.new
       persist_workspace!
     end
 
@@ -33,19 +35,64 @@ module Coworkers
       )
     end
 
+    def claims_present?
+      summary = run.agent_summary
+      Coworkers::ClaimedWorkspacePaths.from(summary).any? || Coworkers::ClaimedWorkspacePaths.unsupported_from(summary).any?
+    end
+
+    def workspace_head
+      GitRunner.new.run("rev-parse", "--verify", "-q", "HEAD", chdir: workspace.path.to_s).strip.presence
+    rescue GitRunner::GitError
+      nil
+    end
+
+    # Exact files this run created or modified (not deletions, not files that
+    # merely exist), relative to the commit the workspace started from.
+    def written_paths
+      git = GitRunner.new
+      dir = workspace.path.to_s
+      tracked = @base_sha ? git.run("diff", "--name-only", "--no-renames", "--diff-filter=ACMT", @base_sha, chdir: dir).lines : []
+      untracked = git.run("ls-files", "--others", "--exclude-standard", chdir: dir).lines
+      (tracked + untracked).map(&:strip).reject(&:empty?).select { |path| claimable_path?(path) }.to_set
+    rescue GitRunner::GitError
+      Set.new # unverifiable: fail closed, every claim is reported unsupported
+    end
+
+    def claimable_path?(path)
+      path.start_with?("memory/") || Coworkers::ClaimedWorkspacePaths::CORE_FILES.include?(path)
+    end
+
     def verify_claimed_paths!
       claimed = Coworkers::ClaimedWorkspacePaths.from(run.agent_summary)
-      return if claimed.empty?
+      vague = Coworkers::ClaimedWorkspacePaths.unsupported_from(run.agent_summary)
+      return if claimed.empty? && vague.empty?
 
-      persisted = GitRunner.new.run("ls-tree", "-r", "--name-only", "HEAD", chdir: workspace.path.to_s).lines.map(&:strip).to_set
-      missing = claimed - persisted.to_a
-      return if missing.empty?
+      written = @written_paths || Set.new
+      # An extensionless claim naming a directory of written files is vague; a
+      # claim naming a written file is exact whatever its name looks like.
+      directories = claimed.select { |path| written.none? { |w| w == path } && written.any? { |w| w.start_with?("#{path}/") } }
+      vague |= directories
+      missing = claimed - written.to_a - directories
+      return if missing.empty? && vague.empty?
+
+      fail_unsupported_claims!(missing, vague, written) if vague.any?
 
       subject = missing.one? ? "that path was" : "those paths were"
       fail_persistence!(
         "Workspace persistence warning: the run claimed to write #{missing.join(', ')}, but " \
-        "#{subject} not present in the persisted background-run tree. " \
+        "#{subject} not created or edited by this run. " \
+        "Paths written by this run: #{written.to_a.sort.first(50).join(', ').presence || 'none'}. " \
         "The run was marked failed instead of reporting a false success."
+      )
+    end
+
+    def fail_unsupported_claims!(missing, vague, written)
+      parts = [ "directory-level or wildcard claims (#{vague.join(', ')}) cannot be verified as exact file writes" ]
+      parts << "claimed files not written by this run: #{missing.join(', ')}" if missing.any?
+      fail_persistence!(
+        "Workspace persistence warning: unsupported persistence claim: #{parts.join('; ')}. " \
+        "Paths written by this run: #{written.to_a.sort.first(50).join(', ').presence || 'none'}. " \
+        "The run was marked failed instead of reporting a false success. Report exact file paths only."
       )
     end
 
@@ -61,7 +108,7 @@ module Coworkers
 
         #{job.issue_body.presence || job.issue_title}
 
-        Work in the checked-out coworker workspace. Interactive-only tools are unavailable. Any action requiring owner confirmation must be queued for approval instead of waiting for a live response.
+        Work in the checked-out coworker workspace. When you report saving anything to memory, name only the exact file paths (for example `memory/diary/2026-11-23.md`) that a successful workspace write tool call created or edited. Never report directories, wildcards, or paths you did not write, and never claim a save after a workspace tool returned an error. Interactive-only tools are unavailable. Any action requiring owner confirmation must be queued for approval instead of waiting for a live response.
       TEXT
     end
   end

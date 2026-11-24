@@ -45,7 +45,7 @@ module Mcp
               definition = by_name[name]
               definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
               essential = definition.present? &&
-                Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).essential?
+                Syrus::Host::PermissionCapabilityAdapter.for_plugin_definition(definition).essential?
               Descriptor.new(tool_name: name, capability: capability, ungated: essential,
                 approval_effect: definition.present? && value(definition, :approval_effect) == true,
                 tier: definition ? tiers_by_name.fetch(name, :essential) : :essential,
@@ -57,17 +57,17 @@ module Mcp
           end
           unclassified_descriptors = unclassified.to_h do |definition|
             [ value(definition, :name).to_s,
-              Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition) ]
+              Syrus::Host::PermissionCapabilityAdapter.for_plugin_definition(definition) ]
           end
           unclassified_defaults = unclassified_descriptors.values.group_by(&:capability).transform_values do |descriptors|
             descriptors.all? do |descriptor|
-              descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
-                Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
+              descriptor.defaults.fetch(Syrus::Host::AgentRoles::CHAT_PLANNER, :ask) == :allow &&
+                Syrus::Host::PermissionCoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
             end ? :allow : :ask
           end
           shared = unclassified.map do |definition|
             name = value(definition, :name).to_s
-            descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+            descriptor = Syrus::Host::PermissionCapabilityAdapter.for_coworker_parity(
               unclassified_descriptors.fetch(name),
               default_policy: unclassified_defaults.fetch(unclassified_descriptors.fetch(name).capability)
             )
@@ -111,7 +111,7 @@ module Mcp
             :available
           end
           providers = Syrus::Host::Toolkit.chat_tool_set_for(manifest)
-          Array(providers).select { |provider| Mcp::CoworkerToolExposure.plugin_provider?(provider) }
+          Array(providers).reject { |provider| Mcp::ChatToolParity.provider_hidden?(provider, :coworker) }
             .map { |provider| [ provider, state ] }
         end
       end
@@ -138,7 +138,9 @@ module Mcp
         else
           Array(provider.tool_definitions(tier: nil))
         end
-        definitions = definitions.select { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) }
+        definitions = definitions.select do |definition|
+          Mcp::ChatToolParity.plugin_definition_in_context?(definition, :coworker, user: chat_session&.user, provider: provider)
+        end
         tiers_by_name = tiers.each_with_object({}) do |(tier, tier_definitions), result|
           tier_definitions.each { |definition| result[value(definition, :name).to_s] ||= tier }
         end

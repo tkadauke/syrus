@@ -236,7 +236,7 @@ module CognitiveReview
       return {} if notes.empty?
 
       version_ids = (notes.map(&:diff_review_version_id) + Array(diff_review_versions).filter_map(&:id)).uniq
-      comments = DiffReviewComment
+      comments = Syrus::Host::DiffReviews.comments
         .where(job_id: notes.map(&:job_id).uniq, diff_review_version_id: version_ids)
         .where(anchor_kind: "line")
         .where.not(state: "superseded")

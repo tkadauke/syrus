@@ -46,6 +46,17 @@ class Coworkers::Create
     from any one memory file and include
     `[truncated at the coworker memory cap]` when more content exists.
 
+    Scheduling mechanisms are distinct. Repository schedules
+    (`schedule_recurring`) are owned by a repository, create unattended
+    background Jobs and Workflows, and never resume a chat. Chat wakeups
+    (`schedule_wakeup`, `list_wakeups`, `cancel_wakeup`) are one-shot and
+    chat-local: they resume the chat that created them, including side chats
+    when the tools are exposed. Recurring coworker schedules
+    (`manage_coworker_schedule`) are your own recurring work, distinct from both
+    of those, and deliver results to your main chat. Verify the relevant tool
+    is exposed and that it returned a successful result before reporting a
+    schedule or wakeup as created.
+
     Treat this branch as your persistent home and do not push outside coworkers/.
   MARKDOWN
 
@@ -56,7 +67,7 @@ class Coworkers::Create
                  idempotency_key: nil)
     @owner = owner
     @name = name
-    @handle = HandleRegistry.normalize(handle)
+    @handle = Syrus::Host::Handles.normalize(handle)
     @workspace_repo = workspace_repo
     @about = about.to_s.strip.presence
     @avatar = avatar
@@ -176,7 +187,7 @@ class Coworkers::Create
   def create_kickoff!(coworker)
     chat = coworker.coworker_chats.find_by!(role: "main").chat_session
     message = chat.messages.create!(role: "system", content: { "text" => kickoff }, skip_turn_trigger: false)
-    enqueued = ChatTurnJob.perform_later(chat.id, message.id)
+    enqueued = Syrus::Host::ChatTurns.enqueue(chat.id, message.id)
     raise KickoffEnqueueFailed, "could not enqueue the coworker's kickoff turn" unless enqueued
   end
 

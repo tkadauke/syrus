@@ -21,11 +21,20 @@ module SyrusBrowser
       Tools::RunVisualDiffTool
     ].freeze
 
-    def self.coworker_excluded? = true
-
+    # Coding chats always see the tools. Coworker chats see them too: whether
+    # a compatible authorized browser runtime session exists is resource
+    # state, reported by the tool when it is called
+    # (SessionContext::NoActiveSessionError), not by hiding the tool.
     def self.available_for?(chat_session, tier:)
-      chat_session.present? && chat_session.coding? && %i[essential deferred].include?(tier.to_sym)
+      return false unless chat_session.present? && %i[essential deferred].include?(tier.to_sym)
+
+      chat_session.coding? || coworker_chat?(chat_session)
     end
+
+    def self.coworker_chat?(chat_session)
+      McpToolContext.from_chat_session(chat_session).role == AgentRole::COWORKER_CHAT
+    end
+    private_class_method :coworker_chat?
 
     def self.tool_definitions(tier:)
       definitions = McpToolSet.tool_definitions

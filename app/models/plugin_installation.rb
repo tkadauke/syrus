@@ -11,6 +11,11 @@ class PluginInstallation < ApplicationRecord
   validate :release_artifact_is_available
   validate :release_is_not_revoked
 
+  # Installations the external plugin sync mechanism distributes. Bundled
+  # releases ship inside the Syrus image and are outside desired-state
+  # publication and fleet convergence.
+  scope :sync_managed, -> { where(enabled_for_sync: true).where(plugin_release_id: PluginRelease.where.not(source: "bundled").select(:id)) }
+
   before_validation :set_desired_since, on: :create
   after_commit :publish_desired_state
 

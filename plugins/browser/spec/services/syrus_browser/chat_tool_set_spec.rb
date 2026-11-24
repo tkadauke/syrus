@@ -4,8 +4,22 @@ RSpec.describe SyrusBrowser::ChatToolSet do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
-  it "excludes its Coding Mode surface from coworker chats" do
-    expect(described_class.coworker_excluded?).to be(true)
+  it "is shared with coworker chats, including visual review tools" do
+    expect(Mcp::ChatToolParity.plugin_exceptions([ described_class ])).to be_empty
+    expect(Mcp::ChatToolParity.plugin_report([ described_class ])).to eq([])
+    names = described_class.tool_definitions(tier: :deferred).map { |definition| definition.fetch(:name) }
+    expect(names).to include("run_visual_review", "run_visual_diff")
+    expect(described_class.tool_definitions(tier: :deferred))
+      .to all(satisfy { |definition| Mcp::ChatToolParity.plugin_definition_in_context?(definition, :coworker, provider: described_class) })
+  end
+
+  it "is offered to a coworker chat even with no browser runtime session, which errors precisely on use" do
+    chat = ChatSession.create!(user: user, repository: repository, mode: "planning")
+    allow(McpToolContext).to receive(:from_chat_session).with(chat).and_return(double(role: AgentRole::COWORKER_CHAT))
+
+    expect(described_class.available_for?(chat, tier: :essential)).to be true
+    expect { SyrusBrowser::SessionContext.resolve(chat_session: chat) }
+      .to raise_error(SyrusBrowser::SessionContext::NoActiveSessionError, /no active browser runtime session/)
   end
 
   describe ".available_for?" do

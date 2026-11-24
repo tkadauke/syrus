@@ -94,8 +94,8 @@ RSpec.describe K8sCluster::ChatToolSet do
     expect(described_class.coworker_grants.first).to include(default_policy: "confirm", maximum_policy: "auto")
   end
 
-  it "never advertises privileged Kubernetes tools to coworkers" do
-    permanently_excluded = %w[
+  it "shares privileged Kubernetes tools with coworkers and leaves authorization to canonical checks" do
+    privileged = %w[
       k8s_cluster_secrets k8s_cluster_kubectl k8s_cluster_delete_pod
       k8s_cluster_restart_rollout k8s_cluster_scale_deployment k8s_cluster_set_node_cordon
     ]
@@ -104,14 +104,15 @@ RSpec.describe K8sCluster::ChatToolSet do
     registered_grant_tools = chat_tool_sets.flat_map do |provider|
       provider.respond_to?(:coworker_grants) ? provider.coworker_grants.flat_map { |grant| grant.fetch(:tools) } : []
     end
-    permanently_excluded.each do |tool_name|
-      expect(definitions.fetch(tool_name)).to include(coworker_excluded: true)
-      expect(definitions.fetch(tool_name)).not_to include(:coworker_safe, :capability)
+    privileged.each do |tool_name|
+      expect(definitions.fetch(tool_name)).not_to include(:coworker_excluded, :parity_exception)
+      expect(Mcp::ChatToolParity.plugin_definition_in_context?(definitions.fetch(tool_name), :coworker, provider: described_class)).to be(true)
+      expect(definitions.fetch(tool_name)).to include(:capability_descriptor)
       expect(registered_grant_tools).not_to include(tool_name)
     end
   end
 
-  it "advertises requestable read tools to a coworker without treating legacy grants as authority" do
+  it "advertises every Kubernetes tool to a coworker without treating legacy grants as authority" do
     owner = Factories.user(admin: true)
     cluster = Factories.kubernetes_cluster(agentic_access_enabled: true)
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-k8s",
@@ -123,12 +124,12 @@ RSpec.describe K8sCluster::ChatToolSet do
 
     requestable = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
     expect(requestable.map { |tool| McpToolRegistry.tool_name_for(tool) })
-      .to match_array(described_class::COWORKER_READ_TOOLS.map(&:tool_name))
+      .to match_array(described_class::TOOL_CLASSES.map(&:tool_name))
 
     grant = coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
     tools = Mcp::Sidecar.mcp_tools_for(described_class, tier: :essential, chat_session: chat, policy: :coworker)
     names = tools.map { |tool| McpToolRegistry.tool_name_for(tool) }
-    expect(names).to match_array(described_class::COWORKER_READ_TOOLS.map(&:tool_name))
+    expect(names).to match_array(described_class::TOOL_CLASSES.map(&:tool_name))
 
     namespaces = tools.find { |tool| McpToolRegistry.tool_name_for(tool) == "k8s_cluster_namespaces" }
     expect(JSON.parse(namespaces.call(cluster_id: cluster.id, server_context: { chat_session: chat }).content.first[:text]))

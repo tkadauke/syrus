@@ -17,7 +17,7 @@ class Coworkers::GrantEscalation
 
   def self.call(owner:, coworker_id:, grants:)
     coworker, requested = preflight!(owner: owner, coworker_id: coworker_id, grants: grants)
-    PermissionRule.transaction do
+    Syrus::Host::PermissionRules.transaction do
       requested.each do |capability|
         coworker.permission_rules.update!(
           capability:, actor: owner,

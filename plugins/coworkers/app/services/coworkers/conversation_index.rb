@@ -23,7 +23,7 @@ class Coworkers::ConversationIndex
     records = page(relation).includes(:chat_participants).to_a
     search_rows = search_rows_for(search_query, records)
     messages = last_messages(records)
-    pending_ids = ChatPendingAction.where(chat_session_id: records.map(&:id), state: %w[queued pending confirming])
+    pending_ids = Syrus::Host::ChatPendingActions.where(chat_session_id: records.map(&:id), state: %w[queued pending confirming])
       .distinct.pluck(:chat_session_id).to_set
 
     {
@@ -84,7 +84,7 @@ class Coworkers::ConversationIndex
       when "created_at", "last_activity_at"
         relation = apply_date(relation, field == "created_at" ? "chat_sessions.created_at" : activity_sql, chip)
       when "active_work"
-        pending = ChatPendingAction.where(state: %w[queued pending confirming]).select(:chat_session_id)
+        pending = Syrus::Host::ChatPendingActions.where(state: %w[queued pending confirming]).select(:chat_session_id)
         relation = relation.where("chat_sessions.turn_in_flight = ? OR chat_sessions.id IN (?)", true, pending)
       end
     end
@@ -161,8 +161,8 @@ class Coworkers::ConversationIndex
   def last_messages(records)
     ids = records.map(&:id)
     return {} if ids.empty?
-    latest_ids = ChatMessage.active.where(chat_session_id: ids).group(:chat_session_id).maximum(:id).values
-    ChatMessage.where(id: latest_ids).index_by(&:chat_session_id)
+    latest_ids = Syrus::Host::ChatMessages.active.where(chat_session_id: ids).group(:chat_session_id).maximum(:id).values
+    Syrus::Host::ChatMessages.where(id: latest_ids).index_by(&:chat_session_id)
   end
 
   def search_rows_for(query, records)
