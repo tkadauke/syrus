@@ -111,7 +111,7 @@ module Mcp
             :available
           end
           providers = Syrus::Host::Toolkit.chat_tool_set_for(manifest)
-          Array(providers).select { |provider| Mcp::CoworkerToolExposure.plugin_provider?(provider) }
+          Array(providers).reject { |provider| Mcp::ChatToolParity.provider_hidden?(provider, :coworker) }
             .map { |provider| [ provider, state ] }
         end
       end
@@ -139,7 +139,7 @@ module Mcp
           Array(provider.tool_definitions(tier: nil))
         end
         definitions = definitions.select do |definition|
-          Mcp::CoworkerToolExposure.plugin_definition?(definition, user: chat_session&.user)
+          Mcp::ChatToolParity.plugin_definition_in_context?(definition, :coworker, user: chat_session&.user, provider: provider)
         end
         tiers_by_name = tiers.each_with_object({}) do |(tier, tier_definitions), result|
           tier_definitions.each { |definition| result[value(definition, :name).to_s] ||= tier }

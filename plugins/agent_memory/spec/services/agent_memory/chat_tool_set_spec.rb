@@ -26,14 +26,15 @@ RSpec.describe AgentMemory::ChatToolSet do
     )
   end
 
-  it "marks the admin audit tool for central coworker exclusion" do
+  it "gates the admin audit tool on the owner being an admin, in every context" do
     admin_chat = ChatSession.create!(user: bootstrap_admin, repository: Factories.repository(user: bootstrap_admin))
 
     definitions = described_class.tool_definitions(tier: :essential, chat_session: admin_chat)
     audit = definitions.find { |definition| definition.fetch(:name) == "admin_read_memory_audit_history" }
 
     expect(audit).to include(admin_only: true)
-    expect(Mcp::CoworkerToolExposure.plugin_definition?(audit)).to be(false)
+    expect(Mcp::ChatToolParity.plugin_definition_in_context?(audit, :coworker)).to be(false)
+    expect(Mcp::ChatToolParity.plugin_definition_in_context?(audit, :coworker, user: bootstrap_admin)).to be(true)
   end
 
   it "marks inherited memory writes as mutations for canonical permission gating" do

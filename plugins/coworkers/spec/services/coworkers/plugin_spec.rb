@@ -11,7 +11,7 @@ RSpec.describe "Coworkers plugin" do
     expect(declarations.flatten).to all(include("presentation:"))
   end
 
-  it "owns its adapters outside core except for actor-neutral permission and exposure policy" do
+  it "owns its adapters outside core except for actor-neutral permission policy" do
     core_paths = %w[
       app/services/permissions/coworker_*.rb
       app/services/mcp/coworker_*.rb
@@ -23,10 +23,10 @@ RSpec.describe "Coworkers plugin" do
     ].flat_map { |pattern| Rails.root.glob(pattern) }
 
     expect(core_paths.map { |path| path.relative_path_from(Rails.root).to_s }).to contain_exactly(
-      "app/services/mcp/coworker_tool_exposure.rb",
       "app/services/permissions/coworker_default_policy.rb",
       "app/services/mcp/tools/coworker_observability_authorization.rb"
     )
+    expect(Rails.root.glob("plugins/coworkers/app/services/coworkers/chat_parity.rb")).not_to be_empty
     expect(Rails.root.glob("plugins/coworkers/app/services/permissions/coworker_*.rb")).not_to be_empty
     expect(Rails.root.glob("plugins/coworkers/app/services/pending_actions/coworker_*.rb")).not_to be_empty
   end

@@ -89,14 +89,18 @@ module Coworkers
       chat_session.present? && Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
 
-    def self.coworker_only_surface
-      {
+    # The coworkers plugin owns the coworker chat context for parity.
+    def self.chat_parity_participant = Coworkers::ChatParity
+
+    def self.chat_parity_exceptions
+      [ {
         reason_code: "coworker_identity_lifecycle",
         explanation: "Coworker workspace, reply, schedule and spawn tools operate on a coworker identity that " \
                      "has no non-coworker subject; ordinary chats get only the deferred drafting tools.",
         owner: "coworkers",
-        test_ref: "plugins/coworkers/spec/services/coworkers/chat_tool_set_spec.rb"
-      }
+        test_ref: "plugins/coworkers/spec/services/coworkers/chat_tool_set_spec.rb",
+        absent_from: Coworkers::ChatParity::CORE_CONTEXTS
+      } ]
     end
 
     def self.available_for_coworker?(_chat_session, tier:)
