@@ -361,10 +361,17 @@ RSpec.describe Mockups::ChatToolSet do
       it "reports an actionable error when the browser is unavailable" do
         Mockups::PreviewRenderer.session_factory = ->(_key) { raise Mockups::PreviewRenderer::Unavailable, "the Browser plugin is not enabled" }
 
+        stopped = 0
+        allow_any_instance_of(Mockups::PreviewRenderer::ScratchServer).to receive(:stop).and_wrap_original do |m, *args|
+          stopped += 1
+          m.call(*args)
+        end
+
         response = call("render_preview", { panel_id: panel.id.to_s })
 
         expect(response.error?).to be true
         expect(response.content.first[:text]).to include("Browser plugin is not enabled", "Publish with show_preview")
+        expect(stopped).to eq(1)
       end
     end
 
