@@ -5,6 +5,7 @@ import type { ToolCardContext } from "../../pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
 import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionToolCard, PendingActionResultCard } from "./pendingActionToolCard"
 import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
+import holdJobCard from "./tool_cards/hold_job"
 import checkJobMergeabilityCard from "./tool_cards/check_job_mergeability"
 import delegateIssueCard from "./tool_cards/delegate_issue"
 import forceLandingRecheckCard from "./tool_cards/force_landing_recheck"
@@ -1205,5 +1206,37 @@ describe("reenqueue_work pending action card", () => {
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
     expect(screen.queryByText("Job")).not.toBeInTheDocument()
+  })
+})
+
+describe("hold_job pending action card", () => {
+  const input = { job_id: 4222, reason: "JOB-4222 is running before its dependency." }
+
+  function holdContext(parsedResult: unknown, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+    return { toolName: "hold_job", input, resultBody: "", resultError: false, parsedResult, ...overrides }
+  }
+
+  it("shows the target and effect on the confirmation card", () => {
+    render(<>{holdJobCard.renderExpanded(holdContext(standardPayload({ reason: input.reason })))}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: /JOB-4222/ }).length).toBeGreaterThan(0)
+    expect(screen.getByText(/returns the Job to waiting on its dependencies/)).toBeInTheDocument()
+    expect(screen.getByText(/its PR and branch are not touched/)).toBeInTheDocument()
+  })
+
+  it("describes the backlog effect when requested", () => {
+    render(<>{holdJobCard.renderExpanded(holdContext(standardPayload(), { input: { ...input, to_backlog: true } }))}</>)
+
+    expect(screen.getByText(/moves the Job to backlog/)).toBeInTheDocument()
+  })
+
+  it("renders the Error: path with the attempted target", () => {
+    const envelope = { content: [{ type: "text", text: "Error: nothing to wait for" }], structured_content: null }
+    const toolContext = holdContext(normalizedToolCardParsedResult(envelope), { resultBody: JSON.stringify(envelope), resultError: true })
+
+    expect(holdJobCard.collapsedSummary?.(toolContext)).toContain("nothing to wait for")
+    render(<>{holdJobCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("nothing to wait for")).toBeInTheDocument()
   })
 })

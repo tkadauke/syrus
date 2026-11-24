@@ -346,6 +346,7 @@ class McpToolRegistry
         operational_chat(Mcp::Tools::ReconcileJobStateTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::ForceStateTransitionTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::CancelStaleWorkTool, admin_only: true, mutation: true),
+        operational_chat(Mcp::Tools::HoldJobTool, admin_only: true, mutation: true),
         lifecycle_chat(Mcp::Tools::ResetJobTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::RetireTerminalWorkUnitTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::ReenqueueWorkTool, admin_only: true, mutation: true),
