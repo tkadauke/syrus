@@ -10,6 +10,12 @@ module RuntimeImages
       # or [] when the image is absent.
       def digests(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #digests")
 
+      # Exports a locally stored image as { manifest: String, blobs: { digest => bytes } }
+      # in the shape OciRegistry::Provider#publish expects, for the given
+      # "os/arch" platform. Raises EngineError when the engine cannot produce
+      # an OCI layout.
+      def export_oci(_reference, platform:, timeout: 600) = raise(NotImplementedError, "#{self.class.name} must implement #export_oci")
+
       def size_bytes(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #size_bytes")
       # Upper bound, in seconds, on #remove. WorkerCache requires its eviction
       # claim TTL to exceed this so a stale-claim takeover never overlaps a

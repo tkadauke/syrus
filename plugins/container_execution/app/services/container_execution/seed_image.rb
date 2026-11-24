@@ -2,6 +2,7 @@ require "open3"
 require "digest"
 require "pathname"
 require "timeout"
+require "json"
 
 module ContainerExecution
   class SeedImage
@@ -28,19 +29,36 @@ module ContainerExecution
       def acquired_concurrency_limit = nil
     end
 
-    def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) }, image_namespace: Configuration.docker_image_namespace)
+    SOURCE_KIND = "devcontainer".freeze
+    OWNER_KIND = "devcontainer".freeze
+    RESOLUTION_ARTIFACT_KEY = "container_execution_image_resolution".freeze
+
+    def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) },
+                   image_namespace: Configuration.docker_image_namespace, images: Syrus::Host::RuntimeImages)
       @request = request
       @runner = runner
       @semaphore = semaphore
       @sleeper = sleeper
       @image_namespace = image_namespace
+      @images = images
     end
 
+    # Returns the image reference to run. Any worker lease taken for a
+    # published image is released before returning, so callers that run the
+    # image should use #with_image instead.
     def resolve
-      spec = devcontainer_spec
-      return Configuration.image unless spec
+      with_image { |reference| reference }
+    end
 
-      spec.image ? pull(spec.image) : build(spec)
+    # Yields the image reference to run and keeps a published image leased
+    # on this worker until the block returns, so cache eviction cannot remove
+    # it mid-run.
+    def with_image(&block)
+      spec = devcontainer_spec
+      return yield Configuration.image unless spec
+      return yield pull(spec.image, spec) if spec.image
+
+      @images.available? ? with_published_image(spec, &block) : yield(build_local(spec))
     end
 
     private
@@ -64,21 +82,74 @@ module ContainerExecution
       DevcontainerSpec.for_job(request.job)
     end
 
-    def pull(image)
-      return image if image_present?(image)
-
-      run_docker!("pull", image)
+    # Externally declared images keep the reference the repository wrote. The
+    # immutable digest the engine holds for it is recorded on the Workflow so
+    # the exact content that ran is known.
+    def pull(image, spec)
+      run_docker!("pull", image) unless image_present?(image)
+      record_resolution(image, spec)
       image
     end
 
-    def build(spec)
+    def record_resolution(image, spec)
+      digest = local_repo_digest(image)
+      return unless digest && request.workflow.respond_to?(:set_artifact!)
+
+      request.workflow.set_artifact!(RESOLUTION_ARTIFACT_KEY, {
+        "reference" => image, "digest" => digest, "source" => spec.source, "revision" => spec.revision
+      })
+    end
+
+    def local_repo_digest(image)
+      stdout, _stderr, status = runner.capture3(Configuration.docker_command_path, "image", "inspect", "--format", "{{json .RepoDigests}}", image)
+      return unless status.success?
+
+      name = image.split("@").first.sub(/:[^:\/]+\z/, "")
+      digests = Array(JSON.parse(stdout.to_s.strip)).map(&:to_s)
+      (digests.find { |entry| entry.start_with?("#{name}@") } || digests.first).to_s.split("@", 2)[1]
+    rescue JSON::ParserError
+      nil
+    end
+
+    # Built devcontainers are published once per repository revision and
+    # devcontainer fingerprint; every worker pulls the digest instead of
+    # rebuilding into its own image store.
+    def with_published_image(spec, &block)
+      published = published_image(spec)
+      unless published
+        with_build_lock(spec) do
+          published = published_image(spec) || build_and_publish(spec)
+        end
+      end
+      @images.acquire(published, &block)
+    end
+
+    def published_image(spec)
+      @images.find(owner_kind: OWNER_KIND, owner_ref: owner_ref, source_kind: SOURCE_KIND, source_ref: source_ref(spec))
+    end
+
+    def build_and_publish(spec)
+      tag = "syrus-devcontainer-build:#{spec.fingerprint.first(24)}"
+      build_image(spec, tag)
+      @images.publish_local(
+        local_reference: tag, owner_kind: OWNER_KIND, owner_ref: owner_ref, source_kind: SOURCE_KIND,
+        source_ref: source_ref(spec), source_digest: "sha256:#{spec.fingerprint}",
+        provenance: { "repository_id" => request.job.repository.id, "revision" => spec.revision,
+                      "fingerprint" => spec.fingerprint, "source" => spec.source }
+      )
+    end
+
+    def owner_ref = "repo-#{request.job.repository.id}"
+    def source_ref(spec) = "rev-#{spec.revision.to_s.first(40)}-#{spec.fingerprint.first(24)}"
+
+    # No registry is configured: fall back to a tag in this worker's own
+    # Docker daemon.
+    def build_local(spec)
       tag = "syrus-devcontainer:#{spec.fingerprint.first(24)}"
       return tag if image_present?(tag)
 
       with_build_lock(spec) do
-        return tag if image_present?(tag)
-
-        build_image(spec, tag)
+        build_image(spec, tag) unless image_present?(tag)
       end
       tag
     end
@@ -95,8 +166,10 @@ module ContainerExecution
     end
 
     def with_build_lock(spec)
-      namespace_key = Digest::SHA256.hexdigest(image_namespace).first(16)
-      lock = BuildLock.new("devcontainer_build:#{namespace_key}:#{request.job.repository.id}:#{spec.revision}")
+      # Published images are shared fleet-wide, so the lock must be too. Only
+      # the worker-local fallback is scoped to one Docker image store.
+      scope = @images.available? ? "fleet" : Digest::SHA256.hexdigest(image_namespace).first(16)
+      lock = BuildLock.new("devcontainer_build:#{scope}:#{request.job.repository.id}:#{spec.revision}")
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + BUILD_LOCK_TIMEOUT
       acquired = false
 

@@ -41,4 +41,19 @@ RSpec.describe RuntimeImages::WorkerCache::CliEngine do
     expect(@opts.last[:env]).to include("DOCKER_CONFIG")
     expect(@opts.last[:network]).to eq("prepare")
   end
+
+  it "exports through `docker save` and parses the OCI archive" do
+    stub_runner(capture)
+    expect(RuntimeImages::WorkerCache::OciArchive).to receive(:read).with(a_string_ending_with("image.tar"), platform: "linux/amd64")
+      .and_return(manifest: "{}", blobs: {})
+
+    expect(engine.export_oci("local:tag", platform: "linux/amd64")).to eq(manifest: "{}", blobs: {})
+    expect(@opts.last[:command]).to include("save", "--output", "local:tag")
+  end
+
+  it "raises EngineError when the engine cannot save the image" do
+    stub_runner(capture(success: false, stderr: "no such image\n"))
+    expect { engine.export_oci("local:tag", platform: "linux/amd64") }
+      .to raise_error(RuntimeImages::WorkerCache::EngineError, /no such image/)
+  end
 end

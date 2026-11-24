@@ -1252,6 +1252,19 @@ Supported members:
 - `state`
 - `workflow`
 
+### `Syrus::Host::RuntimeImages`
+
+Since: `0.1.16`
+
+Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.
+
+Supported members:
+
+- `acquire`
+- `available?`
+- `find`
+- `publish_local`
+
 ### `Syrus::Host::SkillBase`
 
 Since: `0.1.16`

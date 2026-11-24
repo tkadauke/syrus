@@ -20,9 +20,15 @@ module ContainerExecution
     def run(request)
       validate_request!(request)
       policy = WorkloadPolicy::Base.resolve(request)
+      SeedImage.new(request).with_image { |image| run_in_image(request, policy, image) }
+    end
+
+    private
+
+    def run_in_image(request, policy, image)
       ProcessRunner.new(
         env: policy.process_env,
-        command: docker_command(request),
+        command: docker_command(request, image),
         mounts: request.mounts,
         network: "grader",
         # The limits are translated into the container command below. Applying
@@ -51,9 +57,7 @@ module ContainerExecution
       ).run
     end
 
-    private
-
-    def docker_command(request)
+    def docker_command(request, image)
       policy = WorkloadPolicy::Base.resolve(request)
       [
         Configuration.docker_command_path,
@@ -67,7 +71,7 @@ module ContainerExecution
         *env_args(request),
         "--workdir",
         container_workdir(request),
-        SeedImage.new(request).resolve,
+        image,
         *request.command
       ].compact
     end

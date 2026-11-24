@@ -3,6 +3,7 @@ require "syrus/host/backup_artifact_source"
 require "syrus/host/backup_destination"
 require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
+require "syrus/host/runtime_images"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
 require "syrus/host/work_gate"
@@ -285,6 +286,7 @@ module Syrus
       SERVICE_CONTRACTS = {
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
+        RuntimeImages: [ "Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.", %w[available? find publish_local acquire] ],
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 
