@@ -84,6 +84,31 @@ RSpec.describe RuntimeImages::BuiltImages do
     worker_a.publish_local(local_reference: "local-build", **identity)
 
     expect(worker_b.find(**identity.merge(owner_ref: "repo-8"))).to be_nil
-    expect(RuntimeImageNamespace.pluck(:name)).to eq([ "devcontainer-repo-7" ])
+    expect(RuntimeImageNamespace.pluck(:name)).to contain_exactly(a_string_starting_with("devcontainer-repo-7-"))
+  end
+
+  it "does not let owners whose names normalize identically share a namespace" do
+    store_a.build!("local-build", { manifest: "{}", blobs: {} })
+    slash = identity.merge(owner_ref: "repo/a")
+    dash = identity.merge(owner_ref: "repo-a")
+    worker_a.publish_local(local_reference: "local-build", **slash)
+    worker_a.publish_local(local_reference: "local-build", **dash)
+
+    expect(RuntimeImageNamespace.count).to eq(2)
+    expect(worker_a.find(**slash).runtime_image_namespace).not_to eq(worker_a.find(**dash).runtime_image_namespace)
+  end
+
+  it "does not reuse another provider's namespace for the same owner" do
+    RuntimeImages::Providers.register(SyntheticRuntimeImageProvider.new(key: "synthetic-other"))
+    other_service = RuntimeImages::Service.new(provider: RuntimeImages::Providers.fetch("synthetic-other"))
+    other = described_class.new(service: other_service, engine: store_a, provider_key: "synthetic-other")
+    store_a.build!("local-build", { manifest: "{}", blobs: {} })
+    worker_a.publish_local(local_reference: "local-build", **identity)
+    other.publish_local(local_reference: "local-build", **identity)
+
+    expect(RuntimeImageNamespace.pluck(:provider_key)).to contain_exactly("synthetic-built", "synthetic-other")
+    expect(other.find(**identity).runtime_image_namespace.provider_key).to eq("synthetic-other")
+  ensure
+    RuntimeImages::Providers.unregister("synthetic-other")
   end
 end
