@@ -7,7 +7,7 @@ module Filters
         column :agent_provider
 
         def self.values
-          User.agent_providers
+          Syrus::Host::UserRecord.agent_providers
         end
 
         def apply

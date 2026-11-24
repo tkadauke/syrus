@@ -36,7 +36,7 @@ module TestInsights
     }
 
     scope :for_lookup, ->(repository:, suite_name:, name:, sha:) {
-      where(repository_id: repository.is_a?(::Repository) ? repository.id : repository, suite_name: suite_name, name: name, sha: sha)
+      where(repository_id: repository.is_a?(Syrus::Host::RepositoryRecord) ? repository.id : repository, suite_name: suite_name, name: name, sha: sha)
     }
 
     def self.truncate_command(value)

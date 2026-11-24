@@ -17,14 +17,14 @@ module CredentialStore
         return allowed_ids if context.user.admin?
 
         owned_id = context.repository&.id if context.repository&.user_id == context.user.id
-        membership_ids = RepositoryMembership.where(repository_id: allowed_ids, user: context.user).pluck(:repository_id)
-        team_ids = TeamMembership.where(user: context.user).select(:team_id)
-        team_repository_ids = TeamRepository.where(repository_id: allowed_ids, team_id: team_ids).pluck(:repository_id)
+        membership_ids = Syrus::Host::RepositoryMembershipRecord.where(repository_id: allowed_ids, user: context.user).pluck(:repository_id)
+        team_ids = Syrus::Host::TeamMembershipRecord.where(user: context.user).select(:team_id)
+        team_repository_ids = Syrus::Host::TeamRepositoryRecord.where(repository_id: allowed_ids, team_id: team_ids).pluck(:repository_id)
 
         ([ owned_id ] + membership_ids + team_repository_ids).compact.uniq & allowed_ids
       end
 
-      def model_class = ::Repository
+      def model_class = Syrus::Host::RepositoryRecord
     end
   end
 end

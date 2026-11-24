@@ -24,7 +24,7 @@ module Mockups
       file_attachments = version.files.to_a
       return nil if file_attachments.empty?
 
-      remaining_capacity = Document::MAX_ATTACHMENTS_PER_JOB - job.job_attachments.count
+      remaining_capacity = Syrus::Host::Document::MAX_ATTACHMENTS_PER_JOB - job.job_attachments.count
       to_attach = file_attachments.first(remaining_capacity)
       omitted = file_attachments - to_attach
 
@@ -53,7 +53,7 @@ module Mockups
 
       names = omitted_attachments.map { |attachment| attachment.blob.filename.to_s }
       note = "\n\n_Note: #{names.size} preview panel mockup file(s) were not attached because this Job " \
-             "already has #{Document::MAX_ATTACHMENTS_PER_JOB} attachments (the per-Job limit): " \
+             "already has #{Syrus::Host::Document::MAX_ATTACHMENTS_PER_JOB} attachments (the per-Job limit): " \
              "#{names.join(', ')}._"
       Syrus::Host::JobDefinitionUpdater.new(job).update!(description: "#{job.issue_body}#{note}")
     rescue Syrus::Host::JobDefinitionUpdater::Immutable

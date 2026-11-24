@@ -712,7 +712,7 @@ module Throughput
       active_at = [
         repository.jobs.maximum(:created_at),
         Syrus::Host::WorkflowRecord.joins(:job).where(jobs: { repository_id: repository.id }).maximum(:finished_at),
-        PrReviewComment.joins(:job).where(jobs: { repository_id: repository.id }).maximum(:comment_created_at),
+        Syrus::Host::PrReviewComment.joins(:job).where(jobs: { repository_id: repository.id }).maximum(:comment_created_at),
         Syrus::Host::MergeTrain.where(repository_id: repository.id).maximum(:finished_at)
       ].compact.max || now
 
@@ -881,7 +881,7 @@ module Throughput
     end
 
     def actionable_comments
-      @actionable_comments ||= PrReviewComment.joins(:job)
+      @actionable_comments ||= Syrus::Host::PrReviewComment.joins(:job)
         .where(jobs: { repository_id: repository.id })
         .where(actionable: true)
         .where(window_condition(:pr_review_comments, :comment_created_at))
@@ -911,13 +911,13 @@ module Throughput
 
     def addressed_comments
       @addressed_comments ||= begin
-        comments = PrReviewComment.arel_table
+        comments = Syrus::Host::PrReviewComment.arel_table
         handled_in_windows = window_condition(:pr_review_comments, :handled_at)
         actioned_fallback_in_windows = comments[:handled_at].eq(nil).and(
           window_condition(:pr_review_comments, :actioned_at)
         )
 
-        PrReviewComment.joins(:job)
+        Syrus::Host::PrReviewComment.joins(:job)
           .where(jobs: { repository_id: repository.id })
           .where(handled_in_windows.or(actioned_fallback_in_windows))
           .where(actionable: true)
