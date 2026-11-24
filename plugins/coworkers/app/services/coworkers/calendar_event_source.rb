@@ -14,7 +14,7 @@ module Coworkers
 
     def tasks
       @tasks ||= ScheduledTasks::Task.where(user: user).where.not(coworker_id: nil)
-        .where(repository_id: Syrus::Host::Repositories.accessible_repository_ids_for(user))
+        .where(repository_id: Repository.accessible_repository_ids_for(user))
         .includes(:repository)
         .joins("INNER JOIN coworkers ON coworkers.id = scheduled_tasks.coworker_id")
         .where(coworkers: { owner_user_id: user.id })
@@ -24,8 +24,8 @@ module Coworkers
       task_ids = selected_tasks.map(&:id)
       return {} if task_ids.empty?
 
-      scope = Syrus::Host::Jobs.where(scheduled_task_id: task_ids).includes(workflows: :work_unit).order(:created_at)
-      Syrus::Host::Jobs.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
+      scope = Syrus::Host::JobRecord.where(scheduled_task_id: task_ids).includes(workflows: :work_unit).order(:created_at)
+      Syrus::Host::JobRecord.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
     end
 
     def event(task, planned_at, job, representative_duration)

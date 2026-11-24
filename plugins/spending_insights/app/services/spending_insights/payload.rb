@@ -105,21 +105,21 @@ module SpendingInsights
     end
 
     def scoped_runs
-      relation = Run.where.not(cost_usd: nil).where.not(finished_at: nil)
+      relation = Syrus::Host::RunRecord.where.not(cost_usd: nil).where.not(finished_at: nil)
       relation = relation.where(user_id: user.id) unless user.admin?
 
       filter.apply(relation)
     end
 
     def unwindowed_runs
-      relation = Run.where.not(cost_usd: nil).where.not(finished_at: nil)
+      relation = Syrus::Host::RunRecord.where.not(cost_usd: nil).where.not(finished_at: nil)
       relation = relation.where(user_id: user.id) unless user.admin?
 
       filter.apply_without_date(relation)
     end
 
     def scoped_jobs
-      Job.where(id: filtered_runs.select(:job_id))
+      Syrus::Host::JobRecord.where(id: filtered_runs.select(:job_id))
     end
 
     def scoped_chat_spend_entries
@@ -193,7 +193,7 @@ module SpendingInsights
     def average_cost_per_merged_pr(first_date, last_date)
       total, count = grouped_job_cost_total_and_count(
         jobs_with_windowed_run_cost(first_date, last_date)
-          .where(closure_reason: Epic::MERGED_JOB_CLOSURE_REASONS)
+          .where(closure_reason: Syrus::Host::Epic::MERGED_JOB_CLOSURE_REASONS)
       )
       return 0.0 if count.zero?
 
@@ -439,7 +439,7 @@ module SpendingInsights
     end
 
     def base_accessible_runs
-      relation = Run.where.not(cost_usd: nil)
+      relation = Syrus::Host::RunRecord.where.not(cost_usd: nil)
       return relation if user.admin?
 
       relation.where(user_id: user.id)

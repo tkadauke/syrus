@@ -16,7 +16,7 @@ module AlertmanagerInvestigations
     scope :open_for_host, ->(host) {
       escaped_host = sanitize_sql_like(host)
       joins(:job)
-        .merge(Syrus::Host::Jobs.open_threads)
+        .merge(Syrus::Host::JobRecord.open_threads)
         .where("host = :host OR host LIKE :with_port OR host LIKE :bracketed_with_port",
           host: host,
           with_port: "#{escaped_host}:%",
@@ -24,7 +24,7 @@ module AlertmanagerInvestigations
     }
 
     scope :open_for_repository, ->(repository) {
-      joins(:job).merge(Syrus::Host::Jobs.open_threads).where(repository: repository)
+      joins(:job).merge(Syrus::Host::JobRecord.open_threads).where(repository: repository)
     }
   end
 end

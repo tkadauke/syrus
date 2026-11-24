@@ -119,8 +119,8 @@ module WorkerTimeline
     def job_types(values)
       groups = Array(values).map(&:to_s)
       kinds = []
-      kinds.concat(Job::Kind.user_facing_values) if groups.include?("user")
-      kinds.concat(Job::Kind.infrastructure_values) if groups.include?("system")
+      kinds.concat(Syrus::Host::JobRecord::Kind.user_facing_values) if groups.include?("user")
+      kinds.concat(Syrus::Host::JobRecord::Kind.infrastructure_values) if groups.include?("system")
       kinds.uniq
     end
 

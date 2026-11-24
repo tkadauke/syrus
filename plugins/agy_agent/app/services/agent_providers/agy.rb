@@ -107,7 +107,7 @@ module AgentProviders
         prompt: prompt,
         api_key: api_key,
         log_sink: log_sink,
-        runner: RunJob.agent_runner,
+        runner: Syrus::Host::RunJob.agent_runner,
         timeout: timeout,
         agy_home: Syrus::Host::WorkflowWorkspace.agent_home_for(workflow, provider),
         resume_session_id: resume_session_id,

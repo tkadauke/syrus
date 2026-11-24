@@ -55,7 +55,7 @@ module AgentInsights
 
       def superseding_job_for(suggestion)
         id = Integer(superseded_by_job_ids[suggestion.id.to_s], exception: false)
-        id && Job.find_by(id: id, repository_id: suggestion.repository_id)
+        id && Syrus::Host::JobRecord.find_by(id: id, repository_id: suggestion.repository_id)
       end
     end
   end

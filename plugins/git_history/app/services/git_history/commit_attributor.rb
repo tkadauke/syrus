@@ -54,17 +54,17 @@ module GitHistory
     def attributes_for(entry)
       landed_commit = landed_commit_for(entry[:sha])
 
-      if landed_commit&.landable.is_a?(Job) && landed_commit.kind == "implementation"
+      if landed_commit&.landable.is_a?(Syrus::Host::JobRecord) && landed_commit.kind == "implementation"
         syrus_landed_attributes(landed_commit.landable)
-      elsif landed_commit&.landable.is_a?(MergeTrainMember) && landed_commit.kind == "implementation"
+      elsif landed_commit&.landable.is_a?(Syrus::Host::MergeTrainMember) && landed_commit.kind == "implementation"
         syrus_landed_attributes(landed_commit.landable.job)
-      elsif landed_commit&.landable.is_a?(Epic) && landed_commit.kind == "integration_merge"
+      elsif landed_commit&.landable.is_a?(Syrus::Host::Epic) && landed_commit.kind == "integration_merge"
         epic_landed_attributes(landed_commit)
-      elsif landed_commit&.landable.is_a?(Epic) && landed_commit.kind == "reconcile"
+      elsif landed_commit&.landable.is_a?(Syrus::Host::Epic) && landed_commit.kind == "reconcile"
         epic_reconciliation_attributes(landed_commit)
-      elsif landed_commit&.landable.is_a?(MergeTrain) && landed_commit.kind == "integration_merge"
+      elsif landed_commit&.landable.is_a?(Syrus::Host::MergeTrain) && landed_commit.kind == "integration_merge"
         bundle_landed_attributes(landed_commit)
-      elsif landed_commit&.landable.is_a?(MergeTrain) && landed_commit.kind == "reconcile"
+      elsif landed_commit&.landable.is_a?(Syrus::Host::MergeTrain) && landed_commit.kind == "reconcile"
         bundle_reconciliation_attributes(landed_commit)
       else
         legacy_attributes_for(entry)
@@ -86,7 +86,7 @@ module GitHistory
     def landed_commit_for(sha)
       return nil if sha.blank?
 
-      LandedCommit
+      Syrus::Host::LandedCommit
         .where(sha: sha)
         .includes(:landable)
         .order(Arel.sql("CASE landed_commits.kind WHEN 'implementation' THEN 0 ELSE 1 END"), :position, :id)
@@ -96,7 +96,7 @@ module GitHistory
     def landed_job_for(sha)
       return nil if sha.blank?
 
-      Job.where(repository_id: @repository.id, landed_sha: sha).first
+      Syrus::Host::JobRecord.where(repository_id: @repository.id, landed_sha: sha).first
     end
 
     def syrus_landed_attributes(job)
@@ -111,7 +111,7 @@ module GitHistory
 
     def epic_landed_attributes(landed_commit)
       epic = landed_commit.landable
-      jobs = Job.where(repository_id: @repository.id, landed_sha: landed_commit.sha)
+      jobs = Syrus::Host::JobRecord.where(repository_id: @repository.id, landed_sha: landed_commit.sha)
 
       {
         classification: "epic_landed",
@@ -226,7 +226,7 @@ module GitHistory
     def cron_origin_payload(job)
       {
         type: "cron",
-        scheduled_task: { id: job.origin_id, name: Job::Origin.label(job) }
+        scheduled_task: { id: job.origin_id, name: Syrus::Host::JobRecord::Origin.label(job) }
       }
     end
 

@@ -25,7 +25,7 @@ module Coworkers
       def enqueue!(chat:, task:, source_run:, summary:, duration:)
         queued = false
         Syrus::Host::Record.transaction do
-          claimed = Syrus::Host::Runs.where(id: source_run.id, coworker_wake_enqueued_at: nil)
+          claimed = Syrus::Host::RunRecord.where(id: source_run.id, coworker_wake_enqueued_at: nil)
             .update_all(coworker_wake_enqueued_at: Time.current, updated_at: Time.current)
           next unless claimed == 1
 
@@ -34,7 +34,7 @@ module Coworkers
           ).to_s
           chat.chat_queued_messages.create!(
             content: {
-              Syrus::Host::ChatDelivery.internal_role_key => "system",
+              ChatQueuedMessage::INTERNAL_ROLE_KEY => "system",
               "text" => "Your scheduled run \"#{task.name}\" finished. Follow up with your owner.",
               "source" => SOURCE,
               "background_run_id" => source_run.id,
@@ -43,7 +43,7 @@ module Coworkers
           )
           queued = true
         end
-        Syrus::Host::ChatDelivery.deliver_next_if_idle!(chat) if queued
+        ChatQueuedMessagePromoter.deliver_one_if_idle!(chat) if queued
         queued
       end
     end

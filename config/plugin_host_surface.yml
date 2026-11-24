@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 384
+legacy_baseline: 280
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -46,7 +46,6 @@ constants:
 - name: ApplicationPolicy::Scope
 - name: AuthorizationCheckpointOrigin
 - name: AuthorizedInvocation
-- name: AutoApproveModes
 - name: BackendExceptionLogging
 - name: BugReports::Router
 - name: ChatAssociatedJobs
@@ -90,14 +89,7 @@ constants:
 - name: CredentialProbe::Result
 - name: CredentialProbe::TIMEOUT_SECONDS
 - name: Current
-- name: DirectJobs::Creator
-- name: DirectJobs::Creator::Attachment
 - name: Document::MAX_ATTACHMENTS_PER_JOB
-- name: Epic
-- name: Epic::MERGED_JOB_CLOSURE_REASONS
-- name: Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
-- name: EpicMarkerParser
-- name: Epics::Filter
 - name: Execution::Backend
 - name: Execution::Local
 - name: Execution::ChatWorkloadPolicy
@@ -145,24 +137,7 @@ constants:
 - name: InstanceVersion
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
 - name: IssueImageExtractor
-- name: Job
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Jobs; other plugin groups (test_insights, global_search, scheduled_tasks, main_branch_health) still query and extend Jobs directly.
-- name: Job::Kind
-- name: Job::Origin
-- name: Job::ProviderSetting::Base
-- name: Job::ProviderSetting::Base::DEFAULT_VALUE
-- name: Job::TERMINAL_STATES
-- name: JobApproval
-- name: JobDefinitionUpdater
-- name: JobDefinitionUpdater::Immutable
-- name: JobLog
-- name: JobPin
-- name: Jobs::Filter
-- name: JunitXmlParser
-- name: JunitXmlParser::ParseError
 - name: KubernetesCluster
-- name: LandedCommit
-- name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
 - name: Mcp::Pagination
 - name: Mcp::Tools
@@ -178,9 +153,6 @@ constants:
 - name: McpSidecarLog
 - name: McpToolPayloads::WorkflowPayload
 - name: McpToolPolicy
-- name: MergeTrain
-- name: MergeTrainDispatcher::RETRY_COOLDOWN
-- name: MergeTrainMember
 - name: Metrics::ClusterCounterSampler
 - name: MysqlConnection
 - name: MysqlConnection::ADMIN_SURFACE
@@ -240,7 +212,6 @@ constants:
 - name: ProviderUsageLimit::OUTCOME
 - name: RebaseAttemptGuard
 - name: RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
-- name: RepairEligibility::Ineligible
 - name: RepoDefaultBranchSyrusYml
 - name: RepoDeploymentStagesReader
 - name: Repository
@@ -254,12 +225,6 @@ constants:
 - name: RetentionPolicyRegistry::Definition
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
-- name: Run
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Runs; other plugin groups (agent_insights, spending_insights, test_insights) still read run state and artifacts directly.
-- name: Run::ACTIVE_STATES
-- name: RunDiff
-- name: RunHeartbeat
-- name: RunJob
 - name: RuntimeControlLease
 - name: RuntimeSession
 - name: RuntimeSessionProviders
@@ -278,13 +243,6 @@ constants:
 - name: SkipIfPending
 - name: SmartFolder
 - name: SmartFolder::COUNT_CAP
-- name: SpawnedProcess
-- name: StateTransition
-- name: Step
-- name: Step::AGENTIC_KINDS
-- name: Step::Kind
-- name: Steps::Base
-- name: Steps::MergeTrainLand::STALE_BASE_ARTIFACT
 - name: Syrus::DataCleanup
 - name: Syrus::Events
 - name: Syrus::Installer
@@ -310,7 +268,6 @@ constants:
 - name: Team
 - name: TeamMembership
 - name: TeamRepository
-- name: TestCaseIdentity
 - name: Theme
 - name: Theme::EXTENDED_TOKEN_GROUPS
 - name: Theme::TOKEN_KEYS
@@ -323,19 +280,11 @@ constants:
   reason: The coworkers, review and briefing plugins use Syrus::Host::Users; other plugin groups (design_docs, syrus_dev, credential_store) still query users and their repositories directly.
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
 - name: User::DASHBOARD_REQUIRED_COLUMNS
-- name: WorkDefinitions::Base
 - name: WorkUnits::Launcher
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis
 - name: WorkerHostHealthSample
 - name: WorkerQueueTopology
 - name: WorkerStorageIdentity
-- name: Workflow
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Workflows; other plugin groups (main_branch_health, throughput, syrus_coverage, terminal) still read workflow state and artifacts directly.
-- name: Workflow::TriggerKind
-- name: WorkflowActivityEvent
-- name: WorkflowVisualEvidence
-- name: WorkflowWarnings
-- name: Workflows::Base
 - name: WorkspaceDependencyEnv
 - name: WorkspaceReuseOutcomes::Summary

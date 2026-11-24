@@ -31,9 +31,9 @@ module AgentInsights
         return unless ActiveModel::Type::Boolean.new.cast(params[:create_job])
         return "Prompt can't be blank when creating a job." if params[:prompt].to_s.strip.blank?
 
-        setting = params[:agent_provider].to_s.presence || Job::ProviderSetting::Base::DEFAULT_VALUE
-        Job::ProviderSetting::Base.for(setting).resolve(
-          Job.new(repository: suggestion.repository, user: actor, owner_user: actor)
+        setting = params[:agent_provider].to_s.presence || Syrus::Host::JobRecord::ProviderSetting::Base::DEFAULT_VALUE
+        Syrus::Host::JobRecord::ProviderSetting::Base.for(setting).resolve(
+          Syrus::Host::JobRecord.new(repository: suggestion.repository, user: actor, owner_user: actor)
         )
         nil
       rescue KeyError, ArgumentError => e
@@ -52,9 +52,9 @@ module AgentInsights
 
       def build_job!(actor, params, prompt_text)
         repository = suggestion.repository
-        agent_provider_setting = params[:agent_provider].to_s.presence || Job::ProviderSetting::Base::DEFAULT_VALUE
-        agent_provider = Job::ProviderSetting::Base.for(agent_provider_setting).resolve(
-          Job.new(repository: repository, user: actor, owner_user: actor)
+        agent_provider_setting = params[:agent_provider].to_s.presence || Syrus::Host::JobRecord::ProviderSetting::Base::DEFAULT_VALUE
+        agent_provider = Syrus::Host::JobRecord::ProviderSetting::Base.for(agent_provider_setting).resolve(
+          Syrus::Host::JobRecord.new(repository: repository, user: actor, owner_user: actor)
         )
 
         actor.jobs.create!(
@@ -67,7 +67,7 @@ module AgentInsights
           agent_provider: agent_provider,
           job_provider_setting: agent_provider_setting,
           priority: "medium",
-          state: Job.initial_state_for_creator(actor)
+          state: Syrus::Host::JobRecord.initial_state_for_creator(actor)
         )
       end
     end

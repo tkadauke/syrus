@@ -12,15 +12,10 @@ module Api
           render json: { count: ReviewWorkspacePlugin::EligibleJobs.call(user: Syrus::Host::Current.user, scope: reviewable_job_scope).length }
         end
 
-        def summary
-          job = reviewable_job_scope.find(params[:id])
-          render json: { change_scope: ReviewWorkspacePlugin::ChangeScope.call(job), current_head_sha: ReviewWorkspacePlugin::CurrentHead.call(job) }
-        end
-
         private
 
         def reviewable_job_scope
-          policy_scope(Syrus::Host::Jobs.all)
+          policy_scope(Syrus::Host::JobRecord)
         end
 
         def require_review_workspace_enabled

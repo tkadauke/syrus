@@ -1,5 +1,5 @@
 module Coworkers
-  class PostToChat < Syrus::Host::StepBase
+  class PostToChat < Syrus::Host::StepHandlerBase
     MESSAGE_ARTIFACT = "coworker_chat_message_id"
     MERGE_ARTIFACT = "coworker_merge_state"
 

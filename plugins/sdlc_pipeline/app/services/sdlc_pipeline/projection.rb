@@ -22,8 +22,8 @@ module SdlcPipeline
       entries = Stage.entries(deployment_plan.stages)
       jobs = load_jobs.select { |job| Stage.for(job, entries) }
       job_ids = jobs.map(&:id)
-      @pinned_job_ids = JobPin.where(user_id: user.id, job_id: job_ids).pluck(:job_id).to_set
-      @latest_workflow_ids = Workflow.where(job_id: job_ids).group(:job_id).maximum(:id)
+      @pinned_job_ids = Syrus::Host::JobPin.where(user_id: user.id, job_id: job_ids).pluck(:job_id).to_set
+      @latest_workflow_ids = Syrus::Host::WorkflowRecord.where(job_id: job_ids).group(:job_id).maximum(:id)
       grouped = jobs.group_by { |job| Stage.for(job, entries).key }
       final_deployment_key = deployment_plan.stages.last && "deployment:#{deployment_plan.stages.last.name}"
       incomplete_evidence_count = delivery_evidence_gap_count(jobs, entries, final_deployment_key)
@@ -53,13 +53,13 @@ module SdlcPipeline
     attr_reader :repository, :user, :filter, :selected_stage, :page, :limit, :now
 
     def load_jobs
-      relation = filter.apply(Job.visible_to(user))
+      relation = filter.apply(Syrus::Host::JobRecord.visible_to(user))
         .where(repository_id: repository.id)
         .includes(:epic, :deployment_stage_statuses)
         .order(updated_at: :desc, id: :desc)
 
-      open_jobs = relation.where.not(state: Job::TERMINAL_STATES).to_a
-      recent = relation.where(state: Job::TERMINAL_STATES)
+      open_jobs = relation.where.not(state: Syrus::Host::JobRecord::TERMINAL_STATES).to_a
+      recent = relation.where(state: Syrus::Host::JobRecord::TERMINAL_STATES)
         .where("jobs.finished_at >= ? OR jobs.updated_at >= ?", now - RECENT_TAIL_AGE, now - RECENT_TAIL_AGE)
         .limit(RECENT_TAIL_LIMIT)
         .to_a

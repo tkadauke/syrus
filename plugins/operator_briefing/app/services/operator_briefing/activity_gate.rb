@@ -23,7 +23,7 @@ module OperatorBriefing
     end
 
     def workflow_activity?
-      scope = Syrus::Host::Workflows.joins(:job).where(jobs: { repository_id: repository.id }).where.not(jobs: { kind: EXCLUDED_JOB_KINDS })
+      scope = Syrus::Host::WorkflowRecord.joins(:job).where(jobs: { repository_id: repository.id }).where.not(jobs: { kind: EXCLUDED_JOB_KINDS })
       scope = scope.where("workflows.created_at > :since OR workflows.updated_at > :since OR workflows.finished_at > :since", since: since) if since.present?
       scope.exists?
     end

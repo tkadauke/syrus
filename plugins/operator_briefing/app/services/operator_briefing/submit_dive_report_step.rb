@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class SubmitDiveReportStep < Syrus::Host::StepBase
+  class SubmitDiveReportStep < Syrus::Host::StepHandlerBase
     TURN_BUDGET = 25
 
     def call

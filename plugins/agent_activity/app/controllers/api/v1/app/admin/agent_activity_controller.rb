@@ -42,7 +42,7 @@ module Api
           end
 
           def artifacts
-            run = Run.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:job, step: :workflow).find_by(id: params[:run_id])
+            run = Syrus::Host::RunRecord.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:job, step: :workflow).find_by(id: params[:run_id])
             unless run
               render_error("not_found", "Run not found.", status: :not_found)
               return
