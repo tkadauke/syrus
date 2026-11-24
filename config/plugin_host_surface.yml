@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 393
+legacy_baseline: 355
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -43,8 +43,6 @@ constants:
 - name: AppEvents
 - name: AppSetting
 - name: ApplicationCable::Channel
-- name: ApplicationPolicy
-- name: ApplicationPolicy::Scope
 - name: ApplicationRecord
 - name: AuthorizationCheckpointOrigin
 - name: AuthorizedInvocation
@@ -82,7 +80,6 @@ constants:
 - name: ChatWakeup
 - name: ChatWorkEvents
 - name: ChatWorkspace
-- name: ClassifyIssueJob
 - name: ClaudeTranscript
 - name: ClaudeTranscript::Event
 - name: CodexAccountScope
@@ -94,7 +91,6 @@ constants:
 - name: Current
 - name: DirectJobs::Creator
 - name: DirectJobs::Creator::Attachment
-- name: Document::MAX_ATTACHMENTS_PER_JOB
 - name: Epic
 - name: Epic::MERGED_JOB_CLOSURE_REASONS
 - name: Epic::SUCCESSFUL_JOB_CLOSURE_REASONS
@@ -131,21 +127,12 @@ constants:
 - name: FtsQueryParser
 - name: GitRunner
 - name: GitRunner::GitError
-- name: GithubApiUsageRollup
-- name: GithubClient
-- name: GithubIssueJobAttributes
 - name: GraderResourceRequest
 - name: GraderResourceRequest::ALL
 - name: HasConfigurableRetention
 - name: InboundMessageRouter
-- name: IngestIssueImagesJob
-- name: IngestPolicy
-- name: IngestPolicy::SKIP_LABEL
-- name: InputSource
-- name: InputSources::PendingWorkWakeup
 - name: InstanceVersion
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-- name: IssueImageExtractor
 - name: Job
   reason: The coworkers, review and briefing plugins use Syrus::Host::Jobs; other plugin groups (test_insights, global_search, scheduled_tasks, main_branch_health) still query and extend Jobs directly.
 - name: Job::Kind
@@ -221,7 +208,6 @@ constants:
 - name: PlatformPollingJob
 - name: PluginJob
 - name: PluginRecord
-- name: PrReviewComment
 - name: PreviewCommandSource
 - name: PreviewPanel
 - name: PreviewPanel::DEFAULT_ENTRY_FILENAME
@@ -247,11 +233,6 @@ constants:
 - name: RebaseAttemptGuard
 - name: RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
 - name: RepairEligibility::Ineligible
-- name: RepoDefaultBranchSyrusYml
-- name: RepoDeploymentStagesReader
-- name: Repository
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Repositories; other plugin groups (agent_insights, test_insights, design_docs, credential_store) still query repositories and their jobs directly.
-- name: RepositoryBareClone
 - name: RepositoryContent
 - name: RepositoryContent::Blob
 - name: RepositoryContent::Change
@@ -269,9 +250,6 @@ constants:
 - name: RepositoryContent::Unavailable
 - name: RepositoryContent::UnknownRevision
 - name: RepositoryContent::Unsupported
-- name: RepositoryMembership
-- name: RepositoryPolicy
-- name: RepositorySummarySerialization
 - name: RetentionPolicyExecutors::Default
 - name: RetentionPolicyExecutors::Result
 - name: RetentionPolicyRegistry::Definition
@@ -362,18 +340,12 @@ constants:
 - name: SyrusMcp::TypedArtifactProvenance
 - name: SyrusSearchDatabaseTasks
 - name: SyrusVersion
-- name: SyrusYml
 - name: SyrusYml::BaseRetry
-- name: SyrusYml::CONFIG_FILE
 - name: SyrusYml::DEFAULT_GRADE_PHASES
 - name: SyrusYml::GradeStep
 - name: SyrusYml::MAX_GRADE_TIMEOUT_MINUTES
 - name: SyrusYml::ParseError
-- name: SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV
 - name: TargetGraph::ExecutionCapabilities
-- name: Team
-- name: TeamMembership
-- name: TeamRepository
 - name: TestCaseIdentity
 - name: Theme
 - name: Theme::EXTENDED_TOKEN_GROUPS
@@ -383,10 +355,6 @@ constants:
 - name: ToolPayloadRedactor
 - name: ToolPayloadRedactor::REDACTED
 - name: TracksFinishedAt
-- name: User
-  reason: The coworkers, review and briefing plugins use Syrus::Host::Users; other plugin groups (design_docs, syrus_dev, credential_store) still query users and their repositories directly.
-- name: User::DASHBOARD_OPTIONAL_COLUMNS
-- name: User::DASHBOARD_REQUIRED_COLUMNS
 - name: WorkDefinitions::Base
 - name: WorkUnits::Launcher
 - name: WorkerHealthRunCorrelation

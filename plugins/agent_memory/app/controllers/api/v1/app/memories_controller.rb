@@ -251,7 +251,7 @@ module Api
             return memory.repository.user_id == memory.user_id
           end
 
-          ::Repository.exists?(id: scope_id, user_id: memory.user_id)
+          Syrus::Host::RepositoryRecord.exists?(id: scope_id, user_id: memory.user_id)
         end
 
         def create_memory_params

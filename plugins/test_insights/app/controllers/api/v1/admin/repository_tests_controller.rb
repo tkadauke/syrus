@@ -33,7 +33,7 @@ module Api
         end
 
         def show
-          repository = Repository.find(params[:repository_id])
+          repository = Syrus::Host::RepositoryRecord.find(params[:repository_id])
           test_identity = TestInsights::TestIdentity.for_repository(repository).find(params[:id])
 
           render json: TestInsights::Detail.call(

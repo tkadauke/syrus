@@ -58,7 +58,7 @@ module GithubHost
       # or else the owner's PAT. GitHub accepts either as the password for
       # the `x-access-token` user over HTTPS.
       def upstream_source(repository:, user:)
-        installation = GithubClient.active_installation_for(repository: repository, user: user)
+        installation = Syrus::Host::GithubClient.active_installation_for(repository: repository, user: user)
         if installation
           token = installation.fresh_token
           return source_for(repository, token, installation.cached_token_expires_at)
@@ -81,7 +81,7 @@ module GithubHost
       end
 
       def credentials?(repository, user)
-        GithubClient.active_installation_for(repository: repository, user: user).present? ||
+        Syrus::Host::GithubClient.active_installation_for(repository: repository, user: user).present? ||
           (user || repository.user)&.github_token.present?
       end
     end
@@ -230,7 +230,7 @@ module GithubHost
     # is a network call, and its failure is an outage (Unavailable), not a
     # reason to pretend the provider does not exist.
     def client
-      @client ||= GithubClient.for(repository: repository, user: user)
+      @client ||= Syrus::Host::GithubClient.for(repository: repository, user: user)
     end
 
     def translate(unknown_revision:)

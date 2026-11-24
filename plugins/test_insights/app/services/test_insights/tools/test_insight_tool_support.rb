@@ -35,7 +35,7 @@ module TestInsights
       end
 
       def repository_scope_for(context)
-        base = context.user.admin? ? Repository.all : Repository.accessible_to(context.user)
+        base = context.user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(context.user)
         base = base.where(id: context.repository.id) if context.run? && context.repository
         base
       end

@@ -72,7 +72,7 @@ module AgentMemory
       def memory_repository_ids(context)
         return context.allowed_repository_ids unless context.role == AgentRole::COWORKER_CHAT
 
-        Repository.accessible_repository_ids_for(context.user).pluck(:id)
+        Syrus::Host::RepositoryRecord.accessible_repository_ids_for(context.user).pluck(:id)
       end
 
       # Returns the repository to write to given a requested scope and scope_id.

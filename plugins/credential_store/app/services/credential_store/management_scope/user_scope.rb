@@ -6,11 +6,11 @@ module CredentialStore
       end
 
       def label(scope_id)
-        User.find_by(id: scope_id)&.display_name
+        Syrus::Host::UserRecord.find_by(id: scope_id)&.display_name
       end
 
       def labels_for(scope_ids)
-        User.where(id: scope_ids).index_by(&:id).transform_values(&:display_name)
+        Syrus::Host::UserRecord.where(id: scope_ids).index_by(&:id).transform_values(&:display_name)
       end
     end
   end

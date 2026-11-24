@@ -26,7 +26,7 @@ module GithubSource
       def update_untagged_open_issue_count!(repository)
         count = Issue.where(repository: repository).open.count do |issue|
           names = issue.labels.map { |label| label["name"] }
-          !names.include?(repository.trigger_label) && !names.include?(IngestPolicy::SKIP_LABEL)
+          !names.include?(repository.trigger_label) && !names.include?(Syrus::Host::GithubIngestPolicy::SKIP_LABEL)
         end
         repository.update_columns(untagged_open_issue_count: count, untagged_open_issues_checked_at: Time.current)
       end

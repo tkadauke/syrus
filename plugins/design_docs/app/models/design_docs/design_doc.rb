@@ -56,10 +56,10 @@ module DesignDocs
     end
 
     def self.visible_to(user)
-      user = User.find(user) unless user.is_a?(User)
+      user = Syrus::Host::UserRecord.find(user) unless user.is_a?(Syrus::Host::UserRecord)
       collaborator_doc_ids = DesignDocs::DesignDocCollaborator.where(user: user).select(:design_doc_id)
       public_doc_ids = DesignDocs::DesignDocRepository
-        .where(repository_id: Repository.accessible_to(user).select(:id))
+        .where(repository_id: Syrus::Host::RepositoryRecord.accessible_to(user).select(:id))
         .select(:design_doc_id)
 
       where(owner_user: user)
