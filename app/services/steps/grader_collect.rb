@@ -34,6 +34,7 @@ module Steps
       database_capacity
       database_lock
       schema_version_skew
+      run_job_crashed
       disk_full
       git_transport_transient
       prepare_network_transient

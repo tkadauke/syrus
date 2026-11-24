@@ -758,8 +758,24 @@ module WorkEngine
             )
           end
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:failed] })
+          failed_executions = sqs.count { |candidate| candidate[:root_run_id] == run.id && candidate[:failed] }
           if grader_collect_cached_failure?(run)
             issue(**grader_collect_cached_failure_issue(run, workflow, sq, "failed_execution"))
+          elsif failed_executions >= REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT
+            # Re-enqueueing a Run whose RunJob crashes the same way every time
+            # only loops: a worker on an old release crashed one grader Run
+            # once a minute for over an hour while a whole landing bundle
+            # waited on it. Fail the Run with the crash instead, so the
+            # ordinary retry and grader-collect handling take over.
+            issue(
+              kind: :queued_run_repeated_queue_execution_failure,
+              severity: :error,
+              affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+              safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+              recommended_repair_action: "fail_run_after_repeated_queue_failure",
+              evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "failed_execution", failed_executions: failed_executions),
+              explanation: "Run ##{run.id}'s RunJob has failed #{failed_executions} times without the Run ever starting."
+            )
           else
             issue(
               kind: :queued_run_solid_queue_failed_execution,
@@ -3668,6 +3684,10 @@ module WorkEngine
     # re-enqueued jobs created the same second, one of which then started on
     # its own. A real orphan is old; require the job to have sat a while.
     ORPHANED_QUEUE_JOB_GRACE = 2.minutes
+
+    # Failed RunJob executions for one Run after which re-enqueueing it stops
+    # and the Run is failed with the crash (queued_run_repeated_queue_execution_failure).
+    REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT = 3
 
     def orphaned_queue_job?(sq)
       return false unless !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]

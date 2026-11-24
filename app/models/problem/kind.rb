@@ -122,6 +122,7 @@ class Problem
                 default_remediation: :retry_step),
       Entry.new(code: "stdin_race_failed", scope: :run, retryable: true, default_remediation: :retry_step),
       Entry.new(code: "mcp_sidecar_failure", scope: :run, retryable: true, default_remediation: :retry_step),
+      Entry.new(code: "run_job_crashed", scope: :run, retryable: true, default_remediation: :retry_step),
       Entry.new(code: "no_changes_produced", scope: :run, retryable: false, default_remediation: :escalate,
                 label: "Agent produced no changes"),
       Entry.new(code: "provider_transient", scope: :run, retryable: true, default_remediation: :retry_step),

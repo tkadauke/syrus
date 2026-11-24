@@ -830,6 +830,58 @@ module WorkEngine
         end
       end
 
+      class FailRunAfterRepeatedQueueFailure < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not queued") unless run.queued?
+          return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
+
+          error = latest_queue_error(run)
+          # Keyed by run_id, as in MarkCachedGraderCollectFailed: two passes may
+          # repair the same Run concurrently.
+          RunDiagnostic.create_or_find_by!(run_id: run.id) do |diagnostic|
+            diagnostic.error_class = error["exception_class"].presence || "RunJobCrashed"
+            diagnostic.error_message = "RunJob crashed before the Run started: #{error["message"].presence || "unknown error"}".truncate(1_000)
+            diagnostic.problem_code = "run_job_crashed"
+          end
+
+          with_transition_reason do
+            run.fail!
+            run.save!
+          end
+          classification = run.run_failure_classification || run.build_run_failure_classification
+          classification.assign_attributes(
+            classification: "run_job_crashed",
+            retryable: true,
+            confidence: 1.0,
+            reason: "The Run's RunJob crashed #{plan.evidence.to_h["failed_executions"] || "repeatedly"} times before the Run started; " \
+                    "this is the worker, not the Run's work.",
+            diagnostic_summary: "#{error["exception_class"] || "RunJobCrashed"}: #{error["message"]}".truncate(500),
+            classifier_inputs: { "failed_executions" => plan.evidence.to_h["failed_executions"] },
+            classified_at: Time.current
+          )
+          classification.save!
+
+          success("failed #{run_label(run)} after its RunJob crashed repeatedly (#{error["exception_class"] || "unknown"})")
+        end
+
+        private
+
+        def latest_queue_error(run)
+          raw = SolidQueue::FailedExecution
+            .joins(:job)
+            .where(solid_queue_jobs: { class_name: "RunJob" })
+            .where("solid_queue_jobs.arguments LIKE ?", "%[#{run.id}]%")
+            .order(created_at: :desc)
+            .pick(:error)
+          parsed = raw.is_a?(String) ? JSON.parse(raw) : raw.to_h
+          parsed.to_h.stringify_keys
+        rescue StandardError
+          {}
+        end
+      end
+
       class MarkCachedGraderCollectFailed < Base
         def perform
           run = target_run

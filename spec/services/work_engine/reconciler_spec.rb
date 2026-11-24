@@ -1116,6 +1116,48 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
   end
 
+  # Regression: a worker on an old release crashed one grader Run's RunJob
+  # once a minute, the reconciler re-enqueued it every time, and a ten-Job
+  # landing bundle waited on that Run for over an hour.
+  describe "a Run whose RunJob keeps crashing before it starts" do
+    before do
+      run.update_columns(state: "queued", created_at: 30.minutes.ago, updated_at: 30.minutes.ago, started_at: nil)
+      workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    end
+
+    def crash!(at)
+      solid_queue_run_job(run, failed: true, created_at: at,
+                               error: { exception_class: "NoMethodError", message: "undefined method 'id' for nil" }.to_json)
+    end
+
+    it "still re-enqueues after a single failed execution" do
+      crash!(5.minutes.ago)
+
+      result = reconcile(run_id: run.id)
+
+      expect(kind(result, :queued_run_solid_queue_failed_execution)).to be_present
+      expect(kind(result, :queued_run_repeated_queue_execution_failure)).to be_nil
+    end
+
+    it "fails the Run with the crash once it has failed repeatedly" do
+      crash!(20.minutes.ago)
+      crash!(10.minutes.ago)
+      crash!(2.minutes.ago)
+
+      result = reconcile_and_execute(run_id: run.id)
+
+      expect(kind(result, :queued_run_repeated_queue_execution_failure)).to be_present
+      expect(result.repair_plans.map(&:action)).to include("fail_run_after_repeated_queue_failure")
+      expect(run.reload).to be_failed
+      expect(run.run_diagnostic).to have_attributes(
+        problem_code: "run_job_crashed",
+        error_class: "NoMethodError",
+        error_message: include("undefined method 'id' for nil")
+      )
+      expect(RunFailureClassification.find_by(run_id: run.id)).to have_attributes(classification: "run_job_crashed", retryable: true)
+    end
+  end
+
   it "does not repair a queued Run when a healthy queue job exists beside stale failed queue jobs" do
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-dead")

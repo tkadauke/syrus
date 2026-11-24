@@ -364,6 +364,18 @@ module WorkEngine
         end
       end
 
+      class QueuedRunRepeatedQueueExecutionFailure < Base
+        def plan
+          automatic_plan(
+            "fail_run_after_repeated_queue_failure",
+            primary_run,
+            "The Run's RunJob keeps crashing before the Run starts, so re-enqueueing only loops; fail the Run with the crash and let the normal retry path decide.",
+            execution_steps: [ "RunDiagnostic(run_job_crashed)", "Run#fail!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], repeated_queue_execution_failure: true }
+          )
+        end
+      end
+
       class QueuedRunWithOrphanedQueueJob < Base
         def plan
           automatic_plan(
