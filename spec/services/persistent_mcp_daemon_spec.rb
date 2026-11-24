@@ -444,7 +444,7 @@ RSpec.describe PersistentMcpDaemon do
       end
 
       it "advertises Mockups plugin tools to planning chats in essential and deferred tiers" do
-        expected_names = %w[write_preview_file edit_preview_file show_preview close_preview]
+        expected_names = %w[write_preview_file edit_preview_file render_preview show_preview close_preview]
 
         expect(persistent_chat_tool_names(chat, tier: :essential)).to include(*expected_names)
         expect(persistent_chat_tool_names(chat, tier: :deferred)).to include(*expected_names)

@@ -42,10 +42,10 @@ RSpec.describe Mockups::ChatToolSet do
   end
 
   describe ".tool_definitions" do
-    it "exposes the write/edit/show/close tool names" do
+    it "exposes the write/edit/render/show/close tool names" do
       names = described_class.tool_definitions(tier: :essential).map { |tool| tool.fetch(:name) }
 
-      expect(names).to contain_exactly("write_preview_file", "edit_preview_file", "show_preview", "close_preview", "inspect_preview_versions")
+      expect(names).to contain_exactly("write_preview_file", "edit_preview_file", "render_preview", "show_preview", "close_preview", "inspect_preview_versions")
     end
 
     it "describes show_preview as the preferred preview mockup submission flow" do
@@ -233,6 +233,138 @@ RSpec.describe Mockups::ChatToolSet do
 
         expect(response.error?).to be true
         expect(response.content.first[:text]).to match(/No open preview panel/)
+      end
+    end
+
+    describe "render_preview" do
+      let(:panel) { PreviewPanel::Service.open!(chat_session: chat_session, title: "Widget", files: {}) }
+      let(:calls) { [] }
+      let(:fake_session) do
+        recorded = calls
+        Class.new do
+          define_method(:initialize) { |fetched| @fetched = fetched }
+          define_method(:call_tool) do |name:, arguments:|
+            recorded << [ name, arguments ]
+            if name == "browser_navigate"
+              @fetched << Net::HTTP.get_response(URI(arguments["url"]))
+            end
+            if name == "browser_take_screenshot"
+              { "result" => { "content" => [ { "type" => "image", "data" => "iVBORw0KGgo=", "mimeType" => "image/png" } ] } }
+            else
+              { "result" => { "content" => [ { "type" => "text", "text" => "ok" } ] } }
+            end
+          end
+          define_method(:close) { recorded << [ :closed ] }
+        end
+      end
+      let(:fetched) { [] }
+
+      before do
+        Mockups::PreviewRenderer.session_factory = ->(_key) { fake_session.new(fetched) }
+        Mockups::ScratchDirectory.new(chat_session, panel.id).write("index.html", "<h1>Draft</h1>")
+      end
+
+      # The renderer's throwaway server is a real loopback socket; VCR would
+      # otherwise refuse the fake browser's fetch of it.
+      around { |example| VCR.turned_off { example.run } }
+
+      after { Mockups::PreviewRenderer.reset! }
+
+      it "returns a PNG image block plus metadata for the unpublished scratch state" do
+        response = call("render_preview", { panel_id: panel.id.to_s })
+
+        expect(response.error?).to be false
+        image, text = response.content
+        expect(image).to include(type: "image", mimeType: "image/png", data: "iVBORw0KGgo=")
+        expect(JSON.parse(text[:text])).to include(
+          "panel_id" => panel.id, "entry_file" => "index.html", "preset" => "desktop",
+          "viewport" => { "width" => 1280, "height" => 800 }, "capture" => "viewport", "published" => false
+        )
+        expect(fetched.first.body).to eq("<h1>Draft</h1>")
+        expect(fetched.first["Content-Security-Policy"]).to include("default-src")
+        expect(calls.last).to eq([ :closed ])
+      end
+
+      it "passes presets, explicit dimensions, full page, wait and entry file to the browser" do
+        Mockups::ScratchDirectory.new(chat_session, panel.id).write("alt/page.html", "<p>alt</p>")
+
+        call("render_preview", { panel_id: panel.id.to_s, viewport: "mobile", full_page: true, wait_ms: 1500, entry_file: "alt/page.html" })
+
+        expect(calls).to include(
+          [ "browser_resize", { "width" => 393, "height" => 852 } ],
+          [ "browser_wait_for", { "time" => 1.5 } ],
+          [ "browser_take_screenshot", { "type" => "png", "fullPage" => true } ]
+        )
+        expect(fetched.first.body).to eq("<p>alt</p>")
+
+        calls.clear
+        call("render_preview", { panel_id: panel.id.to_s, width: 500, height: 600 })
+        expect(calls).to include([ "browser_resize", { "width" => 500, "height" => 600 } ])
+        expect(calls.map(&:first)).not_to include("browser_wait_for")
+      end
+
+      it "does not publish, version, or broadcast" do
+        expect(ActionCable.server).not_to receive(:broadcast)
+        expect(Mockups::Mockup).not_to receive(:record_publish!)
+        panel.reload
+
+        expect { call("render_preview", { panel_id: panel.id.to_s }) }.not_to change { [ PreviewPanelVersion.count, panel.reload.current_version&.id, Mockups::Mockup.count ] }
+      end
+
+      it "rejects out-of-bounds and malformed inputs without starting a browser" do
+        [ { width: 100, height: 600 }, { width: 500 }, { width: 500, height: 99_999 }, { viewport: "watch" }, { wait_ms: 60_000 } ].each do |bad|
+          response = call("render_preview", { panel_id: panel.id.to_s }.merge(bad))
+          expect(response.error?).to be true
+        end
+        expect(calls).to be_empty
+      end
+
+      it "rejects missing, closed, and cross-chat panels" do
+        expect(call("render_preview", { panel_id: "99999" }).error?).to be true
+
+        other_chat = ChatSession.create!(user: user, repository: repository)
+        expect(call("render_preview", { panel_id: panel.id.to_s }, session: other_chat).error?).to be true
+
+        PreviewPanel::Service.new(panel).close!
+        response = call("render_preview", { panel_id: panel.id.to_s })
+        expect(response.error?).to be true
+        expect(response.content.first[:text]).to match(/No open preview panel/)
+        expect(calls).to be_empty
+      end
+
+      it "rejects unsafe and missing entry files" do
+        outside = workspace_root.join("secret.html")
+        File.write(outside, "secret")
+
+        [ "../../secret.html", "/etc/passwd", "nope.html" ].each do |entry|
+          response = call("render_preview", { panel_id: panel.id.to_s, entry_file: entry })
+          expect(response.error?).to be true
+        end
+        expect(calls).to be_empty
+      end
+
+      it "does not serve files outside the scratch directory or through symlinks" do
+        scratch = Mockups::ScratchDirectory.new(chat_session, panel.id)
+        File.write(workspace_root.join("secret.html"), "secret")
+        File.symlink(workspace_root.join("secret.html"), scratch.root.join("link.html"))
+        server = Mockups::PreviewRenderer::ScratchServer.new(scratch)
+        begin
+          %w[link.html %2e%2e/secret.html missing.html].each do |path|
+            expect(Net::HTTP.get_response(URI(server.url_for("index.html").sub("index.html", path))).code).to eq("404")
+          end
+          expect(Net::HTTP.get_response(URI(server.url_for("index.html"))).code).to eq("200")
+        ensure
+          server.stop
+        end
+      end
+
+      it "reports an actionable error when the browser is unavailable" do
+        Mockups::PreviewRenderer.session_factory = ->(_key) { raise Mockups::PreviewRenderer::Unavailable, "the Browser plugin is not enabled" }
+
+        response = call("render_preview", { panel_id: panel.id.to_s })
+
+        expect(response.error?).to be true
+        expect(response.content.first[:text]).to include("Browser plugin is not enabled", "Publish with show_preview")
       end
     end
 

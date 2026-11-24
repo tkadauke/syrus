@@ -55,5 +55,11 @@
   "tool_replace_all": "Replace all",
   "tool_yes": "Yes",
   "tool_no": "No",
-  "tool_changes": "Changes"
+  "tool_changes": "Changes",
+  "tool_render_preview": "Render preview",
+  "tool_rendered_summary": "Rendered panel #{{id}} (unpublished)",
+  "tool_viewport": "Viewport",
+  "tool_capture": "Capture",
+  "tool_wait_ms": "Wait (ms)",
+  "tool_unpublished": "Unpublished"
 }
