@@ -45,7 +45,7 @@ module AgentInsights
 
           return Syrus::Host::McpTools.invalid("run_id is outside this repository scope") unless target_run
 
-          page_num = Mcp::Pagination.normalize_page(page)
+          page_num = Syrus::Host::McpPagination.normalize_page(page)
           per_page = normalized_per(per)
           logs = target_run.job_logs.order(:sequence)
           total_chunks = logs.count
@@ -93,7 +93,7 @@ module AgentInsights
         end
 
         def redact(value)
-          ::Mcp::Tools::EvidenceRedactor.call(value)
+          Syrus::Host::EvidenceRedactor.call(value)
         end
       end
     end

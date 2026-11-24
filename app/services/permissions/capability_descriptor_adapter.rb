@@ -1,5 +1,9 @@
 module Permissions
   class CapabilityDescriptorAdapter
+    # Exposed through Syrus::Host::CapabilityDescriptor so plugins need not name
+    # the core descriptor class to declare how long an approval may last.
+    AUTHORITY_DURATIONS = CapabilityDescriptor::AUTHORITY_DURATIONS
+
     REDACTED_KEYS = /(?:token|secret|password|credential|authorization|api[_-]?key)/i
 
     class << self
