@@ -32,6 +32,17 @@ RSpec.describe SpawnedProcessCgroup, :ci_only do
     Feature.clear_enabled_cache!("per_spawn_resource_limits")
   end
 
+  it "writes pids.max so the whole spawned process tree has a PID ceiling" do
+    process = SpawnedProcess.create!(kind: "builder", command: "buildah", hostname: "worker-a", started_at: Time.current)
+    limits = Execution::ResourceLimits.new(memory_max: 268_435_456, cpu_max: nil, io_weight: nil, pids_max: 512)
+
+    cgroup = described_class.new(spawned_process: process, resource_limits: limits)
+    cgroup_dir = Dir.glob(File.join(@cgroup_parent, "syrus-spawned-process-*")).sole
+
+    expect(File.read(File.join(cgroup_dir, "pids.max")).strip).to eq("512")
+    expect(cgroup.payload).to include("pids_max" => 512)
+  end
+
   it "records cgroup v2 limit settings, exit counters, oom events, and cleanup state" do
     process = SpawnedProcess.create!(
       kind: "agent",

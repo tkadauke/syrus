@@ -36,6 +36,9 @@ module Execution
       if limits.io_weight && !Integer(limits.io_weight).between?(10, 1000)
         raise InvalidRequest, "io_weight must be between 10 and 1000"
       end
+      if limits.pids_max && !Integer(limits.pids_max).positive?
+        raise InvalidRequest, "pids_max must be a positive integer"
+      end
     rescue ArgumentError, TypeError
       raise InvalidRequest, "resource limit values are malformed"
     end

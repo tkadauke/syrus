@@ -42,12 +42,12 @@ module RuntimeImages
           return if Config.cgroup_optional?
 
           id = result.respond_to?(:spawned_process_id) ? result.spawned_process_id : nil
-          return unless id
-
-          state = SpawnedProcess.find_by(id: id)&.resource_attribution&.dig("cgroup", "state")
+          # No spawned-process record means no cgroup was ever created: that is
+          # an unconfined command, never a pass.
+          state = id && SpawnedProcess.find_by(id: id)&.resource_attribution&.dig("cgroup", "state")
           return if state == "applied"
 
-          raise BuildFailed.new("cgroup memory/CPU limits were not applied (state=#{state.inspect})",
+          raise BuildFailed.new("cgroup memory/CPU/PID limits were not applied (state=#{state.inspect})",
                                 code: "builder_not_isolated", retryable: true)
         end
       end
@@ -63,7 +63,8 @@ module RuntimeImages
         def call(command:, env:, mounts:, timeout:, resource_limits:, stop_requested:, on_output_chunk:)
           ProcessRunner.new(
             env: env, command: command, mounts: mounts, network: network, timeout: timeout,
-            resource_limits: resource_limits, stop_requested: stop_requested, on_output_chunk: on_output_chunk
+            resource_limits: resource_limits, stop_requested: stop_requested, on_output_chunk: on_output_chunk,
+            kind: "builder"
           ).run
         end
       end
@@ -246,7 +247,8 @@ module RuntimeImages
 
       def resource_limits
         Execution::ResourceLimits.new(memory_max: Config.build_memory_bytes,
-                                      cpu_max: "#{(Config.build_cpus * 100_000).to_i} 100000", io_weight: nil)
+                                      cpu_max: "#{(Config.build_cpus * 100_000).to_i} 100000", io_weight: nil,
+                                      pids_max: Config.build_pids)
       end
 
       def read_output!(path, platform)

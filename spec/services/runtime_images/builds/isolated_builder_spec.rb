@@ -250,5 +250,32 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect { described_class::Confinement.new.verify_applied!(res) }
         .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
     end
+
+    it "fails closed when the command left no spawned-process record (never ran in a cgroup)" do
+      res = result_class.new(exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false, operator_killed: false, aliveness_failed: false, duration_s: 1, spawned_process_id: nil)
+      expect { described_class::Confinement.new.verify_applied!(res) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
+    end
+
+    it "accepts a command whose cgroup was applied" do
+      process = instance_double(SpawnedProcess, resource_attribution: { "cgroup" => { "state" => "applied" } })
+      allow(SpawnedProcess).to receive(:find_by).with(id: 7).and_return(process)
+      res = result_class.new(exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false, operator_killed: false, aliveness_failed: false, duration_s: 1, spawned_process_id: 7)
+      expect { described_class::Confinement.new.verify_applied!(res) }.not_to raise_error
+    end
+
+    it "asks for a PID ceiling in the per-spawn cgroup limits" do
+      calls = []
+      build(request, builder(launcher: launcher(calls: calls)))
+      expect(calls.map { |c| c[:limits].pids_max }.uniq).to eq([ RuntimeImages::Builds::Config.build_pids ])
+    end
+
+    it "runs the default launcher as a registered builder spawn so a cgroup is created" do
+      runner = instance_double(ProcessRunner, run: :result)
+      expect(ProcessRunner).to receive(:new).with(hash_including(kind: "builder")).and_return(runner)
+      out = described_class::Launcher.new("prepare").call(command: [ "true" ], env: {}, mounts: nil, timeout: 1,
+                                                          resource_limits: nil, stop_requested: -> { false }, on_output_chunk: nil)
+      expect(out).to eq(:result)
+    end
   end
 end
