@@ -10,7 +10,7 @@ import { Modal } from "./Modal"
 import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
 import { Select } from "./Select"
 
-const BUTTON = "min-w-[7rem] flex-1 rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
+const BUTTON = "min-w-[5.5rem] flex-1 rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
 
 const EDITOR_PANEL = "max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius-panel)] bg-surface p-4 shadow-[var(--shadow-panel)] sm:p-5"
 
@@ -247,29 +247,29 @@ export function SmartPermissionActions({
             <button className={`${BUTTON} border border-border text-text-secondary`} disabled={busy} onClick={onDeny} type="button">
               {t("permission_smart.deny")}
             </button>
+            {availableOptions.length ? (
+              <Select
+                aria-label={t("permission_smart.remember_control")}
+                className="min-w-0 flex-[2_1_10rem] px-2 text-sm"
+                disabled={busy}
+                onChange={(event) => {
+                  const next = availableOptions.find((candidate) => optionKey(candidate) === event.target.value)
+                  if (!next) return
+                  setSelectedOption(next)
+                  setPreviewing(true)
+                }}
+                ref={scopeRef}
+                value=""
+              >
+                <option value="">{t("permission_smart.remember_placeholder")}</option>
+                {availableOptions.map((candidate) => (
+                  <option key={optionKey(candidate)} value={optionKey(candidate)}>
+                    {rememberLabel(candidate)}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
           </div>
-          {availableOptions.length ? (
-            <Select
-              aria-label={t("permission_smart.remember_control")}
-              className="px-2 text-sm"
-              disabled={busy}
-              onChange={(event) => {
-                const next = availableOptions.find((candidate) => optionKey(candidate) === event.target.value)
-                if (!next) return
-                setSelectedOption(next)
-                setPreviewing(true)
-              }}
-              ref={scopeRef}
-              value=""
-            >
-              <option value="">{t("permission_smart.remember_placeholder")}</option>
-              {availableOptions.map((candidate) => (
-                <option key={optionKey(candidate)} value={optionKey(candidate)}>
-                  {rememberLabel(candidate)}
-                </option>
-              ))}
-            </Select>
-          ) : null}
         </div>
       )}
       {request ? (
