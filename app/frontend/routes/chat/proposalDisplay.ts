@@ -75,7 +75,5 @@ export function proposalConfirmAriaLabel(proposal: ChatProposal, childJobCount: 
 export function insertionText(insertion: NonNullable<ChatProposal["insertion"]>): string {
   const after = insertion.insert_after_slug || `JOB-${insertion.insert_after_job_id}`
   const before = insertion.insert_before_slug || (insertion.insert_before_job_id ? `JOB-${insertion.insert_before_job_id}` : null)
-  return before
-    ? i18n.t("chat:insertion_position", { after, before })
-    : i18n.t("chat:insertion_position_tail", { after })
+  return before ? i18n.t("chat:insertion_position", { after, before }) : i18n.t("chat:insertion_position_tail", { after })
 }
