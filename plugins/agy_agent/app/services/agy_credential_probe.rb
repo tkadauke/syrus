@@ -11,7 +11,7 @@ class AgyCredentialProbe
   end
 
   def self.refresh_for(user:, force: false)
-    result = ::CredentialProbe.call(user: user, credential: CREDENTIAL)
+    result = Syrus::Host::CredentialProbe.call(user: user, credential: CREDENTIAL)
     record_evidence!(user: user, result: result)
     result
   end
@@ -58,7 +58,7 @@ class AgyCredentialProbe
         stdin_data: stdin_event,
         mounts: Syrus::Host::ProcessRunner.mounts(workspace),
         network: "agent",
-        timeout: CredentialProbe::TIMEOUT_SECONDS,
+        timeout: Syrus::Host::CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",
         on_output_chunk: ->(chunk) { append_output(output, chunk) }
@@ -81,15 +81,15 @@ class AgyCredentialProbe
   def user = probe.send(:user)
 
   def missing(message)
-    CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: { status: "probe_unavailable" })
+    Syrus::Host::CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: { status: "probe_unavailable" })
   end
 
   def success(message, details: {})
-    CredentialProbe::Result.new(credential: CREDENTIAL, ok: true, message: message, details: details)
+    Syrus::Host::CredentialProbe::Result.new(credential: CREDENTIAL, ok: true, message: message, details: details)
   end
 
   def failure(message, details: {})
-    CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: details)
+    Syrus::Host::CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: details)
   end
 
   def append_output(output, chunk) = probe.send(:append_output, output, chunk)

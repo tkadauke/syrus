@@ -41,7 +41,7 @@ module SyrusDev
       def register_read(operation:, roles:, defaults:)
         register_capability(
           capability: CAPABILITY, operation:,
-          presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+          presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation:),
           effects: %i[confidential_read], risk: :medium,
           deniable_reason: :instance_wide_observability,
           requestable_roles: roles, defaults:, maximum_autonomy: :job,

@@ -13,7 +13,7 @@ module CognitiveReview
 
     register_capability(
       capability: CAPABILITY, operation: OPERATION,
-      presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation: OPERATION),
+      presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation: OPERATION),
       # The reviewer's own notes are bounded workflow output. Essential.
       essential: true,
       effects: %i[internal_write], risk: :medium, requestable_roles: ROLES, defaults: ROLES.index_with(:ask),

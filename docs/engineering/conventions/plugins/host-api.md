@@ -234,11 +234,22 @@ Supported members:
 
 Since: `0.1.16`
 
-Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised. Only the listed members are supported.
+Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised. AUTHORITY_DURATIONS lists the approval durations a capability may allow, from shortest to longest. Only the listed members are supported.
 
 Supported members:
 
+- `AUTHORITY_DURATIONS`
 - `for_plugin_definition`
+
+### `Syrus::Host::CapabilityPresentation`
+
+Since: `0.1.16`
+
+Builds the human-facing capability and operation names and descriptions a capability descriptor carries from its capability and operation identifiers; the wording may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::CapabilityValidationError`
 
@@ -421,6 +432,18 @@ Supported members:
 - `raw_text`
 - `table`
 - `text`
+
+### `Syrus::Host::CommandRedactor`
+
+Since: `0.1.16`
+
+Redacts credentials, tokens and secret-looking assignments from text and nested values before they are logged, stored or returned to an agent; the set of patterns it recognizes may grow. Only the listed members are supported.
+
+Supported members:
+
+- `redact`
+- `redact_assignments`
+- `redact_value`
 
 ### `Syrus::Host::ContentBlob`
 
@@ -646,6 +669,18 @@ Supported members:
 - `new`
 - `raw`
 
+### `Syrus::Host::CredentialProbe`
+
+Since: `0.1.16`
+
+Carries the outcome of validating a saved credential (Result) and the probe timeout (TIMEOUT_SECONDS) that agent-provider credential probes share, and validates a saved credential through call; the individual probes are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Result`
+- `TIMEOUT_SECONDS`
+- `call`
+
 ### `Syrus::Host::Current`
 
 Since: `0.1.16`
@@ -809,6 +844,16 @@ Parses epic markers from source text.
 Supported members:
 
 - `parse`
+
+### `Syrus::Host::EvidenceRedactor`
+
+Since: `0.1.16`
+
+Redacts a nested evidence value (hashes, arrays and strings) before it is surfaced in an MCP tool result. Only the listed members are supported.
+
+Supported members:
+
+- `call`
 
 ### `Syrus::Host::ExecutionBackend`
 
@@ -1446,6 +1491,16 @@ Supported members:
 
 - `new`
 - `run`
+
+### `Syrus::Host::McpPagination`
+
+Since: `0.1.16`
+
+Normalizes a requested page number for paginated MCP tool results into the supported range. Only the listed members are supported.
+
+Supported members:
+
+- `normalize_page`
 
 ### `Syrus::Host::McpRunContextContributor`
 
@@ -2601,6 +2656,18 @@ Supported members:
 - `user`
 - `workflow`
 
+### `Syrus::Host::ToolPayloadRedactor`
+
+Since: `0.1.16`
+
+Redacts secret-looking keys, values and inline assignments from a tool payload or text before it is returned to an agent; REDACTED is the placeholder it writes. The patterns it recognizes may grow. Only the listed members are supported.
+
+Supported members:
+
+- `REDACTED`
+- `redact`
+- `redact_text`
+
 ### `Syrus::Host::Toolkit`
 
 Since: `0.1.16`
@@ -2893,10 +2960,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ClaudeTranscript`
 - `ClaudeTranscript::Event`
 - `CodexAccountScope`
-- `CommandRedactor`
-- `CredentialProbe`
-- `CredentialProbe::Result`
-- `CredentialProbe::TIMEOUT_SECONDS`
 - `Execution::ChatWorkloadPolicy`
 - `Feature`
 - `HasConfigurableRetention`
@@ -2906,7 +2969,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `KubernetesCluster`
 - `MaintenanceTasks::Definitions::Base::Result`
 - `Mcp::CoworkerToolExposure`
-- `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
 - `Mcp::Tools::AgentPreviewRegistry`
@@ -2914,7 +2976,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Mcp::Tools::AuthorizationSupport::AuthorizationError`
 - `Mcp::Tools::BulkPendingActionToolSupport`
 - `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
-- `Mcp::Tools::EvidenceRedactor`
 - `Mcp::Tools::PendingActionToolSupport`
 - `Mcp::Tools::ProposalToolSupport`
 - `McpInvocationContext`
@@ -2947,10 +3008,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Permissions::AuthorizationDecision`
 - `Permissions::AuthorizationRequest`
 - `Permissions::CapabilityDescriptor`
-- `Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS`
 - `Permissions::CapabilityDescriptor::POLICIES`
 - `Permissions::CapabilityDescriptorAdapter`
-- `Permissions::CapabilityPresentation`
 - `Permissions::CapabilityRegistryValidator`
 - `Permissions::Catalog`
 - `Permissions::Catalog::UnknownCapability`
@@ -3028,8 +3087,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Theme`
 - `Theme::EXTENDED_TOKEN_GROUPS`
 - `Theme::TOKEN_KEYS`
-- `ToolPayloadRedactor`
-- `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`
 - `TypedArtifactRenderer`
 - `UiEngagementSample`

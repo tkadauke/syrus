@@ -27,11 +27,11 @@ module DesignDocs
       mutation = effects.include?(:internal_write)
       risk = effects.include?(:destructive) ? :high : (mutation ? :medium : :low)
       register_capability(
-        capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        capability: CAPABILITY, operation:, presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation:),
         effects:, risk:, requestable_roles: ROLES,
         essential: ESSENTIAL.include?(name), deniable_reason: DENIABLE_REASONS[name],
         defaults: ROLES.index_with { mutation ? :ask : :allow }, maximum_autonomy: mutation ? :invocation : :permanent,
-        authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
+        authority_durations: mutation ? %i[invocation] : Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS,
         resource_scope: { type: :none }, classifier: ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } },
         fingerprint_normalizer: method(:normalize), redactor: method(:redact)
       )

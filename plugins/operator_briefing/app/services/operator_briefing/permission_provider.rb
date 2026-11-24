@@ -18,7 +18,7 @@ module OperatorBriefing
       mutation = MUTATIONS.include?(name)
       effects = mutation ? %i[internal_write] : %i[confidential_read]
       register_capability(
-        capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        capability: CAPABILITY, operation:, presentation: Syrus::Host::CapabilityPresentation.for(capability: CAPABILITY, operation:),
         # The briefing agent's evidence reads and its own briefing output are
         # bounded workflow work with no consequence outside the briefing.
         essential: true,

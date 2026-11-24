@@ -87,12 +87,12 @@ module Permissions
         effects = Array(effects)
         # Pure reads keep the historical permanent ceiling; any write stays per-invocation.
         maximum_autonomy ||= effects.all? { |effect| %i[local_read confidential_read].include?(effect) } ? :permanent : :invocation
-        durations ||= maximum_autonomy == :permanent ? CapabilityDescriptor::AUTHORITY_DURATIONS : [ :invocation ]
+        durations ||= maximum_autonomy == :permanent ? Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS : [ :invocation ]
 
         CoworkerDefaultPolicy.validate!(CapabilityDescriptor.new(
           capability: "#{family}@v1",
           operation: operation,
-          presentation: CapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
+          presentation: Syrus::Host::CapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
           effects: effects,
           risk: risk,
           requestable_roles: roles,

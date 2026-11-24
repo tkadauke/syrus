@@ -44,7 +44,7 @@ module OperatorBriefing
           args << path.to_s if path.present?
 
           output = Syrus::Host::GitRunner.new.run(*args, chdir: workspace_path)
-          text = CommandRedactor.redact(output.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""))
+          text = Syrus::Host::CommandRedactor.redact(output.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""))
           truncated = text.bytesize > limit
           text = text.safe_byteslice(0, limit) if truncated
 
@@ -62,7 +62,7 @@ module OperatorBriefing
             }
           ])
         rescue Syrus::Host::GitRunner::GitError => e
-          Syrus::Host::McpTools.invalid("git diff unavailable: #{CommandRedactor.redact(e.message)}")
+          Syrus::Host::McpTools.invalid("git diff unavailable: #{Syrus::Host::CommandRedactor.redact(e.message)}")
         rescue StandardError => e
           Rails.logger.error("[OperatorBriefing::ReadBriefingGitDiffTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
