@@ -1,6 +1,6 @@
 module GlobalSearch
-  class JobIndex < ::SearchRecord
-    include FtsQueryParser
+  class JobIndex < Syrus::Host::SearchRecord
+    include Syrus::Host::FtsQueryParser
 
     class << self
       def upsert(job)
@@ -75,7 +75,7 @@ module GlobalSearch
       private
 
       def index_fields(job)
-        SearchIndexWriteLimits.row(
+        Syrus::Host::SearchIndexWriteLimits.row(
           { title: job.issue_title, body: body_for(job) },
           index: "job",
           record_id: job.id

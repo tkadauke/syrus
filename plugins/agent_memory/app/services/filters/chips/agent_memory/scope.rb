@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentMemory
-      class Scope < EnumColumn
+      class Scope < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "scope"
         label "Scope"
         column :scope

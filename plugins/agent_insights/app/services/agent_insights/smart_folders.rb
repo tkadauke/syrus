@@ -36,7 +36,7 @@ module AgentInsights
 
     def install_into(scope)
       scope.effect("agent_insights smart folders") do
-        ::SmartFolder.register_subject!(
+        Syrus::Host::SmartFolder.register_subject!(
           SUBJECT,
           builtins: BUILTINS,
           label: "Agent Insights",
@@ -52,8 +52,8 @@ module AgentInsights
     end
 
     def default_folder
-      ::SmartFolder.ensure_builtins_for_subject!(SUBJECT)
-      ::SmartFolder.builtins(SUBJECT).find_by(name: "Pending")
+      Syrus::Host::SmartFolder.ensure_builtins_for_subject!(SUBJECT)
+      Syrus::Host::SmartFolder.builtins(SUBJECT).find_by(name: "Pending")
     end
   end
 end

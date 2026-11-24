@@ -1,8 +1,8 @@
 module DesignDocs
-  class SearchIndex < SearchRecord
+  class SearchIndex < Syrus::Host::SearchRecord
     self.table_name = "design_doc_fts"
 
-    include FtsQueryParser
+    include Syrus::Host::FtsQueryParser
 
     class << self
       def upsert(design_doc)
@@ -189,7 +189,7 @@ module DesignDocs
       end
 
       def index_fields(design_doc)
-        SearchIndexWriteLimits.row(
+        Syrus::Host::SearchIndexWriteLimits.row(
           {
             display_id: design_doc.display_id,
             title: design_doc.title,
