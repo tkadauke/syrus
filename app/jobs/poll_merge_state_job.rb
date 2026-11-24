@@ -34,7 +34,13 @@ class PollMergeStateJob < ApplicationJob
         retry
       end
 
-      Rails.logger.warn("[PollMergeStateJob] job #{job_id} lock conflict persisted (#{e.class}); skipping until next poll")
+      # The exception is swallowed, so BackendExceptionLogging never sees it;
+      # keep the call site and the transactions holding locks in the log.
+      Rails.logger.warn(
+        "[PollMergeStateJob] job #{job_id} lock conflict persisted (#{e.class}: #{e.message}); " \
+        "skipping until next poll\n#{Array(e.backtrace).first(8).join("\n")}\n" \
+        "lock_holders=#{MysqlLockDiagnostics.snapshot.to_json}"
+      )
       nil
     end
   end
