@@ -18,7 +18,7 @@ module Coworkers
 
       session_ids = sessions.map(&:id)
       session_ids_by_workdir = sessions.index_by { |session| session.workspace_root.to_s }
-      live_agents = SpawnedProcess.live_agent
+      live_agents = Syrus::Host::SpawnedProcess.live_agent
       processes = live_agents.where(chat_session_id: session_ids)
         .or(live_agents.where(workdir: session_ids_by_workdir.keys))
         .pluck(:chat_session_id, :workdir)

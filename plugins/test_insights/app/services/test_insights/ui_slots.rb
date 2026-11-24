@@ -25,7 +25,7 @@ module TestInsights
     end
 
     def self.results?(job)
-      run_ids = Run.joins(step: :workflow).where(workflows: { job_id: job.id }).select(:id)
+      run_ids = Syrus::Host::RunRecord.joins(step: :workflow).where(workflows: { job_id: job.id }).select(:id)
       TestRun.where(run_id: run_ids).exists?
     end
   end

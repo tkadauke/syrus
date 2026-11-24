@@ -1,6 +1,6 @@
 module Coworkers
-  class ReviewStep < Steps::AdversarialReview
-    MemoryPersistenceFailed = Steps::AdversarialReview::MemoryPersistenceFailed
+  class ReviewStep < Syrus::Host::AdversarialReviewStep
+    MemoryPersistenceFailed = Syrus::Host::AdversarialReviewStep::MemoryPersistenceFailed
     def call
       raise Syrus::Host::ReviewerTargetRequired, "coworker_review requires a pinned reviewer target" if step.details.to_h["reviewer_target"].blank?
       super

@@ -309,9 +309,9 @@ module AgentInsights
           return evidence if job_ids.empty? && run_ids.empty?
 
           repository_id = run.job.repository_id
-          jobs_by_id = Job.where(id: job_ids, repository_id: repository_id).index_by(&:id)
+          jobs_by_id = Syrus::Host::JobRecord.where(id: job_ids, repository_id: repository_id).index_by(&:id)
 
-          runs_by_id = Run
+          runs_by_id = Syrus::Host::RunRecord
             .includes(:job)
             .where(id: run_ids, jobs: { repository_id: repository_id })
             .references(:job)

@@ -176,7 +176,7 @@ module SyrusBrowser
             content_type: block[:mimeType].presence || "image/png",
             title: "#{tool_name} capture", metadata:
           )
-          content << { type: "text", text: "Draft visual evidence ID: #{evidence.stable_id}" } if evidence.is_a?(WorkflowVisualEvidence)
+          content << { type: "text", text: "Draft visual evidence ID: #{evidence.stable_id}" } if evidence.is_a?(Syrus::Host::WorkflowVisualEvidence)
         end
       rescue StandardError => e
         Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")

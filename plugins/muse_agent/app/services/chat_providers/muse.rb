@@ -103,7 +103,7 @@ module ChatProviders
     end
 
     def held_session_process?
-      SpawnedProcess.live_agent.where(chat_session: chat).any? do |process|
+      Syrus::Host::SpawnedProcess.live_agent.where(chat_session: chat).any? do |process|
         process.command.to_s.match?(/(?:^|\s)muse\s+exec(?:\s|$)/)
       end
     end

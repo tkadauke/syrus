@@ -1,6 +1,6 @@
 module ReviewWorkspacePlugin
   class Payload
-    def self.call(user:, scope: Job.all)
+    def self.call(user:, scope: Syrus::Host::JobRecord.all)
       jobs = EligibleJobs.call(user:, scope:)
       { count: jobs.length, jobs: jobs.map { |job| serialize(job) } }
     end

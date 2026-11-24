@@ -1,5 +1,5 @@
 module Coworkers
-  class Workflow < ::Workflows::Base
+  class Workflow < Syrus::Host::WorkflowBase
     steps :prepare, :coworker_run, :post_to_chat, :auto_close
 
     def self.trigger_kind = "coworker_run"
@@ -44,7 +44,7 @@ module Coworkers
     end
 
     private_class_method def self.close_anchor_job!(workflow)
-      StateTransition.with_source("system") do
+      Syrus::Host::StateTransition.with_source("system") do
         workflow.job.close_with_reason!(workflow.job.kind) if workflow.job.may_close?
       end
     end

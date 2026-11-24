@@ -31,7 +31,7 @@ module TestInsights
     }
 
     def self.fingerprint_for(suite_name:, name:, file_path: nil)
-      canonical_suite = TestCaseIdentity.canonical_suite(
+      canonical_suite = Syrus::Host::TestCaseIdentity.canonical_suite(
         "suite_name" => suite_name, "name" => name, "file_path" => file_path
       )
       Digest::SHA256.hexdigest([ canonical_suite, name.to_s.strip ].join(FINGERPRINT_SEPARATOR))
@@ -43,7 +43,7 @@ module TestInsights
         # Fingerprint on the untruncated suite_name/name -- the stored name is
         # truncated to fit the column below, but the identity key must not
         # depend on where that truncation happens to cut the string.
-        canonical_suite = TestCaseIdentity.canonical_suite(test_case)
+        canonical_suite = Syrus::Host::TestCaseIdentity.canonical_suite(test_case)
         fingerprint = fingerprint_for(suite_name: canonical_suite, name: test_case.name)
         attrs_by_fingerprint[fingerprint] ||= {
           repository_id: repository.id,

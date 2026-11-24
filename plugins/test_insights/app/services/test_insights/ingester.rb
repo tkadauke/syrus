@@ -134,7 +134,7 @@ module TestInsights
         rows = slice.map do |c|
           # Fingerprint on the untruncated suite_name/name so identity keys
           # stay stable regardless of column-width truncation below.
-          canonical_suite = TestCaseIdentity.canonical_suite(c)
+          canonical_suite = Syrus::Host::TestCaseIdentity.canonical_suite(c)
           fingerprint = TestIdentity.fingerprint_for(suite_name: canonical_suite, name: c.name)
           test_identity = identities.fetch(fingerprint)
           touched_identity_ids << test_identity.id
@@ -221,7 +221,7 @@ module TestInsights
     end
 
     def heartbeat!
-      RunHeartbeat.touch(@run, force: true)
+      Syrus::Host::RunHeartbeat.touch(@run, force: true)
     rescue StandardError => e
       Rails.logger.warn(
         "[TestInsights::Ingester] heartbeat failed for Run #{@run.id} grader #{@grader_name}: #{e.class}: #{e.message}"

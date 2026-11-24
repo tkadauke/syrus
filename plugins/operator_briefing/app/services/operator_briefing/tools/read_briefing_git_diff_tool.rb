@@ -30,7 +30,7 @@ module OperatorBriefing
           run = Syrus::Host::McpTools.run_from_context(server_context)
           briefing = Briefing.find_by!(job: run.job)
           limit = normalized_limit(max_bytes)
-          workspace_path = StepWorkspace.for(run.step, run: run).path.to_s
+          workspace_path = Syrus::Host::StepWorkspace.for(run.step, run: run).path.to_s
           args = [
             "log",
             "--since=#{briefing.window_start.iso8601}",

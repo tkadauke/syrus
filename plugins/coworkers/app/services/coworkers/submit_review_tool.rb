@@ -22,7 +22,7 @@ module Coworkers
         ReviewEvidence::VerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
           verdict: verdict, critique: critique, key_learning: key_learning)
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
-      rescue Steps::AdversarialReview::MemoryPersistenceFailed
+      rescue Syrus::Host::AdversarialReviewStep::MemoryPersistenceFailed
         raise
       rescue StandardError => e
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)

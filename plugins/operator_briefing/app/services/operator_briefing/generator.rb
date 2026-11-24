@@ -32,7 +32,7 @@ module OperatorBriefing
       return skipped("budget") if scheduled? && budget.skip
 
       window_start = activity_anchor_at || FALLBACK_WINDOW.ago(now)
-      Job.transaction do
+      Syrus::Host::JobRecord.transaction do
         close_current_live_briefings!
         create_briefing_job!(window_start: window_start)
       end
@@ -78,7 +78,7 @@ module OperatorBriefing
       @current_live_briefing ||= Briefing
         .joins(:job)
         .where(owner_user: user, repository: repository)
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::JobRecord::TERMINAL_STATES })
         .includes(:job)
         .order(created_at: :desc, id: :desc)
         .first
@@ -92,7 +92,7 @@ module OperatorBriefing
       Briefing
         .joins(:job)
         .where(owner_user: user, repository: repository)
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::JobRecord::TERMINAL_STATES })
         .includes(:job)
         .find_each do |briefing|
           job = briefing.job

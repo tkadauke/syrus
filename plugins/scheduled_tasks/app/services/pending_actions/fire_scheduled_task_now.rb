@@ -42,7 +42,7 @@ module PendingActions
 
     def presentation_resource
       job = action.result
-      return nil unless job.is_a?(Job)
+      return nil unless job.is_a?(Syrus::Host::JobRecord)
 
       { resource_title: job.issue_title, resource_url: "/jobs/#{job.id}" }
     end
