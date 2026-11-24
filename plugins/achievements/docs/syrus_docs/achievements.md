@@ -61,6 +61,8 @@ at-least-once and unordered, so evaluation only ever calls the idempotent unlock
 write: repeated or reordered events cannot duplicate an unlock, and the first
 unlock's timestamp and evidence are kept.
 
+Invalid definitions are logged and skipped; a transient failure such as a database error is re-raised so the event is retried rather than lost.
+
 **Attribution.** An instance milestone is never credited to a person. A per-user
 accomplishment is credited only for work an operator started themselves: a
 `direct` Job created by core, or an Epic created by an operator. Scheduled
