@@ -1232,9 +1232,14 @@ class Job < ApplicationRecord
     Syrus::Events.publish("job.state_changed", **domain_event_payload.merge(previous_state: previous, state: current))
   end
 
+  # Closing refreshes the Epic's state, so the Epic is locked before the Job
+  # row is written (NY40, parents before children).
   def close_with_reason!(reason)
-    update!(closure_reason: reason)
-    close!
+    transaction do
+      Lineage.lock!(self)
+      update!(closure_reason: reason)
+      close!
+    end
   end
   def approve_for_landing!
     return true if approved? || landing? || closed?

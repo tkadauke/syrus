@@ -55,4 +55,50 @@ RSpec.describe "Lineage funnels" do
     expect(unit.reload.state).to eq("succeeded")
     expect(unit.work_intent.reload.state).to eq("satisfied")
   end
+
+  it "preempts an active WorkUnit in order" do
+    unit = workflow.work_unit
+
+    checked { WorkUnit.transaction { unit.preempt!(reason: "spec") } }
+
+    expect(unit.reload.preemption_reason).to eq("spec")
+  end
+
+  it "cancels a Workflow whose WorkUnit was cancelled elsewhere in order" do
+    running_step_with_run
+    workflow.work_unit.update_columns(state: "cancelled", finished_at: Time.current)
+
+    checked { WorkUnits::TerminalWorkflowSync.call(workflow.reload) }
+
+    expect(workflow.reload).to be_cancelled
+  end
+
+  it "creates a Step's Run in order" do
+    workflow.update_columns(state: "running", started_at: Time.current)
+    step.runs.update_all(state: "cancelled", finished_at: Time.current)
+
+    run = checked { StepDispatcher.create_run_and_enqueue(step.reload, workflow.reload) }
+
+    expect(run).to be_persisted
+  end
+
+  it "closes a Job in an Epic in order" do
+    epic = Epic.create!(repository: job.repository, title: "Lineage", user: job.user)
+    job.update_columns(epic_id: epic.id)
+
+    checked { job.reload.close_with_reason!("pr_merged") }
+
+    expect(job.reload).to be_closed
+  end
+
+  it "cancels a closed Job's active Workflow from the reconciler in order" do
+    running_step_with_run
+    job.update_columns(state: "closed", finished_at: 2.minutes.ago, closure_reason: "operator_cancelled")
+    result = WorkEngine::Reconciler.call(source: "lineage_funnels_spec", job_id: job.id)
+
+    executions = checked { WorkEngine::RepairExecutor.call(result: result) }
+
+    expect(executions).to include(have_attributes(action: "cancel_workflow_for_closed_job", status: "applied"))
+    expect(workflow.reload).to be_cancelled
+  end
 end

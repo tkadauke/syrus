@@ -242,7 +242,9 @@ class WorkUnit < ApplicationRecord
     sync_terminal = false
 
     transaction do
-      lock!
+      # Ancestry first, top down (NY40): preempting settles the intent.
+      Lineage.lock!(self)
+      reload
       if cancelled?
         update!(
           preemption_reason: preemption_reason.presence || reason.to_s.truncate(PREEMPTION_REASON_MAX_LENGTH),

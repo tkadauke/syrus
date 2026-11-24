@@ -4790,9 +4790,14 @@ converted `WorkflowCancellation.cancel!` and `WorkUnit#mark_terminal!`, which
 now take their ancestry first. It also made a terminal Workflow's descendant
 cleanup lock its Steps before any Run. Specs:
 `spec/services/lineage_funnels_spec.rb`, raising on the hierarchical order.
-Remaining from the focused survey: `StepDispatcher.advance_from`, the Workflow
-event hooks, `TerminalWorkflowSync`, `TerminalLockCleanup`, the repair
-executor, the reconciler and `WorkUnit#preempt!`.
+Part 3 converted `TerminalWorkflowSync`, `WorkUnit#preempt!`,
+`Job#close_with_reason!` (Epic before Job), and the repair executor's
+closed-Job cancel, superseded-CI-repair cancel, queued-Run relaunch and
+merge-train member close. Remaining from the focused survey:
+`StepDispatcher.create_run_and_enqueue` (Step, then WorkUnit),
+`JobClosure.lock_pending_workflows!`, `TerminalLockCleanup`, the repair
+executor's workflow start, and Run-before-Step writes in a Run's own
+cancellation.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

@@ -62,7 +62,7 @@ models:
   - path: app/services/work_engine/repair_executor.rb
     owner: CancelSupersededCiRepair
     method: perform
-    sha: 5c0d6f2985f7f9de
+    sha: fde469686eec10db
   - path: app/services/work_engine/reconciler.rb
     owner: Reconciler
     method: superseded_ci_repair_start_block?

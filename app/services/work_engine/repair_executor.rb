@@ -633,7 +633,9 @@ module WorkEngine
           return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
           return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
-          run.with_lock do
+          # Ancestry first, top down (NY40): relaunching writes the Workflow.
+          Run.transaction do
+            Lineage.lock!(run)
             run.reload
             return skipped("Run is #{run.state}, not queued") unless run.queued?
             return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
@@ -1324,7 +1326,9 @@ module WorkEngine
           return skipped("Job is not closed") unless workflow.job&.closed?
           return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
             return skipped("Job is not closed") unless workflow.job&.closed?
@@ -1373,7 +1377,9 @@ module WorkEngine
           end
 
           current_base_sha = WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
@@ -1966,6 +1972,7 @@ module WorkEngine
             next unless landed_commit_from_this_train?(train, job)
 
             ActiveRecord::Base.transaction do
+              Lineage.lock!(job) # Epic before Job (NY40): closing refreshes the Epic.
               job.update_column(:landed_sha, train.integration_sha)
               job.close_with_reason!("pr_merged") if job.may_close?
               member.update!(state: "merged", reason: nil)
