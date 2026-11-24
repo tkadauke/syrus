@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_200000) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -267,7 +267,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
     t.string "host_admission_policy", default: "prediction", null: false
     t.boolean "permissions_enforced", default: true, null: false
     t.text "plugin_manifest_signing_key"
-    t.integer "wakeup_chain_limit", default: 100, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1015,10 +1014,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.json "metadata"
-    t.integer "chain_depth", default: 1, null: false
-    t.integer "source_wakeup_id"
     t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
-    t.index ["source_wakeup_id"], name: "index_chat_wakeups_on_source_wakeup_id"
     t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
   end
@@ -3950,6 +3946,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
     t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"
   end
 
+  create_table "runtime_image_cache_entries", force: :cascade do |t|
+    t.string "hostname", limit: 191, null: false
+    t.bigint "runtime_image_id", null: false
+    t.string "digest", limit: 191, null: false
+    t.string "state", limit: 32, default: "present", null: false
+    t.bigint "size_bytes"
+    t.boolean "prefetched", default: false, null: false
+    t.datetime "pulled_at"
+    t.datetime "last_used_at"
+    t.datetime "leased_until"
+    t.integer "lease_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname", "runtime_image_id"], name: "idx_ri_cache_entries_host_image", unique: true
+    t.index ["hostname", "state", "last_used_at"], name: "idx_ri_cache_entries_lru"
+  end
+
   create_table "runtime_image_namespaces", force: :cascade do |t|
     t.string "name", limit: 191, null: false
     t.string "owner_kind", limit: 100, null: false
@@ -3960,6 +3973,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_183141) do
     t.datetime "updated_at", null: false
     t.index ["name"], name: "idx_runtime_image_namespaces_name", unique: true
     t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
+  end
+
+  create_table "runtime_image_pull_events", force: :cascade do |t|
+    t.string "hostname", limit: 191, null: false
+    t.bigint "runtime_image_id"
+    t.string "digest", limit: 191, null: false
+    t.string "outcome", limit: 32, null: false
+    t.boolean "cache_hit", default: false, null: false
+    t.boolean "prefetch", default: false, null: false
+    t.integer "duration_ms"
+    t.string "error_class", limit: 191
+    t.string "error_message", limit: 500
+    t.datetime "created_at", null: false
+    t.index ["hostname", "created_at"], name: "idx_ri_pull_events_host_time"
+    t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
   end
 
   create_table "runtime_images", force: :cascade do |t|
