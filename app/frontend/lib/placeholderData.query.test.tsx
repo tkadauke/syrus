@@ -33,10 +33,14 @@ async function transition(first: unknown[], second: unknown[], identity?: number
   const g = gate()
   const { result, rerender } = renderHook(({ entry }: { entry: Entry }) => useProbe(entry, g), { wrapper, initialProps: { entry: { key: first, identity } } })
   await waitFor(() => expect(result.current.data).toBe(JSON.stringify(first)))
-  g.promise = new Promise<void>((resolve) => { g.release = resolve })
+  g.promise = new Promise<void>((resolve) => {
+    g.release = resolve
+  })
   rerender({ entry: { key: second, identity } })
   const during = result.current.data
-  await act(async () => { g.release?.() })
+  await act(async () => {
+    g.release?.()
+  })
   await waitFor(() => expect(result.current.data).toBe(JSON.stringify(second)))
   return during
 }
@@ -56,7 +60,9 @@ describe("identity-aware placeholder data in queries", () => {
   it("does not show another Job's workflows or source, but keeps them across ref/search changes", async () => {
     expect(await transition(["jobs", "1", "workflows", "?a=1"], ["jobs", "2", "workflows", "?a=1"], [0, 1])).toBeUndefined()
     expect(await transition(["jobs", "1", "source", "?ref=a"], ["jobs", "2", "source", "?ref=a"], [0, 1])).toBeUndefined()
-    expect(await transition(["jobs", "1", "source", "?ref=a"], ["jobs", "1", "source", "?ref=b"], [0, 1])).toBe(JSON.stringify(["jobs", "1", "source", "?ref=a"]))
+    expect(await transition(["jobs", "1", "source", "?ref=a"], ["jobs", "1", "source", "?ref=b"], [0, 1])).toBe(
+      JSON.stringify(["jobs", "1", "source", "?ref=a"])
+    )
   })
 
   it("collection filter screens using keepPreviousData keep their previous result set", async () => {
