@@ -232,6 +232,7 @@ per-user/private:
   - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
   - plugins/cognitive_review/app/controllers/api/v1/app/cognitive_review_notes_controller.rb
   - plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/accounts_controller.rb
+  - plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/instance_accounts_controller.rb
   - plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/oauth_controller.rb
   - plugins/coworkers/app/controllers/api/v1/app/coworkers_controller.rb
   - plugins/credential_store/app/controllers/api/v1/app/credential_store/credentials_controller.rb
@@ -449,6 +450,7 @@ instead of broader model scopes.
 | `plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb` | per-user/private | Builds the attention report only for the signed-in user and never accepts another user identifier. |
 | `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/accounts_controller.rb` | per-user/private | Lists, updates, and disconnects only accounts owned by the signed-in user. |
+| `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/instance_accounts_controller.rb` | admin-only | Instance-owned accounts (platform bot tokens) are administrator-managed; `Current.user` is the acting admin recorded on connect and disconnect, and non-administrators are refused. |
 | `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/oauth_controller.rb` | per-user/private | Binds OAuth state and completed connections to the signed-in user and their current session. |
 | `plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb` | admin-only with current-user scope | Worker Timeline queries are admin-only; macro results and smart-folder counts are additionally constrained to Jobs accessible to `Current.user`, and smart-folder navigation uses that user as its ownership context. |
 | `plugins/syrus_coverage/app/controllers/api/v1/app/coverage_controller.rb` | per-user/private | The coverage trend resolves the repository through `Repository.accessible_to(Current.user)`, and a workflow's hit map through the same visibility-scoped Job lookup the workflow endpoints use, so a user only reads coverage for repositories and Jobs they can already see. |
