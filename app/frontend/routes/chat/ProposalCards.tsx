@@ -55,6 +55,7 @@ import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
+import { insertionText } from "./proposalDisplay"
 import i18n from "../../i18n"
 import { errorMessage } from "../../lib/errorMessage"
 import { workerCapabilityEntries } from "../../lib/workerCapabilities"
@@ -1729,6 +1730,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
         <div>
           <dt className="font-medium text-gray-500 dark:text-gray-400">{t("target_epic")}</dt>
           <dd>{proposal.target_epic_label}</dd>
+        </div>
+      ) : null}
+      {proposal.insertion ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("insertion_label")}</dt>
+          <dd>{insertionText(proposal.insertion)}</dd>
         </div>
       ) : null}
       {proposal.goal_provenance ? (

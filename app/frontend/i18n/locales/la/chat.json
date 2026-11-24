@@ -3370,5 +3370,8 @@
   "tool_card_reset_job": "Job restitue",
   "tool_card_reset_requested": "Restitutio petita",
   "tool_card_replace_job_dependency": "Dependentiam Job substitue",
-  "tool_card_dependency_replaced": "Dependentia substituta"
+  "tool_card_dependency_replaced": "Dependentia substituta",
+  "insertion_label": "Insertio",
+  "insertion_position": "Insertum post {{after}}, ante {{before}}",
+  "insertion_position_tail": "Insertum post {{after}} (finis catenae)"
 }
