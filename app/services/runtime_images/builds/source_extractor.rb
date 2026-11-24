@@ -16,7 +16,8 @@ module RuntimeImages
       end
 
       # Returns the sha256 digest of the archive bytes as stored.
-      def extract(archive_path, destination)
+      def extract(archive_path, destination, max_bytes: @max_bytes)
+        max_bytes = [ max_bytes, @max_bytes ].min
         FileUtils.mkdir_p(destination)
         root = File.realpath(destination)
         digest = Digest::SHA256.file(archive_path).hexdigest
@@ -24,7 +25,7 @@ module RuntimeImages
           gzip = raw.read(2) == "\x1F\x8B".b
           raw.rewind
           io = gzip ? Zlib::GzipReader.new(raw) : raw
-          unpack(io, root)
+          unpack(io, root, max_bytes)
         end
         "sha256:#{digest}"
       rescue Gem::Package::TarInvalidError, Zlib::Error => e
@@ -33,7 +34,7 @@ module RuntimeImages
 
       private
 
-      def unpack(io, root)
+      def unpack(io, root, max_bytes)
         entries = 0
         bytes = 0
         Gem::Package::TarReader.new(io) do |tar|
@@ -46,7 +47,7 @@ module RuntimeImages
               FileUtils.mkdir_p(target)
             elsif entry.file?
               bytes += entry.header.size
-              raise Rejected.new("source_too_large", "source exceeds #{@max_bytes} bytes") if bytes > @max_bytes
+              raise Rejected.new("source_too_large", "source exceeds #{max_bytes} bytes") if bytes > max_bytes
               write_file(root, target, entry)
             elsif entry.header.typeflag == "2"
               write_symlink(root, target, entry.header.linkname)
