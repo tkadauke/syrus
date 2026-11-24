@@ -31,6 +31,11 @@ module Mockups
         `show_preview(panel_id: ...)` call succeeds. After a successful publish,
         mention the returned `panel_id`, `version_id`, and `mockup_slug` when
         they are present so the preview can be referenced or attached later.
+        Before modifying an existing mockup whose earlier version is referenced
+        (for example "keep the badge from version 94"), call
+        `inspect_preview_versions` to list its versions and read the files of
+        that version. Do not reconstruct an old version from memory; the
+        scratch directory only holds the latest write.
         Use the whiteboard only when the operator explicitly asks for a canvas,
         diagram, sketch, or whiteboard. Use Sites only when the operator
         explicitly asks for a hosted, deployed, public, or production website
