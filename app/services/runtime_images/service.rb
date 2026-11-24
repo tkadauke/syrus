@@ -20,7 +20,13 @@ module RuntimeImages
       elsif image.source_kind != source_kind.to_s || image.source_ref != source_ref.to_s
         raise Error, "digest #{result.digest} is already published with a different source identity"
       end
-      raise Error, "runtime image #{image.digest} was #{image.availability} and cannot be republished" if image.revoked? || image.deleted?
+      if image.revoked? || image.deleted?
+        # Providers must treat publish as idempotent and never reactivate a
+        # digest, but do not rely on it: re-assert the terminal state so the
+        # backing store cannot disagree with the durable record.
+        enforce_terminal_state(image)
+        raise Error, "runtime image #{image.digest} was #{image.availability} and cannot be republished"
+      end
       image.mark_available!(locator: result.locator) if image.pending?
       image
     end
@@ -71,6 +77,16 @@ module RuntimeImages
     end
 
     private
+
+    def enforce_terminal_state(image)
+      provider = provider_for(image.runtime_image_namespace)
+      if image.revoked?
+        provider.revoke(RevokeRequest.new(namespace: image.runtime_image_namespace, digest: image.digest,
+                                          platform: image.platform, reason: image.revoked_reason))
+      else
+        provider.delete(DeleteRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform))
+      end
+    end
 
     def provider_for(namespace)
       @provider_override || Providers.fetch(namespace.provider_key)

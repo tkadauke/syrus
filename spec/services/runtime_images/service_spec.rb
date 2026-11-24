@@ -53,6 +53,23 @@ RSpec.describe RuntimeImages::Service do
     expect(provider.calls.map(&:first)).to include(:revoke)
   end
 
+  it "re-asserts revocation on the provider when a reactivating provider is republished" do
+    image = publish
+    service.revoke(image, reason: "vulnerable")
+    allow(provider).to receive(:publish).and_wrap_original do |m, req|
+      m.call(req).tap { provider.store[[image.digest, image.platform]] = { revoked: false } }
+    end
+    expect { publish }.to raise_error(RuntimeImages::Error, /cannot be republished/)
+    expect(provider.store[[image.digest, image.platform]][:revoked]).to be(true)
+  end
+
+  it "keeps provider state revoked after republishing a revoked digest" do
+    image = publish
+    service.revoke(image, reason: "vulnerable")
+    expect { publish }.to raise_error(RuntimeImages::Error)
+    expect(provider.store[[image.digest, image.platform]][:revoked]).to be(true)
+  end
+
   it "keeps a revoked image revoked even when the provider call fails" do
     image = publish
     allow(provider).to receive(:revoke).and_raise(RuntimeImages::ProviderError, "down")
