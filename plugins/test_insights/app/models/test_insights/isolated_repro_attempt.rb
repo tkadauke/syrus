@@ -11,7 +11,7 @@ module TestInsights
   # that statistical pool. See TestCase#wip_repair_failures for the same
   # "keep self-repair signal out of the scored pool" principle applied to a
   # different confound.
-  class IsolatedReproAttempt < ApplicationRecord
+  class IsolatedReproAttempt < Syrus::Host::Record
     self.table_name = "test_insight_isolated_repro_attempts"
 
     # Raw command/output can be large; keep the row bounded the same way

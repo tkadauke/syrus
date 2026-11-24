@@ -14,8 +14,8 @@ module ScheduledTasks
         rendered_prompt = prompt_renderer.to_s
 
         job = create_job!(issue_body: prompt_renderer.interpolated_user_prompt)
-        workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
-        WorkUnits::Launcher.start!(workflow, prompt: rendered_prompt)
+        workflow = Syrus::Host::WorkLauncher.instantiate(kind: "initial", job: job)
+        Syrus::Host::WorkLauncher.start!(workflow, prompt: rendered_prompt)
         job
       end
 
@@ -26,8 +26,8 @@ module ScheduledTasks
           skill_args: args,
           issue_body: skill_issue_body_preview(args)
         )
-        workflow = WorkUnits::Launcher.instantiate(kind: "skill", job: job, artifacts: job.skill_workflow_artifacts)
-        WorkUnits::Launcher.start!(workflow, prompt: nil)
+        workflow = Syrus::Host::WorkLauncher.instantiate(kind: "skill", job: job, artifacts: job.skill_workflow_artifacts)
+        Syrus::Host::WorkLauncher.start!(workflow, prompt: nil)
         job
       end
 

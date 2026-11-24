@@ -3,7 +3,7 @@ module AgentActivity
     def kind = step&.kind
 
     def role
-      AgentRole.for_step_kind(step.kind) if step
+      Syrus::Host::AgentRole.for_step_kind(step.kind) if step
     end
 
     def role_label = step ? Step::Kind.label_for(step.kind) : "Workflow"

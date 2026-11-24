@@ -1,6 +1,6 @@
 module TestInsights
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = (AgentRole::CHAT_ROLES + AgentRole::WORKFLOW_ROLES).uniq.freeze
     CAPABILITY = "test_insights.evidence@v1"

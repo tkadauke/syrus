@@ -1,6 +1,6 @@
 module RuntimeTerminal
   class Provider
-    include Syrus::Plugin::RuntimeSessionProvider
+    include Syrus::Host::RuntimeSessionProvider
 
     RELAY_ADDRESS_TIMEOUT = 10.seconds
     RELAY_ADDRESS_POLL_INTERVAL = 0.2.seconds

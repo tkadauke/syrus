@@ -72,14 +72,14 @@ module ThemingTools
 
         if theme.save
           broadcast_preview(chat_session, theme)
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             theme_id: theme.id,
             name: theme.name,
             tokens: theme.tokens,
             contrast_warnings: theme.contrast_warning_messages
           )
         else
-          Mcp::Tools.invalid(theme.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(theme.errors.full_messages.to_sentence)
         end
       end
 

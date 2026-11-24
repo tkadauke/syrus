@@ -40,7 +40,7 @@ module SpendingInsights
       totals = read_checkpoint
       return false if totals.blank?
 
-      counter = Syrus::Metrics.counter(:syrus_spending_insights_run_cost_usd_total)
+      counter = Syrus::Host::Metrics.counter(:syrus_spending_insights_run_cost_usd_total)
       Hash(totals["run_cost_usd_total"]).each { |tags, total| counter.reconcile!(total, tags: tags) }
       true
     end

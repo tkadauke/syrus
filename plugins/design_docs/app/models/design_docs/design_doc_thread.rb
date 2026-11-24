@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocThread < ApplicationRecord
+  class DesignDocThread < Syrus::Host::Record
     self.table_name = "design_doc_threads"
 
     STATES = %w[open resolved].freeze

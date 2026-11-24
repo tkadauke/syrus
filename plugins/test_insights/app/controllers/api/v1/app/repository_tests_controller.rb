@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class RepositoryTestsController < BaseController
+      class RepositoryTestsController < Syrus::Host::AppController
         include Paginatable
 
         DEFAULT_INTERESTING_LIMIT = TestInsights::TestIdentity::INTERESTING_LIMIT
@@ -15,7 +15,7 @@ module Api
           tests =
             if filter.active?
               TestInsights::Query.call(
-                user: Current.user,
+                user: Syrus::Host::Current.user,
                 repository: repository,
                 category: filter.reason,
                 query: filter.query,
@@ -71,7 +71,7 @@ module Api
         private
 
         def find_repository
-          Repository.accessible_to(Current.user).find(params[:repository_id])
+          Repository.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
         end
 
         def repository_json(repository)

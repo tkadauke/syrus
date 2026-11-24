@@ -1,6 +1,6 @@
 module SyrusDev
   class AdminPages
-    include Syrus::Plugin::AdminPage
+    include Syrus::Host::AdminPage
 
     def self.admin_pages
       pages = [
@@ -66,7 +66,7 @@ module SyrusDev
         }
       ]
 
-      pages.reject! { |page| page[:id] == "syrus_dev.operational_logs" } unless OperationalLogging.enabled_for_instance?
+      pages.reject! { |page| page[:id] == "syrus_dev.operational_logs" } unless Syrus::Host::OperationalLogging.enabled_for_instance?
       pages
     end
   end

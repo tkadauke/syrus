@@ -4,7 +4,7 @@ module GlobalSearch
   # both navs. It is registered here purely so the SPA route resolver can find
   # the component the plugin owns.
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     def self.sidebar_pages
       [

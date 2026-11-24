@@ -60,15 +60,15 @@ module ScheduledTasks
           return error if error
 
           if (schedule_input || cron_expression) && task.one_shot?
-            return Mcp::Tools.invalid("schedule_input cannot be set on a one_shot task")
+            return Syrus::Host::McpTools.invalid("schedule_input cannot be set on a one_shot task")
           end
 
           if fire_at && task.cron?
-            return Mcp::Tools.invalid("fire_at cannot be set on a cron task")
+            return Syrus::Host::McpTools.invalid("fire_at cannot be set on a cron task")
           end
 
           if schedule_timezone && task.one_shot?
-            return Mcp::Tools.invalid("schedule_timezone cannot be set on a one_shot task")
+            return Syrus::Host::McpTools.invalid("schedule_timezone cannot be set on a one_shot task")
           end
 
           attrs = {}
@@ -80,15 +80,15 @@ module ScheduledTasks
           attrs[:fire_at] = Time.parse(fire_at) if fire_at
           attrs[:pr_pileup_policy] = pr_pileup_policy if pr_pileup_policy
 
-          return Mcp::Tools.invalid("no fields provided to update") if attrs.empty?
+          return Syrus::Host::McpTools.invalid("no fields provided to update") if attrs.empty?
 
           task.update!(attrs)
 
-          Mcp::Tools.success(scheduled_task: scheduled_task_payload(task).merge(prompt: task.prompt))
+          Syrus::Host::McpTools.success(scheduled_task: scheduled_task_payload(task).merge(prompt: task.prompt))
         rescue ArgumentError => e
-          Mcp::Tools.invalid("invalid fire_at: #{e.message}")
+          Syrus::Host::McpTools.invalid("invalid fire_at: #{e.message}")
         rescue ActiveRecord::RecordInvalid => e
-          Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
         end
       end
     end

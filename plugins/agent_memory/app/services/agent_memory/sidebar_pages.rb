@@ -1,6 +1,6 @@
 module AgentMemory
   class SidebarPages
-    include Syrus::Plugin::SidebarPage
+    include Syrus::Host::SidebarPage
 
     def self.sidebar_pages
       [

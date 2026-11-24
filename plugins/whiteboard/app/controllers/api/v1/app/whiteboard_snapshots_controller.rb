@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class WhiteboardSnapshotsController < BaseController
+      class WhiteboardSnapshotsController < Syrus::Host::AppController
         PER_PAGE = 30
 
         def index
@@ -42,7 +42,7 @@ module Api
         private
 
         def find_chat_session
-          Current.user.accessible_chat_sessions.find(params[:chat_id])
+          Syrus::Host::Current.user.accessible_chat_sessions.find(params[:chat_id])
         end
 
         def snapshot_payload(snapshot, include_scene: false)

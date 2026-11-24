@@ -1,7 +1,7 @@
 require "digest"
 
 module TestInsights
-  class TestIdentity < ApplicationRecord
+  class TestIdentity < Syrus::Host::Record
     self.table_name = "test_insight_identities"
 
     FINGERPRINT_SEPARATOR = "\0".freeze
@@ -168,7 +168,7 @@ module TestInsights
 
     def self.latest_status_times_for(ids)
       ids.each_slice(LATEST_CASE_QUERY_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
-        rows = PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
+        rows = Syrus::Host::PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
           sql = slice.product(%w[failed error passed]).map do |identity_id, status|
             latest_status_time_sql(identity_id, status)
           end.join(" UNION ALL ")

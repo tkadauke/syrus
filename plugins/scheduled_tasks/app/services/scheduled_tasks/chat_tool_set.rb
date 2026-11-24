@@ -7,7 +7,7 @@ module ScheduledTasks
   # core without changing behaviour: the two read-only ones remain available
   # to the scoped-event evaluator, whose core set is a fixed allowlist.
   class ChatToolSet
-    include Syrus::Plugin::ChatMcpToolSet
+    include Syrus::Host::ChatMcpToolSet
 
     TOOL_CLASSES = [
       McpTools::ScheduleRecurringTool,

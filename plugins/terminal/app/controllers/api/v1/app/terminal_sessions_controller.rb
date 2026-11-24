@@ -1,21 +1,21 @@
 module Api
   module V1
     module App
-      class TerminalSessionsController < BaseController
+      class TerminalSessionsController < Syrus::Host::AppController
         before_action :require_admin, only: :create
 
         # Sessions only: the 5s poll must not carry the workspace picker's
         # candidates. Those come from #workspaces when the picker opens.
         def index
-          scope = ::Terminal::Session.where(user: Current.user).running
+          scope = ::Terminal::Session.where(user: Syrus::Host::Current.user).running
           sessions = scope.order(started_at: :desc).to_a
-          return unless stale?(etag: [ "terminal-sessions", Current.user.id, sessions.map { |s| [ s.id, s.updated_at.to_f ] } ])
+          return unless stale?(etag: [ "terminal-sessions", Syrus::Host::Current.user.id, sessions.map { |s| [ s.id, s.updated_at.to_f ] } ])
 
           render json: { sessions: sessions.map { |session| session_json(session) } }
         end
 
         def workspaces
-          render json: { workspaces: ::Terminal::WorkspaceCandidates.for(user: Current.user, query: params[:query]) }
+          render json: { workspaces: ::Terminal::WorkspaceCandidates.for(user: Syrus::Host::Current.user, query: params[:query]) }
         end
 
         def create
@@ -25,7 +25,7 @@ module Api
           end
 
           session = ::Terminal::Session.create!(
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             **session_attributes(availability),
             auth_token: SecureRandom.hex(32),
             started_at: Time.current
@@ -45,7 +45,7 @@ module Api
 
         # Polled by the chrome to badge the nav entry (badge_api_path).
         def open_count
-          render json: { count: ::Terminal::Session.where(user: Current.user).running.count }
+          render json: { count: ::Terminal::Session.where(user: Syrus::Host::Current.user).running.count }
         end
 
         def destroy
@@ -57,7 +57,7 @@ module Api
         private
 
         def find_session
-          ::Terminal::Session.where(user: Current.user).find(params[:id])
+          ::Terminal::Session.where(user: Syrus::Host::Current.user).find(params[:id])
         end
 
         def session_json(session)
@@ -70,7 +70,7 @@ module Api
           key = terminal_session_params[:candidate_key]
           return @selected_candidate = nil if key.blank?
 
-          @selected_candidate = ::Terminal::WorkspaceCandidates.find(user: Current.user, key: key)
+          @selected_candidate = ::Terminal::WorkspaceCandidates.find(user: Syrus::Host::Current.user, key: key)
           raise ActiveRecord::RecordNotFound, "terminal workspace candidate not found" unless @selected_candidate
 
           @selected_candidate
@@ -83,7 +83,7 @@ module Api
           workflow_id = terminal_session_params[:workflow_id]
           return @selected_workflow = nil if workflow_id.blank?
 
-          @selected_workflow = Current.user.workflows.find(workflow_id)
+          @selected_workflow = Syrus::Host::Current.user.workflows.find(workflow_id)
         end
 
         def selected_chat_session
@@ -125,14 +125,14 @@ module Api
           workflow_id = selected_candidate[:workflow_id]
           return if workflow_id.blank?
 
-          Current.user.workflows.find(workflow_id)
+          Syrus::Host::Current.user.workflows.find(workflow_id)
         end
 
         def selected_candidate_chat_session
           chat_id = selected_candidate[:chat_session_id]
           return if chat_id.blank?
 
-          Current.user.accessible_chat_sessions.active.find(chat_id)
+          Syrus::Host::Current.user.accessible_chat_sessions.active.find(chat_id)
         end
 
         def workflow_workspace_availability

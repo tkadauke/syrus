@@ -1,6 +1,6 @@
 module K8sCluster
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
     include Syrus::Host::GatedToolSet
 
     gated_by plugin: K8sCluster, model: KubernetesCluster, delegate_to: ChatToolSet

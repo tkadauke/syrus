@@ -18,7 +18,7 @@ module Whiteboard
     class << self
       def call(id:, x:, y:, server_context:)
         id = id.to_s
-        return Mcp::Tools.invalid("id is required") if id.empty?
+        return Syrus::Host::McpTools.invalid("id is required") if id.empty?
 
         args = {
           "id" => id,
@@ -36,9 +36,9 @@ module Whiteboard
           { id: id }
         end
 
-        Mcp::Tools.success(result)
+        Syrus::Host::McpTools.success(result)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
     end
   end

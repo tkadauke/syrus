@@ -29,7 +29,7 @@ module GitMirror
       private
 
       def upstream_for?(repository)
-        RepositoryContent.provider_classes.any? do |klass|
+        Syrus::Host::ContentReader.provider_classes.any? do |klass|
           klass != self && klass.role == :upstream && klass.respond_to?(:upstream_source) && klass.available_for?(repository)
         end
       end
@@ -149,7 +149,7 @@ module GitMirror
     # answers over its own git transport rather than this JSON client) calls
     # it directly instead.
     def register!
-      source = RepositoryContent.upstream_source_for(@repository)
+      source = Syrus::Host::ContentReader.upstream_source_for(@repository)
       return false unless source
 
       @client.register(mirror_id, source)

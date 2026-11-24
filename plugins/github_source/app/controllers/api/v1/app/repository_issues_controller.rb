@@ -6,7 +6,7 @@ module Api
       # Lives in the github_source plugin: listing, closing, and delegating
       # issues are GitHub-specific operations, and an instance whose work
       # arrives from somewhere else has no use for them.
-      class RepositoryIssuesController < BaseController
+      class RepositoryIssuesController < Syrus::Host::AppController
         include RepositorySummarySerialization
 
         # Smart folders over the poll-synchronized local issue cache.

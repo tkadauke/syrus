@@ -7,7 +7,7 @@ module ScheduledTasks
   # User#seed_default_cron_templates -- core models reaching into this
   # plugin's models. All three are events now.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     # Only the "too many" reasons consume the consecutive-failure cap that can
     # auto-pause a schedule. `replaced_by_scheduled_task` is bookkeeping for

@@ -3,7 +3,7 @@ module Whiteboard
   # carry this paragraph in Prompts::ChatSystem, describing tools it does not
   # own.
   module PromptSection
-    include Syrus::Plugin::ChatPromptInjector
+    include Syrus::Host::ChatPromptInjector
 
     def self.chat_prompt_section(chat_session:, repository:, message: nil)
       <<~TEXT.strip
