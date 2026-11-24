@@ -88,6 +88,9 @@ RSpec.describe Mcp::CoworkerToolCatalog do
     enabled_manifest = Syrus::Plugin::Manifest.new(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
       name: "example", version: "1", provides: { chat_mcp_tool_set: [ provider ] }, metadata: {}, enabled: true
     )
+    # Build the memoized registry surfaces first so they do not consume the
+    # stubbed registry sequence below, whatever order examples run in.
+    McpToolRegistry.entries(surface: :coworker)
     allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return(
       [ disabled_manifest ], [ enabled_manifest ], [ enabled_manifest ], [], [ enabled_manifest ]
     )

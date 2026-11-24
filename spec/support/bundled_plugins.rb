@@ -257,6 +257,9 @@ RSpec.configure do |config|
     # as well so teardown and process-level hooks cannot observe an empty
     # provider list between examples.
     Syrus::PluginRegistry.restore(snapshot) if snapshot
+    # The memoized coworker tool surface depends on plugin enablement; don't
+    # let one example's plugin state leak into the next.
+    McpToolRegistry.reset_coworker_surface! if defined?(McpToolRegistry)
     # Families plugins define at load time (mail, personal_calendar) are not
     # built-ins, so an example that resets the registry to built-ins dropped
     # them for the rest of the process and the generated plugin docs came out
