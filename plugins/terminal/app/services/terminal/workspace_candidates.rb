@@ -248,7 +248,7 @@ module Terminal
       def queue_name_for(workflow)
         storage_key = workflow.worker_storage_key.presence
         if storage_key
-          queue_name = Workflow.resume_queue_name(storage_key)
+          queue_name = Syrus::Host::WorkflowRecord.resume_queue_name(storage_key)
           return queue_name if live_resume_queues.include?(queue_name)
 
           return nil
@@ -258,7 +258,7 @@ module Terminal
         return nil unless host
         return nil unless live_worker_hosts.include?(host)
 
-        Workflow.resume_queue_name(host)
+        Syrus::Host::WorkflowRecord.resume_queue_name(host)
       end
 
       def live_resume_queues

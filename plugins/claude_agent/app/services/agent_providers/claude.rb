@@ -210,7 +210,7 @@ module AgentProviders
         prompt: prompt,
         oauth_token: credential(:claude_oauth_token, user: invocation_user),
         log_sink: log_sink,
-        runner: RunJob.agent_runner,
+        runner: Syrus::Host::RunJob.agent_runner,
         timeout: timeout,
         max_turns: max_turns,
         mcp_config: mcp_config,
@@ -299,7 +299,7 @@ module AgentProviders
     end
 
     def log_mcp_config!(path:, env:)
-      JobLog.append!(
+      Syrus::Host::JobLog.append!(
         run: @run,
         kind: "system",
         chunk: "[mcp_config] server=syrus-mcp-sidecar command=#{sidecar_command} args=#{sidecar_args.join(' ')} alwaysLoad=true path=#{path} stderr=#{McpSidecarLog.path_for(@run.id)} env_keys=#{env.keys.sort.join(',')}"
@@ -309,7 +309,7 @@ module AgentProviders
     end
 
     def log_persistent_mcp_config!(path:, url:)
-      JobLog.append!(
+      Syrus::Host::JobLog.append!(
         run: @run,
         kind: "system",
         chunk: "[mcp_config] server=syrus-mcp-sidecar transport=persistent url=#{url} alwaysLoad=true path=#{path}"

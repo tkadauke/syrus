@@ -207,7 +207,7 @@ module RuntimeTerminal
               "runtime terminal cannot start because the prepared workflow workspace has no worker storage affinity"
       end
 
-      Workflow.resume_queue_name(storage_key)
+      Syrus::Host::WorkflowRecord.resume_queue_name(storage_key)
     end
 
     def execute_configured_command(session_id, options, operation:)

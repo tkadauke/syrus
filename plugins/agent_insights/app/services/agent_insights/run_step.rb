@@ -6,7 +6,7 @@ module AgentInsights
   #
   # Unlike Implement, this step does NOT commit changes — the insight agent
   # is read-only. No diff is captured; `auto_close` follows on success.
-  class RunStep < ::Steps::Base
+  class RunStep < Syrus::Host::StepHandlerBase
     KNOWN_PENDING_INSIGHT_LIMIT = 50
     KNOWN_RESOLVED_INSIGHT_LIMIT = 25
     RECENT_JOB_LIMIT = 50
@@ -106,7 +106,7 @@ module AgentInsights
     def preload_workflows_steps_and_runs(jobs)
       return if jobs.empty?
 
-      workflows_by_job_id = ::Workflow.where(job_id: jobs.map(&:id)).reorder(nil).to_a.group_by(&:job_id)
+      workflows_by_job_id = Syrus::Host::WorkflowRecord.where(job_id: jobs.map(&:id)).reorder(nil).to_a.group_by(&:job_id)
       jobs.each do |recent_job|
         attach!(recent_job, :workflows, workflows_by_job_id.fetch(recent_job.id, []).sort_by { |workflow| [ workflow.created_at, workflow.id ] })
       end
@@ -120,7 +120,7 @@ module AgentInsights
       # carry hundreds of grader steps each -- ran an insight past its pod's
       # 16Gi limit within a minute, OOM-killing every run on that worker.
       latest_workflows = jobs.filter_map(&:latest_workflow)
-      steps_by_workflow_id = ::Step.where(workflow_id: latest_workflows.map(&:id))
+      steps_by_workflow_id = Syrus::Host::Step.where(workflow_id: latest_workflows.map(&:id))
         .select(:id, :workflow_id, :kind, :position).reorder(nil).to_a.group_by(&:workflow_id)
       latest_workflows.each do |workflow|
         ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
@@ -131,7 +131,7 @@ module AgentInsights
       return if steps.empty?
 
       steps_by_id = steps.index_by(&:id)
-      runs_by_step_id = Run.where(step_id: steps_by_id.keys)
+      runs_by_step_id = Syrus::Host::RunRecord.where(step_id: steps_by_id.keys)
         .select(:id, :step_id, :state, :created_at).reorder(nil).to_a.group_by(&:step_id)
       steps.each do |step|
         ordered = runs_by_step_id.fetch(step.id, []).sort_by { |run| [ run.created_at, run.id ] }

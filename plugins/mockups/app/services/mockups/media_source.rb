@@ -55,8 +55,8 @@ module Mockups
       note = "\n\n_Note: #{names.size} preview panel mockup file(s) were not attached because this Job " \
              "already has #{Document::MAX_ATTACHMENTS_PER_JOB} attachments (the per-Job limit): " \
              "#{names.join(', ')}._"
-      JobDefinitionUpdater.new(job).update!(description: "#{job.issue_body}#{note}")
-    rescue JobDefinitionUpdater::Immutable
+      Syrus::Host::JobDefinitionUpdater.new(job).update!(description: "#{job.issue_body}#{note}")
+    rescue Syrus::Host::JobDefinitionUpdater::Immutable
       # The Job started after the preliminary check; its definition is now frozen.
     end
   end

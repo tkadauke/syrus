@@ -7,10 +7,10 @@ module GlobalSearch
     def self.search_backfill_step_key = "jobs"
     def self.search_backfill_step_title = "Index jobs"
     def self.search_backfill_record_label = "job"
-    def self.search_backfill_total_count = Job.count
+    def self.search_backfill_total_count = Syrus::Host::JobRecord.count
 
     def self.search_backfill_needed?
-      indexed_count < Job.count
+      indexed_count < Syrus::Host::JobRecord.count
     end
 
     def self.search_database_rebuild_key = "jobs"
@@ -18,27 +18,27 @@ module GlobalSearch
     def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
     def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
     def self.search_database_tables = [ TABLE_NAME ]
-    def self.search_database_rebuild_units = Job.count
+    def self.search_database_rebuild_units = Syrus::Host::JobRecord.count
     def self.search_database_initialize_content_version! = finish_content_version! unless current_content_version
     def self.search_database_integrity_repair_needed? = search_database_rebuild_pending?
 
     def self.search_database_rebuild_pending?
       search_backfill_needed?
     rescue StandardError
-      Job.exists?
+      Syrus::Host::JobRecord.exists?
     end
 
     def self.search_backfill_batch(after_id:, limit:)
       last_id = after_id.to_i
       processed = 0
 
-      Job.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |job|
+      Syrus::Host::JobRecord.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |job|
         JobIndex.upsert(job)
         last_id = job.id
         processed += 1
       end
 
-      { processed: processed, last_id: last_id, done: processed.zero? || last_id >= Job.maximum(:id).to_i }
+      { processed: processed, last_id: last_id, done: processed.zero? || last_id >= Syrus::Host::JobRecord.maximum(:id).to_i }
     end
 
     def self.search_database_rebuild_batch(task:, reason:)
