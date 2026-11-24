@@ -213,7 +213,12 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
 
     it "fails when scratch storage exceeds its ceiling" do
       allow(RuntimeImages::Builds::Config).to receive(:build_storage_bytes).and_return(request.source_archive.blob.byte_size + 10_000)
-      l = launcher { |_c, _chunk, stop| File.binwrite(File.join(File.dirname(File.dirname(Dir.glob("#{data_root}/runtime-image-builds/builds/*/source").first)), "big"), "x" * 20_000) rescue nil; stop.call }
+      l = launcher { |_c, _chunk, stop| stop.call }
+      l1 = l
+      l = lambda do |command:, env:, **rest|
+        File.binwrite(File.join(File.dirname(env["HOME"]), "..", "big"), "x" * 20_000)
+        l1.call(command: command, env: env, **rest)
+      end
       expect { build(request, builder(launcher: l)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("storage_limit_exceeded") }
     end
 
