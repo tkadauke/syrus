@@ -58,7 +58,7 @@ import { useT } from "../../hooks/useT"
 import i18n from "../../i18n"
 import { errorMessage } from "../../lib/errorMessage"
 import { workerCapabilityEntries } from "../../lib/workerCapabilities"
-import { appendSearch, jobsTabVisible, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { appendSearch, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
 import {
   pendingActionBadgeLabel,
   pendingActionGroupTerminalLabel,
@@ -521,6 +521,10 @@ function proposalActionButton(tone: "primary" | "secondary") {
   return `${shared} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600`
 }
 
+function confirmedJobCount(proposal: ChatProposal) {
+  return proposal.epic_bundle ? Math.max(1, proposal.active_children_count ?? proposal.children?.length ?? 0) : 1
+}
+
 export function ProposalCard({
   proposal,
   prefix,
@@ -532,7 +536,7 @@ export function ProposalCard({
   prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
-  onSelectWorkspaceTab?: () => void
+  onSelectWorkspaceTab?: (confirmedJobCount: number) => void
 }) {
   const { t } = useT("chat")
   const actionableProposal = proposalWithActionPaths(proposal, queryKey[1])
@@ -556,10 +560,8 @@ export function ProposalCard({
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
     onSuccess: (updated, variables) => {
-      const jobsTabAlreadyVisible = payload ? jobsTabVisible(payload) : false
       const confirmedProposal = isChatPayload(updated) ? proposal : updated.proposal || proposal
       const shouldRevealJobsTab = variables.action === "confirm" && proposalBacksJobsTab(confirmedProposal)
-      const shouldSelectJobsTab = shouldRevealJobsTab && !jobsTabAlreadyVisible
 
       queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => {
         const next = applyProposalActionResult(current, updated, queryKey[1])
@@ -572,7 +574,8 @@ export function ProposalCard({
       resolveChatJobStatusProposal(queryClient, queryKey[1], confirmedProposal.id)
       onNotice(updated.message || null)
 
-      if (shouldSelectJobsTab) onSelectWorkspaceTab?.()
+      // Only badges the Jobs tab (the workspace owner never selects it for us).
+      if (shouldRevealJobsTab) onSelectWorkspaceTab?.(confirmedJobCount(confirmedProposal))
     }
   })
 

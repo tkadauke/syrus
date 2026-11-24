@@ -86,7 +86,7 @@ type ChatMessageProps = {
   searchHighlight?: string
   onNotice: (message: string | null) => void
   onRetry?: (text: string) => void
-  onSelectWorkspaceTab?: () => void
+  onSelectWorkspaceTab?: (confirmedJobCount: number) => void
 }
 
 export const ChatMessage = memo(function ChatMessage({

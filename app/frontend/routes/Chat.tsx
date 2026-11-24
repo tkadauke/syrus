@@ -178,6 +178,7 @@ import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEv
 import { createChatRenderCache, injectTemporalMarkers, renderChatMessages } from "./chat/streamBuilders"
 import { useMarkedRender } from "../lib/performanceMarkers"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
+import { hasTabAttention, useWorkspaceTabAttention, workspaceTabBadge, type TabAttentionMap } from "./chat/workspaceTabAttention"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
 import {
   availableWorkspaceTabs,
@@ -723,7 +724,7 @@ function MessageStream({
   prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
-  onSelectWorkspaceTab?: () => void
+  onSelectWorkspaceTab?: (confirmedJobCount: number) => void
 }) {
   const { user: userTimeZone } = useTimeZones()
   const location = useLocation()
@@ -1388,21 +1389,20 @@ function ChatWorkspace({
   const [panelCollapsed, setPanelCollapsed] = useState(initialPanelStateRef.current.collapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
-  const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
   const [activeFindSurface, setActiveFindSurface] = useState<ContextFindSurface>("chat")
   const [chatFindOpen, setChatFindOpen] = useState(false)
   const chatFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const filesFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const bookmarkRequestIdRef = useRef(0)
   const skipInitialPanelPersistenceRef = useRef(!initialPanelStateRef.current.persistInitialState)
-  const previousMediaRef = useRef({ chatId: payload.chat.id, count: mediaItemCount(payload) })
-  const suppressNextComposerMediaSwitchRef = useRef(false)
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
   const { autoHideEnabled: mobileHeaderAutoHideEnabled, revealHeader, topInset: mobileChatTopInset } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
+  const visibleWorkspaceTab = isDesktop ? (panelCollapsed ? null : activeTab) : activeMobileTab === "chat" ? null : activeMobileTab
+  const { attention: tabAttention, notify: notifyTabAttention } = useWorkspaceTabAttention(payload, visibleWorkspaceTab)
   const showMobileWorkspaceTabs = initialLinkedTab !== null || mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
@@ -1417,14 +1417,11 @@ function ChatWorkspace({
     const nextPanelState = linkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
     skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
     setPanelCollapsed(nextPanelState.collapsed)
-    previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
     setActiveTab(linkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
     setActiveMobileTab(linkedTab || "chat")
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
-    setPendingJobsTabRequest(false)
     setChatFindOpen(false)
-    suppressNextComposerMediaSwitchRef.current = false
     revealHeader()
   }, [payload.chat.id, revealHeader])
 
@@ -1461,39 +1458,6 @@ function ChatWorkspace({
 
     revealHeader()
   }, [activeMobileTab, isDesktop, revealHeader, showMobileWorkspaceTabs])
-
-  // Confirming a job/epic proposal optimistically patches the chat query cache
-  // so the "jobs" tab becomes available. Desktop split view can open that
-  // workspace immediately, but mobile single-pane chat should only reveal the
-  // tab and leave the transcript/composer selected.
-  useEffect(() => {
-    if (!pendingJobsTabRequest || !availableTabs.includes("jobs")) return
-
-    setPendingJobsTabRequest(false)
-    if (!isDesktop) return
-
-    setPanelCollapsed(false)
-    selectTab("jobs")
-  }, [pendingJobsTabRequest, availableTabs, isDesktop])
-
-  useEffect(() => {
-    const previous = previousMediaRef.current
-    const current = mediaItemCount(payload)
-    previousMediaRef.current = { chatId: payload.chat.id, count: current }
-    if (previous.chatId !== payload.chat.id || current <= previous.count || !availableTabs.includes("media")) return
-    if (suppressNextComposerMediaSwitchRef.current) {
-      suppressNextComposerMediaSwitchRef.current = false
-      return
-    }
-
-    setPanelCollapsed(false)
-    setActiveMobileTab("media")
-    selectTab("media")
-  }, [availableTabs, payload])
-
-  function handleComposerMessageSent(details: { hadImageAttachments: boolean }) {
-    if (details.hadImageAttachments) suppressNextComposerMediaSwitchRef.current = true
-  }
 
   useEffect(() => {
     if (activeTab !== null) storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
@@ -1549,9 +1513,8 @@ function ChatWorkspace({
     selectTab("pinned")
   }
 
-  function requestJobsTab() {
-    setPendingJobsTabRequest(true)
-  }
+  // Confirming a Job/Epic proposal reveals the Jobs tab and badges it; it never selects it.
+  const handleJobsConfirmed = useCallback((count: number) => notifyTabAttention({ tab: "jobs", count }), [notifyTabAttention])
 
   function selectBookmark(messageId: number) {
     setActiveMobileTab("chat")
@@ -1592,6 +1555,7 @@ function ChatWorkspace({
       >
         <MobileChatTopChrome
           activeMobileTab={activeMobileTab}
+          attention={tabAttention}
           availableTabs={availableTabs}
           autoHideActive={mobileTabsAutoHideActive}
           payload={payload}
@@ -1610,12 +1574,11 @@ function ChatWorkspace({
               prefix={prefix}
               queryKey={queryKey}
               showUsageOverlay={false}
-              onComposerMessageSent={handleComposerMessageSent}
               onFindOpenChange={setChatFindOpen}
               onNotice={onNotice}
               onOpenPinnedMessages={openPinnedMessages}
               onSelectMessage={selectBookmark}
-              onSelectWorkspaceTab={requestJobsTab}
+              onSelectWorkspaceTab={handleJobsConfirmed}
               onSurfaceActive={() => setActiveFindSurface("chat")}
             />
           ) : (
@@ -1623,6 +1586,7 @@ function ChatWorkspace({
               <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
                 <ChatWorkspacePanel
                   activeTab={activeTab}
+                  attention={tabAttention}
                   showTabs={false}
                   onSelectTab={selectTab}
                   payload={payload}
@@ -1665,12 +1629,11 @@ function ChatWorkspace({
         prefix={prefix}
         queryKey={queryKey}
         showUsageOverlay
-        onComposerMessageSent={handleComposerMessageSent}
         onFindOpenChange={setChatFindOpen}
         onNotice={onNotice}
         onOpenPinnedMessages={openPinnedMessages}
         onSelectMessage={selectBookmark}
-        onSelectWorkspaceTab={requestJobsTab}
+        onSelectWorkspaceTab={handleJobsConfirmed}
         onSurfaceActive={() => setActiveFindSurface("chat")}
       />
       {panelCollapsed ? null : (
@@ -1685,7 +1648,7 @@ function ChatWorkspace({
         <div className="pointer-events-none absolute right-0 top-3 hidden w-10 lg:flex lg:justify-start">
           <button
             aria-label={t("open_workspace")}
-            className="pointer-events-auto rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            className="pointer-events-auto relative rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
             onClick={() => setPanelCollapsed(false)}
             title={t("open_panel")}
             type="button"
@@ -1705,6 +1668,12 @@ function ChatWorkspace({
               <line x1="15" x2="15" y1="3" y2="21" />
               <polyline points="12 9 15 12 12 15" />
             </svg>
+            {hasTabAttention(tabAttention) ? (
+              <span className="absolute right-0.5 top-0.5" data-testid="workspace-open-attention">
+                <span aria-hidden="true" className="block h-2 w-2 rounded-full bg-danger" />
+                <span className="sr-only">{t("workspace_new_activity")}</span>
+              </span>
+            ) : null}
           </button>
         </div>
       ) : null}
@@ -1712,6 +1681,7 @@ function ChatWorkspace({
         <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
           <ChatWorkspacePanel
             activeTab={activeTab}
+            attention={tabAttention}
             onSelectTab={selectTab}
             onToggleCollapse={() => setPanelCollapsed(true)}
             payload={payload}
@@ -1735,17 +1705,9 @@ function ChatWorkspace({
   )
 }
 
-function mediaItemCount(payload: ChatPayload) {
-  return (
-    (payload.chat.chat_image_count ?? (payload.chat.has_chat_images ? 1 : 0)) +
-    (payload.video_walkthroughs?.length ?? 0) +
-    (payload.chat.whiteboard_snapshot_count ?? 0) +
-    (payload.chat.typed_artifact_count ?? 0)
-  )
-}
-
 function MobileChatTopChrome({
   activeMobileTab,
+  attention,
   availableTabs,
   autoHideActive,
   payload,
@@ -1754,6 +1716,7 @@ function MobileChatTopChrome({
   onSelectMobileTab
 }: {
   activeMobileTab: MobileChatTab
+  attention: TabAttentionMap
   availableTabs: WorkspaceTab[]
   autoHideActive: boolean
   payload: ChatPayload
@@ -1809,7 +1772,8 @@ function MobileChatTopChrome({
         itemClassName="max-w-[33vw] truncate px-3 py-2"
         items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
           key: tab,
-          label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
+          label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs),
+          badge: tab === "chat" ? undefined : workspaceTabBadge(attention[tab], t)
         }))}
         onSelect={onSelectMobileTab}
       />
@@ -2058,7 +2022,6 @@ function ChatColumn({
   prefix,
   queryKey,
   showUsageOverlay,
-  onComposerMessageSent,
   onFindOpenChange,
   onNotice,
   onOpenPinnedMessages,
@@ -2074,12 +2037,11 @@ function ChatColumn({
   prefix: string
   queryKey: ChatQueryKey
   showUsageOverlay: boolean
-  onComposerMessageSent: (details: { hadImageAttachments: boolean }) => void
   onFindOpenChange?: (open: boolean) => void
   onNotice: (message: string | null) => void
   onOpenPinnedMessages: () => void
   onSelectMessage: (messageId: number) => void
-  onSelectWorkspaceTab: () => void
+  onSelectWorkspaceTab: (confirmedJobCount: number) => void
   onSurfaceActive: () => void
 }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
@@ -2240,10 +2202,7 @@ function ChatColumn({
             prefix={prefix}
             queryKey={queryKey}
             onNotice={onNotice}
-            onMessageSent={(details) => {
-              setHasSentFirstMessage(true)
-              onComposerMessageSent(details)
-            }}
+            onMessageSent={() => setHasSentFirstMessage(true)}
           />
         ) : null}
       </div>
@@ -2263,10 +2222,7 @@ function ChatColumn({
             prefix={prefix}
             queryKey={queryKey}
             onNotice={onNotice}
-            onMessageSent={(details) => {
-              setHasSentFirstMessage(true)
-              onComposerMessageSent(details)
-            }}
+            onMessageSent={() => setHasSentFirstMessage(true)}
           />
         </div>
       ) : null}

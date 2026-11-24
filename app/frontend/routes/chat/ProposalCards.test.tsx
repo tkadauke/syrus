@@ -1207,10 +1207,10 @@ describe("ProposalCard routing", () => {
   })
 })
 
-describe("ProposalCard first-run jobs sidebar tab navigation", () => {
+describe("ProposalCard jobs tab attention callback", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("selects the jobs sidebar tab after confirming a Job proposal when it isn't visible yet", async () => {
+  it("reports the confirmed jobs after confirming a Job proposal (never selects a tab)", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
@@ -1222,10 +1222,10 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), vi.fn(), { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalledWith(1))
   })
 
-  it("selects the jobs sidebar tab after confirming an Epic proposal when it isn't visible yet", async () => {
+  it("reports the confirmed jobs after confirming an Epic proposal (never selects a tab)", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
@@ -1242,7 +1242,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("selects the jobs sidebar tab after confirming a syrus_issue proposal when it isn't visible yet", async () => {
+  it("reports the confirmed jobs after confirming a syrus_issue proposal (never selects a tab)", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
@@ -1259,7 +1259,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("does not select the jobs sidebar tab after confirming a github_issue proposal", async () => {
+  it("does not report jobs after confirming a github_issue proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
@@ -1278,7 +1278,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
   })
 
-  it("does not select the jobs sidebar tab when it is already visible", async () => {
+  it("still reports newly confirmed jobs when the jobs tab is already visible", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
@@ -1291,11 +1291,10 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { onSelectWorkspaceTab, chatOverrides: { confirmed_proposal_count: 1 } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal confirmed."))
-    expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalledWith(1))
   })
 
-  it("does not select the jobs sidebar tab when rejecting a proposal", async () => {
+  it("does not report jobs when rejecting a proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
