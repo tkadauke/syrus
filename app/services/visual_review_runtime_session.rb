@@ -106,7 +106,21 @@ class VisualReviewRuntimeSession
     error = result.to_h[:error] || result.to_h["error"]
     return result if error.blank?
 
-    message = result.to_h[:message] || result.to_h["message"] || error
-    raise "runtime #{operation} failed: #{message}"
+    raise "runtime #{operation} failed: #{provider_failure_message(result.to_h, error)}"
+  end
+
+  # Tool-backed providers (the browser) report `error: true` with the reason
+  # in MCP-style `content` text, not in `message` -- and a bare `error: true`
+  # made every visual-review launch failure read "runtime launch failed: true".
+  def provider_failure_message(result, error)
+    message = result[:message] || result["message"]
+    return message if message.present?
+
+    text = Array(result[:content] || result["content"]).filter_map do |item|
+      item.respond_to?(:to_h) ? (item.to_h[:text] || item.to_h["text"]) : item.to_s
+    end.join(" ").squish
+    return text.truncate(1_000) if text.present?
+
+    error == true ? "the provider reported an error without details" : error.to_s
   end
 end

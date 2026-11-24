@@ -72,6 +72,24 @@ RSpec.describe VisualReviewRuntimeSession do
     expect(lifecycle.runtime_session.reload).to have_attributes(state: "failed", last_error: include("terminal unavailable"))
   end
 
+  # Regression: the browser provider reports `error: true` with the reason in
+  # MCP-style content, and every launch failure read "runtime launch failed: true".
+  it "names the provider's reason when a launch reports an error in its content" do
+    allow(provider).to receive(:launch).and_return(
+      error: true, content: [ { type: "text", text: "navigation to http://127.0.0.1:3000/ timed out" } ]
+    )
+    lifecycle = described_class.new(run: run, target: target)
+
+    expect { lifecycle.start! }.to raise_error("runtime launch failed: navigation to http://127.0.0.1:3000/ timed out")
+  end
+
+  it "still explains a bare error flag" do
+    allow(provider).to receive(:launch).and_return(error: true)
+    lifecycle = described_class.new(run: run, target: target)
+
+    expect { lifecycle.start! }.to raise_error("runtime launch failed: the provider reported an error without details")
+  end
+
   it "rejects a cli_tui provider missing visual-review capabilities before creating a session" do
     allow(stub_runtime_provider_class).to receive(:provider_key).and_return("cli_tui")
     allow(stub_runtime_provider_class).to receive(:capabilities).and_return(
