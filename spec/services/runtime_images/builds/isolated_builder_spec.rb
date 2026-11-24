@@ -155,6 +155,25 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     end
   end
 
+  describe "raw source archive size" do
+    it "rejects an oversized raw archive before downloading it, even when its entries are small" do
+      request = request_for({ "Dockerfile" => "FROM scratch\n" })
+      allow(RuntimeImages::Builds::Config).to receive(:max_source_bytes).and_return(request.source_archive.blob.byte_size - 1)
+      expect_any_instance_of(ActiveStorage::Blob).not_to receive(:download)
+      expect { build(request) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("source_too_large") }
+    end
+
+    it "caps the streamed bytes when the recorded size understates the blob" do
+      request = request_for({ "Dockerfile" => "FROM scratch\n" })
+      blob = request.source_archive.blob
+      allow(blob).to receive(:byte_size).and_return(1)
+      allow(request.source_archive).to receive(:blob).and_return(blob)
+      allow(RuntimeImages::Builds::Config).to receive(:max_source_bytes).and_return(5)
+      allow(blob).to receive(:download).and_yield("x" * 4).and_yield("x" * 4)
+      expect { build(request) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("source_too_large") }
+    end
+  end
+
   describe "ceilings" do
     let(:request) { request_for({ "Dockerfile" => "FROM scratch\n" }) }
 

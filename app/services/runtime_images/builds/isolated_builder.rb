@@ -139,7 +139,22 @@ module RuntimeImages
         raise Rejected.new("source_missing", "build request has no source archive") unless request.source_archive.attached?
 
         archive = File.join(File.dirname(dir), "source.archive")
-        File.binwrite(archive, request.source_archive.download)
+        blob = request.source_archive.blob
+        if blob.byte_size > Config.max_source_bytes
+          raise Rejected.new("source_too_large", "source archive is #{blob.byte_size} bytes, over the #{Config.max_source_bytes} byte limit")
+        end
+
+        # Stream in chunks with a running cap so the archive is never fully
+        # materialized in the worker heap, and a lying byte_size cannot overrun.
+        written = 0
+        File.open(archive, "wb") do |file|
+          blob.download do |chunk|
+            written += chunk.bytesize
+            raise Rejected.new("source_too_large", "source archive exceeds the #{Config.max_source_bytes} byte limit") if written > Config.max_source_bytes
+
+            file.write(chunk)
+          end
+        end
         digest = @extractor.extract(archive, dir)
         revision = request.source_manifest["revision"].to_s
         if revision.start_with?("sha256:") && revision != digest
