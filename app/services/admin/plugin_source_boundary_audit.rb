@@ -2,7 +2,11 @@ require "open3"
 
 module Admin
   class PluginSourceBoundaryAudit
-    Manifest = Data.define(:name, :dir_name, :path, :depends_on, :constants, :gem_name)
+    Manifest = Data.define(:name, :dir_name, :path, :depends_on, :constants, :gem_name, :require_roots) do
+      def initialize(name:, dir_name:, path:, depends_on:, constants:, gem_name:, require_roots: [])
+        super
+      end
+    end
     Violation = Data.define(:source, :target, :path, :line, :evidence, :reason) do
       def message
         "#{path}:#{line}: #{source} references #{target} (#{reason}): #{evidence.strip}"
@@ -13,6 +17,9 @@ module Admin
         return true if line.include?("plugins/")
         return true if frontend_module_key_candidate?(line)
         return true if gem_pattern&.match?(line)
+        # A library require, or a quoted constant that is resolved: the
+        # per-plugin rules in reference_reason decide.
+        return true if line.match?(/\brequire\b|constantize|const_get/)
         return false unless line.match?(/[A-Z]/)
 
         constant_pattern&.match?(unquoted_line)
@@ -215,8 +222,21 @@ module Admin
         # `depends_on [ "x" ]` setter.
         depends_on: source.scan(/(?<!optionally_)depends_on:?\s*\[(.*?)\]/m).flat_map { |match| match.first.scan(/["']([^"']+)["']/).flatten }.uniq,
         constants: owned_constants(dir, source_files),
-        gem_name: gem_name_for(dir)
+        gem_name: gem_name_for(dir),
+        require_roots: require_roots_for(dir)
       )
+    end
+
+    # The names a `require` reaches the plugin's library by: its top-level
+    # lib/ files and directories (lib/coworkers.rb, lib/coworkers/...).
+    def require_roots_for(dir)
+      Dir.children(dir.join("lib").to_s).filter_map do |entry|
+        next if entry == "tasks"
+
+        entry.delete_suffix(".rb") if entry.end_with?(".rb") || dir.join("lib", entry).directory?
+      end.uniq
+    rescue Errno::ENOENT
+      []
     end
 
     def gem_name_for(dir)
@@ -371,6 +391,10 @@ module Admin
       return "plugin source path" if line.include?("plugins/#{manifest.dir_name}/")
       return "plugin frontend module key" if frontend_module_key_reference?(line, manifest)
       return "plugin gem name" if gem_pattern_for(manifest)&.match?(line)
+      # The plugin-deletion pilot: both of these fail the reduced boot
+      # (LoadError, NameError), and neither shows up as a bare constant.
+      return "plugin library require" if require_pattern_for(manifest)&.match?(line)
+      return "plugin constant resolved by name" if resolved_constant_pattern_for(manifest)&.match?(line)
 
       return nil unless constant_pattern_for(manifest)&.match?(unquoted_line)
 
@@ -393,6 +417,30 @@ module Admin
 
       @gem_patterns ||= {}
       @gem_patterns[manifest.name] ||= /gem\s+["']#{Regexp.escape(manifest.gem_name)}["']/
+    end
+
+    def require_pattern_for(manifest)
+      roots = Array(manifest.require_roots).reject(&:blank?)
+      return if roots.empty?
+
+      @require_patterns ||= {}
+      @require_patterns[manifest.name] ||=
+        /\brequire(?:_dependency)?\s*\(?\s*["'](?:#{Regexp.union(roots).source})(?:\/[^"']*)?["']/
+    end
+
+    # A quoted plugin constant resolved in a way that raises when the plugin is
+    # gone: "X".constantize, const_get("X"). "X".safe_constantize returns nil
+    # instead, which is how core and plugins reach an optional plugin on
+    # purpose, so it stays allowed, as does a quoted name that is only printed.
+    def resolved_constant_pattern_for(manifest)
+      tokens = manifest.constants.uniq.reject(&:blank?)
+      return if tokens.empty?
+
+      @resolved_constant_patterns ||= {}
+      @resolved_constant_patterns[manifest.name] ||= begin
+        name = "(?:::)?(?:#{Regexp.union(tokens).source})(?:::[A-Z]\\w*)*"
+        /["']#{name}["']\s*\.\s*constantize\b|const_get\(\s*["']#{name}["']/
+      end
     end
 
     def frontend_dir_pattern_for(manifest)

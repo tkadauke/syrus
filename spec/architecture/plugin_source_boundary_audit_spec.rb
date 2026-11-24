@@ -137,6 +137,35 @@ RSpec.describe "Plugin source boundaries" do
     end
   end
 
+  # The plugin-deletion pilot planted one dependency of each kind and compared
+  # this scan with the real deletion run: a core `require` of a plugin's
+  # library and a plugin constant resolved from a string both failed the
+  # reduced boot (LoadError, NameError) while the scan called the core clean.
+  # A quoted plugin name that is not resolved stays allowed.
+  it "flags a core require of a plugin library and a plugin constant resolved by name" do
+    Dir.mktmpdir do |dir|
+      root = Pathname.new(dir)
+      root.join("config/initializers").mkpath
+      root.join("config/initializers/probe.rb").write("require \"coworkers\"\n")
+      root.join("app/services").mkpath
+      root.join("app/services/resolve_probe.rb").write("PROBE = \"Coworkers::Coworker\".constantize\n")
+      root.join("app/services/const_get_probe.rb").write("PROBE = Object.const_get(\"Coworkers::Coworker\")\n")
+      root.join("app/services/log_probe.rb").write("Rails.logger.info(\"Coworkers is optional\")\n")
+      root.join("app/services/soft_probe.rb").write("PROBE = \"Coworkers::Coworker\".safe_constantize\n")
+      File.symlink(Rails.root.join("plugins").to_s, root.join("plugins").to_s)
+
+      messages = Admin::PluginSourceBoundaryAudit.new(root: root).core_violations.select { |v| v.target == "coworkers" }.map(&:message)
+
+      expect(messages).to include(/config\/initializers\/probe\.rb.*plugin library require/)
+      expect(messages).to include(/resolve_probe\.rb.*plugin constant resolved by name/)
+      expect(messages).to include(/const_get_probe\.rb.*plugin constant resolved by name/)
+      expect(messages).not_to include(/log_probe\.rb/)
+      # safe_constantize returns nil when the plugin is gone: an optional
+      # dependency on purpose, which the reduced boot survives too.
+      expect(messages).not_to include(/soft_probe\.rb/)
+    end
+  end
+
   it "treats shared frontend test-support modules as test code", :requires_git_checkout do
     Dir.mktmpdir do |dir|
       root = Pathname.new(dir)

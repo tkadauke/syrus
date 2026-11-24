@@ -4607,6 +4607,57 @@ simulation specs pass (1,057 examples).
   or running the rollup after commit, which lets a reader briefly see an Epic
   behind its children. Not changed; to be asked.
 
+## F126. The boundary scan missed two dependencies the deletion run catches — fixed (plugin-deletion pilot)
+
+**The pilot.** Can a static check replace `bin/plugin-boundary-audit`'s
+20-minute per-plugin deletion run, which boots a reduced copy of the tree?
+
+- `PluginDeletion.lean` states what the run checks as graph closure. Deleting a
+  plugin removes it and its transitive dependents, and `closed_of_no_crossing`
+  proves for every graph that checking the edges leaving kept nodes is enough.
+- `Formal::PluginDeletion` applies that rule to the source boundary audit's
+  edges. It agrees with the model on all 1,024 three-node graphs
+  (`spec/formal/plugin_deletion_conformance_spec.rb`), and it decides all 65
+  bundled plugins from one scan in about 12 seconds.
+
+The value rests on the scan being complete, so the pilot planted one dependency
+of each kind from core onto `coworkers` and compared the two checks.
+
+| Planted kind                                  | Scan before | Deletion run | Scan after |
+| --------------------------------------------- | ----------- | ------------ | ---------- |
+| Ruby constant                                 | caught      | caught       | caught     |
+| route to a plugin controller                  | caught      | caught       | caught     |
+| frontend import of plugin source              | caught      | caught       | caught     |
+| `Rails.root.join("plugins/...")`              | caught      | caught       | caught     |
+| `require "coworkers"`                         | **missed**  | caught (LoadError, confirmed on a throwaway branch) | caught |
+| `"Coworkers::Coworker".constantize`, `const_get("...")` | **missed** | caught (NameError at load) | caught |
+| `"...".safe_constantize`                      | allowed     | survives (returns nil) | allowed |
+| bare frontend module-key string               | missed      | survives (imports nothing) | missed |
+| foreign key into a plugin table               | missed      | survives (the reduced tree loads the full schema) | missed |
+
+**Fix.** `Admin::PluginSourceBoundaryAudit`, which is also the required
+`plugin-boundaries` grader, now flags:
+
+- a `require` of a plugin's library (each manifest's top-level `lib/` names);
+- a quoted plugin constant resolved in a way that raises (`.constantize`,
+  `const_get("...")`).
+
+`safe_constantize` stays allowed. It is how core and plugins reach optional
+plugins on purpose, and the full tree has several such lookups, all
+nil-guarded. The whole tree passes the tightened check.
+
+**Result.** On every kind tried, the scan is now at least as strong as the
+deletion run. The two kinds neither catches, a module-key string and a schema
+foreign key, are runtime and schema couplings the deletion run was never
+checking. Next: decide whether the per-plugin removability graders become
+nightly audits of the scan, with the scan gating PRs.
+
+**Specs.** `spec/architecture/plugin_source_boundary_audit_spec.rb` "flags a core
+require of a plugin library and a plugin constant resolved by name" (red
+before; it also pins that `safe_constantize` and a printed name stay allowed).
+`spec/services/formal/plugin_deletion_spec.rb`,
+`spec/formal/plugin_deletion_conformance_spec.rb`.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
