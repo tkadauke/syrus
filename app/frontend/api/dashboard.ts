@@ -18,38 +18,6 @@ export type DashboardRepository = {
   multiple_members: boolean
 }
 
-export type DashboardHealthBlockedRepository = {
-  id: number
-  slug: string
-  main_health: string
-  ci_health: string
-  grader_health: string
-  landing_paused: boolean
-  main_branch_repair_blocks_work: boolean
-  repository_path: string
-  repair_path: string
-  main_branch_repair: DashboardMainBranchRepairStatus
-}
-
-export type DashboardRepairJob = {
-  id: number
-  slug: string
-  state: string
-  title: string
-  job_path: string
-}
-
-export type DashboardMainBranchRepairStatus = {
-  enabled: boolean
-  failed_open_jobs_count: number
-  max_open_failed_jobs: number
-  blocked_reason: string | null
-  can_request: boolean
-  can_spawn: boolean
-  blocking_job: DashboardRepairJob | null
-  failed_jobs: DashboardRepairJob[]
-}
-
 export type DashboardOwner = {
   id: number
   email_address: string
@@ -396,7 +364,7 @@ export type DashboardPayload = {
     status?: DashboardLandingQueueStatus | null
   }
   provider_availability?: Record<string, ProviderAvailability>
-  health_blocked_repositories?: DashboardHealthBlockedRepository[]
+  banner_panels?: UiSlotPanel[]
   ui_panels?: UiSlotPanel[]
   ownership: {
     scope: string
@@ -623,7 +591,7 @@ export function mergeDashboardPayload(
     filter: chrome.filter,
     landing_queue: chrome.landing_queue,
     provider_availability: chrome.provider_availability,
-    health_blocked_repositories: chrome.health_blocked_repositories,
+    banner_panels: chrome.banner_panels,
     ui_panels: chrome.ui_panels,
     smart_folders: chrome.smart_folders,
     active_smart_folder_id: chrome.active_smart_folder_id,
@@ -696,10 +664,6 @@ export function updateDashboardEpicState(path: string, targetState: string) {
 
 export function toggleDashboardLandingPause(path: string, options: { confirmed?: boolean } = {}) {
   return postJson<DashboardLandingPausePayload>(path, options.confirmed ? { confirmed: true } : {})
-}
-
-export function requestDashboardMainBranchRepair(path: string) {
-  return postJson<{ message?: string }>(path, {})
 }
 
 const pendingFilterUsage = new Map<

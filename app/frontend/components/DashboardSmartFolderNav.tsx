@@ -28,7 +28,6 @@ type DashboardSmartFolderPayload = Pick<
   | "active_smart_folder_id"
   | "active_smart_folder_filter"
   | "filter"
-  | "health_blocked_repositories"
   | "landing_queue"
   | "ownership"
   | "rows_current_for_search"
@@ -201,9 +200,6 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
           <Button className="w-full" disabled={landingPause.isPending} onClick={toggleLandingPause} size="sm" variant="secondary">
             {payload.landing_queue.paused ? t("smart_folder.resume_landing") : t("smart_folder.pause_landing")}
           </Button>
-          {payload.landing_queue.paused && payload.health_blocked_repositories?.some((repo) => repo.main_branch_repair_blocks_work) ? (
-            <p className="text-xs text-amber-700 dark:text-amber-300">{t("smart_folder.landing_paused_main_health")}</p>
-          ) : null}
           <NoticeToast message={landingPause.isSuccess ? landingPause.data.message : null} onDismiss={() => landingPause.reset()} />
           {landingPause.isError ? (
             <p className="text-xs text-red-700 dark:text-red-300" role="alert">

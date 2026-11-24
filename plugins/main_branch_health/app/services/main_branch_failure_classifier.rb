@@ -1,0 +1,348 @@
+require "digest"
+
+class MainBranchFailureClassifier
+  ALLOW_INHERITED = "allow_inherited".freeze
+  FAILURE_STATUSES = %w[failed error].freeze
+
+  Result = Data.define(:inherited, :evidence, :inherited_names, :new_names, :classifications) do
+    def inherited? = inherited
+  end
+
+  module LandingBaseSha
+    class Base
+      def initialize(workflow)
+        @workflow = workflow
+      end
+
+      private
+
+      attr_reader :workflow
+
+      def job = workflow.job
+      def repository = job.repository
+    end
+
+    class AutoMerge < Base
+      def value = job.mergeability_base_sha.presence
+    end
+
+    class MergeTrain < Base
+      def value = workflow.artifact("merge_train_base_sha").presence
+    end
+
+    class PredictedBase < Base
+      def value = workflow.artifact("predicted_base_sha").presence
+    end
+
+    class RepositoryHealth < Base
+      def value
+        MainBranchHealthCheck.where(repository: repository, branch: job.effective_base_branch).recent.pick(:sha) ||
+          (repository.last_health_checked_sha.presence if job.effective_base_branch == repository.default_branch)
+      end
+    end
+
+    STRATEGIES = {
+      "auto_merge" => AutoMerge,
+      "merge_train" => MergeTrain,
+      "landing_validation" => PredictedBase,
+      "merge_train_validation" => PredictedBase
+    }.freeze
+
+    def self.for(workflow)
+      STRATEGIES.fetch(workflow.trigger_kind.to_s, RepositoryHealth).new(workflow)
+    end
+  end
+
+  def self.call(workflow:, failed_grader_steps:)
+    new(workflow: workflow, failed_grader_steps: failed_grader_steps).call
+  end
+
+  def initialize(workflow:, failed_grader_steps:)
+    @workflow = workflow
+    @failed_grader_steps = Array(failed_grader_steps)
+    @repository = workflow.job.repository
+  end
+
+  def call
+    return no_match if @failed_grader_steps.empty?
+    return no_match if infrastructure_workflow?
+    return no_match unless @repository.main_branch_health_enabled?
+    base_sha = landing_unit_base_sha
+    return no_match if base_sha.blank?
+
+    evidence = broken_grader_evidence(base_sha) || base_retry_evidence(base_sha)
+    return no_match unless evidence
+
+    classifications = @failed_grader_steps.map { |grader_step| classify_step(grader_step, evidence) }
+    inherited = classifications.select { |classification| classification.fetch("inherited") }
+    introduced = classifications.reject { |classification| classification.fetch("inherited") }
+
+    Result.new(
+      inherited: classifications.any? && introduced.empty?,
+      evidence: evidence,
+      inherited_names: inherited.map { |classification| classification.fetch("name") },
+      new_names: introduced.map { |classification| classification.fetch("name") },
+      classifications: classifications
+    )
+  end
+
+  private
+
+  def no_match
+    Result.new(inherited: false, evidence: nil, inherited_names: [], new_names: [], classifications: [])
+  end
+
+  def infrastructure_workflow?
+    @workflow.infrastructure_workflow? || MainHealthChangedService.fix_main_job?(@workflow.job)
+  end
+
+  def broken_grader_evidence(base_sha)
+    check = MainBranchHealthCheck
+      .where(repository: @repository, sha: base_sha, grader_health: "broken")
+      .where(branch: @workflow.job.effective_base_branch)
+      .where.not(grader_failed_names: [ nil, [] ])
+      .recent
+      .first
+    return nil unless check
+
+    names = Array(check.grader_failed_names).map(&:to_s).reject(&:blank?)
+    return nil if names.empty?
+
+    {
+      "health_check_id" => check.id,
+      "sha" => check.sha,
+      "checked_at" => check.checked_at&.iso8601,
+      "source" => check.source,
+      "workflow_id" => check.workflow_id,
+      "failed_names" => names
+    }
+  end
+
+  def base_retry_evidence(base_sha)
+    names = @failed_grader_steps.filter_map do |grader_step|
+      details = grader_step.details.to_h
+      next unless failure_policy(details) == ALLOW_INHERITED
+      next if details["base_retry"].blank?
+
+      details["name"].to_s.presence
+    end.uniq
+    return nil if names.empty?
+
+    {
+      "sha" => base_sha,
+      "source" => "base_retry",
+      "failed_names" => names
+    }
+  end
+
+  def landing_unit_base_sha
+    LandingBaseSha.for(@workflow).value
+  end
+
+  def classify_step(grader_step, evidence)
+    details = grader_step.details.to_h
+    name = details["name"].to_s
+    failures = failure_policy(details)
+
+    base_conclusion = latest_base_conclusion(name, evidence.fetch("sha"))
+    base_run = base_run_for(name, evidence, base_conclusion)
+    base_failed = evidence.fetch("failed_names").include?(name) &&
+      (base_conclusion.nil? || base_conclusion.status == "failed")
+
+    result = {
+      "name" => name,
+      "failures" => failures,
+      "inherited" => false,
+      "reason" => "no_matching_base_failure",
+      "base_grader_conclusion_id" => base_conclusion&.id,
+      "candidate_step_id" => grader_step.id
+    }.compact
+
+    return result.merge("reason" => "strict_failure_policy") unless failures == ALLOW_INHERITED
+
+    family = failed_shard_family(name, evidence)
+    if family.any? && (!base_failed || family.size > 1)
+      return classify_shard_family(result, grader_step, family, evidence)
+    end
+
+    return result unless base_failed
+
+    if (base_retry = details["base_retry_result"].presence)
+      return classify_recorded_base_retry(result, base_retry)
+    end
+
+    return classify_test_cases(result, grader_step, base_run) if comparable_test_case_evidence_present?(grader_step, base_run, name)
+
+    classify_binary_contextual(result, details, base_conclusion)
+  end
+
+  # Shards of one suite ("rspec-ci-2-of-4", "rspec-ci-serial") split the same
+  # files by recorded runtime, so which shard runs a file shifts whenever the
+  # suite changes. A test the base failed in shard 2 can fail in shard 3 on a
+  # branch that added files. Compare a shard against the whole family's base
+  # failures, not only the base shard of the same name.
+  SHARD_SUFFIX = /-(?:\d+-of-\d+|serial)\z/
+
+  def shard_name?(name)
+    name.to_s.match?(SHARD_SUFFIX)
+  end
+
+  def shard_family_key(name)
+    name.to_s.sub(SHARD_SUFFIX, "")
+  end
+
+  # The base's failed graders that belong to the same sharded suite as +name+.
+  def failed_shard_family(name, evidence)
+    return [] unless shard_name?(name)
+
+    key = shard_family_key(name)
+    Array(evidence.fetch("failed_names")).select { |candidate| shard_name?(candidate) && shard_family_key(candidate) == key }
+  end
+
+  def classify_shard_family(result, grader_step, family, evidence)
+    base_runs = family.filter_map do |member|
+      base_run_for(member, evidence, latest_base_conclusion(member, evidence.fetch("sha")))
+    end
+    candidate_run = grader_step.runs.order(:created_at).last
+    name = result.fetch("name")
+    candidate_failures = failed_test_identities_for_run(candidate_run, name)
+    base_failures = base_runs.zip(family).flat_map { |run, member| failed_test_identities_for_run(run, member) }.uniq
+
+    return result.merge("reason" => "missing_candidate_test_cases") if candidate_failures.empty?
+    return result.merge("reason" => "missing_base_test_cases") if base_failures.empty?
+
+    introduced = candidate_failures - base_failures
+    inherited = introduced.empty?
+    result.merge(
+      "inherited" => inherited,
+      "reason" => inherited ? "failed_cases_match_base_shard_family" : "introduced_failed_cases",
+      "base_shard_family" => family,
+      "candidate_failed_case_count" => candidate_failures.size,
+      "base_failed_case_count" => base_failures.size,
+      "introduced_failed_cases" => introduced.first(20)
+    )
+  end
+
+  def failure_policy(details)
+    value = details["failures"].to_s.presence
+    return value if value.in?(Syrus::Host::SyrusYmlGradeFailurePolicies)
+
+    Syrus::Host::SyrusYmlDefaultGradeFailurePolicy
+  end
+
+  def latest_base_conclusion(grader_name, base_sha)
+    Syrus::Host::GraderConclusion
+      .where(repository: @repository, commit_sha: base_sha, grader_name: grader_name, status: "failed")
+      .latest_first
+      .first
+  end
+
+  def classify_test_cases(result, candidate_step, base_run)
+    candidate_run = candidate_step.runs.order(:created_at).last
+    candidate_failures = failed_test_identities_for_run(candidate_run, result.fetch("name"))
+    base_failures = failed_test_identities_for_run(base_run, result.fetch("name"))
+
+    return result.merge("reason" => "missing_candidate_test_cases") if candidate_failures.empty?
+    return result.merge("reason" => "missing_base_test_cases") if base_failures.empty?
+
+    introduced = candidate_failures - base_failures
+    inherited = introduced.empty?
+    result.merge(
+      "inherited" => inherited,
+      "reason" => inherited ? "failed_cases_match_base" : "introduced_failed_cases",
+      "candidate_failed_case_count" => candidate_failures.size,
+      "base_failed_case_count" => base_failures.size,
+      "introduced_failed_cases" => introduced.first(20)
+    )
+  end
+
+  def comparable_test_case_evidence_present?(candidate_step, base_run, grader_name)
+    candidate_run = candidate_step.runs.order(:created_at).last
+    test_case_count_for_run(candidate_run, grader_name).positive? &&
+      test_case_count_for_run(base_run, grader_name).positive?
+  end
+
+  # Asked of :test_evidence providers rather than read from a model: test
+  # result storage is not core's. With no provider the counts are zero, which
+  # routes classification to classify_binary_contextual -- the same path a
+  # repository with no test data already took.
+  def test_case_count_for_run(run, grader_name)
+    return 0 unless run
+
+    test_evidence_providers.sum do |provider|
+      result = Syrus::Host::PluginInvocation.call(
+        extension_point: :test_evidence, provider:, operation: :test_case_count, on_decline: 0
+      ) { provider.test_case_count(run: run, grader_name: grader_name) }
+      Syrus::Host::PluginInvocation.value(result).to_i
+    end
+  end
+
+  def test_evidence_providers
+    Syrus::PluginRegistry.providers_for(:test_evidence)
+  rescue StandardError
+    []
+  end
+
+  def failed_test_identities_for_run(run, grader_name)
+    return [] unless run
+
+    test_evidence_providers.flat_map do |provider|
+      result = Syrus::Host::PluginInvocation.call(
+        extension_point: :test_evidence, provider:, operation: :failed_test_identities, on_decline: []
+      ) { provider.failed_test_identities(run: run, grader_name: grader_name) }
+      Array(Syrus::Host::PluginInvocation.value(result))
+    end.uniq.sort
+  end
+
+  def base_run_for(grader_name, evidence, base_conclusion)
+    return base_conclusion.run if base_conclusion&.run
+
+    workflow_id = evidence["workflow_id"]
+    return nil if workflow_id.blank?
+
+    workflow = Workflow.includes(steps: :runs).find_by(id: workflow_id)
+    failed_steps = workflow&.steps&.select { |candidate| candidate.kind == "grader" && candidate.state == "failed" } || []
+    base_step = failed_steps.find { |candidate| candidate.details.to_h["name"].to_s == grader_name }
+    base_step&.runs&.max_by(&:created_at)
+  end
+
+  def classify_recorded_base_retry(result, retry_result)
+    retry_result = retry_result.to_h.stringify_keys
+    result.merge(
+      "inherited" => retry_result["ran"] && retry_result["inherited"],
+      "reason" => retry_result["reason"],
+      "base_retry_command" => retry_result["command"],
+      "base_retry_failed_case_count" => Array(retry_result["base_failed_identities"]).size,
+      "introduced_failed_cases" => Array(retry_result["introduced_failed_identities"]).first(20)
+    )
+  end
+
+  def classify_binary_contextual(result, details, base_conclusion)
+    candidate_fingerprint = output_fingerprint(details["output"])
+    base_fingerprint = output_fingerprint(base_conclusion&.step&.details.to_h["output"])
+
+    return result.merge("reason" => "missing_output_fingerprint") if candidate_fingerprint.blank? || base_fingerprint.blank?
+
+    inherited = candidate_fingerprint == base_fingerprint
+    result.merge(
+      "inherited" => inherited,
+      "reason" => inherited ? "output_fingerprint_matches_base" : "output_fingerprint_differs_from_base",
+      "candidate_output_fingerprint" => candidate_fingerprint,
+      "base_output_fingerprint" => base_fingerprint
+    )
+  end
+
+  def output_fingerprint(output)
+    normalized = output.to_s
+      .encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
+      .gsub(/\e\[[0-9;]*m/, "")
+      .gsub(%r{/[^\s:]+/}, "/…/")
+      .gsub(/\b0x[0-9a-f]+\b/i, "0x…")
+      .gsub(/\b\d+\.\d+s\b/, "N.Ns")
+      .gsub(/\s+/, " ")
+      .strip
+    return nil if normalized.blank?
+
+    Digest::SHA256.hexdigest(normalized)
+  end
+end

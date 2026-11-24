@@ -17,7 +17,6 @@ module SyrusMcp
       ::Mcp::Tools::StartPreviewTool,
       ::Mcp::Tools::StopPreviewTool,
       ::Mcp::Tools::ReadPreviewLogTool,
-      ::Mcp::Tools::ReportMainConcernTool,
       ::Mcp::Tools::RecordIsolatedReproTool,
       ::Mcp::Tools::SubmitSummaryTool,
       ::Mcp::Tools::SubmitTestPlanTool,

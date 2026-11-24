@@ -353,7 +353,7 @@ class StepDispatcher
   end
 
   def self.main_health_blocking?(workflow)
-    WorkGates.evaluate(workflow:).veto_for(MainBranchHealthProvider::REASON).present?
+    WorkGates.evaluate(workflow:).veto_for(MAIN_HEALTH_BLOCK_REASON).present?
   end
 
   def self.work_gate_veto(workflow) = WorkGates.evaluate(workflow:).first

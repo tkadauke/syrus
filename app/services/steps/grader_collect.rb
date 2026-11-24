@@ -313,7 +313,7 @@ module Steps
       case verdict.adjudicator
       when Adjudicators::InheritedGraderFailure.name
         record_inherited_main_failure!(failed_required, verdict.evidence)
-      when Adjudicators::ReportedMainConcern.name
+      when "reported_main_concern"
         record_main_concern_verified_failure!(failed_required, verdict.evidence)
       when Adjudicators::KnownFlakyFailure.name
         record_known_flaky_failure!(failed_required, verdict.evidence)
@@ -403,7 +403,7 @@ module Steps
       )
     end
 
-    # Surfaces an Adjudicators::ReportedMainConcern dismissal the same way
+    # Surfaces a reported_main_concern dismissal the same way
     # record_inherited_main_failure! surfaces one -- an operator looking at
     # why a red required grader did not block this iteration must be able to
     # see both halves of the evidence: the agent's report_main_concern claim

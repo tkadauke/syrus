@@ -1,0 +1,10 @@
+project:
+  id: main_branch_health
+  label: "main_branch_health plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest

@@ -5,9 +5,6 @@ Rails.application.config.after_initialize do
   Syrus::PluginRegistry.register_direct(:slug_type, SlugRefs::Types::Epic)
   Syrus::PluginRegistry.register_direct(:slug_type, SlugRefs::Types::Chat)
   Syrus::PluginRegistry.register_direct(:slug_type, SlugRefs::Types::Workflow)
-  Syrus::PluginRegistry.register_direct(:work_gate, MainBranchHealthProvider)
-  Syrus::PluginRegistry.register_direct(:system_alert_provider, MainBranchHealthProvider)
-  Syrus::PluginRegistry.register_direct(:repair_classifier, MainBranchHealthProvider)
 
   # Plugins self-register via their own engine initializers, which run before
   # this hook - no explicit list is needed here.

@@ -410,7 +410,7 @@ module Steps
     end
 
     def accept_failure_by_base_retry?(name:, definition:)
-      return false unless definition["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
+      return false unless definition["failures"] == "allow_inherited"
       return false if definition["base_retry"].blank?
 
       failed_cases = TestEvidenceLookup.failed_test_cases_for(run, name)

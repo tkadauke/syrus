@@ -91,17 +91,17 @@ module Steps
     end
 
     def main_concern_reports_for_repair_lineage
-      direct = MainConcernReport.where(run: run)
+      direct = BaseBranchHealth.concern_reports.where(run: run)
       return direct if direct.exists?
-      return MainConcernReport.none if step.loop_id.blank?
+      return BaseBranchHealth.concern_reports.none if step.loop_id.blank?
 
       repair_steps = workflow.steps
         .where(kind: step.kind, loop_id: step.loop_id)
         .where("steps.iteration <= ?", step.iteration)
       run_ids = repair_steps.joins(:runs).pluck("runs.id")
-      return MainConcernReport.none if run_ids.empty?
+      return BaseBranchHealth.concern_reports.none if run_ids.empty?
 
-      MainConcernReport.where(workflow: workflow, run_id: run_ids)
+      BaseBranchHealth.concern_reports.where(workflow: workflow, run_id: run_ids)
     end
 
     def preserve_merge_train_repair_head!

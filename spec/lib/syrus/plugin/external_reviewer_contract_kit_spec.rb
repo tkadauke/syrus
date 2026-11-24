@@ -50,7 +50,7 @@ RSpec.describe Syrus::Plugin::ExternalReviewerContractKit do
   it "withholds the family provider when its plugin is disabled" do
     PluginRecord.find_by!(name: "external_reviewer_contract_fake").update!(enabled: false)
 
-    expect(Syrus::PluginRegistry.capability_catalog(:review)).to be_empty
+    expect(Syrus::PluginRegistry.capability_catalog(:review).map { |c| c[:capability] }).not_to include(:external_reviewer)
     expect(Syrus::Plugin::Dispatch.call(:review, :external_reviewer, context)).to be_nil
   end
 

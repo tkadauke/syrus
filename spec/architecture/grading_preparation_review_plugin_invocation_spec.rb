@@ -8,7 +8,7 @@ RSpec.describe "grading, preparation, and review plugin invocation boundaries" d
   LOOKUP_ONLY_METHOD_ALLOWLIST = {
     "app/services/adjudicators.rb" => %w[all],
     "app/services/app/diff_review_annotations_payload.rb" => %w[providers],
-    "app/services/main_branch_failure_classifier.rb" => %w[test_evidence_providers],
+    "plugins/main_branch_health/app/services/main_branch_failure_classifier.rb" => %w[test_evidence_providers],
     "app/services/review_presentation_contributions.rb" => %w[providers],
     "app/services/reviewer_targets.rb" => %w[providers],
     "app/services/test_evidence_lookup.rb" => %w[test_evidence_providers]
@@ -25,7 +25,7 @@ RSpec.describe "grading, preparation, and review plugin invocation boundaries" d
     app/services/grader_command_spans/plan.rb
     app/services/grader_input_materialization.rb
     app/services/isolated_repro_recorder.rb
-    app/services/main_branch_failure_classifier.rb
+    plugins/main_branch_health/app/services/main_branch_failure_classifier.rb
     app/services/merge_train_multisect.rb
     app/services/post_implementation_review_required_mcp_tools.rb
     app/services/repo_grade_signals.rb

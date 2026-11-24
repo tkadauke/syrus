@@ -59,7 +59,6 @@ import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryCognitiveDebtRoute } from "./RepositoryCognitiveDebt"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
-import { RepositoryHealthRoute } from "./RepositoryHealth"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
 import { Tags } from "./Tags"
@@ -235,7 +234,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
     )
   },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
-  { path: "/repositories/:repositoryId/health", element: <RepositoryHealthRoute /> },
   { path: "/repositories/:repositoryId/cognitive_debt", element: <RepositoryCognitiveDebtRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembershipsRedirect /> },

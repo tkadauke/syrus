@@ -1081,7 +1081,7 @@ module WorkEngine
           repair_job = Job.find_by(id: plan.preconditions["repair_job_id"])
           return skipped("Main repair Job no longer exists") unless repair_job
           return skipped("#{repair_job.slug} is #{repair_job.state}, not approved") unless repair_job.approved?
-          return skipped("#{repair_job.slug} is not a main-branch repair Job") unless MainHealthChangedService.fix_main_job?(repair_job)
+          return skipped("#{repair_job.slug} is not a main-branch repair Job") unless BaseBranchHealth.repair_job?(repair_job)
 
           with_transition_reason do
             if workflow.job&.landing? && workflow.job.may_defer_landing?
