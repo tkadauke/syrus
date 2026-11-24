@@ -83,15 +83,25 @@ RSpec.describe RuntimeImages::OciRegistry::Provider do
     expect { provider.pull(request) }.to raise_error(RuntimeImages::ProviderError, /requested digest/)
   end
 
+  it "refuses an upload location on a different port of the registry host" do
+    blob = "layer"
+    blob_digest = "sha256:#{Digest::SHA256.hexdigest(blob)}"
+    scope = "repository:#{repo}:pull,push"
+    authed(:head, "/v2/#{repo}/blobs/#{blob_digest}", scope).to_return(status: 404)
+    authed(:post, "/v2/#{repo}/blobs/uploads/", scope)
+      .to_return(status: 202, headers: { "Location" => "https://registry.test:8443/v2/#{repo}/blobs/uploads/u1" })
+    expect do
+      provider.publish(RuntimeImages::PublishRequest.new(namespace: namespace, source_kind: "d", source_ref: "!", source_digest: nil,
+                                                         platform: "linux/amd64", provenance: {}, payload: { manifest: manifest, blobs: { blob_digest => blob } }))
+    end.to raise_error(RuntimeImages::ProviderError, /different host/)
+  end
+
   it "selects the platform entry from an index" do
-    child = "sha256:#{'c' * 64}"
     child_manifest = "child-bytes"
+    real_child = "sha256:#{Digest::SHA256.hexdigest(child_manifest)}"
     index = { "mediaType" => "application/vnd.oci.image.index.v1+json",
               "manifests" => [{ "digest" => "sha256:#{'d' * 64}", "platform" => { "os" => "linux", "architecture" => "arm64" } },
-                              { "digest" => child, "platform" => { "os" => "linux", "architecture" => "amd64" } }] }.to_json
-    authed(:get, "/v2/#{repo}/manifests/latest", "repository:#{repo}:pull").to_return(status: 200, body: index)
-    real_child = "sha256:#{Digest::SHA256.hexdigest(child_manifest)}"
-    index = JSON.parse(index).tap { |i| i["manifests"][1]["digest"] = real_child }.to_json
+                              { "digest" => real_child, "platform" => { "os" => "linux", "architecture" => "amd64" } }] }.to_json
     authed(:get, "/v2/#{repo}/manifests/latest", "repository:#{repo}:pull").to_return(status: 200, body: index)
     authed(:get, "/v2/#{repo}/manifests/#{real_child}", "repository:#{repo}:pull").to_return(status: 200, body: child_manifest)
     resolution = provider.resolve(RuntimeImages::ResolveRequest.new(namespace: namespace, reference: "latest", platform: "linux/amd64"))
