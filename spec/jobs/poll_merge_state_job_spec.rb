@@ -332,6 +332,30 @@ RSpec.describe PollMergeStateJob, :ci_only do
     }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
   end
 
+  describe "lock contention" do
+    it "retries a lock wait and completes the poll when contention clears" do
+      calls = 0
+      allow_any_instance_of(described_class).to receive(:poll_merge_state) do
+        calls += 1
+        raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded" if calls == 1
+      end
+
+      expect { described_class.new.perform(job.id) }.not_to raise_error
+      expect(calls).to eq(2)
+    end
+
+    it "skips the poll without raising when the lock wait persists" do
+      calls = 0
+      allow_any_instance_of(described_class).to receive(:poll_merge_state) do
+        calls += 1
+        raise ActiveRecord::Deadlocked, "Deadlock found"
+      end
+
+      expect { described_class.new.perform(job.id) }.not_to raise_error
+      expect(calls).to eq(described_class::LOCK_RETRY_ATTEMPTS + 1)
+    end
+  end
+
   describe "external PR ingest readiness gate" do
     def failed_ingest_external_job(state: "failed")
       external_job = Job.create!(
