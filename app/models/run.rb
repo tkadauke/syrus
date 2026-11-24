@@ -173,13 +173,10 @@ class Run < ApplicationRecord
     state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
-      # The Run ranks before its Job in the row lock order (NY37), and starting
-      # writes the Run, so its row is locked first. A locking query, not lock!,
-      # so the attributes the caller set before start are kept.
-      before do
-        self.class.lock.where(id: id).to_a if persisted?
-        job.lock!
-      end
+      # Starting writes the Run and its Job, so the Run's ancestry is locked
+      # first, top down (NY40, Lineage). Locking queries, not lock!, so the
+      # attributes the caller set before start are kept.
+      before { Lineage.lock!(self) if persisted? }
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
     end
 

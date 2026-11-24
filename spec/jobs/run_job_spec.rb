@@ -104,7 +104,8 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@job, job)
       attempts = 0
 
-      allow(run).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+      # Acquisition locks the Run's ancestry with Lineage.lock! (NY40).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, *args, &block|
         attempts += 1
         raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
 
@@ -112,7 +113,8 @@ RSpec.describe RunJob, :ci_only do
       end
 
       expect(run_job.send(:acquire_run_execution!)).to be(true)
-      expect(attempts).to eq(2)
+      # The failed claim, its retry, and Run#start's own Lineage.lock! inside it.
+      expect(attempts).to eq(3)
       expect(run.reload).to be_running
       expect(run.step.reload).to be_running
       expect(run.workflow.reload).to be_running
@@ -129,7 +131,8 @@ RSpec.describe RunJob, :ci_only do
       attempts = 0
       messages = []
       allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
-      allow(run).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+      # Acquisition locks the Run's ancestry with Lineage.lock! (NY40).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, *args, &block|
         attempts += 1
         raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
 
@@ -159,7 +162,7 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@job, job)
       messages = []
       allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
-      allow(run).to receive(:with_lock).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
+      allow(Lineage).to receive(:lock!).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
 
       expect { run_job.send(:acquire_run_execution!) }
         .to raise_error(ActiveRecord::LockWaitTimeout, "still locked")

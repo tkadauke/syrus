@@ -783,7 +783,12 @@ class RunJob < ApplicationJob
     acquired = false
 
     with_lifecycle_lock_retry("acquire_execution") do
-      @run.with_lock do
+      # Claiming the Run starts its Step and Workflow and writes its Job, so
+      # the whole ancestry is locked first, top down (NY40), then the Run is
+      # reloaded as with_lock would.
+      Run.transaction do
+        Lineage.lock!(@run)
+        @run.reload
         @run.reload
         @step = @run.step
         @workflow = @step&.workflow
