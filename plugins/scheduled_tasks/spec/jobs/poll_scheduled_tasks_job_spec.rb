@@ -168,6 +168,33 @@ RSpec.describe PollScheduledTasksJob do
       end
     end
 
+    # MySQL-only: SQLite has no filesort. Skipped on other adapters; runs where
+    # the test database is MySQL. The cursor page must be served in primary-key
+    # order from an index (no filesort), over a production-shaped volume of
+    # tasks spread across repositories and users.
+    it "plans the cursor page without a filesort on MySQL at volume" do
+      skip "MySQL-only EXPLAIN check" unless ActiveRecord::Base.connection.adapter_name =~ /mysql|trilogy/i
+
+      repos = Array.new(5) { create(:repository) }
+      users = Array.new(5) { create(:user) }
+      now = Time.current
+      rows = Array.new(2_000) do |i|
+        cron_task.attributes.except("id").merge(
+          "repository_id" => repos[i % 5].id, "user_id" => users[i % 5].id,
+          "name" => "bulk #{i}", "system_key" => nil, "created_at" => now, "updated_at" => now
+        )
+      end
+      ScheduledTasks::Task.insert_all(rows)
+      ActiveRecord::Base.connection.execute("ANALYZE TABLE scheduled_tasks")
+
+      relation = ScheduledTasks::Task.alive.where(state: "scheduled")
+                                     .where(ScheduledTasks::Task.arel_table[:id].gt(0))
+                                     .order(:id).limit(described_class::BATCH_SIZE)
+      plan = relation.explain.to_s
+      expect(plan).not_to match(/filesort/i)
+      expect(plan).not_to match(/Using temporary/i)
+    end
+
     [
       ["sort memory", -> { ActiveRecord::StatementInvalid.new("Mysql2::Error: Out of sort memory, consider increasing server sort buffer size") }],
       ["lock wait", -> { ActiveRecord::LockWaitTimeout.new("Lock wait timeout exceeded") }]
