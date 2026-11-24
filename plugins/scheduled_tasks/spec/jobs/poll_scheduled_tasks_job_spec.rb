@@ -175,12 +175,11 @@ RSpec.describe PollScheduledTasksJob do
     it "plans the cursor page without a filesort on MySQL at volume" do
       skip "MySQL-only EXPLAIN check" unless ActiveRecord::Base.connection.adapter_name =~ /mysql|trilogy/i
 
-      repos = Array.new(5) { create(:repository) }
-      users = Array.new(5) { create(:user) }
+      repos = Array.new(5) { Factories.repository }
       now = Time.current
       rows = Array.new(2_000) do |i|
         cron_task.attributes.except("id").merge(
-          "repository_id" => repos[i % 5].id, "user_id" => users[i % 5].id,
+          "repository_id" => repos[i % 5].id, "user_id" => repos[i % 5].user_id,
           "name" => "bulk #{i}", "system_key" => nil, "created_at" => now, "updated_at" => now
         )
       end
