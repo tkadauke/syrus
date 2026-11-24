@@ -37,15 +37,15 @@ vi.mock("html2canvas-pro", () => ({
 }))
 
 const PLUGIN_ALERT = {
-    id: "plugin_fleet_divergence",
-    dismissal_key: "plugin_fleet_divergence:3",
-    severity: "alarm",
-    title: "Plugin fleet has not converged.",
-    message: "Diverged.",
-    action_steps: ["Review."],
-    cta: null,
-    actions: []
-  }
+  id: "plugin_fleet_divergence",
+  dismissal_key: "plugin_fleet_divergence:3",
+  severity: "alarm",
+  title: "Plugin fleet has not converged.",
+  message: "Diverged.",
+  action_steps: ["Review."],
+  cta: null,
+  actions: []
+}
 
 describe("AppChromeV2", () => {
   beforeEach(() => {
