@@ -2,6 +2,7 @@ en:
   achievements:
     api:
       not_found: "Achievement not found."
+      workbench_unavailable: "Achievements workbench is unavailable."
       confirmation_required: "Confirmation is required to reset everyone's acknowledgments."
     errors:
       not_registered: "is not a registered achievement"
