@@ -3,7 +3,7 @@ module AgentInsights
     class Retire < Base
       def initialize(reason:, retire_accepted: false, superseded_by_insight_ids: {}, superseded_by_job_ids: {}, **kwargs)
         super(**kwargs)
-        @reason = CommandRedactor.redact(Syrus::Host::McpTools.utf8(reason)).strip
+        @reason = Syrus::Host::CommandRedactor.redact(Syrus::Host::McpTools.utf8(reason)).strip
         @retire_accepted = ActiveModel::Type::Boolean.new.cast(retire_accepted)
         @superseded_by_insight_ids = normalize_references(superseded_by_insight_ids)
         @superseded_by_job_ids = normalize_references(superseded_by_job_ids)

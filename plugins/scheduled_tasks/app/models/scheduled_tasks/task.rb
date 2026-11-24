@@ -269,13 +269,13 @@ module ScheduledTasks
     # line is visible durably after the operational logs have rotated.
     def fire_failure_reason(error)
       message = error.message.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "\uFFFD").scrub("\uFFFD")
-      reason = "#{error.class}: #{CommandRedactor.redact(message)}".truncate(800)
+      reason = "#{error.class}: #{Syrus::Host::CommandRedactor.redact(message)}".truncate(800)
       frame = error.backtrace&.first
       return reason unless frame
 
       frame = frame.to_s.dup.force_encoding(Encoding::UTF_8).scrub("\uFFFD")
       frame = frame.delete_prefix("#{Rails.root}/")
-      "#{reason} (at #{CommandRedactor.redact(frame)})".truncate(1_000)
+      "#{reason} (at #{Syrus::Host::CommandRedactor.redact(frame)})".truncate(1_000)
     end
 
     def prevent_system_schedule_destruction

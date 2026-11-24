@@ -849,6 +849,18 @@ Supported members:
 
 - `for`
 
+### `Syrus::Host::CredentialProbe`
+
+Since: `0.1.16`
+
+Carries credential validation results and the shared probe timeout, and validates saved credentials; individual probes are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Result`
+- `TIMEOUT_SECONDS`
+- `call`
+
 ### `Syrus::Host::Current`
 
 Since: `0.1.16`
@@ -2677,6 +2689,18 @@ Supported members:
 - `user`
 - `workflow`
 
+### `Syrus::Host::ToolPayloadRedactor`
+
+Since: `0.1.16`
+
+Redacts secret-looking keys, values, and inline assignments from tool payloads before they are returned to an agent; redaction rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `REDACTED`
+- `redact`
+- `redact_text`
+
 ### `Syrus::Host::Toolkit`
 
 Since: `0.1.16`
@@ -3136,10 +3160,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ClaudeTranscript`
 - `ClaudeTranscript::Event`
 - `CodexAccountScope`
-- `CommandRedactor`
-- `CredentialProbe`
-- `CredentialProbe::Result`
-- `CredentialProbe::TIMEOUT_SECONDS`
 - `Current`
 - `DirectJobs::Creator`
 - `DirectJobs::Creator::Attachment`
@@ -3211,14 +3231,12 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `LandedCommit`
 - `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
-- `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
 - `Mcp::Tools::AgentPreviewRegistry`
 - `Mcp::Tools::AuthorizationSupport::AuthorizationError`
 - `Mcp::Tools::BulkPendingActionToolSupport`
 - `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
-- `Mcp::Tools::EvidenceRedactor`
 - `Mcp::Tools::PendingActionToolSupport`
 - `Mcp::Tools::ProposalToolSupport`
 - `McpInvocationContext`
@@ -3252,9 +3270,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PerformanceLogging::Store::MAX_EVENTS`
 - `PermissionLease`
 - `PermissionRule`
-- `Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS`
 - `Permissions::CapabilityDescriptorAdapter`
-- `Permissions::CapabilityPresentation`
 - `Permissions::Management`
 - `Permissions::Management::PROFILE_SOURCE_PREFIX`
 - `PersistentMcpDaemon`
@@ -3395,8 +3411,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Theme::TOKEN_KEYS`
 - `Timeline::MacroQuery`
 - `Timeline::WorkflowWaterfallQuery`
-- `ToolPayloadRedactor`
-- `ToolPayloadRedactor::REDACTED`
 - `TracksFinishedAt`
 - `User`
 - `User::DASHBOARD_OPTIONAL_COLUMNS`

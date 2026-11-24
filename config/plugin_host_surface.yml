@@ -2,7 +2,7 @@
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 # An optional `reason` explains why an entry cannot move to a facade yet.
 ---
-legacy_baseline: 347
+legacy_baseline: 337
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -71,10 +71,6 @@ constants:
 - name: ClaudeTranscript
 - name: ClaudeTranscript::Event
 - name: CodexAccountScope
-- name: CommandRedactor
-- name: CredentialProbe
-- name: CredentialProbe::Result
-- name: CredentialProbe::TIMEOUT_SECONDS
 - name: Current
 - name: DirectJobs::Creator
 - name: DirectJobs::Creator::Attachment
@@ -147,14 +143,12 @@ constants:
 - name: LandedCommit
 - name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
-- name: Mcp::Pagination
 - name: Mcp::Tools
 - name: Mcp::Tools::AdminPendingActionToolSupport
 - name: Mcp::Tools::AgentPreviewRegistry
 - name: Mcp::Tools::AuthorizationSupport::AuthorizationError
 - name: Mcp::Tools::BulkPendingActionToolSupport
 - name: Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE
-- name: Mcp::Tools::EvidenceRedactor
 - name: Mcp::Tools::PendingActionToolSupport
 - name: Mcp::Tools::ProposalToolSupport
 - name: McpInvocationContext
@@ -188,9 +182,7 @@ constants:
 - name: PerformanceLogging::Store::MAX_EVENTS
 - name: PermissionLease
 - name: PermissionRule
-- name: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS
 - name: Permissions::CapabilityDescriptorAdapter
-- name: Permissions::CapabilityPresentation
 - name: Permissions::Management
 - name: Permissions::Management::PROFILE_SOURCE_PREFIX
 - name: PersistentMcpDaemon
@@ -334,8 +326,6 @@ constants:
 - name: Theme::TOKEN_KEYS
 - name: Timeline::MacroQuery
 - name: Timeline::WorkflowWaterfallQuery
-- name: ToolPayloadRedactor
-- name: ToolPayloadRedactor::REDACTED
 - name: TracksFinishedAt
 - name: User
   reason: The coworkers, review and briefing plugins use Syrus::Host::Users; other plugin groups (design_docs, syrus_dev, credential_store) still query users and their repositories directly.
