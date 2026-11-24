@@ -41,7 +41,7 @@ module RuntimeImages
             raise BuildFailed.new("builder refuses to run as root without RUNTIME_IMAGE_BUILD_WORKER_CONFINED=1",
                                   code: "builder_not_isolated", retryable: false)
           end
-          unless system("prlimit", "--version", out: File::NULL, err: File::NULL)
+          unless probe("prlimit", "--version")
             raise BuildFailed.new("prlimit is required to bound builder file sizes and CPU", code: "builder_not_isolated", retryable: false)
           end
           return if bounded_storage_available?
@@ -54,9 +54,24 @@ module RuntimeImages
         # storage ceiling; unavailable means no bounded storage, so no build.
         def bounded_storage_available?
           Dir.mktmpdir("rib-probe") do |dir|
-            system(*NAMESPACE_PREFIX, "sh", "-c", "mount -t tmpfs -o size=1m tmpfs \"$1\" && : > \"$1/probe\"", "sh", dir,
-                   out: File::NULL, err: File::NULL)
+            probe(*NAMESPACE_PREFIX, "sh", "-c", "mount -t tmpfs -o size=1m tmpfs \"$1\" && : > \"$1/probe\"", "sh", dir,
+                  read_write: dir)
           end
+        end
+
+        # Runs a short capability probe through ProcessRunner (the single
+        # process-launch door); true only on a zero exit.
+        def probe(*command, read_write: nil)
+          workdir = read_write || Dir.tmpdir
+          ProcessRunner.new(
+            env: { "PATH" => ENV.fetch("PATH", "/usr/local/bin:/usr/bin:/bin") },
+            command: command,
+            mounts: ProcessRunner.mounts(workdir, read_write: read_write || []),
+            network: "grader",
+            timeout: 15
+          ).run.success?
+        rescue StandardError
+          false
         end
 
         def verify_applied!(result)
