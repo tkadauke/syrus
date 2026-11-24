@@ -505,7 +505,9 @@ export function RecommendedActions({
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{recommendation.title}</span>
               <span className="text-xs opacity-75">{recommendation.category}</span>
-              <span className="hidden text-xs opacity-75 sm:inline">{t("repository.tip_position", { index: activeIndex + 1, count: recommendations.length })}</span>
+              <span className="hidden text-xs opacity-75 sm:inline">
+                {t("repository.tip_position", { index: activeIndex + 1, count: recommendations.length })}
+              </span>
             </div>
             <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
           </div>
