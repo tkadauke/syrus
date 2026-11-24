@@ -4681,6 +4681,38 @@ a relaunch that is long overdue" (red before) and "still counts a relaunch that
 is due but within the grace". The engine, merge-train and formal specs pass
 (1,470 examples).
 
+## F128. Plugin deletability is decided by the scan, for every plugin (NY42)
+
+**Change.** The required `plugin-boundaries` grader (`bin/check-plugin-boundaries`)
+now runs `Formal::PluginDeletion` for every bundled plugin (67 today) and fails
+on any plugin whose deletion is not `safe`, naming the edges. That adds a few
+seconds. The `coworkers-removability` grader is retired. It booted a reduced
+copy of the tree for one plugin only and took about 20 minutes. There is no
+nightly audit.
+
+**What replaces the audit.** `spec/architecture/plugin_deletion_plants_spec.rb`
+runs in normal CI. It plants one coupling of each known kind from core onto
+`coworkers` in a temp tree and pins the verdict:
+
+- `broken`: a plugin constant, `constantize`, `const_get`, a `require` of the
+  plugin library, a route, a frontend import, a plugin source path;
+- `safe`: `safe_constantize`, a printed name, no coupling;
+- known gaps, pinned `safe` and documented: a bare frontend module-key string
+  and a schema foreign key into a plugin table. Neither the scan nor the old
+  deletion run catches them.
+
+A newly found kind is added as a plant.
+
+**Limit.** The scan skips specs. A core spec that enumerates plugin
+contributions is caught only by `bin/plugin-boundary-audit <name>` run with
+the suite as its command, which stays available for manual use
+(`docs/engineering/conventions/plugins.md`).
+
+**Specs.** The plant spec, plus `spec/bin/plugin_boundary_audit_spec.rb` ("leaves
+physical removal to manual use, with the boundary grader deciding
+deletability") and `spec/config/syrus_grader_config_spec.rb` (the grader list
+without the retired grader). 68 examples pass.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)

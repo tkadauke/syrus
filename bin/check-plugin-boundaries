@@ -5,9 +5,13 @@
 # another plugin it does not declare a dependency on, when a depends_on names
 # a plugin that is not installed, or when the dependency graph has a cycle.
 #
-# This is the static half of the plugin boundary rules. The stronger check --
-# physically removing a plugin and booting without it -- is the opt-in
-# bin/plugin-boundary-audit script, which is too slow for a grade loop.
+# It also decides, for every bundled plugin, whether deleting it leaves a
+# closed system (Formal::PluginDeletion; formal/SyrusModel/PluginDeletion.lean
+# proves that checking the edges leaving kept code is enough). That replaces
+# booting a reduced copy of the tree per plugin (NY42). bin/plugin-boundary-audit
+# remains for a manual physical check, and
+# spec/architecture/plugin_deletion_plants_spec.rb pins which coupling kinds
+# the scan recognizes.
 
 ENV["RAILS_ENV"] ||= "test"
 
@@ -28,6 +32,13 @@ end
 
 failures.concat(audit.core_violations.map(&:message))
 failures.concat(audit.plugin_violations.map(&:message))
+
+deletion = Formal::PluginDeletion.new(audit)
+verdicts = audit.bundled_manifest_names.map { |plugin| deletion.call(plugin) }
+verdicts.reject { |result| result.verdict == :safe }.each do |result|
+  edges = result.crossing.map(&:from).uniq.first(3).join(", ")
+  failures << "deleting #{result.plugin} (removes #{result.removed.join(', ')}) is #{result.verdict}: #{edges}"
+end
 failures.concat(Admin::PluginHostSurfaceAudit.new.findings)
 
 enforce_ownership = ENV["PLUGIN_OWNERSHIP_ENFORCE"] == "1"
@@ -48,6 +59,7 @@ end
 failures.concat(ownership_findings) if enforce_ownership
 
 if failures.empty?
+  puts "Every bundled plugin is deletable (#{verdicts.size} checked)."
   puts "Plugin source boundaries look good."
   exit 0
 end

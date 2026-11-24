@@ -89,18 +89,16 @@ RSpec.describe "bin/plugin-boundary-audit" do
     expect(stdout).to include("Result: PASS")
   end
 
-  it "keeps the required removability grader responsible for schema, boot, and frontend build proof" do
+  # NY42: deletability is decided by the source scan in the required
+  # plugin-boundaries grader, for every plugin. The per-plugin physical-removal
+  # grader is retired; this script stays for a manual physical check.
+  it "leaves physical removal to manual use, with the boundary grader deciding deletability" do
     configuration = YAML.safe_load_file(Rails.root.join(".syrus.yml"), aliases: false)
-    grader = configuration.fetch("grade").find { |entry| entry["name"] == "coworkers-removability" }
+    graders = configuration.fetch("grade")
 
-    expect(grader).to include("required" => true)
-    expect(grader.fetch("phases")).to contain_exactly("review", "landing", "ci", "unland")
-    expect(grader.fetch("run")).to include(
-      "plugin-boundary-audit coworkers",
-      "db:schema:load",
-      "Rails.application.eager_load!",
-      "npm run build"
-    )
+    expect(graders.map { |entry| entry["name"] }).not_to include("coworkers-removability")
+    expect(graders.find { |entry| entry["name"] == "plugin-boundaries" }).to include("required" => true)
+    expect(Rails.root.join("bin/check-plugin-boundaries").read).to include("Formal::PluginDeletion")
   end
 
   it "reports vocabulary ownership separately from physical removability", :requires_git_checkout do

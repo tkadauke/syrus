@@ -3810,7 +3810,8 @@
         "B. Keep the current, write-path order: move WorkIntent after Step (the old NY38 A) and Epic after Job, finish NY37's patterns. Smaller change, but the rule is 'touch order', which an agent would not guess.",
         "C. Parent-first order with rollups after commit: the intent sync (undoing F97) and the Epic rollup run after commit, repaired by reconciler checks for the crash window."
       ],
-      "recommendation": "A. It gives the one-sentence rule the operator asked for, keeps rollups atomic, and the checker enforces it. Watch Job-row contention as it lands."
+      "recommendation": "A. It gives the one-sentence rule the operator asked for, keeps rollups atomic, and the checker enforces it. Watch Job-row contention as it lands.",
+      "decision": "A (2026-11-24, answered on the lean-plan site): go hierarchical, with Lineage.lock! at the transaction entry points, the bottom-up sites flipped, and write tracking raising. To implement."
     },
     {
       "id": "NY41",
@@ -3822,7 +3823,8 @@
         "B. Emergency landing stays an unconditional override; only hotfix sync and promotion take the lock.",
         "C. Leave as is: the window is tiny, and main's own post-merge graders catch a broken combination."
       ],
-      "recommendation": "A. The wait is at most one merge call, and it closes the gap for every writer to a landing branch."
+      "recommendation": "A. The wait is at most one merge call, and it closes the gap for every writer to a landing branch.",
+      "decision": "A (2026-11-24, answered on the lean-plan site): emergency landing, hotfix sync and promotion take the per-branch merge lock for their own merge call. To implement."
     },
     {
       "id": "NY42",
@@ -3834,7 +3836,8 @@
         "B. Keep the removability graders on PRs and add the scan beside them as an early, fast signal.",
         "C. Gate on the scan and drop the removability graders entirely."
       ],
-      "recommendation": "A. The scan now covers every kind the deletion run catches, and the nightly run keeps checking that claim."
+      "recommendation": "A. The scan now covers every kind the deletion run catches, and the nightly run keeps checking that claim.",
+      "decision": "Decided in chat (2026-11-24): gate on the scan inside the plugin-boundaries grader, retire coworkers-removability, and run no nightly audit. Instead, a plant spec in normal CI asserts the scan's verdict for every known coupling kind; the two kinds neither check catches stay documented as known gaps. Implemented as F128."
     }
   ]
 }

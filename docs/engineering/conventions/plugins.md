@@ -190,8 +190,11 @@ The currently registered contribution kinds are:
   ]
   ```
 - **Core specs must not enumerate plugin-provided things.** A bundled plugin is
-  deletable — `bin/plugin-boundary-audit <name>` proves it by physically
-  removing the plugin and running the suite in the copy — so a core spec that
+  deletable. The required `plugin-boundaries` grader decides that for every
+  plugin from the source scan, so a core reference into a plugin fails it.
+  The scan skips specs, though: only `bin/plugin-boundary-audit <name>`, which
+  physically removes the plugin and runs the suite in the copy, catches a core
+  spec coupled to a plugin. So a core spec that
   pins a plugin's MCP tool names, search types, smart-folder counts, or
   migration paths makes that plugin undeletable in practice. Subtract the
   plugin contribution and assert core's own set (`sidecar_registry_tool_names`
