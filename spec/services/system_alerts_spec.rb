@@ -23,6 +23,25 @@ RSpec.describe SystemAlerts do
       expect(alert).to have_attributes(severity: :warn, cta: { text: "Review plugins", path: "/admin/plugins" })
     end
 
+    it "keeps the recovery alert for a built-in-only install without a fleet divergence alert" do
+      user = Factories.user(admin: true)
+      allow(PluginDesiredState::Publisher).to receive(:publish!)
+      release = PluginRelease.create!(name: "core_thing", version: "1.0.0", content_digest: "b" * 64,
+        source: "bundled", trust_label: "official", size_bytes: 0)
+      PluginInstallation.create!(plugin_name: "core_thing", plugin_release: release)
+      PluginDesiredState.current.update!(revision: 5)
+      InstanceVersion.create!(hostname: "stale", role: "web", version: "sha", started_at: 2.hours.ago,
+        last_heartbeat_at: 1.hour.ago, plugin_set_revision: 1, plugin_set_details: { "plugins" => [] })
+      safety = instance_double(Syrus::PluginBootSafety, active?: true, mode: "recent", quarantines: { "core_thing" => "failed to load" })
+      allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      ids = described_class.active_for(user: user).map(&:id)
+
+      expect(ids).to include("plugin_recovery_mode")
+      expect(ids).not_to include("plugin_fleet_divergence")
+    end
+
     it "surfaces a github-token-blocked alert when the user is flagged" do
       user = Factories.user
       user.mark_gh_api_blocked!("Resource not accessible by personal access token")

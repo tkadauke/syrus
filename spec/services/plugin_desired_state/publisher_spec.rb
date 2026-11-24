@@ -47,6 +47,16 @@ RSpec.describe PluginDesiredState::Publisher do
     ])
   end
 
+  it "excludes bundled and disabled releases while retaining enabled external ones" do
+    bundled = PluginRelease.create!(name: "core_thing", version: "1.0.0", content_digest: "c" * 64,
+      source: "bundled", trust_label: "official", size_bytes: 0)
+    PluginInstallation.create!(plugin_name: "core_thing", plugin_release: bundled)
+
+    names = JSON.parse(described_class.publish!(service:)).fetch("plugins").map { |plugin| plugin.fetch("name") }
+
+    expect(names).to eq(%w[weather])
+  end
+
   it "produces a signature that verifies and rejects tampering" do
     manifest = described_class.publish!(service:)
     signature = Base64.strict_decode64(service.download(described_class::SIGNATURE_KEY))

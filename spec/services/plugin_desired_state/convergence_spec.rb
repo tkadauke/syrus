@@ -5,14 +5,57 @@ RSpec.describe PluginDesiredState::Convergence do
 
   before do
     allow(PluginDesiredState::Publisher).to receive(:publish!)
-    release = PluginRelease.create!(name: "weather", version: "1.0.0", content_digest: "a" * 64,
-      source: "bundled", trust_label: "official", size_bytes: 0)
+    release = PluginRelease.create!(name: "weather", version: "1.0.0", content_digest: Digest::SHA256.hexdigest("archive"),
+      source: "upload", trust_label: "unsigned_local", size_bytes: 7)
+    PluginArtifacts.store!(release, StringIO.new("archive"))
     PluginInstallation.create!(plugin_name: "weather", plugin_release: release, roles: [ "web" ])
+  end
+
+  def make_built_in_only!
+    PluginInstallation.destroy_all
+    release = PluginRelease.create!(name: "core_thing", version: "1.0.0", content_digest: "b" * 64,
+      source: "bundled", trust_label: "official", size_bytes: 0)
+    PluginInstallation.create!(plugin_name: "core_thing", plugin_release: release)
+  end
+
+  def alert_for(user)
+    allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+    SystemAlerts.active_for(user:).find { |candidate| candidate.id == "plugin_fleet_divergence" }
+  end
+
+  it "raises no alert for a built-in-only install with a stale heartbeat and historical revision" do
+    make_built_in_only!
+    state = PluginDesiredState.current
+    state.update!(revision: 7)
+    state.update_column(:updated_at, now - 1.hour)
+    create_process("stale", 3, now - 1.hour, started_at: now - 2.hours)
+
+    expect(described_class.new(state:, now:).prolonged_divergence?).to be(false)
+    expect(alert_for(Factories.user(admin: true))).to be_nil
+  end
+
+  it "raises no alert once the external desired set is removed" do
+    PluginInstallation.sole.update!(enabled_for_sync: false)
+    state = PluginDesiredState.current
+    state.update!(revision: 9)
+    state.update_column(:updated_at, now - 1.hour)
+    create_process("stale", 3, now - 1.hour, started_at: now - 2.hours)
+
+    expect(described_class.new(state:, now:).prolonged_divergence?).to be(false)
+  end
+
+  it "still flags an unreachable process with an enabled external release" do
+    state = PluginDesiredState.current
+    state.update!(revision: 3)
+    state.update_column(:updated_at, now - 1.hour)
+    create_process("gone", 3, now - 1.hour, started_at: now - 2.hours)
+
+    expect(described_class.new(state:, now:, threshold: 10.minutes).prolonged_divergence?).to be(true)
   end
 
   it "classifies converged, pending, behind, ahead, and unreachable processes" do
     desired_digest = Digest::SHA256.hexdigest(JSON.generate([
-      { "name" => "weather", "version" => "1.0.0", "digest" => "a" * 64, "size" => 0 }
+      { "name" => "weather", "version" => "1.0.0", "digest" => Digest::SHA256.hexdigest("archive"), "size" => 7 }
     ]))
     state = PluginDesiredState.current
     state.update!(revision: 4, apply_revision: 4, apply_requested_at: now - 1.minute)
