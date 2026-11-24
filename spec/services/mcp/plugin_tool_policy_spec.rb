@@ -48,14 +48,40 @@ RSpec.describe "plugin chat tool policy" do
       { name: "shared" },
       { name: "legacy_safe", coworker_safe: true },
       { name: "admin", admin_only: true },
-      { name: "mode_bound", coworker_excluded: true }
+      { name: "mode_bound", coworker_exception: exception_metadata }
     ]
 
     expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker).map { |definition| definition[:name] })
       .to eq(%w[shared legacy_safe])
+    admin = Factories.user(admin: true)
+    member = Factories.user(admin: false)
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker, user: member).map { |definition| definition[:name] })
+      .to eq(%w[shared legacy_safe])
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker, user: admin).map { |definition| definition[:name] })
+      .to eq(%w[shared legacy_safe admin])
 
-    excluded = class_double("ExcludedToolSet", coworker_excluded?: true)
+    excluded = class_double("ExcludedToolSet", coworker_exception: exception_metadata)
     expect(Mcp::CoworkerToolExposure.plugin_provider?(excluded)).to be(false)
+  end
+
+  def exception_metadata
+    {
+      reason_code: "requires_coding_checkout", explanation: "Needs a checkout the coworker lacks.",
+      owner: "example", test_ref: "spec/services/mcp/plugin_tool_policy_spec.rb"
+    }
+  end
+
+  it "rejects the removed boolean exclusion APIs and incomplete exception metadata" do
+    expect { Mcp::CoworkerToolExposure.plugin_definition?({ name: "x", coworker_excluded: true }) }
+      .to raise_error(ArgumentError, /removed `coworker_excluded`/)
+    expect { Mcp::CoworkerToolExposure.plugin_provider?(class_double("Bool", coworker_excluded?: true)) }
+      .to raise_error(ArgumentError, /removed boolean/)
+    expect { Mcp::CoworkerToolExposure.plugin_provider?(class_double("Bool", coworker_specific_availability?: true)) }
+      .to raise_error(ArgumentError, /removed boolean/)
+    expect { Mcp::CoworkerToolExposure.plugin_definition?({ name: "x", coworker_exception: { reason_code: "requires_coding_checkout" } }) }
+      .to raise_error(ArgumentError, /missing explanation, owner, test_ref/)
+    expect { Mcp::CoworkerToolExposure.plugin_definition?({ name: "x", coworker_exception: exception_metadata.merge(reason_code: "because") }) }
+      .to raise_error(ArgumentError, /unknown chat tool parity reason code/)
   end
 
   it "uses ordinary availability by default and names coworker-only provider exceptions centrally" do
@@ -67,8 +93,8 @@ RSpec.describe "plugin chat tool policy" do
     expect(Mcp::CoworkerToolExposure.plugin_provider_available?(shared, chat, tier: :essential)).to be(true)
 
     specific = class_double(
-      "SpecificToolSet", coworker_specific_availability?: true,
-      available_for_coworker?: false, coworker_excluded?: false
+      "SpecificToolSet", coworker_only_surface: exception_metadata.merge(reason_code: "coworker_identity_lifecycle"),
+      available_for_coworker?: false
     )
     expect(Mcp::CoworkerToolExposure.plugin_provider_available?(specific, chat, tier: :essential)).to be(false)
   end

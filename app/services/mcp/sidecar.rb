@@ -168,10 +168,10 @@ module Mcp
       end
     end
 
-    def self.filter_by_policy(definitions, policy)
+    def self.filter_by_policy(definitions, policy, user: nil)
       case policy
       when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
-      when :coworker   then definitions.select { |defn| Mcp::CoworkerToolExposure.plugin_definition?(defn) }
+      when :coworker   then definitions.select { |defn| Mcp::CoworkerToolExposure.plugin_definition?(defn, user: user) }
       else definitions
       end
     end
@@ -207,7 +207,7 @@ module Mcp
         end
       end
 
-      definitions = filter_by_policy(definitions, policy)
+      definitions = filter_by_policy(definitions, policy, user: chat_session&.user)
       if policy == :coworker && tool_set_class.respond_to?(:coworker_grants)
         defaults_by_tool = Array(tool_set_class.coworker_grants).each_with_object({}) do |grant, defaults|
           attributes = grant.to_h.with_indifferent_access
