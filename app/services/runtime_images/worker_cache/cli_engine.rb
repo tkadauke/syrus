@@ -28,6 +28,20 @@ module RuntimeImages
         []
       end
 
+      # `docker save` writes an OCI layout (index.json + blobs/sha256/*) on
+      # engines using the OCI-based image store. Older archive formats are
+      # rejected rather than guessed at, because the manifest digest must be
+      # the one the registry will hold.
+      def export_oci(reference, platform:, timeout: 600)
+        Dir.mktmpdir("runtime-image-export") do |dir|
+          archive = File.join(dir, "image.tar")
+          out, status, timed_out = run({}, "save", "--output", archive, reference, timeout: timeout)
+          raise EngineTimeout, "export of #{reference} exceeded #{timeout}s" if timed_out
+          raise EngineError, "export of #{reference} failed: #{out.to_s.lines.last.to_s.strip}" unless status&.success?
+          OciArchive.read(archive, platform: platform)
+        end
+      end
+
       def size_bytes(reference)
         out, status, = run({}, "image", "inspect", "--format", "{{.Size}}", reference, timeout: 30)
         status&.success? ? out.to_s.strip.to_i : nil

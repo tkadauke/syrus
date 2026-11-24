@@ -178,6 +178,123 @@ RSpec.describe ContainerExecution::SeedImage do
       .to raise_error(ContainerExecution::SeedImage::BuildError, /not visible to the Docker host/)
   end
 
+  describe "with the Runtime Image Service available" do
+    # One fake registry shared by every worker; each worker has its own
+    # Docker runner and therefore its own image store.
+    class FakeRuntimeImages
+      attr_reader :published, :acquired
+
+      def initialize
+        @published = {}
+        @acquired = []
+      end
+
+      def available? = true
+
+      def find(source_ref:, **)
+        @published[source_ref]
+      end
+
+      def publish_local(local_reference:, source_ref:, source_digest:, provenance:, **)
+        @published[source_ref] = Struct.new(:locator, :digest, :provenance, :source_digest).new(
+          "registry.test/syrus/devcontainer/repo-42@sha256:#{'1' * 64}", "sha256:#{'1' * 64}", provenance, source_digest
+        )
+      end
+
+      def acquire(image)
+        @acquired << image
+        yield image.locator
+      end
+    end
+
+    let(:images) { FakeRuntimeImages.new }
+    let(:spec_result) do
+      ContainerExecution::DevcontainerSpec::Result.new(
+        config: { "build" => { "dockerfile" => "Dockerfile", "context" => ".." } },
+        source: ".devcontainer/devcontainer.json", revision: "f" * 40
+      )
+    end
+    let(:artifact) { { "config" => spec_result.config, "source" => spec_result.source, "revision" => spec_result.revision } }
+
+    def worker(runner, semaphore: ConcurrentSemaphore.new)
+      described_class.new(
+        request(repository: instance_double(Repository, id: 42), workflow: instance_double(Workflow, artifact: artifact)),
+        runner: runner, semaphore: semaphore, sleeper: ->(_) { Thread.pass }, images: images
+      )
+    end
+
+    it "publishes the build and runs the digest, not a worker-local tag" do
+      enable_devcontainer
+      ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{@workspace}"
+      runner = LocalImageRunner.new
+
+      reference = worker(runner).resolve
+
+      expect(reference).to eq("registry.test/syrus/devcontainer/repo-42@sha256:#{'1' * 64}")
+      expect(reference).not_to include("syrus-devcontainer:")
+      expect(runner.build_count).to eq(1)
+      published = images.published.values.sole
+      expect(published.provenance).to include("revision" => "f" * 40, "fingerprint" => spec_result.fingerprint)
+      expect(images.published.keys.sole).to eq("rev-#{'f' * 40}-#{spec_result.fingerprint.first(24)}")
+    end
+
+    it "lets a second worker with an independent image store reuse the published image without building" do
+      enable_devcontainer
+      ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{@workspace}"
+      builder = LocalImageRunner.new
+      other = LocalImageRunner.new
+
+      first = worker(builder).resolve
+      second = worker(other).resolve
+
+      expect(second).to eq(first)
+      expect(builder.build_count).to eq(1)
+      expect(other.build_count).to eq(0)
+      expect(images.acquired.size).to eq(2)
+    end
+
+    it "keeps the image leased for the duration of the block" do
+      enable_devcontainer
+      ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{@workspace}"
+      yielded = nil
+
+      worker(LocalImageRunner.new).with_image { |reference| yielded = reference }
+
+      expect(yielded).to start_with("registry.test/")
+    end
+
+    it "serializes builds across the fleet rather than per Docker daemon" do
+      enable_devcontainer
+      ENV["SYRUS_CONTAINER_EXECUTION_HOST_PATHS"] = "#{@workspace}=#{@workspace}"
+      semaphore = ConcurrentSemaphore.new
+
+      worker(LocalImageRunner.new, semaphore: semaphore).resolve
+
+      expect(semaphore.keys).to all(eq("devcontainer_build:fleet:42:#{'f' * 40}"))
+    end
+  end
+
+  describe "externally declared images" do
+    it "keeps the declared reference and records the immutable digest on the workflow" do
+      enable_devcontainer
+      workflow = instance_double(Workflow, artifact: {
+        "config" => { "image" => "ruby:3.4" }, "source" => ".devcontainer.json", "revision" => "abc123"
+      })
+      allow(workflow).to receive(:set_artifact!)
+      runner = double("command runner")
+      allow(runner).to receive(:capture3).and_return(
+        [ "", "", success ],
+        [ %(["ruby@sha256:#{'9' * 64}"]), "", success ]
+      )
+
+      expect(described_class.new(request(workflow: workflow), runner: runner).resolve).to eq("ruby:3.4")
+      expect(workflow).to have_received(:set_artifact!).with(
+        described_class::RESOLUTION_ARTIFACT_KEY,
+        { "reference" => "ruby:3.4", "digest" => "sha256:#{'9' * 64}", "source" => ".devcontainer.json", "revision" => "abc123" }
+      )
+    end
+  end
+
   def enable_devcontainer
     ENV["SYRUS_CONTAINER_EXECUTION_DEVCONTAINER"] = "true"
   end

@@ -37,3 +37,11 @@ Workers keep pulled images in their local container engine, keyed by immutable d
 - Images in use are leased and are never evicted. Eviction is least-recently-used; revoked or deleted digests are evicted first and can be purged on demand. Pressure is reported as ok, high (80%), or critical (92%) disk use, and prefetch stands down unless pressure is ok.
 - Every lookup or pull records an outcome (hit, pulled, registry_unavailable, timeout, corrupt, revoked, not_found, busy) for hit-ratio reporting. Holding an image is never a worker admission capability.
 - A revoked digest is refused without contacting the registry.
+
+## Built devcontainers
+
+When the registry is configured, a devcontainer that builds from a Dockerfile is built once per repository revision and devcontainer fingerprint, exported, and published to the repository's own registry repository. Every worker then pulls and runs it by immutable digest, so workers with separate Docker image stores run the same image and no shared Docker daemon is needed. Concurrent Workflows for the same revision wait on one build across the whole fleet.
+
+- Publication needs a container engine that saves images as an OCI layout (current Docker with the containerd image store, or Podman). An engine that cannot is reported as an export failure.
+- Devcontainers that name an `image` keep that reference. The digest the engine holds for it is recorded on the Workflow as the `container_execution_image_resolution` artifact.
+- Without a configured registry, builds fall back to a tag in the worker's own Docker daemon, as before.
