@@ -22,6 +22,8 @@ module RuntimeImages
       def self.cache_max_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_CACHE_MAX_BYTES", 20.gigabytes))
       def self.max_source_bytes = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_SOURCE_BYTES", 1.gigabyte))
       def self.max_source_entries = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_SOURCE_ENTRIES", 200_000))
+      def self.worker_confined? = ENV["RUNTIME_IMAGE_BUILD_WORKER_CONFINED"] == "1"
+      def self.cgroup_optional? = ENV["RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL"] == "1"
       def self.build_binary = ENV.fetch("RUNTIME_IMAGE_BUILD_BINARY", "buildah")
       def self.storage_driver = ENV.fetch("RUNTIME_IMAGE_BUILD_STORAGE_DRIVER", "vfs")
 

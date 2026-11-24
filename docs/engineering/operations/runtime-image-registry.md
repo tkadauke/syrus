@@ -112,5 +112,11 @@ wiped once over its ceiling. Ceilings, all environment-overridable:
 `RUNTIME_IMAGE_BUILD_CPUS`, `_MEMORY_BYTES`, `_PIDS`, `_STORAGE_BYTES`,
 `_TIMEOUT_SECONDS`, `_LOG_BYTES`, `_MAX_OUTPUT_BYTES`, `_CACHE_MAX_BYTES`,
 `_MAX_SOURCE_BYTES`, `_MAX_SOURCE_ENTRIES`; `RUNTIME_IMAGE_BUILD_BINARY` and
-`_STORAGE_DRIVER` select the tool and driver. Accepted recipe keys are
+`_STORAGE_DRIVER` select the tool and driver. The builder fails closed (`builder_not_isolated`): it refuses to run as root
+unless `RUNTIME_IMAGE_BUILD_WORKER_CONFINED=1` attests the worker is itself a
+confined sandbox, requires `prlimit`, and rejects a command whose per-spawn
+cgroup memory/CPU limits were not applied (override only with
+`RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL=1`). Both `build` and `push` run under
+`prlimit` (process count, largest file, CPU seconds), and storage is re-checked
+after every command, not only on the periodic poll. Accepted recipe keys are
 `dockerfile`, `context`, `target`, and `build_args`.
