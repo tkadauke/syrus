@@ -162,11 +162,9 @@ RSpec.describe McpToolRegistry do
       )
       # Admin tools are shared; `user.admin?` is applied to the owner.
       expect(coworker_names).to include("admin_overview", "force_fail_job")
-      expect(coworker_names).not_to include(
-        "run_command", "runtime_start", "submit_coding_changes",
-        *Mcp::ChatToolParity::WORKFLOW_VERDICT_TOOLS,
-        *Mcp::ChatToolParity.core_exceptions.select { |exception| exception.absent_from?(:coworker) }.flat_map(&:tools)
-      )
+      # Coworker-specific absences are owned and tested by the coworkers plugin
+      # (plugins/coworkers/spec/services/coworkers/chat_parity_spec.rb); core
+      # applies none while that plugin is disabled.
     end
   end
 
