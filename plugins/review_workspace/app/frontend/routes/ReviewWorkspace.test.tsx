@@ -377,6 +377,77 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
 
+  describe("native haptics", () => {
+    afterEach(() => {
+      delete window.webkit
+    })
+
+    async function openCard() {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+      renderRoute("/review/JOB-42")
+      await screen.findByTestId("mobile-review-summary")
+      return screen.getByTestId("mobile-decision-touch-region")
+    }
+    const touch = (x: number, y = 205) => ({ clientX: x, clientY: y, pointerId: 1, pointerType: "touch" })
+
+    it("ticks per distance increment in both directions and fires a stronger impact on commit", async () => {
+      const post = vi.fn()
+      window.webkit = { messageHandlers: { syrusHaptics: { postMessage: post } } }
+      vi.spyOn(performance, "now").mockImplementation(
+        (() => {
+          let t = 0
+          return () => (t += 100)
+        })()
+      )
+      const region = await openCard()
+      fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
+      fireEvent.pointerMove(region, touch(90)) // step 0
+      fireEvent.pointerMove(region, touch(110)) // +30 -> step 1
+      fireEvent.pointerMove(region, touch(110)) // duplicate
+      fireEvent.pointerMove(region, touch(150)) // +70 -> step 2
+      fireEvent.pointerMove(region, touch(100)) // +20 -> step 0 (reversal)
+      const selections = post.mock.calls.filter(([m]) => m.kind === "selection")
+      expect(selections).toHaveLength(3)
+      fireEvent.pointerMove(region, touch(170))
+      fireEvent.pointerUp(region, touch(170))
+      expect(post.mock.calls.at(-1)).toEqual([{ v: 1, kind: "impact", style: "medium" }])
+    })
+
+    it("stays silent for vertical navigation, cancelled drags, and under reduced motion", async () => {
+      const post = vi.fn()
+      window.webkit = { messageHandlers: { syrusHaptics: { postMessage: post } } }
+      const region = await openCard()
+      fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
+      fireEvent.pointerMove(region, touch(82, 300))
+      fireEvent.pointerUp(region, touch(82, 300))
+      expect(post).not.toHaveBeenCalled()
+      fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
+      fireEvent.pointerMove(region, touch(150))
+      fireEvent.pointerCancel(region, touch(150))
+      expect(post.mock.calls.some(([m]) => m.kind === "impact")).toBe(false)
+      post.mockClear()
+
+      vi.stubGlobal(
+        "matchMedia",
+        (q: string) => ({ matches: q.includes("reduce"), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList
+      )
+      fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
+      fireEvent.pointerMove(region, touch(200))
+      expect(post).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    })
+
+    it("does nothing in an ordinary browser", async () => {
+      const region = await openCard()
+      fireEvent.pointerDown(region, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
+      fireEvent.pointerMove(region, touch(200))
+      fireEvent.pointerUp(region, touch(200))
+      expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+    })
+  })
+
   it("turns a rightward touch swipe into approval intent without approving", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })

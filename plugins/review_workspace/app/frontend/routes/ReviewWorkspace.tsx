@@ -7,6 +7,7 @@ import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { addAppEventListener } from "@app/lib/appEvents"
 import { normalizeJobDetailPayload } from "@app/lib/entityStore"
+import { createDragHaptics, impactHaptic, type DragHaptics } from "@app/lib/nativeHaptics"
 import { Markdown } from "@app/lib/Markdown"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDetail/ReviewWorkspace"
@@ -205,6 +206,10 @@ const SWIPE_THRESHOLD = 72
 const DIRECTION_SLOP = 12
 const LONG_PRESS_MS = 550
 
+function prefersReducedMotion() {
+  return Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
+}
+
 function MobileGestureSurface({
   children,
   onApprove,
@@ -230,6 +235,9 @@ function MobileGestureSurface({
     scroller: HTMLElement | null
   }>()
   const longPress = useRef<number>()
+  const haptics = useRef<DragHaptics>()
+  if (!haptics.current) haptics.current = createDragHaptics()
+  const lastPoint = useRef<{ x: number; y: number }>()
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
   const clearLongPress = () => {
@@ -239,6 +247,8 @@ function MobileGestureSurface({
   const reset = () => {
     clearLongPress()
     start.current = undefined
+    haptics.current?.reset()
+    lastPoint.current = undefined
     setDragging(false)
     setOffset({ x: 0, y: 0 })
   }
@@ -256,6 +266,8 @@ function MobileGestureSurface({
       edge,
       scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
     }
+    haptics.current?.reset()
+    lastPoint.current = { x: event.clientX, y: event.clientY }
     setDragging(true)
     event.currentTarget.setPointerCapture?.(event.pointerId)
     longPress.current = window.setTimeout(() => {
@@ -285,7 +297,15 @@ function MobileGestureSurface({
       origin.lastY = event.clientY
       return
     }
-    setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
+    // Duplicate move events (same coordinates) neither move the card nor tick.
+    const last = lastPoint.current
+    if (last && last.x === event.clientX && last.y === event.clientY) return
+    lastPoint.current = { x: event.clientX, y: event.clientY }
+    const cardX = Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0
+    setOffset({ x: cardX, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
+    // Ticks follow only the user's own horizontal drag: never scroll takeover,
+    // vertical navigation, or the programmatic settle animation.
+    if (cardX !== 0 && !prefersReducedMotion()) haptics.current?.move(cardX)
   }
   function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
@@ -301,11 +321,16 @@ function MobileGestureSurface({
     reset()
     if (origin.mode === "scroll") return
     if (Math.abs(x) > Math.abs(y) && Math.abs(x) >= SWIPE_THRESHOLD) {
-      if (x > 0 && !origin.edge) onApprove()
-      else if (x < 0) onDefer()
+      if (x > 0 && !origin.edge) {
+        impactHaptic("medium")
+        onApprove()
+      } else if (x < 0) {
+        impactHaptic("medium")
+        onDefer()
+      }
     } else if (Math.abs(y) >= SWIPE_THRESHOLD) onMove(y < 0 ? 1 : -1)
   }
-  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  const reducedMotion = prefersReducedMotion()
   const horizontal = Math.abs(offset.x) > Math.abs(offset.y)
   const rotation = horizontal && !reducedMotion ? Math.max(-MAX_CARD_ROTATION_DEGREES, Math.min(MAX_CARD_ROTATION_DEGREES, offset.x / 30)) : 0
   const gesture = horizontal
