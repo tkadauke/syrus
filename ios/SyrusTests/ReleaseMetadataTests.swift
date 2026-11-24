@@ -14,7 +14,15 @@ final class ReleaseMetadataTests: XCTestCase {
         XCTAssertEqual(bundle.object(forInfoDictionaryKey: "ITSAppUsesNonExemptEncryption") as? Bool, false)
     }
 
-    func testBundleIdentifierDefaultsFromConfig() {
-        XCTAssertEqual(bundle.bundleIdentifier, "app.syrus.ios")
+    /// Reads the committed default from the xcconfig source rather than the
+    /// running bundle, so a local PRODUCT_BUNDLE_IDENTIFIER override in the
+    /// git-ignored Local.xcconfig does not break simulator tests.
+    func testBundleIdentifierDefaultsFromConfig() throws {
+        let tests = URL(fileURLWithPath: #filePath)
+        let shared = tests.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Config/Shared.xcconfig")
+        let text = try String(contentsOf: shared, encoding: .utf8)
+        XCTAssertTrue(text.contains("PRODUCT_BUNDLE_IDENTIFIER = app.syrus.ios"))
+        XCTAssertNotNil(bundle.bundleIdentifier)
     }
 }
