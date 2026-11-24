@@ -531,7 +531,7 @@ module Api
           response.set_header("Retry-After", "2")
           render_error(
             "temporary_lock",
-            "Job details are temporarily unavailable due to database contention. Try again.",
+            t("api.jobs.errors.temporary_lock"),
             status: :service_unavailable
           )
         end
