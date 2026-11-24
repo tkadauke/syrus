@@ -27,7 +27,7 @@ module Mcp
         exception = provider.coworker_exception
         return true if exception.nil?
 
-        Mcp::ChatToolParity::ReviewedException.coerce(exception)
+        provider_exception(exception, :coworker, provider)
         false
       end
 
@@ -45,22 +45,46 @@ module Mcp
         return nil unless provider.respond_to?(:coworker_only_surface)
 
         exception = provider.coworker_only_surface
-        exception && Mcp::ChatToolParity::ReviewedException.coerce(exception)
+        exception && provider_exception(exception, %i[planner coding local], provider)
+      end
+
+      # The reviewed exception a provider declares with `coworker_exception`,
+      # or nil when it is shared with coworkers.
+      def coworker_exception(provider)
+        reject_legacy_provider_api!(provider)
+        return nil unless provider.respond_to?(:coworker_exception)
+
+        exception = provider.coworker_exception
+        exception && provider_exception(exception, :coworker, provider)
+      end
+
+      def definition_exception(definition)
+        exception = definition[:coworker_exception] || definition["coworker_exception"]
+        exception && Mcp::ChatToolParity::ReviewedException.coerce(
+          { absent_from: [ :coworker ], tools: [ definition[:name] || definition["name"] ] }.merge(exception.to_h.symbolize_keys)
+        )
       end
 
       # +user+ gates `admin_only` definitions exactly as for ordinary chats.
       def plugin_definition?(definition, user: nil)
         reject_legacy_definition!(definition)
-        if (exception = definition[:coworker_exception] || definition["coworker_exception"])
-          Mcp::ChatToolParity::ReviewedException.coerce(exception)
-          return false
-        end
+        return false if definition_exception(definition)
         return true unless definition[:admin_only] || definition["admin_only"]
 
         user.respond_to?(:admin?) && user.admin?
       end
 
       private
+
+      # Declared absence defaults to the contexts the declaration implies
+      # (the plugin need not repeat them).
+      def provider_exception(exception, default_absent, provider)
+        attributes = exception.is_a?(Mcp::ChatToolParity::ReviewedException) ? exception.to_h : exception.to_h.symbolize_keys
+        attributes = { absent_from: Array(default_absent) }.merge(attributes.compact_blank)
+        Mcp::ChatToolParity::ReviewedException.coerce(attributes)
+      rescue ArgumentError => e
+        raise ArgumentError, "#{provider}: #{e.message}"
+      end
 
       def reject_legacy_provider_api!(provider)
         return unless provider.respond_to?(:coworker_excluded?) || provider.respond_to?(:coworker_specific_availability?)
@@ -70,7 +94,7 @@ module Mcp
       end
 
       def reject_legacy_definition!(definition)
-        return unless LEGACY_DEFINITION_KEYS.any? { |key| definition[key.to_sym] || definition[key] }
+        return unless LEGACY_DEFINITION_KEYS.any? { |key| definition.key?(key.to_sym) || definition.key?(key) }
 
         raise ArgumentError, "definition #{definition[:name] || definition['name']} uses removed `coworker_excluded`; " \
           "declare `coworker_exception` with reason_code, explanation, owner and test_ref"

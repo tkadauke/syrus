@@ -55,7 +55,9 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
 
     reads = %w[read_memory search_memories list_memories]
     mutations = %w[write_memory delete_memory publish_memory unpublish_memory]
-    expect(memory).to match_array(reads + mutations)
+    # Admin tools are shared with admin-owned coworkers; `user.admin?` and the
+    # permission rules still authorize each call.
+    expect(memory).to match_array(reads + mutations + %w[admin_read_memory_audit_history])
     expect(group(:ask)).to include(*(reads + mutations))
   end
 

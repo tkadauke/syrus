@@ -66,7 +66,7 @@ RSpec.describe Mcp::ChatToolParity do
   end
 
   describe "plugin chat tool sets" do
-    let(:providers) { Syrus::Plugin::Toolkit.chat_tool_sets }
+    let(:providers) { described_class.installed_chat_tool_sets }
 
     it "declare no removed boolean exclusion API and only complete exceptions" do
       providers.each do |provider|
@@ -80,6 +80,38 @@ RSpec.describe Mcp::ChatToolParity do
           expect { Mcp::CoworkerToolExposure.plugin_definition?(definition, user: admin) }.not_to raise_error
         end
       end
+    end
+
+    it "has no unexplained plugin differences across planner, coding, local, and coworker catalogs" do
+      expect(described_class.plugin_report(providers)).to eq([])
+      expect(described_class.plugin_catalogs(providers).keys).to match_array(providers)
+    end
+
+    it "fails on an undeclared plugin omission in either direction" do
+      provider = Class.new do
+        def self.tool_definitions(tier:) = [ { name: "plugin_probe", admin_only: false } ]
+        def self.coworker_exception = { reason_code: "requires_coding_checkout", explanation: "x", owner: "o", test_ref: "t" }
+        def self.to_s = "ProbeSet"
+      end
+      expect(described_class.plugin_report([ provider ])).to eq([])
+
+      silent = Class.new do
+        def self.tool_definitions(tier:) = [ { name: "plugin_probe" } ]
+        def self.coworker_only_surface = nil
+        def self.to_s = "SilentSet"
+      end
+      allow(Mcp::CoworkerToolExposure).to receive(:plugin_definition?).and_return(false)
+      expect(described_class.plugin_report([ silent ])).to include(a_string_matching(/plugin_probe: unexplained absence from coworker/))
+    end
+
+    it "lists coworker-only plugin exceptions with their own rationale in generated docs" do
+      markdown = Syrus::SurfaceCatalogs.render_parity_exceptions
+      expect(markdown).to include("Coworker workspace, reply, schedule and spawn tools", "Sanitized Syrus diagnostics")
+    end
+
+    it "rejects a bare coworker_excluded key even when false" do
+      expect { Mcp::CoworkerToolExposure.plugin_definition?({ name: "x", coworker_excluded: false }) }
+        .to raise_error(ArgumentError, /coworker_excluded/)
     end
 
     it "share every Browser, Kubernetes, and Admin MySQL tool with coworkers" do
