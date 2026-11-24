@@ -1171,6 +1171,7 @@
   },
   "repository_form": {
     "loading": "Loading repository form...",
+    "field_loading": "Loading...",
     "back": "Back to repository",
     "working_section": "Working repository",
     "working_description": "Syrus polls issues, creates branches, and opens PRs in this repository.",
