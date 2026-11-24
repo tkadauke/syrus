@@ -11,7 +11,7 @@ module AdminMysql
     end
 
     def self.available_for_context?(context)
-      context.role == AgentRole::WORKFLOW_IMPLEMENT && context.user&.admin? == true && available_for?(context.repository)
+      context.role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT && context.user&.admin? == true && available_for?(context.repository)
     end
 
     def self.tool_definitions(context: nil)

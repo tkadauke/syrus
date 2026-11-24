@@ -2,11 +2,11 @@ module MysqlDbBrowser
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ].freeze
     # Coworkers request read access through request_permission, so the read
     # operations must be requestable by them. The critical query operation
     # stays on ROLES: coworker execution remains read-only.
-    READ_ROLES = (ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).freeze
+    READ_ROLES = (ROLES + [ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]).freeze
     READ_DEFAULTS = ROLES.index_with { :ask }.freeze
     COWORKER_READ_DEFAULTS = READ_ROLES.index_with { :ask }.freeze
     # Listing connections, databases and tables, and describing a table, read
@@ -152,7 +152,7 @@ module MysqlDbBrowser
       name: "mysql_read_only", label: "MySQL read-only",
       description: "Ask before reading metadata or data from a selected MySQL target.",
       rules: READ_OPERATIONS.map do |operation, _scope|
-        { capability: "mysql.read@v1", operation:, role: AgentRole::CHAT_PLANNER,
+        { capability: "mysql.read@v1", operation:, role: Syrus::Host::AgentRole::CHAT_PLANNER,
           policy: :ask, resource_scope: {}, constraints: {} }
       end
     )
@@ -162,7 +162,7 @@ module MysqlDbBrowser
       description: "Ask for each query invocation against a selected MySQL target.",
       rules: [ {
         capability: "mysql.query@v1", operation: "mysql.query/execute@v1",
-        role: AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {}
+        role: Syrus::Host::AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {}
       } ]
     )
   end

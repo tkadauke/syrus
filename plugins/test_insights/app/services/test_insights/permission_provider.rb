@@ -2,7 +2,7 @@ module TestInsights
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = (AgentRole::CHAT_ROLES + AgentRole::WORKFLOW_ROLES).uniq.freeze
+    ROLES = (Syrus::Host::AgentRole::CHAT_ROLES + Syrus::Host::AgentRole::WORKFLOW_ROLES).uniq.freeze
     CAPABILITY = "test_insights.evidence@v1"
     OPERATIONS = %w[
       list_repository_test_insights read_test_insight read_job_test_results

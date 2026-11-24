@@ -35,7 +35,7 @@ module SyrusDev
       private
 
       def authorized_role?(role)
-        role == AgentRole::WORKFLOW_IMPLEMENT || role == AgentRole::AGENT_INSIGHT
+        role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT || role == Syrus::Host::AgentRole::AGENT_INSIGHT
       end
     end
   end

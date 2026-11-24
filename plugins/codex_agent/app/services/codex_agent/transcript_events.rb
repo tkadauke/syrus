@@ -2,7 +2,7 @@ module CodexAgent
   module TranscriptEvents
     def codex_session_event(parsed)
       payload = parsed["payload"] || {}
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :system_init,
         timestamp: parsed["timestamp"] || payload["timestamp"],
         data: {
@@ -20,13 +20,13 @@ module CodexAgent
 
       case payload["type"]
       when "user_message"
-        [ ClaudeTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: payload["message"] }) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: payload["message"] }) ]
       when "agent_message"
-        [ ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: payload["message"] }) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: payload["message"] }) ]
       when "mcp_tool_call_end"
         result = payload["result"]
         name = codex_mcp_tool_name(payload)
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
@@ -37,7 +37,7 @@ module CodexAgent
           }.compact
         ) ]
       when "task_complete"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :result,
           timestamp: timestamp,
           data: {
@@ -50,7 +50,7 @@ module CodexAgent
           }
         ) ]
       else
-        [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
       end
     end
 
@@ -67,17 +67,17 @@ module CodexAgent
           content.to_s
         end
         return [] if text.blank?
-        [ ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
       when "function_call"
         name = codex_response_item_tool_name(payload)
         input = JSON.parse(payload["arguments"].to_s) rescue payload["arguments"]
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: { name: name, input: input, id: payload["call_id"] }
         ) ]
       when "function_call_output"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
@@ -93,7 +93,7 @@ module CodexAgent
     end
 
     def codex_thread_started_event(parsed)
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :system_init,
         timestamp: parsed["timestamp"],
         data: {
@@ -107,7 +107,7 @@ module CodexAgent
 
     def codex_turn_completed_event(parsed)
       usage = parsed["usage"] || {}
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :result,
         timestamp: parsed["timestamp"],
         data: {
@@ -123,7 +123,7 @@ module CodexAgent
     end
 
     def codex_error_result_event(parsed)
-      ClaudeTranscript::Event.new(
+      Syrus::Host::AgentTranscript::Event.new(
         kind: :result,
         timestamp: parsed["timestamp"],
         data: {
@@ -146,11 +146,11 @@ module CodexAgent
       when "agent_message"
         text = item["text"].to_s
         return [] if text.blank?
-        [ ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
       when "mcp_tool_call"
         codex_mcp_tool_events(item, timestamp, status)
       when "command_execution"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: {
@@ -160,13 +160,13 @@ module CodexAgent
           }
         ) ]
       when "file_change"
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :system_event,
           timestamp: timestamp,
           data: { type: "file_change", path: item["path"], status: status }.compact
         ) ]
       else
-        [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
+        [ Syrus::Host::AgentTranscript::Event.new(kind: :other, timestamp: timestamp, data: parsed) ]
       end
     end
 
@@ -175,7 +175,7 @@ module CodexAgent
       name = codex_mcp_tool_name(item)
       if item["error"].present? || item["result"].present? || status == "completed"
         content = item["error"].presence || item["result"].presence || { status: status }
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
@@ -186,7 +186,7 @@ module CodexAgent
           }
         ) ]
       else
-        [ ClaudeTranscript::Event.new(
+        [ Syrus::Host::AgentTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: {
