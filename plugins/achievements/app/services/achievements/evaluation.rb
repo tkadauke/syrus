@@ -3,8 +3,9 @@ module Achievements
   # run any number of times, in any order: the only write is the idempotent
   # Unlock.record!. A broken definition (invalid data) is logged and skipped.
   # Any other failure, such as a transient database error, is re-raised after
-  # the remaining definitions ran so delivery is retried instead of silently
-  # losing a qualifying unlock (there is deliberately no backfill).
+  # the remaining definitions ran so the caller can retry (Subscribers hands
+  # the event to EvaluationRetryJob) instead of silently losing a qualifying
+  # unlock (there is deliberately no backfill).
   class Evaluation
     def self.call(event, registry: Achievements::Registry.default)
       new(event, registry).call
