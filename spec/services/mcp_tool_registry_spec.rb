@@ -101,6 +101,21 @@ RSpec.describe McpToolRegistry do
       described_class.instance_variable_set(:@entries_by_surface, cached_entries_by_surface) if defined?(cached_entries_by_surface)
     end
 
+    it "rebuilds the coworker surface when the enabled chat-parity participants change" do
+      real = Mcp::ChatToolParity.participants
+      allow(Mcp::ChatToolParity).to receive(:participants).and_call_original
+      allow(Mcp::ChatToolParity).to receive(:participants).with(enabled_only: true).and_return([])
+
+      without_participants = described_class.entries(surface: :coworker)
+      expect(described_class.entries(surface: :coworker)).to equal(without_participants)
+
+      allow(Mcp::ChatToolParity).to receive(:participants).with(enabled_only: true).and_return(real)
+      with_participants = described_class.entries(surface: :coworker)
+
+      expect(with_participants).not_to equal(without_participants)
+      expect(described_class.entries(surface: :coworker)).to equal(with_participants)
+    end
+
     it "builds workflow entries without building chat entries" do
       expect(described_class).not_to receive(:chat_entries)
 

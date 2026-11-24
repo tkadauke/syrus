@@ -172,12 +172,26 @@ class McpToolRegistry
     private
 
     def all_entries
-      @entries ||= SURFACE_ENTRY_BUILDERS.keys.flat_map { |surface| entries_for_surface(surface) }.freeze
+      per_surface = SURFACE_ENTRY_BUILDERS.keys.map { |surface| entries_for_surface(surface) }
+      cached_sources, cached = @entries
+      return cached if cached && cached_sources.zip(per_surface).all? { |a, b| a.equal?(b) }
+
+      per_surface.flatten(1).freeze.tap { |built| @entries = [ per_surface, built ] }
     end
 
     def entries_for_surface(surface)
       builder = SURFACE_ENTRY_BUILDERS.fetch(surface)
-      (@entries_by_surface ||= {})[surface] ||= send(builder).freeze
+      cache = (@entries_by_surface ||= {})
+      return cache[surface] ||= send(builder).freeze unless surface == :coworker
+
+      # The coworker surface depends on which chat-parity participants are
+      # enabled, which changes at runtime (plugin enable/disable); a build made
+      # under one state must not outlive it.
+      signature = Mcp::ChatToolParity.participants(enabled_only: true).map(&:context)
+      cached_signature, cached_entries = cache[surface]
+      return cached_entries if cached_entries && cached_signature == signature
+
+      send(builder).freeze.tap { |built| cache[surface] = [ signature, built ] }
     end
 
     def surfaces_for_context(context)
