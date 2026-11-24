@@ -144,5 +144,4 @@ RSpec.describe WorkEngine::RuntimeOwnership do
       expect(described_class.active_landing_work_for_job?(job)).to be(true)
     end
   end
-
 end
