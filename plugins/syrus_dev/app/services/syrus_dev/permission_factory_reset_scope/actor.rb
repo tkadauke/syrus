@@ -1,7 +1,7 @@
 module SyrusDev
   class PermissionFactoryResetScope::Actor < PermissionFactoryResetScope
     def actor = @actor ||= GlobalID::Locator.locate(id) || raise(ActiveRecord::RecordNotFound)
-    def users = ::User.where(id: actor.respond_to?(:user_id) ? actor.user_id : actor.id)
+    def users = Syrus::Host::UserRecord.where(id: actor.respond_to?(:user_id) ? actor.user_id : actor.id)
 
     def rules
       PermissionRule.where(subject_selector_type: "agent", subject_selector_id: actor.id.to_s)

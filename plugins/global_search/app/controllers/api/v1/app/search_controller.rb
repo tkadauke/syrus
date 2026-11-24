@@ -234,13 +234,13 @@ module Api
 
         def repository_search_rows(query, limit)
           normalized_query = query.to_s.strip.downcase
-          repositories = Repository.accessible_to(Syrus::Host::Current.user)
+          repositories = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user)
             .where("LOWER(name) = ?", normalized_query)
 
           owner, name = normalized_query.split("/", 2)
           if owner.present? && name.present?
             repositories = repositories.or(
-              Repository.accessible_to(Syrus::Host::Current.user).where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name)
+              Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).where("LOWER(owner) = ? AND LOWER(name) = ?", owner, name)
             )
           end
 
@@ -533,7 +533,7 @@ module Api
         end
 
         def repositories_by_id
-          @repositories_by_id ||= Repository.accessible_to(Syrus::Host::Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
+          @repositories_by_id ||= Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).where(id: result_ids(:repository_id)).index_by(&:id)
         end
 
         def chat_result_badges
@@ -652,7 +652,7 @@ module Api
           def filtered_scope(ids:, tree:, user:)
             ::Filters::Compiler.call(
               ::Filters::Ast.parse(tree),
-              scope: Repository.accessible_to(user).where(id: ids),
+              scope: Syrus::Host::RepositoryRecord.accessible_to(user).where(id: ids),
               user: user,
               subject: :repository
             )

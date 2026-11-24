@@ -9,7 +9,7 @@ module RuntimeTerminal
     TIMEOUT = 10.seconds
     COMMAND_PATH = "/usr/local/bin:/usr/bin:/bin"
     NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/
-    FORBIDDEN = SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV.to_set.freeze
+    FORBIDDEN = Syrus::Host::SyrusYmlConfig::VISUAL_REVIEW_FORBIDDEN_ENV.to_set.freeze
 
     class Error < RuntimeSessionProviders::ConfigurationError; end
 

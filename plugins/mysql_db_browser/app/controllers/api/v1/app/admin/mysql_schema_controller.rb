@@ -39,7 +39,7 @@ module Api
           def admin_credential_context
             Syrus::Host::ToolContext.new(
               surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
-              allowed_repository_ids: Repository.ids
+              allowed_repository_ids: Syrus::Host::RepositoryRecord.ids
             )
           end
 

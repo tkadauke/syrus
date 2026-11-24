@@ -63,7 +63,7 @@ module Api
 
             credential = ::CredentialStore::Credential.new(attrs.merge(
               created_by: Syrus::Host::Current.user,
-              owner_user: attrs[:scope_type] == "user" ? User.find_by(id: attrs[:scope_id]) : Syrus::Host::Current.user,
+              owner_user: attrs[:scope_type] == "user" ? Syrus::Host::UserRecord.find_by(id: attrs[:scope_id]) : Syrus::Host::Current.user,
               last_rotated_at: Time.current
             ))
             if credential.save

@@ -32,7 +32,7 @@ module ScheduledTasks
       class << self
         def call(label:, prompt:, server_context:, schedule_input: nil, cron_expression: nil, schedule_timezone: nil)
           chat_session = server_context.fetch(:chat_session)
-          unless chat_session.repository && RepositoryPolicy.new(chat_session.user, chat_session.repository).write?
+          unless chat_session.repository && Syrus::Host::RepositoryPolicy.new(chat_session.user, chat_session.repository).write?
             return Syrus::Host::McpTools.invalid("repository write access is required to create a scheduled task")
           end
 

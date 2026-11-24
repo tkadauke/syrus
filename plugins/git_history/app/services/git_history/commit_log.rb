@@ -73,7 +73,7 @@ module GitHistory
     end
 
     def bare_clone_path
-      @bare_clone_path ||= RepositoryBareClone.path_for(@repository)
+      @bare_clone_path ||= Syrus::Host::RepositoryBareClone.path_for(@repository)
     end
 
     def parse(output)
