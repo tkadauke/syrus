@@ -57,6 +57,39 @@ RSpec.describe "App API achievements", type: :request do
       expect(body["achievements"].map { |row| row["id"] }).to eq([ instance_unlock.id ])
     end
 
+    it "lists locked definitions, reducing hidden ones to their scope" do
+      get "/api/v1/app/achievements"
+
+      locked = body["locked"]
+      expect(locked).to include({ "hidden" => true, "scope" => "instance" })
+      expect(locked.flat_map(&:keys)).not_to include("key") if locked.all? { |row| row["hidden"] }
+      expect(response.body).not_to include("example.secret_milestone")
+      expect(body["achievements"].map { |row| row["key"] }).not_to include("example.secret_milestone")
+    end
+
+    it "links evidence only to subjects the viewer can access" do
+      accessible = Factories.job(repository: Factories.repository(user: user))
+      Achievements::Unlock.where(id: own_unlock.id).update_all(subject_id: accessible.id)
+
+      get "/api/v1/app/achievements"
+
+      rows = body["achievements"].index_by { |row| row["id"] }
+      expect(rows[own_unlock.id]["evidence_link"]).to eq("kind" => "job", "id" => accessible.id, "slug" => accessible.slug)
+      expect(rows[instance_unlock.id]["evidence_link"]).to be_nil
+      expect(response.body).not_to include(Epic.find(instance_unlock.subject_id).slug)
+    end
+
+    it "filters pending reveals to an accessible Job and yields nothing for an inaccessible one" do
+      accessible = Factories.job(repository: Factories.repository(user: user))
+      Achievements::Unlock.where(id: own_unlock.id).update_all(subject_id: accessible.id)
+
+      get "/api/v1/app/achievements/pending", params: { subject_type: "job", subject_id: accessible.id }
+      expect(body["achievements"].map { |row| row["id"] }).to eq([ own_unlock.id ])
+
+      get "/api/v1/app/achievements/pending", params: { subject_type: "job", subject_id: other_unlock.subject_id }
+      expect(body["achievements"]).to eq([])
+    end
+
     it "hides other users' unlocks as not found" do
       post "/api/v1/app/achievements/#{other_unlock.id}/acknowledge"
       expect(response).to have_http_status(:not_found)
