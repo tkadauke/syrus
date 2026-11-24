@@ -1536,10 +1536,9 @@ function SidebarContent({
 
   return (
     <div
-      className={`flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 ${
-        mobileDrawer ? "overflow-y-auto overscroll-contain pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : ""
+      className={`flex h-full min-h-0 w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 ${
+        mobileDrawer ? "pt-[env(safe-area-inset-top)]" : ""
       }`}
-      data-mobile-drawer-scroll-region={mobileDrawer ? "true" : undefined}
       data-testid={collapsed ? "sidebar-rail" : "sidebar-content"}
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
@@ -1576,11 +1575,14 @@ function SidebarContent({
         </div>
       </div>
       {mobileDrawer ? (
-        <div className="sticky top-0 z-20 bg-white px-3 py-3 shadow-sm dark:bg-gray-950" data-sidebar-pinned-actions="new-chat">
+        <div className="z-20 shrink-0 bg-white px-3 py-3 shadow-sm dark:bg-gray-950" data-sidebar-pinned-actions="new-chat">
           <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
         </div>
       ) : null}
-      <div className={mobileDrawer ? "flex-none" : "min-h-0 flex-1 overflow-y-auto"}>
+      <div
+        className={`min-h-0 flex-1 overflow-y-auto ${mobileDrawer ? "overscroll-contain" : ""}`}
+        data-mobile-drawer-scroll-region={mobileDrawer ? "true" : undefined}
+      >
         {mobileDrawer ? (
           <div className="space-y-3 px-3 pt-3">{secondaryActions}</div>
         ) : (
@@ -1653,9 +1655,15 @@ function SidebarContent({
             userPresent={Boolean(user)}
           />
         )}
+        {mobileDrawer && !collapsed ? <ShellNotices /> : null}
       </div>
-      {collapsed ? null : <ShellNotices />}
-      <div className={`shrink-0 border-t border-gray-200 dark:border-gray-800 ${collapsed ? "p-2" : "p-3"}`}>
+      {collapsed || mobileDrawer ? null : <ShellNotices />}
+      <div
+        className={`shrink-0 border-t border-gray-200 dark:border-gray-800 ${collapsed ? "p-2" : "p-3"} ${
+          mobileDrawer ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""
+        }`}
+        data-sidebar-account-footer="true"
+      >
         {user ? (
           <nav aria-label={t("account_aria")}>
             <SettingsPopup

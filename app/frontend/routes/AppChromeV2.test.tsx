@@ -1812,7 +1812,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
-  it("uses one mobile drawer scroll region and pins only New Chat", async () => {
+  it("keeps the account footer fixed outside the single bounded mobile scroll region", async () => {
     const restoreMatchMedia = mockNarrowViewport()
     window.syrusShell = {
       getState: vi.fn().mockResolvedValue({
@@ -1845,20 +1845,64 @@ describe("AppChromeV2 mobile header pinning", () => {
       const notices = await within(drawer).findByTestId("shell-notices")
       const account = within(drawer).getByRole("navigation", { name: "Account" })
 
-      expect(scrollRegion).toHaveClass("h-full", "overflow-y-auto")
-      expect(scrollRegion.querySelectorAll(".overflow-y-auto")).toHaveLength(0)
-      expect(scrollRegion).toContainElement(within(drawer).getByRole("button", { name: "Close sidebar" }))
+      const footer = drawer.querySelector('[data-sidebar-account-footer="true"]') as HTMLElement
+      const root = scrollRegion.parentElement as HTMLElement
+
+      expect(scrollRegion).toHaveClass("min-h-0", "flex-1", "overflow-y-auto")
+      expect(drawer.querySelectorAll('[data-mobile-drawer-scroll-region="true"]')).toHaveLength(1)
+      expect(root).toHaveClass("flex", "flex-col", "h-full")
+      expect(root).not.toHaveClass("overflow-y-auto")
+      expect(scrollRegion).not.toContainElement(within(drawer).getByRole("button", { name: "Close sidebar" }))
+      expect(scrollRegion).not.toContainElement(newChat)
+      expect(footer.parentElement).toBe(root)
+      expect(footer).toHaveClass("shrink-0")
+      expect(footer.className).toContain("safe-area-inset-bottom")
+      expect(footer).toContainElement(account)
+      expect(scrollRegion).not.toContainElement(account)
+      expect(scrollRegion).not.toContainElement(footer)
       expect(scrollRegion).toContainElement(newGroupChat)
       expect(scrollRegion).toContainElement(search)
       expect(scrollRegion).toContainElement(maintenance)
       expect(scrollRegion).toContainElement(notices)
-      expect(scrollRegion).toContainElement(account)
-      expect(pinnedActions).toHaveClass("sticky", "top-0")
-      expect(pinnedActions.parentElement).toBe(scrollRegion)
+      expect(pinnedActions).toHaveClass("shrink-0")
+      expect(pinnedActions.parentElement).toBe(root)
       expect(pinnedActions).toContainElement(newChat)
       expect(pinnedActions).not.toContainElement(newGroupChat)
       expect(pinnedActions).not.toContainElement(search)
       expect(pinnedActions).not.toContainElement(maintenance)
+
+      // The account popup opens upward from the fixed footer, outside any overflow clip.
+      const accountButton = within(account).getAllByRole("button")[0]
+      fireEvent.click(accountButton)
+      const popup = footer.querySelector(".bottom-full") as HTMLElement
+      expect(popup).not.toBeNull()
+      expect(scrollRegion).not.toContainElement(popup)
+      expect(within(popup).getAllByRole("link").length + within(popup).getAllByRole("button").length).toBeGreaterThan(0)
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("keeps the account footer outside the scroll region when the middle content is very tall", async () => {
+    const restoreMatchMedia = mockNarrowViewport()
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({
+      tasks: Array.from({ length: 40 }, (_, index) => maintenanceTask({ id: index + 1, title: `Maintenance item ${index + 1}` }))
+    })
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+      fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }))
+
+      const drawer = document.querySelector(".fixed.inset-0.z-40") as HTMLElement
+      const scrollRegion = drawer.querySelector('[data-mobile-drawer-scroll-region="true"]') as HTMLElement
+      await within(drawer).findByText("Maintenance item 40")
+      const footer = drawer.querySelector('[data-sidebar-account-footer="true"]') as HTMLElement
+
+      expect(scrollRegion).toContainElement(within(drawer).getByText("Maintenance item 40"))
+      expect(scrollRegion).not.toContainElement(footer)
+      expect(footer).toContainElement(within(drawer).getByRole("navigation", { name: "Account" }))
+      expect(footer.parentElement).toBe(scrollRegion.parentElement)
+      expect(scrollRegion.parentElement).not.toHaveClass("overflow-y-auto")
     } finally {
       restoreMatchMedia()
     }
