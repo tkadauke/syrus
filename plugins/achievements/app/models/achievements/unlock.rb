@@ -55,7 +55,7 @@ module Achievements
       [ find_by!(definition_key: definition.key, owner_key: owner_key), false ]
     end
 
-    def self.subject_kind(subject) = subject.class.name.underscore
+    def self.subject_kind(subject) = subject.is_a?(Achievements::Subject) ? subject.kind.to_s : subject.class.name.underscore
 
     def acknowledged_by?(user_id) = acknowledgments.exists?(user_id: user_id)
 

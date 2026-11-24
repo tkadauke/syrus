@@ -1,5 +1,8 @@
 de:
   achievements:
+    api:
+      not_found: "Erfolg nicht gefunden."
+      confirmation_required: "Zum Zurücksetzen aller Bestätigungen ist eine Bestätigung erforderlich."
     errors:
       not_registered: "ist keine registrierte Errungenschaft"
       scope_mismatch: "passt nicht zur Definition"

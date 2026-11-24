@@ -2,10 +2,9 @@
 
 The `achievements` plugin owns achievement definitions, canonical unlocks, and
 per-user acknowledgments. It is disabled by default, experimental, and can be
-toggled in **Admin → Plugins**. This release provides the foundation only:
-event evaluation, presentation, replay controls, and the development workbench
-arrive separately, and the bundled definitions are neutral `example.*` fixtures
-rather than a launch catalog.
+toggled in **Admin → Plugins**. The bundled definitions are neutral `example.*`
+fixtures rather than a launch catalog; presentation and the development
+workbench arrive separately.
 
 ## Definitions
 
@@ -52,3 +51,45 @@ acknowledge a user unlock.
 - **Purge** (`bin/rails 'plugin:purge[achievements]'`) drops the two
   `achievements_*` tables. The plugin holds no data outside the database, and
   adds no columns or callbacks to core tables.
+
+## Evaluation
+
+The plugin subscribes to domain events (`job.closed`, `epic.upserted`) and never
+adds callbacks to core models. Each event is matched to the definitions whose
+`trigger` names it and handed to the definition's evaluator. Delivery is
+at-least-once and unordered, so evaluation only ever calls the idempotent unlock
+write: repeated or reordered events cannot duplicate an unlock, and the first
+unlock's timestamp and evidence are kept.
+
+**Attribution.** An instance milestone is never credited to a person. A per-user
+accomplishment is credited only for work an operator started themselves: a
+`direct` Job created by core, or an Epic created by an operator. Scheduled
+fires, ingested issues, coworker and insight work, infrastructure Jobs, and
+anyone who merely closed, merged, or reviewed a Job earn nothing for a user.
+When nobody can be credited, a per-user definition is not awarded.
+
+## Acknowledgments and reveals
+
+Everyone sees every instance unlock; a user sees only their own user unlocks.
+Another user's unlock behaves as if it does not exist. The API (all under
+`/api/v1/app`) returns definition metadata and unlock and acknowledgment
+timestamps, never evidence or subject references:
+
+| Route | Effect |
+|---|---|
+| `GET /achievements` | Visible unlocks with this user's acknowledgment state |
+| `GET /achievements/pending` | Visible unlocks this user has not acknowledged |
+| `POST /achievements/:id/acknowledge` | Acknowledge one unlock |
+| `POST /achievements/:id/replay` | Make one reveal pending again for this user |
+| `POST /achievements/reset_acknowledgments` | Clear this user's acknowledgments |
+| `POST /admin/achievements/reset_acknowledgments` | Admin only: clear everyone's; requires `confirm=reset_all_acknowledgments` |
+
+Replay and reset change acknowledgments only. They never delete or recreate an
+unlock or alter its `unlocked_at` or evidence. While the plugin is disabled the
+routes are not served and events are not evaluated.
+
+## Launch behavior: no backfill
+
+Enabling the plugin does **not** award achievements for history. Only events
+that happen after it is enabled are evaluated, so a first enable starts with an
+empty set. Any future backfill will be a separate, explicit operator action.
