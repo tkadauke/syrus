@@ -417,6 +417,40 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_review_notes/))
     end
 
+    # Regression: a Codex reviewer called its required submit tool, the
+    # sidecar never answered within the agent's 120s tool timeout, and the Run
+    # was failed as "didn't call" -- counted toward the repeated-missing limit
+    # until the Job failed.
+    it "classifies a required MCP tool that was called but failed in the sidecar as a sidecar failure" do
+      result = AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "codex-thread-2"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) do
+        ProviderSession.create!(
+          resumable: run, provider: "codex", session_id: "codex-thread-2",
+          transcript_jsonl: { type: "unrecognized_rollout_event" }.to_json + "\n"
+        )
+        McpToolUsageRecorder.record_workflow_tool_call(run: run, tool_name: "submit_review_notes", tool_use_id: "call-1", tool_input: {})
+        McpToolUsageRecorder.record_workflow_tool_result(
+          run: run, tool_name: "submit_review_notes", tool_use_id: "call-1",
+          content: "timed out awaiting tools/call after 120s", error: true
+        )
+        result
+      end
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+
+      expect {
+        handler.send(:run_agent, prompt: "review", required_mcp_tools: %w[submit_review_notes], enforce_required_mcp_tools: true)
+      }.to raise_error(Steps::Base::StepFailed, /failed in the sidecar: submit_review_notes/) { |error|
+        expect(error.problem.code).to eq("mcp_sidecar_failure")
+        expect(error.problem.evidence).to eq(tools: [ "submit_review_notes" ])
+      }
+    end
+
     it "satisfies enforced required MCP tools from a completed persisted sidecar receipt when transcript parsing misses the call" do
       result = AgentInvocation::Result.new(
         turns: 1,

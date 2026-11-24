@@ -443,10 +443,9 @@ module Steps
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
       raise CannotProceed, cannot_proceed_reason if cannot_proceed_reported?
       if enforce_required_mcp_tools && missing_required_tools.present?
-        fail_with!(
-          :missing_required_tool_call,
-          "required MCP tool(s) were not called: #{missing_required_tools.join(', ')}",
-          evidence: { tools: missing_required_tools }
+        fail_for_missing_required_tools!(
+          missing_required_tools,
+          "required MCP tool(s) were not called: #{missing_required_tools.join(', ')}"
         )
       end
 
@@ -592,6 +591,30 @@ module Steps
       log("[mcp_required_health] failed to inspect transcript: #{e.class}: #{e.message} " \
           "-- treating required tools as satisfied", kind: "system")
       []
+    end
+
+    # A required tool the agent did call, but whose call failed and never
+    # completed -- the sidecar timed out or errored -- is an infrastructure
+    # failure, not a reviewer that skipped its submission. Classifying it as
+    # missing_required_tool_call counted it toward the repeated-missing limit
+    # and failed a Job whose reviews were being done and submitted.
+    def fail_for_missing_required_tools!(tools, message)
+      tools = Array(tools).map(&:to_s)
+      attempted = failed_required_mcp_tool_calls(tools)
+      if attempted.any?
+        fail_with!(:mcp_sidecar_failure,
+                   "required MCP tool call(s) failed in the sidecar: #{attempted.join(', ')}",
+                   evidence: { tools: attempted })
+      end
+
+      fail_with!(:missing_required_tool_call, message, evidence: { tools: tools })
+    end
+
+    def failed_required_mcp_tool_calls(tools)
+      usages = run.mcp_tool_usages.where(surface: "workflow", normalized_tool_name: tools)
+      completed = usages.where(status: "completed", error: false).distinct.pluck(:normalized_tool_name)
+      failed = usages.where(status: "failed").or(usages.where(error: true)).distinct.pluck(:normalized_tool_name)
+      tools & (failed - completed)
     end
 
     def completed_persisted_mcp_tools(required_tools)

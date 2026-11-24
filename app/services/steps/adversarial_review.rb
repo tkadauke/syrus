@@ -73,8 +73,7 @@ module Steps
           )
         end
 
-        fail_with!(:missing_required_tool_call, "agent didn't call #{review_submit_tool}",
-                   evidence: { tool: review_submit_tool })
+        fail_for_missing_required_tools!([ review_submit_tool ], "agent didn't call #{review_submit_tool}")
       end
       if evidence && evidence.state != "submitted"
         raise EvidenceVerificationFailed.new(
