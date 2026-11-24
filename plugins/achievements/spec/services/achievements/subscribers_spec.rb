@@ -39,3 +39,52 @@ RSpec.describe Achievements::Subscribers do
     expect(Syrus::Events).to have_received(:publish).with("epic.upserted", hash_including(epic_id: epic.id, state: epic.state, origin: epic.origin))
   end
 end
+
+RSpec.describe Achievements::Subscribers, "transient failures" do
+  include ActiveJob::TestHelper
+
+  let(:event) do
+    Syrus::DomainEvent.new(name: "epic.upserted", payload: { epic_id: 7, user_id: 1, state: "done", origin: "operator" })
+  end
+
+  before { allow(Achievements).to receive(:enabled?).and_return(true) }
+
+  it "schedules a retry instead of losing the event when persistence fails" do
+    allow(Achievements::Unlock).to receive(:record!).and_raise(ActiveRecord::StatementInvalid, "connection lost")
+    allow(Rails.logger).to receive(:error)
+
+    expect { described_class.on_event(event) }
+      .to have_enqueued_job(Achievements::EvaluationRetryJob).with("epic.upserted", hash_including("epic_id" => 7), String)
+  end
+
+  it "recovers the unlock when the retry job runs after the failure clears" do
+    perform_enqueued_jobs(only: Achievements::EvaluationRetryJob) do
+      calls = 0
+      allow(Achievements::Unlock).to receive(:record!).and_wrap_original do |original, *args, **kwargs|
+        calls += 1
+        raise ActiveRecord::StatementInvalid, "connection lost" if calls == 1
+
+        original.call(*args, **kwargs)
+      end
+      allow(Rails.logger).to receive(:error)
+
+      expect { described_class.on_event(event) }.to change(Achievements::Unlock, :count).by(1)
+    end
+  end
+
+  it "retries through the real DomainEventJob delivery path" do
+    PluginRecord.find_or_create_by!(name: "achievements").update!(enabled: true, disableable: true)
+    allow(Achievements::Unlock).to receive(:record!).and_raise(ActiveRecord::StatementInvalid, "connection lost")
+    allow(Rails.logger).to receive(:error)
+
+    expect { DomainEventJob.perform_now("epic.upserted", event.payload, "Achievements::Subscribers") }
+      .to have_enqueued_job(Achievements::EvaluationRetryJob)
+  end
+
+  it "does not retry a disabled plugin's event" do
+    allow(Achievements).to receive(:enabled?).and_return(false)
+
+    expect { Achievements::EvaluationRetryJob.perform_now("epic.upserted", event.payload, Time.current.iso8601) }
+      .not_to change(Achievements::Unlock, :count)
+  end
+end

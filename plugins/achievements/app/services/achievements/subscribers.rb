@@ -15,6 +15,12 @@ module Achievements
       return unless Achievements.enabled?
 
       Achievements::Evaluation.call(event)
+    rescue StandardError => error
+      # Core logs and swallows subscriber failures, which would lose the unlock
+      # for good (there is no backfill). Hand the event to a plugin job that
+      # retries with backoff; evaluation is idempotent.
+      Rails.logger.error("[achievements] #{event.name} evaluation failed, scheduling retry: #{error.class}: #{error.message}")
+      Achievements::EvaluationRetryJob.perform_later(event.name, event.payload.deep_stringify_keys, event.occurred_at.iso8601(6))
     end
   end
 end
