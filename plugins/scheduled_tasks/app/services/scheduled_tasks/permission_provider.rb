@@ -17,7 +17,7 @@ module ScheduledTasks
   class PermissionProvider
     include Syrus::Host::PermissionProvider
 
-    ROLES = AgentRole::CHAT_ROLES
+    ROLES = Syrus::Host::AgentRole::CHAT_ROLES
     OBSERVE = "scheduled_tasks.observe@v1".freeze
     AUTOMATION = "scheduled_tasks.automation@v1".freeze
 

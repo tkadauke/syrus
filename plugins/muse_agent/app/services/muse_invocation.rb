@@ -256,7 +256,7 @@ class MuseInvocation
         "transport" => "stdio",
         "command" => server["command"],
         "args" => Array(server["args"]),
-        "env" => AgentSidecarEnvironment.filter_for_agent_config(server),
+        "env" => Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server),
         "mode" => mcp_server_mode(server)
       }
     end
@@ -465,7 +465,7 @@ class MuseInvocation
     name = qualified_tool_name(payload, name)
     required_mcp_state(@metadata ||= {})[:called] << name if name.present?
     log_sink.call(
-      AgentEventAbbreviator.tool_use(name, tool_input(payload), path_roots: [ @workspace_path ]),
+      Syrus::Host::AgentEventAbbreviator.tool_use(name, tool_input(payload), path_roots: [ @workspace_path ]),
       kind: "tool_call",
       tool_name: name,
       tool_input: tool_input(payload),
@@ -529,7 +529,7 @@ class MuseInvocation
     name ||= payload.dig("correlation_facts", "tool_name") if payload["correlation_facts"].is_a?(Hash)
     name = qualified_tool_name(payload, name)
     log_sink.call(
-      AgentEventAbbreviator.tool_result(tool_result_content(payload), error: payload_error?(payload)),
+      Syrus::Host::AgentEventAbbreviator.tool_result(tool_result_content(payload), error: payload_error?(payload)),
       kind: "tool_result",
       tool_name: name,
       tool_result_content: tool_result_content(payload),
@@ -797,22 +797,22 @@ class MuseInvocation
 
   def classified_failure(detail, payload: {})
     if muse_usage_limit?(detail, payload)
-      { is_error: true, outcome: ProviderUsageLimit::OUTCOME, final_text: detail }
+      { is_error: true, outcome: Syrus::Host::ProviderUsageLimit::OUTCOME, final_text: detail }
     elsif muse_auth_failure?(detail, payload)
-      { is_error: true, outcome: ProviderAuthFailure::OUTCOME, final_text: detail }
+      { is_error: true, outcome: Syrus::Host::ProviderAuthFailure::OUTCOME, final_text: detail }
     else
       { is_error: true, outcome: "run_failed", final_text: detail }
     end
   end
 
   def muse_usage_limit?(detail, payload)
-    ProviderUsageLimit.detect?(detail) ||
+    Syrus::Host::ProviderUsageLimit.detect?(detail) ||
       payload["error_type"].to_s.match?(/usage|quota|billing|credit/i) ||
       payload["code"].to_s.match?(/usage|quota|billing|credit/i)
   end
 
   def muse_auth_failure?(detail, payload)
-    ProviderAuthFailure.detect?(detail) ||
+    Syrus::Host::ProviderAuthFailure.detect?(detail) ||
       detail.match?(/\b(?:invalid|expired|missing)\s+(?:api\s+)?key\b/i) ||
       payload["error_type"].to_s.match?(/auth|unauthori[sz]ed|credential/i) ||
       payload["code"].to_s.match?(/auth|unauthori[sz]ed|credential|invalid[_-]?api[_-]?key/i)
@@ -824,7 +824,7 @@ class MuseInvocation
     detail = metadata[:startup_output].presence || process_failure_message(runner_result)
     metadata[:is_error] = true
     metadata.merge!(classified_failure(detail))
-    return if metadata[:outcome].in?([ ProviderUsageLimit::OUTCOME, ProviderAuthFailure::OUTCOME ])
+    return if metadata[:outcome].in?([ Syrus::Host::ProviderUsageLimit::OUTCOME, Syrus::Host::ProviderAuthFailure::OUTCOME ])
 
     metadata[:outcome] = metadata[:startup_output].present? ? "error" : process_failure_outcome(runner_result)
   end
@@ -954,6 +954,6 @@ class MuseInvocation
 
   def current_agent
     Thread.current[:syrus_current_agent] ||
-      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
+      (Syrus::Host::AgentRecord.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
   end
 end

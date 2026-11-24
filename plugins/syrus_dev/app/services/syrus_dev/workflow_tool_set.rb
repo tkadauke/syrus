@@ -39,9 +39,9 @@ module SyrusDev
       case role
       when nil
         [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool, ReadWorkspaceReuseOutcomesTool ]
-      when AgentRole::WORKFLOW_IMPLEMENT
+      when Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT
         [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool, ReadWorkspaceReuseOutcomesTool ]
-      when AgentRole::AGENT_INSIGHT
+      when Syrus::Host::AgentRole::AGENT_INSIGHT
         [ ReadSyrusLogsTool ]
       else
         []

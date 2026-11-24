@@ -36,8 +36,8 @@ module DesignDocs
 
     def execute(run)
       broadcast(run)
-      agent = Agent.find_or_create_for!(run)
-      result = AgentProviders.run_one_shot(
+      agent = Syrus::Host::AgentRecord.find_or_create_for!(run)
+      result = Syrus::Host::AgentProviderRegistry.run_one_shot(
         provider: run.agent_provider,
         user: run.requested_by_user,
         runner: self.class.agent_runner || Syrus::Host::RunJob.agent_runner,

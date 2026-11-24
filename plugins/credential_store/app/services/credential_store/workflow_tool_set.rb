@@ -9,7 +9,7 @@ module CredentialStore
     end
 
     def self.available_for_context?(context)
-      context.run? && AgentRole::WORKFLOW_ROLES.include?(context.role) && available_for?(context.repository)
+      context.run? && Syrus::Host::AgentRole::WORKFLOW_ROLES.include?(context.role) && available_for?(context.repository)
     end
 
     def self.tool_definitions(context: nil)

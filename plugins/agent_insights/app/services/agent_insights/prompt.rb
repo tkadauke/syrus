@@ -240,7 +240,7 @@ module AgentInsights
     end
 
     def memory_context
-      Prompts::MemoryContext.new(user: @user, repository_ids: [ @repository.id ]).to_s.presence
+      Syrus::Host::AgentPrompts.memory_context(user: @user, repository_ids: [ @repository.id ]).presence
     end
   end
 end
