@@ -118,6 +118,33 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  # Regression: the macOS worker reaches MySQL through kubectl port-forward,
+  # where a dead stream leaves the local socket open; without socket timeouts
+  # a query on it hung an MCP tool call past the agent's 120s limit.
+  it "bounds MySQL socket operations by default and lets the env file override them" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      File.write(env_file, <<~ENV)
+        SYRUS_DATA_ROOT=/var/lib/syrus
+        SYRUS_APP_HOST=syrus.example.internal
+        SYRUS_WORKER_POOL_NAME=macos-xcode
+        SYRUS_WORKER_CAPABILITIES=os=macos
+        DB_READ_TIMEOUT=45
+      ENV
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => ENV.fetch("PATH"), "HOME" => ENV.fetch("HOME") },
+        "bash", entrypoint, "--env-file", env_file, "--dry-run",
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("DB_CONNECT_TIMEOUT=10")
+      expect(stdout).to include("DB_READ_TIMEOUT=45")
+      expect(stdout).to include("DB_WRITE_TIMEOUT=30")
+    end
+  end
+
   it "stamps the packaged release sha when the env file omits GIT_SHA" do
     packaged_sha = File.join(root, "GIT_SHA")
 

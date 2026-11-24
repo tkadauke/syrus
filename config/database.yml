@@ -127,6 +127,21 @@ production:
     variables:
       innodb_lock_wait_timeout: 10
       time_zone: "+00:00"
+    # Socket timeouts, off unless set. A worker that reaches MySQL through a
+    # tunnel (the macOS worker's `kubectl port-forward`) can be left holding a
+    # connection whose far end is gone without the local socket ever being
+    # reset; with no read timeout the next query -- Rails' own checkout ping
+    # included -- waits forever. bin/macos-worker sets these; cluster pods
+    # talk to MySQL directly and keep the driver defaults.
+<% if ENV["DB_CONNECT_TIMEOUT"].to_s != "" %>
+    connect_timeout: <%= ENV["DB_CONNECT_TIMEOUT"].to_i %>
+<% end %>
+<% if ENV["DB_READ_TIMEOUT"].to_s != "" %>
+    read_timeout: <%= ENV["DB_READ_TIMEOUT"].to_i %>
+<% end %>
+<% if ENV["DB_WRITE_TIMEOUT"].to_s != "" %>
+    write_timeout: <%= ENV["DB_WRITE_TIMEOUT"].to_i %>
+<% end %>
   cache:
     <<: *primary_production
     database: syrus_production_cache

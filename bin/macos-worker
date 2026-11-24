@@ -64,6 +64,16 @@ export SYRUS_ROLE="worker"
 export SOLID_QUEUE_CONFIG="config/queue.compute.yml"
 export SOLID_QUEUE_SKIP_RECURRING="1"
 
+# This worker reaches MySQL through a `kubectl port-forward` tunnel. When a
+# forwarded stream dies the local socket is never reset, so a query on that
+# connection would wait forever: an MCP tool call blocked that way timed out
+# in the agent while the daemon still waited on the database. Bound every
+# socket operation so a dead connection fails, and Rails reconnects, instead.
+# Well above the 10s lock-wait ceiling (config/database.yml).
+export DB_CONNECT_TIMEOUT="${DB_CONNECT_TIMEOUT:-10}"
+export DB_READ_TIMEOUT="${DB_READ_TIMEOUT:-30}"
+export DB_WRITE_TIMEOUT="${DB_WRITE_TIMEOUT:-30}"
+
 # The installed release knows its own revision. A GIT_SHA left in the env
 # file from an earlier install would otherwise outlive every update and make
 # the worker report the wrong app revision, so the release file wins.
@@ -115,6 +125,9 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'SYRUS_WORKER_CAPABILITIES=%s\n' "$SYRUS_WORKER_CAPABILITIES"
   printf 'SOLID_QUEUE_CONFIG=%s\n' "$SOLID_QUEUE_CONFIG"
   printf 'SOLID_QUEUE_SKIP_RECURRING=%s\n' "$SOLID_QUEUE_SKIP_RECURRING"
+  printf 'DB_CONNECT_TIMEOUT=%s\n' "$DB_CONNECT_TIMEOUT"
+  printf 'DB_READ_TIMEOUT=%s\n' "$DB_READ_TIMEOUT"
+  printf 'DB_WRITE_TIMEOUT=%s\n' "$DB_WRITE_TIMEOUT"
   printf 'command=%q' "$ROOT/bin/jobs"
   for arg in "$@"; do
     printf ' %q' "$arg"
