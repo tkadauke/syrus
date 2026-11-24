@@ -586,7 +586,10 @@ configuration, diagnostic, changeset, and source-code files. The shared
 extensionless build filenames with compatible MIME types; this permits the
 `text/plain` and `application/octet-stream` values browsers commonly assign to
 source files without permitting arbitrary binary uploads. Text payloads must
-be strictly Base64 encoded, NUL-free valid UTF-8. Each attachment is limited to
+be strictly Base64 encoded, NUL-free valid UTF-8. ZIP archives (`.zip`) are the
+only accepted archive type; they are stored as opaque files and never
+enumerated or extracted on upload (agents may inspect one explicitly in their
+isolated workspace). Each attachment is limited to
 5 MB and a message's attachments to 20 MB total.
 
 Every accepted file is materialized under the chat workspace's `attachments/`
