@@ -1,7 +1,8 @@
+import { keepPreviousDataWithin } from "../lib/placeholderData"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { AbsoluteTimestamp } from "../components/AbsoluteTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
 import type { FormEvent, ReactNode } from "react"
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -186,7 +187,7 @@ export function JobDetailRoute() {
       return payload
     },
     enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && hasCanonicalId,
-    placeholderData: keepPreviousData
+    placeholderData: keepPreviousDataWithin(workflowsQueryKey, [0, 1])
   })
   const payload = detail.isSuccess
     ? mergeJobWorkflowsPayload(
