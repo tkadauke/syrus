@@ -192,6 +192,7 @@ per-user/private:
   - app/controllers/api/v1/app/passkeys_controller.rb
   - app/controllers/api/v1/app/pending_feedback_controller.rb
   - app/controllers/api/v1/app/platform_identities_controller.rb
+  - app/controllers/api/v1/app/mobile_devices_controller.rb
   - app/controllers/api/v1/app/review_diff_settings_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
@@ -432,6 +433,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/notifications_controller.rb` | per-user/private | Notification listing and mark-read commands operate only on `Current.user.notifications`. |
 | `app/controllers/api/v1/app/passkeys_controller.rb` | per-user/private | Passkey registration options and credential verification use `Current.user` to scope the challenge and passkey rows to the authenticated user. |
 | `app/controllers/api/v1/app/platform_identities_controller.rb` | per-user/private | Platform identity listing, unlinking, and linking-token generation are scoped to `Current.user.platform_identities`. |
+| `app/controllers/api/v1/app/mobile_devices_controller.rb` | per-user/private | Device registration and unregistration are scoped to the signed-in user (`MobileDevice.register!(user: Current.user, ...)`, `Current.user.mobile_devices`). |
 | `app/controllers/api/v1/app/review_diff_settings_controller.rb` | per-user/private | Reads and updates only `Current.user.review_diff_settings`, which are stored in that user's UI preferences. |
 | `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
 | `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
