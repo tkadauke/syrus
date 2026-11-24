@@ -4792,6 +4792,37 @@ also checks that the helper names the full ancestry and keeps unsaved changes.
 
 ---
 
+## F131. The coworker tool surface depended on enablement when first built — fixed
+
+**Invariant.** A value the process memoizes is a function of static inputs
+only. `McpToolRegistry.entries_for_surface` builds each surface once per
+process. A change on main switched `coworker_entries` to
+`ChatToolParity.participants(enabled_only: true)`, which is runtime plugin
+enablement. The coworker surface then depended on whether the coworkers plugin
+was enabled and healthy at the moment the registry was first built.
+
+**Counterexample.** If the registry is first built while coworkers is
+disabled, no coworker parity exceptions apply. The coworker surface then keeps
+the Local Mode, coding-workspace and runtime tools (`create_coding_job`,
+`run_command`, `write_file`, the `runtime_*` family and others) for the rest of
+the process, even after the plugin is enabled. The suite reached that state in
+whichever process built the registry first, so `spec/docs/surface_catalogs_spec.rb`
+and a coworkers lifecycle-tools spec failed depending on order. The generated
+MCP catalog had been refreshed in such a process, so the agent-searchable docs
+listed 38 tools on the coworker surface that it does not offer.
+
+**Fix.** `coworker_entries` uses the installed participants again, which are
+static per process. Runtime enablement stays where that change also put it:
+`Mcp::Sidecar` and `ChatToolParity.extension_context?`, which run per request.
+The catalog is regenerated.
+
+**Spec.** `plugins/coworkers/spec/services/coworkers/chat_parity_spec.rb`
+rebuilds the registry memo with the plugin enabled and then disabled, and
+expects the same coworker surface without the Local Mode tools. It fails
+without the fix.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

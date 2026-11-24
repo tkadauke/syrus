@@ -27,6 +27,30 @@ RSpec.describe Coworkers::ChatParity do
     expect(Mcp::Sidecar.filter_by_policy([ { name: "x" } ], :coworker)).to eq([ { name: "x" } ])
   end
 
+  # The registry memoizes each surface for the process, so the coworker surface
+  # must not depend on whether the plugin was enabled when it was first built:
+  # built while disabled, it used to keep Local Mode and runtime tools on the
+  # coworker surface for the rest of the process (and in the generated catalog).
+  it "builds the same coworker surface whether or not the plugin is enabled when first built" do
+    surface = lambda do
+      McpToolRegistry.remove_instance_variable(:@entries) if McpToolRegistry.instance_variable_defined?(:@entries)
+      McpToolRegistry.remove_instance_variable(:@entries_by_surface) if McpToolRegistry.instance_variable_defined?(:@entries_by_surface)
+      McpToolRegistry.entries(surface: :coworker).map(&:tool_name).sort
+    end
+    cached_entries = McpToolRegistry.instance_variable_get(:@entries)
+    cached_entries_by_surface = McpToolRegistry.instance_variable_get(:@entries_by_surface)
+
+    enabled = surface.call
+    allow(Coworkers).to receive(:enabled?).and_return(false)
+    disabled = surface.call
+
+    expect(disabled).to eq(enabled)
+    expect(disabled).not_to include("create_coding_job", "run_command", "write_file")
+  ensure
+    McpToolRegistry.instance_variable_set(:@entries, cached_entries)
+    McpToolRegistry.instance_variable_set(:@entries_by_surface, cached_entries_by_surface)
+  end
+
   it "has no unexplained differences between planner, coding, local, and coworker catalogs" do
     expect(Mcp::ChatToolParity.report).to eq([])
   end

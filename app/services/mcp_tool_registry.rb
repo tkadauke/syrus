@@ -427,7 +427,11 @@ class McpToolRegistry
     end
 
     def coworker_entries
-      participants = Mcp::ChatToolParity.participants(enabled_only: true)
+      # Installed participants, not enabled ones: entries_for_surface memoizes
+      # this for the process, so it must not depend on enablement at the moment
+      # it is first built. Runtime enablement is applied per request instead
+      # (Mcp::Sidecar, ChatToolParity.extension_context?).
+      participants = Mcp::ChatToolParity.participants
       shared_chat_entries = chat_entries.select { |entry| Mcp::ChatToolParity.core_entry_in_context?(entry, :coworker, participants:) }
       family_defaults = shared_chat_entries.group_by { |entry| entry.descriptor.capability }.transform_values do |entries|
         entries.all? do |entry|
