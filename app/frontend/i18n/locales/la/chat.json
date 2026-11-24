@@ -800,6 +800,21 @@
     "example_pending": "Cancellatio pendens cum destinatis selectis",
     "example_error": "Petitio cancellationis inhabilis"
   },
+  "hold_job": {
+    "failure_title": "Operis retentio",
+    "attempted": "Opus retinere",
+    "recovery": "Confirma opus actuosum habere et dependentiam non impletam, deinde iterum conare.",
+    "job": "Opus",
+    "effect": "Effectus",
+    "effect_waiting": "Cursus fluxusque actuosos cancellat, claustra liberat, et opus ad exspectandum dependentias reducit.",
+    "effect_backlog": "Cursus fluxusque actuosos cancellat, claustra liberat, et opus in acervum reponit.",
+    "kept": "Servatur",
+    "kept_value": "Opus apertum manet; PR et ramus eius non tanguntur.",
+    "not_provided": "Non datum",
+    "input_unavailable": "Singula petitionis huic invocationi instrumenti servatae desunt.",
+    "example_pending": "Retentio pendens operis extra ordinem currentis",
+    "example_error": "Petitio retentionis repudiata"
+  },
   "check_job_mergeability": {
     "job": "Opus",
     "not_provided": "Non datum",

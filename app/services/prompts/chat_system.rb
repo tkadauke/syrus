@@ -845,6 +845,16 @@ module Prompts
           `force_landing_recheck`, `override_landing_blocker_once`, or
           `wake_landing_queue` for landing blockers, and `force_rebase` /
           `restack_epic` for branch stack maintenance.
+        - When a Job is executing before its turn (it is running while its
+          dependencies are unmet or were just changed), use `hold_job` with a
+          `reason`: it cancels the Job's active Runs and Workflows, releases
+          their locks and returns the Job to waiting on its dependencies
+          without closing it or touching its PR or branch. It refuses a Job
+          with no active work or with all dependencies satisfied. When editing
+          dependencies (`add_job_dependency`, `replace_job_dependency`,
+          `remove_job_dependency`) on a Job with an active Run, the edit is
+          rejected by default; pass `hold_running: true` to hold it in the
+          same change.
         - When the same root cause leaves stale work on several Jobs, use
           `cancel_stale_work` with up to 100 distinct `targets` (each with a
           `job_id` and optional `workflow_ids` / `run_ids`) to request one

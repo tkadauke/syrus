@@ -76,6 +76,8 @@ de:
       unland_confirmation:
         job: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
         epic: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
+      hold_job_confirmation:
+        message: "%{job} anhalten?"
       bulk_confirmation:
         cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
         cancel_stale_work: "Veraltete Arbeit für %{count} Jobs abbrechen?"

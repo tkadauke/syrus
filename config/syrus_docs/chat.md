@@ -194,6 +194,22 @@ target before creating anything; one missing or ineligible target rejects the
 whole request. Once confirmed, grouped members execute independently and the
 group reports each member's success or failure.
 
+`hold_job` stops a Job that is executing before its turn without closing it.
+On confirmation it cancels the Job's active Runs and Workflows, releases their
+work-unit locks, and returns the Job to waiting on its unsatisfied
+dependencies (or to backlog with `to_backlog`, for Jobs without a PR). The Job,
+its PR and its branch are kept. It requires a `reason` and refuses a Job with
+no active work, or whose dependencies are all satisfied.
+
+Dependency edits (`add_job_dependency`, `replace_job_dependency`,
+`remove_job_dependency`) on a Job that is running check its start gate
+afterwards. If the new dependencies are unsatisfied and the Job has an active
+Run, the edit is rejected by default, naming the Run; pass `hold_running: true`
+(with an optional `reason`) to hold the Job in the same change. A running Job
+with no active Run (blocked or failed) returns to the waiting state so its
+label matches its work intent. When the dependency lands, resume a Workflow
+that blocked as non-retryable with the normal `retry` in implementation mode.
+
 Incident fan-out operations also accept bounded, deduplicated plural inputs:
 `retire_terminal_work_unit` (`work_unit_ids`), `admin_cleanup_workspace`
 (`workflow_ids`), and `force_state_transition`,

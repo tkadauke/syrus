@@ -218,6 +218,10 @@ class JobDependency < ApplicationRecord
 
   def recheck_dependent_job_start_blocks
     job&.recheck_queued_workflow_start_blocks!
+    # A started Job with no active Run must not keep reading `running` once an
+    # edit leaves its dependencies unsatisfied. A Job that is still executing
+    # is left to the tools, which reject or hold it explicitly.
+    JobDependencyEditGuard.demote_if_gate_unmet!(job) if job
   end
 
   def unresolved_reference_present?

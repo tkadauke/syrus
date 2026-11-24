@@ -141,6 +141,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `force_state_transition` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `git_diff` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
 | `git_status` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
+| `hold_job` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `inspect_provider_circuit` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
 | `list_epics` | chat | essential | read | no | - | - | - | - | essential |
 | `list_files` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
@@ -333,6 +334,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (confidential cross boundary) |
 | `git_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.local_reads` | `local_mode` | essential |
 | `git_status` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.local_reads` | `local_mode` | essential |
+| `hold_job` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, destructive) |
 | `inspect_provider_circuit` | coworker | essential | read | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_diagnostics` | - | deniable (instance wide observability) |
 | `list_epics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |
 | `list_files` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.local_reads` | `local_mode` | essential |
