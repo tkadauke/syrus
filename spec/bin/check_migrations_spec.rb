@@ -103,6 +103,40 @@ RSpec.describe "bin/check-migrations", :ci_only do
     expect(stderr).to include("Syrus intentionally disables database-level FKs")
   end
 
+  # Regression: a plugin migration renamed coverage_snapshots in place and
+  # Runs still on the previous release failed with "Table doesn't exist".
+  it "rejects in-place table and column renames after the rolling-deploy policy" do
+    write_migration("plugins/widgets/db/migrate/20261125120000_rename_widgets.rb", <<~RUBY)
+      class RenameWidgets < ActiveRecord::Migration[8.0]
+        def change
+          rename_table :widgets, :plugin_widgets
+          rename_column :plugin_widgets, :name, :label
+        end
+      end
+    RUBY
+
+    stdout, stderr, status = run_check("--all")
+
+    expect(status.exitstatus).to eq(1)
+    expect(stdout).to be_empty
+    expect(stderr).to include("[rolling_deploy_rename] plugins/widgets/db/migrate/20261125120000_rename_widgets.rb:3")
+    expect(stderr).to include("[rolling_deploy_rename] plugins/widgets/db/migrate/20261125120000_rename_widgets.rb:4")
+  end
+
+  it "leaves renames that predate the rolling-deploy policy alone" do
+    write_migration("db/migrate/20261123120000_rename_gadgets.rb", <<~RUBY)
+      class RenameGadgets < ActiveRecord::Migration[8.0]
+        def up
+          rename_table :gadgets, :old_gadgets if table_exists?(:gadgets)
+        end
+      end
+    RUBY
+
+    _stdout, stderr, _status = run_check("--all")
+
+    expect(stderr).not_to include("rolling_deploy_rename")
+  end
+
   it "rejects post-policy top-level add_foreign_key without booting Rails" do
     write_migration("db/migrate/20260830120100_add_widget_fk.rb", <<~RUBY)
       class AddWidgetFk < ActiveRecord::Migration[8.0]

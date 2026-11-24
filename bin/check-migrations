@@ -26,6 +26,11 @@
 #                                      bigint, matching Rails' MySQL primary keys.
 #   - database_foreign_key          — post-policy migrations must not add
 #                                      database-level foreign key constraints.
+#   - rolling_deploy_rename         — post-policy migrations must not rename
+#                                      tables or columns in place: workers
+#                                      still on the previous release (draining
+#                                      pods, macOS workers) keep using the old
+#                                      name until they update.
 
 require "pathname"
 require "open3"
@@ -40,6 +45,7 @@ MIGRATION_GLOBS = [
 ].freeze
 MIGRATION_PATH_PATTERN = %r{\A(?:db/(?:migrate|[^/]+_migrate)|plugins/[^/]+/db/migrate)/.*\.rb\z}
 NO_FK_POLICY_VERSION = "20260820010000"
+NO_RENAME_POLICY_VERSION = "20261124000000"
 
 # Lint only migrations changed on this branch vs its effective base (or
 # `--all` to scan every migration). Immutable grader checkouts fetch the
@@ -242,6 +248,29 @@ rule "database_foreign_key" do |offenses, path, lines|
       line: i + 1,
       detail: "#{detail} — Syrus intentionally disables database-level FKs",
       remediation: "add an indexed bigint/reference column without a DB constraint; keep referential behavior in application code"
+    )
+  end
+end
+
+# A deploy migrates the database before every worker runs the new release:
+# compute pods drain their in-flight Runs on the old code, and macOS workers
+# update on their own schedule. A table renamed in place fails all of them
+# at once -- a production rollout failed two Jobs outright with "Table
+# 'coverage_snapshots' doesn't exist" from Runs still on the previous release.
+rule "rolling_deploy_rename" do |offenses, path, lines|
+  next if path.basename.to_s < "#{NO_RENAME_POLICY_VERSION}_"
+
+  lines.each_with_index do |line, i|
+    match = line.match(/^\s*(rename_table|rename_column)\b/)
+    next unless match
+
+    offenses << Offense.new(
+      rule: "rolling_deploy_rename",
+      path: path,
+      line: i + 1,
+      detail: "`#{match[1]}` breaks workers still running the previous release during a rolling deploy",
+      remediation: "keep the old name (e.g. `self.table_name`/`alias_attribute`), or expand and contract: add the new table/column, " \
+                   "ship code that uses it, and drop the old one in a later release"
     )
   end
 end
