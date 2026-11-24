@@ -72,6 +72,6 @@ class RuntimeImage < ApplicationRecord
   end
 
   def provenance_must_be_hash
-    errors.add(:provenance, "must be an object") unless provenance.is_a?(Hash)
+    errors.add(:provenance, :invalid) unless provenance.is_a?(Hash)
   end
 end
