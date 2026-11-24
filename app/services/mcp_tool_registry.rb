@@ -427,7 +427,8 @@ class McpToolRegistry
     end
 
     def coworker_entries
-      shared_chat_entries = chat_entries.select { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }
+      participants = Mcp::ChatToolParity.participants
+      shared_chat_entries = chat_entries.select { |entry| Mcp::ChatToolParity.core_entry_in_context?(entry, :coworker, participants:) }
       family_defaults = shared_chat_entries.group_by { |entry| entry.descriptor.capability }.transform_values do |entries|
         entries.all? do |entry|
           entry.descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&

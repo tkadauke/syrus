@@ -15,8 +15,8 @@ RSpec.describe AdminMysql::ChatToolSet do
   end
 
   it "is shared with coworker chats; availability stays gated on the owner being an admin" do
-    expect(Mcp::CoworkerToolExposure.plugin_provider?(described_class)).to be(true)
-    expect(described_class).not_to respond_to(:coworker_excluded?)
+    expect(Mcp::ChatToolParity.plugin_exceptions([ described_class ])).to be_empty
+    expect(Mcp::ChatToolParity.plugin_report([ described_class ])).to eq([])
   end
 
   it "is unavailable outside MySQL even for admins" do

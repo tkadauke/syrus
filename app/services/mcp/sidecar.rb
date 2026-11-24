@@ -168,11 +168,13 @@ module Mcp
       end
     end
 
-    def self.filter_by_policy(definitions, policy, user: nil)
+    def self.filter_by_policy(definitions, policy, user: nil, provider: nil)
       case policy
-      when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
-      when :coworker   then definitions.select { |defn| Mcp::CoworkerToolExposure.plugin_definition?(defn, user: user) }
-      else definitions
+      when :evaluator then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
+      else
+        return definitions unless Mcp::ChatToolParity.extension_context?(policy)
+
+        definitions.select { |defn| Mcp::ChatToolParity.plugin_definition_in_context?(defn, policy, user: user, provider: provider) }
       end
     end
 
@@ -184,8 +186,8 @@ module Mcp
       tool_sets
         .select do |tool_set|
           invoke_plugin(:chat_mcp_tool_set, tool_set, :available_for, false) do
-            if policy == :coworker
-              Mcp::CoworkerToolExposure.plugin_provider_available?(tool_set, chat_session, tier: tier)
+            if Mcp::ChatToolParity.extension_context?(policy)
+              Mcp::ChatToolParity.plugin_provider_available?(tool_set, policy, chat_session, tier: tier)
             else
               tool_set.available_for?(chat_session, tier: tier)
             end
@@ -207,7 +209,7 @@ module Mcp
         end
       end
 
-      definitions = filter_by_policy(definitions, policy, user: chat_session&.user)
+      definitions = filter_by_policy(definitions, policy, user: chat_session&.user, provider: tool_set_class)
       if policy == :coworker && tool_set_class.respond_to?(:coworker_grants)
         defaults_by_tool = Array(tool_set_class.coworker_grants).each_with_object({}) do |grant, defaults|
           attributes = grant.to_h.with_indifferent_access

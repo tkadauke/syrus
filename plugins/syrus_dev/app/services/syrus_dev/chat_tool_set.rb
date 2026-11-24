@@ -29,14 +29,19 @@ module SyrusDev
 
     def self.available_for?(_chat_session, tier:) = false
 
-    def self.coworker_only_surface
-      {
-        reason_code: "coworker_sanitized_surface",
+    def self.chat_parity_reason_codes
+      { "syrus_dev_sanitized_diagnostics" => "Sanitized Syrus diagnostics offered through coworker grants rather than ordinary chats." }
+    end
+
+    def self.chat_parity_exceptions
+      [ {
+        reason_code: "syrus_dev_sanitized_diagnostics",
         explanation: "Sanitized Syrus diagnostics are offered through coworker grants; ordinary chats read " \
                      "diagnostics through admin tools.",
         owner: "syrus-dev",
-        test_ref: "plugins/syrus_dev/spec/services/syrus_dev/chat_tool_set_spec.rb"
-      }
+        test_ref: "plugins/syrus_dev/spec/services/syrus_dev/chat_tool_set_spec.rb",
+        absent_from: %i[planner coding local]
+      } ]
     end
 
     def self.available_for_coworker?(_chat_session, tier:)

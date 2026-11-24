@@ -9,8 +9,9 @@ RSpec.describe Coworkers::ChatToolSet do
 
   it "advertises messaging, owner-thread replies, scheduling, and workspace tools only on the essential coworker surface" do
     expect(chat_tool_sets).to include(described_class)
-    expect(Mcp::CoworkerToolExposure.coworker_only_exception(described_class))
-      .to have_attributes(reason_code: "coworker_identity_lifecycle", owner: "coworkers")
+    expect(Mcp::ChatToolParity.provider_exceptions(described_class))
+      .to contain_exactly(have_attributes(reason_code: "coworker_identity_lifecycle", owner: "coworkers"))
+    expect(described_class.chat_parity_participant).to eq(Coworkers::ChatParity)
     expect(described_class.available_for?(chat, tier: :essential)).to be(false)
     expect(described_class.available_for_coworker?(chat, tier: :essential)).to be(true)
     expect(described_class.available_for_coworker?(chat, tier: :deferred)).to be(false)
