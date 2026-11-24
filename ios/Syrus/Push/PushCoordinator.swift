@@ -102,14 +102,10 @@ final class PushCoordinator: ObservableObject {
         await refreshAuthorization()
         isBusy = true
         defer { isBusy = false }
+        // Sync first so the authoritative probe reflects any registration this
+        // refresh performs (new device, re-enabled or updated environment).
+        if let server { _ = await service.syncIfNeeded(server: server, via: performer) }
         probe = await service.probeServer(via: performer)
-        guard let server, case .signedIn(let state) = probe else { return }
-        let synced = await service.syncIfNeeded(server: server, via: performer)
-        // The first probe ran before registration; when this refresh just
-        // registered the device, re-probe so the server view matches the sync row.
-        if synced, let token = service.token, state.device(matching: token) == nil {
-            probe = await service.probeServer(via: performer)
-        }
     }
 
     func sendTestNotification(via performer: WebRequestPerforming) async {
