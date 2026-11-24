@@ -10,7 +10,13 @@ module Syrus
     MODELS = %w[ AppSetting Epic Run Job WorkIntent Workflow Step WorkUnit User ].freeze
     RANKS = MODELS.each_with_index.to_h.freeze
 
-    Violation = Data.define(:held, :taking, :site, :held_site)
+    # `entry` is the outermost application frame: where the transaction's work
+    # came in (a job's perform, a controller action, a service a spec called).
+    Violation = Data.define(:held, :taking, :site, :held_site, :entry) do
+      def initialize(held:, taking:, site:, held_site:, entry: nil)
+        super
+      end
+    end
 
     # Inversions waiting on an operator decision (NY31): each is a lock site
     # pair the order cannot fix without a design choice. The checker records
@@ -116,7 +122,8 @@ module Syrus
           relock = held && rows.any? && rows.all? { |row| held[:rows].include?(row) }
           held[:rows].merge(rows) if held
           if held && held[:rank] > rank && !relock
-            report(Violation.new(held: held[:model], taking: model_class.base_class.name, site: site, held_site: held[:site]))
+            report(Violation.new(held: held[:model], taking: model_class.base_class.name, site: site, held_site: held[:site],
+                                entry: (mode == :record ? entry_site : nil)))
           end
           return if held && rank <= held[:rank]
 
@@ -145,6 +152,15 @@ module Syrus
             raise Error, "row lock order violated: took #{violation.taking} at #{violation.site} while holding " \
                          "#{violation.held} from #{violation.held_site} (order: #{MODELS.join(' -> ')})"
           end
+        end
+
+        def entry_site
+          location = caller_locations.reverse.find do |candidate|
+            candidate.path.match?(%r{/(?:plugins/[^/]+/)?app/}) && !candidate.path.include?("/vendor/")
+          end
+          return "unknown" unless location
+
+          "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?app/)}, '\1')}:#{location.label}"
         end
 
         def site
