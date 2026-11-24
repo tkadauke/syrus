@@ -4,3 +4,9 @@ build/
 DerivedData/
 xcuserdata/
 *.xcuserstate
+Config/Local.xcconfig
+*.p8
+*.mobileprovision
+*.p12
+*.xcarchive
+ExportOptions.plist
