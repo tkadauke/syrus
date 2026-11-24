@@ -3773,6 +3773,18 @@
       ],
       "recommendation": "A. The WorkUnit pattern is one call moved in four methods and covers about 900 of the hits, and Run#start is one lock. Once the groups are fixed, raise-mode write tracking keeps it from regressing. B leaves the proof covering only part of what the code locks, and C moves the inversion to the launch paths.",
       "decision": "A (2026-11-23, answered on the lean-plan site): Bring writes under the order, pattern by pattern. Write the WorkUnit last in each terminal transition (the same transaction, so F97's atomicity holds), lock the Run before the Job in Run#start, trace the two small groups, then switch write tracking on in raise mode so new code is checked. To implement."
+    },
+    {
+      "id": "NY38",
+      "item": "row-lock-order",
+      "title": "To finish NY37's A, may WorkIntent move after Step in the lock order (Workflow -> Step -> WorkIntent -> WorkUnit)?",
+      "context": "Implementing NY37's A, writing the WorkUnit last in each Workflow transition clears about 900 of the write-order hits, but the WorkIntent cannot follow. Every terminal transition settles the intent after the Workflow and its Steps are locked and written (WorkflowCancellation locks the Workflow, the cascade writes the Steps, then the unit's sync writes the intent), while the order puts WorkIntent before Workflow. Moving that code earlier would mean locking each intent before its Workflow at every place a Workflow can finish. F110 put WorkIntent before Workflow because launch paths lock the intent and then the Workflow, but that Workflow is created in the same transaction, and since F117 a self-created row is outside the order. Test: with WorkIntent moved between Step and WorkUnit, the whole parallel suite runs in raise mode with 0 failures (25,912 examples); the CI-only phase is being checked.",
+      "options": [
+        "A. Move WorkIntent after Step (AppSetting -> Epic -> Run -> Job -> Workflow -> Step -> WorkIntent -> WorkUnit -> User), update LockOrder.lean and the docs, then finish NY37's code changes in that order.",
+        "B. Keep the order and lock each Workflow's intent before the Workflow at every entry point that can finish one (cancellation, dispatcher finish, terminal sync, reconciler repairs).",
+        "C. Leave the intent's write out of the write-order work: settle it after commit instead. That gives up F97's atomicity, so a crash in between leaves a terminal unit with an open intent for the reconciler."
+      ],
+      "recommendation": "A. The evidence says the intent is only locked before the Workflow on paths that create that Workflow, so the position was never load-bearing. B repeats NY35's spreading pattern, and C undoes F97."
     }
   ]
 }
