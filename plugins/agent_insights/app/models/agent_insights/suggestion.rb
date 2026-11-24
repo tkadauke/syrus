@@ -153,7 +153,7 @@ module AgentInsights
     def redacted_stale_memory_text = redact_nullable(stale_memory_text)
     def redacted_stale_memory_evidence = redact_nullable(stale_memory_evidence)
     def redacted_retired_reason = redact_nullable(retired_reason)
-    def redacted_evidence = CommandRedactor.redact_value(evidence)
+    def redacted_evidence = Syrus::Host::CommandRedactor.redact_value(evidence)
 
     def remove_memory? = effective_proposal_type == "remove_memory"
     def revise_existing_insight? = effective_proposal_type == "revise_existing_insight"
@@ -161,7 +161,7 @@ module AgentInsights
     private
 
     def redact_nullable(value)
-      value.nil? ? nil : CommandRedactor.redact(value)
+      value.nil? ? nil : Syrus::Host::CommandRedactor.redact(value)
     end
 
     def remove_memory_targets_memory
