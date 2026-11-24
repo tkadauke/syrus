@@ -366,6 +366,11 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
       persisted = messages.find { |m| m.include?("lock conflict persisted") }
       expect(persisted).to include("Lock wait timeout exceeded", "lock_holders=", "UPDATE jobs")
+
+      event = BackendExceptionEvent.where(job_class: "PollMergeStateJob").last
+      expect(event).to be_present
+      expect(event.exception_class).to eq("ActiveRecord::LockWaitTimeout")
+      expect(event.backtrace).to be_present
     end
   end
 
