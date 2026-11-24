@@ -392,7 +392,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::Workflows` (since 0.1.16) — Queries workflows and names the queue a worker resumes them on; scheduling, transitions, and persistence are not promised. Supported members: `all`, `find`, `joins`, `resume_queue_name`, `where`.
 - `Syrus::Host::WorkspaceContext` (since 0.1.16) — Carries the workspace path and format hint passed to ecosystem capability providers. Only the listed members are supported. Supported members: `new`.
 
-The compatibility scanner also recognizes 393 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 294 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
