@@ -1,5 +1,6 @@
 class PluginDesiredState::Convergence
   DEFAULT_DIVERGENCE_THRESHOLD = 5.minutes
+  ALERT_EPISODE_KEY = "__alert".freeze
 
   def initialize(state: PluginDesiredState.current, now: Time.current, threshold: nil)
     @state = state
@@ -23,10 +24,8 @@ class PluginDesiredState::Convergence
   # process's episode start); changes when a later, new episode begins, so
   # dismissals and outbound deduplication do not leak across recoveries.
   def prolonged_episode_key
-    starts = process_rows.select { |row| row[:diverged_too_long] }.filter_map { |row| row[:diverged_since] }
-    return if starts.empty?
-
-    Time.zone.parse(starts.min).to_i
+    process_rows
+    @alert_since&.to_i
   end
 
   private
@@ -36,6 +35,7 @@ class PluginDesiredState::Convergence
   def process_rows
     @process_rows ||= begin
       rows = cohort.map { |process| serialize(process) }.sort_by { |row| [ row[:role], row[:hostname] ] }
+      track_alert_episode(rows)
       persist_episodes
       rows
     end
@@ -52,6 +52,20 @@ class PluginDesiredState::Convergence
     started ||= now
     next_episodes[key] = { "since" => started.iso8601(6), "identity" => identity }
     started
+  end
+
+  # The global alert's episode is retained until no process remains sustained,
+  # so it stays stable when the earliest sustained process recovers while
+  # another one is still diverged. A new desired revision starts a new one.
+  def track_alert_episode(rows)
+    @alert_since = nil
+    starts = rows.select { |row| row[:diverged_too_long] }.filter_map { |row| row[:diverged_since] }
+    return if starts.empty?
+
+    existing = stored_episodes[ALERT_EPISODE_KEY]
+    kept = existing && existing["revision"] == state.revision ? Time.zone.parse(existing["since"].to_s) : nil
+    @alert_since = kept || Time.zone.parse(starts.min)
+    next_episodes[ALERT_EPISODE_KEY] = { "since" => @alert_since.iso8601(6), "revision" => state.revision }
   end
 
   def episode_key(process)
