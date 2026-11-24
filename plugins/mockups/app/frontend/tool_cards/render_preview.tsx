@@ -52,7 +52,10 @@ function renderExpanded(context: ToolCardContext) {
         <Badge>{previewPanelText("tool_unpublished")}</Badge>
       </div>
       {rendered.image ? (
-        <MediaPreviewShell item={{ title, subtitle: rendered.entryFile, src: rendered.image, alt: title, badge: "PNG", actions: [], meta: [] }} modalLabel={title} />
+        <MediaPreviewShell
+          item={{ title, subtitle: rendered.entryFile, src: rendered.image, alt: title, badge: "PNG", actions: [], meta: [] }}
+          modalLabel={title}
+        />
       ) : null}
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         {rendered.entryFile ? <Row label={previewPanelText("tool_entry_file")} value={rendered.entryFile} /> : null}
@@ -79,7 +82,18 @@ export const examples: ToolCardExample[] = [
     input: { panel_id: "42", viewport: "mobile" },
     parsedResult: [
       { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" },
-      { type: "text", text: JSON.stringify({ panel_id: 42, entry_file: "index.html", viewport: { width: 393, height: 852 }, preset: "mobile", capture: "viewport", wait_ms: 0, published: false }) }
+      {
+        type: "text",
+        text: JSON.stringify({
+          panel_id: 42,
+          entry_file: "index.html",
+          viewport: { width: 393, height: 852 },
+          preset: "mobile",
+          capture: "viewport",
+          wait_ms: 0,
+          published: false
+        })
+      }
     ]
   },
   {
