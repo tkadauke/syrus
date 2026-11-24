@@ -148,6 +148,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
+| `achievements` | `Achievements::Lifecycle` | - | - | `callback_providers`, `domain_subscribers` |
 | `agent_insights` | `AgentInsights::Lifecycle` | - | - | `domain_subscribers` |
 | `alertmanager_investigations` | `AlertmanagerInvestigations::Lifecycle` | - | - | `callback_providers` |
 | `build_cache` | `BuildCache::Lifecycle` | - | - | `domain_subscribers` |
@@ -311,6 +312,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
+| `achievements` | `Achievements::Surface` | - | `sidebar_pages`, `admin_pages`, `ui_slots` | - |
 | `admin_mysql` | `AdminMysql::Surface` | - | `admin_pages` | - |
 | `agent_activity` | `AgentActivity::Surface` | - | `sidebar_pages`, `admin_pages`, `filter_subjects` | - |
 | `agent_insights` | `AgentInsights::Surface` | - | `admin_pages`, `repo_page_tabs`, `filter_subjects` | - |

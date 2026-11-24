@@ -10,6 +10,7 @@ module Achievements
     description "Instance milestones and per-user accomplishments with idempotent unlocks and per-user acknowledgments."
     long_description "Achievements owns a versioned definition registry, canonical unlock records, and per-user acknowledgments. Instance-scoped milestones unlock once per installation; user-scoped accomplishments unlock once per attributed user. Evaluation and presentation are delivered by the plugin itself; its development workbench appears under Admin only while the Syrus Dev plugin is also enabled."
     homepage "https://github.com/tkadauke/syrus"
+    icon_url "/plugin-icons/achievements.svg"
     author "Thomas Kadauke"
     category "tooling"
     default_enabled false
