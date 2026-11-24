@@ -167,6 +167,31 @@ describe("chat payload recent chats compatibility", () => {
     expect(await screen.findByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
   })
 
+  it("never renders the previous chat's messages while another chat loads", async () => {
+    const firstChat = chatPayload()
+    const secondChat = chatPayload({ chat: { id: 9, title: "Canal planning" }, messages: [] }, { recent_chats: undefined })
+    let releaseSecond: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => { releaseSecond = resolve })
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") return new Response(null, { status: 204 })
+      if (path === "/api/v1/app/chats/9") {
+        await gate
+        return jsonResponse(secondChat)
+      }
+      return jsonResponse(firstChat)
+    })
+
+    renderRouteWithChatSwitch()
+    await screen.findByText("Discuss aqueducts.")
+    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
+
+    expect(screen.queryByText("Discuss aqueducts.")).not.toBeInTheDocument()
+    await act(async () => { releaseSecond?.() })
+    expect(await screen.findByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+    expect(screen.queryByText("Discuss aqueducts.")).not.toBeInTheDocument()
+  })
+
   it("survives a skewed cached payload while refresh initializes", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(chatQueryKey("8", ""), chatPayload({}, { recent_chats: undefined }))
