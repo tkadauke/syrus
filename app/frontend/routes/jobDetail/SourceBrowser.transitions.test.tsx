@@ -13,7 +13,9 @@ afterEach(() => vi.restoreAllMocks())
 describe("SourceTab query transitions", () => {
   it("never shows the previous Job's source tree while another Job's source loads", async () => {
     let release: (() => void) | undefined
-    const gate = new Promise<void>((resolve) => { release = resolve })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       const path = String(input)
       if (path.startsWith("/api/v1/app/jobs/43/source")) {
@@ -36,17 +38,24 @@ describe("SourceTab query transitions", () => {
     rerender(tree("43"))
 
     expect(screen.queryByText("job42.txt")).not.toBeInTheDocument()
-    await act(async () => { release?.() })
+    await act(async () => {
+      release?.()
+    })
     expect(await screen.findByText("job43.txt")).toBeInTheDocument()
   })
   it("keeps the current tree visible while a different ref loads within the same Job", async () => {
     let release: (() => void) | undefined
-    const gate = new Promise<void>((resolve) => { release = resolve })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       const path = String(input)
       if (path.includes("ref=aabbccdd1234567")) {
         await gate
-        return jsonResponse({ ...jobSourcePayload({ treeItems: [{ path: "base.txt", name: "base.txt", size: 1, language: "plaintext", type: "file" }] }), selected_ref: "aabbccdd1234567" })
+        return jsonResponse({
+          ...jobSourcePayload({ treeItems: [{ path: "base.txt", name: "base.txt", size: 1, language: "plaintext", type: "file" }] }),
+          selected_ref: "aabbccdd1234567"
+        })
       }
       return jsonResponse(jobSourcePayload({ treeItems: [{ path: "head.txt", name: "head.txt", size: 1, language: "plaintext", type: "file" }] }))
     })
@@ -63,7 +72,9 @@ describe("SourceTab query transitions", () => {
     fireEvent.change(screen.getByDisplayValue(/Repair aqueduct/), { target: { value: "aabbccdd1234567" } })
 
     expect(screen.getByText("head.txt")).toBeInTheDocument()
-    await act(async () => { release?.() })
+    await act(async () => {
+      release?.()
+    })
     expect(await screen.findByText("base.txt")).toBeInTheDocument()
   })
 })

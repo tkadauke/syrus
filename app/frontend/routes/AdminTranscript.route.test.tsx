@@ -23,7 +23,9 @@ function payload(runId: number, page: number) {
 
 function setup() {
   let release: (() => void) | undefined
-  const gate = new Promise<void>((resolve) => { release = resolve })
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
   vi.spyOn(window, "fetch").mockImplementation(async (input) => {
     const url = String(input)
     const match = url.match(/runs\/(\d+)\/transcript\?page=(\d+)/)
