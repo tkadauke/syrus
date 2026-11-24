@@ -81,10 +81,29 @@ timestamps, never evidence or subject references:
 |---|---|
 | `GET /achievements` | Visible unlocks with this user's acknowledgment state |
 | `GET /achievements/pending` | Visible unlocks this user has not acknowledged |
+| `GET /achievements/pending?subject_type=job&subject_id=<id>` | Pending reveals about one Job or Epic; empty unless the user can access it |
 | `POST /achievements/:id/acknowledge` | Acknowledge one unlock |
 | `POST /achievements/:id/replay` | Make one reveal pending again for this user |
 | `POST /achievements/reset_acknowledgments` | Clear this user's acknowledgments |
 | `POST /admin/achievements/reset_acknowledgments` | Admin only: clear everyone's; requires `confirm=reset_all_acknowledgments` |
+
+`GET /achievements` also lists locked definitions. A locked hidden definition
+is reduced to its scope; nothing else about it is exposed. An unlock carries an
+`evidence_link` (`kind`, `id`, `slug`) only when its subject is a Job or Epic the
+caller can access, so an instance achievement never discloses a private record.
+
+## Collection page and reveals
+
+The **Achievements** sidebar page (`/achievements`) lists instance milestones and
+the user's own accomplishments in separate sections, with earned times, evidence
+links, locked and hidden placeholders, and per-unlock acknowledge and replay
+controls plus a reset of the user's own acknowledgments. On the Job detail page
+the plugin contributes a reveal host only while the user has an unacknowledged
+reveal about that Job. Reveals appear oldest first, one at a time, and are
+acknowledged only after being presented (visible tab). If saving fails, a retry
+button is offered and the reveal stays pending. Reveals honor
+`prefers-reduced-motion`, trap focus in an accessible dialog, and play no sound.
+The placeholder artwork is deliberately neutral.
 
 Replay and reset change acknowledgments only. They never delete or recreate an
 unlock or alter its `unlocked_at` or evidence. While the plugin is disabled the
