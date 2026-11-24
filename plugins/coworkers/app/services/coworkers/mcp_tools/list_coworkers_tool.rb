@@ -20,21 +20,21 @@ module Coworkers::McpTools
       def call(server_context:, state: nil, query: nil, limit: nil)
         owner = server_context.fetch(:chat_session).user
         relation = Coworkers::OwnerResolver.new(owner: owner).scope.includes(avatar_attachment: :blob, coworker_chats: :chat_session)
-        return Mcp::Tools.invalid("state must be one of #{Coworkers::Coworker::STATES.join(', ')}") if state.present? && !Coworkers::Coworker::STATES.include?(state.to_s)
+        return Syrus::Host::McpTools.invalid("state must be one of #{Coworkers::Coworker::STATES.join(', ')}") if state.present? && !Coworkers::Coworker::STATES.include?(state.to_s)
 
         relation = relation.where(state: state) if state.present?
         if query.present?
           normalized_query = query.to_s.strip
-          return Mcp::Tools.invalid("query must be at most #{MAX_QUERY_LENGTH} characters") if normalized_query.length > MAX_QUERY_LENGTH
+          return Syrus::Host::McpTools.invalid("query must be at most #{MAX_QUERY_LENGTH} characters") if normalized_query.length > MAX_QUERY_LENGTH
 
           pattern = "%#{ActiveRecord::Base.sanitize_sql_like(normalized_query.downcase)}%"
           relation = relation.where("LOWER(name) LIKE :query OR LOWER(handle) LIKE :query OR LOWER(role_summary) LIKE :query", query: pattern)
         end
         bounded_limit = limit.nil? ? DEFAULT_LIMIT : limit.to_i.clamp(1, MAX_LIMIT)
         coworkers = relation.order(Arel.sql("LOWER(name) ASC"), :id).limit(bounded_limit)
-        Mcp::Tools.success(coworkers: coworkers.map { |coworker| Coworkers::McpPresenter.new(coworker).summary }, limit: bounded_limit)
+        Syrus::Host::McpTools.success(coworkers: coworkers.map { |coworker| Coworkers::McpPresenter.new(coworker).summary }, limit: bounded_limit)
       rescue StandardError => error
-        Mcp::Tools.invalid(error.message)
+        Syrus::Host::McpTools.invalid(error.message)
       end
     end
   end

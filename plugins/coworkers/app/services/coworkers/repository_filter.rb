@@ -1,5 +1,5 @@
 class Coworkers::RepositoryFilter
-  include Syrus::Plugin::RepositoryFilter
+  include Syrus::Host::RepositoryFilter
 
   def self.apply(scope:, user:)
     workspace_slugs = Coworkers::Coworker.where(owner_user: user).pluck(:workspace_repo).filter_map do |remote|
@@ -8,12 +8,12 @@ class Coworkers::RepositoryFilter
     end
     return scope if workspace_slugs.empty?
 
-    repositories = Repository.arel_table
+    repositories = Syrus::Host::Repositories.arel_table
     workspace_predicate = workspace_slugs.uniq.map do |owner, name|
       repositories[:owner].lower.eq(owner).and(repositories[:name].lower.eq(name))
     end.reduce(&:or)
     dedicated_ids = Coworkers::WorkspaceRepository.select(:repository_id)
-    workspace_only_ids = Repository.where(id: dedicated_ids).where(workspace_predicate).select(:id)
+    workspace_only_ids = Syrus::Host::Repositories.where(id: dedicated_ids).where(workspace_predicate).select(:id)
 
     scope.where.not(id: workspace_only_ids)
   end

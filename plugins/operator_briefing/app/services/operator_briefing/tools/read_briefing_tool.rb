@@ -13,13 +13,13 @@ module OperatorBriefing
 
       class << self
         def call(server_context:)
-          run = Mcp::Tools.run_from_context(server_context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
           briefing = Briefing
             .includes(:repository, :job, :items, :revisions)
             .find_by!(job: run.job)
           revision = briefing.latest_revision
 
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             briefing: {
               id: briefing.id,
               slug: briefing.slug,
@@ -45,7 +45,7 @@ module OperatorBriefing
             }
           )
         rescue ActiveRecord::RecordNotFound
-          Mcp::Tools.invalid("briefing not found for this run")
+          Syrus::Host::McpTools.invalid("briefing not found for this run")
         end
 
         private

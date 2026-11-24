@@ -15,11 +15,11 @@ module Coworkers::McpTools
           subject_selector_id: coworkers.map { |coworker| coworker.id.to_s }
         ).to_a.group_by { |rule| rule.subject_selector_id.to_i }
         catalog = Coworkers::GrantCatalog.all
-        Mcp::Tools.success(coworkers: coworkers.map do |coworker|
+        Syrus::Host::McpTools.success(coworkers: coworkers.map do |coworker|
           coworker_payload(coworker, catalog, owner, rules_by_coworker_id.fetch(coworker.id, []))
         end)
       rescue StandardError => error
-        Mcp::Tools.invalid(error.message)
+        Syrus::Host::McpTools.invalid(error.message)
       end
 
       private

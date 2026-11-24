@@ -11,7 +11,7 @@ module Coworkers
         worker = confined_workers.first
         return { outcome: "confinement_unavailable" } unless worker
 
-        { queue: ::Workflow.resume_queue_name(worker.hostname) }
+        { queue: Syrus::Host::Workflows.resume_queue_name(worker.hostname) }
       end
 
       def availability(descriptor)
@@ -51,7 +51,7 @@ module Coworkers
       private
 
       def current_worker_confined?
-        Array(WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)
+        Array(Syrus::Host::WorkerCapabilities.current.dig(:capabilities, "runtime")).include?(CONFINEMENT_RUNTIME)
       end
 
       def confined_worker_available?
@@ -59,15 +59,15 @@ module Coworkers
       end
 
       def confined_workers
-        InstanceVersion.fresh.where(role: "worker").select do |worker|
-          Array(WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?(CONFINEMENT_RUNTIME)
+        Syrus::Host::InstanceWorkers.fresh.select do |worker|
+          Array(Syrus::Host::WorkerCapabilities.normalize(worker.capabilities)["runtime"]).include?(CONFINEMENT_RUNTIME)
         end
       rescue ActiveRecord::StatementInvalid
         []
       end
 
       def confinement_unavailability_reason
-        workers = InstanceVersion.fresh.where(role: "worker").to_a
+        workers = Syrus::Host::InstanceWorkers.fresh.to_a
         return "confinement_worker_unavailable" if workers.empty?
         diagnostics = workers.map { |worker| worker.capability_diagnostics || {} }
         return "confinement_configuration_missing" if diagnostics.any? { |entry| entry["confined_coworker_configuration"] == "missing" }
@@ -79,8 +79,8 @@ module Coworkers
       end
 
       def broker_authorization_available?
-        manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
-        manifest&.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
+        manifest = Syrus::Host::PluginRegistry.all_plugins.find { |plugin| plugin.name == "credential_store" }
+        manifest&.enabled? && Syrus::Host::PluginRegistry.health.healthy?(manifest.name)
       end
     end
 

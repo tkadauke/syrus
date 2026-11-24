@@ -26,7 +26,7 @@ module AlertmanagerInvestigations
 
     def process_alert(payload)
       alert = Alert.new(payload: payload, host_label: @configuration.host_label)
-      ApplicationRecord.transaction(requires_new: true) { process(alert) }
+      Syrus::Host::Record.transaction(requires_new: true) { process(alert) }
     rescue StandardError => e
       fingerprint = alert&.fingerprint || payload["fingerprint"].presence || "unknown"
       Rails.logger.warn(
@@ -62,7 +62,7 @@ module AlertmanagerInvestigations
           return
         end
 
-        result = InvestigationJobs::Creator.call(
+        result = Syrus::Host::InvestigationJobCreator.call(
           user: runbook.repository.user,
           repository: runbook.repository,
           prompt: Prompt.new(alert: alert, runbook: runbook).to_s,
@@ -136,7 +136,7 @@ module AlertmanagerInvestigations
     end
 
     def plugin_record
-      PluginRecord.find_or_create_by!(name: "alertmanager_investigations")
+      Syrus::Host::PluginRecords.ensure!("alertmanager_investigations")
     end
   end
 end

@@ -9,13 +9,13 @@ module OperatorBriefing
     end
 
     def run!
-      User.where(id: BriefingSubscription.enabled.select(:user_id)).find_each do |user|
+      Syrus::Host::Users.where(id: BriefingSubscription.enabled.select(:user_id)).find_each do |user|
         settings = BriefingSettings.for_user(user)
         settings.with_lock do
           next unless settings.due?(now: now)
 
           successful_generations = 0
-          accessible_repository_ids = Repository.accessible_repository_ids_for(user)
+          accessible_repository_ids = Syrus::Host::Repositories.accessible_repository_ids_for(user)
           settings.enabled_subscriptions.where.not(repository_id: accessible_repository_ids).find_each do |subscription|
             subscription.update!(enabled: false)
           end

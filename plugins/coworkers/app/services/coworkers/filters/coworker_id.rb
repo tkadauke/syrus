@@ -1,6 +1,6 @@
 module Coworkers
   module Filters
-    class CoworkerId < ::Filters::Chips::Base
+    class CoworkerId < Syrus::Host::FilterChipBase
       SYRUS_VALUE = "syrus"
 
       filter_name "coworker_id"
@@ -35,8 +35,8 @@ module Coworkers
         linked = Coworkers::Chat.where(coworker_id: coworker_ids).select(:chat_session_id)
         return linked unless requested.include?(SYRUS_VALUE)
 
-        unlinked = ChatSession.where.not(id: Coworkers::Chat.select(:chat_session_id))
-        unlinked.or(ChatSession.where(id: linked)).select(:id)
+        unlinked = Syrus::Host::ChatSessions.where.not(id: Coworkers::Chat.select(:chat_session_id))
+        unlinked.or(Syrus::Host::ChatSessions.where(id: linked)).select(:id)
       end
     end
   end

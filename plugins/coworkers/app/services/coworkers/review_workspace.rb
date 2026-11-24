@@ -25,7 +25,7 @@ class Coworkers::ReviewWorkspace
     private
 
     def root_for(run)
-      WorkflowWorkspace.new(run.workflow).path.dirname.join("coworker-review-workspaces")
+      Syrus::Host::WorkflowWorkspace.new(run.workflow).path.dirname.join("coworker-review-workspaces")
     end
   end
 end

@@ -11,7 +11,7 @@ class Coworkers::WorkspaceBrowser
   def initialize(coworker:, repository:, user:)
     @coworker = coworker
     @repository = repository
-    @reader = RepositoryContent.for(repository, user: user)
+    @reader = Syrus::Host::RepositoryContent.for(repository, user: user)
   end
 
   def call(path: nil, filters: {})
@@ -46,14 +46,14 @@ class Coworkers::WorkspaceBrowser
     remote = Coworkers::RemoteWorkspace.for_coworker(@coworker)
     remote.branch_counts(coworker: @coworker, guard: Coworkers::PushGuard.new(coworker: @coworker))
   rescue StandardError => error
-    Rails.logger.warn("[Coworkers::WorkspaceBrowser] branch counts unavailable: #{GitRunner.redact(error.message)}")
+    Rails.logger.warn("[Coworkers::WorkspaceBrowser] branch counts unavailable: #{Syrus::Host::GitRunner.redact(error.message)}")
     { home: nil, chat: nil, run: nil }
   end
 
   def workspace_entries(revision)
     entries = @reader.tree(revision).sort_by(&:path)
     [ entries.first(MAX_FILES), entries.size > MAX_FILES ]
-  rescue RepositoryContent::Truncated => error
+  rescue Syrus::Host::RepositoryContent::Truncated => error
     [ Array(error.partial).sort_by(&:path).first(MAX_FILES), true ]
   end
 
@@ -130,7 +130,7 @@ class Coworkers::WorkspaceBrowser
     match_text = match && blob.text.slice(match.begin(0)...match.end(0))
     entry_json(entry).merge(binary:, truncated: blob.truncated, last_modified_at: modified_at&.iso8601,
       snippet:, highlights: index ? [ { start: highlight_start, length: utf16_length(match_text) } ] : [])
-  rescue RepositoryContent::NotFound
+  rescue Syrus::Host::RepositoryContent::NotFound
     nil
   end
 
@@ -178,7 +178,7 @@ class Coworkers::WorkspaceBrowser
     blob = @reader.read(revision, path, max_bytes: MAX_FILE_BYTES)
     binary = blob.bytes.include?("\0")
     { path: path, content: binary ? "" : blob.text, truncated: blob.truncated, binary: binary }
-  rescue RepositoryContent::NotFound
+  rescue Syrus::Host::RepositoryContent::NotFound
     nil
   end
 
@@ -194,13 +194,13 @@ class Coworkers::WorkspaceBrowser
         source_id: chat_id&.to_i || run&.id
       }
     end
-  rescue RepositoryContent::Error
+  rescue Syrus::Host::RepositoryContent::Error
     []
   end
 
   def source_runs(commits)
     shas = commits.map(&:sha)
-    candidates = Run.joins(:job)
+    candidates = Syrus::Host::Runs.joins(:job)
       .where(user_id: @coworker.owner_user_id, jobs: { repository_id: @repository.id })
       .where(head_sha: shas + shas.map { |sha| sha.first(12) })
       .where.not(head_sha: [ nil, "" ])
@@ -224,7 +224,7 @@ class Coworkers::WorkspaceBrowser
 
   def conflict_records
     chat_ids = @coworker.coworker_chats.select(:chat_session_id)
-    @coworker.chat_agents.select(:chat_session_id).then { |rostered| chat_ids = ChatSession.where(id: chat_ids).or(ChatSession.where(id: rostered)).select(:id) }
+    @coworker.chat_agents.select(:chat_session_id).then { |rostered| chat_ids = Syrus::Host::ChatSessions.where(id: chat_ids).or(Syrus::Host::ChatSessions.where(id: rostered)).select(:id) }
     Coworkers::WorkspaceConflict.unresolved.where(chat_session_id: chat_ids, repository: @repository).order(created_at: :desc).map do |conflict|
       { "branch" => conflict.source_branch, "files" => conflict.files, "detail" => conflict.detail }
     end
@@ -233,9 +233,9 @@ class Coworkers::WorkspaceBrowser
   def conflict_active?(home, branch)
     chat = @reader.resolve(branch)
     !%i[identical behind].include?(@reader.relation(base: home, head: chat))
-  rescue RepositoryContent::UnknownRevision
+  rescue Syrus::Host::RepositoryContent::UnknownRevision
     false
-  rescue RepositoryContent::Error
+  rescue Syrus::Host::RepositoryContent::Error
     true
   end
 end

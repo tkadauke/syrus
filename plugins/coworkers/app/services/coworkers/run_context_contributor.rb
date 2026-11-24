@@ -1,6 +1,6 @@
 module Coworkers
   class RunContextContributor
-    include Syrus::Plugin::McpRunContextContributor
+    include Syrus::Host::McpRunContextContributor
 
     def self.context_attributes(run:, role:)
       target = run.step.details.to_h["reviewer_target"]

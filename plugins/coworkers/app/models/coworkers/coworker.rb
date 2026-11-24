@@ -1,9 +1,9 @@
-class Coworkers::Coworker < ApplicationRecord
+class Coworkers::Coworker < Syrus::Host::Record
   # Opts in as an exact-agent permission rule subject (see Permissions::RuleDraft).
   def self.permission_agent_subject? = true
   self.table_name = "coworkers"
   include Syrus::Host::Mentionable
-  include PluginDataCleanup
+  include Syrus::Host::PluginDataCleanup
 
   STATES = %w[active paused archived].freeze
   AVATAR_KEYS = %w[comet orbit prism sprout wave spark].freeze
@@ -22,9 +22,9 @@ class Coworkers::Coworker < ApplicationRecord
   normalizes :handle, with: ->(value) { Syrus::Host::Handles.normalize(value) }
 
   validates :name, :workspace_repo, presence: true
-  validates :handle, presence: true, format: { with: Handle::FORMAT }, uniqueness: { case_sensitive: false }
+  validates :handle, presence: true, format: { with: Syrus::Host::Handles::FORMAT }, uniqueness: { case_sensitive: false }
   validates :state, inclusion: { in: STATES }
-  validates :chat_effort, inclusion: { in: ChatSession::EFFORT_LEVELS }, allow_nil: true
+  validates :chat_effort, inclusion: { in: Syrus::Host::ChatSessions.effort_levels }, allow_nil: true
   validates :accent_hex, format: { with: Syrus::Host::ColorPalette::HEX_PATTERN }
   validates :avatar_key, inclusion: { in: AVATAR_KEYS }, allow_nil: true
   validate :avatar_is_image
@@ -54,14 +54,14 @@ class Coworkers::Coworker < ApplicationRecord
     match = workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
     return unless match
 
-    Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
+    Syrus::Host::Repositories.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
   end
 
   # Coworker chat reads are capability-gated and resource-scoped: native
   # coworker sessions plus chats explicitly shared with this coworker.
   def readable_chat_session_ids
-    ChatSession.active.where(id: chats.select(:id)).or(
-      ChatSession.active.where(id: received_chat_shares.select(:chat_session_id))
+    Syrus::Host::ChatSessions.active.where(id: chats.select(:id)).or(
+      Syrus::Host::ChatSessions.active.where(id: received_chat_shares.select(:chat_session_id))
     ).distinct.ids
   end
 

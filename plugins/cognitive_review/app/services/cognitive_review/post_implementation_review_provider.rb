@@ -1,6 +1,6 @@
 module CognitiveReview
   class PostImplementationReviewProvider
-    include Syrus::Plugin::PostImplementationReviewProvider
+    include Syrus::Host::PostImplementationReviewProvider
 
     REVIEW_TRIGGER_KINDS = %w[
       initial
@@ -99,8 +99,8 @@ module CognitiveReview
       return nil unless version
 
       changed_files = Array(version&.files_snapshot).filter_map { |file| file["path"].to_s.presence }
-      policy = App::ReviewNoteProjects.call(
-        workspace_path: WorkflowWorkspace.path_for(workflow),
+      policy = Syrus::Host::ReviewNoteProjects.call(
+        workspace_path: Syrus::Host::WorkflowWorkspace.path_for(workflow),
         changed_files: changed_files
       )
       return nil if policy.empty?

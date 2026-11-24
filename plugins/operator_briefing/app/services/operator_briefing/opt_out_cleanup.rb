@@ -29,7 +29,7 @@ module OperatorBriefing
       Briefing
         .joins(:job)
         .where(owner_user_id: user_id, repository_id: repository_id, jobs: { kind: "briefing_generate" })
-        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .where.not(jobs: { state: Syrus::Host::Jobs.terminal_states })
         .includes(:job)
     end
   end

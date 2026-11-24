@@ -4,7 +4,7 @@ class Coworkers::MentionSession
   class << self
     def find_or_create!(coworker:, source_chat:)
       Coworkers::Chat.find_or_create_by!(coworker:, source_chat_session: source_chat, role: "mention") do |link|
-        link.chat_session = ChatSession.create!(
+        link.chat_session = Syrus::Host::ChatSessions.create!(
           user: coworker.owner_user,
           repository: coworker.workspace_repository,
           title: "@#{coworker.handle} in #{source_chat.title.presence || "Chat #{source_chat.id}"}",

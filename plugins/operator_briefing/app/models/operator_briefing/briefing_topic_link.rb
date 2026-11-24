@@ -1,5 +1,5 @@
 module OperatorBriefing
-  class BriefingTopicLink < ApplicationRecord
+  class BriefingTopicLink < Syrus::Host::Record
     self.table_name = "operator_briefing_topic_links"
 
     belongs_to :topic, class_name: "OperatorBriefing::BriefingTopic"
