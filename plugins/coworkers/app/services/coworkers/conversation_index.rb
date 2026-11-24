@@ -69,7 +69,7 @@ class Coworkers::ConversationIndex
           query, chat_session_ids: candidate_ids, limit: SEARCH_SCAN_LIMIT, offset: 0
         ).fetch(:chat_session_ids)
         title_ids = relation.where(id: candidate_ids)
-          .where("LOWER(chat_sessions.title) LIKE ?", "%#{ApplicationRecord.sanitize_sql_like(query.downcase)}%")
+          .where("LOWER(chat_sessions.title) LIKE ?", "%#{Syrus::Host::Record.sanitize_sql_like(query.downcase)}%")
           .limit(SEARCH_SCAN_LIMIT).pluck(:id)
         title_match_ids = title_ids.to_set
         relation = relation.where(id: message_ids | title_ids)

@@ -1,7 +1,7 @@
 module Coworkers
   class JournalingCatchUpJob < PluginJob
     plugin :coworkers
-    retry_on WorkUnits::Launcher::LockConflict, wait: 30.seconds, attempts: 10 do |job, error|
+    retry_on Syrus::Host::WorkLaunchConflict, wait: 30.seconds, attempts: 10 do |job, error|
       job.record_discarded_failure(error)
     end
 

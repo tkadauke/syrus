@@ -11,11 +11,11 @@ class Coworkers::OperationLock
     private
 
     def mysql?
-      ApplicationRecord.connection.adapter_name.match?(/mysql/i)
+      Syrus::Host::Record.connection.adapter_name.match?(/mysql/i)
     end
 
     def with_mysql_lock(key, wait:)
-      connection = ApplicationRecord.connection
+      connection = Syrus::Host::Record.connection
       quoted = connection.quote(key)
       acquired = connection.select_value("SELECT GET_LOCK(#{quoted}, #{Integer(wait)})").to_i == 1
       raise Busy, "#{key} is busy" unless acquired

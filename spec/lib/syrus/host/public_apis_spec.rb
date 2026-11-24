@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(124)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(124)
+    expect(Syrus::Host.apis.size).to eq(126)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(126)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -159,7 +159,8 @@ RSpec.describe Syrus::Host::PublicApis do
       SyrusYmlParseError: SyrusYml::ParseError, AgentRole: AgentRole, ReviewerTargetResolver: ReviewerTargets,
       ReviewerTargetRequired: ReviewerTargets::TargetRequired,
       ReviewerTargetUnavailable: ReviewerTargets::TargetUnavailable, GateResult: WorkUnits::GateResult,
-      HandleRegistry: HandleRegistry
+      HandleRegistry: HandleRegistry, WorkLauncher: WorkUnits::Launcher,
+      WorkLaunchConflict: WorkUnits::Launcher::LockConflict, Record: ApplicationRecord
     }.each do |name, core|
       expect(Syrus::Host.const_get(name)).to equal(core), name.to_s
       expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true), name.to_s
@@ -170,13 +171,15 @@ RSpec.describe Syrus::Host::PublicApis do
     {
       ContentReader: RepositoryContent, PathJail: Syrus::PathJail, ReviewerTargetResolver: ReviewerTargets,
       GateResult: WorkUnits::GateResult, HandleRegistry: HandleRegistry, UiSlot: Syrus::Plugin::UiSlot,
-      GitRunner: GitRunner, McpTools: Mcp::Tools, ToolContext: McpToolContext
+      GitRunner: GitRunner, McpTools: Mcp::Tools, ToolContext: McpToolContext,
+      WorkLauncher: WorkUnits::Launcher, Record: ApplicationRecord
     }.each do |name, target|
       api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
       callable = { ContentReader: %w[for], PathJail: %w[resolve!], ReviewerTargetResolver: %w[resolve],
                    GateResult: %w[pass block], HandleRegistry: %w[normalize claim! rename! release!],
                    UiSlot: %w[valid_slot?], GitRunner: %w[redact], McpTools: %w[not_authorized],
-                   ToolContext: %w[from_run] }.fetch(name)
+                   ToolContext: %w[from_run], WorkLauncher: %w[instantiate start! create_and_start!],
+                   Record: %w[connection sanitize_sql_like] }.fetch(name)
       expect(api.members).to include(*callable), name.to_s
       callable.each { |member| expect(target).to respond_to(member), "#{name}.#{member}" }
     end
