@@ -39,8 +39,24 @@ RSpec.describe ManualAgenticRun::GithubAccess do
       environments = [ proxy.gh_environment, proxy.git_environment ]
 
       expect(environments.to_json).not_to include("ghs_top_secret")
-      expect(proxy.gh_environment).to include("GH_ENTERPRISE_TOKEN" => described_class::CredentialProxy::PLACEHOLDER)
+      expect(proxy.gh_environment.fetch("GH_ENTERPRISE_TOKEN")).not_to eq("ghs_top_secret")
       expect(proxy.git_environment.values).to include("https://github.com/", "git@github.com:")
+    ensure
+      proxy&.stop
+    end
+  end
+
+  it "enforces exact repository and destructive semantics at the credential proxy" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+
+      expect { proxy.send(:upstream_for, "/api/v3/repos/acme/widgets-evil/issues") }
+        .to raise_error(/restricted to acme\/widgets/)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/pulls/9", '{"state":"closed"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets", '{"archived":true}')).to be(true)
+      expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/issues/9/lock", "")).to be(true)
+      deletion = "0" * 4 + ("a" * 40) + " " + ("0" * 40) + " refs/heads/repair\0 report-status\n"
+      expect(proxy.send(:destructive_request?, "POST", "/acme/widgets.git/git-receive-pack", deletion)).to be(true)
     ensure
       proxy&.stop
     end
@@ -85,7 +101,10 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     wrapper = File.join(env.fetch("PATH").split(":").first, "git")
 
     [ [ "push", "origin", "--delete", "repair" ], [ "push", "origin", ":repair" ],
-      [ "push", "--force", "origin", "repair" ], [ "push", "origin", "+repair:repair" ] ].each do |args|
+      [ "push", "--force", "origin", "repair" ], [ "push", "-f", "origin", "repair" ],
+      [ "push", "-d", "origin", "repair" ], [ "push", "--force-with-lease=repair", "origin", "repair" ],
+      [ "push", "--mirror", "origin" ], [ "push", "--prune", "origin" ],
+      [ "push", "origin", "+repair:repair" ] ].each do |args|
       _out, err, status = Open3.capture3(env, wrapper, *args)
       expect(status.exitstatus).to eq(78), args.join(" ")
       expect(err).to include("separately confirmed destructive authority")
