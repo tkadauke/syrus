@@ -382,7 +382,7 @@ module WorkEngine
             "cancel_starved_grader",
             primary_run,
             "A required sibling grader already failed, so this never-started grader cannot change the verdict; cancel it so grader_collect can fail and the repair loop start.",
-            execution_steps: [ "Run#cancel!", "Step#cancel!", "StepDispatcher.advance_from" ],
+            execution_steps: [ "Run#cancel_without_step_cascade!", "Step#cancel! (cascade suppressed)", "StepDispatcher.advance_from" ],
             preconditions: { run_state: "queued", step_kind: "grader", workflow_state: "running", failed_required_sibling: true }
           )
         end

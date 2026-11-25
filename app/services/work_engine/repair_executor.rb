@@ -863,11 +863,19 @@ module WorkEngine
           return skipped("Step is #{step.state}, not queued") unless step.queued?
           return skipped("Workflow is not running") unless step.workflow&.running?
 
-          with_transition_reason do
-            run.cancel!
-            run.save!
-            step.cancel!
-            step.save!
+          # Neither cancel may cascade. A cancelled Run cancels its Workflow,
+          # and a cancelled Step cancels grader_collect and the rest of the
+          # chain; either way the Workflow ends cancelled -- which for a merge
+          # train reads as an operator abort, skipping multisect and the
+          # landing fix and clearing every member's approval. grader_collect
+          # counts a cancelled required grader as unsuccessful, so it must be
+          # left to judge the failure.
+          Step.suppress_cancel_cascade do
+            with_transition_reason do
+              run.cancel_without_step_cascade!
+              step.cancel!
+              step.save!
+            end
           end
           StepDispatcher.advance_from(step.reload)
           success("cancelled starved #{run_label(run)} on #{step_label(step)}; a required sibling grader already failed")

@@ -1361,6 +1361,36 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       expect(StepDispatcher).to have_received(:advance_from).with(starved_grader)
     end
 
+    # Regression: the cancel cascaded `upstream_step_cancelled` to
+    # grader_collect and everything after it, so a failing landing bundle
+    # ended *cancelled* -- which the merge-train failure handler treats as an
+    # operator abort: no multisect, no landing fix, every member's approval
+    # cleared. The starved grader must settle collect, not end the Workflow.
+    it "lets grader_collect judge the failure instead of cancelling the Workflow" do
+      land_step = workflow.steps.create!(kind: "merge_train_land", position: 43, state: "queued", depends_on_ids: [ collect_step.id ])
+      allow(StepDispatcher).to receive(:advance_from)
+
+      reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(starved_grader.reload).to be_cancelled
+      expect(collect_step.reload).to be_queued
+      expect(land_step.reload).to be_queued
+      expect(workflow.reload).to be_running
+    end
+
+    it "hands the settled grader_collect to the dispatcher" do
+      # A running train has finished everything before its graders.
+      workflow.steps.where("position < ?", failed_grader.position).update_all(state: "succeeded", finished_at: 1.hour.ago)
+
+      failed_grader.update_columns(next_step_id: starved_grader.id)
+      starved_grader.update_columns(next_step_id: collect_step.id)
+
+      reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(collect_step.reload.runs).to exist
+      expect(workflow.reload).to be_running
+    end
+
     it "leaves the grader alone while it is recent" do
       starved_run.update_columns(created_at: 5.minutes.ago)
 
