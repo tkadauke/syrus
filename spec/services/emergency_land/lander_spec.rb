@@ -395,21 +395,86 @@ RSpec.describe EmergencyLand::Lander do
   end
 
   describe "unexpected GitHub failures" do
+    let(:sleeper) { instance_double(Proc, call: nil) }
+    let(:retry_randomizer) { -> { 0.5 } }
+
+    it "retries a 500 response and succeeds on the next PR create attempt" do
+      error = Octokit::InternalServerError.new(status: 500, body: { message: "down" })
+      stub_ahead_commits
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
+      create_attempts = 0
+      allow(client).to receive(:create_pull_request) do
+        create_attempts += 1
+        raise error if create_attempts == 1
+
+        OpenStruct.new(number: 9)
+      end
+      stub_mergeable_pr(number: 9)
+      stub_merge(number: 9)
+
+      result = described_class.land(job: job, user: owner, client: client, sleeper: sleeper,
+        retry_randomizer: retry_randomizer)
+
+      expect(result).to be_success
+      expect(client).to have_received(:create_pull_request).twice
+      expect(client).to have_received(:open_pull_request_for_head).exactly(3).times
+      expect(sleeper).to have_received(:call).with(1.second).once
+    end
+
+    it "adopts a PR created despite an ambiguous 500 response without retrying create" do
+      error = Octokit::InternalServerError.new(status: 500, body: { message: "down" })
+      existing_pr = OpenStruct.new(number: 9)
+      stub_ahead_commits
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil, existing_pr)
+      allow(client).to receive(:create_pull_request).and_raise(error)
+      stub_mergeable_pr(number: 9)
+      stub_merge(number: 9)
+
+      result = described_class.land(job: job, user: owner, client: client, sleeper: sleeper,
+        retry_randomizer: retry_randomizer)
+
+      expect(result).to be_success
+      expect(client).to have_received(:create_pull_request).once
+      expect(sleeper).not_to have_received(:call)
+    end
+
+    it "exhausts the bounded retry budget and leaves the Job and branch reusable" do
+      error = Octokit::ServiceUnavailable.new(status: 503, body: { message: "down" })
+      stub_ahead_commits
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
+      allow(client).to receive(:create_pull_request).and_raise(error)
+
+      result = described_class.land(job: job, user: owner, client: client, sleeper: sleeper,
+        pr_create_max_attempts: 3, pr_create_initial_delay: 4, pr_create_max_delay: 5,
+        retry_randomizer: -> { 1.0 })
+
+      expect(result).to be_failure
+      expect(result.message).to include("after 3 attempts", "Job and branch are still available", "retry emergency land")
+      expect(client).to have_received(:create_pull_request).exactly(3).times
+      expect(sleeper).to have_received(:call).with(5).twice
+      expect(job.reload).to have_attributes(state: "coding", branch_name: "syrus/emergency-1", pr_number: nil)
+    end
+
+    it "fails immediately for a non-retryable GitHub error" do
+      error = Octokit::Unauthorized.new(status: 401, body: { message: "bad credentials" })
+      stub_ahead_commits
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
+      allow(client).to receive(:create_pull_request).and_raise(error)
+
+      result = described_class.land(job: job, user: owner, client: client, sleeper: sleeper,
+        retry_randomizer: retry_randomizer)
+
+      expect(result).to be_failure
+      expect(result.message).to include("GitHub error", "bad credentials")
+      expect(client).to have_received(:create_pull_request).once
+      expect(sleeper).not_to have_received(:call)
+    end
+
     it "returns a failure result instead of raising when GitHub reports the merge failed" do
       stub_ahead_commits
       stub_open_pr(number: 9)
       stub_mergeable_pr(number: 9)
       stub_merge(number: 9, merged: false)
-
-      result = described_class.land(job: job, user: owner, client: client)
-
-      expect(result).to be_failure
-      expect(job.reload).to be_coding
-    end
-
-    it "returns a failure result when GitHub raises an Octokit error" do
-      stub_ahead_commits
-      allow(client).to receive(:open_pull_request_for_head).and_raise(Octokit::ServiceUnavailable.new(status: 503, body: { message: "down" }))
 
       result = described_class.land(job: job, user: owner, client: client)
 

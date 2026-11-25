@@ -11,6 +11,16 @@ module EmergencyLand
   # its own -- this is the backend capability an operator-confirmed pending
   # action calls into; that wiring is a separate Job.
   class Lander
+    class PullRequestCreationRetriesExhausted < StandardError
+      attr_reader :attempts, :last_error
+
+      def initialize(attempts:, last_error:)
+        @attempts = attempts
+        @last_error = last_error
+        super("Emergency-land PR creation failed after #{attempts} attempts: #{last_error.class}: #{last_error.message}")
+      end
+    end
+
     Result = Data.define(:status, :message, :job, :pr_number) do
       def success?
         status == :success
@@ -31,17 +41,27 @@ module EmergencyLand
     SKIPPED_CONTROLS = %w[graders adversarial_review security_review visual_review admission_control normal_worker_queue].freeze
     MERGEABILITY_POLL_INTERVAL = 2.seconds
     MERGEABILITY_WAIT_CEILING = 30.seconds
+    PR_CREATE_MAX_ATTEMPTS = 4
+    PR_CREATE_INITIAL_DELAY = 1.second
+    PR_CREATE_MAX_DELAY = 8.seconds
+    TRANSIENT_PR_CREATE_STATUSES = [ 500, 502, 503, 504 ].freeze
 
     def self.eligible_state?(job) = job.state.in?(ELIGIBLE_STATES)
 
     def self.land(job:, user:, client: nil, mergeability_poll_interval: MERGEABILITY_POLL_INTERVAL,
-      mergeability_wait_ceiling: MERGEABILITY_WAIT_CEILING, sleeper: Kernel.method(:sleep))
+      mergeability_wait_ceiling: MERGEABILITY_WAIT_CEILING, sleeper: Kernel.method(:sleep),
+      pr_create_max_attempts: PR_CREATE_MAX_ATTEMPTS, pr_create_initial_delay: PR_CREATE_INITIAL_DELAY,
+      pr_create_max_delay: PR_CREATE_MAX_DELAY, retry_randomizer: Random.method(:rand))
       new(job: job, user: user, client: client, mergeability_poll_interval: mergeability_poll_interval,
-        mergeability_wait_ceiling: mergeability_wait_ceiling, sleeper: sleeper).land
+        mergeability_wait_ceiling: mergeability_wait_ceiling, sleeper: sleeper,
+        pr_create_max_attempts: pr_create_max_attempts, pr_create_initial_delay: pr_create_initial_delay,
+        pr_create_max_delay: pr_create_max_delay, retry_randomizer: retry_randomizer).land
     end
 
     def initialize(job:, user:, client: nil, mergeability_poll_interval: MERGEABILITY_POLL_INTERVAL,
-      mergeability_wait_ceiling: MERGEABILITY_WAIT_CEILING, sleeper: Kernel.method(:sleep))
+      mergeability_wait_ceiling: MERGEABILITY_WAIT_CEILING, sleeper: Kernel.method(:sleep),
+      pr_create_max_attempts: PR_CREATE_MAX_ATTEMPTS, pr_create_initial_delay: PR_CREATE_INITIAL_DELAY,
+      pr_create_max_delay: PR_CREATE_MAX_DELAY, retry_randomizer: Random.method(:rand))
       @job = job
       @user = user
       @repository = job.repository
@@ -49,6 +69,10 @@ module EmergencyLand
       @mergeability_poll_interval = mergeability_poll_interval
       @mergeability_wait_ceiling = mergeability_wait_ceiling
       @sleeper = sleeper
+      @pr_create_max_attempts = pr_create_max_attempts
+      @pr_create_initial_delay = pr_create_initial_delay
+      @pr_create_max_delay = pr_create_max_delay
+      @retry_randomizer = retry_randomizer
     end
 
     def land
@@ -86,6 +110,9 @@ module EmergencyLand
       success(pr_number)
     rescue WorkUnits::Launcher::LockConflict => e
       refuse("#{job.slug} acquired active work (#{e.work_unit&.slug || e.lock_key}) while emergency land was validating; retry after it finishes.")
+    rescue PullRequestCreationRetriesExhausted => e
+      failure("GitHub failed to create the emergency-land pull request after #{e.attempts} attempts " \
+        "(#{e.last_error.class}: #{e.last_error.message}). The Job and branch are still available; retry emergency land later.")
     rescue Octokit::Error => e
       failure("GitHub error: #{e.class}: #{e.message}")
     rescue RepositoryContent::Error => e
@@ -141,14 +168,34 @@ module EmergencyLand
     def open_pull_request!
       return job.pr_number if job.pr_number.present?
 
-      pr_number = PullRequestOpener.new(repository, client: client).open(
-        branch: job.branch_name,
-        title: job.title,
-        body: pr_body,
-        job: job
-      )
+      attempts = 0
+      begin
+        attempts += 1
+        pr_number = PullRequestOpener.new(repository, client: client).open(
+          branch: job.branch_name,
+          title: job.title,
+          body: pr_body,
+          job: job
+        )
+      rescue Octokit::Error => e
+        raise unless transient_pr_create_error?(e)
+        raise PullRequestCreationRetriesExhausted.new(attempts: attempts, last_error: e) if attempts >= @pr_create_max_attempts
+
+        @sleeper.call(pr_create_retry_delay(attempts))
+        retry
+      end
       job.update!(pr_number: pr_number)
       pr_number
+    end
+
+    def transient_pr_create_error?(error)
+      error.respond_to?(:response_status) && error.response_status.to_i.in?(TRANSIENT_PR_CREATE_STATUSES)
+    end
+
+    def pr_create_retry_delay(failed_attempts)
+      exponential_delay = @pr_create_initial_delay * (2**(failed_attempts - 1))
+      jittered_delay = exponential_delay * (0.5 + @retry_randomizer.call)
+      [ jittered_delay, @pr_create_max_delay ].min
     end
 
     def pr_body
