@@ -54,3 +54,7 @@ because it owns the answers to "what else should I install?"
 ingress, persistent storage, secrets management, backups, and operational
 monitoring. It is the hard-mode path; use it when you need cluster-native
 operations, not because it looks more official.
+
+## Runtime image build evidence
+
+Each runtime image build attempt records provenance evidence: source digest, resolved base image digests (including `ARG`-parameterized `FROM` lines), the build-network policy digest, builder version, reached destinations, layer digests, measured resource usage, and the terminal result. Build logs are sanitized and size-bounded before storage; output past the cap is counted, not kept. Administrators can read the full evidence at `GET /api/v1/admin/runtime_image_build_requests/:id/evidence`; other surfaces only see a safe summary without log text or addresses.

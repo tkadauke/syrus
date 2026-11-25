@@ -161,7 +161,7 @@ module RuntimeImages
             # and evidenced too.
             audit_network(request, policy, session&.summary)
             evidence.record_network(policy, session&.summary)
-            record_bases(scratch, evidence)
+            record_bases(scratch, evidence, recipe)
           end
           Output.new(payload: read_output!(output, request.platform, evidence), source_digest: request.source_digest,
                      provenance: provenance(request, archive_digest, policy))
@@ -296,7 +296,7 @@ module RuntimeImages
                  "ip link set lo up; #{Shellwords.join(network.relay_command)} & relay=$!; " \
                  "trap 'kill $relay 2>/dev/null || true' EXIT; " \
                  "#{Shellwords.join(extract)}; " \
-                 "grep -iE '^[[:space:]]*FROM[[:space:]]' #{Shellwords.escape(File.join(work, "dockerfile"))} " \
+                 "grep -iE '^[[:space:]]*(FROM|ARG)[[:space:]]' #{Shellwords.escape(File.join(work, "dockerfile"))} " \
                  "> #{Shellwords.escape(File.join(scratch, BASES_FILE))} || true; " \
                  "#{Shellwords.join(build)} && " \
                  "{ #{Shellwords.join(images)} > #{Shellwords.escape(File.join(scratch, IMAGES_FILE))} 2>/dev/null || true; } && " \
@@ -416,8 +416,8 @@ module RuntimeImages
 
       # The Dockerfile's base images and what the builder resolved them to.
       # Observational: unreadable files leave the bases unresolved, never fail.
-      def record_bases(scratch, evidence)
-        references = DockerfileBases.references(read_small(File.join(scratch, BASES_FILE)))
+      def record_bases(scratch, evidence, recipe = {})
+        references = DockerfileBases.references(read_small(File.join(scratch, BASES_FILE)), Hash(recipe)["build_args"])
         images = begin
           parsed = JSON.parse(read_small(File.join(scratch, IMAGES_FILE)).presence || "[]")
           parsed.is_a?(Array) ? parsed : []
