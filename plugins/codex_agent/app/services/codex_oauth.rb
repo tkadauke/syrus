@@ -123,7 +123,7 @@ class CodexOauth
       params = Rack::Utils.parse_query(uri.query)
       callback_url = "#{PASTE_REDIRECT_URI}?#{URI.encode_www_form(params)}"
       write_callback_response(socket, status: "200 OK", body: callback_success_html)
-      AppEvents.broadcast(
+      Syrus::Host::AppEvents.broadcast(
         user: user,
         type: "codex_oauth.callback",
         resource: "credential",

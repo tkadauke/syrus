@@ -16,7 +16,7 @@ module ScheduledTasks
       end
 
       def for(task)
-        Syrus::Installer.sync!
+        Syrus::Host::Installer.sync!
         entries = @mutex.synchronize { @entries.reverse.dup }
         entry = entries.find { |candidate| candidate.matcher.call(task) }
         (entry&.handler || ScheduledTasks::FireHandlers::Default).new(task)

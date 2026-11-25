@@ -300,7 +300,7 @@ class CodexInvocation
   def codex_env(api_key:, codex_home:)
     Syrus::Host::ProcessRunner.forwarded_env(
       Syrus::Host::AgentRuntime.forwarded_env_keys,
-      extra: WorkspaceDependencyEnv.for(@workspace_path).merge(
+      extra: Syrus::Host::WorkspaceDependencyEnv.for(@workspace_path).merge(
         "CODEX_HOME" => codex_home,
         "CODEX_API_KEY" => api_key.presence
       )

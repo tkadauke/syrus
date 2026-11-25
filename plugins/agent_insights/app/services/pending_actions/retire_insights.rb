@@ -1,5 +1,5 @@
 module PendingActions
-  class RetireInsights < Base
+  class RetireInsights < Syrus::Host::PendingActionBase
     action_key "retire_insights"
 
     def execute = mutation.apply!.then { action }
