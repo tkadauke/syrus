@@ -114,9 +114,9 @@ module Permissions
           resource_scope: { type: :none },
           classifier: if operation.classifier
             ->(arguments) { operation.classifier.call(arguments, operation:, identifier:) }
-          else
+                      else
             ->(_arguments) { default_classification(operation, identifier) }
-          end,
+                      end,
           fingerprint_normalizer: method(:normalize_arguments),
           redactor: method(:normalize_arguments)
         )
