@@ -142,17 +142,27 @@ RSpec.describe RuntimeImages::CoworkerBase do
 
   describe ".current_image" do
     let(:provider) { SyntheticRuntimeImageProvider.new }
+    let(:service) { RuntimeImages::Service.new(provider: provider) }
     let(:built_images) { RuntimeImages::BuiltImages.new(engine: double("engine"), provider_key: provider.key) }
 
-    it "is nil until published, then the pullable image by digest" do
-      expect(described_class.current_image(built_images: built_images)).to be_nil
-
+    it "is nil until a published base is promoted, then the active image by digest" do
       namespace = built_images.namespace_for("syrus_base", "coworker-base")
-      image = RuntimeImages::Service.new(provider: provider).publish(
-        namespace: namespace, source_kind: "syrus_base", source_ref: described_class.source_ref,
-        source_digest: described_class.source_digest, platform: "linux/amd64", payload: "base"
+      recipe_digest = "sha256:#{"b" * 64}"
+      source_digest = described_class.source_digest
+      image = service.publish(
+        namespace: namespace, source_kind: "syrus_base", source_ref: described_class.source_ref, source_digest: source_digest,
+        platform: "linux/amd64", payload: "base",
+        provenance: { "recipe_digest" => recipe_digest, RuntimeImages::RuntimeAbi::ATTESTATION_KEY =>
+          RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) }
       )
-      expect(described_class.current_image(built_images: built_images)).to eq(image)
+      releases = RuntimeImages::BaseReleases.new(service: service)
+      expect(described_class.current_image(releases: releases)).to be_nil
+
+      release = releases.register(image)
+      expect(described_class.current_image(releases: releases)).to be_nil
+
+      releases.promote!(release, actor: "test")
+      expect(described_class.current_image(releases: releases)).to eq(image)
       expect(image.digest).to match(RuntimeImage::DIGEST_FORMAT)
     end
   end

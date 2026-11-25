@@ -132,11 +132,13 @@ module RuntimeImages
         )
       end
 
-      # The newest pullable published image for +platform+, or nil. Callers run
-      # it by its digest; there is no tag to resolve.
-      def current_image(platform: "linux/amd64", built_images: BuiltImages.new)
-        built_images.find(owner_kind: publication.fetch("owner_kind"), owner_ref: publication.fetch("owner_ref"),
-                          source_kind: SOURCE_KIND, source_ref: source_ref, platform: platform)
+      # The promoted (active) base image for +platform+, or nil when none is
+      # launchable: never promoted, revoked, or no longer pullable. There is no
+      # fallback to "the newest published image"; a build is only a candidate
+      # until BaseReleases#promote!. Callers run it by its digest, and use
+      # BaseReleases#launch_state to tell the operator why launching is blocked.
+      def current_image(platform: "linux/amd64", releases: BaseReleases.new)
+        releases.current_image(platform: platform)
       end
 
       # Arguments for running the in-image probe under the confinement real
