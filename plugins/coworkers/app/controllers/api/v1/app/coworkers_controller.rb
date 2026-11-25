@@ -386,7 +386,7 @@ module Api
         end
 
         def owned_chat
-          ChatSession.active.find_by!(id: params[:chat_id], user_id: Syrus::Host::Current.user.id)
+          Syrus::Host::ChatSessionRecord.active.find_by!(id: params[:chat_id], user_id: Syrus::Host::Current.user.id)
         end
 
         def find_approval
@@ -523,7 +523,7 @@ module Api
 
         def message_traffic_json(coworker)
           main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
-          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : ChatMessage.none
+          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : Syrus::Host::ChatMessageRecord.none
           status_sql = "content ->> '$.coworker_message.status'"
           delivered = messages.where("(#{status_sql} IS NULL OR #{status_sql} IN ('', 'null'))")
           sent = delivered.where("content ->> '$.coworker_message.direction' = ?", "outgoing").count

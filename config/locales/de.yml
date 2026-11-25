@@ -942,7 +942,6 @@ de:
       host_surface:
         scan_failed: "Host-API-Prüfung fehlgeschlagen: %{error}"
         unsupported: "%{count} nicht unterstützte Host-API-Referenz(en)"
-        legacy: "%{count} nicht öffentliche Host-API-Referenz(en)"
         dynamic: "%{count} dynamische, nicht öffentliche Host-API-Referenz(en)"
         minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
 

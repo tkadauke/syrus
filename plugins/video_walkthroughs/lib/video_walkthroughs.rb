@@ -36,8 +36,8 @@ module VideoWalkthroughs
     # them (and their blobs) with it whether the plugin is on or not -- a
     # disabled plugin must not leave orphaned 500MB blobs behind.
     always "chat session associations" do |_scope|
-      unless ChatSession.reflect_on_association(:video_walkthroughs)
-        ChatSession.has_many :video_walkthroughs,
+      unless Syrus::Host::ChatSessionRecord.reflect_on_association(:video_walkthroughs)
+        Syrus::Host::ChatSessionRecord.has_many :video_walkthroughs,
                              class_name: "VideoWalkthroughs::Walkthrough",
                              foreign_key: :chat_session_id,
                              dependent: :destroy

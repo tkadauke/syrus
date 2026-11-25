@@ -2,7 +2,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   # Opts in as an exact-agent permission rule subject (see Permissions::RuleDraft).
   def self.permission_agent_subject? = true
   self.table_name = "coworkers"
-  include Mentionable
+  include Syrus::Host::Mentionable
   include Syrus::Host::PluginDataCleanup
 
   STATES = %w[active paused archived].freeze
@@ -24,7 +24,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   validates :name, :workspace_repo, presence: true
   validates :handle, presence: true, format: { with: Syrus::Host::Handle::FORMAT }, uniqueness: { case_sensitive: false }
   validates :state, inclusion: { in: STATES }
-  validates :chat_effort, inclusion: { in: ChatSession::EFFORT_LEVELS }, allow_nil: true
+  validates :chat_effort, inclusion: { in: Syrus::Host::ChatSessionRecord::EFFORT_LEVELS }, allow_nil: true
   validates :accent_hex, format: { with: Syrus::Host::ColorPalette::HEX_PATTERN }
   validates :avatar_key, inclusion: { in: AVATAR_KEYS }, allow_nil: true
   validate :avatar_is_image
@@ -60,8 +60,8 @@ class Coworkers::Coworker < Syrus::Host::Record
   # Coworker chat reads are capability-gated and resource-scoped: native
   # coworker sessions plus chats explicitly shared with this coworker.
   def readable_chat_session_ids
-    ChatSession.active.where(id: chats.select(:id)).or(
-      ChatSession.active.where(id: received_chat_shares.select(:chat_session_id))
+    Syrus::Host::ChatSessionRecord.active.where(id: chats.select(:id)).or(
+      Syrus::Host::ChatSessionRecord.active.where(id: received_chat_shares.select(:chat_session_id))
     ).distinct.ids
   end
 

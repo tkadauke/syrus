@@ -70,7 +70,7 @@ class Coworkers::BranchLifecycle
   end
 
   def ensure_idle!
-    chats = ChatSession.where(id: Coworkers::Chat.where(coworker_id: @coworker.id).select(:chat_session_id))
+    chats = Syrus::Host::ChatSessionRecord.where(id: Coworkers::Chat.where(coworker_id: @coworker.id).select(:chat_session_id))
     raise Coworkers::OperationLock::Busy, "coworker has a turn in flight" if chats.where(turn_in_flight: true).exists?
   end
 

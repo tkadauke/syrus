@@ -23,7 +23,7 @@ class Coworkers::ConversationIndex
     records = page(relation).includes(:chat_participants).to_a
     search_rows = search_rows_for(search_query, records)
     messages = last_messages(records)
-    pending_ids = ChatPendingAction.where(chat_session_id: records.map(&:id), state: %w[queued pending confirming])
+    pending_ids = Syrus::Host::ChatPendingActionRecord.where(chat_session_id: records.map(&:id), state: %w[queued pending confirming])
       .distinct.pluck(:chat_session_id).to_set
 
     {
@@ -47,7 +47,7 @@ class Coworkers::ConversationIndex
 
   def base_relation
     ids = coworker.coworker_chats.where(role: "side").select(:chat_session_id)
-    ChatSession.where(id: ids, user_id: user.id, deleted_at: nil)
+    Syrus::Host::ChatSessionRecord.where(id: ids, user_id: user.id, deleted_at: nil)
   end
 
   def filtered_relation
@@ -84,7 +84,7 @@ class Coworkers::ConversationIndex
       when "created_at", "last_activity_at"
         relation = apply_date(relation, field == "created_at" ? "chat_sessions.created_at" : activity_sql, chip)
       when "active_work"
-        pending = ChatPendingAction.where(state: %w[queued pending confirming]).select(:chat_session_id)
+        pending = Syrus::Host::ChatPendingActionRecord.where(state: %w[queued pending confirming]).select(:chat_session_id)
         relation = relation.where("chat_sessions.turn_in_flight = ? OR chat_sessions.id IN (?)", true, pending)
       end
     end
@@ -161,8 +161,8 @@ class Coworkers::ConversationIndex
   def last_messages(records)
     ids = records.map(&:id)
     return {} if ids.empty?
-    latest_ids = ChatMessage.active.where(chat_session_id: ids).group(:chat_session_id).maximum(:id).values
-    ChatMessage.where(id: latest_ids).index_by(&:chat_session_id)
+    latest_ids = Syrus::Host::ChatMessageRecord.active.where(chat_session_id: ids).group(:chat_session_id).maximum(:id).values
+    Syrus::Host::ChatMessageRecord.where(id: latest_ids).index_by(&:chat_session_id)
   end
 
   def search_rows_for(query, records)
@@ -178,7 +178,7 @@ class Coworkers::ConversationIndex
     participant = chat.chat_participants.find { |entry| entry.user_id == user.id }
     first_match = search_rows&.first
     {
-      id: chat.id, title: chat.title.presence || ChatSession.fallback_title_for(chat.repository), path: "/chats/#{chat.id}",
+      id: chat.id, title: chat.title.presence || Syrus::Host::ChatSessionRecord.fallback_title_for(chat.repository), path: "/chats/#{chat.id}",
       main: main, preview: message&.preview_text&.truncate(240), last_activity_at: (chat.last_message_at || chat.created_at).iso8601,
       created_at: chat.created_at.iso8601, archived: participant&.hidden_at.present?,
       unread: chat.last_message_at.present? && (participant&.last_read_at.blank? || chat.last_message_at > participant.last_read_at),

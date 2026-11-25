@@ -37,8 +37,8 @@ unknown, Syrus loads the plugin and records that the compatibility check was
 skipped. Plugin authors should declare the oldest Syrus release they have
 actually tested. Before publishing, run `bin/plugin-host-surface scan PATH`
 (or add `--json` for tooling). Registered `Syrus::Host` APIs are supported;
-legacy and literal dynamic core names produce warnings, while direct
-unsupported core references make the command fail. The report derives the
+literal dynamic core names produce warnings, while direct non-public core
+references make the command fail. The report derives the
 minimum Syrus release required by the host APIs in use. Computed dynamic
 constant names cannot be detected. The tested release may be
 newer, but must not be older than that derived floor.
@@ -48,8 +48,8 @@ newer, but must not be older than that derived floor.
 Plugin Ruby may use only public `Syrus::Host::*` APIs, the plugin DSL and
 documented interface modules, its own code, Rails, and the Ruby standard
 library. Every other Syrus core constant is internal and may change without
-notice. Validation rejects unsupported direct references and reports legacy
-and literal string references; if the host surface lacks a capability, request
+notice. Validation rejects non-public direct references and reports literal
+string references; if the host surface lacks a capability, request
 a public facade instead of reaching around it.
 
 Create a project with `syrus plugin new NAME`. The command writes `./NAME` by

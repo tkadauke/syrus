@@ -168,7 +168,7 @@ class Coworkers::Create
     Coworkers::AvatarUpload.attach!(coworker, @avatar) if @avatar
     # Phase 1 attaches the workspace Repository directly to the main chat. The
     # per-chat coworker branch and merge-at-turn-end flow replaces this in Phase 3.
-    chat = ChatSession.create!(user: @owner, repository: repository, title: @name, **coworker.chat_configuration)
+    chat = Syrus::Host::ChatSessionRecord.create!(user: @owner, repository: repository, title: @name, **coworker.chat_configuration)
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     coworker
   end
@@ -176,7 +176,7 @@ class Coworkers::Create
   def create_kickoff!(coworker)
     chat = coworker.coworker_chats.find_by!(role: "main").chat_session
     message = chat.messages.create!(role: "system", content: { "text" => kickoff }, skip_turn_trigger: false)
-    enqueued = ChatTurnJob.perform_later(chat.id, message.id)
+    enqueued = Syrus::Host::ChatTurnJob.perform_later(chat.id, message.id)
     raise KickoffEnqueueFailed, "could not enqueue the coworker's kickoff turn" unless enqueued
   end
 

@@ -196,6 +196,30 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  it "keeps an external plugin with a non-public reference bootable and reports a health finding" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      directory = write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture")
+      entry_file = directory.join("lib/external_loader_fixture.rb")
+      entry_file.write(entry_file.read.sub("class Provider; end", "class Provider; def self.internal_record = ::ChatMessage; end"))
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+
+      described_class.new(plugin_roots: roots).load!
+      described_class.scan_external_plugins!
+
+      expect(defined?(ExternalLoaderFixture)).to eq("constant")
+      manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == "external_loader_fixture" }
+      scan = manifest.metadata.fetch(:plugin_host_surface_scan)
+      expect(scan.unlisted.map(&:constant)).to include("ChatMessage")
+      expect(Syrus::PluginRegistry.health.status("external_loader_fixture")).to have_attributes(state: :warning)
+    ensure
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+      Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+    end
+  end
+
   it "loads an external plugin and notes the skipped check when the running release is unknown" do
     Dir.mktmpdir do |temporary|
       snapshot = Syrus::PluginRegistry.snapshot

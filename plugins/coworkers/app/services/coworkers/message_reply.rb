@@ -142,7 +142,7 @@ class Coworkers::MessageReply
 
   def fail_mention
     link = Coworkers::Chat.includes(:coworker, :source_chat_session).find_by(chat_session: chat_session, role: "mention")
-    Coworkers::MentionSession.fail!(source_message: ChatMessage.find_by(id: self.class.send(:mention_metadata, chat_session, user_message)&.fetch("source_message_id", nil)), coworker: link&.coworker, error: RuntimeError.new("mention turn failed"))
+    Coworkers::MentionSession.fail!(source_message: Syrus::Host::ChatMessageRecord.find_by(id: self.class.send(:mention_metadata, chat_session, user_message)&.fetch("source_message_id", nil)), coworker: link&.coworker, error: RuntimeError.new("mention turn failed"))
   end
 
   private

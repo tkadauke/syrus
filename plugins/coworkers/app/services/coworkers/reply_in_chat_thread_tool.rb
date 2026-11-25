@@ -12,7 +12,7 @@ module Coworkers
 
     input_schema(
       properties: {
-        thread_id: { type: "integer", description: "Existing ChatBridgeThread id to reply within." },
+        thread_id: { type: "integer", description: "Existing chat bridge thread id to reply within." },
         text: { type: "string", description: "Message text to deliver to the owner's counterpart chat." }
       },
       required: %w[thread_id text]
@@ -27,13 +27,13 @@ module Coworkers
         body = text.to_s.strip
         return Syrus::Host::McpTools.invalid("text is required") if body.blank?
 
-        thread = ChatBridgeThread.find_by(id: thread_id)
+        thread = Syrus::Host::ChatBridgeThreadRecord.find_by(id: thread_id)
         return inaccessible unless thread_member?(thread, chat_session)
         return inaccessible unless owner_thread?(thread, chat_session, coworker)
         return Syrus::Host::McpTools.invalid("chat bridge thread #{thread.id} is closed") unless thread.open?
         return Syrus::Host::McpTools.invalid("chat bridge thread #{thread.id} reached its hop limit") if thread.at_max_hops?
 
-        result = ChatSession::CrossChatMessage.new(thread: thread, text: body, from: chat_session).deliver!
+        result = Syrus::Host::ChatSessionRecord::CrossChatMessage.new(thread: thread, text: body, from: chat_session).deliver!
         thread.reload
         Syrus::Host::McpTools.success(
           thread_id: thread.id,
@@ -44,7 +44,7 @@ module Coworkers
           target_chat_session_id: thread.counterpart(chat_session).id,
           message_id: result.fetch(:outbound_message).id
         )
-      rescue ChatSession::CrossChatMessage::ClosedThreadError => e
+      rescue Syrus::Host::ChatSessionRecord::CrossChatMessage::ClosedThreadError => e
         Syrus::Host::McpTools.invalid(e.message)
       end
 

@@ -1,56 +1,33 @@
 require "rails_helper"
 
 RSpec.describe Admin::PluginHostSurfaceAudit do
-  def entry(name)
-    Syrus::PluginHostSurface::Entry.new(name:)
-  end
-
-  it "gives an actionable failure for an unlisted plugin reference" do
+  it "accepts a public-only built-in inventory" do
     result = Admin::PluginHostSurfaceInventory::Result.new(
-      constant: "Syrus::Host::Undeclared", tier: "internal", plugins: { "fixture_plugin" => 1 }, count: 1
-    )
-    inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [ result ])
-    surface = instance_double(Syrus::PluginHostSurface, legacy_entries: [], legacy_baseline: 0)
-
-    expect(described_class.new(inventory:, surface:).findings).to contain_exactly(
-      "Syrus::Host::Undeclared is referenced by fixture_plugin but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
-    )
-  end
-
-  it "asks to remove a legacy entry after its last reference disappears" do
-    surface = instance_double(Syrus::PluginHostSurface, legacy_entries: [ entry("UnusedService") ], legacy_baseline: 1)
-    inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [])
-
-    expect(described_class.new(inventory:, surface:).findings).to contain_exactly(
-      "UnusedService is legacy but no built-in plugin references it; remove it from config/plugin_host_surface.yml"
-    )
-  end
-
-  it "rejects growth beyond the committed legacy baseline" do
-    surface = instance_double(
-      Syrus::PluginHostSurface,
-      legacy_entries: [ entry("One"), entry("Two") ],
-      legacy_baseline: 1
-    )
-    results = %w[One Two].map do |name|
-      Admin::PluginHostSurfaceInventory::Result.new(constant: name, tier: "legacy", plugins: { "fixture_plugin" => 1 }, count: 1)
-    end
-    inventory = instance_double(Admin::PluginHostSurfaceInventory, results:)
-
-    expect(described_class.new(inventory:, surface:).findings).to include(
-      "legacy plugin host surface grew from 1 to 2; add facades under Syrus::Host with API contracts, or stop using the new references"
-    )
-  end
-
-  it "requires the baseline to follow a shrinking legacy set" do
-    surface = instance_double(Syrus::PluginHostSurface, legacy_entries: [ entry("One") ], legacy_baseline: 2)
-    result = Admin::PluginHostSurfaceInventory::Result.new(
-      constant: "One", tier: "legacy", plugins: { "fixture_plugin" => 1 }, count: 1
+      constant: "Syrus::Host::Job", tier: "public", plugins: { "fixture_plugin" => 1 }, count: 1
     )
     inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [ result ])
 
-    expect(described_class.new(inventory:, surface:).findings).to include(
-      "legacy plugin host surface shrank from 2 to 1; lower legacy_baseline to 1 so it cannot grow back"
+    expect(described_class.new(inventory:).findings).to eq([])
+  end
+
+  it "rejects a built-in plugin reference to an internal constant" do
+    result = Admin::PluginHostSurfaceInventory::Result.new(
+      constant: "InternalService", tier: "internal", plugins: { "fixture_plugin" => 1 }, count: 1
     )
+    inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [ result ])
+
+    expect(described_class.new(inventory:).findings).to eq([
+      "InternalService is referenced by fixture_plugin but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
+    ])
+  end
+
+  it "accepts an explicitly allowlisted internal reference" do
+    result = Admin::PluginHostSurfaceInventory::Result.new(
+      constant: "ExceptionalService", tier: "internal", plugins: { "fixture_plugin" => 1 }, count: 1
+    )
+    inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [ result ])
+    surface = instance_double(Syrus::PluginHostSurface, allowed_internal?: true)
+
+    expect(described_class.new(inventory:, surface:).findings).to eq([])
   end
 end

@@ -30,14 +30,14 @@ module Whiteboard
         i18n: [ "app/frontend/i18n/locales/*/whiteboard.json" ]
 
     always "chat session compatibility associations" do |_scope|
-      unless ChatSession.reflect_on_association(:whiteboard)
-        ChatSession.has_one :whiteboard,
+      unless Syrus::Host::ChatSessionRecord.reflect_on_association(:whiteboard)
+        Syrus::Host::ChatSessionRecord.has_one :whiteboard,
                             class_name: "Whiteboard::Board",
                             foreign_key: :chat_session_id,
                             dependent: nil
       end
-      unless ChatSession.reflect_on_association(:whiteboard_snapshots)
-        ChatSession.has_many :whiteboard_snapshots,
+      unless Syrus::Host::ChatSessionRecord.reflect_on_association(:whiteboard_snapshots)
+        Syrus::Host::ChatSessionRecord.has_many :whiteboard_snapshots,
                              class_name: "Whiteboard::Snapshot",
                              foreign_key: :chat_session_id,
                              dependent: nil

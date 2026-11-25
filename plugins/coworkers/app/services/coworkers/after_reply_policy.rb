@@ -19,7 +19,7 @@ module Coworkers
 
         chat.chat_queued_messages.create!(
           content: {
-            ChatQueuedMessage::INTERNAL_ROLE_KEY => "system",
+            Syrus::Host::ChatQueuedMessageRecord::INTERNAL_ROLE_KEY => "system",
             "text" => "@#{coworker.handle} replied to the mention.",
             "source" => SOURCE,
             "coworker_reply_message_id" => reply.id,
@@ -33,7 +33,7 @@ module Coworkers
             PROMPT
           }
         )
-        ChatQueuedMessagePromoter.deliver_one_if_idle!(chat)
+        Syrus::Host::ChatQueuedMessagePromoter.deliver_one_if_idle!(chat)
       end
     end
   end

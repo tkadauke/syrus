@@ -3,7 +3,7 @@ module Api
     module App
       module OperatorBriefing
         class BriefingsController < Syrus::Host::AppController
-          include ChatSessionLifecycle
+          include Syrus::Host::ChatSessionLifecycle
 
           def show
             render json: ::OperatorBriefing::Payload.new(user: Syrus::Host::Current.user).as_json
