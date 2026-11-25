@@ -558,7 +558,12 @@ this way close with `closure_reason: "emergency_landed"` and show the confirming
 operator, permission tier, and timestamp on the Job detail page.
 Syrus briefly waits for GitHub to compute a newly opened PR's mergeability;
 if GitHub still reports it as unknown, the operator gets a retryable failure.
-A retry after a failed confirmation creates a new pending action.
+A retry after a failed confirmation creates a new pending action. When direct
+checkout capture succeeded before the landing failure, its audit Job is marked
+failed and kept out of approval surfaces while retaining the immutable branch,
+source commit, and any opened pull request. Retrying emergency land against
+that Job reuses those artifacts. Job detail provides a source comparison even
+when the capture has no Workflow or Run diff.
 
 If handoff graders fail, Syrus keeps repair inside the CodingHandoff workflow:
 a fresh workflow agent fixes the committed handoff branch and graders retry
