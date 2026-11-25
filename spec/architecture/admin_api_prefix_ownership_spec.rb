@@ -10,6 +10,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/worker_health api/v1/app/admin/worker_health#show
     GET /api/v1/app/admin/macos_worker_update api/v1/app/admin/macos_worker_updates#desired
     POST /api/v1/app/admin/macos_worker_update/report api/v1/app/admin/macos_worker_updates#report
+    GET /api/v1/app/admin/macos_worker_update/artifact api/v1/app/admin/macos_worker_updates#artifact
     POST /api/v1/app/admin/macos_worker_update/advance api/v1/app/admin/macos_worker_updates#advance
     POST /api/v1/app/admin/macos_worker_update/drain api/v1/app/admin/macos_worker_updates#drain
     POST /api/v1/app/admin/macos_worker_update/clear api/v1/app/admin/macos_worker_updates#clear
@@ -138,6 +139,9 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/worker_health api/v1/admin/worker_health#show
     GET /api/v1/admin/runtime_images api/v1/admin/runtime_images#show
     POST /api/v1/admin/runtime_images/reconcile api/v1/admin/runtime_images#reconcile
+    POST /api/v1/admin/macos_worker_releases api/v1/admin/macos_worker_releases#create
+    POST /api/v1/admin/macos_worker_releases/activate api/v1/admin/macos_worker_releases#activate
+    GET /api/v1/admin/macos_worker_releases/status api/v1/admin/macos_worker_releases#status
     GET /api/v1/admin/coworker_base_releases api/v1/admin/coworker_base_releases#index
     POST /api/v1/admin/coworker_base_releases/rollback api/v1/admin/coworker_base_releases#rollback
     POST /api/v1/admin/coworker_base_releases/:id/promote api/v1/admin/coworker_base_releases#promote

@@ -481,6 +481,7 @@ Rails.application.routes.draw do
           get "worker_health", to: "worker_health#show"
           get "macos_worker_update", to: "macos_worker_updates#desired"
           post "macos_worker_update/report", to: "macos_worker_updates#report"
+          get "macos_worker_update/artifact", to: "macos_worker_updates#artifact"
           post "macos_worker_update/advance", to: "macos_worker_updates#advance"
           post "macos_worker_update/drain", to: "macos_worker_updates#drain"
           post "macos_worker_update/clear", to: "macos_worker_updates#clear"
@@ -686,6 +687,9 @@ Rails.application.routes.draw do
 
         get "runtime_images", to: "runtime_images#show"
         post "runtime_images/reconcile", to: "runtime_images#reconcile"
+        post "macos_worker_releases", to: "macos_worker_releases#create"
+        post "macos_worker_releases/activate", to: "macos_worker_releases#activate"
+        get "macos_worker_releases/status", to: "macos_worker_releases#status"
         get "coworker_base_releases", to: "coworker_base_releases#index"
         post "coworker_base_releases/rollback", to: "coworker_base_releases#rollback"
         post "coworker_base_releases/:id/promote", to: "coworker_base_releases#promote"

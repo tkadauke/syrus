@@ -34,6 +34,19 @@ module Deploy
         PREPULL_TIMEOUT            warming the worker image per node    (12m)
         FLUX_SUSPEND_TTL           watchdog auto-resume (default: computed)
 
+      macOS workers:
+        Every deploy that includes production also updates the native macOS
+        workers: it builds and signs the Mac worker release for this revision
+        before any cluster changes, activates it after production's migrations,
+        and waits for every live Mac worker to run it. A Mac worker that does not
+        catch up within MACOS_WORKER_UPDATE_TIMEOUT (15m) fails the deploy; the
+        cluster rollout is not rolled back. Needs SYRUS_APP_HOST (the production
+        Syrus URL), an admin API token ($SYRUS_API_TOKEN or
+        ~/.config/syrus/api-token), and the release signing key
+        (~/.config/syrus/macos-worker-update-signing.pem, or
+        $SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE). SYRUS_DEPLOY_MACOS_WORKERS=0 skips
+        it, for an installation without Mac workers.
+
       DRY_RUN_STREAM=path captures the dry run's command stream to a file for
       diffing. The previous bash implementation is kept as bin/deploy-legacy
       and takes the same flags.

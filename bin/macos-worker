@@ -63,6 +63,10 @@ export RAILS_ENV="${RAILS_ENV:-production}"
 export SYRUS_ROLE="worker"
 export SOLID_QUEUE_CONFIG="config/queue.compute.yml"
 export SOLID_QUEUE_SKIP_RECURRING="1"
+# How long a SIGTERM lets in-flight runs finish before Solid Queue abandons
+# them; just under launchd's ExitTimeOut (3600s in the worker plist), the same
+# budget compute pods get from their termination grace period.
+export SOLID_QUEUE_SHUTDOWN_TIMEOUT="${SOLID_QUEUE_SHUTDOWN_TIMEOUT:-3540}"
 
 # This worker reaches MySQL through a `kubectl port-forward` tunnel. When a
 # forwarded stream dies the local socket is never reset, so a query on that

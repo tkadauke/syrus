@@ -1,5 +1,68 @@
 # macOS worker updates
 
+## Every deploy updates the Mac workers
+
+Mac workers run outside the cluster, so `bin/deploy` updates them as part of
+every deploy that includes production (`Deploy::MacosWorkers`):
+
+1. **Before any cluster changes**, it builds the source artifact for the
+   revision being deployed (`bin/release-macos-worker`), signs it with the
+   release signing key, and uploads it to the production Syrus
+   (`POST /api/v1/admin/macos_worker_releases`). A missing key,
+   token, or `SYRUS_APP_HOST` stops the deploy here, with every cluster
+   untouched.
+2. **Right after production's migrations**, before any pod is pinned to the
+   new image, it activates the release
+   (`POST /api/v1/admin/macos_worker_releases/activate`). From then on, a Mac worker on
+   another revision takes no new work: `RunQueueResolver` stops counting it as
+   capacity, and a Run it has already claimed is handed back by `RunJob`
+   until it runs the active release.
+3. **After every cluster has converged**, it waits for each live Mac worker to
+   report the revision (`GET /api/v1/admin/macos_worker_releases/status`, bounded by
+   `MACOS_WORKER_UPDATE_TIMEOUT`, 15 minutes by default). A Mac worker that does
+   not catch up, or whose updater reports a failure, fails the deploy. Nothing
+   is rolled back: the cluster rollout stands, and the skew guard keeps the
+   outdated Mac worker idle until it updates. Mac workers that are offline are
+   listed but not waited for; they update when they next poll.
+
+An activated release rolls out immediately rather than through the drain flow
+below. The updater installs it and restarts the worker, which drains its
+in-flight runs on SIGTERM for up to an hour (`SOLID_QUEUE_SHUTDOWN_TIMEOUT`,
+within the launchd `ExitTimeOut`), the same budget compute pods get. The
+updater reports the activation before that restart, and a host whose updater
+has activated the release counts as updated while its old worker drains.
+
+Syrus serves the artifact itself (`GET /api/v1/app/admin/macos_worker_update/artifact`), over
+the same HTTPS host and scoped `SYRUS_MACOS_WORKER_TOKEN` the updater already
+uses, so Mac hosts need no other download source.
+
+The deploy needs `SYRUS_APP_HOST` (the production Syrus URL), an admin API
+token (`SYRUS_API_TOKEN`, or `~/.config/syrus/api-token`), and the release
+signing key (`~/.config/syrus/macos-worker-update-signing.pem`, or
+`SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE`). `SYRUS_DEPLOY_MACOS_WORKERS=0` skips the
+phase, for an installation without Mac workers.
+
+### One-time setup
+
+Generate the signing keypair on the machine you deploy from, keep the private
+key there, and install the public key on every Mac worker host:
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out ~/.config/syrus/macos-worker-update-signing.pem
+chmod 600 ~/.config/syrus/macos-worker-update-signing.pem
+openssl pkey -in ~/.config/syrus/macos-worker-update-signing.pem -pubout \
+  -out macos-worker-update-public.pem
+# on each Mac host:
+sudo install -o root -g wheel -m 644 macos-worker-update-public.pem \
+  /etc/syrus/macos-worker-update-public.pem
+```
+
+The Mac host also needs `SYRUS_MACOS_WORKER_TOKEN` in `/etc/syrus/worker.env`
+(see below) and a worker installed with `bin/install-macos-worker`.
+
+## How the updater works
+
 Native macOS workers use a pull-based updater instead of SSH-first
 deployment. Each host runs `com.syrus.updater` under launchd. The updater
 reads the same `/etc/syrus/worker.env` file as `com.syrus.worker`, polls

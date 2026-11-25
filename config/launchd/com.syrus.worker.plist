@@ -37,6 +37,12 @@
   <key>StandardErrorPath</key>
   <string>/var/log/syrus/worker.err.log</string>
 
+  <!-- Seconds launchd waits after SIGTERM before SIGKILL. The worker drains
+       in-flight runs on SIGTERM (SOLID_QUEUE_SHUTDOWN_TIMEOUT, set by
+       bin/macos-worker); launchd's default of 20 seconds would kill them. -->
+  <key>ExitTimeOut</key>
+  <integer>3600</integer>
+
   <key>KeepAlive</key>
   <true/>
   <key>RunAtLoad</key>

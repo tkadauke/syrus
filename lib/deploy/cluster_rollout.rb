@@ -25,10 +25,14 @@ module Deploy
 
     # +prepull+ is the cluster's pre-pull, usually already started by the
     # runner right after the push; a rollout on its own starts one itself.
-    def initialize(context:, images:, prepull: nil)
+    # +after_migrations+ runs once this cluster's schema is the new
+    # revision's, before any workload is pinned to it: the macOS worker release
+    # is activated there, so Mac workers switch at the same point pods do.
+    def initialize(context:, images:, prepull: nil, after_migrations: nil)
       @context = context
       @images = images
       @prepull = prepull || Prepull.new(context)
+      @after_migrations = after_migrations
     end
 
     def roll!
@@ -49,6 +53,7 @@ module Deploy
 
       @prepull.warm!
       Migrations.new(context).run!
+      @after_migrations&.call
 
       pins.pin!
 

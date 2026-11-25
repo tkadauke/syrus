@@ -236,6 +236,13 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  it "gives in-flight runs an hour to drain on SIGTERM before launchd kills the worker" do
+    plist = File.read(File.join(root, "config/launchd/com.syrus.worker.plist"))
+
+    expect(plist).to match(%r{<key>ExitTimeOut</key>\s*<integer>3600</integer>})
+    expect(File.read(entrypoint)).to include('SOLID_QUEUE_SHUTDOWN_TIMEOUT="${SOLID_QUEUE_SHUTDOWN_TIMEOUT:-3540}"')
+  end
+
   it "reports the pinned Ruby and its own gem bundle in a dry run" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")

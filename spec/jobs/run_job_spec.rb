@@ -1374,6 +1374,52 @@ RSpec.describe RunJob, :ci_only do
       end
     end
 
+    describe "macOS release version skew" do
+      let(:run) { job.workflows.last.first_step.runs.first }
+
+      before do
+        job
+        AppSetting.current.update!(macos_worker_desired_release: { "git_sha" => "50d35be290", "rollout" => "immediate" })
+      end
+
+      def on_host(os:, git_sha:)
+        allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "os" => [ os ] }, diagnostics: {})
+        allow(SyrusVersion).to receive(:current).and_return(git_sha)
+      end
+
+      # Regression: a Mac worker still on the previous revision after a deploy
+      # ran Runs against the new schema and failed them on a dropped table.
+      it "hands a queued Run back while this Mac worker runs another revision than the active release" do
+        on_host(os: "macos", git_sha: "16254d1666")
+        expect(RunHostAdmission).not_to receive(:call)
+
+        expect { RunJob.perform_now(run.id) }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+        expect(run.reload).to be_queued
+        expect(JobLog.where(run: run).pluck(:chunk)).to include(
+          "macOS worker runs 16254d1666, but the active release is 50d35be290; waiting for the update before prepare"
+        )
+      end
+
+      it "does not hold back a Mac worker that runs the active release" do
+        on_host(os: "macos", git_sha: "50d35be290")
+        job_instance = RunJob.new(run.id)
+        job_instance.instance_variable_set(:@run, run)
+        job_instance.instance_variable_set(:@step, run.step)
+
+        expect(job_instance.send(:defer_for_macos_version_skew?)).to be(false)
+      end
+
+      it "never holds back Linux workers, which deploy pins directly" do
+        on_host(os: "linux", git_sha: "16254d1666")
+        job_instance = RunJob.new(run.id)
+        job_instance.instance_variable_set(:@run, run)
+        job_instance.instance_variable_set(:@step, run.step)
+
+        expect(job_instance.send(:defer_for_macos_version_skew?)).to be(false)
+      end
+    end
+
     # Regression: cancelling a workflow killed its running graders, and each
     # was recorded as a failed run with no exit status.
     it "records a run killed by its workflow's cancellation as cancelled, not failed" do

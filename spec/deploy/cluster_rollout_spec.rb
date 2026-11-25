@@ -62,14 +62,15 @@ RSpec.describe Deploy::ClusterRollout do
     ].to_h { |target| [ "#{target} printenv GIT_SHA", { stdout: "abc1234" } ] }
   end
 
-  def roll!
+  def roll!(after_migrations: nil)
     fake = DeploySpec::FakeKubectl.new(namespace: "syrus-production", resources: resources,
       exec: exec_responses)
+    @fake = fake
     context = DeploySpec.context(
       kubectl: fake, config: Deploy::Config.new(env: {}), clock: clock,
       reporter: reporter, controls: controls, label: "production"
     )
-    described_class.new(context: context, images: images).roll!
+    described_class.new(context: context, images: images, after_migrations: after_migrations).roll!
     fake
   end
 
@@ -110,6 +111,17 @@ RSpec.describe Deploy::ClusterRollout do
       at = positions(roll!)
 
       expect(at[:migrate]).to be < at[:pin]
+    end
+
+    # The macOS worker release is activated there, so Mac workers switch to
+    # the new revision once its schema exists and not before.
+    it "runs the after-migrations hook between migrating and pinning any workload" do
+      writes_at_hook = nil
+      fake = roll!(after_migrations: -> { writes_at_hook = @fake.writes.size })
+      at = positions(fake)
+
+      expect(writes_at_hook).to be > at[:migrate]
+      expect(writes_at_hook).to be <= at[:pin]
     end
 
     it "resumes Flux last" do

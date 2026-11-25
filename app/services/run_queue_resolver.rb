@@ -316,6 +316,7 @@ class RunQueueResolver
           worker_storage_key: payload[:worker_storage_key],
           hostname: payload[:hostname]
         ),
+        "version_skew" => payload.fetch(:macos_worker, false) && macos_version_skewed?(payload[:hostname]),
         "capabilities" => payload.fetch(:capabilities),
         "capability_diagnostics" => payload.fetch(:capability_diagnostics)
       }.compact
@@ -328,11 +329,31 @@ class RunQueueResolver
       worker_storage_key: payload[:worker_storage_key],
       hostname: payload[:hostname]
     )
+    return false if payload.fetch(:macos_worker, false) && macos_version_skewed?(payload[:hostname])
 
     capabilities = payload.fetch(:capabilities)
     return true if allow_unknown_default && requirements == DEFAULT_RUN_CAPABILITIES && capabilities.blank?
 
     satisfies?(capabilities, requirements)
+  end
+
+  # A Mac worker that has not yet installed the active macOS worker release
+  # is not capacity: it would run another revision's code against this
+  # revision's schema (and RunJob would hand the Run back anyway).
+  def macos_version_skewed?(hostname)
+    desired = desired_macos_git_sha
+    return false if desired.blank?
+
+    instance = fresh_worker_instances_by_hostname[hostname]
+    return false if instance.nil? || instance.version.blank?
+
+    !MacosWorkerRelease.same_revision?(instance.version, desired)
+  end
+
+  def desired_macos_git_sha
+    return @desired_macos_git_sha if defined?(@desired_macos_git_sha)
+
+    @desired_macos_git_sha = MacosWorkerRelease.desired_git_sha
   end
 
   def single_token(values)

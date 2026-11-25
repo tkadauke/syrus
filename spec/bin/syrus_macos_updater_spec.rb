@@ -547,6 +547,51 @@ RSpec.describe "native macOS worker updater" do
     end
   end
 
+  # The worker drains in-flight runs for up to an hour after SIGTERM before
+  # launchd restarts it on the new release, so the activation has to be
+  # reported before the restart or a deploy waiting on it would wait that long.
+  it "reports the activated release before restarting the worker" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      install_root = File.join(dir, "install")
+      current_release = File.join(install_root, "releases", "aaa1111")
+      current_link = File.join(install_root, "current")
+      report_file = File.join(dir, "report.jsonl")
+      FileUtils.mkdir_p(current_release)
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "bbb2222")
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "bbb2222")
+      write_env(env_file, metadata: metadata)
+      File.open(env_file, "a") do |file|
+        file.puts "SYRUS_UPDATE_REPORT_URL=https://syrus.example.test/report"
+        file.puts "SYRUS_API_TOKEN=test-token"
+      end
+      bin_dir = stub_prepare_commands(dir)
+      write_executable(File.join(bin_dir, "curl"), <<~BASH)
+        #!/usr/bin/env bash
+        cat >> "#{report_file}"
+        printf '\\n' >> "#{report_file}"
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "SYRUS_MACOS_INSTALL_ROOT" => install_root,
+          "SYRUS_MACOS_CURRENT_LINK" => current_link },
+        "bash", script, "--env-file", env_file, "--once", "--skip-restart"
+      )
+
+      expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      reports = File.readlines(report_file).reject { |line| line.strip.empty? }.map { |line| JSON.parse(line).fetch("status") }
+      states = reports.map { |report| report["state"] }
+      restarting = reports.find { |report| report["state"] == "restarting" }
+      expect(restarting).to include("current_version" => "bbb2222")
+      expect(states.index("restarting")).to be < states.rindex("current")
+    end
+  end
+
   it "rejects target shas that could escape the releases directory" do
     Dir.mktmpdir do |raw_dir|
       # macOS symlinks /var to /private/var, so mktmpdir hands back an

@@ -498,6 +498,11 @@ run_once() {
   install_privileged_updater "$RELEASE_PATH"
   report_state "updating" "activating release"
   activate_release "$RELEASE_PATH"
+  # Reported before the restart: the worker drains in-flight runs on SIGTERM
+  # (for up to an hour, see the launchd ExitTimeOut), and launchd only starts
+  # it on the new release once they finish. The release is installed and no
+  # new work runs on the old revision, so this host counts as updated now.
+  report_state "restarting" "activated release; worker restarting after in-flight runs drain"
   restart_worker
   prune_releases "$RETENTION_COUNT"
   report_state "current" "activated release"

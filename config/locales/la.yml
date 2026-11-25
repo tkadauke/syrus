@@ -635,6 +635,7 @@ la:
       rate_limited: "Nimis multa signa API invalida. Postea iterum tenta."
       invocation_scope_forbidden: "Hic contextus invocationis Syri ad Run vel Chat praesentem finitus est neque illam rem accedere potest."
       machine_credential_forbidden: "Haec credentialia machinae Syri ad terminos renovationis operarii macOS finita sunt."
+      macos_worker_release_missing: "Nulla editio operarii macOS activa est, aut artificium eius deest."
       job_mutation_forbidden: "Solus dominus Job, membrum Repository cum accessu scribendi, vel administrator hanc actionem facere potest."
       repository_write_forbidden: "Solum membrum Repository cum accessu scribendi vel administrator hanc actionem facere potest."
       repository_admin_forbidden: "Solus administrator Repository hanc actionem facere potest."

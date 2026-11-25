@@ -26,6 +26,7 @@ class McpInvocationContext
   MACOS_WORKER_UPDATE_PATHS = %w[
     /api/v1/app/admin/macos_worker_update
     /api/v1/app/admin/macos_worker_update/report
+    /api/v1/app/admin/macos_worker_update/artifact
   ].freeze
   SURFACES = %w[run chat macos_worker].freeze
 

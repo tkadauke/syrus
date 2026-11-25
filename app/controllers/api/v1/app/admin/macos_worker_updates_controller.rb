@@ -51,6 +51,16 @@ module Api
             }
           end
 
+          # The active release's artifact, published by a deploy through
+          # /api/v1/admin/macos_worker_releases, for the updater to download.
+          def artifact
+            git_sha = ::MacosWorkerRelease.desired_git_sha
+            blob = git_sha && ::MacosWorkerRelease.blob_for(git_sha)
+            return render_error("not_found", I18n.t("api.base.macos_worker_release_missing"), status: :not_found) unless blob
+
+            send_data blob.download, filename: blob.filename.to_s, type: "application/gzip", disposition: "attachment"
+          end
+
           def advance
             render json: ::MacosWorkerRollout.advance!.as_json
           end
@@ -96,8 +106,10 @@ module Api
           end
 
           def desired_payload(release, drain:)
+            # A deploy's release rolls out immediately; anything else waits for
+            # the operator-driven drain to reach this host.
             enabled = release.values_at("artifact_url", "artifact_sha256", "artifact_signature", "git_sha").all?(&:present?) &&
-              !!drain&.update_permitted?
+              (release["rollout"] == ::MacosWorkerRelease::ROLLOUT_IMMEDIATE || !!drain&.update_permitted?)
             {
               enabled: enabled,
               component: "macos-worker",

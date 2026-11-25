@@ -36,6 +36,7 @@ require_relative "../lib/deploy/image_pins"
 require_relative "../lib/deploy/rollout_wait"
 require_relative "../lib/deploy/verifications"
 require_relative "../lib/deploy/cluster_rollout"
+require_relative "../lib/deploy/macos_workers"
 require_relative "../lib/deploy/runner"
 
 reporter = Deploy::Reporter.new

@@ -123,6 +123,43 @@ RSpec.describe RunQueueResolver, :ci_only do
     expect(decision).not_to be_blocked
   end
 
+  describe "macOS worker release skew" do
+    def mac_run
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", planned_execution_capabilities: { "os" => [ "macos" ] })
+      step = Step.create!(workflow: workflow, kind: "prepare", position: 0,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
+      step.runs.create!(job: job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+    end
+
+    before do
+      ensure_solid_queue_test_tables!
+      solid_queue_worker("mac-worker", queues: "runs-macos-arm64")
+      AppSetting.current.update!(macos_worker_desired_release: { "git_sha" => "50d35be290", "rollout" => "immediate" })
+    end
+
+    # Regression: a deploy migrated the database, and a Mac worker still on
+    # the previous revision took Runs and failed them on a table that the
+    # migration had dropped.
+    it "does not count a Mac worker on another revision than the active release as capacity" do
+      instance_version(hostname: "mac-worker", version: "16254d1666", capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
+
+      decision = described_class.resolve(run: mac_run)
+
+      worker = decision.details.fetch("live_workers").find { |w| w["hostname"] == "mac-worker" }
+      expect(worker).to include("eligible" => false, "version_skew" => true)
+      expect(decision).to be_blocked
+    end
+
+    it "routes to a Mac worker that runs the active release, whatever abbreviation it reports" do
+      instance_version(hostname: "mac-worker", version: "50d35be290a1", capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
+
+      decision = described_class.resolve(run: mac_run)
+
+      expect(decision.queue_name).to eq("runs-macos-arm64")
+      expect(decision).not_to be_blocked
+    end
+  end
+
   it "bulk-loads fresh worker instances once for multiple admission candidates and keeps hosts distinct" do
     ensure_solid_queue_test_tables!
     solid_queue_worker("worker-a", queues: "runs-macos-arm64")

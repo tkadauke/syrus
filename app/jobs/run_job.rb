@@ -99,6 +99,7 @@ class RunJob < ApplicationJob
   WORKSPACE_EXPECTED_LIFECYCLE_STATES = %w[created reconstructed storage_lost].freeze
   WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
+  MACOS_VERSION_SKEW_RETRY_DELAY = 1.minute
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
   def perform(run_id)
@@ -126,6 +127,7 @@ class RunJob < ApplicationJob
     @workflow = @step&.workflow
     @job = @run.job
     return if defer_for_macos_worker_drain?
+    return if defer_for_macos_version_skew?
     return if hand_back_unknown_step_kind?
     return fail_unknown_step_kind! unless step_kind_provided_here?(@step)
 
@@ -371,6 +373,31 @@ class RunJob < ApplicationJob
     )
     defer_run(@run.id, MACOS_WORKER_DRAIN_RETRY_DELAY)
     true
+  end
+
+  # Every deploy activates a macOS worker release for the revision it rolled
+  # out, after that revision's migrations ran. A Mac worker still on another
+  # revision would run its code against a schema it was not built for, so it
+  # hands the Run back until the updater has installed the active release and
+  # the worker has restarted on it.
+  def defer_for_macos_version_skew?
+    return false unless @run&.queued?
+    return false unless compute_run?
+    return false unless local_macos_worker?
+
+    desired = ::MacosWorkerRelease.desired_git_sha
+    running = SyrusVersion.current
+    return false if desired.blank? || running.blank? || running == "dev"
+    return false if ::MacosWorkerRelease.same_revision?(running, desired)
+
+    chunk = "macOS worker runs #{running}, but the active release is #{desired}; waiting for the update before #{@step.kind}"
+    JobLog.append!(run: @run, kind: "system", chunk: chunk) unless admission_deferral_log_exists?(chunk)
+    Rails.logger.info("[RunJob] #{chunk} - deferring Run ##{@run.id} by #{MACOS_VERSION_SKEW_RETRY_DELAY.inspect}")
+    defer_run(@run.id, MACOS_VERSION_SKEW_RETRY_DELAY)
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[RunJob] macOS version skew check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
+    false
   end
 
   def record_macos_worker_drain_deferral!(drain, worker_storage_key:, hostname:)

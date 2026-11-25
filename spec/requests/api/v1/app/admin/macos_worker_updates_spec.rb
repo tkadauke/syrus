@@ -248,4 +248,35 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
     expect(parse_body).to include("state" => "updating")
     expect(parse_body.dig("drain", "worker_storage_key")).to eq("storage-a")
   end
+
+  describe "a deploy-published release" do
+    let(:artifact_bytes) { "fake worker release tarball" }
+
+    before do
+      MacosWorkerRelease.store!(
+        io: StringIO.new(artifact_bytes), git_sha: "50d35be290", sha256: Digest::SHA256.hexdigest(artifact_bytes),
+        signature: "c2lnbmVk", artifact_name: "syrus-worker-macos-arm64-50d35be290.tar.gz"
+      )
+      MacosWorkerRelease.activate!(git_sha: "50d35be290", base_url: "https://syrus.example.test")
+      allow(OperationalLogging).to receive(:ingest)
+    end
+
+    let(:worker_headers) { { "Authorization" => "Bearer #{McpInvocationContext.issue_for_app_macos_worker}" } }
+
+    it "lets the scoped macOS worker credential download the active artifact" do
+      get "/api/v1/app/admin/macos_worker_update/artifact", headers: worker_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to eq(artifact_bytes)
+    end
+
+    it "enables an immediate rollout for every worker without waiting for a drain" do
+      get "/api/v1/app/admin/macos_worker_update",
+          params: { worker_storage_key: "storage-a", hostname: "mac-mini-a" }, headers: worker_headers
+
+      expect(parse_body).to include("enabled" => true, "poll_interval_seconds" => 60)
+      expect(parse_body["desired"]).to include("git_sha" => "50d35be290",
+        "artifact_url" => "https://syrus.example.test/api/v1/app/admin/macos_worker_update/artifact")
+    end
+  end
 end

@@ -93,6 +93,15 @@ Two things keep a routine code deploy from rebuilding and re-shipping it:
   as the images are pushed, so production's nodes pull while staging rolls
   out; each cluster's rollout then only waits for its own pull.
 
+## macOS workers
+
+Every deploy that includes production also updates the native macOS workers:
+it publishes the signed Mac worker release before touching a cluster,
+activates it right after production's migrations, and waits for every live
+Mac worker to run it. A Mac worker that does not catch up fails the deploy
+without rolling the cluster back; until it updates it takes no work. See
+[macOS worker updates](macos_worker_updates.md).
+
 ## Syrus Kubernetes rollout ordering
 
 `bin/deploy` is a Ruby program. It loads no Rails -- it runs on an operator's

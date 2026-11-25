@@ -635,6 +635,7 @@ de:
       rate_limited: "Zu viele ungültige API-Tokens. Bitte versuche es später erneut."
       invocation_scope_forbidden: "Dieser Syrus-Aufruf ist auf den aktuellen Lauf oder Chat beschränkt und kann nicht auf diese Ressource zugreifen."
       machine_credential_forbidden: "Diese Syrus-Maschinenanmeldedaten sind auf Endpunkte für macOS-Worker-Updates beschränkt."
+      macos_worker_release_missing: "Es ist kein macOS-Worker-Release aktiv, oder sein Artefakt fehlt."
       job_mutation_forbidden: "Nur der Job-Besitzer, ein Repository-Mitglied mit Schreibzugriff oder ein Admin kann diese Aktion ausführen."
       repository_write_forbidden: "Nur ein Repository-Mitglied mit Schreibzugriff oder ein Admin kann diese Aktion ausführen."
       repository_admin_forbidden: "Nur ein Repository-Admin kann diese Aktion ausführen."

@@ -195,6 +195,34 @@ module Deploy
 
     # --- other cluster-side controls ------------------------------------
 
+    # --- native macOS workers ---------------------------------------------
+    # Every deploy updates them (Deploy::MacosWorkers). Off only for an
+    # installation that has no Mac workers.
+    def macos_workers? = !truthy_off?(fetch("SYRUS_DEPLOY_MACOS_WORKERS", "1"))
+    def macos_workers_cluster = fetch("SYRUS_MACOS_WORKERS_CLUSTER", "production")
+    def macos_app_host
+      host = fetch("SYRUS_APP_HOST", "").strip
+      return host if host.empty? || host.match?(%r{\Ahttps?://}i)
+
+      "https://#{host}"
+    end
+
+    def macos_api_token_file = File.expand_path(fetch("SYRUS_API_TOKEN_FILE", "~/.config/syrus/api-token"))
+
+    def macos_api_token
+      token = fetch("SYRUS_API_TOKEN", "").strip
+      return token unless token.empty?
+
+      File.file?(macos_api_token_file) ? File.read(macos_api_token_file).strip : ""
+    end
+
+    def macos_signing_key_file
+      File.expand_path(fetch("SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE", "~/.config/syrus/macos-worker-update-signing.pem"))
+    end
+
+    def macos_worker_update_timeout = duration("MACOS_WORKER_UPDATE_TIMEOUT", "15m")
+    def macos_worker_update_poll_interval = duration("MACOS_WORKER_UPDATE_POLL_INTERVAL", "10s")
+
     def mysql_backup_cronjob = fetch("MYSQL_BACKUP_CRONJOB", "syrus-mysql-backup")
     def mysql_backup_drain_timeout = duration("MYSQL_BACKUP_DRAIN_SECONDS", "30s")
 
@@ -242,6 +270,8 @@ module Deploy
       flux_suspend_slack
       flux_suspend_ttl_override
       mysql_backup_drain_timeout
+      macos_worker_update_timeout
+      macos_worker_update_poll_interval
     rescue Duration::Invalid => e
       raise UsageError.new(e.message)
     end

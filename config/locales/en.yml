@@ -695,6 +695,7 @@ en:
       rate_limited: "Too many invalid API tokens. Try again later."
       invocation_scope_forbidden: "This Syrus invocation context is scoped to the current Run or Chat and cannot access that resource."
       machine_credential_forbidden: "This Syrus machine credential is scoped to macOS worker update endpoints."
+      macos_worker_release_missing: "No macOS worker release is active, or its artifact is missing."
       job_mutation_forbidden: "Only the Job owner, a Repository member with write access, or an admin can perform this action."
       repository_write_forbidden: "Only a Repository member with write access, or an admin, can perform this action."
       repository_admin_forbidden: "Only a Repository admin can perform this action."

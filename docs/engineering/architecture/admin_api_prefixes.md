@@ -30,6 +30,13 @@ The plugin convergence read and local-quarantine recovery action are UI-only
 app-admin routes. Desired-state inspection and apply remain token-authenticated
 operator API operations under `/api/v1/admin/*`.
 
+The macOS worker updater routes under `/api/v1/app/admin/macos_worker_update`
+(desired release, status reports, and the release artifact download) are
+machine-credential surfaces for the Mac updater's scoped token, alongside the
+operator-driven drain controls. Publishing and activating a release, and
+reading rollout status, are deploy automation and live on the operator API at
+`/api/v1/admin/macos_worker_releases`.
+
 The packaged-plugin installer routes are app-admin surfaces. The registry
 catalog and registry-source management endpoints are page-shaped operations
 used by the administrator browser. The remaining installer routes are shared

@@ -14,6 +14,10 @@ module Deploy
       @controls = ControlStack.new(reporter: reporter)
       @repo = Repo.new(shell: @shell, reporter: reporter)
       @images = Images.new(config: config, repo: @repo, shell: @shell, reporter: reporter)
+      @macos_workers = MacosWorkers.new(
+        config: config, repo: @repo, shell: @shell, reporter: reporter,
+        waiter: Waiter.new(clock: @clock, reporter: reporter, dry_run: config.dry_run)
+      )
     end
 
     def call
@@ -25,10 +29,16 @@ module Deploy
         return 0
       end
 
+      # Built, signed, and uploaded before any cluster changes, so a missing key
+      # or an unreachable Syrus stops the deploy while nothing is half-done.
+      @macos_workers.prepare!
       prepulls = config.clusters.to_h { |cluster| [ cluster, Prepull.new(context_for(cluster)) ] }
       prepulls.each_value(&:start!)
       config.clusters.each { |cluster| deploy_to(cluster, prepulls.fetch(cluster)) }
       report_success
+      # Last, and outside the cluster rollouts: a Mac worker that does not
+      # catch up fails the deploy without rolling any cluster back.
+      @macos_workers.await!
       0
     rescue Interrupted => e
       reporter.error(e.message)
@@ -71,7 +81,8 @@ module Deploy
     end
 
     def deploy_to(cluster, prepull)
-      ClusterRollout.new(context: context_for(cluster), images: images, prepull:).roll!
+      after_migrations = cluster.label == config.macos_workers_cluster ? -> { @macos_workers.activate! } : nil
+      ClusterRollout.new(context: context_for(cluster), images: images, prepull:, after_migrations:).roll!
 
       # The release tag records what landed, so it moves only after the cluster
       # it names has actually converged and been verified.
