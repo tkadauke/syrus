@@ -44,7 +44,8 @@ module Mcp::Tools
             "diagnosis" => diagnosis.to_s.strip, "remediation_attempted" => remediation_attempted.to_s.strip,
             "bug_report_url" => bug_report_url.to_s.strip.presence, "consequence" => candidate.consequence,
             "permission_role" => tool_context.role,
-            "subject_selector_type" => tool_context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? "agent" : "interactive_chat"
+            "subject_selector_type" => tool_context.agent_actor ? "agent" : "interactive_chat",
+            "subject_selector_id" => tool_context.agent_actor&.id&.to_s
           }.compact
         )
         Mcp::Tools.success(pending_action_id: action.id, state: action.state,
