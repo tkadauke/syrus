@@ -140,6 +140,8 @@ module Mcp::Tools
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },
               provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
               priority: { type: "string", enum: Job::PRIORITIES, description: "Operator-only scheduling decision. Pass only when the operator explicitly specified urgent, high, medium, or low for this child; never infer it from severity, impact, recency, incident status, your own recommendation, or relative ordering among children. Otherwise omit this field and accept the system default (medium)." },
+              question_eagerness: { type: "string", enum: QuestionEagerness::Base::LEVELS, description: "Optional operator-agreed question eagerness override. Leave unset unless discussed with the operator; question_eagerness_reason is required when set." },
+              question_eagerness_reason: { type: "string", description: "Required with question_eagerness; records the operator's agreement." },
               planned_execution: {
                 type: "object",
                 properties: {
@@ -307,6 +309,8 @@ module Mcp::Tools
           provider_setting: provider_setting,
           provider_error: provider_error,
           priority: job.fetch("priority", "medium").to_s,
+          question_eagerness: job["question_eagerness"].to_s.presence,
+          question_eagerness_reason: job["question_eagerness_reason"].to_s.strip.presence,
           planned_execution: job["planned_execution"],
           media_ids: Array(job["media"])
         }
@@ -402,6 +406,12 @@ module Mcp::Tools
           return "proposal item #{job[:slug]} cannot depend on itself" if job[:depends_on].include?(job[:slug])
           return "proposal item #{job[:slug]} #{job[:provider_error]}" if job[:provider_error]
           return "proposal item #{job[:slug]} priority must be one of: #{Job::PRIORITIES.join(', ')}" unless Job::PRIORITIES.include?(job[:priority])
+          if job[:question_eagerness] && !QuestionEagerness::Base::LEVELS.include?(job[:question_eagerness])
+            return "proposal item #{job[:slug]} question_eagerness must be one of: #{QuestionEagerness::Base::LEVELS.join(', ')}"
+          end
+          if job[:question_eagerness] && !job[:question_eagerness_reason]
+            return "proposal item #{job[:slug]} question_eagerness_reason is required with question_eagerness"
+          end
         end
 
         jobs.each do |job|
@@ -594,6 +604,8 @@ module Mcp::Tools
             dependency_requirements: job[:dependency_requirements],
             provider_setting: job[:provider_setting],
             priority: job[:priority],
+            question_eagerness: job[:question_eagerness],
+            question_eagerness_reason: job[:question_eagerness_reason],
             **job.fetch(:planned_execution_attrs),
             media_ids: job[:media_ids],
             state: "proposed",

@@ -39,6 +39,25 @@ class AgentQuestion < ApplicationRecord
     true
   end
 
+  def timeout!
+    with_lock do
+      return false unless active? && times_out_at&.past?
+
+      normalized = normalize_answers(defaults)
+      return false unless normalized
+
+      update!(
+        answers: normalized,
+        answered_at: Time.current,
+        answered_by: nil,
+        answer_source: "timeout",
+        timed_out_at: Time.current
+      )
+    end
+    AgentQuestions::Resume.call(self) if run_id
+    true
+  end
+
   def questions_payload
     Array(questions).each_with_index.map do |question, index|
       { question: question["question"], options: question["options"].presence, multiple: question["multiple"] == true,

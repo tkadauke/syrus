@@ -32,7 +32,7 @@ module Permissions
     ].freeze
 
     RESEARCH = %w[
-      list_jobs search_jobs read_job list_epics read_epic repo_info list_repositories
+      list_jobs search_jobs read_job list_open_agent_questions list_epics read_epic repo_info list_repositories
       list_job_workflows read_workflow explain_stuck_job list_tags list_delivery_tracks
       resolve_delivery_policy list_ref_movement_actions read_ref_movement_status
       classify_pull_request read_provider_routing_rules explain_provider_routing search_syrus_docs
@@ -84,7 +84,7 @@ module Permissions
         update_job update_epic set_job_priority assign_job_to_epic remove_job_from_epic
         add_epic_dependency remove_epic_dependency add_job_dependency remove_job_dependency replace_job_dependency
         select_job_delivery_track mark_ci_repair_noop repair_provider_circuit_evidence
-        retire_terminal_work_unit create_coding_job
+        retire_terminal_work_unit create_coding_job answer_agent_question
       ],
       privilege_change: %w[grant_permission deny_permission revoke_permission create_permission_lease apply_permission_preset],
       shared_state: %w[create_repo_document],

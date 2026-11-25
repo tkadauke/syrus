@@ -19,6 +19,8 @@ module Admin
     TOOL_CARD_SPREAD_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)(?:\s*:\s*[^=]+)?\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s*\{[\s\S]*?\.\.\.\1\b/
     EXPLICIT_CARD_STATUSES = {
       "list_pending_actions" => "generic",
+      "list_open_agent_questions" => "generic",
+      "answer_agent_question" => "generic",
       "withdraw_pending_action" => "generic",
       "list_permissions" => "generic",
       "explain_permission" => "generic",

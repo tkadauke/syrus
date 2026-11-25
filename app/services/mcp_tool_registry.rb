@@ -248,6 +248,8 @@ class McpToolRegistry
         read_chat(Mcp::Tools::ListJobsTool),
         read_chat(Mcp::Tools::SearchJobsTool),
         read_chat(Mcp::Tools::ReadJobTool),
+        read_chat(Mcp::Tools::ListOpenAgentQuestionsTool),
+        mutation_chat(Mcp::Tools::AnswerAgentQuestionTool, mutation: true),
         mutation_chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
         read_chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
         read_chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),

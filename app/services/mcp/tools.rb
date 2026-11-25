@@ -171,6 +171,8 @@ module Mcp
           investigation: proposal.investigation?,
           provider_setting: proposal.provider_setting,
           priority: proposal.priority,
+          question_eagerness: proposal.question_eagerness,
+          question_eagerness_reason: proposal.question_eagerness_reason,
           planned_execution: proposal.planned_execution_json,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           repository_id: proposal.effective_repository&.id,

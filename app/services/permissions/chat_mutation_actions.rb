@@ -33,6 +33,7 @@ module Permissions
       "unpin_chat" => operation("chats", "unpin", INTERNAL, :low, :allow),
       "suggest_next_step" => operation("chat_goals", "suggest_next_step", INTERNAL, :low, :allow),
       "ask_user_question" => operation("chat_goals", "ask_user_question", INTERNAL, :low, :allow),
+      "answer_agent_question" => operation("jobs", "answer_agent_question", INTERNAL, :low),
       "mark_goal_completed" => operation("chat_goals", "complete", INTERNAL, :low, :allow),
       "mark_goal_blocked" => operation("chat_goals", "block", INTERNAL, :low, :allow),
       "reset_workspace" => operation("coding_workspace", "reset", DESTRUCTIVE, :high),

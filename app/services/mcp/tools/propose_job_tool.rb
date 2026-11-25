@@ -121,6 +121,8 @@ module Mcp::Tools
         investigation: { type: "boolean", description: "When true, confirming this proposal creates a standalone read-only investigation Job (no PR expected) instead of a normal implementation Job. Use this for exploratory spike, audit-only, discovery-only, or investigation-style work rather than placing that work inside an Epic. Defaults to false." },
         provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
         priority: { type: "string", enum: Job::PRIORITIES, description: "Operator-only scheduling decision. Pass only when the operator explicitly specified urgent, high, medium, or low; severity, impact, recency, incident status, or your own recommendation do not authorize it. Otherwise omit this field and accept the system default (medium)." },
+        question_eagerness: { type: "string", enum: QuestionEagerness::Base::LEVELS, description: "Optional operator-agreed question eagerness override. Leave unset unless discussed with the operator; question_eagerness_reason is required when set." },
+        question_eagerness_reason: { type: "string", description: "Required with question_eagerness; records the operator's agreement." },
         planned_execution: {
           type: "object",
           properties: {
@@ -141,7 +143,7 @@ module Mcp::Tools
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", planned_execution: nil, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", question_eagerness: nil, question_eagerness_reason: nil, planned_execution: nil, for_active_goal: false)
         # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
         context = McpToolContext.from_server_context(server_context)
         response_chat = context.chat_session
@@ -167,6 +169,12 @@ module Mcp::Tools
         end
         return Mcp::Tools.invalid("title is required") if title.empty?
         return Mcp::Tools.invalid("description is required") if description.empty?
+        question_eagerness = question_eagerness.to_s.presence
+        question_eagerness_reason = question_eagerness_reason.to_s.strip.presence
+        if question_eagerness && !QuestionEagerness::Base::LEVELS.include?(question_eagerness)
+          return Mcp::Tools.invalid("question_eagerness must be one of: #{QuestionEagerness::Base::LEVELS.join(', ')}")
+        end
+        return Mcp::Tools.invalid("question_eagerness_reason is required with question_eagerness") if question_eagerness && !question_eagerness_reason
         priority = priority.to_s
         return Mcp::Tools.invalid("priority must be one of: #{Job::PRIORITIES.join(', ')}") unless Job::PRIORITIES.include?(priority)
         provider_setting, provider_error = normalize_provider_setting(provider)
@@ -228,6 +236,8 @@ module Mcp::Tools
             investigation: ActiveModel::Type::Boolean.new.cast(investigation),
             provider_setting: provider_setting,
             priority: priority,
+            question_eagerness: question_eagerness,
+            question_eagerness_reason: question_eagerness_reason,
             proposer: proposal_proposer(server_context),
             response_chat_session: (response_chat unless response_chat == chat_session),
             **planned_execution_attrs,

@@ -3079,3 +3079,17 @@ going stale and is independent of the per-Job base branch.
 
 For command examples, continue to [Recipes](/docs/recipes). For failure
 paths, use [Troubleshooting](/docs/troubleshooting).
+
+## Operator questions from workflow agents
+
+Workflow agents can pause an implementation, response, or review step to ask
+the operator a batch of structured questions. The waiting step is parked—not
+failed or automatically retried—and resumes in the same provider session when
+the answer arrives. Operators can also list and answer these questions through
+Syrus chat and coworker tools.
+
+Repositories, users, and individual Jobs can choose one of five question
+eagerness levels: autonomous, independent, balanced, collaborative, or
+inquisitive. Balanced is the default. An optional answer timeout can apply the
+agent's stated defaults after one hour to four weeks; without one, the workflow
+waits indefinitely.

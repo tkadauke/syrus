@@ -168,6 +168,8 @@ class ChatProposalFiler
       model: direct_options[:model],
       effort_level: direct_options[:effort_level],
       priority: direct_options[:priority].presence || proposal.priority,
+      question_eagerness: proposal.question_eagerness,
+      question_eagerness_reason: proposal.question_eagerness_reason,
       owner_user: direct_options[:owner_user],
       target_branch: direct_options[:target_branch],
       delivery_track: direct_options[:delivery_track],
