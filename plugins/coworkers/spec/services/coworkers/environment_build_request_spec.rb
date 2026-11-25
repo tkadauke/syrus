@@ -56,8 +56,32 @@ RSpec.describe Coworkers::EnvironmentBuildRequest do
     Coworkers::EnvironmentSource.new(coworker, workspace).seed!
     first = service.call
 
-    expect { @second = service.call }.not_to change(RuntimeImageBuildRequest, :count)
+    expect(Syrus::Host::RuntimeImages).not_to receive(:request_build)
+    expect { @second = described_class.new(coworker.reload, workspace).call }.not_to change(RuntimeImageBuildRequest, :count)
     expect(@second.build_request).to eq(first.build_request)
+  end
+
+  it "serializes concurrent admission onto one durable build request" do
+    Coworkers::EnvironmentSource.new(coworker, workspace).seed!
+    ready = Queue.new
+    start = Queue.new
+    services = 2.times.map { described_class.new(coworker.reload, workspace) }
+
+    results = services.map do |concurrent_service|
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          ready << true
+          start.pop
+          concurrent_service.call
+        end
+      end
+    end
+    2.times { ready.pop }
+    2.times { start << true }
+    results.map!(&:value)
+
+    expect(results.map { |result| result.build_request.id }.uniq.one?).to be(true)
+    expect(RuntimeImageBuildRequest.count).to eq(1)
   end
 
   it "rechecks the feature gate at the authoritative boundary" do
