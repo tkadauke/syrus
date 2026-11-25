@@ -241,9 +241,9 @@ module Syrus
         matcher :have_clean_plugin_host_surface do
           match do |plugin|
             @result = Syrus::PluginHostSurface::Scanner.new(plugin.root).call
-            @result.error.nil? && @result.legacy.empty? && @result.unlisted.empty?
+            @result.error.nil? && @result.unlisted.empty?
           end
-          failure_message { |plugin| "expected #{plugin.name} host-surface scan to be clean; error=#{@result&.error.inspect}, legacy=#{@result&.legacy.inspect}, unsupported=#{@result&.unlisted.inspect}" }
+          failure_message { |plugin| "expected #{plugin.name} host-surface scan to be clean; error=#{@result&.error.inspect}, unsupported=#{@result&.unlisted.inspect}" }
         end
 
         def flatten_json_keys(value, prefix = nil)

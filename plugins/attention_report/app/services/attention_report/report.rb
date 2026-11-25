@@ -56,7 +56,7 @@ module AttentionReport
       return 0 if grouped_proposals.empty?
 
       last_confirmation = grouped_proposals.values.flatten.filter_map(&:confirmed_at).max
-      messages = ChatMessage.where(
+      messages = Syrus::Host::ChatMessageRecord.where(
         chat_session_id: grouped_proposals.keys,
         sender_user_id: @user.id,
         role: "user",

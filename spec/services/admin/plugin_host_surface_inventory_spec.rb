@@ -35,9 +35,8 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
         end
       RUBY
       write(root, "plugins/beta/lib/beta.rb", "module OtherPlugin; end\nclass SharedName; end\n")
-      legacy_entry = Syrus::PluginHostSurface::Entry.new(name: "CoreThing")
       surface = instance_double(Syrus::PluginHostSurface)
-      allow(surface).to receive(:lookup) { |name| name == "CoreThing" ? legacy_entry : nil }
+      allow(surface).to receive(:allowed_internal?) { |name| name == "CoreThing" }
 
       results = described_class.new(root:, surface:).results
 
@@ -46,7 +45,7 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
         tier: "internal", plugins: { "alpha" => 2 }, count: 2
       )
       expect(results.find { |result| result.constant == "CoreThing" }.plugins).to eq({ "alpha" => 1 })
-      expect(results.find { |result| result.constant == "CoreThing" }.tier).to eq("legacy")
+      expect(results.find { |result| result.constant == "CoreThing" }.tier).to eq("allowlisted")
       expect(results.find { |result| result.constant == "Syrus::Host::Undeclared" }.tier).to eq("internal")
       expect(results.find { |result| result.constant == "Local" }.plugins).to eq({ "alpha" => 1 })
       expect(results.find { |result| result.constant == "SharedName" }.plugins).to eq({ "alpha" => 1 })

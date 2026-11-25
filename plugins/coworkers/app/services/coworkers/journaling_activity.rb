@@ -59,7 +59,7 @@ module Coworkers
       ).uniq
     end
 
-    def messages = ChatMessage.where(chat_session_id: chat_ids, created_at: range)
+    def messages = Syrus::Host::ChatMessageRecord.where(chat_session_id: chat_ids, created_at: range)
 
     def background_jobs
       Syrus::Host::JobRecord.where(origin: "coworkers", origin_id: @coworker.id.to_s, created_at: range)
