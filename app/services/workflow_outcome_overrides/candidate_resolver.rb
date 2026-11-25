@@ -35,6 +35,7 @@ module WorkflowOutcomeOverrides
 
       graders.filter_map do |step|
         next unless step.failed? && step.details.to_h["required"]
+        next if step.details.to_h.dig("outcome_override", "effective_outcome") == "accepted_failure"
 
         result = GraderResult.new(
           workflow:, grader_step: step,
@@ -66,6 +67,7 @@ module WorkflowOutcomeOverrides
             (review_step.kind != "review_panel_collect" || vote["panel_id"] == details["panel_id"])
         end
         votes.filter_map do |vote|
+          next if vote["effective_verdict"] == "approved"
           next unless vote["verdict"].in?(%w[needs_work skipped]) && details["reviewed_head_sha"].present?
 
           gate_kind = vote["verdict"] == "skipped" ? "reviewer_infrastructure" : "review"
