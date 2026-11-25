@@ -106,7 +106,9 @@ module Steps
       "server_error" => "provider_transient",
       "turn_failed" => "provider_transient",
       ProviderAuthFailure::OUTCOME => "provider_auth_expired",
-      ProviderUsageLimit::OUTCOME => "provider_usage_limit"
+      ProviderModelUnsupported::OUTCOME => "provider_model_unsupported",
+      ProviderUsageLimit::OUTCOME => "provider_usage_limit",
+      ProviderPolicyRefusal::OUTCOME => "provider_policy_refusal"
     }.freeze
     AGENT_RESUME_UNAVAILABLE_PATTERN =
       /no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found|does not have a canonical rollout filename|resume.+(?:not found|missing|unavailable|expired|stale)/i
@@ -438,6 +440,14 @@ module Steps
       missing_required_tools = log_mcp_required_tool_health(required_mcp_tools)
       capture_mcp_sidecar_stderr if result.outcome == "mcp_sidecar_failed" || required_mcp_tools.present?
 
+      if result.outcome.to_s == ProviderPolicyRefusal::OUTCOME || ProviderPolicyRefusal.detect?(result.final_text)
+        fail_with!(
+          :provider_policy_refusal,
+          "provider refused the request under its policy",
+          evidence: { provider: agent_provider, outcome: result.outcome, final_text: result.final_text.to_s.truncate(500) }.compact
+        )
+      end
+
       raise AgentTimedOut, "agent timed out"                         if result.timed_out
       raise agent_result_failure(result)                              if result.is_error
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
@@ -507,6 +517,8 @@ module Steps
     def agent_result_problem_code(result)
       text = [ result.outcome, result.final_text ].compact.join("\n")
       return "agent_resume_unavailable" if text.match?(AGENT_RESUME_UNAVAILABLE_PATTERN)
+      return "provider_policy_refusal" if ProviderPolicyRefusal.detect?(text)
+      return "provider_model_unsupported" if ProviderModelUnsupported.detect?(text)
 
       AGENT_RESULT_PROBLEM_CODES[result.outcome.to_s]
     end
