@@ -38,11 +38,9 @@ a typical external plugin needs it, its useful contract is small enough to
 describe and smoke-test, and core can preserve it through a deprecation period.
 Usage across bundled plugins is evidence for that choice, never the decision.
 
-A core constant stays in the legacy inventory when bundled plugins still use
-it but it is too broad, mutable, specialized, or coupled to a core subsystem
-to support externally. The inventory is tolerated only for bundled plugins and
-must shrink. Everything outside a declared host facade or the legacy inventory
-is internal by default.
+Everything outside a declared host facade is internal by default. Built-in and
+external plugins follow the same rule: use a public API or an exact, documented
+exception in `Syrus::PluginHostSurface::INTENTIONAL_INTERNAL_REFERENCES`.
 
 Alias a core constant into `Syrus::Host` only when the declared members are the
 entire surface plugins should use and can be kept stable. Domain records are
@@ -146,8 +144,8 @@ The currently registered contribution kinds are:
   why. Bundled plugins ship with core and are not checked.
   Run `bin/plugin-host-surface scan PATH` (optionally with `--json`) against an
   external plugin before publishing it. The scanner parses Ruby without
-  executing it, allows APIs registered beneath `Syrus::Host`, reports legacy
-  and unsupported core references, and derives the newest `since` release
+  executing it, allows APIs registered beneath `Syrus::Host`, reports
+  unsupported core references, and derives the newest `since` release
   among the registered host APIs in use. Declare the oldest
   release actually tested as `requires_syrus`, but never below that derived
   floor. Static analysis cannot follow arbitrary dynamic constant lookup; it

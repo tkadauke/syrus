@@ -982,7 +982,6 @@ la:
       host_surface:
         scan_failed: "Inspectio API hospitis defecit: %{error}"
         unsupported: "%{count} relatio API hospitis non sustentata"
-        legacy: "%{count} relatio API hospitis non publica"
         dynamic: "%{count} relatio dynamica API hospitis non publica"
         minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
 

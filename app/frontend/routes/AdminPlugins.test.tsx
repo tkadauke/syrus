@@ -1116,7 +1116,6 @@ describe("AdminPlugins", () => {
             reasons: ["1 unsupported host API reference"],
             host_surface: {
               public: [],
-              legacy: [],
               unlisted: [{ constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7 }],
               dynamic: []
             }
@@ -1147,7 +1146,6 @@ describe("AdminPlugins", () => {
             reasons: ["requires_syrus starts at 0.1.0, below the derived minimum 0.2.0"],
             host_surface: {
               public: [{ constant: "AgentInvocation", tier: "public", path: "lib/external.rb", line: 4 }],
-              legacy: [],
               unlisted: [],
               dynamic: [],
               minimum_syrus_version: "0.2.0"

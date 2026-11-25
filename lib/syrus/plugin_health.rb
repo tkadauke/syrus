@@ -158,7 +158,6 @@ module Syrus
         scan_reasons = []
         scan_reasons << I18n.t("api.plugins.host_surface.scan_failed", error: scan.error) if scan.error
         scan_reasons << I18n.t("api.plugins.host_surface.unsupported", count: scan.unlisted.size) if scan.unlisted.any?
-        scan_reasons << I18n.t("api.plugins.host_surface.legacy", count: scan.legacy.size) if scan.legacy.any?
         scan_reasons << I18n.t("api.plugins.host_surface.dynamic", count: scan.dynamic.size) if scan.dynamic.any?
         declared = declared_minimum(normalize_requirement(manifest.requires_syrus))
         if scan.minimum_syrus_version && declared && declared < Gem::Version.new(scan.minimum_syrus_version)
