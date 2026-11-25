@@ -22,7 +22,7 @@ RSpec.describe RuntimeImages::Builds::Runner do
     [ claimed_request.reload, attempt.reload ]
   end
 
-  def output(**attrs) = RuntimeImages::Builds::Output.new(payload: "image-bytes", source_digest: source.digest, provenance: { "builder" => "t" }, **attrs)
+  def output(**attrs) = RuntimeImages::Builds::Output.new(**{ payload: "image-bytes", source_digest: source.digest, provenance: { "builder" => "t" } }.merge(attrs))
 
   it "builds, publishes, verifies, and records a successful result" do
     request
@@ -36,6 +36,20 @@ RSpec.describe RuntimeImages::Builds::Runner do
     expect(image).to be_available
     expect(image.provenance["build_request_id"]).to eq(claimed.id)
     expect(image.source_digest).to eq(source.digest)
+  end
+
+  it "signs the runtime ABI into provenance only for the standard base" do
+    request
+    allow(builder).to receive(:build).and_return(output)
+    expect(run.first.result.runtime_image.provenance).not_to have_key(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
+
+    base_source = RuntimeImages::Builds::SourceCapture.capture(kind: RuntimeImages::CoworkerBase::SOURCE_KIND, ref: "coworker-base/generation-1", revision: "sha256:#{"a" * 64}")
+    orchestrator.submit(namespace: namespace, source: base_source, recipe: { "a" => 2 }, platform: "linux/amd64", requester_kind: "test", requester_ref: "2")
+    allow(builder).to receive(:build).and_return(output(payload: "base-image-bytes").tap { |o| o.source_digest = base_source.digest })
+    claimed, = run
+    image = claimed.result.runtime_image
+    attestation = image.provenance.fetch(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
+    expect(RuntimeImages::RuntimeAbi.attestation_valid?(attestation, source_digest: image.source_digest, recipe_digest: image.provenance["recipe_digest"])).to be(true)
   end
 
   it "fails non-retryably when the builder consumed a different source" do

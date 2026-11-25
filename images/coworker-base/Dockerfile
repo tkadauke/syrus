@@ -114,6 +114,7 @@ ENV PATH="/opt/muse/bin:${PATH}" \
 # The runtime contract probe: Syrus runs it (under the same confinement real
 # turns get) to verify identity, provider binaries, and read-only operation.
 COPY --chmod=0755 syrus-base-probe /usr/local/bin/syrus-base-probe
+COPY --chmod=0644 abi.yml /usr/local/share/syrus/runtime-abi.yml
 
 # The non-root identity and the mount points Container Execution fills in.
 # /workspace, the provider home, and /tmp are the only writable paths at
@@ -132,7 +133,12 @@ LABEL org.opencontainers.image.title="syrus-coworker-base" \
       io.syrus.coworker-base.generation="1" \
       io.syrus.coworker-base.runtime-abi="1" \
       io.syrus.coworker-base.user="coworker" \
-      io.syrus.coworker-base.providers="claude,codex,agy,muse"
+      io.syrus.coworker-base.providers="claude,codex,agy,muse" \
+      io.syrus.runtime-abi.version="1" \
+      io.syrus.runtime-abi.compat-min="1" \
+      io.syrus.runtime-abi.compat-max="1" \
+      io.syrus.runtime-abi.min-confinement-policy="1" \
+      io.syrus.runtime-abi.contract-digest="sha256:92f19c71719e4a4af8c3b1efc4ac3c4bebbef85db3dc6dd0d6a4ca0ac03ba393"
 
 ENV HOME=/home/coworker \
     NPM_CONFIG_UPDATE_NOTIFIER=false \

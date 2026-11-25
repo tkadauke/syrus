@@ -31,6 +31,16 @@ for provider in claude codex agy muse; do
   fi
 done
 
+# Runtime ABI: each provider lives at its contracted absolute path, and the
+# contract the image was built against is shipped inside it.
+for entry in claude:/usr/local/bin/claude codex:/usr/local/bin/codex agy:/usr/local/bin/agy muse:/opt/muse/bin/muse; do
+  if [ -x "${entry#*:}" ]; then ok "abi-path-${entry%%:*}"; else fail "abi-path-${entry%%:*}" "${entry#*:} is not executable"; fi
+done
+[ -r /usr/local/share/syrus/runtime-abi.yml ] && ok abi-contract || fail abi-contract "/usr/local/share/syrus/runtime-abi.yml missing"
+for dir in /workspace /home/coworker; do
+  [ -d "$dir" ] && ok "abi-dir-$(basename "$dir")" || fail "abi-dir-$(basename "$dir")" "$dir missing"
+done
+
 # Support tools.
 for tool in git curl jq rg fd node python3 ssh unzip; do
   if command -v "$tool" >/dev/null 2>&1; then ok "tool-$tool"; else fail "tool-$tool" "not on PATH"; fi
