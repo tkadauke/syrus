@@ -56,6 +56,9 @@ RSpec.describe ManualAgenticRun::GithubAccess do
       expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/pulls/9", '{"state":"closed"}')).to be(true)
       expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets", '{"archived":true}')).to be(true)
       expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/issues/9/lock", "")).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/pulls/9?notify=false", '{"state":"closed"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets?audit=repair", '{"archived":true}')).to be(true)
+      expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/issues/9/lock?reason=repair", "")).to be(true)
       deletion = "0" * 4 + ("a" * 40) + " " + ("0" * 40) + " refs/heads/repair\0 report-status\n"
       expect(proxy.send(:destructive_request?, "POST", "/acme/widgets.git/git-receive-pack", deletion)).to be(true)
     ensure
