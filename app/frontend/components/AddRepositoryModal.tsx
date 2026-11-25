@@ -88,7 +88,9 @@ export function AddRepositoryModal({
       review_policy: r.review_policy,
       epic_dependency_policy: r.epic_dependency_policy,
       github_owner_id: "",
-      github_repository_id: ""
+      github_repository_id: "",
+      question_eagerness: r.question_eagerness || null,
+      question_answer_timeout_seconds: r.question_answer_timeout_seconds || null
     })
   }, [form.isSuccess, form.data, values])
 

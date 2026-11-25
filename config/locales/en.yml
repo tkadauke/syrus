@@ -1020,6 +1020,7 @@ en:
         minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Fix Job %{slug} filed. This Job will resume after it lands."
       direct_only: "Only direct Jobs can be started manually."
       thread_closed: "Thread is closed - reopen it before starting work."
       backlogged: "Job is in backlog - release it before starting work."

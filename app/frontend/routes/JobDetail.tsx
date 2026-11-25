@@ -260,7 +260,17 @@ export function JobDetailRoute() {
   )
 }
 
-function JobQuestionPanel({ job, onNotice }: { job: JobDetailPayload["job"]; onNotice: (message: string | null) => void }) {
+export function JobQuestionPanel({
+  job,
+  paths,
+  command,
+  onNotice
+}: {
+  job: JobDetailPayload["job"]
+  paths: JobDetailPayload["paths"]
+  command: ReturnType<typeof useJobCommand>
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("jobs")
   const client = useQueryClient()
   const queryKey = ["agent-questions", "job", job.id] as const
@@ -281,6 +291,34 @@ function JobQuestionPanel({ job, onNotice }: { job: JobDetailPayload["job"]; onN
         <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
       </div>
       <AgentQuestions questions={query.data.questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div>
+          <Button disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: paths.app_run_again_path })} variant="secondary">
+            {t("question_retry")}
+          </Button>
+          <p className="mt-1 text-xs text-text-muted">{t("question_retry_consequence")}</p>
+        </div>
+        <div>
+          <Button
+            disabled={command.isPending}
+            onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/file_question_fix` })}
+            variant="secondary"
+          >
+            {t("question_file_fix")}
+          </Button>
+          <p className="mt-1 text-xs text-text-muted">{t("question_file_fix_consequence")}</p>
+        </div>
+        <div>
+          <Button
+            disabled={command.isPending}
+            onClick={() => command.mutate({ method: "post", path: paths.app_cancel_path, confirm: t("question_give_up_confirm") })}
+            variant="danger"
+          >
+            {t("question_give_up")}
+          </Button>
+          <p className="mt-1 text-xs text-text-muted">{t("question_give_up_consequence")}</p>
+        </div>
+      </div>
     </section>
   )
 }
@@ -540,7 +578,12 @@ export function JobDetailView({
       </Page.Header>
 
       <NoticeToast message={notice?.message ?? null} onDismiss={() => setNotice(null)} tone={notice?.tone ?? "notice"} />
-      <JobQuestionPanel job={payload.job} onNotice={(message) => setNotice(message ? { message, tone: "notice" } : null)} />
+      <JobQuestionPanel
+        command={command}
+        job={payload.job}
+        paths={payload.paths}
+        onNotice={(message) => setNotice(message ? { message, tone: "notice" } : null)}
+      />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
       {unlandDialog}

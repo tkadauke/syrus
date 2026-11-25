@@ -1086,5 +1086,12 @@
   "workflow_block_evidence": "Technische Nachweise",
   "question_panel_title": "Der Agent braucht deine Antwort",
   "question_panel_consequence": "Antworten und fortfahren setzt diesen Workflow in derselben Agentensitzung fort.",
+  "question_retry": "Unverändert wiederholen",
+  "question_retry_consequence": "Startet einen neuen Versuch, ohne den Blocker zu ändern.",
+  "question_file_fix": "Fix-Job anlegen",
+  "question_file_fix_consequence": "Legt einen Reparatur-Job an und setzt diesen Job fort, nachdem die Reparatur gelandet ist.",
+  "question_give_up": "Aufgeben",
+  "question_give_up_confirm": "Diesen Versuch aufgeben und den Job abbrechen?",
+  "question_give_up_consequence": "Bricht den aktiven Versuch ab und schließt diesen Job als abgebrochen.",
   "question_policy_effective": "Fragebereitschaft: {{level}} (Quelle: {{source}})."
 }

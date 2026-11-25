@@ -281,6 +281,16 @@ module Api
           render_job(job.reload, message: lifecycle_t("cancellation_requested"), changed: [ "state", "runs" ])
         end
 
+        def file_question_fix
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          result = AgentQuestions::FileFixJob.call(job: job, actor: Current.user)
+          render_job(job.reload, message: lifecycle_t("question_fix_filed", slug: result.job.slug), changed: [ "dependencies" ])
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
         # Cancels (or dismisses, when already blocked) one auxiliary workflow.
         # Reuses WorkUnits::WorkflowCancellation so Runs are cancelled and the
         # WorkUnit and its locks are retired together.

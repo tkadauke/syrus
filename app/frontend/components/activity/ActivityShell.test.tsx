@@ -5,9 +5,11 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import * as permissionApi from "../../api/permissionRequests"
 import * as notificationApi from "../../api/notifications"
+import * as questionApi from "../../api/agentQuestions"
 import { Modal } from "../Modal"
 import { NotificationsBell } from "../Notifications"
 import { PermissionInboxDrawer } from "../PermissionInboxDrawer"
+import { QuestionInboxDrawer } from "../QuestionInboxDrawer"
 import { ActivityProvider } from "./ActivityProvider"
 
 vi.mock("../../api/permissionRequests", async () => {
@@ -17,6 +19,10 @@ vi.mock("../../api/permissionRequests", async () => {
 vi.mock("../../api/notifications", async () => {
   const actual = await vi.importActual<typeof import("../../api/notifications")>("../../api/notifications")
   return { ...actual, fetchNotifications: vi.fn(), markNotificationRead: vi.fn(), markAllNotificationsRead: vi.fn() }
+})
+vi.mock("../../api/agentQuestions", async () => {
+  const actual = await vi.importActual<typeof import("../../api/agentQuestions")>("../../api/agentQuestions")
+  return { ...actual, fetchOpenAgentQuestions: vi.fn() }
 })
 
 type Listener = (event: { matches: boolean }) => void
@@ -71,6 +77,22 @@ function mockData(approvals = [request(1, "Publish the release note"), request(2
     unread_count: 1,
     pagination: { page: 1, per_page: 20, total: 2, total_pages: 1 }
   } as never)
+  vi.mocked(questionApi.fetchOpenAgentQuestions).mockResolvedValue({
+    questions: [
+      {
+        id: 8,
+        job_id: 42,
+        job_slug: "JOB-42",
+        job_title: "Choose a path",
+        repository_slug: "acme/widgets",
+        asked_at: "2026-11-02T00:00:00Z",
+        times_out_at: null,
+        questions: [{ question: "Which path?", options: ["Safe"], multiple: false }],
+        app_answer_path: "/answer",
+        job_path: "/jobs/42"
+      }
+    ]
+  } as never)
 }
 
 function renderChrome(extra?: React.ReactNode) {
@@ -80,6 +102,7 @@ function renderChrome(extra?: React.ReactNode) {
       <MemoryRouter>
         <ActivityProvider>
           <PermissionInboxDrawer />
+          <QuestionInboxDrawer />
           <NotificationsBell initialUnreadCount={1} prefix="" />
           {extra}
         </ActivityProvider>
@@ -115,6 +138,7 @@ describe("Activity shell", () => {
     expect(await within(shell).findByText("Build failed")).toBeVisible()
     expect(within(shell).getByTestId("activity-count-notifications")).toHaveTextContent("1")
     expect(await within(shell).findByTestId("activity-count-approvals")).toHaveTextContent("2")
+    expect(await within(shell).findByTestId("activity-count-questions")).toHaveTextContent("1")
     expect(screen.getAllByRole("dialog")).toHaveLength(1)
     expect(document.body.style.overflow).toBe("hidden")
 

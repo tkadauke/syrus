@@ -1,5 +1,6 @@
 import { getJson, postForm } from "./client"
 import type { ProviderRoutingOptions } from "./providerRoutingRules"
+import type { QuestionEagerness } from "../components/QuestionEagernessFields"
 
 export type DirectJobRepository = {
   id: number
@@ -45,6 +46,7 @@ export type DirectJobFormPayload = {
   selected_agent_provider: string | null
   selected_model: string | null
   selected_effort_level: string | null
+  selected_question_eagerness: QuestionEagerness | null
   selected_epic_id: string | null
   epic: DirectJobEpic | null
   create_more: boolean
@@ -60,6 +62,7 @@ export type CreateDirectJobInput = {
   agentProvider: string
   model: string
   effortLevel: string
+  questionEagerness: QuestionEagerness | null
   epicId: string
   title: string
   prompt: string
@@ -96,6 +99,7 @@ export function createDirectJob(values: CreateDirectJobInput) {
   formData.append("agent_provider", values.agentProvider)
   formData.append("model", values.model)
   formData.append("effort_level", values.effortLevel)
+  if (values.questionEagerness) formData.append("question_eagerness", values.questionEagerness)
   if (values.epicId) {
     formData.append("epic_id", values.epicId)
   }

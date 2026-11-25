@@ -960,6 +960,7 @@ la:
         minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Opus emendationis %{slug} creatum est. Hoc Opus post descensum eius resumetur."
       direct_only: "Sola opera directa manu incipi possunt."
       thread_closed: "Filum clausum est - id rursus aperi antequam opus incipias."
       backlogged: "Opus in acervo est - id libera antequam opus incipias."

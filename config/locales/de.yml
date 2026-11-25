@@ -960,6 +960,7 @@ de:
         minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Fix-Job %{slug} angelegt. Dieser Job wird fortgesetzt, nachdem er gelandet ist."
       direct_only: "Nur direkte Jobs können manuell gestartet werden."
       thread_closed: "Thread ist geschlossen — öffne ihn erneut, bevor du die Arbeit startest."
       backlogged: "Job ist im Backlog — gib ihn frei, bevor du die Arbeit startest."

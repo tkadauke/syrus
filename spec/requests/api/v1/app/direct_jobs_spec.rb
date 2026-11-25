@@ -77,6 +77,20 @@ RSpec.describe "API: /api/v1/app/direct_jobs", :full_chat_access, type: :request
     )
   end
 
+  it "stores a question-eagerness override from the filing form" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Ask before choosing",
+      prompt: "Implement the requested behavior.",
+      question_eagerness: "collaborative"
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(Job.order(:id).last).to have_attributes(question_eagerness: "collaborative")
+  end
+
   it "accepts an explicit planned execution override for direct Jobs" do
     sign_in_as(user)
 

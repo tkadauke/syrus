@@ -10,7 +10,7 @@ module DirectJobs
       @user = user
     end
 
-    def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [], dependency_requirements: [])
+    def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, question_eagerness: nil, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [], dependency_requirements: [])
       chat_session, created_chat_session = proposal_chat_session(repository, depends_on | requirement_proposal_slugs(dependency_requirements))
       depends_on_job_ids = chain_onto_epic_tail(
         epic: epic,
@@ -29,6 +29,8 @@ module DirectJobs
         dependency_requirements: dependency_requirements,
         provider: agent_provider.presence,
         priority: priority,
+        question_eagerness: question_eagerness,
+        question_eagerness_reason: question_eagerness.present? ? "Selected by the operator while filing the Job." : nil,
         planned_execution: planned_execution_payload(planned_execution_attrs)
       )
       if response.error?
