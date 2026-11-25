@@ -1,5 +1,5 @@
 module Coworkers
-  class MessageDeliveryJob < PluginJob
+  class MessageDeliveryJob < Syrus::Host::PluginJob
     plugin :coworkers
 
     discard_on ActiveRecord::RecordNotFound

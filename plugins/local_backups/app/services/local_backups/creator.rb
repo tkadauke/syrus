@@ -129,7 +129,7 @@ module LocalBackups
       {
         backup_id: backup.uuid, started_at: backup.started_at.iso8601(6), snapshot_at: snapshot.path.mtime.utc.iso8601(6),
         completed_at: completed_at.iso8601(6), validated_at: completed_at.iso8601(6), reason: backup.reason,
-        source_application_version: SyrusVersion.description, source_revision: SyrusVersion.current,
+        source_application_version: Syrus::Host::SyrusVersion.description, source_revision: Syrus::Host::SyrusVersion.current,
         artifact: { format: "directory", checksum_path: "checksums.sha256" }, checksum: artifact_checksum,
         database: @snapshotter.manifest(snapshot),
         encryption: { key_fingerprints: encryption_key_fingerprints },

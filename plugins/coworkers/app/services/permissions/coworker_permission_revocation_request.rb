@@ -30,7 +30,7 @@ module Permissions
       end
       raise CoworkerPermissionRequest::Rejected.new(:chat_required, "a chat session is required to ask the owner") unless context.chat_session
 
-      rule = Management.new(context.user).rules.find_by(id: @permission_rule_id)
+      rule = Syrus::Host::PermissionManagement.new(context.user).rules.find_by(id: @permission_rule_id)
       unless rule && self.class.targets?(rule, coworker)
         raise CoworkerPermissionRequest::Rejected.new(:rule_not_found, "no active permission rule applies to this coworker with that id")
       end

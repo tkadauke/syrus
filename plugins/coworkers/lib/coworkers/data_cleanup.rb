@@ -2,25 +2,25 @@ module Coworkers
   module DataCleanup
     def self.install_into(scope)
       scope.effect("owner coworkers") do
-        Syrus::DataCleanup.register("User", "coworkers.owned") do |user|
+        Syrus::Host::DataCleanup.register("User", "coworkers.owned") do |user|
           Coworkers::Coworker.where(owner_user_id: user.id).find_each(&:destroy)
         end
       end
 
       scope.effect("coworker schedules") do
-        Syrus::DataCleanup.register("Coworkers::Coworker", "coworkers.schedules") do |coworker|
+        Syrus::Host::DataCleanup.register("Coworkers::Coworker", "coworkers.schedules") do |coworker|
           ScheduledTasks::Task.where(coworker_id: coworker.id).find_each(&:destroy_as_system!)
         end
       end
 
       scope.effect("coworker workspace branches") do
-        Syrus::DataCleanup.register("Coworkers::Coworker", "coworkers.workspace_branches") do |coworker|
+        Syrus::Host::DataCleanup.register("Coworkers::Coworker", "coworkers.workspace_branches") do |coworker|
           coworker.coworker_chats.includes(:chat_session).find_each { |link| Coworkers::ChatBranchCleanup.call(link) }
         end
       end
 
       scope.effect("coworker chats") do
-        Syrus::DataCleanup.register("ChatSession", "coworkers.chat_links") do |chat|
+        Syrus::Host::DataCleanup.register("ChatSession", "coworkers.chat_links") do |chat|
           Coworkers::Chat.where(chat_session_id: chat.id).includes(:coworker).find_each do |link|
             Coworkers::ChatBranchCleanup.call(link)
           end
@@ -30,7 +30,7 @@ module Coworkers
       end
 
       scope.effect("dedicated coworker workspace repositories") do
-        Syrus::DataCleanup.register("Repository", "coworkers.workspace_repository") do |repository|
+        Syrus::Host::DataCleanup.register("Repository", "coworkers.workspace_repository") do |repository|
           Coworkers::WorkspaceRepository.find_by(repository_id: repository.id)&.destroy
         end
       end

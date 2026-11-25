@@ -63,7 +63,7 @@ module Permissions
 
     def descriptor_for(tool)
       if tool.tool
-        McpToolRegistry.entry_for(tool.tool)&.descriptor
+        Syrus::Host::McpToolRegistry.entry_for(tool.tool)&.descriptor
       elsif tool.definition
         Syrus::Host::CapabilityDescriptor.for_plugin_definition(
           tool.definition.merge(requestable_roles: [ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ])
@@ -203,9 +203,9 @@ module Permissions
       return false unless descriptor.requestable_roles.include?(context.role)
       return false if grant && descriptor.capability.sub(/@v\d+\z/, "") != capability
 
-      Permissions::Catalog.find!(capability: descriptor.capability, operation: descriptor.operation)
+      Syrus::Host::PermissionCatalog.find!(capability: descriptor.capability, operation: descriptor.operation)
         .requestable_roles.include?(context.role)
-    rescue Permissions::Catalog::UnknownCapability
+    rescue Syrus::Host::PermissionCatalog::UnknownCapability
       false
     end
 
@@ -244,7 +244,7 @@ module Permissions
       rescue ArgumentError
         descriptor.defaults.fetch(context.role, :deny)
       end
-      policies.min_by { |policy| Permissions::PolicyEvaluator::POLICY_RANK.fetch(policy) } || :deny
+      policies.min_by { |policy| Syrus::Host::PermissionPolicyRank.fetch(policy) } || :deny
     end
 
     def state_and_reason(availability:, eligible:, policy:)
@@ -264,12 +264,12 @@ module Permissions
       return tool.availability_state unless tool.availability_state.to_sym == :available
       return :available if tool.provider
 
-      entry = McpToolRegistry.entry_for(tool.tool)
+      entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
       return :unavailable unless entry
-      return :unavailable if entry.feature_flag && !Feature.public_send("#{entry.feature_flag}_enabled?")
+      return :unavailable if entry.feature_flag && !Syrus::Host::Feature.public_send("#{entry.feature_flag}_enabled?")
 
       role_flag = entry.feature_flags_by_role&.fetch(context.role, nil)
-      return :unavailable if role_flag && !Feature.public_send("#{role_flag}_enabled?")
+      return :unavailable if role_flag && !Syrus::Host::Feature.public_send("#{role_flag}_enabled?")
       return :resource_unconfigured if repository_scope_required?(entry.descriptor) && context.allowed_repository_ids.empty?
 
       :available
@@ -289,7 +289,7 @@ module Permissions
     end
 
     def permission_management
-      @permission_management ||= Permissions::Management.new(context.user)
+      @permission_management ||= Syrus::Host::PermissionManagement.new(context.user)
     end
 
     def required_scope(descriptors)

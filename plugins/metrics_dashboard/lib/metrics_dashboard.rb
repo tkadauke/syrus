@@ -1,7 +1,7 @@
 require "metrics_dashboard/tab"
 
 module MetricsDashboard
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   # How often a sample lands: `tick_interval` below, since the plugin tick
   # scheduler fires 1-minute ticks every minute. (It used to fire them every

@@ -1,5 +1,5 @@
 module AttentionReport
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "attention_report" do
     display_name "Attention Report"

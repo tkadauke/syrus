@@ -1,7 +1,7 @@
 require "syrus/installer"
 
 module SyrusCodexAgent
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "codex_agent" do
     display_name "Codex Agent"

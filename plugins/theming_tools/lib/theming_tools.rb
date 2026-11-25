@@ -1,5 +1,5 @@
 module ThemingTools
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "theming_tools" do
     experimental true

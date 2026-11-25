@@ -11,7 +11,7 @@ module Coworkers
     end
 
     def rules(active: true)
-      relation = PermissionRule.where(
+      relation = Syrus::Host::PermissionRule.where(
         owner_user: coworker.owner_user, subject_selector_type: "agent",
         subject_selector_id: coworker.id.to_s
       )
@@ -51,14 +51,14 @@ module Coworkers
       descriptors = canonical_descriptors(capability)
       raise ArgumentError, "no canonical permission descriptors for #{capability}" if descriptors.empty?
 
-      PermissionRule.transaction do
+      Syrus::Host::PermissionRule.transaction do
         rules.where(capability: descriptors.map(&:capability)).find_each { |rule| rule.revoke!(actor:) }
         return nil if approval_policy.to_s == "off" && !preserve_denial
 
         policy = POLICY.fetch(approval_policy.to_s)
         descriptors.flat_map do |descriptor|
           scopes_for(descriptor, scope).map do |resource_scope|
-            PermissionRule.create!(
+            Syrus::Host::PermissionRule.create!(
               owner_user: coworker.owner_user, created_by_user: actor, updated_by_user: actor,
               subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
               subject_role_keys: [], dynamic_future_roles: false,
@@ -119,7 +119,7 @@ module Coworkers
 
     def catalog_tool_descriptor(tool)
       if tool.tool
-        entry = McpToolRegistry.entry_for(tool.tool)
+        entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
         entry&.descriptor || (entry && Syrus::Host::CapabilityDescriptor.for_registry_entry(
           tool_name: entry.tool_name, capability: entry.capability, mutation: entry.mutation,
           required_roles: entry.required_roles, admin_only: entry.admin_only
@@ -130,7 +130,7 @@ module Coworkers
     end
 
     def canonical_descriptors(capability)
-      registered = Permissions::CapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
+      registered = Syrus::Host::CapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
         descriptor = registration.descriptor
         descriptor if descriptor && unversioned(descriptor.capability) == capability.to_s
       end
@@ -188,6 +188,6 @@ module Coworkers
     end
 
     def unversioned(value) = value.to_s.sub(/@v\d+\z/, "")
-    def policy_rank(value) = Permissions::PolicyEvaluator::POLICY_RANK.fetch(value.to_sym)
+    def policy_rank(value) = Syrus::Host::PermissionPolicyRank.fetch(value.to_sym)
   end
 end

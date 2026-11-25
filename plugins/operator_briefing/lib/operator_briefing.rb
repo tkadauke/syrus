@@ -1,7 +1,7 @@
 require "fugit"
 
 module OperatorBriefing
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   SEVERITIES = %w[informational fyi decision_required attention_debt].freeze
 

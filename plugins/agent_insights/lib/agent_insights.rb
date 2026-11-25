@@ -1,7 +1,7 @@
 require "agent_insights/data_cleanup"
 
 module AgentInsights
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "agent_insights" do
     experimental true

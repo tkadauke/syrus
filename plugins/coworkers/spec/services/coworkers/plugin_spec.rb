@@ -86,14 +86,14 @@ RSpec.describe "Coworkers plugin" do
     coworkers = PluginRecord.find_or_initialize_by(name: "coworkers")
     calendar.update!(enabled: true)
     coworkers.update!(enabled: false)
-    Syrus::Installer.sync!
+    Syrus::Host::Installer.sync!
     coworkers.update!(enabled: true)
-    Syrus::Installer.sync!
+    Syrus::Host::Installer.sync!
     expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
       .to include(Coworkers::CalendarEventSource)
 
     calendar.update!(enabled: false)
-    Syrus::Installer.sync!
+    Syrus::Host::Installer.sync!
     expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
       .not_to include(Coworkers::CalendarEventSource)
     expect(coworkers.reload.enabled?).to be(true)
@@ -102,13 +102,13 @@ RSpec.describe "Coworkers plugin" do
   it "declares metrics and its sampler only while enabled" do
     coworkers = PluginRecord.find_or_create_by!(name: "coworkers")
     coworkers.update!(enabled: true)
-    Syrus::Installer.sync!
+    Syrus::Host::Installer.sync!
 
     expect(Syrus::Metrics.registry.declared?(:syrus_coworkers_journaling_state)).to be(true)
     expect(Syrus::Metrics.samplers).to include(Coworkers::MetricsSampler)
 
     coworkers.update!(enabled: false)
-    Syrus::Installer.sync!
+    Syrus::Host::Installer.sync!
 
     expect(Syrus::Metrics.registry.declared?(:syrus_coworkers_journaling_state)).to be(false)
     expect(Syrus::Metrics.samplers).not_to include(Coworkers::MetricsSampler)

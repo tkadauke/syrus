@@ -178,7 +178,7 @@ module K8sCluster
     end
 
     def credential_denial_reason(credential)
-      registered_cluster = KubernetesCluster.find_by(credential_store_credential_id: credential.id)
+      registered_cluster = Syrus::Host::KubernetesCluster.find_by(credential_store_credential_id: credential.id)
       if registered_cluster
         return "agentic access is disabled for this Kubernetes cluster" unless registered_cluster.agentic_access_enabled?
       end

@@ -7,7 +7,7 @@ require "go/coverage_analyzer"
 require "go/ecosystem"
 
 module Go
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "go" do
     description "Go prepare detection: go.mod → GOWORK=off go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion"

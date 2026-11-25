@@ -5,7 +5,7 @@ module Discord
   # registered through the :platform_delivery extension point.
   class PlatformConfig < Syrus::Host::PlatformConfigBase
     def configured?
-      AppSetting.discord_bot_token.present?
+      Syrus::Host::AppSetting.discord_bot_token.present?
     end
 
     def instructions(token)

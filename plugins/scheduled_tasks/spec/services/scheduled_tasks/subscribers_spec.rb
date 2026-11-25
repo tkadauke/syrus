@@ -85,7 +85,7 @@ RSpec.describe ScheduledTasks::Subscribers do
     end
 
     perform_enqueued_jobs do
-      Syrus::Events.publish("user.created", user_id: created.id, first_user: true)
+      Syrus::Host::Events.publish("user.created", user_id: created.id, first_user: true)
     end
   end
 end

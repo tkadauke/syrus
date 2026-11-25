@@ -30,15 +30,15 @@ module AgentProviders
     # ClaudeInvocation accepts via `--model`.
     def self.available_models
       [
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "claude-opus-4-7", display_name: "Claude Opus 4.7",
           context_window: :large, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6",
           context_window: :large, cost_tier: :medium
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5",
           context_window: :standard, cost_tier: :low
         )
@@ -282,7 +282,7 @@ module AgentProviders
             "syrus-mcp-sidecar" => {
               type: "http",
               url: url,
-              headers: { PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => token },
+              headers: { Syrus::Host::PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => token },
               alwaysLoad: true
             }
           }
@@ -294,15 +294,15 @@ module AgentProviders
     end
 
     def persistent_mcp_url(decision)
-      path = decision.mcp_path.presence || PersistentMcpDaemon::MCP_PATH
-      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{path}"
+      path = decision.mcp_path.presence || Syrus::Host::PersistentMcpDaemon::MCP_PATH
+      "http://#{Syrus::Host::PersistentMcpDaemon.host}:#{Syrus::Host::PersistentMcpDaemon.port}#{path}"
     end
 
     def log_mcp_config!(path:, env:)
       Syrus::Host::JobLog.append!(
         run: @run,
         kind: "system",
-        chunk: "[mcp_config] server=syrus-mcp-sidecar command=#{sidecar_command} args=#{sidecar_args.join(' ')} alwaysLoad=true path=#{path} stderr=#{McpSidecarLog.path_for(@run.id)} env_keys=#{env.keys.sort.join(',')}"
+        chunk: "[mcp_config] server=syrus-mcp-sidecar command=#{sidecar_command} args=#{sidecar_args.join(' ')} alwaysLoad=true path=#{path} stderr=#{Syrus::Host::McpSidecarLog.path_for(@run.id)} env_keys=#{env.keys.sort.join(',')}"
       )
     rescue StandardError => e
       Rails.logger.warn("[AgentProviders::Claude] failed to log MCP config for Run ##{@run.id}: #{e.class}: #{e.message}")

@@ -1,5 +1,5 @@
 module LocalBackups
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "local_backups" do
     display_name "Local Backups"

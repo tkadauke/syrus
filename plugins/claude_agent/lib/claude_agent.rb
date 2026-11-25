@@ -1,7 +1,7 @@
 require "syrus/installer"
 
 module SyrusClaudeAgent
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "claude_agent" do
     display_name "Claude Agent"

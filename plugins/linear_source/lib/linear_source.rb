@@ -1,5 +1,5 @@
 module SyrusLinearSource
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "linear_source" do
     experimental true

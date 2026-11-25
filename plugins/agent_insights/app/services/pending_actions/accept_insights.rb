@@ -1,5 +1,5 @@
 module PendingActions
-  class AcceptInsights < Base
+  class AcceptInsights < Syrus::Host::PendingActionBase
     action_key "accept_insights"
 
     def execute = mutation.apply!.then { action }

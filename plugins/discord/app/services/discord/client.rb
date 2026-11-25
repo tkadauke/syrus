@@ -8,7 +8,7 @@ module Discord
   class Client
     BASE = "https://discord.com/api/v10"
 
-    def initialize(token: AppSetting.discord_bot_token)
+    def initialize(token: Syrus::Host::AppSetting.discord_bot_token)
       @token = token
     end
 

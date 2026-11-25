@@ -1,5 +1,5 @@
 module SyrusDiscord
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "discord" do
     experimental true

@@ -81,7 +81,7 @@ class Coworkers::ReviewMemoryLifecycle
       ids = Array(run.step.details.to_h["review_memory_ids"]).filter_map { |value| Integer(value, exception: false) }.uniq
       return [] if ids.empty?
 
-      Syrus::Memory.selected_review_memories(user: coworker.owner_user, repository_id: run.job.repository_id, ids:)
+      Syrus::Host::Memory.selected_review_memories(user: coworker.owner_user, repository_id: run.job.repository_id, ids:)
     end
 
     def checkout_path(run)

@@ -1,4 +1,4 @@
-class Coworkers::MentionDeliveryJob < PluginJob
+class Coworkers::MentionDeliveryJob < Syrus::Host::PluginJob
   plugin :coworkers
   queue_as :chat
 

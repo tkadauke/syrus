@@ -1,5 +1,5 @@
 module SyrusDev
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "syrus_dev" do
     experimental true

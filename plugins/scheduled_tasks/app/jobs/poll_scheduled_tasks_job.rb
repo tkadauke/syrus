@@ -1,13 +1,13 @@
-class PollScheduledTasksJob < PluginJob
+class PollScheduledTasksJob < Syrus::Host::PluginJob
   plugin :scheduled_tasks
-  include SkipIfPending
+  include Syrus::Host::SkipIfPending
 
   # Recurring scheduler for ScheduledTask. Runs every minute, scans
   # alive+active tasks, hands the ones whose next scheduled time has
   # arrived to ScheduledTaskFire (which applies the pr_pileup_policy,
   # spawns the cron Job, and stamps last_fired_at).
   def perform
-    return if AppSetting.polling_paused?
+    return if Syrus::Host::AppSetting.polling_paused?
     now = Time.current
     ScheduledTasks::Task.alive
                  .where(state: "scheduled")
@@ -31,7 +31,7 @@ class PollScheduledTasksJob < PluginJob
           "#{recording_error.class}: #{recording_error.message}"
         )
       end
-      BackendExceptionLogging.ingest_job(
+      Syrus::Host::BackendExceptionLogging.ingest_job(
         { job: self, exception_object: e, exception: [ e.class.name, e.message ] },
         0
       )

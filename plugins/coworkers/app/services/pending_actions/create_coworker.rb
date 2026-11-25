@@ -1,5 +1,5 @@
 module PendingActions
-  class CreateCoworker < Base
+  class CreateCoworker < Syrus::Host::PendingActionBase
     action_key "create_coworker"
     requires_chat_session!
 

@@ -3,7 +3,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   def self.permission_agent_subject? = true
   self.table_name = "coworkers"
   include Mentionable
-  include PluginDataCleanup
+  include Syrus::Host::PluginDataCleanup
 
   STATES = %w[active paused archived].freeze
   AVATAR_KEYS = %w[comet orbit prism sprout wave spark].freeze

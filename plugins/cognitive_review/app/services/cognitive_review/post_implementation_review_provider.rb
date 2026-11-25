@@ -58,7 +58,7 @@ module CognitiveReview
         repository_ids: [ job&.repository_id ].compact
       )
       return "Agent Memory context:\n\n#{context}" if context.present?
-      return "Agent Memory context: enabled, but no relevant memories were found." if Syrus::Memory.available?
+      return "Agent Memory context: enabled, but no relevant memories were found." if Syrus::Host::Memory.available?
 
       "Agent Memory context: unavailable; rely on the Job prompt, repository context, and final diff."
     rescue StandardError => e

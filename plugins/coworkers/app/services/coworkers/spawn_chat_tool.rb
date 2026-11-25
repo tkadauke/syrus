@@ -37,7 +37,7 @@ module Coworkers
           limiter = Coworkers::SpawnChatLimiter.new(coworker:, server_context:)
           next Syrus::Host::McpTools.invalid(limiter.refusal) unless limiter.allowed?
 
-          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
+          pending = Syrus::Host::McpAuthorizationSupport.pending_coworker_plugin_approval(
             tool_name, "coworker.spawn_chat", server_context, { prompt: prompt, handle: coworker.handle, title: title }, always_pending: true
           )
           next pending if pending

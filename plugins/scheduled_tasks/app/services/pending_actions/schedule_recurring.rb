@@ -1,5 +1,5 @@
 module PendingActions
-  class ScheduleRecurring < Base
+  class ScheduleRecurring < Syrus::Host::PendingActionBase
     action_key "schedule_recurring"
 
     def authorize_execution!
