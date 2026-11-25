@@ -151,6 +151,38 @@ RSpec.describe Steps::StackForcePush do
       expect(workflow.artifact("stack_publication")).to be_nil
     end
 
+    it "retargets to the newly resolved parent instead of the stale pre-resolution parent" do
+      old_parent = Factories.job_record(
+        user: job.user, repository: job.repository, issue_number: 82, pr_number: 82,
+        branch_name: "syrus/old-parent", state: "approved"
+      )
+      parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: "p" * 40)
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: job.user)
+      child.update_columns(parent_job_id: old_parent.id, mergeability_base_ref: old_parent.branch_name)
+      workflow.set_artifact!(StackRebasePlan::STACK_ARTIFACT, [
+        {
+          "job_id" => child.id, "pr_number" => child.pr_number, "branch_name" => child.branch_name,
+          "base_branch" => parent.branch_name, "parent_job_id" => parent.id
+        }
+      ])
+      pr = OpenStruct.new(
+        head: OpenStruct.new(sha: head_sha),
+        base: OpenStruct.new(ref: parent.branch_name, sha: base_sha),
+        mergeable: true,
+        mergeable_state: "clean"
+      )
+      allow(client).to receive(:branch_head_sha).and_return(head_sha)
+      allow(client).to receive(:pull_request).and_return(pr)
+      allow(CommitsBehindCalculator).to receive(:call).and_return(0)
+
+      handler.call
+
+      expect(child.reload.parent_job).to eq(parent)
+      expect(client).to have_received(:update_pull_request_base)
+        .with(job.repository.slug, child.pr_number, base: parent.branch_name)
+      expect(workflow.reload.artifact("stack_publication")).to include("status" => "verified")
+    end
+
     it "rereads and records the verified live publication and refreshed topology" do
       child.update_columns(landing_queue_blocked_reason: "stack_dependencies_not_ready", landing_queue_cached_at: 1.minute.ago)
       pr = OpenStruct.new(

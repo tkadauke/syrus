@@ -75,6 +75,7 @@ module Steps
           raise StepFailed.new("stack_force_push: derived stack topology no longer matches the publication plan", evidence: publication_failure_artifact)
         end
 
+        base = stack_job.reload.effective_base_branch.presence || entry["base_branch"].presence || repository.default_branch
         next if pr_number.blank?
 
         client.update_pull_request_base(repository.slug, pr_number, base: base)
