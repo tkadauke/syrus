@@ -1549,7 +1549,7 @@ function StepCard({
   const [open, setOpen] = useState(false)
   const runs = sortedRunsNewestFirst(step.runs)
   const activeRun = runs.find((run) => isActiveState(run.state))
-  const displayStatus = activeRun ? activeRun.state : step.display_status
+  const displayStatus = effectiveStepStatus(step)
   const prepareFailure = prepareFailureDetails(step)
   const cancellationNotice = stepCancellationNotice(step)
   const agentic = stepAgentic(step)
