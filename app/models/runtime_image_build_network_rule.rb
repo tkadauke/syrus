@@ -34,7 +34,7 @@ class RuntimeImageBuildNetworkRule < ApplicationRecord
   def valid_for_source_class
     return unless RuntimeImages::BuildNetwork::SourceClass.key?(source_class)
 
-    errors.add(:host, "must be a DNS host name, not an IP address") if host.present? && RuntimeImages::BuildNetwork::HostName.normalize(host).nil?
+    errors.add(:host, :not_a_dns_host_name) if host.present? && RuntimeImages::BuildNetwork::HostName.normalize(host).nil?
     source.validate(self).each { |message| errors.add(:base, message) }
   end
 end
