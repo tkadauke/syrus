@@ -1577,17 +1577,6 @@ Supported members:
 
 - `new`
 
-### `Syrus::Host::ProviderContentRefusals`
-
-Since: `0.1.16`
-
-Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.
-
-Supported members:
-
-- `detect?`
-- `outcome`
-
 ### `Syrus::Host::PromptsMemoryContext`
 
 Since: `0.1.16`
@@ -1598,6 +1587,17 @@ Supported members:
 
 - `new`
 - `to_s`
+
+### `Syrus::Host::ProviderContentRefusals`
+
+Since: `0.1.16`
+
+Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.
+
+Supported members:
+
+- `detect?`
+- `outcome`
 
 ### `Syrus::Host::RebaseTarget`
 
@@ -1909,19 +1909,6 @@ Supported members:
 - `state`
 - `workflow`
 
-### `Syrus::Host::RuntimeImages`
-
-Since: `0.1.16`
-
-Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.
-
-Supported members:
-
-- `acquire`
-- `available?`
-- `find`
-- `publish_local`
-
 ### `Syrus::Host::RunJob`
 
 Since: `0.1.16`
@@ -1943,6 +1930,19 @@ Supported members:
 - `find`
 - `joins`
 - `where`
+
+### `Syrus::Host::RuntimeImages`
+
+Since: `0.1.16`
+
+Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.
+
+Supported members:
+
+- `acquire`
+- `available?`
+- `find`
+- `publish_local`
 
 ### `Syrus::Host::Settings`
 
