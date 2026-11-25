@@ -31,6 +31,10 @@ RSpec.describe PendingActions::WorkflowOutcomeOverride do
     allow(WorkflowOutcomeOverrides::Resumer).to receive(:call)
 
     expect(action.confirm!(user:)).to be(true)
+    expect(WorkflowOutcomeOverrides::Authority).to have_received(:call).with(hash_including(
+      role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat",
+      subject_selector_id: nil
+    ))
     expect(WorkflowOutcomeOverrides::Recorder).to have_received(:call).with(hash_including(
       actor: user,
       permission_decision: hash_including(
@@ -38,5 +42,15 @@ RSpec.describe PendingActions::WorkflowOutcomeOverride do
       )
     ))
     expect(WorkflowOutcomeOverrides::Resumer).to have_received(:call).with(override:)
+  end
+
+  it "rejects an agent selector without its exact identity" do
+    action = pending_action
+    action.payload = action.payload.merge(
+      "subject_selector_type" => "agent", "subject_selector_id" => nil
+    )
+
+    expect(action).not_to be_valid
+    expect(action.errors[:payload]).to include("subject_selector_id is required for an agent")
   end
 end
