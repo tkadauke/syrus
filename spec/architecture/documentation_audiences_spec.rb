@@ -116,7 +116,7 @@ RSpec.describe "documentation audiences" do
     expect(searchable_workers).to include("SYRUS_WORKER_CAPABILITIES")
     expect(searchable_workers).to include("no_capable_worker")
     expect(searchable_workers).to include("AppSetting.max_concurrent_agent_runs")
-    expect(searchable_workers).to include("AppSetting.host_admission_policy")
+    expect(searchable_workers).to include("## Per-host Run pickup admission")
     expect(searchable_workers).to include("AppSetting.workflow_admission_policy")
     expect(searchable_workers).not_to include("db/search_migrate")
     expect(searchable_observability).to include("SYRUS_ALERT_WEBHOOK_URL")

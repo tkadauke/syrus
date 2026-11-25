@@ -55,7 +55,6 @@ RSpec.describe AppSettingRegistry do
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
       :workflow_admission_control_enabled,
-      :host_admission_policy,
       :workflow_admission_policy,
       :video_retention_days,
       :video_storage_budget_mb,

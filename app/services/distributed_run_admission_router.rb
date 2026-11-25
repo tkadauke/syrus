@@ -133,7 +133,7 @@ class DistributedRunAdmissionRouter
     return false unless sample
     return false unless WorkerHealthSampleAnalysis.health_for(sample).fetch(:level).to_s == "ok"
 
-    committed_load(candidate.fetch("hostname")) < RunProcessParallelism.host_capacity
+    committed_load(candidate.fetch("hostname")) < RunHostAdmissionCapacity.host_compute_capacity * RunHostAdmissionCapacity::FANOUT_RUNS_PER_CPU
   end
 
   # Everything already committed to a host: what is running on it, plus what
@@ -191,7 +191,7 @@ class DistributedRunAdmissionRouter
       "active_compute_runs" => active_compute_runs(hostname),
       "pending_dispatch_depth" => pending_dispatch_depth(hostname),
       "committed_load" => committed_load(hostname),
-      "host_compute_capacity" => RunProcessParallelism.host_capacity,
+      "host_compute_capacity" => RunHostAdmissionCapacity.host_compute_capacity,
       "excluded" => exclusions.include?(hostname),
       "healthy_headroom" => !exclusions.include?(hostname) && healthy_with_headroom?(candidate)
     }

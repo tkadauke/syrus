@@ -6,625 +6,171 @@ RSpec.describe RunHostAdmission do
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }
   let(:workflow) { Workflows::Initial.instantiate(job: job, agent_provider: "codex") }
   let(:run) { workflow.first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
+  let(:memory_psi) { { memory_pressure_some: 0.0 } }
 
   before do
+    HostConcurrencyTarget.reset!
     AppSetting.current.update!(workflow_admission_control_enabled: true)
     allow(SyrusVersion).to receive(:hostname).and_return("worker-a")
-    allow(RunProcessParallelism).to receive(:host_capacity).and_return(6)
+    allow(RunProcessParallelism).to receive(:cpu_detection).and_return(double(count: 2, source: "cgroup"))
     allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(16.gigabytes)
     allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2.gigabytes)
+    allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot) { memory_psi }
     workflow.update!(worker_hostname: "worker-a")
   end
 
-  it "bypasses host-local soft pacing when admission control is disabled" do
+  after { HostConcurrencyTarget.reset! }
+
+  it "admits when admission control is disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
-    worker_sample(cpu_pressure_some: 10.0)
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+    2.times { |i| compute_run_on_worker_a(i) }
 
-    admission = described_class.new(run: run)
-    allow(admission).to receive(:background_work_should_yield?).and_return(true)
-    expect(admission).not_to receive(:resource_guard_full?)
-    expect(admission).not_to receive(:admitted_within_stagger_window?)
-
-    decision = admission.call
+    decision = described_class.call(run: run)
 
     expect(decision).to be_admit
     expect(decision.reason).to eq("admission_control_disabled")
     expect_reason_attribution(decision)
   end
 
-  it "keeps critical local pressure active when admission control is disabled" do
+  it "defers compute work on a critically pressured worker, even with admission control disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
-    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("local_worker_pressure_critical")
-    expect_reason_attribution(decision)
-  end
-
-  it "defers compute runs on a worker with critical local pressure" do
     worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0, worker_storage_key: "storage-critical")
 
     decision = described_class.call(run: run)
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
-    expect_reason_attribution(decision)
-    expect(decision.details).to include(
-      "hostname" => "worker-a",
-      "worker_storage_key" => "storage-critical",
-      "step_kind" => "prepare"
-    )
-    expect(decision.details.fetch("sample_health")).to include("level" => "critical")
-  end
-
-  it "does not treat high CPU pressure some as critical without saturation evidence" do
-    worker_sample(cpu_used_percent: 6.1, load_1m: 1.8, cpu_pressure_some: 67.4, cpu_pressure_full: 0.0)
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_admit
-    expect(decision.details.fetch("sample_health")).to include(
-      "level" => "warning",
-      "reasons" => [ "CPU pressure 67.4% >= 20%" ]
-    )
-  end
-
-  # A grader fanout saturates a host's disk, and that used to refuse the agent
-  # turns too -- so the fleet kept grading and never started the work it was
-  # grading for, leaving jobs parked mid-pipeline with prepared workspaces.
-  # An agent turn waits on a provider API; disk contention is not its
-  # constraint.
-  it "admits a provider-bound agent turn when disk contention is the only critical pressure" do
-    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_admit
-    expect(decision.reason).to eq("host_capacity_available")
-    expect_reason_attribution(decision)
-    expect(decision.details.fetch("sample_health")).to include("level" => "critical")
-  end
-
-  it "still defers an agent turn when a hard limit is critical, not just the disk" do
-    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0, memory_used_percent: 96.0)
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect(decision.details).to include("hostname" => "worker-a", "worker_storage_key" => "storage-critical")
     expect_reason_attribution(decision)
   end
 
-  it "keeps deferring disk-bound work while the disk is critical" do
-    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
-    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 97, details: { "name" => "rspec" })
-    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-
-    decision = described_class.call(run: grader_run)
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("local_worker_pressure_critical")
-    expect_reason_attribution(decision)
-  end
-
-  # The other half of that rule. A grader IS disk-bound, so a genuinely
-  # saturated disk must still defer it (above) -- but one large sequential
-  # read or write by a single process drives `io_pressure_some` high on a host
-  # that is otherwise idle, and that is what a grader cloning, building or
-  # running a suite looks like. Escalating on `some` alone made normal grader
-  # work refuse the next grader, and the refusals were then rerouted, which is
-  # how one host's queue came to hold work three idle hosts could not take.
-  it "admits a grader when high IO pressure is one busy writer rather than saturation" do
-    worker_sample(cpu_used_percent: 0.99, memory_used_percent: 7.83, io_pressure_some: 86.09, io_pressure_full: 0.4)
-    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 96, details: { "name" => "rspec" })
-    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-
-    decision = described_class.call(run: grader_run)
-
-    expect(decision).to be_admit
-    expect(decision.details.fetch("sample_health")).to include("level" => "warning")
-  end
-
-  describe "whole-host graders" do
-    after { described_class.reset_whole_host_admissions! }
-
-    def grader_run(position, resources: { "cpu" => "all", "cpu_min" => 2 })
-      details = { "name" => "rspec-ci-#{position}" }
-      details["resources"] = resources if resources
-      grader_step = Step.create!(workflow: workflow, kind: "grader", position: position, details: details)
-      grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-    end
-
-    # A suite split into shards gains nothing if the shards share one host:
-    # each asks for every core and they just split it. They used to pile onto
-    # whichever worker claimed first, three of four on one host.
-    it "defers a second whole-host grader the same worker claims before the first one spawns" do
-      first = grader_run(60)
-      expect(described_class.call(run: first)).to be_admit
-
-      decision = described_class.call(run: grader_run(61))
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-    end
-
-    it "defers a whole-host grader while another one is running on this host" do
-      busy = grader_run(62)
-      busy.update!(state: "running", started_at: 1.minute.ago, last_heartbeat_at: Time.current)
-      busy.spawned_processes.create!(workflow: workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago)
-
-      expect(described_class.call(run: grader_run(63))).to be_defer
-    end
-
-    # A pod runs one SolidQueue process per queue group: one admitted a
-    # shard off the merges queue while another admitted its sibling off the
-    # host's dispatch queue, and an in-memory record saw neither.
-    it "defers a whole-host grader while another process on this host holds a claim" do
-      first = grader_run(68)
-      described_class.reset_whole_host_admissions!
-      claims = described_class::WholeHostClaims.dir
-      FileUtils.mkdir_p(claims)
-      FileUtils.touch(claims.join(first.id.to_s)) # as the other process records it
-
-      decision = described_class.call(run: grader_run(69))
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-    end
-
-    it "does not hold a claim for a whole-host grader it deferred for another reason" do
-      deferred = grader_run(70)
-      admission = described_class.new(run: deferred)
-      allow(admission).to receive(:admitted_within_stagger_window?).and_return(true)
-      expect(admission.call).to be_defer
-
-      expect(described_class.call(run: grader_run(71))).to be_admit
-    end
-
-    it "still packs ordinary graders next to a whole-host one" do
-      expect(described_class.call(run: grader_run(64))).to be_admit
-
-      expect(described_class.call(run: grader_run(65, resources: nil))).to be_admit
-    end
-
-    it "admits a whole-host grader again once the earlier one has finished" do
-      first = grader_run(66)
-      described_class.call(run: first)
-      first.update!(state: "succeeded", finished_at: Time.current)
-
-      expect(described_class.call(run: grader_run(67))).to be_admit
-    end
-  end
-
-  it "defers sticky resume work on a pressured host" do
-    worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
-
-    decision = described_class.call(run: run, queue_name: "resume-storage-a")
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("local_worker_pressure_critical")
-    expect_reason_attribution(decision)
-    expect(decision.details).to include(
-      "queue_name" => "resume-storage-a",
-      "sticky_resume_queue" => true
-    )
-  end
-
-  it "defers agentic landing work on the merges queue when the selected host is critical" do
-    landing_workflow = Workflows::AutoMerge.instantiate(job: job, agent_provider: "codex")
-    landing_workflow.update!(worker_hostname: "worker-a")
-    landing_step = landing_workflow.steps.create!(kind: "landing_fix", position: 99)
-    landing_run = landing_step.runs.create!(
-      job: job,
-      trigger_kind: landing_workflow.trigger_kind,
-      agent_provider: landing_workflow.agent_provider
-    )
-    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-
-    decision = described_class.call(run: landing_run, queue_name: "merges")
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("local_worker_pressure_critical")
-    expect_reason_attribution(decision)
-    expect(decision.details).to include(
-      "queue_name" => "merges",
-      "step_kind" => "landing_fix",
-      "sticky_resume_queue" => false
-    )
-  end
-
-  # On a three-unit host the agentic reserve is two units of memory, which is
-  # more than the budget leaves: 26 GB reserved out of a 31 GB budget on the
-  # production host, against a grader needing one 13 GB unit. Subtracting the
-  # reserve with nothing running made a lone grader permanently inadmissible,
-  # deferred host_resource_semaphore_busy every 30 seconds, which stalled a
-  # merge train and the whole landing queue behind it.
-  it "admits a lone grader on an idle host too small to hold the agentic memory reserve" do
-    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
-    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
-    worker_sample(cpu_pressure_some: 1.0)
-    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 98, details: { "name" => "rspec" })
-    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-
-    decision = described_class.call(run: grader_run)
-
-    expect(decision).to be_admit
-  end
-
-  # The reserve still does its job once there is an agent turn to protect.
-  it "applies the agentic memory reserve to a grader while guarded work is active" do
-    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
-    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
-    worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!(count: 1)
-    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 99, details: { "name" => "rspec" })
-    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-
-    decision = described_class.call(run: grader_run)
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("host_resource_semaphore_busy")
-    expect_reason_attribution(decision)
-  end
-
-  it "keeps a further guarded run off a host whose slots are full" do
-    worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_defer
-    expect(decision.reason).to eq("host_resource_semaphore_busy")
-    expect_reason_attribution(decision)
-    expect(decision.details).to include(
-      "active_guarded_run_count" => 3
-    )
-  end
-
-  # The slot count is a backstop for measurement lag, not the throttle it used
-  # to be at 1 -- a single agent on a healthy host no longer excludes the pod.
-  it "admits a second guarded run while the host still has slots" do
-    worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!(count: 1)
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_admit
-  end
-
-  # Host-correlated profile pressure remains unsuitable for admission. Only
-  # command-attributed memory bytes may increase the reservation.
-  it "does not let host-correlated profiles tighten admission" do
-    worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    expect(described_class.call(run: run)).to be_defer
-  end
-
-  it "admits guarded work when the host has no critical pressure or active guarded run" do
-    worker_sample(cpu_pressure_some: 10.0)
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_admit
-    expect(decision.reason).to eq("host_capacity_available")
-    expect_reason_attribution(decision)
-  end
-
-  it "admits a lone agentic run when one capacity unit reserves more than the memory budget" do
-    allow(RunProcessParallelism).to receive(:host_capacity).and_return(1)
-    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
-    worker_sample(memory_used_percent: 25.0)
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    decision = described_class.call(run: run)
-
-    expect(decision).to be_admit
-  end
-
-  it "admits a lone agentic run at capacity three despite a measured working set above the old threshold" do
-    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
-    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
-    worker_sample(memory_used_percent: 25.0)
+  it "does not let IO pressure alone defer a provider-bound agent turn" do
+    worker_sample(io_pressure_some: 95.0, io_pressure_full: 80.0)
     workflow.update!(state: "running")
     run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     expect(described_class.call(run: run)).to be_admit
   end
 
-  it "still defers a second agentic run when memory reservation is full" do
-    allow(RunProcessParallelism).to receive(:host_capacity).and_return(4)
-    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
-    worker_sample(memory_used_percent: 25.0)
-    saturate_guarded_slots!(count: 1)
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+  it "defers guarded work while memory is actually stalling" do
+    memory_psi[:memory_pressure_some] = 12.0
 
     decision = described_class.call(run: run)
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("host_resource_semaphore_busy")
-    expect_reason_attribution(decision)
-    expect(decision.details["resource_guard_binding_terms"]).to include("memory_reservation")
-    expect(decision.details["resource_guard_binding_terms"]).not_to include("compute_units")
+    expect(decision.details["resource_guard_binding_terms"]).to eq([ "memory_pressure" ])
   end
 
-  # syrus_admission_decisions_total is the same cluster-backed counter
-  # WorkflowAdmissionBudget increments; RunHostAdmission's own admit/defer
-  # decisions feed it too (see docs/engineering/architecture/metrics.md). Reads the count
-  # before/after since the registry is real and process-global.
-  it "increments syrus_admission_decisions_total for both admit and defer decisions" do
-    admit_before = admission_decisions_total("admit")
-    defer_before = admission_decisions_total("defer")
-
-    worker_sample(cpu_pressure_some: 10.0)
-    workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
-    described_class.call(run: run)
-
-    expect(admission_decisions_total("admit")).to eq(admit_before + 1)
-
-    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-    described_class.call(run: run)
-
-    expect(admission_decisions_total("defer")).to eq(defer_before + 1)
-  end
-
-  it "tags each decision's reason, so equal actions with different reasons are separate series" do
-    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-    before = admission_decisions_for_reason("defer", "local_worker_pressure_critical")
-
-    described_class.call(run: run)
-
-    expect(admission_decisions_for_reason("defer", "local_worker_pressure_critical")).to eq(before + 1)
-    expect(admission_decisions_for_reason("defer", "host_resource_semaphore_busy")).to eq(
-      Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: "defer", reason: "host_resource_semaphore_busy" }].to_i
-    )
-  end
-
-  it "attributes a run that is no longer queued as not_queued" do
-    run.update!(state: "succeeded")
+  it "defers guarded work when measured free memory is below the floor" do
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(15.gigabytes)
 
     decision = described_class.call(run: run)
 
-    expect(decision.reason).to eq("not_queued")
-    expect_reason_attribution(decision)
+    expect(decision).to be_defer
+    expect(decision.details).to include("resource_guard_binding_terms" => [ "memory_headroom" ], "memory_headroom_bytes" => 1.gigabyte)
   end
 
-  it "attributes work on a non-compute queue as non_compute_queue" do
-    admission = described_class.new(run: run)
-    allow(admission).to receive(:compute_queue?).and_return(false)
+  # Regression: the predicted-cost allocator charged every Run an estimated
+  # memory reservation and a reserve for agent turns, and refused work on a
+  # worker using a fraction of its CPU and memory.
+  it "admits compute work on a healthy worker below its concurrency target regardless of what the work might cost" do
+    compute_run_on_worker_a(0)
 
-    decision = admission.call
-
-    expect(decision.reason).to eq("non_compute_queue")
-    expect_reason_attribution(decision)
-  end
-
-  it "attributes a run that needs no resource guard as resource_guard_not_needed" do
-    worker_sample(cpu_pressure_some: 10.0)
-    admission = described_class.new(run: run)
-    allow(admission).to receive(:resource_guarded?).and_return(false)
-
-    decision = admission.call
-
-    expect(decision.reason).to eq("resource_guard_not_needed")
-    expect_reason_attribution(decision)
-  end
-
-  it "admits control-plane steps on a worker with critical local pressure" do
-    enable_distributed_workflow_dag!
-    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-    landing_workflow = Workflows::MergeTrain.instantiate(job: job, agent_provider: "codex")
-    landing_workflow.update!(worker_hostname: "worker-a")
-    collect_step = landing_workflow.steps.find_by!(kind: "grader_collect")
-    collect_run = collect_step.runs.create!(
-      job: job,
-      trigger_kind: landing_workflow.trigger_kind,
-      agent_provider: landing_workflow.agent_provider
-    )
-
-    decision = described_class.call(run: collect_run, queue_name: "merges")
+    decision = described_class.call(run: run)
 
     expect(decision).to be_admit
-    expect(decision.reason).to eq("control_plane_step")
-    expect_reason_attribution(decision)
+    expect(decision.reason).to eq("host_capacity_available")
+  end
+
+  it "defers compute work once the worker's concurrency target is reached" do
+    2.times { |i| compute_run_on_worker_a(i) }
+    pin_target!(2)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
     expect(decision.details).to include(
-      "queue_name" => "merges",
-      "step_kind" => "grader_collect"
+      "resource_guard_binding_terms" => [ "concurrency_target" ],
+      "active_compute_run_count" => 2,
+      "concurrency_target" => 2
     )
   end
 
-  def enable_distributed_workflow_dag!
-    Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
-      feature.category = "Operations"
-      feature.name = "Distributed workflow DAG"
-    end.update!(enabled: true)
-    Feature.clear_enabled_cache!
-    repository.update!(distributed_workflow_dag_enabled: true)
-    repository.reload
-    job.association(:repository).reset
+  it "raises the target and admits once a full worker has stayed healthy" do
+    2.times { |i| compute_run_on_worker_a(i) }
+    pin_target!(2, adjusted_at: 1.minute.ago)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
   end
 
-  # The per-host slot count is a lag backstop, not a capacity model, so a spec
-  # that wants "the host is full" has to actually fill it.
-  # Stale ownership: a database-running Run assigned to this host by its
-  # workflow, with no recent heartbeat, live process or runtime session, must
-  # not reserve capacity.
-  describe "liveness of counted Runs" do
-    before do
-      allow(RunProcessParallelism).to receive(:host_capacity).and_return(4)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
-      worker_sample(memory_used_percent: 25.0, cpu_pressure_some: 1.0)
-      workflow.update!(state: "running")
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-    end
+  it "neither charges nor limits provider-bound agent turns by the compute target" do
+    2.times { |i| compute_run_on_worker_a(i) }
+    pin_target!(2)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
-    def running_run_on_worker_a(index, started_at: 2.hours.ago, heartbeat: nil)
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 700 + index)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind, agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: started_at, last_heartbeat_at: heartbeat
-      )
-    end
+    decision = described_class.call(run: run)
 
-    it "does not count stale running Runs toward compute or memory" do
-      stale = Array.new(3) { |i| running_run_on_worker_a(i, heartbeat: 1.hour.ago) }
-      admission = described_class.new(run: run)
-
-      expect(admission.send(:active_compute_units)).to eq(0)
-      expect(admission.send(:active_reserved_memory_bytes)).to eq(0)
-      decision = admission.call
-      expect(decision).to be_admit
-      expect(decision.details["active_run_ids"]).to be_nil.or eq([])
-      expect(stale).to all(be_running)
-    end
-
-    it "counts Runs with a fresh heartbeat and reports their liveness evidence" do
-      live = running_run_on_worker_a(1, heartbeat: 1.minute.ago)
-      running_run_on_worker_a(2, heartbeat: 1.hour.ago)
-      admission = described_class.new(run: run)
-
-      expect(admission.send(:active_compute_units)).to eq(admission.send(:compute_units_for, live.step))
-      evidence = admission.send(:active_run_liveness_evidence)
-      expect(evidence.map { |e| e["run_id"] }).to eq([live.id])
-      expect(evidence.first).to include("fresh_heartbeat" => true, "unfinished_spawned_process" => false)
-      expect(admission.send(:details, "x")).to include("active_run_ids" => [live.id])
-    end
-
-    it "gathers liveness evidence without per-Run queries" do
-      runs = Array.new(4) { |i| running_run_on_worker_a(20 + i, heartbeat: 1.minute.ago) }
-      runs.each { |r| r.spawned_processes.create!(workflow: r.workflow, kind: "grader", command: "x", hostname: "worker-a", started_at: 1.minute.ago) }
-      admission = described_class.new(run: run)
-      count = 0
-      sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, p| count += 1 unless p[:name] == "SCHEMA" }
-      admission.send(:active_run_liveness_evidence)
-      ActiveSupport::Notifications.unsubscribe(sub)
-
-      expect(count).to be <= 4
-    end
-
-    def running_distributed_grader(index, process_host:)
-      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
-        feature.category = "Operations"
-        feature.name = "Distributed workflow DAG"
-      end.update!(enabled: true)
-      repository.update!(distributed_workflow_dag_enabled: true)
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 800 + index)
-      other_workflow = Workflow.create!(job: other, trigger_kind: "merge_train", state: "running", worker_hostname: "worker-a")
-      grader = Step.create!(
-        workflow: other_workflow, kind: "grader", position: 10, state: "running",
-        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
-        details: { "name" => "rspec-ci-#{index}" }
-      )
-      grader_run = grader.runs.create!(job: other, trigger_kind: "merge_train", state: "running",
-                                       started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
-      grader_run.spawned_processes.create!(workflow: other_workflow, kind: "grader", command: "bin/rspec",
-                                           hostname: process_host, started_at: 4.minutes.ago)
-      grader_run
-    end
-
-    it "does not count a distributed grader on its workflow's home host when it runs elsewhere" do
-      running_distributed_grader(1, process_host: "worker-b")
-      local = running_distributed_grader(2, process_host: "worker-a")
-
-      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
-
-      expect(evidence.map { |entry| entry["run_id"] }).to eq([ local.id ])
-    end
-
-    it "still counts a shared-workspace step on its workflow's home host" do
-      live = running_run_on_worker_a(3, heartbeat: 1.minute.ago)
-
-      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
-
-      expect(evidence.map { |entry| entry["run_id"] }).to eq([ live.id ])
-    end
-
-    it "counts a recently started provider-bound Run before its first heartbeat" do
-      live = running_run_on_worker_a(1, started_at: 2.minutes.ago)
-
-      expect(described_class.new(run: run).send(:active_run_liveness_evidence).map { |e| e["run_id"] }).to eq([live.id])
-    end
-
-    it "counts a stale-heartbeat Run that has an unfinished process on this host" do
-      stale = running_run_on_worker_a(1, heartbeat: 1.hour.ago)
-      stale.spawned_processes.create!(
-        workflow: stale.workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago
-      )
-      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
-
-      expect(evidence.map { |e| e["run_id"] }).to eq([stale.id])
-      expect(evidence.first["unfinished_spawned_process"]).to be(true)
-    end
-
-    it "counts a Run with a recently touched active runtime session" do
-      stale = running_run_on_worker_a(1, heartbeat: 1.hour.ago)
-      RuntimeSession.create!(
-        repository: repository, run: stale, workspace_ref: "w", provider_key: "p", display_name: "d", state: "running"
-      )
-
-      expect(described_class.new(run: run).send(:active_run_liveness_evidence).map { |e| e["run_id"] }).to eq([stale.id])
-    end
-
-    %w[prediction usage].each do |policy|
-      it "uses the corrected scope under the #{policy} policy" do
-        AppSetting.current.update!(host_admission_policy: policy)
-        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot).and_return(memory_pressure_some: 0.0)
-        3.times { |i| running_run_on_worker_a(i, heartbeat: 1.hour.ago) }
-        expect(described_class.call(run: run)).to be_admit
-
-        3.times { |i| running_run_on_worker_a(10 + i, heartbeat: 30.seconds.ago) }
-        expect(described_class.call(run: run)).to be_defer
-      end
-    end
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("provider_bound_step")
   end
 
-  def saturate_guarded_slots!(count: 3)
-    count.times do |i|
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 500 + i)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind,
-        agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: 5.minutes.ago
-      )
-    end
+  it "does not count running Runs whose worker has gone quiet" do
+    2.times { |i| compute_run_on_worker_a(i, heartbeat: 1.hour.ago) }
+    pin_target!(2)
+
+    expect(described_class.call(run: run)).to be_admit
   end
 
-  def admission_decisions_total(decision)
-    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h
-      .sum { |tags, count| tags[:decision] == decision ? count.to_i : 0 }
+  it "counts a distributed grader where its process runs" do
+    elsewhere = compute_run_on_worker_a(0, workflow_host: "worker-b")
+    elsewhere.spawned_processes.create!(workflow: elsewhere.workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago)
+    compute_run_on_worker_a(1)
+    pin_target!(2)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.details["active_compute_run_count"]).to eq(2)
+  end
+
+  it "lets background work yield to landing work while the worker is under warning pressure" do
+    main_grader_job = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 901)
+    landing = Workflows::Initial.instantiate(job: main_grader_job, agent_provider: "codex")
+    landing.update!(state: "running")
+    allow(WorkDefinitions).to receive(:landing_workflow_kinds).and_return([ landing.trigger_kind ])
+    allow(run).to receive(:trigger_kind).and_return("main_grader")
+    worker_sample(cpu_used_percent: 6.1, load_1m: 1.8, cpu_pressure_some: 67.4, cpu_pressure_full: 0.0)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("landing_work_has_priority")
+  end
+
+  def compute_run_on_worker_a(index, heartbeat: Time.current, workflow_host: "worker-a")
+    other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 700 + index)
+    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
+    other_workflow.update!(state: "running", worker_hostname: workflow_host)
+    other_step = other_workflow.first_step
+    other_step.update!(state: "running")
+    other_step.runs.create!(
+      job: other, trigger_kind: other_workflow.trigger_kind, agent_provider: other_workflow.agent_provider,
+      state: "running", started_at: 2.hours.ago, last_heartbeat_at: heartbeat
+    )
+  end
+
+  def pin_target!(target, adjusted_at: Time.current)
+    HostConcurrencyTarget.default_path.write(JSON.generate("target" => target, "adjusted_at" => adjusted_at.iso8601))
   end
 
   def admission_decisions_for_reason(decision, reason)
     Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: decision, reason: reason }].to_i
   end
 
-  # The reason must survive into both the payload and the metric tag, so a
-  # deferral count can be attributed to the guard that produced it.
   def expect_reason_attribution(decision)
     expect(decision.details["reason"]).to eq(decision.reason)
     expect(admission_decisions_for_reason(decision.action, decision.reason)).to be_positive
@@ -632,672 +178,7 @@ RSpec.describe RunHostAdmission do
 
   def worker_sample(**attrs)
     WorkerHostHealthSample.create!({
-      hostname: "worker-a",
-      role: "worker",
-      version: "test",
-      observed_at: Time.current,
-      raw_metrics: {}
+      hostname: "worker-a", role: "worker", version: "test", observed_at: Time.current, raw_metrics: {}
     }.merge(attrs))
-  end
-
-  def low_cost_profile(step_kind:, grader_name: "")
-    create_profile(step_kind: step_kind, grader_name: grader_name, duration: 10, cpu: 1.0)
-  end
-
-  def process_attributed_profile(step_kind: "grader", grader_name: "", io_bytes: 1.megabyte, memory_bytes:)
-    WorkflowStepResourceProfile.create!(
-      repository: repository,
-      agent_provider: workflow.agent_provider,
-      trigger_kind: workflow.trigger_kind,
-      step_kind: step_kind,
-      grader_name: grader_name,
-      job_kind: job.kind.to_s,
-      sample_count: 30,
-      attributed_sample_count: 0,
-      process_attributed_sample_count: 30,
-      host_pressure_sample_count: 30,
-      attribution_quality: "process_attributed",
-      p90_duration_seconds: 60,
-      p90_cpu_pressure: 1.0,
-      p90_io_pressure: 1.0,
-      p90_memory_used_percent: 10.0,
-      p90_process_attributed_duration_seconds: 60,
-      p90_process_attributed_cpu_percent: 1.0,
-      p90_process_attributed_memory_bytes: memory_bytes,
-      p90_process_attributed_io_bytes: io_bytes,
-      timeout_rate: 0.0,
-      failure_rate: 0.0,
-      last_observed_at: Time.current,
-      profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
-    )
-  end
-
-  def process_attributed_grader_profile(grader_name:, io_bytes:, memory_bytes:)
-    process_attributed_profile(grader_name: grader_name, io_bytes: io_bytes, memory_bytes: memory_bytes)
-  end
-
-  def running_deterministic_run(kind: "prepare", issue_number:)
-    other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: issue_number)
-    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-    other_workflow.update!(state: "running", worker_hostname: "worker-a")
-    other_step = other_workflow.steps.find_by!(kind: kind)
-    other_step.update!(state: "running")
-    other_step.runs.create!(
-      job: other, trigger_kind: other_workflow.trigger_kind,
-      agent_provider: other_workflow.agent_provider,
-      state: "running", started_at: 5.minutes.ago
-    )
-  end
-
-  def create_profile(step_kind:, grader_name:, duration:, cpu:)
-    WorkflowStepResourceProfile.create!(
-      repository: repository,
-      agent_provider: workflow.agent_provider,
-      trigger_kind: workflow.trigger_kind,
-      step_kind: step_kind,
-      grader_name: grader_name,
-      job_kind: job.kind.to_s,
-      sample_count: 30,
-      attributed_sample_count: 30,
-      process_attributed_sample_count: 30,
-      host_pressure_sample_count: 30,
-      attribution_quality: "process_attributed",
-      p90_duration_seconds: duration,
-      p90_cpu_pressure: cpu,
-      p90_io_pressure: 1.0,
-      p90_memory_used_percent: 10.0,
-      p90_attributed_duration_seconds: duration,
-      p90_attributed_cpu_pressure: cpu,
-      p90_attributed_io_pressure: 1.0,
-      p90_attributed_memory_used_percent: 10.0,
-      p90_process_attributed_duration_seconds: duration,
-      p90_process_attributed_cpu_percent: cpu,
-      p90_process_attributed_memory_bytes: 10.megabytes,
-      p90_process_attributed_io_bytes: 1.megabyte,
-      timeout_rate: 0.0,
-      failure_rate: 0.0,
-      last_observed_at: Time.current,
-      profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
-    )
-  end
-
-  def with_env(values)
-    previous = values.keys.index_with { |key| ENV[key] }
-    values.each { |key, value| ENV[key] = value }
-    yield
-  ensure
-    previous.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
-  end
-
-  def running_grader_run(name:)
-    other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 700 + rand(1000))
-    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-    other_workflow.update!(state: "running", worker_hostname: "worker-a")
-    other_step = Step.create!(workflow: other_workflow, kind: "grader", position: rand(100..999), state: "running", details: { "name" => name })
-    other_step.runs.create!(
-      job: other,
-      trigger_kind: other_workflow.trigger_kind,
-      agent_provider: other_workflow.agent_provider,
-      state: "running",
-      started_at: 5.minutes.ago
-    )
-  end
-
-  describe "grader rationing" do
-    def grader_run(kind: "grader", name: "rspec")
-      details = kind.in?(%w[grader preflight_grader]) ? { "name" => name } : {}
-      step = Step.create!(workflow: workflow, kind: kind, position: rand(100..999), details: details)
-      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-    end
-
-    it "guards agentic steps separately from graders" do
-      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).not_to include("grader", "preflight_grader")
-      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).to include("implement")
-      worker_sample(cpu_pressure_some: 1.0)
-      expect(described_class.call(run: grader_run).reason).to eq("host_capacity_available")
-    end
-
-    it "guards deterministic compute steps that can spawn memory-heavy tools" do
-      worker_sample(cpu_pressure_some: 1.0)
-      format_step = Step.create!(workflow: workflow, kind: "format", position: 98)
-      format_run = format_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-
-      decision = described_class.call(run: format_run)
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "admits prepare on a large healthy host when only CPU-derived fallback reservations would reject it" do
-      allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
-      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(33.65.gigabytes.to_i)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.5.gigabytes)
-      worker_sample(memory_used_percent: 10.4)
-      running_deterministic_run(issue_number: 801)
-      running_deterministic_run(issue_number: 802)
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "defers prepare when measured working-set usage leaves no safe headroom" do
-      allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
-      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(33.65.gigabytes.to_i)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(26.5.gigabytes)
-      worker_sample(memory_used_percent: 78.8)
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_defer
-      expect(decision.details.fetch("resource_guard_binding_terms")).to include("measured_memory")
-      expect(decision.details).to include(
-        "candidate_reserved_memory_bytes" => 1.gigabyte,
-        "candidate_memory_evidence_source" => "deterministic_compute_fallback"
-      )
-    end
-
-    it "defers prepare when command-attributed evidence predicts high memory demand" do
-      allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
-      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(33.65.gigabytes.to_i)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(20.gigabytes)
-      worker_sample(memory_used_percent: 59.4)
-      process_attributed_profile(step_kind: "prepare", memory_bytes: 8.gigabytes)
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_defer
-      expect(decision.details).to include(
-        "candidate_reserved_memory_bytes" => 8.gigabytes,
-        "candidate_memory_evidence_source" => "command_attributed"
-      )
-      expect(decision.details.fetch("resource_guard_binding_terms")).to include("measured_memory")
-    end
-
-    it "bounds missing-profile deterministic fallback under a cgroup memory limit" do
-      allow(RunProcessParallelism).to receive(:host_capacity).and_return(2)
-      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(4.gigabytes)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2.1.gigabytes)
-      worker_sample(memory_used_percent: 52.5)
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_admit
-    end
-
-    it "defers compute when measured container memory leaves no room for the candidate" do
-      worker_sample(cpu_pressure_some: 1.0)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(13.gigabytes)
-
-      decision = described_class.call(run: grader_run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      memory_budget = (16.gigabytes * described_class::MEMORY_UTILIZATION).floor
-      grader_reserve = (16.gigabytes / 6) * 2
-      expect(decision.details).to include(
-        "host_memory_limit_bytes" => 16.gigabytes,
-        "current_memory_bytes" => 13.gigabytes,
-        "host_memory_budget_bytes" => memory_budget,
-        "grader_memory_reserve_bytes" => grader_reserve,
-        "host_memory_effective_budget_bytes" => memory_budget
-      )
-    end
-
-    it "uses command-attributed memory to reserve multiple host-scaled units" do
-      worker_sample(cpu_pressure_some: 1.0)
-      process_attributed_grader_profile(
-        grader_name: "rspec",
-        io_bytes: 1.megabyte,
-        memory_bytes: 6.gigabytes
-      )
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(8.gigabytes)
-
-      decision = described_class.call(run: grader_run(name: "rspec"))
-
-      expect(decision).to be_defer
-      expect(decision.details.fetch("candidate_reserved_memory_bytes")).to eq(6.gigabytes)
-    end
-
-    # Regression: the Playwright suite declared nothing, so admission charged
-    # it one generic unit while its Rails server, Vite dev server and Chromium
-    # took several gigabytes. Concurrent graders filled worker hosts until the
-    # pods were OOM-killed -- once taking the MySQL node down with them. A
-    # grader's declared working set is now the floor of its reservation.
-    it "reserves at least a grader's declared memory" do
-      worker_sample(cpu_pressure_some: 1.0)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(8.gigabytes)
-      run = grader_run(name: "e2e-1-of-3")
-      run.step.update!(details: run.step.details.merge("resources" => GraderResourceRequest.new(memory_bytes: 5.gigabytes).to_h))
-
-      decision = described_class.call(run: run)
-
-      expect(decision.details).to include(
-        "candidate_reserved_memory_bytes" => 5.gigabytes,
-        "candidate_memory_evidence_source" => "declared"
-      )
-    end
-
-    it "keeps learned memory evidence when it exceeds the declared working set" do
-      worker_sample(cpu_pressure_some: 1.0)
-      process_attributed_grader_profile(grader_name: "rspec", io_bytes: 1.megabyte, memory_bytes: 6.gigabytes)
-      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(8.gigabytes)
-      run = grader_run(name: "rspec")
-      run.step.update!(details: run.step.details.merge("resources" => GraderResourceRequest.new(memory_bytes: 2.gigabytes).to_h))
-
-      decision = described_class.call(run: run)
-
-      expect(decision.details).to include(
-        "candidate_reserved_memory_bytes" => 6.gigabytes,
-        "candidate_memory_evidence_source" => "command_attributed"
-      )
-    end
-
-    it "charges graders against the same host budget as agentic runs" do
-      worker_sample(cpu_pressure_some: 1.0)
-      saturate_guarded_slots!
-
-      decision = described_class.call(run: grader_run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      expect(decision.details).to include(
-        "active_compute_units" => 6,
-        "candidate_compute_units" => 1,
-        "host_compute_capacity" => 6
-      )
-    end
-
-    it "admits a cheap grader on a warning host while grader slots remain" do
-      worker_sample(cpu_pressure_some: 25.0)
-      low_cost_profile(step_kind: "grader", grader_name: "rspec")
-
-      decision = described_class.call(run: grader_run)
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "defers background main-health graders on a warning host while landing work is active" do
-      worker_sample(cpu_pressure_some: 25.0)
-      landing_workflow = Workflows::AutoMerge.instantiate(job: job, agent_provider: "codex")
-      landing_workflow.update!(state: "running", worker_hostname: "worker-a")
-      main_grader_job = Factories.job_record(
-        user: user,
-        repository: repository,
-        kind: "main_grader",
-        state: "running",
-        issue_number: nil,
-        issue_title: "main_grader:abc123"
-      )
-      main_workflow = Workflows::MainGrader.instantiate(job: main_grader_job, agent_provider: "codex")
-      main_workflow.update!(state: "running", worker_hostname: "worker-a")
-      main_step = Step.create!(workflow: main_workflow, kind: "grader", position: 99, details: { "name" => "rspec" })
-      main_run = main_step.runs.create!(
-        job: main_grader_job,
-        trigger_kind: main_workflow.trigger_kind,
-        agent_provider: main_workflow.agent_provider
-      )
-
-      decision = described_class.call(run: main_run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("landing_work_has_priority")
-      expect_reason_attribution(decision)
-    end
-
-    it "does not make landing graders yield to background main-health work" do
-      worker_sample(cpu_pressure_some: 25.0)
-      main_grader_job = Factories.job_record(
-        user: user,
-        repository: repository,
-        kind: "main_grader",
-        state: "running",
-        issue_number: nil,
-        issue_title: "main_grader:abc123"
-      )
-      main_workflow = Workflows::MainGrader.instantiate(job: main_grader_job, agent_provider: "codex")
-      main_workflow.update!(state: "running", worker_hostname: "worker-a")
-      main_step = Step.create!(workflow: main_workflow, kind: "grader", position: 99, state: "running", details: { "name" => "rspec" })
-      main_step.runs.create!(
-        job: main_grader_job,
-        trigger_kind: main_workflow.trigger_kind,
-        agent_provider: main_workflow.agent_provider,
-        state: "running",
-        started_at: 1.minute.ago
-      )
-      landing_workflow = Workflows::AutoMerge.instantiate(job: job, agent_provider: "codex")
-      landing_workflow.update!(state: "running", worker_hostname: "worker-a")
-      landing_step = Step.create!(workflow: landing_workflow, kind: "grader", position: 99, details: { "name" => "rspec" })
-      landing_run = landing_step.runs.create!(
-        job: job,
-        trigger_kind: landing_workflow.trigger_kind,
-        agent_provider: landing_workflow.agent_provider
-      )
-
-      decision = described_class.call(run: landing_run)
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "defers the next grader when graders consume the host budget" do
-      worker_sample(cpu_pressure_some: 1.0)
-      6.times { running_grader_run(name: "rspec") }
-
-      decision = described_class.call(run: grader_run(name: "rspec"))
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      expect(decision.details).to include(
-        "resource_guard_kind" => "grader",
-        "active_grader_run_count" => 6,
-        "guarded_runs_per_host" => 6,
-        "host_compute_capacity" => 6
-      )
-    end
-
-    # Graders skip the global agent-run cap, so before this the only thing
-    # bounding a fanout on a host was the host's whole budget -- and a fanout
-    # that took all of it left no room for the agent turns being graded.
-    it "stops graders before they take the last agent turn's worth of a host" do
-      worker_sample(cpu_pressure_some: 1.0)
-      2.times { running_grader_run(name: "rspec") }
-
-      decision = described_class.call(run: grader_run(name: "rspec"))
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      expect(decision.details).to include(
-        "resource_guard_kind" => "grader",
-        "agentic_reserved_units" => 2,
-        "capacity_available_to_candidate" => 4,
-        "host_compute_capacity" => 6
-      )
-    end
-
-    it "keeps an agent turn admissible on a host graders have filled to their limit" do
-      worker_sample(cpu_pressure_some: 1.0)
-      2.times { running_grader_run(name: "rspec") }
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "lets an operator spend the reserve on graders instead" do
-      worker_sample(cpu_pressure_some: 1.0)
-      2.times { running_grader_run(name: "rspec") }
-
-      decision = with_env("SYRUS_AGENTIC_RESERVED_UNITS" => "0") do
-        described_class.call(run: grader_run(name: "rspec"))
-      end
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "defers a second process-attributed high-IO grader on a warning host" do
-      worker_sample(cpu_pressure_some: 25.0)
-      process_attributed_grader_profile(
-        grader_name: "rspec",
-        io_bytes: 2.gigabytes,
-        memory_bytes: 128.megabytes
-      )
-      running_grader_run(name: "rspec")
-
-      decision = described_class.call(run: grader_run(name: "rspec"))
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      expect(decision.details).to include(
-        "resource_guard_kind" => "io_intensive_grader",
-        "active_io_intensive_grader_run_count" => 1
-      )
-    end
-
-    it "counts live distributed grader processes on this host even when their workflow owner is elsewhere" do
-      worker_sample(cpu_pressure_some: 25.0)
-      process_attributed_grader_profile(
-        grader_name: "rspec",
-        io_bytes: 2.gigabytes,
-        memory_bytes: 128.megabytes
-      )
-      active_run = running_grader_run(name: "rspec")
-      active_run.workflow.update!(worker_hostname: "worker-b")
-      active_run.spawned_processes.create!(
-        workflow: active_run.workflow,
-        kind: "grader",
-        command: "bin/rspec",
-        hostname: "worker-a",
-        started_at: 1.minute.ago
-      )
-
-      decision = described_class.call(run: grader_run(name: "rspec"))
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      expect(decision.details).to include("active_io_intensive_grader_run_count" => 1)
-    end
-
-    # The landing step that deferred 73 times in 36 minutes on an idle fleet.
-    it "admits mergeability_preflight on a healthy host" do
-      worker_sample(cpu_pressure_some: 1.0)
-      saturate_guarded_slots!
-
-      decision = described_class.call(run: grader_run(kind: "mergeability_preflight"), queue_name: "merges")
-
-      expect(decision).to be_admit
-    end
-
-    # Measured pressure still stops everything, grader or not -- that is the
-    # gate that replaced the predicted budget.
-    it "defers a grader when the host itself is in trouble" do
-      worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-
-      decision = described_class.call(run: grader_run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("local_worker_pressure_critical")
-      expect_reason_attribution(decision)
-    end
-  end
-
-  # visual_diff previews spawn a headless browser against a preview app on top
-  # of the agent turn itself, so colocating more than one on an already-loaded
-  # host is exactly the kind of burst that produced critical IO pressure in
-  # the 2026-09-14 incident batches.
-  describe "visual_diff preview colocation" do
-    def visual_diff_run(job_for_run: job)
-      visual_diff_workflow = Workflows::VisualDiff.instantiate(job: job_for_run, agent_provider: "codex")
-      visual_diff_workflow.update!(state: "running", worker_hostname: "worker-a")
-      visual_diff_step = visual_diff_workflow.steps.find_by!(kind: "visual_diff")
-      visual_diff_step.update!(state: "running")
-      visual_diff_step.runs.create!(
-        job: job_for_run,
-        trigger_kind: visual_diff_workflow.trigger_kind,
-        agent_provider: visual_diff_workflow.agent_provider
-      )
-    end
-
-    def other_running_visual_diff_preview!
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 800 + rand(1000))
-      run = visual_diff_run(job_for_run: other)
-      run.update!(state: "running", started_at: 5.minutes.ago)
-      run
-    end
-
-    it "defers a second colocated visual_diff preview on a warning host" do
-      worker_sample(cpu_pressure_some: 25.0)
-      other_running_visual_diff_preview!
-
-      decision = described_class.call(run: visual_diff_run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect_reason_attribution(decision)
-      expect(decision.details).to include(
-        "resource_guard_kind" => "visual_diff_preview",
-        "active_visual_diff_preview_run_count" => 1,
-        "guarded_runs_per_host" => 1
-      )
-    end
-
-    it "admits a lone visual_diff preview on a warning host" do
-      worker_sample(cpu_pressure_some: 25.0)
-
-      decision = described_class.call(run: visual_diff_run)
-
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("host_capacity_available")
-      expect_reason_attribution(decision)
-    end
-
-    it "admits a second colocated visual_diff preview on a healthy host" do
-      worker_sample(cpu_pressure_some: 1.0)
-      other_running_visual_diff_preview!
-
-      decision = described_class.call(run: visual_diff_run)
-
-      expect(decision).to be_admit
-    end
-
-    it "still defers visual_diff work outright when the host is under critical pressure" do
-      worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
-
-      decision = described_class.call(run: visual_diff_run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("local_worker_pressure_critical")
-      expect_reason_attribution(decision)
-    end
-  end
-
-  # Host readings lag the work that produced them, so admitting several runs
-  # against a single sample overshoots before the next one lands.
-  describe "staggering" do
-    it "defers a second admission until the sample can reflect the first" do
-      worker_sample(cpu_pressure_some: 1.0)
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 601)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind,
-        agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: 2.seconds.ago
-      )
-      workflow.update!(state: "running")
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_admission_staggering")
-      expect_reason_attribution(decision)
-    end
-
-    it "admits once the stagger window has passed" do
-      worker_sample(cpu_pressure_some: 1.0)
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 602)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind,
-        agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: (RunHostAdmission::STAGGER_INTERVAL + 5.seconds).ago
-      )
-      workflow.update!(state: "running")
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-      expect(described_class.call(run: run)).to be_admit
-    end
-  end
-  # The prediction policy forecasts each step's cost and sums the forecasts.
-  # Where no measured profile exists it assumes a flat share of the host, and
-  # a few of those guesses exhaust the budget while the machine is idle. The
-  # usage policy reads memory PSI instead: whether processes are *actually*
-  # stalling, which is the condition that matters. A cgroup can sit near its
-  # limit indefinitely while reclaiming happily.
-  describe "host admission policy" do
-    before do
-      workflow.update!(state: "running")
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-      worker_sample(cpu_pressure_some: 1.0)
-    end
-
-    def decide
-      described_class.call(run: run)
-    end
-
-    it "defaults to the prediction policy so the setting appearing changes nothing" do
-      expect(AppSetting.host_admission_policy).to eq("prediction")
-      expect(decide.details["admission_policy"]).to eq("prediction")
-    end
-
-    context "with the usage policy" do
-      before { AppSetting.current.update!(host_admission_policy: "usage") }
-
-      it "admits while the host reports no memory stalls, even when reservations would refuse" do
-        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot)
-          .and_return(memory_pressure_some: 0.0)
-        # Reservations far beyond the budget -- the prediction policy would
-        # refuse here; measured pressure says the host is fine.
-        allow_any_instance_of(described_class).to receive(:active_reserved_memory_bytes).and_return(40.gigabytes)
-
-        decision = decide
-
-        expect(decision).to be_admit
-        expect(decision.details["memory_pressure_some"]).to eq(0.0)
-      end
-
-      it "defers once processes are genuinely stalling on memory" do
-        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot)
-          .and_return(memory_pressure_some: 42.0)
-
-        decision = decide
-
-        expect(decision).to be_defer
-        expect(decision.reason).to eq("host_resource_semaphore_busy")
-        expect(decision.details["resource_guard_binding_terms"]).to include("memory_pressure")
-      end
-
-      # PSI lags, so concurrency still needs a width bound: without one a burst
-      # admitted inside a single window all starts before pressure registers.
-      it "still bounds concurrency by compute units" do
-        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot)
-          .and_return(memory_pressure_some: 0.0)
-        allow_any_instance_of(described_class).to receive(:active_compute_units).and_return(99)
-
-        decision = decide
-
-        expect(decision).to be_defer
-        expect(decision.details["resource_guard_binding_terms"]).to include("compute_units")
-      end
-
-      it "admits when pressure is unreadable rather than refusing blindly" do
-        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot).and_return({})
-
-        expect(decide).to be_admit
-      end
-    end
   end
 end

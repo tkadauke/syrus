@@ -148,87 +148,52 @@ too; landing/merge Runs are not counted. See `AppSetting` reference.
 ## Per-host Run pickup admission
 
 Workflow admission control decides whether a workflow or phase should create a
-Run before Solid Queue chooses a worker. A second, host-local guard runs inside
+Run before Solid Queue chooses a worker. A second, host-local check runs inside
 `RunJob` after the queued Run has been picked up but before the Run/Step/Workflow
-are marked running. This closes the multi-worker gap where a generally valid
-Run could still land on the one compute host already saturated by unrelated
-CPU-heavy work.
+are marked running. It applies to Runs on the `:runs` and `:merges` compute
+queues, including sticky `resume-<worker-storage-key>` retry queues.
 
-The pickup guard applies to Runs whose workflow template uses the `:runs` or
-`:merges` compute queues, including sticky `resume-<worker-storage-key>` retry
-queues. It uses the current worker hostname (`SyrusVersion.hostname`), fresh
-`worker_host_health_samples`, `workflows.worker_hostname` on already running
-workflows, and command-attributed `workflow_step_resource_profiles` for the
-narrow high-IO grader guard.
+The check is measured, not predicted: a worker takes more work while it is
+demonstrably healthy and backs off when it demonstrably is not. There are no
+per-step cost estimates, capacity units or reserves.
 
-- If the selected host's latest fresh sample is critical, `RunJob` leaves the
-  Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`, with one
-  exception: criticality that comes **only** from IO pressure no longer defers a
-  provider-bound agentic Run (every agentic Step except `visual_diff`). IO
-  pressure is produced by the disk-bound work on the host -- graders installing
-  dependencies, building assets and running suites -- while an agent turn spends
-  nearly all of its wall time waiting on a provider API, so deferring it on that
-  signal let grader fanout starve the work it was grading. Memory, disk space and
-  CPU criticality still defer every compute Run, and `visual_diff` keeps its IO
-  sensitivity because it drives a browser and a preview app of its own.
-- Agentic Steps are resource-guarded on sight. Their host limit is derived from
-  80% of the container's effective cgroup CPU quota, with each agentic Run
-  consuming two capacity units. `SYRUS_AGENTIC_CAPACITY_UNITS` can tune that
-  weight for a deployment.
-- Every `grader` and `preflight_grader` Step consumes one host capacity unit.
-  This matters for parallel fanout: sibling graders are independent Runs and
-  cannot all pass admission against one stale idle sample. Each grader also
-  receives `SYRUS_PROCESS_PARALLELISM`, its share of the same CPU budget, so a
-  tool such as `parallel_rspec` cannot create an unbounded second fanout layer.
-  `SYRUS_GRADER_CAPACITY_UNITS` can tune the default one-unit grader weight.
-  Graders also leave one agent turn's worth of each host alone -- in capacity
-  units and in the memory budget alike -- so a wide fanout cannot occupy a host
-  so completely that the agent turns being graded have nowhere to start. The
-  reserve defaults to `SYRUS_AGENTIC_CAPACITY_UNITS` and never costs a host
-  its last grader: the capacity dimension floors the budget at the candidate's
-  own units, and the memory dimension applies the reserve only once guarded
-  work is actually running on the host, since with nothing running there is no
-  agent turn to protect. Without that second rule a three-unit host reserved
-  two units of memory -- 26 GB of a 31 GB budget -- and then refused a 13 GB
-  grader on a completely idle host, deferring it every 30 seconds forever.
-  `SYRUS_AGENTIC_RESERVED_UNITS` sets the reserve explicitly, including `0` to
-  turn it off.
-- A grader with command-attributed evidence of at least 1 GiB of IO also uses
-  a narrower IO lane. Its automatic width scales slowly with host compute;
-  `SYRUS_IO_INTENSIVE_RUNS_PER_HOST` can state the storage system's real
-  concurrency when CPU count is a poor proxy. Host-correlated profile values
-  never classify a grader as IO-intensive.
-- A `running` Run consumes a host's capacity and memory reservation only with
-  credible current ownership on that host: an unfinished `SpawnedProcess` there,
-  or -- for Runs whose workflow is placed on the host
-  (`workflows.worker_hostname`) -- a fresh `last_heartbeat_at` (or a start within
-  `RunHostAdmission::LIVENESS_WINDOW`, 10 minutes, before the first heartbeat) or
-  a recently touched active `RuntimeSession`. Provider-bound agent turns have no
-  child command, so their heartbeat keeps them counted. Database-running Runs
-  whose worker or process has vanished stop reserving capacity immediately
-  rather than after stale-Run reconciliation. Admission details list the
-  counted Runs as `active_run_ids` and `active_run_liveness_evidence`
-  (heartbeat, process and runtime-session evidence per Run). Both the
-  `prediction` and `usage` host admission policies use this scope.
-- Non-critical hosts with no existing guarded Run admit the pickup normally.
-  Missing host telemetry is reported as `unknown`; it is not treated as either
-  healthy or critical by this host-local guard.
-- `visual_diff` Steps use the same narrower, host-scaled IO lane once the
-  selected host is already at warning pressure or worse, regardless of how
-  much general agentic headroom remains. A `visual_diff`
-  Run drives a headless-browser preview on top of the agent turn itself, so
-  colocating a second one on an already-loaded host is the kind of IO burst
-  that produced critical pressure in past incidents. On a healthy host this
-  guard does not apply and the plain agentic cap governs instead.
+- **Critical host.** If the worker's latest fresh health sample is critical,
+  the Run is deferred -- except that criticality coming only from IO pressure
+  does not defer a provider-bound agent turn (every agentic Step except
+  `visual_diff`), which spends nearly all of its time waiting on a provider API.
+- **Memory pressure.** Live memory PSI (`some`, avg10) at or above
+  `SYRUS_MEMORY_PRESSURE_CEILING` (default 10%) defers every guarded Run.
+- **Memory headroom.** The pod's memory limit minus its working set -- which
+  excludes clean page cache and reclaimable slab -- below 2 GB defers every
+  guarded Run.
+- **Compute concurrency.** Compute Runs (everything except provider-bound agent
+  turns) are bounded by a per-worker concurrency target. It starts at the
+  worker's CPU count, grows by one every 30 seconds while the worker is full
+  and healthy, and halves when memory pressure reaches half its ceiling or a
+  CPU or memory health dimension is at warning. IO pressure does not shrink it.
+  The target lives on the worker and restarts from the CPU count.
+- Graders still receive `SYRUS_PROCESS_PARALLELISM`, their share of the CPU
+  from the resource grant, so a tool such as `parallel_rspec` sizes itself
+  rather than taking every core.
+- A `running` Run counts against a worker only with credible current ownership
+  there: an unfinished `SpawnedProcess` on the host, or -- for Runs whose
+  workflow is placed on the host -- a fresh heartbeat (or a start within 10
+  minutes, before the first heartbeat) or a recently touched active
+  `RuntimeSession`. A Run whose worker or process vanished stops counting at
+  once. Admission details list the counted Runs as `active_run_ids` and
+  `active_run_liveness_evidence`.
 
-This is intentionally a pickup-time deferral, not a failure. The Run remains
-`queued`; the Workflow and Step are not transitioned to `running`, no repair
-iteration is spent, and the re-enqueued job preserves the current Solid Queue
-queue and priority. On deferral, the Workflow artifact
-`run_host_admission` records the action, reason, hostname, sampled health,
-guard count/limit, resource guard kind, high-cost grader count when relevant,
-step kind, Run id, queue name, whether the queue was sticky resume,
-`deferred_at`, and `retry_at`. The Run also receives a system `JobLog` line:
+Overload is bounded by the halving and by the cgroup limits on spawned
+processes, and made cheap rather than prevented: a Run a worker loses to memory
+pressure is retried as an infrastructure failure, not charged to the Job.
+
+This is a pickup-time deferral, not a failure. The Run remains `queued`, no
+repair iteration is spent, and the re-enqueued job keeps its queue and
+priority; a distributed grader is rerouted to the least-loaded healthy worker.
+On deferral the Workflow artifact `run_host_admission` records the reason, the
+binding term (`memory_pressure`, `memory_headroom` or `concurrency_target`),
+the worker's concurrency target and compute Run count, its memory headroom and
+pressure, and the counted Runs. The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
 
 ## Retry-from-failed-step storage affinity
@@ -348,39 +313,8 @@ monitoring gap from a genuinely busy host. Admin users additionally get a
 includes the link's path when `Job::actions.can_view_resource_admission_diagnostics`
 is true (i.e. the requesting user is an admin).
 
-`AppSetting.host_admission_policy` chooses *how a worker decides it has room*,
-independently of the workflow-level policy below.
-
-- `prediction` (default) forecasts each step's cost from
-  `WorkflowStepResourceProfile`, sums the forecasts for the runs already on the
-  host, and refuses when the total exceeds the memory budget. It is accurate
-  only where a profile exists. A profile must match repository, agent provider,
-  trigger kind, job kind and step kind (plus grader name) *and* have at least
-  ten attributed samples; anything else falls back to a flat
-  `host_memory_limit / host_compute_capacity` per compute unit -- a sixth of
-  the host for a grader, a third for an agentic step. Three such estimates
-  exhaust a budget regardless of what the machine is doing, which is how a
-  host can refuse work while measuring a fraction of its limit in real use.
-- `usage` reads what the host is actually doing. Memory PSI
-  (`memory.pressure`, `some avg10`) reports the share of time at least one
-  task stalled waiting on memory, which is the condition that actually
-  matters: a cgroup can sit near its limit indefinitely while reclaiming
-  without a single stall, and such a host is fine. Admission refuses only
-  above `SYRUS_MEMORY_PRESSURE_CEILING` (default 10%). Compute units still
-  bound concurrency, because PSI lags -- without a width limit a burst
-  admitted inside one window all starts before pressure registers. When
-  `memory.pressure` cannot be read the policy admits rather than refusing
-  blindly.
-
-Every admission decision records `admission_policy`, and under `usage` also
-`memory_pressure_some` and `memory_pressure_ceiling`, so an admit is as
-auditable as a refusal. `resource_guard_binding_terms` names
-`memory_pressure` instead of `memory_reservation`/`measured_memory` under the
-usage policy.
-
-Switching is instance-wide and takes effect on the next decision; no restart
-is needed. `prediction` remains the default so the setting appearing changes
-nothing until an operator opts in.
+Every host admission decision records `memory_pressure_some` and
+`memory_pressure_ceiling`, so an admit is as auditable as a refusal.
 
 `AppSetting.workflow_admission_policy` chooses how far that admission decision
 extends:

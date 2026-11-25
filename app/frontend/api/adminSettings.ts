@@ -29,7 +29,6 @@ export type AdminSettingsPayload = {
     wakeup_chain_limit: number
     workflow_admission_control_enabled: boolean
     workflow_admission_policy: "whole_workflow" | "phase_aware"
-    host_admission_policy: "prediction" | "usage"
     chat_coding_workspace_budget_mb: number
     workflow_admission_control_changed_at: string | null
     workflow_admission_control_changed_by: {
@@ -64,7 +63,6 @@ export type AdminSettingsUpdate = {
   wakeup_chain_limit?: number
   workflow_admission_control_enabled?: boolean
   workflow_admission_policy?: "whole_workflow" | "phase_aware"
-  host_admission_policy?: "prediction" | "usage"
   chat_coding_workspace_budget_mb?: number
 }
 

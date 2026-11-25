@@ -1,3 +1,24 @@
+# Decides whether this worker starts a queued Run now.
+#
+# Measured, not predicted. A worker takes more work while it is demonstrably
+# healthy and backs off when it demonstrably is not:
+#
+#   * live memory pressure (PSI) over its ceiling defers everything guarded;
+#   * measured free memory -- the pod limit minus a working set that excludes
+#     reclaimable cache and slab -- below a fixed floor defers everything
+#     guarded;
+#   * compute work (everything but provider-bound agent turns) is bounded by
+#     HostConcurrencyTarget, which grows while the worker is full and healthy
+#     and halves when it is pressured.
+#
+# This replaced an allocator that charged every Run a predicted cost -- compute
+# units, learned and fallback memory reservations, a reserve held back for agent
+# turns, one whole-host grader per worker, an admission stagger. Each piece was
+# sized for the worst case, and together they kept workers at a fraction of
+# their CPU and memory refusing work while landing graders queued for hours.
+# Overload is now bounded by the controller's halving and by the cgroup limits
+# on spawned processes, and made cheap by the infrastructure retry of a Run a
+# worker loses -- rather than prevented by refusing work up front.
 class RunHostAdmission
   Decision = Data.define(:action, :reason, :delay, :details) do
     def admit? = action == "admit"
@@ -5,47 +26,19 @@ class RunHostAdmission
   end
 
   HOST_SAMPLE_WINDOW = WorkflowAdmissionBudget::HOST_SAMPLE_WINDOW
-  # How recently a running Run must have shown life to hold capacity by
-  # workflow placement alone. Heartbeats land every minute or 15s.
   LIVENESS_WINDOW = 10.minutes
   RETRY_DELAY = 30.seconds
-
-  # Host readings trail by a sample interval, so admission also budgets active
-  # work against the container's effective CPU quota. This scales from laptops
-  # to large workers instead of imposing one fleet-wide concurrency constant.
-  IO_INTENSIVE_GRADER_BYTES = 1.gigabyte
-  DETERMINISTIC_COMPUTE_FALLBACK_BYTES = 1.gigabyte
-  MEMORY_UTILIZATION = RunHostAdmissionCapacity::MEMORY_UTILIZATION
-
-  # visual_diff previews drive a headless browser against a spawned preview
-  # app -- IO-heavy on top of the agent turn itself. Colocating more than one
-  # on a host that is already under warning-or-worse pressure is exactly the
-  # kind of burst that pushed hosts into the critical IO pressure seen in the
-  # 2026-09-14 batches, so this step kind gets a narrower cap than the general
-  # agentic guard once the host stops looking idle.
+  # Free memory below this refuses new guarded work: enough for one more
+  # process to start without pushing the pod into reclaim it cannot win.
+  MEMORY_HEADROOM_FLOOR = 2.gigabytes
+  # avg10 share of time at least one task stalled on memory. A few percent is
+  # ordinary reclaim; sustained double digits means the host is thrashing.
+  MEMORY_PRESSURE_CEILING = 10.0
   VISUAL_DIFF_STEP_KIND = "visual_diff"
   LIGHTWEIGHT_STEP_KINDS = %w[mergeability_preflight].freeze
-  # Pressure dimensions that describe disk contention rather than a hard limit.
   IO_BOUND_DIMENSIONS = %i[io_pressure].freeze
-
-  # Agentic starts are staggered so the next decision sees a sample reflecting
-  # the previous one. Grader fanout is not staggered; its shared capacity budget
-  # and inner process allocation provide the bound without serial startup.
-  STAGGER_INTERVAL = 20.seconds
-  # Percent of avg10 memory PSI above which the usage policy stops admitting.
-  MEMORY_PRESSURE_CEILING = 10.0
-
-  # Agentic steps are the expensive ones by nature and are guarded on sight.
-  # Grader runs are guarded on sight because fanout can make several siblings
-  # ready against the same stale health sample. Command-attributed high-IO
-  # graders use a narrower semaphore.
-  #
-  # Everything else is judged by the host's *current* state rather than by a
-  # prediction of what the step will cost. We only trust command-attributed
-  # profiles for the grader exception; host-correlated profiles still describe
-  # ambient fleet pressure rather than the step's own demand.
-  ALWAYS_GUARDED_STEP_KINDS = Step::AGENTIC_KINDS.freeze
   BACKGROUND_TRIGGER_KINDS = %w[main_grader main_branch_repair agent_insight].freeze
+  BUSY_REASON = "host_resource_semaphore_busy".freeze
 
   def self.call(...) = new(...).call
 
@@ -60,73 +53,17 @@ class RunHostAdmission
     return admit("non_compute_queue") unless compute_queue?
     return admit("missing_execution_graph") unless workflow && step
     return admit("control_plane_step") if control_plane_step?
-
-    # Measured before admitting any compute-bound run: a host in trouble should
-    # stop taking more agentic or high-cost grader work. Control-plane steps
-    # already returned above; they are the cheap orchestration path that can
-    # unblock or terminate expensive work.
     return defer("local_worker_pressure_critical") if critical_local_pressure?
     return admit("admission_control_disabled") unless AdmissionControl.enabled?
     return defer("landing_work_has_priority") if background_work_should_yield?
-
-    # Beyond that, agentic and grader runs are rationed per host to bound how
-    # far a burst can overshoot a stale sample.
-    return admit("resource_guard_not_needed") unless resource_guarded?(run)
-    return defer("host_resource_semaphore_busy") if resource_guard_full?
-    return defer("host_resource_semaphore_busy") if whole_host_grader_conflict?
-    return defer("host_admission_staggering") if admitted_within_stagger_window?
-    return defer("host_resource_semaphore_busy") unless claim_whole_host_slot!
+    return admit("resource_guard_not_needed") if step.kind.in?(LIGHTWEIGHT_STEP_KINDS)
+    return busy("memory_pressure") if memory_pressure_exceeded?
+    return busy("memory_headroom") if memory_headroom_low?
+    return admit("provider_bound_step") if provider_bound_candidate?
+    return busy("concurrency_target") if active_compute_run_count >= concurrency_target
 
     admit("host_capacity_available")
   end
-
-  # Host-local record of whole-host graders admitted here but not yet
-  # visible as SpawnedProcess rows. A worker pod runs one SolidQueue process
-  # per queue group, and two of them admitted sibling shards within seconds
-  # -- one off the merges queue, one rerouted onto the host's dispatch queue
-  # -- each seeing an empty host. The processes share the pod's filesystem,
-  # so the record is a directory of claims, checked and written under one
-  # file lock.
-  module WholeHostClaims
-    module_function
-
-    def dir
-      Pathname.new(Dir.tmpdir).join("syrus-whole-host-claims#{ENV['TEST_ENV_NUMBER']}")
-    end
-
-    def claim!(run_id)
-      FileUtils.mkdir_p(dir)
-      File.open(dir.join(".lock"), File::RDWR | File::CREAT, 0o644) do |lock|
-        lock.flock(File::LOCK_EX)
-        return true if dir.join(run_id.to_s).exist?
-        return false if live_claims(excluding: run_id).any?
-
-        FileUtils.touch(dir.join(run_id.to_s))
-        true
-      end
-    rescue SystemCallError
-      # A claim registry we cannot use must not stop admission; the
-      # database check above still applies.
-      true
-    end
-
-    def live_claims(excluding:)
-      ids = Dir.children(dir).filter_map { |name| Integer(name, exception: false) } - [ excluding ]
-      return [] if ids.empty?
-
-      live = Run.where(id: ids).where.not(state: Run::TERMINAL_STATES).pluck(:id)
-      (ids - live).each { |id| FileUtils.rm_f(dir.join(id.to_s)) }
-      live
-    rescue SystemCallError
-      []
-    end
-
-    def reset!
-      FileUtils.rm_rf(dir)
-    end
-  end
-
-  def self.reset_whole_host_admissions! = WholeHostClaims.reset!
 
   private
 
@@ -137,36 +74,25 @@ class RunHostAdmission
     Decision.new(action: "admit", reason: reason, delay: nil, details: basic_details(reason))
   end
 
-  def defer(reason)
+  def defer(reason, binding_term: nil)
     Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "defer", reason: reason })
-    Decision.new(action: "defer", reason: reason, delay: RETRY_DELAY, details: details(reason))
+    Decision.new(action: "defer", reason: reason, delay: RETRY_DELAY, details: details(reason, binding_term))
   end
 
-  def details(reason)
+  def busy(binding_term) = defer(BUSY_REASON, binding_term: binding_term)
+
+  def details(reason, binding_term)
     basic_details(reason).merge(
-      "active_guarded_run_count" => active_guarded_run_count,
-      "active_compute_units" => active_compute_units,
-      "active_run_liveness_evidence" => active_run_liveness_evidence,
-      "active_run_ids" => active_run_liveness_evidence.map { |e| e["run_id"] },
-      "candidate_compute_units" => candidate_compute_units,
-      "guarded_runs_per_host" => guarded_runs_per_host,
-      "host_compute_capacity" => host_compute_capacity,
-      "capacity_available_to_candidate" => capacity_available_to_candidate,
-      "agentic_reserved_units" => grader_guard? ? agentic_reserved_units : nil,
-      "grader_memory_reserve_bytes" => grader_guard? ? grader_memory_reserve_bytes : nil,
+      "resource_guard_binding_terms" => [ binding_term ].compact,
+      "active_compute_run_count" => active_compute_run_count,
+      "concurrency_target" => concurrency_target,
+      "host_cpu_count" => host_cpu_count,
       "host_memory_limit_bytes" => host_memory_limit_bytes,
-      "host_memory_budget_bytes" => host_memory_budget_bytes,
-      "host_memory_effective_budget_bytes" => host_memory_effective_budget_bytes,
       "current_memory_bytes" => current_memory_bytes,
-      "active_reserved_memory_bytes" => active_reserved_memory_bytes,
-      "candidate_reserved_memory_bytes" => candidate_reserved_memory_bytes,
-      "active_memory_evidence_sources" => active_memory_evidence_sources,
-      "candidate_memory_evidence_source" => memory_reservation_for(step).fetch(:source),
-      "resource_guard_binding_terms" => resource_guard_binding_terms(reason),
-      "resource_guard_kind" => resource_guard_kind,
-      "active_grader_run_count" => grader_guard? ? active_grader_run_count : nil,
-      "active_io_intensive_grader_run_count" => io_intensive_grader_guard? ? active_io_intensive_grader_run_count : nil,
-      "active_visual_diff_preview_run_count" => resource_guard_kind == "visual_diff_preview" ? active_visual_diff_preview_run_count : nil
+      "memory_headroom_bytes" => memory_headroom_bytes,
+      "memory_headroom_floor_bytes" => MEMORY_HEADROOM_FLOOR,
+      "active_run_liveness_evidence" => active_run_liveness_evidence,
+      "active_run_ids" => active_run_liveness_evidence.map { |evidence| evidence["run_id"] }
     ).compact
   end
 
@@ -176,59 +102,31 @@ class RunHostAdmission
       "hostname" => hostname,
       "worker_storage_key" => local_sample&.worker_storage_key,
       "sample_observed_at" => local_sample&.observed_at&.iso8601,
-      "sample_health" => local_health.stringify_keys,
+      "sample_health" => local_health,
       "step_kind" => step&.kind,
       "workflow_id" => workflow&.id,
       "run_id" => run&.id,
       "queue_name" => queue_name,
-      "sticky_resume_queue" => sticky_resume_queue?,
-      # On every decision, not just refusals: knowing which policy admitted a
-      # run is as useful as knowing which one refused it, and the headroom
-      # reading is what makes an admit auditable.
-      "admission_policy" => admission_policy,
-      "memory_pressure_some" => usage_policy? ? memory_pressure_some : nil,
-      "memory_pressure_ceiling" => usage_policy? ? memory_pressure_ceiling : nil
+      "sticky_resume_queue" => queue_name.to_s.start_with?("resume-"),
+      "memory_pressure_some" => memory_pressure_some,
+      "memory_pressure_ceiling" => memory_pressure_ceiling
     }.compact
-  end
-
-  def sticky_resume_queue?
-    queue_name.to_s.start_with?("resume-")
   end
 
   def control_plane_step?
     step.placement_policy == Step::PlacementPolicy::CONTROL_PLANE
   end
 
-  # Host readings trail the work that produced them, so admitting several runs
-  # against one sample overshoots before the next sample can object. Leaving a
-  # gap between admissions on a host means each decision sees a measurement
-  # that already reflects the previous one.
-  #
-  # Keyed on the most recently *started* guarded run rather than a separate
-  # ledger: the runs themselves are the record, so there is no new state to
-  # keep consistent, and a worker restart cannot lose it.
-  def admitted_within_stagger_window?
-    return false if grader_guard? || resource_guard_kind == "compute"
-
-    last_started = active_always_guarded_run_scope.maximum(:started_at)
-    return false if last_started.blank?
-
-    last_started > now - STAGGER_INTERVAL
+  def compute_queue?
+    Workflow::TriggerKind.template_for(run.trigger_kind).queue_name.in?(%i[runs merges])
+  rescue ArgumentError
+    false
   end
 
-  # IO pressure is produced by the disk-bound work on a host -- a grader
-  # installing dependencies, building assets and running a suite; a prepare
-  # doing the same. An agent turn is not that: it spends nearly all of its wall
-  # time waiting on a provider API. Refusing agent turns because the disk was
-  # busy grading inverted the priority -- a fleet running a large grader fanout
-  # kept every host at critical IO and stopped starting the very work the
-  # fanout was grading, leaving jobs parked mid-pipeline with their workspaces
-  # already prepared.
-  #
-  # So IO pressure alone no longer defers a provider-bound turn. Memory, disk
-  # space and CPU still defer everything: those are the limits whose overshoot
-  # kills a process instead of slowing it down, and visual_diff keeps its IO
-  # sensitivity because it drives a browser and a preview app of its own.
+  # IO pressure is produced by the disk-bound work on a host. An agent turn
+  # spends nearly all of its wall time waiting on a provider API, so IO
+  # pressure alone does not defer it; memory, disk space and CPU still defer
+  # everything, because their overshoot kills a process instead of slowing it.
   def critical_local_pressure?
     return false unless local_health["level"] == "critical"
     return true unless provider_bound_candidate?
@@ -236,20 +134,19 @@ class RunHostAdmission
     (critical_health_dimensions - IO_BOUND_DIMENSIONS).any?
   end
 
-  def provider_bound_candidate?
-    step.agentic? && !visual_diff_preview_step?(step)
-  end
-
   def critical_health_dimensions
     @critical_health_dimensions ||= local_sample ? WorkerHealthSampleAnalysis.critical_dimensions_for(local_sample) : []
   end
 
-  def background_work_should_yield?
-    background_work? && local_health_warning? && active_landing_work_for_repository?
+  # Agent turns are provider-bound and their real cost shows up in the
+  # measurements, so they are not charged against the compute target.
+  # visual_diff drives a browser and a preview app of its own, so it is.
+  def provider_bound_candidate?
+    step.agentic? && step.kind != VISUAL_DIFF_STEP_KIND
   end
 
-  def background_work?
-    run.trigger_kind.to_s.in?(BACKGROUND_TRIGGER_KINDS)
+  def background_work_should_yield?
+    run.trigger_kind.to_s.in?(BACKGROUND_TRIGGER_KINDS) && local_health_warning? && active_landing_work_for_repository?
   end
 
   def active_landing_work_for_repository?
@@ -262,17 +159,13 @@ class RunHostAdmission
       .exists?
   end
 
-  def compute_queue?
-    Workflow::TriggerKind.template_for(run.trigger_kind).queue_name.in?(%i[runs merges])
-  rescue ArgumentError
-    false
+  def local_health_warning?
+    WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch(local_health.fetch("level"), 0) >=
+      WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch("warning")
   end
 
   def local_health
-    @local_health ||= begin
-      health = local_sample ? WorkerHealthSampleAnalysis.health_for(local_sample) : { level: "unknown", reasons: [] }
-      health.stringify_keys
-    end
+    @local_health ||= (local_sample ? WorkerHealthSampleAnalysis.health_for(local_sample) : { level: "unknown", reasons: [] }).stringify_keys
   end
 
   def local_sample
@@ -283,56 +176,12 @@ class RunHostAdmission
       .first
   end
 
-  # A straight count now that guarding is "is it agentic", rather than loading
-  # every candidate to ask a profile what it might cost.
-  def active_guarded_run_count
-    @active_guarded_run_count ||= active_always_guarded_run_scope.count
-  end
-
-  def resource_guarded?(candidate)
-    resource_guard_kind(candidate).present?
-  end
-
-  def admission_policy
-    @admission_policy ||= AppSetting.host_admission_policy
-  rescue StandardError
-    "prediction"
-  end
-
-  def usage_policy? = admission_policy == "usage"
-
-  def resource_guard_full?
-    return usage_guard_full? if usage_policy?
-
-    prediction_guard_full?
-  end
-
-  # Usage policy: refuse only when the host is demonstrably struggling.
-  #
-  # Memory PSI answers the question the prediction policy only estimates --
-  # are processes actually stalling on memory? A cgroup can sit at 95% of its
-  # limit indefinitely while reclaiming without a single stall, and that host
-  # is fine. Conversely a host under genuine pressure stalls long before its
-  # usage figure looks alarming.
-  #
-  # Compute units still bound concurrency: PSI is a lagging signal, and
-  # without a width limit a burst admitted in one window all starts at once.
-  def usage_guard_full?
-    return true if compute_capacity_full?
-    return true if memory_pressure_exceeded?
-
-    false
-  end
-
   def memory_pressure_exceeded?
-    some = memory_pressure_some
-    return false if some.nil?
-
-    some >= memory_pressure_ceiling
+    memory_pressure_some.present? && memory_pressure_some >= memory_pressure_ceiling
   end
 
   def memory_pressure_some
-    memory_pressure_snapshot["memory_pressure_some"] || memory_pressure_snapshot[:memory_pressure_some]
+    @memory_pressure_some ||= memory_pressure_snapshot["memory_pressure_some"]
   end
 
   def memory_pressure_snapshot
@@ -341,394 +190,63 @@ class RunHostAdmission
     {}
   end
 
-  # avg10 share of time at least one task stalled on memory. A few percent is
-  # ordinary reclaim; sustained double digits means the host is thrashing.
   def memory_pressure_ceiling
     Float(ENV.fetch("SYRUS_MEMORY_PRESSURE_CEILING", MEMORY_PRESSURE_CEILING))
   rescue ArgumentError, TypeError
     MEMORY_PRESSURE_CEILING
   end
 
-  def prediction_guard_full?
-    return true if compute_capacity_full?
-    return true if memory_capacity_full?
-    return active_io_intensive_grader_run_count >= io_intensive_runs_per_host if io_intensive_grader_guard?
-    return active_visual_diff_preview_run_count >= io_intensive_runs_per_host if resource_guard_kind == "visual_diff_preview"
-
-    false
+  def memory_headroom_low?
+    memory_headroom_bytes.present? && memory_headroom_bytes < MEMORY_HEADROOM_FLOOR
   end
 
-  def compute_capacity_full?
-    active_compute_units + candidate_compute_units > capacity_available_to_candidate
-  end
+  def memory_headroom_bytes
+    return unless host_memory_limit_bytes && current_memory_bytes
 
-  # A grader that asks for every core (`resources: cpu: all`) scales with
-  # whatever it is granted; two of them on one host just split it. Each such
-  # grader counted as one small unit, so the shards of one suite piled onto
-  # the first worker that claimed them -- three of four on one host -- and
-  # ran no faster than the unsharded suite. Defer a second whole-host grader
-  # so the reroute hands it to another worker; small graders still pack in.
-  def whole_host_grader_conflict?
-    return false unless whole_host_grader?(step)
-
-    active_run_scope.includes(:step).any? { |active_run| whole_host_grader?(active_run.step) }
-  end
-
-  def claim_whole_host_slot!
-    return true unless whole_host_grader?(step)
-
-    WholeHostClaims.claim!(run.id)
-  end
-
-  def whole_host_grader?(candidate_step)
-    return false unless candidate_step&.kind == "grader"
-
-    GraderResourceRequest.from_details(candidate_step.details.to_h["resources"])&.unbounded_cpu? || false
-  rescue ArgumentError
-    false
-  end
-
-  def resource_guard_binding_terms(reason)
-    return [] unless reason == "host_resource_semaphore_busy"
-    if usage_policy?
-      terms = []
-      terms << "compute_units" if compute_capacity_full?
-      terms << "memory_pressure" if memory_pressure_exceeded?
-      return terms
-    end
-
-    terms = []
-    terms << "compute_units" if compute_capacity_full?
-    terms << "memory_reservation" if memory_reservation_full?
-    terms << "measured_memory" if measured_memory_full?
-    terms
-  end
-
-  # Graders are exempt from the global agent-run cap -- deliberately, so a user
-  # burst cannot starve main-branch health -- and a fanout can make dozens of
-  # siblings ready against one host at once. Nothing then stopped them from
-  # taking every unit the host had, which is how a fleet came to be running
-  # eleven graders and a single agent turn with 43 agent turns queued.
-  #
-  # Keep one agent turn's worth of the host budget out of their reach, in
-  # compute units and in memory alike, so the work being graded can still
-  # start. The floor keeps a lone grader admissible on a host too small to
-  # hold both.
-  def capacity_available_to_candidate
-    return host_compute_capacity unless grader_guard?
-
-    [ host_compute_capacity - agentic_reserved_units, candidate_compute_units ].max
-  end
-
-  def agentic_reserved_units
-    RunHostAdmissionCapacity.agentic_reserved_units(host_compute_capacity)
-  end
-
-  def grader_memory_reserve_bytes
-    return 0 unless grader_guard?
-
-    memory_unit_bytes.to_i * agentic_reserved_units
-  end
-
-  def guarded_runs_per_host
-    case resource_guard_kind
-    when "grader" then grader_runs_per_host
-    when "io_intensive_grader", "visual_diff_preview" then io_intensive_runs_per_host
-    when "agentic" then agentic_runs_per_host
-    else host_compute_capacity
-    end
-  end
-
-  def host_compute_capacity
-    @host_compute_capacity ||= RunProcessParallelism.host_capacity
-  end
-
-  # Agent turns have substantial memory and subprocess overhead even when the
-  # provider call itself is mostly waiting on the network. Give them two units
-  # of the same host budget a grader consumes.
-  def agentic_runs_per_host
-    RunHostAdmissionCapacity.agentic_runs_per_host(host_compute_capacity)
-  end
-
-  def grader_runs_per_host
-    RunHostAdmissionCapacity.grader_runs_per_host(host_compute_capacity)
-  end
-
-  def agentic_capacity_units
-    RunHostAdmissionCapacity.agentic_capacity_units(host_compute_capacity)
-  end
-
-  def grader_capacity_units
-    RunHostAdmissionCapacity.grader_capacity_units(host_compute_capacity)
-  end
-
-  def candidate_compute_units
-    resource_guard_kind == "agentic" || resource_guard_kind == "visual_diff_preview" ? agentic_capacity_units : grader_capacity_units
-  end
-
-  def active_compute_units
-    @active_compute_units ||= active_run_scope.includes(:step).sum { |active_run| compute_units_for(active_run.step) }
-  end
-
-  def compute_units_for(candidate_step)
-    candidate_step&.agentic? ? agentic_capacity_units : grader_capacity_units
+    host_memory_limit_bytes - current_memory_bytes
   end
 
   def host_memory_limit_bytes
     @host_memory_limit_bytes ||= RunProcessParallelism.effective_memory_limit_bytes
   end
 
-  def host_memory_budget_bytes
-    return unless host_memory_limit_bytes
-
-    (host_memory_limit_bytes * MEMORY_UTILIZATION).floor
-  end
-
   def current_memory_bytes
     @current_memory_bytes ||= RunProcessParallelism.current_memory_bytes
   end
 
-  def memory_unit_bytes
-    return unless host_memory_limit_bytes
-
-    [ host_memory_limit_bytes / host_compute_capacity, 1 ].max
+  def host_cpu_count
+    @host_cpu_count ||= RunProcessParallelism.cpu_detection.count
   end
 
-  def candidate_reserved_memory_bytes
-    reservation = memory_reservation_for(step).fetch(:bytes)
-    return reservation unless idle_agentic_host? && host_memory_budget_bytes
+  # Pressure that should shrink the target: memory stalling at half the
+  # deferral ceiling, or a CPU or memory dimension the health analysis already
+  # calls a warning. IO pressure is left out -- it is what a busy grader
+  # produces, not a sign that another one will fail.
+  def pressured?
+    return true if memory_pressure_some.present? && memory_pressure_some >= memory_pressure_ceiling / 2
+    return false unless local_sample
 
-    [ reservation, host_memory_effective_budget_bytes ].min
+    (WorkerHealthSampleAnalysis.dimensions_at_least(local_sample, "warning") - IO_BOUND_DIMENSIONS).any?
   end
 
-  def active_reserved_memory_bytes
-    @active_reserved_memory_bytes ||= active_run_scope.includes(step: { workflow: :job }).sum do |active_run|
-      memory_reservation_for(active_run.step).fetch(:bytes)
-    end
+  def concurrency_target
+    @concurrency_target ||= HostConcurrencyTarget.new(cpus: host_cpu_count, now: now)
+      .observe!(active: active_compute_run_count, pressured: pressured?)
   end
 
-  def active_memory_evidence_sources
-    @active_memory_evidence_sources ||= active_run_scope.includes(step: { workflow: :job })
-      .map { |active_run| memory_reservation_for(active_run.step).fetch(:source) }
-      .tally
+  def active_compute_run_count
+    @active_compute_run_count ||= active_run_scope
+      .where.not(steps: { kind: Step::AGENTIC_KINDS - [ VISUAL_DIFF_STEP_KIND ] })
+      .where.not(steps: { kind: LIGHTWEIGHT_STEP_KINDS })
+      .count
   end
 
-  def memory_capacity_full?
-    return false unless host_memory_budget_bytes
-    # Soft estimates must not deadlock an otherwise idle host. Hard measured
-    # pressure is handled earlier by critical_local_pressure?.
-    return false if idle_agentic_host?
-
-    memory_reservation_full? || measured_memory_full?
-  end
-
-  def memory_reservation_full?
-    return false unless host_memory_budget_bytes
-
-    active_reserved_memory_bytes + candidate_reserved_memory_bytes > host_memory_effective_budget_bytes
-  end
-
-  def measured_memory_full?
-    return false unless host_memory_budget_bytes && current_memory_bytes
-
-    current_memory_bytes + candidate_reserved_memory_bytes > host_memory_effective_budget_bytes
-  end
-
-  def host_memory_effective_budget_bytes
-    return unless host_memory_budget_bytes
-
-    host_memory_budget_bytes - applicable_grader_memory_reserve_bytes
-  end
-
-  def idle_agentic_host?
-    resource_guard_kind.in?(%w[agentic visual_diff_preview]) && active_compute_units.zero?
-  end
-
-  # The reserve keeps graders from crowding out an agent turn. With nothing
-  # guarded running on the host there is nothing to crowd out, and subtracting
-  # it anyway can leave less room than one grader needs: on a three-unit,
-  # 39 GB host the reserve is two units -- 26 GB of a 31 GB budget -- so the
-  # 5 GB left could never admit a 13 GB grader, however idle the host was.
-  #
-  # The compute-unit dimension already floors at the candidate's own size for
-  # exactly this reason (see capacity_available_to_candidate, "keeps a lone
-  # grader admissible on a host too small to hold both"). Memory had no such
-  # floor, and its extra measured-usage term means a floor at the candidate's
-  # size would still not admit one, so the reserve applies only once there is
-  # active guarded work it could protect. A second grader still meets the full
-  # reserve, which is the behaviour the reserve was added for.
-  def applicable_grader_memory_reserve_bytes
-    return 0 if active_reserved_memory_bytes.to_i.zero?
-
-    grader_memory_reserve_bytes
-  end
-
-  # A grader's declared working set (`.syrus.yml` resources.memory) is the
-  # floor of its reservation. Learned evidence can only raise it: a suite whose
-  # browser or server processes escape command attribution would otherwise be
-  # charged one generic unit while it fills the host.
-  def memory_reservation_for(candidate_step)
-    reservation = observed_memory_reservation_for(candidate_step)
-    declared = declared_memory_bytes_for(candidate_step)
-    return reservation unless declared && declared > reservation.fetch(:bytes)
-
-    { bytes: declared, source: "declared" }
-  end
-
-  def declared_memory_bytes_for(candidate_step)
-    return nil unless grader_step?(candidate_step)
-
-    GraderResourceRequest.from_details(candidate_step.details.to_h["resources"])&.memory_bytes
-  rescue ArgumentError
-    nil
-  end
-
-  def observed_memory_reservation_for(candidate_step)
-    fallback = memory_unit_bytes.to_i * compute_units_for(candidate_step)
-    attributed = process_attributed_memory_bytes_for(candidate_step)
-    if attributed
-      bytes = deterministic_compute_step?(candidate_step) ? attributed : [ attributed, fallback, 1 ].max
-      return { bytes: bytes, source: "command_attributed" }
-    end
-
-    if deterministic_compute_step?(candidate_step)
-      return {
-        bytes: [ fallback, DETERMINISTIC_COMPUTE_FALLBACK_BYTES ].min.clamp(1, DETERMINISTIC_COMPUTE_FALLBACK_BYTES),
-        source: "deterministic_compute_fallback"
-      }
-    end
-
-    { bytes: [ fallback, 1 ].max, source: "capacity_unit_fallback" }
-  end
-
-  def deterministic_compute_step?(candidate_step)
-    !candidate_step.agentic? && !grader_step?(candidate_step)
-  end
-
-  def process_attributed_memory_bytes_for(candidate_step)
-    matching_profiles_for(candidate_step).filter_map do |profile|
-      prediction = profile.conservative_prediction
-      next unless prediction.fetch(:prediction_source) == "command_attributed"
-
-      prediction.fetch(:process_attributed_memory_bytes)
-    end.max
-  end
-
-  # Storage topology is not discoverable portably from inside every worker.
-  # Operators can state it directly; the automatic default scales slowly with
-  # compute capacity instead of imposing one fleet-wide constant.
-  def io_intensive_runs_per_host
-    configured = ENV["SYRUS_IO_INTENSIVE_RUNS_PER_HOST"].to_i
-    return configured if configured.positive?
-
-    [ (host_compute_capacity / 8.0).ceil, 1 ].max
-  end
-
-  def grader_guard?
-    resource_guard_kind.in?(%w[grader io_intensive_grader])
-  end
-
-  def io_intensive_grader_guard?
-    resource_guard_kind == "io_intensive_grader"
-  end
-
-  # visual_diff is itself agentic, so check it before the general agentic
-  # budget and apply the narrower host-scaled IO budget when pressure warns.
-  def resource_guard_kind(candidate = run)
-    candidate_step = candidate.step
-    return unless candidate_step
-    return if candidate_step.kind.in?(LIGHTWEIGHT_STEP_KINDS)
-    return "visual_diff_preview" if visual_diff_preview_step?(candidate_step) && local_health_warning?
-    return "agentic" if candidate_step.agentic?
-    return "compute" unless grader_step?(candidate_step)
-    return "io_intensive_grader" if io_intensive_command_profile?(candidate_step)
-
-    "grader"
-  end
-
-  def visual_diff_preview_step?(candidate_step)
-    candidate_step.kind == VISUAL_DIFF_STEP_KIND
-  end
-
-  def local_health_warning?
-    WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch(local_health.fetch("level"), 0) >=
-      WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch("warning")
-  end
-
-  def grader_step?(candidate_step)
-    candidate_step.kind.in?(%w[grader preflight_grader])
-  end
-
-  def io_intensive_command_profile?(candidate_step)
-    matching_profiles_for(candidate_step).any? do |profile|
-      prediction = profile.conservative_prediction
-      prediction.fetch(:prediction_source) == "command_attributed" &&
-        prediction.fetch(:process_attributed_io_bytes).to_f >= IO_INTENSIVE_GRADER_BYTES
-    end
-  end
-
-  def matching_profiles_for(candidate_step)
-    @matching_profiles ||= {}
-    return @matching_profiles[candidate_step.id] if @matching_profiles.key?(candidate_step.id)
-
-    profile_keys = resource_profile_keys_for(candidate_step)
-    step_kinds = profile_keys.map(&:first).uniq
-    @matching_profiles[candidate_step.id] = WorkflowStepResourceProfile
-      .where(
-        repository: candidate_step.workflow.job.repository,
-        agent_provider: candidate_step.workflow.agent_provider,
-        trigger_kind: candidate_step.workflow.trigger_kind,
-        job_kind: candidate_step.workflow.job.kind.to_s,
-        step_kind: step_kinds
-      )
-      .to_a
-      .select do |profile|
-        profile_keys.any? do |step_kind, grader_name|
-          profile.step_kind == step_kind && (grader_name.nil? || profile.grader_name.to_s == grader_name)
-        end
-      end
-  end
-
-  def resource_profile_keys_for(candidate_step)
-    Step::Kind.fetch(candidate_step.kind).resource_profile_keys_for(candidate_step)
-  rescue ArgumentError
-    [ [ candidate_step.kind, "" ] ]
-  end
-
-  def active_grader_run_count
-    @active_grader_run_count ||= active_run_scope.where(steps: { kind: %w[grader preflight_grader] }).count
-  end
-
-  def active_io_intensive_grader_run_count
-    @active_io_intensive_grader_run_count ||= active_run_scope
-      .where(steps: { kind: %w[grader preflight_grader] })
-      .includes(step: { workflow: :job })
-      .select { |active_run| io_intensive_command_profile?(active_run.step) }
-      .size
-  end
-
-  def active_visual_diff_preview_run_count
-    @active_visual_diff_preview_run_count ||= active_run_scope.where(steps: { kind: VISUAL_DIFF_STEP_KIND }).count
-  end
-
-  def active_always_guarded_run_scope
-    active_run_scope.where(steps: { kind: ALWAYS_GUARDED_STEP_KINDS })
-  end
-
-  # A running Run consumes this host's capacity only with credible current
-  # ownership: an unfinished SpawnedProcess on this host, or -- for Runs the
-  # workflow places here -- a fresh heartbeat (or a recent start, before the
-  # first heartbeat) or a recently-touched active RuntimeSession. A database
-  # "running" row whose worker or process vanished has none of these and must
-  # not reserve compute or memory until stale-Run reconciliation catches up.
-  # Provider-bound agent turns have no child command, so their heartbeat is
-  # what keeps them counted.
   # A Run occupies this host when a process it spawned is still running here,
   # or -- for steps that work in the workflow's shared workspace -- when this
-  # is that workspace's home host. A distributed grader runs from an immutable
-  # checkout on whichever worker claimed it, so the workflow's home host says
-  # nothing about where it executes: counting it there made the home host
-  # refuse work for every grader of its workflow running elsewhere.
+  # is that workspace's home host and the Run shows credible current ownership
+  # (a fresh heartbeat, a recent start, or a recently touched runtime session).
+  # A distributed grader runs from an immutable checkout on whichever worker
+  # claimed it, so the workflow's home host says nothing about where it runs.
   def active_run_scope
     cutoff = LIVENESS_WINDOW.ago
     Run
@@ -764,17 +282,16 @@ class RunHostAdmission
       session_run_ids = RuntimeSession.active.where(run_id: runs.map(&:id)).where("updated_at >= ?", cutoff).distinct.pluck(:run_id)
       runs.map do |active_run|
         heartbeat = active_run.last_heartbeat_at
-        live_process = active_run.spawned_processes.any? { |sp| sp.hostname == hostname && sp.finished_at.nil? }
         {
           "run_id" => active_run.id,
           "step_kind" => active_run.step&.kind,
-          "unfinished_spawned_process" => live_process,
+          "unfinished_spawned_process" => active_run.spawned_processes.any? { |sp| sp.hostname == hostname && sp.finished_at.nil? },
           "fresh_heartbeat" => heartbeat.present? && heartbeat >= cutoff,
           "last_heartbeat_at" => heartbeat&.iso8601,
           "started_at" => active_run.started_at&.iso8601,
           "active_runtime_session" => session_run_ids.include?(active_run.id)
         }
-      end.sort_by { |e| e["run_id"] }
+      end.sort_by { |evidence| evidence["run_id"] }
     end
   end
 

@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_030128) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -264,7 +264,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_030128) do
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
     t.integer "security_review_rounds", default: 0, null: false
     t.string "contained_chat_execution", default: "off", null: false
-    t.string "host_admission_policy", default: "prediction", null: false
     t.boolean "permissions_enforced", default: true, null: false
     t.text "plugin_manifest_signing_key"
     t.integer "wakeup_chain_limit", default: 100, null: false

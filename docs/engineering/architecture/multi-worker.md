@@ -195,26 +195,19 @@ worker is pressured, Syrus clears the bounded exclusion set and uses increasing
 backoff instead of bouncing the Run continuously between hosts.
 
 For `host_resource_semaphore_busy`, the Job page's queued-Run banner and the
-artifact's `resource_guard_binding_terms` identify whether compute units,
-reserved memory, measured memory, or more than one term bound admission. Compare
-`active_compute_units + candidate_compute_units` with `host_compute_capacity`,
-and compare `active_reserved_memory_bytes + candidate_reserved_memory_bytes`
-and `current_memory_bytes + candidate_reserved_memory_bytes` with
-`host_memory_effective_budget_bytes`. The effective budget is
-`host_memory_budget_bytes - grader_memory_reserve_bytes`; the reserve is zero
-for non-grader candidates. A host with no active guarded Run ignores these soft
-memory estimates; only critical sampled memory, disk, or CPU pressure can defer
-the lone candidate.
+artifact's `resource_guard_binding_terms` name the measured term that bound
+admission: `memory_pressure` (live memory PSI at or above its ceiling),
+`memory_headroom` (`host_memory_limit_bytes - current_memory_bytes` below
+`memory_headroom_floor_bytes`), or `concurrency_target` (`active_compute_run_count`
+at the worker's `concurrency_target`). `current_memory_bytes` is the cgroup
+working set excluding clean page cache and reclaimable slab.
 
-Agentic and grader fallback memory reservation is the effective memory limit
-divided by host compute capacity, then multiplied by the Run's capacity units.
-Deterministic compute such as `prepare` instead uses command-attributed p90
-memory when a matching resource profile exists and a conservative fallback
-bounded at 1 GiB when it does not. Active reservations use the same evidence
-per Run, so several low-demand deterministic commands no longer each claim a
-full CPU-derived memory unit. Measured container working-set usage remains an
-independent binding term, and command evidence above the fallback is not
-clamped; either can still defer work that presents a credible OOM risk.
+`HostConcurrencyTarget` is an additive-increase, multiplicative-decrease
+controller kept in a per-worker state file: it starts at the CPU count, grows
+by one per 30 s while the worker is full and healthy, halves on memory pressure
+at half the ceiling or a CPU/memory warning, and is capped at three per CPU.
+Provider-bound agent turns are not counted against it. There are no per-step
+cost estimates: resource profiles no longer feed host admission.
 
 The artifact records `candidate_memory_evidence_source` and tallies
 `active_memory_evidence_sources`; the queued-Run banner identifies the
@@ -492,9 +485,7 @@ alternative list to confirm the pool is not broadly saturated.
 - `GET /api/v1/admin/queue/workers` reports `admission_capacity` per worker:
   `effective_cpu_count`, `cpu_source` (`cgroup_v2_quota`, `cgroup_v1_quota`,
   `env_override`, or `undetectable_fallback`), `cpu_fallback_in_effect`,
-  `host_compute_capacity`, `agentic_capacity_units`, `agentic_runs_per_host`,
-  `grader_runs_per_host`, `agentic_reserved_units`, and memory limit, budget
-  and reserve. Workers publish it with their heartbeat (it is computed from
+  `host_compute_capacity` (the real CPU count) and memory limit. Workers publish it with their heartbeat (it is computed from
   their own cgroup), so it can lag a restart by one heartbeat.
 - `GET /api/v1/admin/runs` and `/runs/:run_id/artifacts` carry `host_admission`
   for a Run that is still queued: the latest deferral (reason, binding terms,

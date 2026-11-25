@@ -53,9 +53,9 @@ class GraderFanoutAdmission
 
   attr_reader :workflow, :steps, :now
 
-  # Workers publish the exact capacity inputs used by RunHostAdmission. Keep
-  # one agentic unit in reserve, matching its grader semaphore, so admitting a
-  # large grader set cannot consume the host slot needed to repair that set.
+  # Each live, not critically pressured worker contributes a fixed number of
+  # ready graders per CPU. This only paces how many grader Runs exist at once;
+  # whether one starts is each worker's measured host admission.
   def healthy_worker_capacity
     workers = live_worker_capacities
     return local_fallback_capacity if workers.empty?
@@ -63,10 +63,7 @@ class GraderFanoutAdmission
     workers.sum do |worker|
       next 0 if critically_pressured?(worker.fetch(:hostname))
 
-      capacity = worker.fetch(:capacity)
-      grader_units = worker.fetch(:grader_units)
-      reserved_units = worker.fetch(:reserved_units)
-      [ (capacity - reserved_units) / grader_units, 1 ].max
+      worker.fetch(:capacity) * RunHostAdmissionCapacity::FANOUT_RUNS_PER_CPU
     end
   end
 
@@ -85,12 +82,7 @@ class GraderFanoutAdmission
       capacity = diagnostics["host_compute_capacity"].to_i
       next unless capacity.positive?
 
-      {
-        hostname: hostname,
-        capacity: capacity,
-        grader_units: [ diagnostics["grader_capacity_units"].to_i, 1 ].max,
-        reserved_units: diagnostics["agentic_reserved_units"].to_i.clamp(0, capacity - 1)
-      }
+      { hostname: hostname, capacity: capacity }
     end.uniq { |worker| worker.fetch(:hostname) }
   rescue ActiveRecord::ActiveRecordError, NameError
     []
@@ -108,10 +100,7 @@ class GraderFanoutAdmission
   end
 
   def local_fallback_capacity
-    capacity = RunHostAdmissionCapacity.host_compute_capacity
-    grader_units = RunHostAdmissionCapacity.grader_capacity_units(capacity)
-    reserved_units = RunHostAdmissionCapacity.agentic_reserved_units(capacity)
-    [ (capacity - reserved_units) / grader_units, 1 ].max
+    RunHostAdmissionCapacity.host_compute_capacity * RunHostAdmissionCapacity::FANOUT_RUNS_PER_CPU
   end
 
   def critically_pressured?(hostname)

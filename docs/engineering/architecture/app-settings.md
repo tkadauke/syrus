@@ -74,24 +74,9 @@ restarts.
 
 ## Workflow-step resource profiles and PSI
 
-`prediction` is the default. It forecasts each step's memory cost from
-`WorkflowStepResourceProfile` and refuses when the forecasts for the runs
-already on the host exceed the budget. A profile only applies when it matches
-repository, agent provider, trigger kind, job kind and step kind (plus grader
-name) and has at least ten attributed samples; otherwise the estimate falls
-back to `host_memory_limit / host_compute_capacity` per compute unit, which is
-a sixth of the host for a grader and a third for an agentic step. Because the
-estimates are summed, a host can refuse work while using a fraction of its
-limit in reality.
-
-`usage` reads memory PSI (`memory.pressure`, `some avg10`) instead: the share
-of time at least one task actually stalled waiting on memory. It refuses only
-above `SYRUS_MEMORY_PRESSURE_CEILING` (default 10). Compute units continue to
-bound concurrency under this policy because PSI is a lagging signal, and an
-unreadable `memory.pressure` admits rather than refusing blindly.
-
-Switching is instance-wide and applies to the next decision without a restart.
-Every decision records `admission_policy` in its attribution payload, and
-under `usage` also `memory_pressure_some` and `memory_pressure_ceiling`.
+Host admission no longer uses these profiles; it is measured (memory PSI,
+memory headroom and a per-worker concurrency controller) -- see the
+multi-worker architecture reference. The profiles remain for diagnostics and
+the opt-in per-spawn cgroup budget.
 
 The operator-facing settings and defaults remain in [`config/syrus_docs/app_settings.md`](../../../config/syrus_docs/app_settings.md).

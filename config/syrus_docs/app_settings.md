@@ -335,16 +335,6 @@ protection. Provider-availability pauses, manual
 pauses, dependencies, and landing-queue correctness gates also remain active.
 Changing the switch does not rewrite any other setting or existing record.
 
-### host_admission_policy
-
-**Type:** string (`prediction` or `usage`)
-
-Controls how an individual worker decides it has room for another Run. This is
-separate from `workflow_admission_policy`, which governs how far a *Workflow*
-level admission decision extends.
-
-See the [app-setting architecture reference](../../docs/engineering/architecture/app-settings.md) for resource-profile and PSI mechanics.
-
 ### workflow_admission_policy
 
 **Type:** string (`whole_workflow` or `phase_aware`)

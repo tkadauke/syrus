@@ -79,6 +79,12 @@ class WorkerHealthSampleAnalysis
       signals_for(sample).select { |signal| signal.fetch(:level) == "critical" }.map { |signal| signal.fetch(:dimension) }
     end
 
+    # The dimension keys at `level` or worse.
+    def dimensions_at_least(sample, level)
+      floor = LEVEL_ORDER.fetch(level)
+      signals_for(sample).select { |signal| LEVEL_ORDER.fetch(signal.fetch(:level), 0) >= floor }.map { |signal| signal.fetch(:dimension) }
+    end
+
     def max_level(left, right)
       LEVEL_ORDER.fetch(left) >= LEVEL_ORDER.fetch(right) ? left : right
     end

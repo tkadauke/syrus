@@ -46,9 +46,7 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
         "queues" => [ "runs" ],
         "capability_diagnostics" => {
           "admission_capacity" => {
-            "host_compute_capacity" => 4,
-            "grader_capacity_units" => 1,
-            "agentic_reserved_units" => 2
+            "host_compute_capacity" => 4
           }
         }
       },
@@ -68,7 +66,9 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     )
     pressured = described_class.call(workflow: workflow, steps: steps)
 
-    expect(healthy).to have_attributes(capacity: 2, available_slots: 2)
+    # Two ready graders per CPU, with no reserve held back.
+    expect(healthy).to have_attributes(capacity: 8, available_slots: 8)
+    expect(healthy.steps.size).to eq(5)
     expect(pressured).to have_attributes(capacity: 0, available_slots: 0, reason: "grader_capacity_saturated")
     expect(pressured.steps).to be_empty
   end
@@ -86,7 +86,7 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
         started_at: 1.minute.ago, last_heartbeat_at: Time.current,
         capability_diagnostics: {
           "admission_capacity" => {
-            "host_compute_capacity" => 6, "grader_capacity_units" => 1, "agentic_reserved_units" => 2
+            "host_compute_capacity" => 6
           }
         }
       )
@@ -100,10 +100,10 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     end
     allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(2)
 
-    decision = described_class.call(workflow: workflow, steps: grader_steps(10))
+    decision = described_class.call(workflow: workflow, steps: grader_steps(30))
 
-    expect(decision).to have_attributes(capacity: 8, available_slots: 8)
-    expect(decision.steps.size).to eq(8)
+    expect(decision).to have_attributes(capacity: 24, available_slots: 24)
+    expect(decision.steps.size).to eq(24)
   end
 
   it "defers every ready grader while existing runnable graders saturate capacity" do

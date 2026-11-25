@@ -29,6 +29,7 @@ RSpec.describe DistributedRunAdmissionRouter do
     end.update!(enabled: true)
     repository.update!(distributed_workflow_dag_enabled: true)
     allow(RunProcessParallelism).to receive(:host_capacity).and_return(4)
+    allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(2)
   end
 
   def worker(hostname, storage_key, eligible: true)
