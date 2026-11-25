@@ -10,7 +10,8 @@ module Mockups
                 "directory for UI mockups, HTML mockups, HTML previews, prototypes, open-preview " \
                 "requests, and screenshot-driven interface redesigns. Canonical sequence: call " \
                 "show_preview without panel_id to open a panel, write index.html and assets with " \
-                "write_preview_file, then call show_preview again with the same panel_id to publish. " \
+                "write_preview_file, strongly recommended: inspect it with render_preview (unpublished, " \
+                "read-only), then call show_preview again with the same panel_id to publish. " \
                 "Scoped to that panel only -- it cannot touch the attached repository checkout or " \
                 "any other panel's files. Do not use local HTTP servers, local file paths, or " \
                 "workspace-only HTML files as the primary deliverable when preview-panel tools are " \

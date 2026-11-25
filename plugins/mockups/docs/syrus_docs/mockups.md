@@ -2,7 +2,8 @@
 
 Ships as the bundled `mockups` plugin, enabled by default. It gives
 planning-mode chat agents a scratch area for building HTML/CSS/JS sketches
-(`show_preview`, `write_preview_file`, `edit_preview_file`, `close_preview`, plus the read-only `inspect_preview_versions`)
+(`show_preview`, `write_preview_file`, `edit_preview_file`, `render_preview`,
+`close_preview`, plus the read-only `inspect_preview_versions`)
 and makes the results first-class objects an operator can find later.
 
 ## Slugs

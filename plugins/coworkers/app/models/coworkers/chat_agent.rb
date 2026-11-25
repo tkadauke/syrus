@@ -1,4 +1,4 @@
-class Coworkers::ChatAgent < ApplicationRecord
+class Coworkers::ChatAgent < Syrus::Host::Record
   self.table_name = "coworkers_chat_agents"
   AFTER_REPLY_POLICIES = %w[wake quiet].freeze
 

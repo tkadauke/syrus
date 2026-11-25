@@ -82,6 +82,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   const queryClient = useQueryClient()
   const location = useLocation()
   const [values, setValues] = useState<RepositoryInput>(() => inputFromPayload(payload))
+  const [landingDraft, setLandingDraft] = useState<string | null>(null)
   const [repairTouched, setRepairTouched] = useState(mode === "edit")
   const [ownerMode, setOwnerMode] = useState<"select" | "manual">("manual")
   const [repoMode, setRepoMode] = useState<"select" | "manual">("manual")
@@ -91,6 +92,8 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   const [repoOptions, setRepoOptions] = useState<GitHubRepositoryOption[]>([])
   const [repoNotice, setRepoNotice] = useState<{ text: string; tone: "error" | "muted" } | null>(null)
   const [branchOptions, setBranchOptions] = useState<string[]>([])
+  const [reposLoading, setReposLoading] = useState(false)
+  const [branchesLoading, setBranchesLoading] = useState(false)
   const save = useMutation({
     mutationFn: () => {
       if (mode === "new") return createRepository(values)
@@ -155,10 +158,17 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   }, [owners.isSuccess, owners.data])
 
   useEffect(() => {
-    if (ownerMode !== "select" || !values.owner) return
+    if (ownerMode !== "select" || !values.owner) {
+      setReposLoading(false)
+      return
+    }
 
     let active = true
+    setReposLoading(true)
     fetchRepositoryOptions(values.owner, selectedOwnerType)
+      .finally(() => {
+        if (active) setReposLoading(false)
+      })
       .then((data) => {
         if (!active) return
         if (data.error) {
@@ -195,11 +205,18 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   }, [ownerMode, selectedOwnerType, values.owner])
 
   useEffect(() => {
-    if (!values.owner || !values.name) return
+    if (!values.owner || !values.name) {
+      setBranchesLoading(false)
+      return
+    }
 
     let active = true
+    setBranchesLoading(true)
     const timer = window.setTimeout(() => {
       fetchRepositoryBranches(values.owner, values.name)
+        .finally(() => {
+          if (active) setBranchesLoading(false)
+        })
         .then((data) => {
           if (!active) return
           if (data.error) {
@@ -302,7 +319,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.working_description")}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t("repository_form.label_working_owner")}>
+            <Field label={t("repository_form.label_working_owner")} loading={owners.isPending}>
               {ownerMode === "select" && ownerOptions.length > 0 ? (
                 <SelectWithManual onManual={() => setOwnerMode("manual")} onChange={chooseOwner} value={values.owner}>
                   <option value="">{t("repository_form.select_owner")}</option>
@@ -326,7 +343,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               )}
             </Field>
 
-            <Field label={t("repository_form.label_working_name")}>
+            <Field label={t("repository_form.label_working_name")} loading={reposLoading}>
               {repoMode === "select" && repoOptions.length > 0 ? (
                 <SelectWithManual
                   onManual={() => {
@@ -355,7 +372,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Field>
           </div>
 
-          <Field label={t("repository_form.label_default_branch")}>
+          <Field label={t("repository_form.label_default_branch")} loading={branchesLoading}>
             {branchMode === "select" && branchOptions.length > 0 ? (
               <Form.Select
                 className="font-mono"
@@ -482,15 +499,23 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           />
           <Field label={t("repository_form.label_landing_concurrency")}>
             <Form.Input
+              inputMode="numeric"
               max={5}
               min={1}
+              onBlur={() => setLandingDraft(null)}
               onChange={(event) => {
-                const parsed = Number.parseInt(event.target.value, 10)
-                setValues({ ...values, landing_concurrency: Number.isNaN(parsed) ? 1 : Math.min(5, Math.max(1, parsed)) })
+                // Keep the raw text while editing so Backspace can empty the
+                // field and multi-digit typing is not clamped mid-keystroke.
+                const raw = event.target.value
+                setLandingDraft(raw)
+                const parsed = Number.parseInt(raw, 10)
+                if (!Number.isNaN(parsed)) {
+                  setValues({ ...values, landing_concurrency: Math.min(5, Math.max(1, parsed)) })
+                }
               }}
               step={1}
               type="number"
-              value={values.landing_concurrency}
+              value={landingDraft ?? values.landing_concurrency}
             />
             <Form.HelpText>{t("repository_form.landing_concurrency_hint")}</Form.HelpText>
           </Field>
@@ -1208,10 +1233,21 @@ function valuesFromSourceType(sourceType: InputSourceType) {
   }, {})
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, loading = false }: { label: string; children: ReactNode; loading?: boolean }) {
+  const { t } = useT("settings")
   return (
     <Form.Field>
-      <Form.Label>{label}</Form.Label>
+      <Form.Label>
+        {label}
+        {loading ? (
+          <span role="status" aria-label={t("repository_form.field_loading")} className="ml-2 inline-block align-middle">
+            <svg aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-text-secondary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
+            </svg>
+          </span>
+        ) : null}
+      </Form.Label>
       {children}
     </Form.Field>
   )

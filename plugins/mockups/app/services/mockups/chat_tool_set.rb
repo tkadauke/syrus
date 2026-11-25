@@ -22,6 +22,7 @@ module Mockups
     TOOL_CLASSES = [
       WritePreviewFileTool,
       EditPreviewFileTool,
+      RenderPreviewTool,
       ShowPreviewTool,
       ClosePreviewTool,
       InspectPreviewVersionsTool

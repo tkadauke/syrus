@@ -14,12 +14,30 @@ Admin Performance shows slow browser traces, requests, jobs, SQL statements,
 phases, and event writes for the current revision. Request details can group
 SQL under the request and under the deepest active phase, so a slow endpoint is
 traceable to the actual work it performed. Browser traces include both
-passive observations (long tasks, slow input, event-loop lag) and explicit
+passive observations (long tasks, sampled input latency, event-loop lag) and explicit
 frontend markers that frontend code places with the `performanceMarkers`
 API — named spans like `diff_review.parse_diff` or
 `diff_review.syntax_highlight` that break a slow UI surface down into the
 specific phase responsible, the same way backend phase events do for
 requests.
+
+Input-latency rows use the browser Event Timing API and contain total, input,
+processing, and presentation delay. They identify only the normalized screen
+and a coarse interaction kind (pointer, keyboard, touch, form control, or
+other); they never include entered text, selectors, element IDs, test IDs, or
+other DOM details. Capture is sampled per page session and capped at 100
+interactions, with idle batching and page-hide beacon flushing to bound browser
+and network overhead.
+
+The daily frontend monitor must interpret input health rows before interpreting
+an empty latency window. `session_eligible` and `observer_initialized` confirm
+that capture started; `session_sampled_out` means eligible activity was outside
+the sample; `api_unsupported` identifies browsers without Event Timing;
+`rate_limited` reports the bounded session cap; and `delivery_failure` means a
+batch could not reach the server. A window with no latency samples and no input
+health rows indicates no eligible signed-in activity or an instrumentation
+defect; compare normal browser traces in the same revision and window to tell
+those apart. Do not report an unexplained empty window as healthy.
 
 Event-loop lag is inferred from a timer callback arriving late; it is not a
 direct CPU measurement. Rows include a page-session identifier and sequence,
@@ -187,7 +205,7 @@ For a slow page:
 4. Check Browser traces if backend time is low but the page still feels slow.
 5. For a specific slow UI surface (e.g. the diff review tab), look at the
    grouped browser traces named for that surface (`diff_review.*`) instead
-   of only the generic `browser.slow_input` entry -- they share the same
+   of only the generic `browser.input_latency` entry -- they share the same
    `path`, app revision, and timestamp window, so a slow input event on
    `/jobs/4348?tab=review` can be lined up against nearby
    `diff_review.parse_diff`/`diff_review.syntax_highlight`/

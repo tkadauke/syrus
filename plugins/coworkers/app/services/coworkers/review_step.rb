@@ -26,8 +26,8 @@ module Coworkers
       )
     end
     def coworker_review_config
-      SyrusYml.load_repo(workspace.path).plugin_configurations[Coworkers::ReviewPlan::KEY]
-    rescue SyrusYml::ParseError, Errno::ENOENT
+      Syrus::Host::SyrusYml.load_repo(workspace.path).plugin_configurations[Coworkers::ReviewPlan::KEY]
+    rescue Syrus::Host::SyrusYml::ParseError, Errno::ENOENT
       nil
     end
   end

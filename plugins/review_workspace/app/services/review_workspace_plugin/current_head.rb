@@ -11,7 +11,7 @@ module ReviewWorkspacePlugin
     CANDIDATE_LIMIT = 50
 
     def self.call(job)
-      Step.joins(:workflow)
+      Syrus::Host::ActivityRecords.steps.joins(:workflow)
         .where(workflows: { job_id: job.id }, kind: MUTATION_KINDS, state: "succeeded")
         .reorder("workflows.id DESC, steps.position DESC, steps.id DESC")
         .limit(CANDIDATE_LIMIT)

@@ -21,8 +21,8 @@ RSpec.describe "Built-in plugin host surface", :ci_only do
 
   it "keeps every public contract documented and resolvable" do
     # The ceiling covers the narrow, member-listed contracts the main-branch
-    # health plugin needs from core workflow and landing internals.
-    expect(Syrus::Host.apis.size).to be_between(25, 200)
+    # health plugin needs from core workflow and landing internals, plus the model-shaped facades the coworkers, review and briefing plugins use.
+    expect(Syrus::Host.apis.size).to be_between(25, 260)
     expect(Syrus::Host.apis.map(&:name)).to all(start_with("Syrus::Host::"))
 
     failures = Syrus::Host.apis.flat_map do |api|

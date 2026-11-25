@@ -24,16 +24,16 @@ module OperatorBriefing
       )
 
       class << self
-        include McpToolPayloads::WorkflowPayload
+        include Syrus::Host::WorkflowPayload
 
         DEFAULT_LIMIT = 20
         MAX_LIMIT = 50
 
         def call(server_context:, limit: nil, page: nil)
-          run = Mcp::Tools.run_from_context(server_context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
           briefing = Briefing.find_by!(job: run.job)
           per_page = normalized_limit(limit)
-          page_num = Mcp::Pagination.normalize_page(page)
+          page_num = Syrus::Host::McpPagination.normalize_page(page)
           scope = workflow_scope(briefing)
 
           total = scope.count
@@ -61,7 +61,7 @@ module OperatorBriefing
         private
 
         def workflow_scope(briefing)
-          ::Workflow
+          Syrus::Host::Workflows
             .joins(:job)
             .includes(:job, :workflow_artifact_values, :workflow_warnings, steps: :runs)
             .where(jobs: { repository_id: briefing.repository_id, user_id: briefing.owner_user_id })
@@ -99,8 +99,8 @@ module OperatorBriefing
 
         def review_artifacts(workflow)
           {
-            adversarial_review_iterations: CommandRedactor.redact_value(workflow.artifact("adversarial_review_iterations")),
-            visual_review_iterations: CommandRedactor.redact_value(workflow.artifact("visual_review_iterations"))
+            adversarial_review_iterations: Syrus::Host::CommandRedactor.redact_value(workflow.artifact("adversarial_review_iterations")),
+            visual_review_iterations: Syrus::Host::CommandRedactor.redact_value(workflow.artifact("visual_review_iterations"))
           }.compact
         end
 
@@ -110,7 +110,7 @@ module OperatorBriefing
             kind: warning.kind,
             severity: warning.severity,
             title: text_snippet(redact(warning.title), 200),
-            evidence: CommandRedactor.redact_value(warning.evidence),
+            evidence: Syrus::Host::CommandRedactor.redact_value(warning.evidence),
             state: warning.state,
             created_job_id: warning.created_job_id,
             created_at: warning.created_at&.iso8601
@@ -141,7 +141,7 @@ module OperatorBriefing
         end
 
         def redact(value)
-          ::Mcp::Tools::EvidenceRedactor.call(value)
+          Syrus::Host::McpEvidenceRedactor.call(value)
         end
       end
     end

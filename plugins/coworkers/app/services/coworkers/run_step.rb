@@ -1,5 +1,5 @@
 module Coworkers
-  class RunStep < ::Steps::Base
+  class RunStep < Syrus::Host::StepBase
     class PersistenceFailed < StepFailed; end
 
     def call
@@ -7,7 +7,7 @@ module Coworkers
       @base_sha = workspace_head
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking coworker for background run (#{workflow.slug})")
-      result = run_agent(prompt: run.prompt, workload_policy: Execution::ChatWorkloadPolicy.for_current_setting)
+      result = run_agent(prompt: run.prompt, workload_policy: Syrus::Host::ChatWorkloadPolicy.for_current_setting)
       run.update!(agent_summary: result.final_text.to_s.strip.presence)
       @written_paths = claims_present? ? written_paths : Set.new
       persist_workspace!
@@ -28,7 +28,7 @@ module Coworkers
         "Workspace persistence #{outcome}. The run output remains recoverable from the workspace and its background-run ref; " \
         "resolve the workspace conflict from the main chat before retrying."
       )
-    rescue GitRunner::GitError => error
+    rescue Syrus::Host::GitRunner::GitError => error
       fail_persistence!(
         "Workspace persistence failed while pushing the background run: #{error.message}. " \
         "The run output remains recoverable in its workflow workspace; restore repository access, then retry the run."
@@ -41,20 +41,20 @@ module Coworkers
     end
 
     def workspace_head
-      GitRunner.new.run("rev-parse", "--verify", "-q", "HEAD", chdir: workspace.path.to_s).strip.presence
-    rescue GitRunner::GitError
+      Syrus::Host::GitRunner.new.run("rev-parse", "--verify", "-q", "HEAD", chdir: workspace.path.to_s).strip.presence
+    rescue Syrus::Host::GitRunner::GitError
       nil
     end
 
     # Exact files this run created or modified (not deletions, not files that
     # merely exist), relative to the commit the workspace started from.
     def written_paths
-      git = GitRunner.new
+      git = Syrus::Host::GitRunner.new
       dir = workspace.path.to_s
       tracked = @base_sha ? git.run("diff", "--name-only", "--no-renames", "--diff-filter=ACMT", @base_sha, chdir: dir).lines : []
       untracked = git.run("ls-files", "--others", "--exclude-standard", chdir: dir).lines
       (tracked + untracked).map(&:strip).reject(&:empty?).select { |path| claimable_path?(path) }.to_set
-    rescue GitRunner::GitError
+    rescue Syrus::Host::GitRunner::GitError
       Set.new # unverifiable: fail closed, every claim is reported unsupported
     end
 

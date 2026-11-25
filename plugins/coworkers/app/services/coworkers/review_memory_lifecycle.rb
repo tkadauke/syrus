@@ -81,7 +81,7 @@ class Coworkers::ReviewMemoryLifecycle
       ids = Array(run.step.details.to_h["review_memory_ids"]).filter_map { |value| Integer(value, exception: false) }.uniq
       return [] if ids.empty?
 
-      Syrus::Memory.selected_review_memories(user: coworker.owner_user, repository_id: run.job.repository_id, ids:)
+      Syrus::Host::Memory.selected_review_memories(user: coworker.owner_user, repository_id: run.job.repository_id, ids:)
     end
 
     def checkout_path(run)
@@ -93,7 +93,7 @@ class Coworkers::ReviewMemoryLifecycle
       FileUtils.mkdir_p(path.dirname)
       repository = coworker.workspace_repository or raise ArgumentError, "coworker workspace repository is unavailable"
       with_git_auth(repository, run, operation_type: "coworker_review_clone") do |url, env|
-        GitRunner.new.run("clone", "--branch", "coworkers/#{coworker.handle}", "--single-branch", url, path.to_s, env:)
+        Syrus::Host::GitRunner.new.run("clone", "--branch", "coworkers/#{coworker.handle}", "--single-branch", url, path.to_s, env:)
       end
     end
 
@@ -115,7 +115,7 @@ class Coworkers::ReviewMemoryLifecycle
 
     def persist_checkout!(coworker, run, context)
       path = context.workspace_path
-      git = GitRunner.new
+      git = Syrus::Host::GitRunner.new
       if git.run("status", "--porcelain", chdir: path).present?
         git.configure_author(Coworkers::GitIdentity.new(name: coworker.name, handle: coworker.handle), chdir: path)
         git.run("add", "--all", chdir: path)
@@ -128,7 +128,7 @@ class Coworkers::ReviewMemoryLifecycle
           with_git_auth(repository, run, operation_type: "coworker_review_reconcile") do |url, env|
             git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path, env:)
           end
-          GitMergeDrivers.register!(git:, path:)
+          Syrus::Host::GitMergeDrivers.register!(git:, path:)
           git.run("rebase", "origin/#{branch}", chdir: path)
           expected_sha = git.run("rev-parse", "origin/#{branch}", chdir: path).strip
           lease = "--force-with-lease=refs/heads/#{branch}:#{expected_sha}"
@@ -138,7 +138,7 @@ class Coworkers::ReviewMemoryLifecycle
           sha = git.run("rev-parse", "HEAD", chdir: path).strip
           return context.update!(persistence_state: "persisted", persisted_commit_sha: sha, persisted_at: Time.current,
                                  persistence_error_code: nil, persistence_error_details: {})
-        rescue GitRunner::GitError
+        rescue Syrus::Host::GitRunner::GitError
           git.run("rebase", "--abort", chdir: path) rescue nil
           raise PersistenceError, "the coworker home branch contains conflicting memory changes" if attempt == 2
         end
@@ -147,8 +147,8 @@ class Coworkers::ReviewMemoryLifecycle
 
     def with_git_auth(repository, run, operation_type:)
       user = run.job.owner_user || run.job.user
-      git = GitRunner.new
-      GithubAuthenticatedGit.run(repository:, user:, git:, operation_type:) do |authenticated_url|
+      git = Syrus::Host::GitRunner.new
+      Syrus::Host::GithubAuthenticatedGit.run(repository:, user:, git:, operation_type:) do |authenticated_url|
         uri = URI.parse(authenticated_url)
         username, password = uri.userinfo.to_s.split(":", 2)
         uri.user = nil

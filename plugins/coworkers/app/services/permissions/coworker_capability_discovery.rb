@@ -63,7 +63,7 @@ module Permissions
 
     def descriptor_for(tool)
       if tool.tool
-        McpToolRegistry.entry_for(tool.tool)&.descriptor
+        Syrus::Host::McpToolRegistry.entry_for(tool.tool)&.descriptor
       elsif tool.definition
         Syrus::Host::PermissionCapabilityAdapter.for_plugin_definition(
           tool.definition.merge(requestable_roles: [ Syrus::Host::AgentRoles::COWORKER_CHAT, Syrus::Host::AgentRoles::COWORKER ])
@@ -264,12 +264,12 @@ module Permissions
       return tool.availability_state unless tool.availability_state.to_sym == :available
       return :available if tool.provider
 
-      entry = McpToolRegistry.entry_for(tool.tool)
+      entry = Syrus::Host::McpToolRegistry.entry_for(tool.tool)
       return :unavailable unless entry
-      return :unavailable if entry.feature_flag && !Feature.public_send("#{entry.feature_flag}_enabled?")
+      return :unavailable if entry.feature_flag && !Syrus::Host::FeatureFlags.enabled?(entry.feature_flag)
 
       role_flag = entry.feature_flags_by_role&.fetch(context.role, nil)
-      return :unavailable if role_flag && !Feature.public_send("#{role_flag}_enabled?")
+      return :unavailable if role_flag && !Syrus::Host::FeatureFlags.enabled?(role_flag)
       return :resource_unconfigured if repository_scope_required?(entry.descriptor) && context.allowed_repository_ids.empty?
 
       :available

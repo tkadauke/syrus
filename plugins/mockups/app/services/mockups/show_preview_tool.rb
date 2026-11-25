@@ -10,7 +10,9 @@ module Mockups
                 "HTML prototypes, interactive interface sketches, screenshot-driven redesigns, " \
                 "prototype requests, open-preview requests, and preview submissions in Syrus Chat. " \
                 "Canonical sequence: call show_preview without panel_id to open a panel; write " \
-                "index.html and any assets with write_preview_file or edit_preview_file; then call " \
+                "index.html and any assets with write_preview_file or edit_preview_file; strongly " \
+                "recommended: inspect the unpublished result with render_preview (desktop and mobile) and " \
+                "fix visible defects first (guidance, not a hard gate); then call " \
                 "show_preview again with the same panel_id to publish the visible preview. Do not use " \
                 "local HTTP servers, local file paths, or workspace-only HTML files as the primary " \
                 "deliverable when this tool is available. Do not use imagegen for HTML/UI mockups " \

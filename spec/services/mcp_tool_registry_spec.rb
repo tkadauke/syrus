@@ -101,6 +101,17 @@ RSpec.describe McpToolRegistry do
       described_class.instance_variable_set(:@entries_by_surface, cached_entries_by_surface) if defined?(cached_entries_by_surface)
     end
 
+    it "rebuilds only the coworker surface after reset_coworker_surface!" do
+      chat = described_class.entries(surface: :chat)
+      coworker = described_class.entries(surface: :coworker)
+
+      described_class.reset_coworker_surface!
+
+      expect(described_class.entries(surface: :chat)).to equal(chat)
+      expect(described_class.entries(surface: :coworker)).not_to equal(coworker)
+      expect(described_class.entries(surface: :coworker).map(&:tool_name)).to eq(coworker.map(&:tool_name))
+    end
+
     it "builds workflow entries without building chat entries" do
       expect(described_class).not_to receive(:chat_entries)
 

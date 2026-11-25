@@ -73,6 +73,14 @@ class McpToolRegistry
       agent_insight: :agent_insight_entries
     }.freeze
 
+    # The coworker surface is derived from which chat-parity participants are
+    # enabled, so it must be rebuilt after plugin enablement changes. Specs
+    # that toggle plugins call this; production only changes it on restart.
+    def reset_coworker_surface!
+      @entries = nil
+      @entries_by_surface&.delete(:coworker)
+    end
+
     def entries(surface: nil)
       return all_entries if surface.nil?
 

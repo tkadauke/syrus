@@ -361,6 +361,26 @@ class ChatProposalFiler
         required_deployment_stage_name: requirement&.fetch("required_deployment_stage_name", nil)
       )
     end
+
+    splice_into_epic_chain!(proposal, job)
+  end
+
+  # insert_after_job_id: put the Job in the middle of its Epic's chain. The
+  # splice re-validates the anchor and the downstream Job against the live
+  # Epic, so a proposal made before the chain changed is rejected here.
+  def splice_into_epic_chain!(proposal, job)
+    return if proposal.insert_after_job_id.blank?
+    raise ArgumentError, "insert_after_job_id requires a target Epic" unless job.epic
+
+    plan = EpicChainSplice.plan!(epic: job.epic, anchor_job_id: proposal.insert_after_job_id)
+    EpicChainSplice.validate_final_chain!(plan, [ [ "new_job", job.title ] ], already_created_ids: [ job.id ])
+    EpicChainSplice.apply!(
+      epic: job.epic,
+      anchor_job_id: proposal.insert_after_job_id,
+      head_job: job,
+      tail_job: job,
+      user: user
+    )
   end
 
   def wire_epic_dependencies_for(proposal, epic)

@@ -53,6 +53,11 @@ module Permissions
         )
       end
 
+      # Public so plugin descriptors redact and fingerprint arguments exactly
+      # as registry-derived descriptors do.
+      def redact_arguments(value) = deep_redact(value)
+      def normalize_arguments(value) = deep_normalize(value)
+
       private
 
       def coerce(descriptor)

@@ -579,6 +579,30 @@ describe("RepositoryDetailRoute recommendations", () => {
     expect(Boolean(banner.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
+  it("supports dot navigation and horizontal swipe between tips", async () => {
+    renderRoute({
+      recommended_actions: [
+        recommendation(),
+        recommendation({
+          id: "pr_cost_footer",
+          title: "Show PR cost",
+          dismissal_key: "repository:1:feature_recommendation:pr_cost_footer:v1"
+        })
+      ]
+    })
+    expect(await screen.findByText("Add visual review")).toBeInTheDocument()
+    const card = screen.getByTestId("recommendation-dots").parentElement as HTMLElement
+    fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 10 }] })
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80, clientY: 12 }] })
+    expect(screen.getByText("Show PR cost")).toBeInTheDocument()
+    const dot = screen.getByRole("button", { name: "Go to tip 1" })
+    expect(dot.className).toContain("h-11")
+    expect(dot.className).toContain("w-8")
+    expect(dot.firstElementChild?.className).toContain("h-2 w-2")
+    fireEvent.click(dot)
+    expect(screen.getByText("Add visual review")).toBeInTheDocument()
+  })
+
   it("shows one recommendation at a time and pages through multiple tips", async () => {
     renderRoute({
       recommended_actions: [

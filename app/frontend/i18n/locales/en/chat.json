@@ -3374,5 +3374,8 @@
   "tab_attention_new_items_one": "{{count}} new item",
   "tab_attention_new_items_other": "{{count}} new items",
   "tab_attention_new_activity": "New activity",
-  "workspace_new_activity": "Workspace has new activity"
+  "workspace_new_activity": "Workspace has new activity",
+  "insertion_label": "Insertion",
+  "insertion_position": "Inserted after {{after}}, before {{before}}",
+  "insertion_position_tail": "Inserted after {{after}} (end of chain)"
 }

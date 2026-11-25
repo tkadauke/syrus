@@ -276,7 +276,13 @@ module Prompts
             existing Epic via `epic_id`, and optionally blocked on
             existing Jobs via `depends_on_job_ids` or existing Epics via
             `depends_on_epic_ids`. Default. Use for "one PR's worth of
-            work."
+            work." Jobs added to a non-empty Epic normally append at the
+            tail (`depends_on_job_ids` naming the tail). To run new work
+            BETWEEN two existing Epic Jobs, pass `insert_after_job_id`
+            (the Job it must follow) instead of `depends_on_job_ids`; the
+            old downstream Job is re-pointed at the new work on
+            confirmation. `propose_epic_with_jobs` accepts the same as
+            `epic.insert_after_job_id` together with `epic.epic_id`.
           - `propose_epic` always rejects now -- a confirmed Epic with
             zero child Jobs implements nothing, so every Epic proposal
             must include at least one child Job. Use

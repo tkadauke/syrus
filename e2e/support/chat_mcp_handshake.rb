@@ -121,6 +121,7 @@ module ChatMcpHandshake
     persistent_feature_was_enabled = persistent_feature.enabled?
     persistent_feature.update!(enabled: true)
     Feature.clear_enabled_cache!
+    warm_persistent_daemon!
     results = { persistent: handshakes_for_all_providers(user) }
 
     persistent_feature.update!(enabled: false)
@@ -166,6 +167,18 @@ module ChatMcpHandshake
     raise Error, "no chat providers were registered" if results.empty?
 
     results
+  end
+
+  # The first health check builds every tool surface (chat, coworker, plugin
+  # and workflow roles). On a cold, loaded CI runner that can exceed the
+  # selector's 1.5s read timeout and silently downgrade the decision to stdio,
+  # so pay the cold-start cost here, outside the selector's deadline.
+  def warm_persistent_daemon!
+    daemon = PersistentMcpDaemon.ensure_started
+    raise Error, "persistent MCP daemon did not start" unless daemon
+
+    health = daemon.health_check
+    raise Error, "persistent MCP daemon is unhealthy: #{health.inspect}" unless health[:status] == "ok"
   end
 
   def stop_persistent_daemon!

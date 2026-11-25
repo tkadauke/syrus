@@ -2,8 +2,8 @@ require "mcp"
 
 module Coworkers::McpTools
   class ProposeGrantEscalationTool < MCP::Tool
-    extend Mcp::Tools::ProposalToolSupport
-    extend Mcp::Tools::PendingActionToolSupport
+    extend Syrus::Host::McpProposalToolSupport
+    extend Syrus::Host::McpPendingActionToolSupport
 
     tool_name "propose_coworker_grants"
     description "Propose grant policy or scope changes for a coworker owned by the signed-in user. Use policy off to remove a grant. Nothing changes until the owner confirms."
@@ -32,15 +32,15 @@ module Coworkers::McpTools
         pending_action = create_pending_action_for_current_message!(
           server_context, chat, action: "escalate_coworker_grants", payload: payload, requested_by: "agent"
         )
-        Mcp::Tools.success(
+        Syrus::Host::McpTools.success(
           pending_action_id: pending_action.id,
           state: pending_action.state, message: "Change grants for @#{coworker.handle}?",
           grant_escalation: payload
         )
       rescue ActiveRecord::RecordNotFound
-        Mcp::Tools.invalid("coworker not found")
+        Syrus::Host::McpTools.invalid("coworker not found")
       rescue StandardError => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       end
 
       private

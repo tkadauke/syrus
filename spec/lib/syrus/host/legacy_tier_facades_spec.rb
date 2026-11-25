@@ -83,4 +83,180 @@ RSpec.describe "Syrus::Host facades replacing legacy plugin constants" do
     expect(surface.lookup("Job").reason).to be_present
     expect(surface.legacy_baseline).to eq(surface.legacy_entries.size)
   end
+
+  describe "service aliases for the coworkers, review and briefing plugins" do
+    {
+      Memory: "Syrus::Memory", PromptsMemoryContext: "Prompts::MemoryContext",
+      PromptsAdversarialReview: "Prompts::AdversarialReview", McpAuthorizationSupport: "Mcp::Tools::AuthorizationSupport",
+      McpPendingActionToolSupport: "Mcp::Tools::PendingActionToolSupport", McpProposalToolSupport: "Mcp::Tools::ProposalToolSupport",
+      McpEvidenceRedactor: "Mcp::Tools::EvidenceRedactor", McpPagination: "Mcp::Pagination",
+      Mentionable: "Mentionable", MentionablesResolver: "Mentionables::Resolver", ColorPalette: "Appearance::ColorPalette",
+      CommandRedactor: "CommandRedactor", Paginatable: "Paginatable", ChatLockErrors: "ChatLockErrors"
+    }.each do |name, target|
+      it "aliases #{name} to #{target} with a contract whose members resolve" do
+        constant = Syrus::Host.const_get(name)
+        expect(constant).to equal(target.constantize)
+        api = Syrus::Host.apis.find { |candidate| candidate.name == "Syrus::Host::#{name}" }
+        expect(api).to be_present
+        api.members.each do |member|
+          expect(constant.respond_to?(member) || constant.method_defined?(member) || constant.const_defined?(member)).to be(true), "#{name} lacks #{member}"
+        end
+      end
+    end
+  end
+
+  describe "plugin-point and service aliases for the remaining plugin references" do
+    %w[SidebarPage McpToolSet ChatIdentityProvider ChatMcpToolSet ChatPayloadContributor ChatTurnFinalizer ChatTurnLifecycle
+       ChatTurnOrientation ChatWorkspaceLifecycle DiffReviewAnnotationProvider JobVisibilityRestriction McpRunContextContributor
+       PostImplementationReviewProvider RepositoryConfiguration RepositoryFilter RetentionPolicy ReviewContextContributor
+       ReviewGate ReviewPresentationContributor ReviewerTargetProvider UiSlot].each do |name|
+      it "aliases #{name} to the plugin point it names" do
+        expect(Syrus::Host.const_get(name)).to equal("Syrus::Plugin::#{name}".constantize)
+        expect(Syrus::Host.apis.map(&:name)).to include("Syrus::Host::#{name}")
+      end
+    end
+
+    {
+      GitRunner: "GitRunner", SyrusYml: "SyrusYml", RepositoryContent: "RepositoryContent",
+      WorkflowWorkspace: "WorkflowWorkspace", DataCleanup: "Syrus::DataCleanup", PathJail: "Syrus::PathJail",
+      AgentProviders: "AgentProviders", StepBase: "Steps::Base", WorkflowBase: "Workflows::Base",
+      McpToolRegistry: "McpToolRegistry", ApplicationPolicy: "ApplicationPolicy", RunJob: "RunJob",
+      AppEvents: "AppEvents", InvestigationJobCreator: "InvestigationJobs::Creator",
+      AdversarialReviewProjects: "App::AdversarialReviewProjects", ReviewNoteProjects: "App::ReviewNoteProjects",
+      JobDiscussionChatResolver: "App::JobDiscussionChatResolver"
+    }.each do |name, target|
+      it "aliases #{name} to #{target} with a contract whose members resolve" do
+        constant = Syrus::Host.const_get(name)
+        expect(constant).to equal(target.constantize)
+        api = Syrus::Host.apis.find { |candidate| candidate.name == "Syrus::Host::#{name}" }
+        expect(api).to be_present
+        api.members.each do |member|
+          expect(constant.respond_to?(member) || constant.method_defined?(member) || constant.const_defined?(member)).to be(true), "#{name} lacks #{member}"
+        end
+      end
+    end
+  end
+
+  describe "query and operation facades" do
+    let(:user) { User.create!(email_address: "facade-#{SecureRandom.hex(4)}@example.com", password: "password123") }
+
+    it "registers a contract with every member resolvable for each facade" do
+      %w[Jobs Repositories Users Runs Workflows Epics ChatSessions ChatBridge AdminActions ActivityRecords FeatureFlags
+         PluginRecords ChatSearch InstanceWorkers Settings RepositoryAccess].each do |name|
+        api = Syrus::Host.apis.find { |candidate| candidate.name == "Syrus::Host::#{name}" }
+        expect(api).to be_present, name
+        constant = api.name.constantize
+        api.members.each do |member|
+          expect(constant.respond_to?(member) || constant.const_defined?(member)).to be(true), "#{name} lacks #{member}"
+        end
+      end
+    end
+
+    it "does not expose model classes as constants of the facades" do
+      expect(Syrus::Host::Jobs).not_to equal(::Job)
+      expect(Syrus::Host::ChatSessions).not_to equal(::ChatSession)
+      expect(Syrus::Host.const_defined?(:ChatBridgeThread, false)).to be(false)
+    end
+
+    it "returns relations and plain values for job, repository, user, run, workflow, and epic queries" do
+      expect(Syrus::Host::Jobs.where(id: 0)).to be_empty
+      expect(Syrus::Host::Jobs.none).to be_empty
+      expect(Syrus::Host::Jobs.all.to_sql).to eq(Job.all.to_sql)
+      expect(Syrus::Host::Jobs.visible_to(user, scope: Job.none)).to be_empty
+      expect(Syrus::Host::Jobs.terminal_states).to eq(Job::TERMINAL_STATES)
+      expect(Syrus::Host::Jobs.user_facing_kinds).to eq(Job::Kind.user_facing_values)
+      expect(Syrus::Host::Jobs.priority_rank("medium")).to eq(Job.priority_rank("medium"))
+      expect(Syrus::Host::Repositories.accessible_repository_ids_for(user)).to eq(Repository.accessible_repository_ids_for(user))
+      expect(Syrus::Host::Repositories.build(owner: "o", name: "n")).to be_a(Repository).and be_new_record
+      expect(Syrus::Host::Users.find(user.id)).to eq(user)
+      expect(Syrus::Host::Users.count).to eq(User.count)
+      expect(Syrus::Host::Users.user?(user)).to be(true)
+      expect(Syrus::Host::Users.user?(Object.new)).to be(false)
+      expect(Syrus::Host::Runs.where(id: 0)).to be_empty
+      expect(Syrus::Host::Workflows.where(id: 0)).to be_empty
+      expect(Syrus::Host::Workflows.resume_queue_name("host-a")).to eq(Workflow.resume_queue_name("host-a"))
+      expect(Syrus::Host::Epics.where(id: 0)).to be_empty
+      expect(Syrus::Host::Epics.archived_state).to eq(Epic::ARCHIVED_STATE)
+    end
+
+    it "names the activity record relations" do
+      expect(Syrus::Host::ActivityRecords.job_approvals.klass).to eq(JobApproval)
+      expect(Syrus::Host::ActivityRecords.state_transitions.klass).to eq(StateTransition)
+      expect(Syrus::Host::ActivityRecords.pr_review_comments.klass).to eq(PrReviewComment)
+      expect(Syrus::Host::ActivityRecords.chat_proposals.klass).to eq(ChatProposal)
+      expect(Syrus::Host::ActivityRecords.ui_engagement_samples.klass).to eq(UiEngagementSample)
+      expect(Syrus::Host::ActivityRecords.job_logs.klass).to eq(JobLog)
+      expect(Syrus::Host::ActivityRecords.chat_spend_entries.klass).to eq(ChatSpendEntry)
+      expect(Syrus::Host::ActivityRecords.steps.klass).to eq(Step)
+      expect(Syrus::Host::ActivityRecords.spawned_processes.klass).to eq(SpawnedProcess)
+    end
+
+    it "writes and reads audit entries" do
+      Syrus::Host::AdminActions.log!(user: user, action: "facade_probe", params: { reason: "spec" })
+      expect(Syrus::Host::AdminActions.where(action: "facade_probe").count).to eq(1)
+    end
+
+    it "delegates settings, flags, plugin records, workers, search, and repository access" do
+      allow(AppSetting).to receive(:ui_engagement_telemetry_enabled?).and_return(true)
+      expect(Syrus::Host::Settings.ui_engagement_telemetry_enabled?).to be(true)
+
+      allow(Feature).to receive(:public_send).and_call_original
+      allow(Feature).to receive(:public_send).with("facade_probe_enabled?").and_return(true)
+      expect(Syrus::Host::FeatureFlags.enabled?("facade_probe")).to be(true)
+
+      record = Syrus::Host::PluginRecords.ensure!("facade_probe")
+      expect(Syrus::Host::PluginRecords.find_by_name("facade_probe")).to eq(record)
+      expect(Syrus::Host::PluginRecords.find_by_name("missing_probe")).to be_nil
+
+      freeze_time do
+        expect(Syrus::Host::InstanceWorkers.fresh.to_sql).to eq(InstanceVersion.fresh.where(role: "worker").to_sql)
+      end
+
+      # The FTS index table is not part of the test schema, so stub the boundary.
+      stub_const("ChatMessageSearchIndex", double(top_matches_by_chat_session: { 1 => 2 }))
+      expect(Syrus::Host::ChatSearch.top_matches_by_chat_session("q")).to eq({ 1 => 2 })
+
+      policy = instance_double(RepositoryPolicy, write?: true)
+      allow(RepositoryPolicy).to receive(:new).with(user, :repo).and_return(policy)
+      expect(Syrus::Host::RepositoryAccess.write?(user, :repo)).to be(true)
+    end
+
+    it "claims and checks handles through the handle facade" do
+      expect(Syrus::Host::Handles::FORMAT).to equal(Handle::FORMAT)
+      expect(Syrus::Host::Handles.taken?("facade_free_handle")).to be(false)
+    end
+
+    it "extends the chat session model through the host hook" do
+      Syrus::Host::ChatSessions.extend_model { define_method(:facade_probe) { :probed } }
+      expect(ChatSession.new.facade_probe).to eq(:probed)
+    ensure
+      Syrus::Host::ChatSessions.extend_model { remove_method(:facade_probe) if instance_methods(false).include?(:facade_probe) }
+    end
+
+    describe Syrus::Host::ChatBridge do
+      let(:origin) { ChatSession.create!(user: user, title: "Origin") }
+      let(:target) { ChatSession.create!(user: user, title: "Target") }
+
+      it "opens a thread, delivers the prompt, finds it, and replies within it" do
+        thread = described_class.open!(origin_chat: origin, target_chat: target, opened_by: user, prompt: "hello")
+
+        expect(thread).to be_persisted
+        expect(thread.origin_chat_session).to eq(origin)
+        expect(thread.target_chat_session).to eq(target)
+        expect(thread.hop_count).to eq(1)
+        expect(described_class.find_thread(thread.id)).to eq(thread)
+        expect(described_class.find_thread(0)).to be_nil
+
+        result = described_class.reply!(thread: thread, text: "answer", from: target)
+        expect(result.fetch(:outbound_message)).to be_present
+      end
+
+      it "raises ClosedThreadError when replying to a closed thread" do
+        thread = described_class.open!(origin_chat: origin, target_chat: target, opened_by: user, prompt: "hello")
+        thread.close!
+
+        expect { described_class.reply!(thread: thread, text: "late", from: target) }.to raise_error(described_class::ClosedThreadError)
+      end
+    end
+  end
 end

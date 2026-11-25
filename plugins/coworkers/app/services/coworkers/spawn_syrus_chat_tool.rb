@@ -30,12 +30,12 @@ module Coworkers
 
     class << self
       def call(repository_id:, prompt:, server_context:, title: nil)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         coworker = context.agent_actor
-        return Mcp::Tools.invalid("spawn_syrus_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
-        return Mcp::Tools.invalid("prompt is required") if prompt.to_s.strip.blank?
+        return Syrus::Host::McpTools.invalid("spawn_syrus_chat is only available to a coworker") unless coworker.is_a?(Coworkers::Coworker)
+        return Syrus::Host::McpTools.invalid("prompt is required") if prompt.to_s.strip.blank?
 
-        repository = Mcp::Tools::CoworkerRepositoryAccess.resolve_for_capability(
+        repository = Syrus::Host::McpTools::CoworkerRepositoryAccess.resolve_for_capability(
           server_context:, capability: "syrus.spawn_chat", repository_id:
         )
         return repository if repository.is_a?(MCP::Tool::Response)
@@ -44,17 +44,17 @@ module Coworkers
           limiter = Coworkers::SpawnChatLimiter.new(
             coworker:, server_context:, capability: "syrus.spawn_chat", tool_name:, label: "Syrus-chat"
           )
-          next Mcp::Tools.invalid(limiter.refusal) unless limiter.allowed?
+          next Syrus::Host::McpTools.invalid(limiter.refusal) unless limiter.allowed?
 
           arguments = { repository_id: repository.id, prompt:, title: }
-          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_plugin_approval(
+          pending = Syrus::Host::McpAuthorizationSupport.pending_coworker_plugin_approval(
             tool_name, "syrus.spawn_chat", server_context, arguments, always_pending: true,
             action: PendingActions::SpawnSyrusChat.action_key
           )
           next pending if pending
 
           result = Coworkers::SpawnSyrusChat.call(coworker:, repository:, prompt:, title:, server_context:)
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             chat_id: result.fetch(:chat).id,
             chat_path: "/chats/#{result.fetch(:chat).id}",
             thread_id: result.fetch(:thread).id,
@@ -63,7 +63,7 @@ module Coworkers
           )
         end
       rescue ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+        Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
       end
     end
   end

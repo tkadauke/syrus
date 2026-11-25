@@ -138,4 +138,16 @@ describe("propose_epic_with_jobs tool card", () => {
     expect(proposeEpicWithJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
     expect(proposeEpicWithJobsToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
   })
+
+  it("shows where an Epic-chain insertion lands, including the tail variant", () => {
+    const base = { slug: "splice", state: "proposed", kind: "epic", child_jobs: [] }
+    const mid = { ...base, insertion: { insert_after_job_id: 5, insert_after_slug: "JOB-5", insert_before_job_id: 6, insert_before_slug: "JOB-6" } }
+    const tail = { ...base, insertion: { insert_after_job_id: 5, insert_after_slug: "JOB-5", insert_before_job_id: null, insert_before_slug: null } }
+
+    const { unmount } = render(<>{proposeEpicWithJobsToolCard.renderExpanded(context({ parsedResult: mid }))}</>)
+    expect(screen.getByText("Inserted after JOB-5, before JOB-6")).toBeTruthy()
+    unmount()
+    render(<>{proposeEpicWithJobsToolCard.renderExpanded(context({ parsedResult: tail }))}</>)
+    expect(screen.getByText("Inserted after JOB-5 (end of chain)")).toBeTruthy()
+  })
 })
