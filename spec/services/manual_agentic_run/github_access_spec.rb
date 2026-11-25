@@ -23,7 +23,7 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     env = access.environment
     expect(env).not_to have_key("GH_TOKEN")
     wrapper_dir = env.fetch("PATH").split(":").first
-    expect(Dir.children(wrapper_dir)).to contain_exactly("broker.sock", "gh", "git")
+    expect(Dir.children(wrapper_dir)).to contain_exactly("broker-ca.pem", "broker.sock", "gh", "git")
     expect(Dir.glob("#{wrapper_dir}/**/*").select { |path| File.file?(path) }.map { |path| File.binread(path) }.join).not_to include("ghs_top_secret")
     expect(env.to_json).not_to include("credential", "audit.jsonl", "ghs_top_secret")
 
@@ -31,6 +31,19 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     expect(status).to be_success
     expect(err).not_to include("ghs_top_secret")
     expect(access.collect_audit!.to_json).not_to include("ghs_top_secret")
+  end
+
+  it "keeps the real credential out of provider subprocess environments" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+      environments = [ proxy.gh_environment, proxy.git_environment ]
+
+      expect(environments.to_json).not_to include("ghs_top_secret")
+      expect(proxy.gh_environment).to include("GH_ENTERPRISE_TOKEN" => described_class::CredentialProxy::PLACEHOLDER)
+      expect(proxy.git_environment.values).to include("https://github.com/", "git@github.com:")
+    ensure
+      proxy&.stop
+    end
   end
 
   it "rejects cross-repository access before invoking GitHub" do
@@ -56,6 +69,27 @@ RSpec.describe ManualAgenticRun::GithubAccess do
 
     expect(status.exitstatus).to eq(78)
     expect(err).to include("separately confirmed destructive authority")
+  end
+
+  it "rejects the equals form of a destructive gh api method" do
+    env = access.environment
+    wrapper = File.join(env.fetch("PATH").split(":").first, "gh")
+    _out, err, status = Open3.capture3(env, wrapper, "api", "/repos/acme/widgets/issues/9", "--method=DELETE")
+
+    expect(status.exitstatus).to eq(78)
+    expect(err).to include("separately confirmed destructive authority")
+  end
+
+  it "rejects destructive Git ref operations without separate authority" do
+    env = access.environment
+    wrapper = File.join(env.fetch("PATH").split(":").first, "git")
+
+    [ [ "push", "origin", "--delete", "repair" ], [ "push", "origin", ":repair" ],
+      [ "push", "--force", "origin", "repair" ], [ "push", "origin", "+repair:repair" ] ].each do |args|
+      _out, err, status = Open3.capture3(env, wrapper, *args)
+      expect(status.exitstatus).to eq(78), args.join(" ")
+      expect(err).to include("separately confirmed destructive authority")
+    end
   end
 
   it "blocks token-printing commands and organization API access" do
