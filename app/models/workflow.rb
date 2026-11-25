@@ -1,4 +1,10 @@
 class Workflow < ApplicationRecord
+  # Before the dependent: :destroy cascades below run (prepend): lock its Job's
+  # whole subtree top down, siblings included, so the cascade's child-first
+  # deletes stay in the hierarchical row-lock order (NY40). An association's
+  # destroy_all deletes every sibling in one transaction.
+  before_destroy(prepend: true) { Lineage.lock_subtree!(job || self) }
+
   include AuthorizationCheckpointOrigin
   attr_accessor :syncing_from_terminal_work_unit
 
@@ -99,7 +105,14 @@ class Workflow < ApplicationRecord
     state :running, :succeeded, :failed, :cancelled, :blocked
 
     event :start do
-      before { job.lock! }
+      # Starting marks the WorkUnit running and the Job, which can refresh its
+      # Epic, so the ancestry is locked first, top down (NY40); then the Job
+      # is reloaded as lock! did.
+      before do
+        # The WorkUnit's other member Jobs too: marking it running locks them.
+        Lineage.lock_all!([ *work_unit&.definition_jobs, self ]) if persisted?
+        job.reload
+      end
       transitions from: :queued, to: :running,
         after: -> { Workflows::LifecyclePropagation.started!(self) }
     end
@@ -331,6 +344,9 @@ class Workflow < ApplicationRecord
   def cancel_stale_terminal_descendants!(reason:)
     return cancel_active_descendants!(reason: reason) unless failed?
 
+    # Steps before Runs (NY40): killing processes and the cleanup below write
+    # Runs, then the stale Steps.
+    Step.lock.where(workflow_id: id).order(:id).to_a
     request_live_process_kill!
     Run.where(step_id: steps.select(:id)).active.find_each(&:cancel_without_step_cascade!)
     cancel_active_descendants!(reason: reason, step_scope: stale_terminal_steps)
@@ -533,6 +549,9 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_orphan_active_runs!
+    # Steps before Runs (NY40): killing processes writes Runs, and the
+    # descendant cleanup that follows writes this Workflow's Steps.
+    Step.lock.where(workflow_id: id).order(:id).to_a
     request_live_process_kill!
     Run.where(step_id: steps.select(:id)).active.find_each do |run|
       run.update_columns(state: "cancelled", finished_at: Time.current)
@@ -541,12 +560,13 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_active_descendants!(reason: "terminal_workflow_active_descendants", step_scope: persisted_active_steps)
+    # Killing live processes and cancelling Runs write Runs, and cancelling a
+    # Run writes its Step, so the Steps are locked before any Run, parents
+    # before children (NY40).
+    active_steps = step_scope.to_a
+    Step.lock.where(id: active_steps.map(&:id)).order(:id).to_a if active_steps.any?
     request_live_process_kill!
     Step.suppress_cancel_cascade do
-      active_steps = step_scope.to_a
-      # Cancelling a Run writes its Step, so the Steps are locked before any
-      # Run, parents before children (NY40).
-      Step.lock.where(id: active_steps.map(&:id)).order(:id).to_a
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
       publication_failure_step_ids = active_steps.filter_map do |step|

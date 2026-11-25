@@ -208,10 +208,18 @@ class WorkUnit < ApplicationRecord
   end
 
   def lock_definition_jobs!
+    # With their Epics, top down (NY40): a Job state change this transaction
+    # makes refreshes its Epic.
+    Lineage.lock_all!(definition_jobs)
+  end
+
+  # Every Job this unit's definition covers: its members, its Workflow's Job
+  # and a Job scope.
+  def definition_jobs
     job_ids = work_unit_members.pluck(:job_id)
     job_ids << workflow.job_id if workflow
     job_ids << scope_id if scope_type == "job" && scope_id.present?
-    Job.where(id: job_ids.compact.uniq).order(:id).lock.load
+    Job.where(id: job_ids.compact.uniq).order(:id).to_a
   end
 
   def mark_terminal!(state)

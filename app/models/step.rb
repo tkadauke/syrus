@@ -1,4 +1,10 @@
 class Step < ApplicationRecord
+  # Before the dependent: :destroy cascades below run (prepend): lock its Workflow's
+  # whole subtree top down, siblings included, so the cascade's child-first
+  # deletes stay in the hierarchical row-lock order (NY40). An association's
+  # destroy_all deletes every sibling in one transaction.
+  before_destroy(prepend: true) { Lineage.lock_subtree!(workflow || self) }
+
   include AASM
   include RecordsStateTransitions
   include Revisionable

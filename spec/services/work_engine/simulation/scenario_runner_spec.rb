@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_assertions do
+RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_assertions, :hierarchical_locks do
   SCENARIO_FIXTURE_ROOT = Rails.root.join("spec/fixtures/work_engine_simulations")
   SCENARIOS_WITH_SPECIFIC_ASSERTIONS = %w[
     active_run_on_terminal_step

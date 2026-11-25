@@ -4819,8 +4819,17 @@ train's other Jobs, so it now takes them first with its own ancestry, through
 `LandingRetrier.lock_targets_for(train)`. The landing retrier locks all its
 members and candidates up front. Part 8 locks a Job's Epic in a `before_save`
 under the same condition that refreshes the Epic after the save, so assigning,
-closing or changing a Job in an Epic locks the Epic first. Left: the
-spec-code sites the next survey names.
+closing or changing a Job in an Epic locks the Epic first. Part 9: a
+`dependent: :destroy` cascade deletes children before parents, so Job,
+Workflow and Step lock the parent's whole subtree top down in a prepended
+`before_destroy` (`Lineage.lock_subtree!`); an association's `destroy_all`
+deletes every sibling in one transaction. `Workflow#start` locks its WorkUnit's
+member Jobs with its own ancestry, and `lock_definition_jobs!` takes their
+Epics. The retry-workflow enqueuer, `ReconcileJobStatesJob`, the base-refresh
+retry and the terminal-descendant repair lock the Epic before the Job. The
+three Workflow cleanup methods lock Steps before anything writes a Run,
+including the process-kill request. The work-engine simulation suite (102
+scenarios) now runs with the hierarchical order raising.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

@@ -32,6 +32,26 @@ module Lineage
 
   MODELS = [ Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run ].freeze
 
+  # The ancestry and every Workflow, Step and Run below +record+, top down.
+  # A dependent: :destroy cascade deletes children before parents; with the
+  # subtree locked first, each delete touches a row the transaction holds.
+  def lock_subtree!(record)
+    workflows = record.is_a?(Job) ? Workflow.where(job_id: record.id).order(:id).to_a : []
+    lock_all!([ record, *workflows ])
+    step_ids =
+      case record
+      when Job then Step.where(workflow_id: workflows.map(&:id)).pluck(:id)
+      when Workflow then Step.where(workflow_id: record.id).pluck(:id)
+      when Step then [ record.id ]
+      else []
+      end
+    Step.lock.where(id: step_ids).order(:id).to_a if step_ids.any?
+    run_ids = Run.where(step_id: step_ids).pluck(:id)
+    run_ids |= Run.where(job_id: record.id).pluck(:id) if record.is_a?(Job)
+    Run.lock.where(id: run_ids).order(:id).to_a if run_ids.any?
+    record
+  end
+
   # [[model class, id], ...] from the top of the hierarchy down.
   def ancestry(record)
     run = record if record.is_a?(Run)

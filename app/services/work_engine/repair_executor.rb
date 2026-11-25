@@ -1463,7 +1463,9 @@ module WorkEngine
           # Workflow while holding it, and a reopen between the terminal
           # check and the cancel had the retry's fresh Runs cancelled.
           refusal = nil
-          workflow.job.with_lock do
+          # The Workflow's ancestry, top down (NY40), which includes the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             refusal = if !workflow.terminal?
               "Workflow is #{workflow.state}, not terminal"

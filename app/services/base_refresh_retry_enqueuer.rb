@@ -63,12 +63,13 @@ class BaseRefreshRetryEnqueuer
   end
 
   def instantiate_retry!(source, checkpoint, base_ref, base_sha)
-    job.with_lock do
+    # The Job's and the source Workflow's ancestry, top down (NY40), before
+    # instantiating the retry: provisioning may take a User lock, the source's
+    # artifacts are written after, and a Job state change refreshes its Epic.
+    Job.transaction do
+      Lineage.lock_all!([ job, source ])
       job.reload
-      # Lock the source Workflow before instantiating the retry: provisioning
-      # may take a User lock, and the source's artifacts are written after, so
-      # taking the Workflow lock late would invert the row lock order.
-      source.lock!
+      source.reload
       if (existing = reserved_retry_for(source, checkpoint))
         return [ existing, true ]
       end

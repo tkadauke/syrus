@@ -124,6 +124,25 @@ RSpec.describe "Lineage funnels" do
     expect(job.reload).to be_closed
   end
 
+  # A dependent: :destroy cascade deletes children before parents. Locking
+  # the subtree top down first makes each delete touch a row already held.
+  it "destroys a Workflow with its Steps and Runs in order" do
+    run = running_step_with_run
+
+    checked { workflow.reload.destroy! }
+
+    expect(Run.exists?(run.id)).to be(false)
+  end
+
+  it "destroys all of a Workflow's Steps in one transaction in order" do
+    running_step_with_run
+    Step.create!(workflow: workflow, kind: "summarize", position: 99)
+
+    checked { workflow.reload.steps.destroy_all }
+
+    expect(workflow.steps.reload).to be_empty
+  end
+
   it "readies a backlog Epic when a Job joins it, in order" do
     epic = Epic.create!(repository: job.repository, title: "Rollup", user: job.user)
 
