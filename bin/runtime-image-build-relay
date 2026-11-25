@@ -1,0 +1,42 @@
+#!/usr/bin/env ruby
+# Bridges a build's empty network namespace to the egress proxy. It runs inside
+# that namespace, listens on 127.0.0.1:PORT, and pipes every connection to the
+# proxy's Unix socket (a filesystem path, so it crosses the namespace boundary).
+# The namespace has no other route, so this loopback port is the build's only
+# way out.
+#
+# usage: runtime-image-build-relay SOCKET PORT
+require "socket"
+
+socket_path, port = ARGV
+abort "usage: runtime-image-build-relay SOCKET PORT" unless socket_path && port&.match?(/\A\d+\z/)
+
+server = TCPServer.new("127.0.0.1", Integer(port))
+
+def pipe(a, b)
+  peers = { a => b, b => a }
+  loop do
+    ready = IO.select(peers.keys, nil, nil, 300) or return
+    ready.first.each do |io|
+      data = io.read_nonblock(16_384, exception: false)
+      return if data.nil?
+      next if data == :wait_readable
+
+      peers.fetch(io).write(data)
+    end
+  end
+rescue IOError, SystemCallError
+  nil
+end
+
+loop do
+  client = server.accept
+  Thread.new(client) do |tcp|
+    upstream = UNIXSocket.new(socket_path)
+    pipe(tcp, upstream)
+  rescue IOError, SystemCallError
+    nil
+  ensure
+    [ tcp, upstream ].compact.each { |io| io.close unless io.closed? }
+  end
+end

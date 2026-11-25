@@ -686,6 +686,7 @@ Rails.application.routes.draw do
 
         get "runtime_images", to: "runtime_images#show"
         post "runtime_images/reconcile", to: "runtime_images#reconcile"
+        resources :runtime_image_build_network_rules, only: %i[index create update destroy]
 
         # Subprocess inventory for external admin API clients.
         # Index supports ?state=running|finished|all (default

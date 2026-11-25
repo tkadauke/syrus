@@ -138,6 +138,11 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/worker_health api/v1/admin/worker_health#show
     GET /api/v1/admin/runtime_images api/v1/admin/runtime_images#show
     POST /api/v1/admin/runtime_images/reconcile api/v1/admin/runtime_images#reconcile
+    GET /api/v1/admin/runtime_image_build_network_rules api/v1/admin/runtime_image_build_network_rules#index
+    POST /api/v1/admin/runtime_image_build_network_rules api/v1/admin/runtime_image_build_network_rules#create
+    PATCH /api/v1/admin/runtime_image_build_network_rules/:id api/v1/admin/runtime_image_build_network_rules#update
+    PUT /api/v1/admin/runtime_image_build_network_rules/:id api/v1/admin/runtime_image_build_network_rules#update
+    DELETE /api/v1/admin/runtime_image_build_network_rules/:id api/v1/admin/runtime_image_build_network_rules#destroy
     GET /api/v1/admin/plugins api/v1/admin/plugins#index
     POST /api/v1/admin/plugins/:name/enable api/v1/admin/plugins#enable
     POST /api/v1/admin/plugins/:name/disable api/v1/admin/plugins#disable

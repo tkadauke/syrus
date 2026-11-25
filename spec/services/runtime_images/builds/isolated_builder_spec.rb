@@ -93,7 +93,7 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     expect(output.provenance).to include("builder" => "buildah-rootless", "isolation" => "chroot")
 
     env = calls.first[:env]
-    expect(env.keys).to match_array(%w[PATH HOME TMPDIR LANG REGISTRY_AUTH_FILE DOCKER_CONFIG])
+    expect(env.keys).to match_array(%w[PATH HOME TMPDIR LANG REGISTRY_AUTH_FILE DOCKER_CONFIG] + RuntimeImages::BuildNetwork::Session.new(dir: "x", proxy: nil, policy: nil).environment.keys)
     expect(env.values.join).not_to include("ghp_secret")
     all = calls.flat_map { |c| c[:command] + c[:mounts].declared_mounts.map(&:host_path) }
     expect(all.join(" ")).not_to match(/docker\.sock|DOCKER_HOST/)
@@ -328,8 +328,69 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
     it "accepts the confinement probe when prlimit and the tmpfs namespace work" do
       allow(Process).to receive(:euid).and_return(1000)
       c = described_class::Confinement.new
-      allow(c).to receive(:probe).and_return(true, true)
+      allow(c).to receive(:probe).and_return(true, true, true)
       expect { c.verify! }.not_to raise_error
+    end
+
+    it "fails closed when an empty network namespace cannot be created" do
+      allow(Process).to receive(:euid).and_return(1000)
+      c = described_class::Confinement.new
+      allow(c).to receive(:probe).and_return(true, true, false)
+      expect { c.verify! }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e|
+        expect(e.code).to eq("builder_not_isolated")
+        expect(e.message).to include("network namespace")
+      }
+    end
+
+    it "runs the build in an empty network namespace whose only route is the egress relay" do
+      calls = []
+      build(request, builder(launcher: launcher(calls: calls)))
+      cmd = calls.first[:command]
+      expect(cmd.each_cons(6).to_a).to include(%w[unshare --user --map-root-user --mount --net --])
+      script = cmd.last
+      expect(script).to include("ip link set lo up", "runtime-image-build-relay", "trap 'kill $relay")
+      expect(script).not_to include("--network")
+      env = calls.first[:env]
+      expect(env.values_at("HTTP_PROXY", "HTTPS_PROXY", "http_proxy")).to all(eq("http://127.0.0.1:3128"))
+      expect(env["NO_PROXY"]).to eq("")
+      expect(calls.first[:mounts].declared_mounts.map(&:host_path).join(" ")).to match(%r{/rib})
+    end
+
+    it "records the network policy digest in provenance and audits denials" do
+      RuntimeImageBuildNetworkRule.create!(source_class: "source_host", host: "github.com")
+      output = build(request, builder(launcher: launcher))
+      expect(output.provenance["network_policy_digest"]).to eq(RuntimeImages::BuildNetwork::Policy.current.digest)
+      event = RuntimeImageAuditEvent.where(event_type: "build.network").last
+      expect(event.outcome).to eq("ok")
+      expect(event.details).to include("policy_digest" => output.provenance["network_policy_digest"], "denied" => 0)
+    end
+
+    it "audits the build's denied destinations even when the build fails" do
+      allow(RuntimeImages::BuildNetwork::Session).to receive(:open).and_wrap_original do |original, **opts, &block|
+        original.call(**opts) do |session|
+          session.instance_variable_get(:@proxy).send(:record, RuntimeImages::BuildNetwork::Decision.deny("not_allowlisted", host: "evil.example", port: 443))
+          block.call(session)
+        end
+      end
+      failing = result_class.new(exit_status: 1, timed_out: false, stopped: false, silent_timed_out: false, operator_killed: false, aliveness_failed: false, duration_s: 1, spawned_process_id: nil)
+      expect { build(request, builder(launcher: launcher(result: failing))) }.to raise_error(RuntimeImages::Builds::BuildFailed)
+      event = RuntimeImageAuditEvent.where(event_type: "build.network").last
+      expect(event.outcome).to eq("detected")
+      expect(event.details["denials"]).to include("evil.example")
+    end
+
+    %w[network network_mode add_host dns proxy].each do |key|
+      it "rejects a recipe that chooses its own #{key}" do
+        req = request_for({ "Dockerfile" => "FROM scratch\n" }, recipe: { key => "host" })
+        expect { build(req) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("network_mode_forbidden") }
+      end
+    end
+
+    %w[HTTP_PROXY https_proxy NO_PROXY all_proxy].each do |name|
+      it "rejects a build arg that overrides #{name}" do
+        req = request_for({ "Dockerfile" => "FROM scratch\n" }, recipe: { "build_args" => { name => "http://evil" } })
+        expect { build(req) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("network_mode_forbidden") }
+      end
     end
 
     it "fails closed as root without a confinement attestation" do

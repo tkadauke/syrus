@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_213654) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_002309) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3980,6 +3980,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_213654) do
     t.datetime "updated_at", null: false
     t.index ["runtime_image_build_request_id", "number"], name: "idx_ri_build_attempts_number", unique: true
     t.index ["state", "lease_expires_at"], name: "idx_ri_build_attempts_lease"
+  end
+
+  create_table "runtime_image_build_network_rules", force: :cascade do |t|
+    t.string "source_class", limit: 32, null: false
+    t.string "host", limit: 253, null: false
+    t.integer "port", default: 443, null: false
+    t.string "path_prefix", limit: 255, default: "", null: false
+    t.string "ecosystem", limit: 32, default: "", null: false
+    t.boolean "required", default: false, null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "note", limit: 500
+    t.string "actor", limit: 191
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source_class", "host", "port", "path_prefix"], name: "idx_ri_build_net_rules_identity", unique: true
   end
 
   create_table "runtime_image_build_requests", force: :cascade do |t|

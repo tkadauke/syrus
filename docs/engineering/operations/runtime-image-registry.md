@@ -123,3 +123,58 @@ cgroup memory/CPU limits were not applied (override only with
 `prlimit` (process count, largest file, CPU seconds); the host-side source and
 output archive are re-checked after the command. Accepted recipe keys are
 `dockerfile`, `context`, `target`, and `build_args`.
+
+### Build network allowlists
+
+A build has no network of its own. It runs in an empty network namespace
+(`unshare --net`: loopback only, probed before every build) whose single route
+out is `bin/runtime-image-build-relay`, a loopback listener bridging to the
+enforcing proxy (`RuntimeImages::BuildNetwork::Proxy`) over a per-build Unix
+socket. The proxy settings (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, empty
+`NO_PROXY`) are set in the build environment; a recipe may not set `network`,
+`network_mode`, `add_host`, `dns*`, or `proxy`, nor a proxy build arg
+(`network_mode_forbidden`). Host and shared network modes therefore do not
+exist for a build, and a Dockerfile `RUN --network=host` only reaches the
+build's own empty namespace.
+
+Administrators declare destinations as `RuntimeImageBuildNetworkRule` rows,
+managed through `/api/v1/admin/runtime_image_build_network_rules`. Each rule has
+a source class, a DNS host, and a port (default 443); nothing is reachable
+without a matching enabled rule, so an empty allowlist denies all egress.
+
+| Source class | Meaning |
+| --- | --- |
+| `os_mirror` | Distribution package mirror (ecosystem such as `debian`, `alpine`). |
+| `language_registry` | Package registry; ecosystem is one of `npm pypi rubygems cargo go maven nuget hex packagist`. |
+| `source_host` | Source code host (e.g. `github.com`). |
+| `artifact_registry` | Container or artifact registry (e.g. `ghcr.io`). |
+| `exact_domain` | Any other single host. |
+| `repository_namespace` | A path prefix (`/acme/`) on a host. Enforced only on plain-HTTP requests, where the path is visible; a CONNECT tunnel hides it, so a namespace rule never admits a tunnel (`path_not_inspectable`). |
+| `internal_mirror` | An internal mirror. The only class that may resolve into private address space. `required` displaces the public `os_mirror` and `language_registry` rules of its ecosystem (all of them when it names none), so those builds must use the mirror (`internal_mirror_required`). |
+
+Enforcement, all in the proxy and resolver:
+
+- Hosts must be DNS names. Literal IPs in any notation (dotted, decimal, hex,
+  octal, IPv6) are denied (`literal_ip_forbidden`).
+- The host is resolved once per connection and the proxy dials the validated
+  address, never the name, so a name cannot rebind between check and connect.
+  One forbidden answer among several fails the lookup.
+- Loopback, link-local, cloud metadata (169.254.169.254, 100.100.100.200,
+  fd00:ec2::254), unspecified, multicast, and reserved ranges are never
+  reachable, not even for an internal mirror. IPv4-mapped and NAT64 addresses
+  are judged by the IPv4 address they embed. RFC 1918, CGNAT, and ULA space is
+  reachable only through an `internal_mirror` rule.
+- Only `CONNECT host:port` and absolute-form `http://` requests are accepted;
+  the proxy rewrites `Host`, strips proxy and hop-by-hop headers, and refuses
+  chunked request bodies and malformed heads.
+- The proxy never follows redirects. A 3xx whose `Location` is not allowlisted
+  becomes a 403 (`redirect_not_allowlisted`); a client following an allowed
+  redirect comes back through the proxy and is decided again.
+- Well-known public registries that no rule declares are denied as
+  `undeclared_package_registry`.
+
+Rules are snapshotted when a build starts, so an edit applies to the next build.
+Each build records a `build.network` audit event (allowed and denied counts, the
+first denied destinations, and the policy digest) and the policy digest in the
+image provenance. The worker needs `unshare`, `ip` (iproute2), `ruby`, and
+`prlimit`.
