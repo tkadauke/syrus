@@ -178,3 +178,19 @@ Each build records a `build.network` audit event (allowed and denied counts, the
 first denied destinations, and the policy digest) and the policy digest in the
 image provenance. The worker needs `unshare`, `ip` (iproute2), `ruby`, and
 `prlimit`.
+
+## Build evidence
+
+`Builds::Runner` creates an `Evidence` collector per attempt and hands it to the
+builder through `Control#evidence`. The builder fills it as facts become known
+(log via `LogCapture`, network summary and policy snapshot, base images parsed
+from the Dockerfile and resolved with `buildah images --json --digests`, builder
+version, cgroup measurements from the `SpawnedProcess`), including on a path
+that later fails. In `ensure`, `EvidenceRecorder` writes one
+`RuntimeImageBuildEvidence` per terminal attempt, copies the safe summary into
+the result's `details`, and audits `build.evidence`. Recording is observational:
+a failure to record is logged and never changes the build's outcome.
+
+`ScopedPublisher` is the only registry authority a build has: publish and
+inspect inside the request's namespace, nothing else.
+

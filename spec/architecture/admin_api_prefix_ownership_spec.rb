@@ -143,6 +143,7 @@ RSpec.describe "admin API prefix ownership" do
     PATCH /api/v1/admin/runtime_image_build_network_rules/:id api/v1/admin/runtime_image_build_network_rules#update
     PUT /api/v1/admin/runtime_image_build_network_rules/:id api/v1/admin/runtime_image_build_network_rules#update
     DELETE /api/v1/admin/runtime_image_build_network_rules/:id api/v1/admin/runtime_image_build_network_rules#destroy
+    GET /api/v1/admin/runtime_image_build_requests/:id/evidence api/v1/admin/runtime_image_build_evidences#show
     GET /api/v1/admin/plugins api/v1/admin/plugins#index
     POST /api/v1/admin/plugins/:name/enable api/v1/admin/plugins#enable
     POST /api/v1/admin/plugins/:name/disable api/v1/admin/plugins#disable

@@ -80,6 +80,9 @@ RSpec.describe RuntimeImages::BuildNetwork::Proxy do
       expect(sent).not_to match(/evil\.example|Proxy-Authorization/i)
       expect(dialed).to eq([ [ "93.184.216.34", 80 ] ])
       expect(proxy.summary).to include("allowed" => 1, "denied" => 0)
+      expect(proxy.summary["destinations"]).to eq([ { "host" => "pkg.example.com", "port" => 80, "address" => "93.184.216.34",
+                                                     "source_class" => proxy.summary["destinations"].first["source_class"], "count" => 1 } ])
+      expect(proxy.summary["destinations"].first["source_class"]).to be_present
     end
 
     it "denies hosts that are not allowlisted and never dials them" do

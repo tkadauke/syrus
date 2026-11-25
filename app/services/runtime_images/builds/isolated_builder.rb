@@ -32,6 +32,9 @@ module RuntimeImages
       MIN_TMPFS_BYTES = 4096
       EXTRACT_SCRIPT = Rails.root.join("bin/extract-runtime-image-source")
       REJECT_FILE = "source.rejected.json"
+      BASES_FILE = "bases.txt"
+      IMAGES_FILE = "images.json"
+      EVIDENCE_FILE_BYTES = 1.megabyte
       NAMESPACE_PREFIX = %w[unshare --user --map-root-user --mount --].freeze
       # The build's own namespace has no network device but a loopback; its only
       # route out is the relay to the enforcing proxy.
@@ -125,7 +128,9 @@ module RuntimeImages
       end
 
       def initialize(launcher: Launcher.new("prepare"), data_root: nil, confinement: Confinement.new,
-                     network_policy: -> { BuildNetwork::Policy.current }, resolver: BuildNetwork::Resolver.new)
+                     network_policy: -> { BuildNetwork::Policy.current }, resolver: BuildNetwork::Resolver.new,
+                     version_probe: nil)
+        @version_probe = version_probe || method(:detect_version)
         @launcher = launcher
         @confinement = confinement
         @data_root = data_root
@@ -135,6 +140,8 @@ module RuntimeImages
 
       def build(request:, attempt:, control:)
         @confinement.verify!
+        evidence = control.evidence
+        evidence.builder_version = builder_version
         recipe = validate_recipe!(request.recipe)
         build_root = root.join("builds")
         FileUtils.mkdir_p(build_root)
@@ -150,10 +157,13 @@ module RuntimeImages
                                           recipe_paths: context_paths(request, recipe), network: opened)
             end
           ensure
-            # Counters outlive the stopped proxy, so a failed build is audited too.
+            # Counters outlive the stopped proxy, so a failed build is audited
+            # and evidenced too.
             audit_network(request, policy, session&.summary)
+            evidence.record_network(policy, session&.summary)
+            record_bases(scratch, evidence)
           end
-          Output.new(payload: read_output!(output, request.platform), source_digest: request.source_digest,
+          Output.new(payload: read_output!(output, request.platform, evidence), source_digest: request.source_digest,
                      provenance: provenance(request, archive_digest, policy))
         end
       rescue Rejected => e
@@ -237,33 +247,37 @@ module RuntimeImages
         logged = 0
         failure = nil
         last_poll = 0.0
+        evidence = control.evidence
         stop = lambda do
           now = monotonic
           failure ||= [ "build_cancelled", "build was canceled" ] if control.cancel_requested?
           if now - last_poll >= STORAGE_POLL_SECONDS
             last_poll = now
             control.heartbeat
-            failure ||= storage_failure(scratch)
+            failure ||= storage_failure(scratch, evidence)
           end
           !failure.nil?
         end
         on_chunk = lambda do |chunk|
+          evidence.log.write(chunk)
           logged += chunk.bytesize
           failure ||= [ "log_limit_exceeded", "build log exceeded #{Config.build_log_bytes} bytes" ] if logged > Config.build_log_bytes
         end
 
         work = File.join(scratch, "work")
         FileUtils.mkdir_p(work)
-        command = limited(wrapped(scratch, work, recipe_paths, build_command(request, work, recipe), push_command(work, output), network))
+        command = limited(wrapped(scratch, work, recipe_paths, build_command(request, work, recipe), push_command(work, output), network,
+                                  images_command(work)))
         remaining = deadline - monotonic
         raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") unless remaining.positive?
 
         result = @launcher.call(command: command, env: environment(work).merge(network.environment), mounts: mounts(scratch, network),
                                 timeout: remaining, resource_limits: resource_limits, stop_requested: stop, on_output_chunk: on_chunk)
+        evidence.record_process(result)
         control.raise_if_canceled!
         @confinement.verify_applied!(result)
         raise_if_source_rejected!(scratch)
-        check_storage!(scratch)
+        check_storage!(scratch, evidence)
         raise BuildFailed.new(failure.last, code: failure.first) if failure
         raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") if result.timed_out?
         raise BuildFailed.new("build was stopped", code: "build_stopped", retryable: true) if result.stopped? || result.operator_killed?
@@ -274,7 +288,7 @@ module RuntimeImages
       # namespace, unpacks the source onto it, then runs build and push against
       # it. Writes past the size fail with ENOSPC in the kernel; nothing but the
       # one raw archive is left on the host disk.
-      def wrapped(scratch, work, paths, build, push, network)
+      def wrapped(scratch, work, paths, build, push, network, images)
         extract = [ RbConfig.ruby, EXTRACT_SCRIPT.to_s, File.join(scratch, "source.archive"), File.join(work, "source"), work,
                     File.join(scratch, REJECT_FILE), Config.max_source_bytes.to_s, Config.max_source_entries.to_s, *paths ]
         script = "set -eu; mount -t tmpfs -o size=#{tmpfs_bytes(scratch)},mode=0700 tmpfs #{Shellwords.escape(work)}; " \
@@ -282,7 +296,11 @@ module RuntimeImages
                  "ip link set lo up; #{Shellwords.join(network.relay_command)} & relay=$!; " \
                  "trap 'kill $relay 2>/dev/null || true' EXIT; " \
                  "#{Shellwords.join(extract)}; " \
-                 "#{Shellwords.join(build)} && #{Shellwords.join(push)}"
+                 "grep -iE '^[[:space:]]*FROM[[:space:]]' #{Shellwords.escape(File.join(work, "dockerfile"))} " \
+                 "> #{Shellwords.escape(File.join(scratch, BASES_FILE))} || true; " \
+                 "#{Shellwords.join(build)} && " \
+                 "{ #{Shellwords.join(images)} > #{Shellwords.escape(File.join(scratch, IMAGES_FILE))} 2>/dev/null || true; } && " \
+                 "#{Shellwords.join(push)}"
         [ *BUILD_NAMESPACE_PREFIX, "sh", "-c", script ]
       end
 
@@ -319,14 +337,15 @@ module RuntimeImages
       # Source and output archive live on the host scratch (outside the tmpfs);
       # they are bounded by the source ceilings and RLIMIT_FSIZE, and re-checked
       # after the command.
-      def storage_failure(scratch)
+      def storage_failure(scratch, evidence = nil)
         limit = Config.build_storage_bytes
         used = directory_bytes(scratch, limit: limit + 1)
+        evidence&.record_scratch(used)
         [ "storage_limit_exceeded", "build exceeded #{limit} bytes of storage" ] if used > limit
       end
 
-      def check_storage!(scratch)
-        failure = storage_failure(scratch)
+      def check_storage!(scratch, evidence = nil)
+        failure = storage_failure(scratch, evidence)
         raise BuildFailed.new(failure.last, code: failure.first) if failure
       end
 
@@ -340,6 +359,10 @@ module RuntimeImages
         Hash(recipe["build_args"]).sort.each { |name, value| cmd += [ "--build-arg", "#{name}=#{value}" ] }
         cmd << File.join(work, "context")
       end
+
+      # Lists what the build resolved (names and digests) before it is pushed,
+      # so base image digests are recorded rather than assumed.
+      def images_command(work) = [ *base(work), "images", "--json", "--digests" ]
 
       def push_command(work, output) = [ *base(work), "push", IMAGE_TAG, "oci-archive:#{output}" ]
 
@@ -362,9 +385,10 @@ module RuntimeImages
                                       pids_max: Config.build_pids)
       end
 
-      def read_output!(path, platform)
+      def read_output!(path, platform, evidence)
         raise BuildFailed.new("build produced no image archive", code: "no_output") unless File.file?(path)
         size = File.size(path)
+        evidence.record_output(size)
         if size > Config.max_output_bytes
           raise BuildFailed.new("image archive is #{size} bytes, over the #{Config.max_output_bytes} byte ceiling", code: "output_too_large")
         end
@@ -376,6 +400,39 @@ module RuntimeImages
       def provenance(request, archive_digest, policy)
         { "builder" => "buildah-rootless", "isolation" => "chroot", "source_archive_digest" => archive_digest,
           "recipe_digest" => request.recipe_digest, "network_policy_digest" => policy.digest }
+      end
+
+      def builder_version = @builder_version ||= @version_probe.call.to_s
+
+      def detect_version
+        captured = ProcessRunner.new(env: { "PATH" => ENV.fetch("PATH", "/usr/local/bin:/usr/bin:/bin") },
+                                     command: [ Config.build_binary, "--version" ], mounts: ProcessRunner.mounts(Dir.tmpdir),
+                                     network: "grader", timeout: 15).capture(limit: 4096)
+        line = captured.stdout.to_s.lines.first.to_s.strip
+        "#{line.presence || "unknown"}; isolation=chroot; storage=#{Config.storage_driver}"
+      rescue StandardError
+        "unknown"
+      end
+
+      # The Dockerfile's base images and what the builder resolved them to.
+      # Observational: unreadable files leave the bases unresolved, never fail.
+      def record_bases(scratch, evidence)
+        references = DockerfileBases.references(read_small(File.join(scratch, BASES_FILE)))
+        images = begin
+          parsed = JSON.parse(read_small(File.join(scratch, IMAGES_FILE)).presence || "[]")
+          parsed.is_a?(Array) ? parsed : []
+        rescue JSON::ParserError
+          []
+        end
+        evidence.record_bases(references, images)
+      end
+
+      def read_small(path)
+        return "" unless File.file?(path) && !File.symlink?(path)
+
+        File.open(path, "rb") { |file| file.read(EVIDENCE_FILE_BYTES).to_s }
+      rescue SystemCallError
+        ""
       end
 
       # Records what the build tried to reach. +summary+ is nil when the build

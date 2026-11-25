@@ -11,7 +11,8 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
 
   let(:namespace) { RuntimeImageNamespace.create!(name: "acme/widgets", owner_kind: "k", owner_ref: "1", provider_key: SyntheticRuntimeImageProvider.new.key) }
   let(:orchestrator) { RuntimeImages::Builds::Orchestrator.new }
-  let(:control) { instance_double(RuntimeImages::Builds::Runner::Control, cancel_requested?: false, heartbeat: true, raise_if_canceled!: nil) }
+  let(:evidence) { RuntimeImages::Builds::Evidence.new }
+  let(:control) { instance_double(RuntimeImages::Builds::Runner::Control, cancel_requested?: false, heartbeat: true, raise_if_canceled!: nil, evidence: evidence) }
   let(:result_class) { ProcessRunner::Result }
 
   def tar_gz(files, links: {})
@@ -433,6 +434,67 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       out = described_class::Launcher.new("prepare").call(command: [ "true" ], env: {}, mounts: nil, timeout: 1,
                                                           resource_limits: nil, stop_requested: -> { false }, on_output_chunk: nil)
       expect(out).to eq(:result)
+    end
+  end
+
+  describe "build evidence" do
+    let(:version_probe) { -> { "buildah version 1.99.0; isolation=chroot; storage=vfs" } }
+    let(:base_digest) { "sha256:#{"d" * 64}" }
+
+    it "records the builder version, sanitized log, bases, policy snapshot, measurements, and output size" do
+      RuntimeImageBuildNetworkRule.create!(source_class: "source_host", host: "github.com")
+      request = request_for({ "Dockerfile" => "FROM docker.io/library/alpine:3.20 AS base\nFROM base\nFROM scratch\n" })
+      process = SpawnedProcess.create!(
+        kind: "builder", command: "buildah", hostname: "worker-1", started_at: 1.minute.ago, finished_at: Time.current, outcome: "succeeded",
+        resource_attribution: { "cgroup" => { "state" => "applied", "memory_peak_bytes" => 12_345,
+                                              "cpu_stat" => { "usage_usec" => 900, "user_usec" => 600, "system_usec" => 300 },
+                                              "memory_events" => { "oom_kill" => 0 } } }
+      )
+      finished = result_class.new(exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false, operator_killed: false,
+                                  aliveness_failed: false, duration_s: 4.5, spawned_process_id: process.id)
+      launch = launcher(result: finished) do |command, on_output_chunk, _stop|
+        script = command.last
+        File.write(script[%r{> (\S+bases\.txt)}, 1], "FROM docker.io/library/alpine:3.20 AS base\n")
+        File.write(script[%r{> (\S+images\.json)}, 1], JSON.generate([ { "names" => [ "docker.io/library/alpine:3.20" ], "digest" => base_digest } ]))
+        on_output_chunk.call("STEP 1: Authorization: Bearer abcdefghijklmnop\npassword=hunter2 ok\n")
+      end
+
+      build(request, builder(launcher: launch, version_probe: version_probe))
+
+      expect(evidence.builder_version).to eq("buildah version 1.99.0; isolation=chroot; storage=vfs")
+      expect(evidence.base_images).to eq([ { "reference" => "docker.io/library/alpine:3.20", "pinned" => false, "digest" => base_digest } ])
+      expect(evidence.policy_snapshot.map { |rule| rule["host"] }).to eq([ "github.com" ])
+      expect(evidence.policy_digest).to start_with("sha256:")
+      log = evidence.finalize_log
+      expect(log).to include("STEP 1:", "[REDACTED]")
+      expect(log).not_to include("abcdefghijklmnop", "hunter2")
+      expect(evidence.resources["cgroup"]).to include("memory_peak_bytes" => 12_345, "cpu_usage_usec" => 900)
+      expect(evidence.resources).to include("duration_seconds" => 4.5, "output_bytes" => be_positive, "peak_scratch_bytes" => be_a(Integer))
+    end
+
+    it "still records version, policy, and bases when the build fails" do
+      request = request_for({ "Dockerfile" => "FROM scratch\n" })
+      failing = result_class.new(exit_status: 1, timed_out: false, stopped: false, silent_timed_out: false, operator_killed: false, aliveness_failed: false, duration_s: 1, spawned_process_id: nil)
+      launch = launcher(result: failing, archive: nil) do |command, on_output_chunk, _stop|
+        File.write(command.last[%r{> (\S+bases\.txt)}, 1], "FROM busybox@sha256:#{"a" * 64}\n")
+        on_output_chunk.call("boom\n")
+      end
+
+      expect { build(request, builder(launcher: launch, version_probe: version_probe)) }.to raise_error(RuntimeImages::Builds::BuildFailed)
+
+      expect(evidence.builder_version).to include("1.99.0")
+      expect(evidence.policy_digest).to start_with("sha256:")
+      expect(evidence.base_images).to eq([ { "reference" => "busybox@sha256:#{"a" * 64}", "pinned" => true, "digest" => "sha256:#{"a" * 64}" } ])
+      expect(evidence.finalize_log).to eq("boom\n")
+    end
+
+    it "records the reached destinations with resolved addresses" do
+      summary = { "allowed" => 2, "denied" => 0,
+                  "destinations" => [ { "host" => "github.com", "port" => 443, "address" => "140.82.1.1", "source_class" => "source_host", "count" => 2 } ] }
+      policy = RuntimeImages::BuildNetwork::Policy.new([])
+      evidence.record_network(policy, summary)
+      expect(evidence.destinations.first).to include("address" => "140.82.1.1", "count" => 2)
+      expect(evidence.resources["network"]).to eq("allowed" => 2, "denied" => 0)
     end
   end
 end
