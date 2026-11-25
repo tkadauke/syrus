@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkIntents::JobWakeup do
+RSpec.describe WorkIntents::JobWakeup, :hierarchical_locks do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 

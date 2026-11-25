@@ -116,7 +116,7 @@ RSpec.describe RunJob, :ci_only do
       end
 
       expect(run_job.send(:acquire_run_execution!)).to be(true)
-      # The failed claim, its retry, and Run#start's own Lineage.lock! inside it.
+      # The failed claim, its retry, and the start event's Lineage.lock! inside it.
       expect(attempts).to eq(3)
       expect(run.reload).to be_running
       expect(run.step.reload).to be_running

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe MergeTrainFailureHandler, :ci_only do
+RSpec.describe MergeTrainFailureHandler, :ci_only, :hierarchical_locks do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:epic) { Factories.epic(user: user, repository: repository) }

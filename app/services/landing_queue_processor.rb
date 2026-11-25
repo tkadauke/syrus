@@ -774,11 +774,12 @@ class LandingQueueProcessor
     released = []
     active_blocked_landing_workflows(repository_id, except_job_id: except_job_id, start_blocked_reason: start_blocked_reason).each do |workflow|
       Job.transaction do
-        # Job before Workflow (Syrus::LockOrder): cancelling a landing Job
+        # The Workflow's ancestry, top down (NY40): cancelling a landing Job
         # locks them in that order, so this release could deadlock with it.
         blocked_job = workflow.job
-        blocked_job.lock!
-        workflow.lock!
+        Lineage.lock!(workflow)
+        blocked_job.reload
+        workflow.reload
         next unless workflow.queued?
         next unless workflow.landing_workflow?
         next unless workflow_blocked_for_start_reason?(workflow, start_blocked_reason)

@@ -67,9 +67,9 @@ module PendingActions
       runs = target_runs(job)
       workflows = target_workflows(job)
       ApplicationRecord.transaction do
-        # Every target's ancestry first, top down (NY40): Runs are cancelled
-        # before their Workflows, which roll up to the WorkUnit and Job.
-        Lineage.lock_all!([ job, *workflows, *runs ])
+        # Every target's subtree first, top down (NY40): Runs are cancelled
+        # before their Workflows, whose cleanup writes the other Steps.
+        Lineage.lock_active_work!(job, workflows: (workflows + runs.map(&:workflow)).compact.uniq)
         runs.each do |run|
           StateTransition.with_source("reconciler") do
             run.cancel!

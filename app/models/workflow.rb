@@ -345,6 +345,7 @@ class Workflow < ApplicationRecord
   def cancel_stale_terminal_descendants!(reason:)
     return cancel_active_descendants!(reason: reason) unless failed?
 
+    Lineage.lock!(self)
     # Steps before Runs (NY40): killing processes and the cleanup below write
     # Runs, then the stale Steps.
     Step.lock.where(workflow_id: id).order(:id).to_a
@@ -550,6 +551,7 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_orphan_active_runs!
+    Lineage.lock!(self)
     # Steps before Runs (NY40): killing processes writes Runs, and the
     # descendant cleanup that follows writes this Workflow's Steps.
     Step.lock.where(workflow_id: id).order(:id).to_a
@@ -561,6 +563,9 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_active_descendants!(reason: "terminal_workflow_active_descendants", step_scope: persisted_active_steps)
+    # Reapers and repairs call this outside a Workflow event, so the
+    # ancestry is taken here too; held rows re-lock for free (NY40).
+    Lineage.lock!(self)
     # Killing live processes and cancelling Runs write Runs, and cancelling a
     # Run writes its Step, so the Steps are locked before any Run, parents
     # before children (NY40).
@@ -588,7 +593,12 @@ class Workflow < ApplicationRecord
       end
 
       active_steps.each do |step|
-        step.with_lock do
+        # The Step's ancestry, then the Step reloaded as with_lock would
+        # (NY40): outside a transaction the cleanup's own lock above is
+        # already released.
+        Step.transaction do
+          Lineage.lock!(step)
+          step.reload
           if publication_failure_step_ids.include?(step.id)
             step.finished_at = Time.current
             step.fail!

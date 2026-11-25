@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe LandingQueueProcessor, :ci_only do
+RSpec.describe LandingQueueProcessor, :ci_only, :hierarchical_locks do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user(github_token: "ghp_test") }

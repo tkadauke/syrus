@@ -1,4 +1,8 @@
 class User < ApplicationRecord
+  # The User ranks first in the row-lock order (NY40); its dependents'
+  # destroy cascades lock their subtrees, so the User row comes before them.
+  before_destroy(prepend: true) { self.class.lock.where(id: id).to_a }
+
   after_commit -> { App::DashboardChromeCache.invalidate_user!(id) }, if: :dashboard_chrome_cache_relevant_change?
   has_many :approval_provider_delegations, foreign_key: :owner_user_id, dependent: :destroy
   include AutoApproveModes

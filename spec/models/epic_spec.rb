@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Epic, :ci_only do
+RSpec.describe Epic, :ci_only, :hierarchical_locks do
   include ActiveJob::TestHelper
 
   before do

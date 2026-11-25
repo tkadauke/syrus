@@ -4854,6 +4854,15 @@ inside another's cancellation) cannot be in order unless both subtrees are
 locked up front; no production path does it, and the one spec that simulates
 it now does, through `Lineage.lock_subtree!` over several records.
 
+Part 13: Step and Run events lock their ancestry first, as Workflow events do;
+a User row is locked before its destroy cascade; a merge-train Workflow's
+lineage includes the train's member Jobs; `Lineage.lock_active_work!` locks a
+Job's active Workflows' subtrees (every Step before any Run) for Job cancel,
+close, external implementation and stale-work cancellation; the Workflow
+cleanup methods take their ancestry themselves, since reapers and repairs call
+them outside a Workflow event. A full suite after part 13 passes both phases
+and records one remaining site, from about 1,100.
+
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
 Job is in order after `Lineage.lock!`, and the same writes without it raise. It

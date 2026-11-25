@@ -198,6 +198,10 @@ class Step < ApplicationRecord
   before_update :capture_cancel_cascade_suppression
 
   aasm column: :state, whiny_transitions: false do
+    # Every event rolls up to the Workflow, WorkUnit, intent and Job, so the
+    # ancestry is locked first, top down (NY40). Locking queries keep the
+    # caller's unsaved changes.
+    before_all_events { Lineage.lock!(self) if persisted? }
     after_all_transitions :record_state_transition!
     state :queued, initial: true
     state :running, :succeeded, :failed, :cancelled, :skipped, :blocked

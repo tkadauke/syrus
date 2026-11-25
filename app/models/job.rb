@@ -1376,7 +1376,11 @@ class Job < ApplicationRecord
     return if closed?
 
     transaction do
-      lock!
+      # The active work first, top down (NY40): cancelling Runs rolls up to
+      # their Steps and Workflows, then closing refreshes the Epic. Then
+      # reloaded as lock! did.
+      Lineage.lock_active_work!(self)
+      reload
       cancel_active_execution!
       close_with_reason!(reason)
     end
@@ -1510,6 +1514,8 @@ class Job < ApplicationRecord
 
   def mark_externally_implemented!(number)
     transaction do
+      # The active work first, top down (NY40).
+      Lineage.lock_active_work!(self)
       runs.active.find_each do |run|
         run.cancel! if run.may_cancel?
         run.save!

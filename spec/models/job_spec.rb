@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe Job, :ci_only do
+RSpec.describe Job, :ci_only, :hierarchical_locks do
   include ActiveJob::TestHelper
 
   before do

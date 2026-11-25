@@ -1028,6 +1028,9 @@ class StepDispatcher
   end
 
   def self.record_run_queue_admission_decision!(workflow, decision)
+    # The Workflow's ancestry before writing it (NY40): admission continues
+    # into the WorkUnit and Job in the same transaction.
+    Lineage.lock!(workflow)
     current = workflow.artifacts || {}
     entry = decision.details.merge(
       "blocked" => decision.blocked?,
