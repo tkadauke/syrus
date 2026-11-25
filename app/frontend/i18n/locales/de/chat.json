@@ -1209,7 +1209,8 @@
     "failed_summary": "Manueller Agentenlauf fehlgeschlagen: {{message}}",
     "error_details": "Fehlerdetails",
     "valid_bases": "Gültige Basen",
-    "example_pending": "Ausstehender manueller Lauf"
+    "example_pending": "Ausstehender manueller Lauf",
+    "example_break_glass": "Ausstehende GitHub-Notfallreparatur"
   },
   "retire_terminal_work_unit": {
     "reason": "Grund",
