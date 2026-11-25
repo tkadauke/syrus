@@ -33,4 +33,33 @@ RSpec.describe WorkflowOutcomeOverrides::CandidateResolver do
     expect { described_class.new(job).find!("invented") }
       .to raise_error(described_class::NotFound, /stale or unavailable/)
   end
+
+  it "reconstructs exact panel-review evidence for the failed member" do
+    grader.destroy!
+    reviewed_sha = "d" * 40
+    vote = {
+      "iteration" => 2, "step_id" => 91, "run_id" => 92,
+      "panel_id" => "security-panel", "provider" => "codex", "model" => "gpt-5",
+      "verdict" => "needs_work", "critique" => "False positive."
+    }
+    workflow.set_artifact!("security_review_iterations", [
+      vote,
+      vote.merge("aggregate" => true),
+      vote.merge("iteration" => 1, "provider" => "claude")
+    ])
+    collect = Step.create!(
+      workflow:, kind: "review_panel_collect", position: 20, iteration: 2,
+      details: { "panel_review_kind" => "security_review", "panel_id" => "security-panel",
+                 "reviewed_head_sha" => reviewed_sha }
+    )
+
+    candidate = described_class.for_job(job).sole
+
+    expect(candidate.step).to eq(collect)
+    expect(candidate.as_json).to include(
+      gate_kind: "review", candidate_head_sha: reviewed_sha,
+      gate_identity: "security_review:security-panel:codex:gpt-5",
+      evidence_digest: WorkflowOutcomeOverrides::ReviewVerdict.evidence_digest(vote)
+    )
+  end
 end
