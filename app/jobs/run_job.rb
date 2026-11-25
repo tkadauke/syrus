@@ -169,6 +169,8 @@ class RunJob < ApplicationJob
     end
 
     handle_failure(e)
+    return if @run&.cancelled?
+
     if workflow_controlled_failure?
       continue_inline_after_controlled_failure
     else
@@ -1034,6 +1036,8 @@ class RunJob < ApplicationJob
     # be sensitive to a reload-driven association reset.
     @run&.restore_attributes
 
+    return cancel_run_after_external_cancellation! if cancelled_while_running?
+
     fail_run_tolerating_duplicate_diagnostic! if @run&.may_fail?
 
     record_landing_failure!(exception)
@@ -1042,6 +1046,22 @@ class RunJob < ApplicationJob
         @workflow.record_run_failure!
       end
     end
+  end
+
+  # A cancelled Workflow or Step kills its running processes; the handler
+  # then fails with no exit status. That is the cancellation, not a step
+  # failure: recording it as failed showed every cancelled grader as a
+  # failed grader in failure sweeps and statistics.
+  def cancelled_while_running?
+    return false unless @run&.may_cancel?
+
+    @step&.reload&.cancelled? || @workflow&.reload&.cancelled?
+  end
+
+  def cancel_run_after_external_cancellation!
+    log("step #{@step&.kind} ended because its #{@step&.cancelled? ? "step" : "workflow"} was cancelled", kind: "system")
+    @run.cancel!
+    @run.save!
   end
 
   # A duplicate run_diagnostics.run_id insert (an unsaved diagnostic left
