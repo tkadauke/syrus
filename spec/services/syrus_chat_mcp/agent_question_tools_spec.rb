@@ -37,4 +37,44 @@ RSpec.describe "workflow question chat tools", :full_chat_access do
     expect(listed.content.first.fetch(:text)).not_to include("Which path?")
     expect(answered).to be_error
   end
+
+  it "does not allow a read-only repository member to answer, but allows a writer" do
+    reader = Factories.user
+    writer = Factories.user
+    repository.repository_memberships.create!(user: reader, role: "read")
+    repository.repository_memberships.create!(user: writer, role: "write")
+
+    denied = Mcp::Tools::AnswerAgentQuestionTool.call(
+      question_id: question.id, answers: [ "Fast" ], server_context: { chat_session: ChatSession.create!(user: reader) }
+    )
+    allowed = Mcp::Tools::AnswerAgentQuestionTool.call(
+      question_id: question.id, answers: [ "Careful" ], server_context: { chat_session: ChatSession.create!(user: writer) }
+    )
+
+    expect(denied).to be_error
+    expect(allowed).not_to be_error
+    expect(question.reload).to have_attributes(answers: [ "Careful" ], answered_by: writer)
+  end
+
+  it "preloads runs and jobs for a batch instead of querying per question" do
+    second_run = Factories.job(user: user, repository: repository, issue_number: 99).initial_run
+    AgentQuestion.create!(
+      run: second_run,
+      questions: [ { "question" => "Second?", "options" => nil, "multiple" => false } ],
+      asked_at: Time.current
+    )
+    association_queries = []
+    subscriber = ->(*, payload) do
+      sql = payload[:sql].to_s
+      association_queries << sql if sql.match?(/FROM ["`]?(runs|jobs)["`]?/i)
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      Mcp::Tools::ListOpenAgentQuestionsTool.call(server_context: { chat_session: chat })
+    end
+
+    expect(association_queries.grep(/FROM ["`]?runs["`]?/i).size).to eq(1)
+    # One visibility query plus one preload query; neither grows with the batch.
+    expect(association_queries.grep(/FROM ["`]?jobs["`]?/i).size).to be <= 2
+  end
 end

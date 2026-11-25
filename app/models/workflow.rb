@@ -148,6 +148,11 @@ class Workflow < ApplicationRecord
         after: -> { Workflows::LifecyclePropagation.blocked!(self) }
     end
 
+    event :resume_from_answer do
+      transitions from: :blocked, to: :running,
+        after: -> { Workflows::LifecyclePropagation.started!(self) }
+    end
+
     event :reopen do
       transitions from: :failed, to: :running, guard: :latest_for_job?,
         after: -> { Workflows::LifecyclePropagation.reopened!(self) }
@@ -357,7 +362,11 @@ class Workflow < ApplicationRecord
   end
 
   def live_descendants?
-    runs.active.exists? || projected_running_steps.any? || active_spawned_processes?
+    runs.active.exists? || active_agent_questions? || projected_running_steps.any? || active_spawned_processes?
+  end
+
+  def active_agent_questions?
+    AgentQuestion.active.where(run_id: runs.select(:id)).exists?
   end
 
   def cleanup_blocked_by_active_descendants?
