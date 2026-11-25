@@ -40,6 +40,7 @@ class Workflow < ApplicationRecord
   has_one :work_unit, dependent: nil, inverse_of: :workflow
   has_many :source_snapshots, class_name: "WorkflowSourceSnapshot", dependent: :destroy
   has_many :steps, -> { order(:position, :id) }, dependent: :destroy
+  has_many :workflow_outcome_overrides, dependent: :restrict_with_error
   has_many :spawned_processes, dependent: :nullify
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
