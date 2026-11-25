@@ -135,6 +135,8 @@ class Problem
                 label: "Agent outlived its run"),
       Entry.new(code: "provider_model_unsupported", scope: :external, retryable: false,
                 default_remediation: :escalate),
+      Entry.new(code: "provider_content_refused", scope: :run, retryable: true,
+                default_remediation: :retry_step),
       Entry.new(code: "provider_prompt_too_long", scope: :run, retryable: false,
                 default_remediation: :escalate),
       Entry.new(code: "provider_usage_limit", scope: :external, retryable: true,

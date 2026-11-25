@@ -106,6 +106,7 @@ module Steps
       "server_error" => "provider_transient",
       "turn_failed" => "provider_transient",
       ProviderAuthFailure::OUTCOME => "provider_auth_expired",
+      ProviderContentRefusal::OUTCOME => "provider_content_refused",
       ProviderUsageLimit::OUTCOME => "provider_usage_limit"
     }.freeze
     AGENT_RESUME_UNAVAILABLE_PATTERN =

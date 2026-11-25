@@ -1062,6 +1062,17 @@ RSpec.describe CodexInvocation do
       expect(update).to include(is_error: true, outcome: ProviderModelUnsupported::OUTCOME)
     end
 
+    # Left as turn_failed, a safety-filter refusal reads as transient and the
+    # step was resumed into the same refusal again and again.
+    it "captures a content refusal as a distinct outcome" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test")
+      event = { type: "turn.failed", error: { "message" => "This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request." }.to_json }.to_json
+
+      update = invocation.send(:process_event, event, ->(*, **) { })
+
+      expect(update).to include(is_error: true, outcome: ProviderContentRefusal::OUTCOME)
+    end
+
     it "captures Codex expired auth turn failures as a distinct outcome" do
       events = []
       invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")

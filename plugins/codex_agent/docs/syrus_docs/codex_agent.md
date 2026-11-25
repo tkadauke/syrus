@@ -99,8 +99,11 @@ handles the outcome-determining events:
   against `ProviderUsageLimit.detect?`, `ProviderAuthFailure.detect?` and
   `ProviderModelUnsupported.detect?` are classified into
   `ProviderUsageLimit::OUTCOME` / `ProviderAuthFailure::OUTCOME` /
-  `ProviderModelUnsupported::OUTCOME` respectively before falling back to a
-  generic `turn_failed`/`error` outcome.
+  `ProviderModelUnsupported::OUTCOME` respectively. A safety-filter refusal
+  of the content (`Syrus::Host::ProviderContentRefusals.detect?`) reports
+  `Syrus::Host::ProviderContentRefusals.outcome`, so Syrus reruns the step on
+  another provider instead of resuming the refused session. Anything else
+  falls back to a generic `turn_failed`/`error` outcome.
 
   `ProviderModelUnsupported` covers the provider refusing the model it was
   asked for on an otherwise-healthy account — a 400 whose message says the

@@ -124,6 +124,12 @@ class AutoRetryFailureClassifier
     if run.run_failure_classification&.classification == ProviderAuthFailure::CLASSIFICATION
       return provider_auth_result(run, run.run_failure_classification.reason)
     end
+    if run.run_failure_classification&.classification == ProviderContentRefusal::CLASSIFICATION
+      reason = run.run_failure_classification.reason.presence || "provider refused this content"
+      return non_retryable(ProviderContentRefusal::CLASSIFICATION, reason) unless provider_failover_available?(run)
+
+      return retryable(ProviderContentRefusal::CLASSIFICATION, "#{reason}; another provider is available for retry")
+    end
     if run.run_failure_classification&.classification == ProviderModelUnsupported::CLASSIFICATION
       return non_retryable(
         ProviderModelUnsupported::CLASSIFICATION,

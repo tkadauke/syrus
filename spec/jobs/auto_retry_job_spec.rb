@@ -207,6 +207,40 @@ RSpec.describe AutoRetryJob do
     expect(RetryFailedStepEnqueuer).not_to have_received(:call)
   end
 
+  # Regression: a reviewer's content refusal was resumed in the same provider
+  # session four times and refused identically each time.
+  describe "a content refusal" do
+    let(:attempt) do
+      failed_attempt!(retry_kind: "resume_failed_step").tap do |a|
+        a.update!(failure_classification: ProviderContentRefusal::CLASSIFICATION)
+        a.run.update!(agent_provider: "codex")
+      end
+    end
+
+    it "reruns the failed step on another provider in a fresh session" do
+      allow(ProviderRouting::Resolver).to receive(:call)
+        .and_return([ double(provider: "codex"), double(provider: "claude") ])
+      allow(App::ProviderAvailability).to receive(:for_user).and_return({ open: false })
+      allow(RetryFailedStepEnqueuer).to receive(:call)
+        .and_return(RetryFailedStepEnqueuer::Result.new(run: nil, workflow: workflow, step: nil, error: nil))
+
+      described_class.perform_now(attempt.id)
+
+      expect(RetryFailedStepEnqueuer).to have_received(:call).with(
+        hash_including(workflow: workflow, agent_provider: "claude", disable_session_resume: true)
+      )
+    end
+
+    it "does not retry into the same provider when no other is available" do
+      allow(ProviderRouting::Resolver).to receive(:call).and_return([ double(provider: "codex") ])
+      allow(RetryFailedStepEnqueuer).to receive(:call)
+
+      described_class.perform_now(attempt.id)
+
+      expect(RetryFailedStepEnqueuer).not_to have_received(:call)
+    end
+  end
+
   it "starts a fresh workflow when a failed-step attempt requires workspace reconstruction" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     workflow.set_artifact!("workspace_recovery_failure", {
