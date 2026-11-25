@@ -6,6 +6,10 @@ Syrus uses feature flags to gate experimental and operational behaviors. Flags a
 
 `coworker_connected_accounts` is off by default and must be enabled before a coworker can be bound to or use a connected account. Enable it only after coworker sandboxing, confirmation for edits to standing instruction files, and unified permission enforcement for coworkers are in place. Connected-account credential access checks the flag at use time.
 
+## Coworker custom environments
+
+`coworker_custom_environments` is off by default and gates every coworker environment behavior: seeding `environment/Dockerfile`, `environment/environment.yml`, and `environment/smoke-test` in a coworker's persistent workspace, validating that source, and capturing immutable source snapshots for builds. Edits to those files use the ordinary coworker workspace file tools.
+
 All flags are typed booleans. A declaration can also set `experimental: true`
 to mark a beta/experimental capability. Those flags stay visible in Admin →
 Features and carry a Beta/Experimental badge, but admins cannot enable them

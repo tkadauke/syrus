@@ -113,6 +113,12 @@ features:
     description: "Allows coworkers to use explicitly authorized connected accounts. Enable only after coworker sandboxing, confirmation for standing-instruction edits, and unified permission enforcement for coworkers are in place."
     experimental: true
     default: false
+  - slug: coworker_custom_environments
+    category: "Labs"
+    name: "Coworker custom environments"
+    description: "Lets coworkers define a custom execution environment source in their persistent workspace and capture immutable source snapshots for builds."
+    experimental: true
+    default: false
   - slug: unlanding
     category: "Labs"
     name: "Unlanding"
