@@ -27,7 +27,7 @@ module Prompts
         has conflicts that the mechanical rebase could not resolve.
       CONTEXT
       if @old_base_sha.present?
-        context += "\nThis is a detach repair. Replay only commits after former-parent commit `#{@old_base_sha}` " \
+        context += "\nThis is a detach repair. Replay only commits after owned-patch boundary `#{@old_base_sha}` " \
           "with `git rebase --onto origin/#{@base_branch} #{@old_base_sha}`; do not replay the former parent's commits."
       end
       SkillLoader.render(SKILL_FILE, context)

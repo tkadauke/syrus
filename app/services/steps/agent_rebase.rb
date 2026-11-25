@@ -31,7 +31,7 @@ module Steps
         branch_name: RebaseTarget.source_branch_for(job: job, workflow: workflow),
         base_branch: RebaseTarget.branch_for(job: job, workflow: workflow),
         pr_number: pr_number,
-        old_base_sha: workflow.artifact("detach_job")&.dig("former_parent_head")
+        old_base_sha: workflow.artifact("detach_job")&.dig("owned_patch_base_sha")
       ).to_s
     end
   end

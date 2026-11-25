@@ -14,6 +14,8 @@ RSpec.describe Mcp::Tools::DetachJobTool do
       "current_branch_head" => "a" * 40,
       "live_pr_base" => "syrus/parent",
       "inferred_parent_job_id" => 10066,
+      "former_parent_head" => "b" * 40,
+      "owned_patch_base_sha" => "c" * 40,
       "destination_base" => "main",
       "commits_to_preserve" => [ { "sha" => "a" * 40, "message" => "owned change" } ],
       "patches_to_preserve" => [ { "path" => "app/example.rb", "status" => "modified", "patch" => "@@" } ],

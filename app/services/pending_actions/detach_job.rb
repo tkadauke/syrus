@@ -18,6 +18,7 @@ module PendingActions
         requested_by: "chat_agent",
         former_parent_id: payload.dig("plan", "inferred_parent_job_id"),
         former_parent_head: payload.dig("plan", "former_parent_head"),
+        owned_patch_base_sha: payload.dig("plan", "owned_patch_base_sha"),
         confirmed_head: payload.dig("plan", "current_branch_head")
       )
       action.update!(payload: payload.merge("result" => result.evidence, "status" => result.status, "workflow_id" => result.workflow&.id))

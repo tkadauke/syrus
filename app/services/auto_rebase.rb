@@ -262,7 +262,7 @@ class AutoRebase
   def verify_old_base_is_ancestor!
     @git.run("merge-base", "--is-ancestor", @old_base_sha, "HEAD", chdir: clone_path.to_s)
   rescue GitRunner::GitError
-    raise ArgumentError, "Former parent #{@old_base_sha} is not an ancestor of #{branch_name}; refusing to replay an unverified patch range"
+    raise ArgumentError, "Replay boundary #{@old_base_sha} is not an ancestor of #{branch_name}; refusing to replay an unverified patch range"
   end
 
   def abort_rebase

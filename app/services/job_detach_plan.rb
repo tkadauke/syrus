@@ -21,6 +21,9 @@ class JobDetachPlan
 
     content = RepositoryContent.for(job.repository)
     history = content.history(base: content.resolve(former_parent_head), head: content.resolve(head_sha))
+    owned_patch_base_sha = history.merge_base_id.to_s.presence
+    raise ArgumentError, "Child branch has no merge base with former parent" unless owned_patch_base_sha
+
     changes = content.changes(base: content.resolve(former_parent_head), head: content.resolve(head_sha), patch: true)
 
     {
@@ -34,6 +37,7 @@ class JobDetachPlan
       "inferred_parent_job_id" => job.parent_job_id,
       "former_parent_branch" => former_parent.branch_name,
       "former_parent_head" => former_parent_head,
+      "owned_patch_base_sha" => owned_patch_base_sha,
       "destination_base" => destination_base,
       "commits_to_preserve" => history.commits.map { |commit| { "sha" => commit.sha, "message" => commit.message } },
       "patches_to_preserve" => changes.map { |change| { "path" => change.path, "status" => change.status, "patch" => change.patch } },
