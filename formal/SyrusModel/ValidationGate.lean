@@ -15,9 +15,9 @@ provenance"):
 * `ok_has_required`: advisory evidence cannot replace required evidence; a
   manifest with no required result never passes.
 * `ok_required_passed`: every required result passed with fingerprints, or is
-  a test failure that `grader_collect`'s rung-zero adjudication accepted
-  (confirmed-flaky history, a failure inherited from main, ...) held to the
-  same fingerprint and SHA rules; infrastructure failure, inconclusive,
+  a test failure that `grader_collect`'s rung-zero adjudication or an
+  exact-evidence outcome override accepted, held to the same fingerprint and
+  SHA rules; infrastructure failure, inconclusive,
   cancelled or missing results never pass (`infra_never_passes` names the
   case), and an unaccepted test failure never passes
   (`unaccepted_failure_never_passes`).
@@ -52,7 +52,7 @@ structure Target where
   /-- `source_sha` of a target that ran from a source snapshot. -/
   sourceSha : Option Nat
   hasEvidence : Bool
-  /-- `accepted_failure`: the collect's adjudicator accepted this failure. -/
+  /-- The collect's adjudicator or an exact-evidence outcome override accepted this failure. -/
   accepted : Bool := false
   deriving DecidableEq, Repr
 
