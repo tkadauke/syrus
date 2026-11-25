@@ -128,7 +128,8 @@ class WorkflowOutcomeOverride < ApplicationRecord
     if invalidation_cause_in_database.present? && invalidation_cause != invalidation_cause_in_database
       errors.add(:invalidation_cause, "is immutable once set")
     end
-    errors.add(:base, "a consumed override cannot be invalidated") if consumed_at_in_database.present? && invalidation_cause.present?
-    errors.add(:base, "an invalidated override cannot be consumed") if invalidation_cause_in_database.present? && consumed_at.present?
+    if consumed_at.present? && invalidation_cause.present?
+      errors.add(:base, "an override cannot be both consumed and invalidated")
+    end
   end
 end
