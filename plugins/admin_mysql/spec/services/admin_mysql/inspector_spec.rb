@@ -35,6 +35,65 @@ RSpec.describe AdminMysql::Inspector do
     expect(payload.fetch(:setup_sql)).to include(include("mysql.slow_log"))
   end
 
+  describe "storage and DDL progress" do
+    let(:inspector) { described_class.new }
+    let(:connection) { double("connection", current_database: "syrus_production") }
+
+    before do
+      allow(connection).to receive(:quote) { |value| "'#{value}'" }
+      allow(inspector).to receive(:connection).and_return(connection)
+    end
+
+    it "reports progress and remaining time for a running index build" do
+      allow(inspector).to receive(:select_all).and_return(
+        [ { "NAME" => "stage/innodb/alter table (read PK and internal sort)", "ENABLED" => "YES" } ],
+        [ { "NAME" => "events_stages_current", "ENABLED" => "YES" } ]
+      )
+      allow(inspector).to receive(:select_all_with_timeout).and_return([
+        { "PROCESSLIST_ID" => 17413, "EVENT_NAME" => "stage/innodb/alter table (read PK and internal sort)",
+          "WORK_COMPLETED" => 250, "WORK_ESTIMATED" => 1000 }
+      ])
+      processes = [ { id: 17413, time_seconds: 300, info: "CREATE INDEX idx ON test_insight_cases (a)" } ]
+
+      progress = inspector.send(:ddl_progress, processes)
+
+      expect(progress[:available]).to be(true)
+      expect(progress[:rows].first).to include(
+        thread_id: 17413, percent_complete: 25.0, elapsed_seconds: 300,
+        estimated_remaining_seconds: 900, statement: include("CREATE INDEX")
+      )
+    end
+
+    it "says how to enable progress instead of reporting no DDL when the instruments are off" do
+      allow(inspector).to receive(:select_all).and_return(
+        [ { "NAME" => "stage/innodb/alter table (read PK and internal sort)", "ENABLED" => "NO" } ],
+        [ { "NAME" => "events_stages_current", "ENABLED" => "NO" } ]
+      )
+
+      progress = inspector.send(:ddl_progress, [])
+
+      expect(progress[:available]).to be(false)
+      expect(progress[:error][:message]).to include("events_stages_current")
+      expect(progress[:error][:setup_sql]).to include(include("setup_instruments"), include("setup_consumers"))
+    end
+
+    it "lists the largest tables with data and index sizes" do
+      allow(inspector).to receive(:select_all_with_timeout).and_return([
+        { "TABLE_NAME" => "test_insight_cases", "ENGINE" => "InnoDB", "TABLE_ROWS" => 42_000_000,
+          "DATA_LENGTH" => 9_000, "INDEX_LENGTH" => 1_000, "DATA_FREE" => 5 }
+      ])
+
+      storage = inspector.send(:storage, limit: 10)
+
+      expect(storage).to include(available: true, approximate: true)
+      expect(storage[:tables].first).to eq(
+        table: "test_insight_cases", engine: "InnoDB", estimated_rows: 42_000_000,
+        data_bytes: 9_000, index_bytes: 1_000, total_bytes: 10_000, free_bytes: 5
+      )
+      expect(inspector).to have_received(:select_all_with_timeout).with(include("TABLE_SCHEMA = 'syrus_production'"))
+    end
+  end
+
   it "builds the process list from SHOW FULL PROCESSLIST without aggregating information_schema" do
     inspector = described_class.new
     allow(inspector).to receive(:select_all).with("SHOW FULL PROCESSLIST").and_return([

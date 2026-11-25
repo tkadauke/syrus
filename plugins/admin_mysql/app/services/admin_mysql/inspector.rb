@@ -16,7 +16,13 @@ module AdminMysql
       end
     end
 
-    SECTIONS = %w[live configuration diagnostics].freeze
+    SECTIONS = %w[live configuration diagnostics storage].freeze
+    STORAGE_TABLE_LIMIT = 50
+    DDL_STAGE_PATTERN = "stage/innodb/alter%".freeze
+    DDL_SETUP_SQL = [
+      "UPDATE performance_schema.setup_instruments SET ENABLED = 'YES', TIMED = 'YES' WHERE NAME LIKE 'stage/innodb/alter%';",
+      "UPDATE performance_schema.setup_consumers SET ENABLED = 'YES' WHERE NAME LIKE 'events_stages_%';"
+    ].freeze
 
     def snapshot(limit: DEFAULT_LIMIT, include_slow_log: false, sections: SECTIONS, include_idle: false)
       require_mysql!
@@ -31,10 +37,13 @@ module AdminMysql
         }
         if requested.include?("live")
           processes = process_list(limit: limit, include_idle: include_idle)
-          payload.merge!(connection_summary: connection_summary, process_list: processes)
+          payload.merge!(connection_summary: connection_summary, process_list: processes, ddl_progress: ddl_progress(processes))
         end
         if requested.include?("configuration")
           payload.merge!(adapter: connection.adapter_name, database: connection.current_database, variables: variables, status: status)
+        end
+        if requested.include?("storage")
+          payload.merge!(storage: storage(limit: [ limit, STORAGE_TABLE_LIMIT ].min))
         end
         if requested.include?("diagnostics")
           payload.merge!(statement_digests: statement_digests(limit: [ limit, 25 ].min), slow_log: slow_log(limit: [ limit, 25 ].min, include_rows: include_slow_log))
@@ -236,6 +245,109 @@ module AdminMysql
         state: row["State"],
         info: redact_sql(raw_info)
       }
+    end
+
+    # Progress of running online DDL (CREATE INDEX, ALTER TABLE): InnoDB reports
+    # work completed and estimated for each alter stage in Performance Schema.
+    # The instruments are off by default, and with them off the stage table is
+    # simply empty, so check the setup first rather than report "no DDL".
+    def ddl_progress(processes)
+      safe_section do
+        disabled = ddl_instrumentation_disabled
+        next ddl_progress_unavailable(disabled) if disabled.any?
+
+        rows = select_all_with_timeout(<<~SQL.squish)
+          SELECT t.PROCESSLIST_ID, s.EVENT_NAME, s.WORK_COMPLETED, s.WORK_ESTIMATED
+          FROM performance_schema.events_stages_current s
+          JOIN performance_schema.threads t ON t.THREAD_ID = s.THREAD_ID
+          WHERE s.EVENT_NAME LIKE #{connection.quote(DDL_STAGE_PATTERN)}
+        SQL
+        by_thread = processes.index_by { |process| process[:id] }
+
+        {
+          available: true,
+          rows: rows.map { |row| ddl_progress_row(row, by_thread[row["PROCESSLIST_ID"].to_i]) }
+        }
+      end
+    end
+
+    def ddl_instrumentation_disabled
+      instruments = select_all(<<~SQL.squish)
+        SELECT NAME, ENABLED FROM performance_schema.setup_instruments
+        WHERE NAME LIKE #{connection.quote(DDL_STAGE_PATTERN)}
+      SQL
+      consumers = select_all(<<~SQL.squish)
+        SELECT NAME, ENABLED FROM performance_schema.setup_consumers
+        WHERE NAME = 'events_stages_current'
+      SQL
+      (instruments + consumers).reject { |row| row["ENABLED"].to_s.casecmp?("YES") }.map { |row| row["NAME"] }
+    end
+
+    def ddl_progress_unavailable(disabled)
+      {
+        available: false,
+        error: {
+          message: "Performance Schema is not collecting InnoDB ALTER progress (disabled: #{disabled.join(', ')}).",
+          hint: "Enable the InnoDB alter stage instruments and the stage consumers. These settings reset on MySQL restart; " \
+                "persist them with performance-schema-instrument='stage/innodb/alter%=ON' and " \
+                "performance-schema-consumer-events-stages-current=ON in the server configuration.",
+          setup_sql: DDL_SETUP_SQL
+        }
+      }
+    end
+
+    def ddl_progress_row(row, process)
+      completed = row["WORK_COMPLETED"].to_i
+      estimated = row["WORK_ESTIMATED"].to_i
+      elapsed = process&.dig(:time_seconds)
+      percent = estimated.positive? ? (completed * 100.0 / estimated).round(1) : nil
+      remaining = if elapsed && completed.positive? && estimated > completed
+        (elapsed * (estimated - completed) / completed.to_f).round
+      end
+
+      {
+        thread_id: row["PROCESSLIST_ID"].to_i,
+        stage: row["EVENT_NAME"],
+        work_completed: completed,
+        work_estimated: estimated,
+        percent_complete: percent,
+        elapsed_seconds: elapsed,
+        estimated_remaining_seconds: remaining,
+        statement: process&.dig(:info)
+      }
+    end
+
+    # Largest tables first. TABLE_ROWS is InnoDB's estimate, and
+    # information_schema caches table statistics (information_schema_stats_expiry),
+    # so sizes are approximate and can lag by up to that interval.
+    def storage(limit:)
+      safe_section do
+        rows = select_all_with_timeout(<<~SQL.squish)
+          SELECT TABLE_NAME, ENGINE, TABLE_ROWS, DATA_LENGTH, INDEX_LENGTH, DATA_FREE
+          FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA = #{connection.quote(connection.current_database)} AND TABLE_TYPE = 'BASE TABLE'
+          ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC
+          LIMIT #{Integer(limit)}
+        SQL
+
+        {
+          available: true,
+          approximate: true,
+          tables: rows.map do |row|
+            data = row["DATA_LENGTH"].to_i
+            index = row["INDEX_LENGTH"].to_i
+            {
+              table: row["TABLE_NAME"],
+              engine: row["ENGINE"],
+              estimated_rows: row["TABLE_ROWS"].to_i,
+              data_bytes: data,
+              index_bytes: index,
+              total_bytes: data + index,
+              free_bytes: row["DATA_FREE"].to_i
+            }
+          end
+        }
+      end
     end
 
     def statement_verifier(value)

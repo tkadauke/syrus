@@ -41,6 +41,20 @@ API):
 - `process_list` — `SHOW FULL PROCESSLIST`, sorted running-first then by
   longest-running, capped at `limit` (default 50, max 200), with `Info`
   truncated to 1000 bytes.
+- `ddl_progress` — progress of running online DDL such as `CREATE INDEX` or
+  `ALTER TABLE` (a deploy migration on a large table, for example): per
+  statement, the InnoDB alter stage, work completed and estimated, percent
+  complete, elapsed seconds, and an estimated time remaining. It reads
+  `performance_schema.events_stages_current`, whose InnoDB alter stage
+  instruments are off by default; when they are, the section reports
+  `available: false` with the `setup_sql` to enable them (and the server
+  options that keep them enabled across MySQL restarts) instead of an empty
+  list that would look like "no DDL running".
+- `storage` — the largest tables in the Syrus database (up to 50): estimated
+  rows, data, index and free bytes, from `information_schema.TABLES`. Row
+  counts are InnoDB estimates and statistics can lag by
+  `information_schema_stats_expiry`, so treat them as approximate. Use it to
+  judge how long a migration on a table will take before deploying it.
 - `statement_digests` — top statements from
   `performance_schema.events_statements_summary_by_digest`, scoped to the
   current database, ordered by total wait time.
@@ -50,7 +64,7 @@ API):
   busy instance.
 
 Every diagnostic `SELECT` carries a `MAX_EXECUTION_TIME` hint (1000ms for
-process/digest queries, 250ms for slow-log rows) so a stuck query in the
+process, digest, DDL-progress and storage queries, 250ms for slow-log rows) so a stuck query in the
 inspected server can't hang the admin page itself. A missing GRANT (e.g. no
 `SELECT` on `performance_schema.events_statements_summary_by_digest` or
 `mysql.slow_log`) degrades that one section to
