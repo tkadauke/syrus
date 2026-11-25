@@ -62,6 +62,20 @@ RSpec.describe Coworkers::EnvironmentSource do
     expect(source.validate).to include(a_string_matching(/final stage must descend/))
   end
 
+  it "does not read << inside quoted text as a heredoc that hides a later FROM" do
+    source.seed!
+    workspace.write("environment/Dockerfile",
+                    "ARG SYRUS_COWORKER_BASE\nFROM ${SYRUS_COWORKER_BASE}\nRUN echo \"<<CMD\"\nFROM ubuntu:24.04\nCMD echo hello\n")
+    expect(source.validate).to include(a_string_matching(/final stage must descend/))
+  end
+
+  it "still recognizes quoted heredoc tags" do
+    source.seed!
+    workspace.write("environment/Dockerfile",
+                    "FROM ubuntu:24.04\nRUN <<\"EOF\"\nFROM ${SYRUS_COWORKER_BASE}\nEOF\n")
+    expect(source.validate).to include(a_string_matching(/final stage must descend/))
+  end
+
   it "accepts multi-stage builds whose final stage descends from the base" do
     source.seed!
     workspace.write("environment/Dockerfile",
