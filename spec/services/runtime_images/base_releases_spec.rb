@@ -102,6 +102,15 @@ RSpec.describe RuntimeImages::BaseReleases do
       expect { base_releases.rollback!(to: first, actor: "t") }.to raise_error(described_class::Refused) { |e| expect(e.codes).to eq([ "not_retired" ]) }
     end
 
+    it "refuses an explicit target that belongs to another platform" do
+      arm = active_base(platform: "linux/arm64")
+      active_base(platform: "linux/arm64")
+      active_base
+      expect(arm.reload).to be_retired
+      expect { base_releases.rollback!(platform: "linux/amd64", to: arm, actor: "t") }.to raise_error(described_class::Refused) { |e| expect(e.codes).to eq([ "platform_mismatch" ]) }
+      expect(arm.reload).to be_retired
+    end
+
     it "refuses a candidate as rollback target" do
       active_base
       expect { base_releases.rollback!(to: candidate, actor: "t") }.to raise_error(described_class::Refused) { |e| expect(e.codes).to eq([ "not_retired" ]) }

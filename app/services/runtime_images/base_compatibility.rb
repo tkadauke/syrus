@@ -46,10 +46,18 @@ module RuntimeImages
         base = digests.filter_map { |digest| stale[digest] }.first
         next unless base
 
-        replacement = replacements.fetch(base.platform) { replacements[base.platform] = BaseReleases.new.launch_state(platform: base.platform, now: @now).release }
+        replacement = replacements.fetch(base.platform) { replacements[base.platform] = usable_replacement(base.platform) }
         findings << Finding.new(image: image, base: base, reasons: reasons_for(base), replacement: replacement)
       end
       findings
+    end
+
+    # The active base to rebuild against. A base that is itself stale (an ended
+    # support window on a still-active release) is not a valid target: rebuilding
+    # onto it could not resolve the finding.
+    def usable_replacement(platform)
+      release = BaseReleases.new.launch_state(platform: platform, now: @now).release
+      release if release && reasons_for(release).empty?
     end
 
     def summary

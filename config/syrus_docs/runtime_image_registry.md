@@ -86,3 +86,15 @@ Runtime image builds recover on their own from the failures a long-running build
 - **Duplicates:** identical requests share one live build, and a build job delivered twice runs once.
 
 Diagnostics: `GET /api/v1/admin/runtime_images` includes a `builds` section and build health checks; `GET /api/v1/admin/runtime_image_build_requests` lists requests, attempts, and results. Metrics `syrus_runtime_image_build_requests`, `syrus_runtime_image_build_oldest_queued_seconds`, `syrus_runtime_image_build_stale_attempts`, `syrus_runtime_image_build_attempts_total`, and `syrus_runtime_image_build_recoveries_total` back the stale-attempt and stalled-queue alerts. Builds run on the `runtime_image_builds` queue of Linux compute workers, separate from the control plane that recovers them.
+
+## Coworker base lifecycle
+
+The standard coworker base moves candidate → active → retired (kept pullable 90 days for rollback), or → revoked (terminal). One base is active per platform. Admin endpoints under `/api/v1/admin/coworker_base_releases`:
+
+- `GET` lists releases, per-platform launch state, and environments needing a rebuild.
+- `POST /:id/promote` makes a candidate active and retires the previous base.
+- `POST /rollback` (`platform`, optional `release_id`) re-activates a retired base; `release_id` must belong to the requested platform (`platform_mismatch` otherwise).
+- `POST /:id/support` (`supported_until`, null clears) sets a support deadline; after it passes, environments on that base are reported as needing a rebuild.
+- `POST /:id/revoke` (`reason`, `severity` = `standard` or `severe`) withdraws the base. New launches are blocked with `base_revoked`/`no_active_base` until another base is promoted or rolled back to; a severe revocation is also the termination signal for running executions.
+
+Rebuild discovery lists environments built on a revoked, support-ended, or ABI-incompatible base. A base that is itself out of support is never offered as the replacement; such environments are reported as blocked until a supported base is active. All changes are audited.

@@ -61,6 +61,15 @@ RSpec.describe "API: /api/v1/admin/coworker_base_releases", type: :request do
     expect(second.reload).to be_retired
   end
 
+  it "422s when the rollback release belongs to another platform" do
+    arm = active_base(platform: "linux/arm64")
+    active_base(platform: "linux/arm64")
+    post "/api/v1/admin/coworker_base_releases/rollback", params: { platform: "linux/amd64", release_id: arm.id }, headers: auth
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("platform_mismatch")
+    expect(arm.reload).to be_retired
+  end
+
   it "422s on a revoke without a reason or with a bad severity" do
     release = active_base
     post "/api/v1/admin/coworker_base_releases/#{release.id}/revoke", params: { reason: "" }, headers: auth
