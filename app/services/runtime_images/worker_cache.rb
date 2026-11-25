@@ -79,8 +79,13 @@ module RuntimeImages
     # Drops one lease. The entry stays protected until every concurrent
     # holder has released (or the lease expires). Non-block callers pass
     # Pulled#entry.
+    #
+    # Only a release of the lease epoch this holder joined counts down. A
+    # holder that outlived its lease would otherwise release the lease a later
+    # acquisition started over, and eviction could remove that holder's image
+    # (formal/SyrusModel/CacheLease.lean, `current_holder_protected`).
     def release(entry)
-      scope = RuntimeImageCacheEntry.where(id: entry.id)
+      scope = RuntimeImageCacheEntry.where(id: entry.id, lease_epoch: entry.lease_epoch)
       scope.where("lease_count > 0").update_all("lease_count = lease_count - 1")
       scope.where(lease_count: 0).update_all(leased_until: nil)
       nil
@@ -308,12 +313,22 @@ module RuntimeImages
     # only matches an unleased "present" entry. The database serializes the
     # two, so exactly one wins: an acquired image is never removed, and an
     # evicted one is never reported as leased.
+    #
+    # Starting an expired lease over begins a new epoch; the holder records the
+    # epoch it joined, which scopes its release. The epoch is read after the
+    # update: it can only change again once this lease expires.
     def lease(entry)
       now = @clock.call
-      RuntimeImageCacheEntry.where(id: entry.id, state: "present").update_all([
+      leased = RuntimeImageCacheEntry.where(id: entry.id, state: "present").update_all([
+        "lease_epoch = CASE WHEN leased_until IS NULL OR leased_until <= ? THEN lease_epoch + 1 ELSE lease_epoch END, " \
         "lease_count = CASE WHEN leased_until IS NULL OR leased_until <= ? THEN 1 ELSE lease_count + 1 END, leased_until = ?",
-        now, now + @lease_seconds
+        now, now, now + @lease_seconds
       ]) == 1
+      return false unless leased
+
+      entry.lease_epoch = RuntimeImageCacheEntry.where(id: entry.id).pick(:lease_epoch)
+      entry.clear_attribute_changes([ :lease_epoch ])
+      true
     end
 
     # Ensures the image is local and leased. If eviction claimed the entry

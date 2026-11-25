@@ -4844,6 +4844,35 @@ without the fix.
 
 ---
 
+## F132. A worker cache holder that outlived its lease released the next holder's — fixed
+
+**Invariant.** `RuntimeImages::WorkerCache` documents that an acquired image
+is never removed: eviction claims only an unleased entry. The lease is one row
+with a holder count and an expiry, and acquiring an expired lease starts it
+over at one holder, so a crashed holder cannot pin an entry forever.
+
+**Counterexample.** A container run held its lease longer than
+`lease_seconds` (an hour by default; the container execution backend holds it
+for the whole run). Another acquisition then started the lease over at one
+holder. When the first run finished, `release` counted the lease down
+anyway, to zero, and cleared it. The entry was then evictable while the second
+holder was using it. `docker image rm` refuses an image a running container
+uses, so the exposure is the time before and between containers in one
+acquisition, but the documented guarantee did not hold.
+`CacheLease.lean`: `stale_release_unprotects`.
+
+**Fix.** Each started-over lease begins a new `lease_epoch`. A holder records
+the epoch it joined, and `release` counts down only a lease of that epoch.
+`CacheLease.lean` proves the count then always equals the live holders of the
+current epoch (`count_eq_current`), so a live lease with a current holder is
+never evictable (`current_holder_protected`).
+
+**Spec.** `spec/services/runtime_images/worker_cache_spec.rb`, "does not let a
+holder whose lease expired release a later holder's fresh lease", fails
+without the fix.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -7752,7 +7781,16 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   static inputs) failed. It made the full suite order-dependent and put 38
   wrong rows in the MCP catalog. F131, fixed on main in `8f3fdf0ac1`.
 
-Checked through main `8f3fdf0ac1`. Each loop iteration continues from there:
+- The Runtime Image Service epic (contracts, OCI registry provider, worker
+  pull cache, publishing, retention and reconciliation). The worker cache's
+  invariant (an acquired image is never removed) failed when a holder
+  outlived its lease: F132, proved in `CacheLease.lean`. The eviction-claim
+  takeover is safe by its own argument: a claim is taken over only after
+  `claim_ttl`, which the constructor requires to exceed the engine's remove
+  timeout, and every write is scoped to the claim token. The terminal image
+  states (revoked, deleted) are covered by their own specs.
+
+Checked through main `d946eda665`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

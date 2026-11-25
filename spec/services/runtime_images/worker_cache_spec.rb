@@ -191,6 +191,25 @@ RSpec.describe RuntimeImages::WorkerCache do
       expect(cache.evict(target_bytes: 0)).to eq([image.digest])
     end
 
+    # formal/SyrusModel/CacheLease.lean: a holder whose lease expired must not
+    # release the lease a later acquisition started over, or eviction removes
+    # an image the later holder is still using.
+    it "does not let a holder whose lease expired release a later holder's fresh lease" do
+      now = Time.current
+      clocked = described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 0.2,
+                                    lease_seconds: 60, clock: -> { now })
+      image = publish("a")
+      stale = clocked.acquire(image)
+      now += 61 # the first holder outlives its lease
+      fresh = clocked.acquire(image)
+
+      clocked.release(stale.entry)
+
+      expect(clocked.evict(target_bytes: 0)).to eq([])
+      clocked.release(fresh.entry)
+      expect(clocked.evict(target_bytes: 0)).to eq([image.digest])
+    end
+
     it "protects an entry from eviction while a block-form holder overlaps a released one" do
       image = publish("a")
       held = cache.acquire(image)

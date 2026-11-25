@@ -195,3 +195,13 @@ models:
     owner: StepDispatcher
     method: distributed_ready_set
     sha: 140c4a405d08cbdd
+- model: CacheLease.lean
+  mirrors:
+  - path: app/services/runtime_images/worker_cache.rb
+    owner: WorkerCache
+    method: release
+    sha: ee1cc80b4792ca72
+  - path: app/services/runtime_images/worker_cache.rb
+    owner: WorkerCache
+    method: lease
+    sha: 16f7c8ff6960519d
