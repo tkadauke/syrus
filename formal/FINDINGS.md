@@ -7948,7 +7948,35 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   timeout, and every write is scoped to the claim token. The terminal image
   states (revoked, deleted) are covered by their own specs.
 
-Checked through main `d946eda665`. Each loop iteration continues from there:
+- The runtime image build epic (orchestration, isolated builder, build-network
+  egress proxy). The global build cap failed under overlapping dispatch runs
+  (F134, `BuildAdmission.lean`), and the builder checked its cgroup limits
+  only after a build ran (F135). Holds: the egress proxy resolves once, refuses
+  a lookup with any forbidden answer, and dials the address it checked;
+  publishing is gated on a still-active attempt; duplicate deliveries do not
+  rerun a build. Benign: a cancel after verification, or an attempt reaped
+  mid-publish, leaves a published image whose request did not succeed
+  (registry space only, retention removes it).
+- The coworker base image epic (runtime ABI, conformance, promotion,
+  rollback, revocation). `WorkerCache#acquire` now checks a coworker base's ABI
+  after leasing it and releases on `Incompatible`; that release is still
+  epoch-scoped (F132). Minor: any other error from reading the image labels
+  keeps the lease until it expires.
+- Main through `51c18d814d`. Job bundles in parallel lanes: a bundle locks its
+  member Jobs and its landing lane instead of `repository:<id>`; both locks are
+  unique while active, so bundles never share a member or a lane, and hotfix
+  sync and promotion, no longer excluded by the repository key, write the
+  branch under the merge lock (F129), so `MergeExclusion.lean` still holds. The
+  grader-collector deferral agrees with the reconciler: `RunJob` defers exactly
+  when the Workflow is running with a live queued Run and a lost workspace,
+  which `workspace_missing` flags for `recover_missing_workspace`; an unsafe
+  reconstruction fails the Workflow, ending the wait. Bundle assembly by
+  execution requirement, the patient-rebase gate ignoring blocked Workflows,
+  provider content refusals (rerun on another provider, fresh session) and the
+  agent-blocked dependency retry (only dependencies added after the block,
+  through `RetryWorkflowEnqueuer`) hold as written.
+
+Checked through main `51c18d814d`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
