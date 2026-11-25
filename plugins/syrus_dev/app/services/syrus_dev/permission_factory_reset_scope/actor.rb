@@ -11,6 +11,6 @@ module SyrusDev
       Syrus::Host::PermissionLease.where(subject_selector_type: "agent", subject_selector_id: actor.id.to_s)
     end
 
-    def requests = ChatPendingAction.where(request_kind: "authorization_request", subject: actor)
+    def requests = Syrus::Host::ChatPendingActionRecord.where(request_kind: "authorization_request", subject: actor)
   end
 end

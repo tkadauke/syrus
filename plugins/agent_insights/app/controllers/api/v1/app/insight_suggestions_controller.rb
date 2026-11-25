@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class InsightSuggestionsController < Syrus::Host::AppController
-        include ChatSessionLifecycle
+        include Syrus::Host::ChatSessionLifecycle
         include Syrus::Host::ChatLockErrors
         include Syrus::Host::Paginatable
         prepend_before_action :require_agent_insights_feature
@@ -100,7 +100,7 @@ module Api
           user_message = nil
 
           Syrus::Host::Record.transaction do
-            chat_session = ChatSession.create!(
+            chat_session = Syrus::Host::ChatSessionRecord.create!(
               user: Syrus::Host::Current.user,
               repository: suggestion.repository,
               title: nil,

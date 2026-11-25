@@ -117,7 +117,7 @@ module SyrusDev
         leases:,
         invocations:,
         requests:,
-        resumptions: requests.where(checkpoint_state: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES),
+        resumptions: requests.where(checkpoint_state: Syrus::Host::ChatPendingActionRecord::NONTERMINAL_CHECKPOINT_STATES),
         profiles: active_rules.where("source LIKE ?", "#{Syrus::Host::PermissionManagement::PROFILE_SOURCE_PREFIX}%").where.not(source: factory_source)
       }
     end
