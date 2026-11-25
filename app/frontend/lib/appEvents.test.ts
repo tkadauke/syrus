@@ -13,6 +13,7 @@ import { recentChatsQueryKey } from "./chatCache"
 import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
 import { flushClientMetricsQueue, resetClientMetricsForTest } from "./clientMetrics"
 import { jsonResponse } from "../testSupport"
+import { effectiveStepStatus } from "../routes/jobDetail/stepModel"
 
 const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
 
@@ -1808,6 +1809,50 @@ describe("applyAppEvent revisioned event patches", () => {
       finished_at: "2026-09-23T00:01:00.000Z",
       entity_revision: 8
     })
+  })
+
+  it("keeps terminal workflow and materialized step status synchronized through live events", () => {
+    const queryClient = new QueryClient()
+    const payload = jobWorkflowPayload()
+    Object.assign(payload.workflows[0].steps[0], { display_status: null })
+    queryClient.setQueryData(["jobs", "42", "detail", ""], payload)
+
+    applyAppEvent(queryClient, {
+      ...event("step", 200),
+      job_id: 42,
+      revision: 5,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:00.000Z" } }
+    })
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 8,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:00.000Z" } }
+    })
+    applyAppEvent(queryClient, {
+      ...event("workflow", 100),
+      job_id: 42,
+      revision: 6,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:01.000Z" } }
+    })
+
+    // Duplicate and stale deliveries must not move the visible projection back.
+    applyAppEvent(queryClient, {
+      ...event("step", 200),
+      job_id: 42,
+      revision: 4,
+      payload: { fields: { state: "running", finished_at: null } }
+    })
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 7,
+      payload: { fields: { state: "running", finished_at: null } }
+    })
+
+    const detail = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>>(["jobs", "42", "detail", ""])
+    expect(detail?.workflows[0].state).toBe("succeeded")
+    expect(effectiveStepStatus(detail!.workflows[0].steps[0] as never)).toBe("succeeded")
   })
 
   it("patches nested work-unit workflow payloads from scoped resource events", () => {
