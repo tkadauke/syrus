@@ -324,12 +324,18 @@ export function loopDisplayStatus(item: LoopStepItem) {
 export function effectiveStepStatus(step: JobStep) {
   const activeRun = sortedRunsNewestFirst(step.runs).find((run) => isActiveState(run.state))
   if (activeRun) return activeRun.state
-  if (step.display_status) return step.display_status
+
+  // `warning` is a server-derived presentation for an accepted grader failure,
+  // so it remains more specific than the persisted terminal Step state.
+  if (step.display_status === "warning") return step.display_status
 
   // Step progress events carry the persisted state, but not the detail
-  // serializer's display_status projection. Once work has materialized, use
-  // that state until the next detail snapshot arrives. A future queued step
-  // with no Run intentionally remains blank.
+  // serializer's display_status projection. Once materialized work reaches a
+  // terminal state, use that live state even if the cached projection is still
+  // queued/running. A future queued step with no Run intentionally remains
+  // blank.
+  if (step.runs.length > 0 && isTerminalState(step.state)) return step.state
+  if (step.display_status) return step.display_status
   return step.runs.length > 0 ? step.state : null
 }
 
@@ -348,6 +354,10 @@ export function runSortTime(run: JobRun) {
 
 export function isActiveState(state: string) {
   return state === "queued" || state === "running"
+}
+
+function isTerminalState(state: string) {
+  return state === "succeeded" || state === "failed" || state === "cancelled" || state === "skipped" || state === "blocked"
 }
 
 // Step#agentic? mirror. Missing (older cached payload, or a test fixture

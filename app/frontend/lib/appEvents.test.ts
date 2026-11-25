@@ -1814,7 +1814,7 @@ describe("applyAppEvent revisioned event patches", () => {
   it("keeps terminal workflow and materialized step status synchronized through live events", () => {
     const queryClient = new QueryClient()
     const payload = jobWorkflowPayload()
-    Object.assign(payload.workflows[0].steps[0], { display_status: null })
+    Object.assign(payload.workflows[0].steps[0], { display_status: "running" })
     queryClient.setQueryData(["jobs", "42", "detail", ""], payload)
 
     applyAppEvent(queryClient, {

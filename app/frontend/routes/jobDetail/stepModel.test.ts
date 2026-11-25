@@ -47,6 +47,13 @@ describe("effectiveStepStatus", () => {
     expect(effectiveStepStatus(future)).toBeNull()
   })
 
+  it.each(["succeeded", "failed", "cancelled", "skipped", "blocked"])("projects live terminal %s over a stale running projection", (state) => {
+    const completed = step(1, "push", state, "running")
+    completed.runs = [{ id: 10, state } as JobStep["runs"][number]]
+
+    expect(effectiveStepStatus(completed)).toBe(state)
+  })
+
   it("keeps server projections and active retries ahead of terminal step state", () => {
     const warning = step(1, "grader", "failed", "warning")
     warning.runs = [{ id: 10, state: "failed" } as JobStep["runs"][number]]
