@@ -8035,7 +8035,20 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   rollback, revocation). `WorkerCache#acquire` now checks a coworker base's ABI
   after leasing it and releases on `Incompatible`; that release is still
   epoch-scoped (F132). Any other error from reading the image labels kept the
-  lease until it expired: F136, fixed.
+  lease until it expired: F136, fixed. Promotion and rollback checked a
+  release before locking the platform, so a concurrent revoke was overwritten
+  and a concurrent promotion failed on the unique key: F138, fixed. Holds: the
+  ABI attestation is an HMAC over the canonical payload bound to the source
+  and recipe digests, compared in constant time, and every label the launch
+  decision trusts must equal the signed contract, so a builder cannot widen
+  the range or lower the confinement floor; the conformance probe's expected
+  checks come from the contract, not the probe's output, and missing, failed,
+  malformed or contradictory reports all fail. By design: the probe runs inside
+  the image it judges, so it checks Syrus's own build for conformance and is
+  not a defence against a malicious image. The revocation signal is looked up
+  by the pinned digest and only a severe revocation terminates running turns.
+  The isolated builder's source extractor let a symlink leave the source
+  through another symlink: F137, fixed.
 - Main through `51c18d814d`. Job bundles in parallel lanes: a bundle locks its
   member Jobs and its landing lane instead of `repository:<id>`; both locks are
   unique while active, so bundles never share a member or a lane, and hotfix
