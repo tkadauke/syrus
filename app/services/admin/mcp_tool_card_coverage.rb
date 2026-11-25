@@ -33,6 +33,8 @@ module Admin
       "request_permission" => "generic",
       "surrender_permission_lease" => "generic",
       "request_permission_revocation" => "generic",
+      "inspect_workflow_outcome_overrides" => "generic",
+      "request_workflow_outcome_override" => "generic",
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",

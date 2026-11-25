@@ -277,6 +277,8 @@ de:
       stacked_children: "Aktive gestapelte Kind-Jobs hängen von diesem Branch ab: %{slugs}; setze sie zurück oder lande sie zuerst."
       state: "%{slug} kann im Status %{state} nicht zurückgesetzt werden; wiederhole oder öffne ihn zuerst erneut."
   api:
+    workflow_outcome_overrides:
+      denied: "Du hast keine Berechtigung, dieses Workflow-Ergebnis zu übersteuern."
     cli_commands:
       errors:
         plugin_not_found: "Dieses Plugin ist nicht installiert."

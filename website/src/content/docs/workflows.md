@@ -333,6 +333,12 @@ govern the result without futile retries. Authorized exact-commit overrides can
 make a negative or unavailable member non-blocking; Syrus retains the original
 verdict and evidence in the review record.
 
+The same exact-evidence override is available for technically overridable
+implementation and landing grader failures. Authorized operators see the gate,
+revision, evidence fingerprint, and consequence before confirming, and must
+provide an audit reason. The original failed result remains visible as
+`failed, overridden`; a new revision or changed evidence cannot reuse it.
+
 | Step | Agentic | Purpose |
 | --- | --- | --- |
 | `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
