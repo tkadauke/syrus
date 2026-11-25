@@ -22,6 +22,10 @@ module RuntimeImages
     #    mounted inside a private user+mount namespace, so aggregate scratch
     #    usage has a kernel-enforced ceiling (ENOSPC), is never shared across
     #    builds or namespaces, and vanishes with the namespace;
+    #  - the build runs in an empty network namespace (loopback only); its sole
+    #    route out is a relay to BuildNetwork::Proxy, which enforces the
+    #    administrator's allowlist, so host and shared network modes do not
+    #    exist for a build and direct egress is impossible;
     #  - CPU, memory, PIDs, wall-clock duration, log volume, scratch
     #    storage, and output archive size all have ceilings.
     class IsolatedBuilder
@@ -29,6 +33,11 @@ module RuntimeImages
       EXTRACT_SCRIPT = Rails.root.join("bin/extract-runtime-image-source")
       REJECT_FILE = "source.rejected.json"
       NAMESPACE_PREFIX = %w[unshare --user --map-root-user --mount --].freeze
+      # The build's own namespace has no network device but a loopback; its only
+      # route out is the relay to the enforcing proxy.
+      BUILD_NAMESPACE_PREFIX = %w[unshare --user --map-root-user --mount --net --].freeze
+      FORBIDDEN_NETWORK_KEYS = %w[network network_mode net add_host dns dns_search dns_option proxy].freeze
+      PROXY_BUILD_ARG = /\A(http|https|ftp|all|no)_proxy\z/i
 
       # Fails closed when the worker cannot actually confine the build: a root
       # worker would run buildah rootful with the worker's host access, so an
@@ -44,10 +53,20 @@ module RuntimeImages
           unless probe("prlimit", "--version")
             raise BuildFailed.new("prlimit is required to bound builder file sizes and CPU", code: "builder_not_isolated", retryable: false)
           end
-          return if bounded_storage_available?
+          unless bounded_storage_available?
+            raise BuildFailed.new("unprivileged user+mount namespaces with a size-bounded tmpfs are required to bound builder storage",
+                                  code: "builder_not_isolated", retryable: false)
+          end
+          return if isolated_network_available?
 
-          raise BuildFailed.new("unprivileged user+mount namespaces with a size-bounded tmpfs are required to bound builder storage",
+          raise BuildFailed.new("an unprivileged network namespace with only a loopback device is required to enforce build egress",
                                 code: "builder_not_isolated", retryable: false)
+        end
+
+        # The namespace the build runs in must start with loopback as its only
+        # device; anything more would be a route around the egress proxy.
+        def isolated_network_available?
+          probe(*BUILD_NAMESPACE_PREFIX, "sh", "-c", "ip link set lo up && test \"$(ip -o link show | wc -l)\" = 1")
         end
 
         # Probes the exact mechanism the build relies on for its hard aggregate
@@ -105,10 +124,13 @@ module RuntimeImages
         end
       end
 
-      def initialize(launcher: Launcher.new("prepare"), data_root: nil, confinement: Confinement.new)
+      def initialize(launcher: Launcher.new("prepare"), data_root: nil, confinement: Confinement.new,
+                     network_policy: -> { BuildNetwork::Policy.current }, resolver: BuildNetwork::Resolver.new)
         @launcher = launcher
         @confinement = confinement
         @data_root = data_root
+        @network_policy = network_policy
+        @resolver = resolver
       end
 
       def build(request:, attempt:, control:)
@@ -119,9 +141,20 @@ module RuntimeImages
         Dir.mktmpdir("build-#{request.id}-", build_root.to_s) do |scratch|
           archive_digest = stage_source!(request, scratch)
           output = File.join(scratch, "image.tar")
-          run_build(request, control, scratch: scratch, recipe: recipe, output: output, recipe_paths: context_paths(request, recipe))
+          policy = @network_policy.call
+          session = nil
+          begin
+            BuildNetwork::Session.open(policy: policy, resolver: @resolver) do |opened|
+              session = opened
+              run_build(request, control, scratch: scratch, recipe: recipe, output: output,
+                                          recipe_paths: context_paths(request, recipe), network: opened)
+            end
+          ensure
+            # Counters outlive the stopped proxy, so a failed build is audited too.
+            audit_network(request, policy, session&.summary)
+          end
           Output.new(payload: read_output!(output, request.platform), source_digest: request.source_digest,
-                     provenance: provenance(request, archive_digest))
+                     provenance: provenance(request, archive_digest, policy))
         end
       rescue Rejected => e
         raise BuildFailed.new(e.message, code: e.code, retryable: false)
@@ -135,6 +168,10 @@ module RuntimeImages
 
       def validate_recipe!(recipe)
         recipe = Hash(recipe).deep_stringify_keys
+        forbidden = recipe.keys & FORBIDDEN_NETWORK_KEYS
+        if forbidden.any?
+          raise Rejected.new("network_mode_forbidden", "builds cannot choose their network: #{forbidden.sort.join(", ")}")
+        end
         unknown = recipe.keys - ALLOWED_RECIPE_KEYS
         raise Rejected.new("recipe_invalid", "unsupported recipe keys: #{unknown.sort.join(", ")}") if unknown.any?
 
@@ -144,6 +181,9 @@ module RuntimeImages
         raise Rejected.new("recipe_invalid", "too many build args") if args.size > 64
         args.each do |name, value|
           raise Rejected.new("recipe_invalid", "invalid build arg name #{name.to_s.inspect}") unless name.to_s.match?(BUILD_ARG_NAME)
+          if name.to_s.match?(PROXY_BUILD_ARG)
+            raise Rejected.new("network_mode_forbidden", "build arg #{name} would override the build's egress proxy")
+          end
           raise Rejected.new("recipe_invalid", "build arg #{name} is too long") if value.to_s.bytesize > 4096 || value.to_s.include?("\0")
         end
         recipe
@@ -192,7 +232,7 @@ module RuntimeImages
       # One command for the whole build: build and push share the bounded
       # tmpfs (it only exists inside the namespace), and the process tree is
       # bounded by prlimit plus the per-spawn cgroup.
-      def run_build(request, control, scratch:, recipe:, output:, recipe_paths:)
+      def run_build(request, control, scratch:, recipe:, output:, recipe_paths:, network:)
         deadline = monotonic + Config.build_duration
         logged = 0
         failure = nil
@@ -214,11 +254,11 @@ module RuntimeImages
 
         work = File.join(scratch, "work")
         FileUtils.mkdir_p(work)
-        command = limited(wrapped(scratch, work, recipe_paths, build_command(request, work, recipe), push_command(work, output)))
+        command = limited(wrapped(scratch, work, recipe_paths, build_command(request, work, recipe), push_command(work, output), network))
         remaining = deadline - monotonic
         raise BuildFailed.new("build exceeded #{Config.build_duration}s", code: "build_timeout") unless remaining.positive?
 
-        result = @launcher.call(command: command, env: environment(work), mounts: mounts(scratch),
+        result = @launcher.call(command: command, env: environment(work).merge(network.environment), mounts: mounts(scratch, network),
                                 timeout: remaining, resource_limits: resource_limits, stop_requested: stop, on_output_chunk: on_chunk)
         control.raise_if_canceled!
         @confinement.verify_applied!(result)
@@ -234,14 +274,16 @@ module RuntimeImages
       # namespace, unpacks the source onto it, then runs build and push against
       # it. Writes past the size fail with ENOSPC in the kernel; nothing but the
       # one raw archive is left on the host disk.
-      def wrapped(scratch, work, paths, build, push)
+      def wrapped(scratch, work, paths, build, push, network)
         extract = [ RbConfig.ruby, EXTRACT_SCRIPT.to_s, File.join(scratch, "source.archive"), File.join(work, "source"), work,
                     File.join(scratch, REJECT_FILE), Config.max_source_bytes.to_s, Config.max_source_entries.to_s, *paths ]
         script = "set -eu; mount -t tmpfs -o size=#{tmpfs_bytes(scratch)},mode=0700 tmpfs #{Shellwords.escape(work)}; " \
                  "mkdir -p #{Shellwords.escape(File.join(work, "home"))} #{Shellwords.escape(File.join(work, "tmp"))}; " \
+                 "ip link set lo up; #{Shellwords.join(network.relay_command)} & relay=$!; " \
+                 "trap 'kill $relay 2>/dev/null || true' EXIT; " \
                  "#{Shellwords.join(extract)}; " \
                  "#{Shellwords.join(build)} && #{Shellwords.join(push)}"
-        [ *NAMESPACE_PREFIX, "sh", "-c", script ]
+        [ *BUILD_NAMESPACE_PREFIX, "sh", "-c", script ]
       end
 
       # The staged archive stays on host disk for the whole build, so the tmpfs
@@ -312,7 +354,7 @@ module RuntimeImages
           "LANG" => "C.UTF-8", "REGISTRY_AUTH_FILE" => File::NULL, "DOCKER_CONFIG" => File.join(work, "no-docker-config") }
       end
 
-      def mounts(scratch) = ProcessRunner::Mounts.new(workdir: scratch, read_write: [ scratch ])
+      def mounts(scratch, network) = ProcessRunner::Mounts.new(workdir: scratch, read_write: [ scratch, network.dir ])
 
       def resource_limits
         Execution::ResourceLimits.new(memory_max: Config.build_memory_bytes,
@@ -331,9 +373,21 @@ module RuntimeImages
         raise BuildFailed.new(e.message, code: "output_invalid")
       end
 
-      def provenance(request, archive_digest)
+      def provenance(request, archive_digest, policy)
         { "builder" => "buildah-rootless", "isolation" => "chroot", "source_archive_digest" => archive_digest,
-          "recipe_digest" => request.recipe_digest }
+          "recipe_digest" => request.recipe_digest, "network_policy_digest" => policy.digest }
+      end
+
+      # Records what the build tried to reach. +summary+ is nil when the build
+      # failed before the proxy could report; the policy digest is still logged.
+      def audit_network(request, policy, summary)
+        summary = {} unless summary.is_a?(Hash) && summary.key?("allowed")
+        denied = summary.fetch("denied", 0)
+        Audit.record("build.network", outcome: denied.positive? ? "detected" : "ok", namespace: request.runtime_image_namespace,
+                                      actor: request.requester_kind,
+                                      details: { "request_id" => request.id, "policy_digest" => policy.digest,
+                                                 "allowed" => summary.fetch("allowed", 0), "denied" => denied,
+                                                 "denials" => summary.fetch("denials", []).first(10).to_json })
       end
 
       # Sum of file sizes, stopping early once +limit+ is passed.
