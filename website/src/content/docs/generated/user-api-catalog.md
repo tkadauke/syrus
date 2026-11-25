@@ -326,6 +326,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#create` |
 | core | DELETE | `/api/v1/app/mcp_bridge_tokens/:id` | `api/v1/app/mcp_bridge_tokens#destroy` |
 | core | GET | `/api/v1/app/me` | `api/v1/app/me#show` |
+| core | POST | `/api/v1/app/mobile_devices` | `api/v1/app/mobile_devices#create` |
+| core | DELETE | `/api/v1/app/mobile_devices/unregister` | `api/v1/app/mobile_devices#unregister` |
 | core | GET | `/api/v1/app/notification_preferences` | `api/v1/app/notification_preferences#show` |
 | core | PATCH | `/api/v1/app/notification_preferences` | `api/v1/app/notification_preferences#update` |
 | core | GET | `/api/v1/app/notifications` | `api/v1/app/notifications#index` |
