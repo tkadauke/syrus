@@ -4910,6 +4910,23 @@ without the fix.
 
 ---
 
+## F136. A coworker base whose labels could not be read kept its cache lease — fixed (minor)
+
+**Invariant.** `WorkerCache#acquire` hands out a lease only with an image; a
+failure before that releases the lease (F132's count stays equal to the live
+holders).
+
+**Counterexample.** The coworker base ABI check runs after the lease and
+released it only on `RuntimeAbi::Incompatible`. An engine error reading the
+image's labels raised past it with the lease held, so the entry stayed
+unevictable until the lease expired (an hour by default).
+
+**Fix.** Release on any error out of the check. **Spec.**
+`spec/services/runtime_images/worker_cache_spec.rb`, "releases its lease when
+reading the image's labels fails".
+
+---
+
 ## F135. The isolated builder checked its cgroup limits only after the build ran — fixed
 
 **Invariant.** The isolated runtime image builder fails closed: a build runs
@@ -7960,8 +7977,8 @@ Later commits, checked through main `cb5b006575` (two merge trains):
 - The coworker base image epic (runtime ABI, conformance, promotion,
   rollback, revocation). `WorkerCache#acquire` now checks a coworker base's ABI
   after leasing it and releases on `Incompatible`; that release is still
-  epoch-scoped (F132). Minor: any other error from reading the image labels
-  keeps the lease until it expires.
+  epoch-scoped (F132). Any other error from reading the image labels kept the
+  lease until it expired: F136, fixed.
 - Main through `51c18d814d`. Job bundles in parallel lanes: a bundle locks its
   member Jobs and its landing lane instead of `repository:<id>`; both locks are
   unique while active, so bundles never share a member or a lane, and hotfix

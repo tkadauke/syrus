@@ -80,6 +80,14 @@ RSpec.describe RuntimeImages::WorkerCache do
       expect(RuntimeImageCacheEntry.where(runtime_image: image).first.lease_count).to eq(0)
     end
 
+    it "releases its lease when reading the image's labels fails" do
+      image = publish_base
+      allow(engine).to receive(:labels).and_raise(RuntimeImages::WorkerCache::EngineError, "inspect failed")
+
+      expect { cache.acquire(image) }.to raise_error(RuntimeImages::WorkerCache::EngineError)
+      expect(RuntimeImageCacheEntry.where(runtime_image: image).first.lease_count).to eq(0)
+    end
+
     it "blocks an image carrying no ABI labels" do
       engine.image_labels = {}
       expect { cache.acquire(publish_base) }.to raise_error(RuntimeImages::RuntimeAbi::Incompatible)

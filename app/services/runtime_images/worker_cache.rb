@@ -64,7 +64,9 @@ module RuntimeImages
       entry, hit = lease_local(image, prefetch)
       begin
         validate_abi!(image, provider: provider, confinement_policy: confinement_policy)
-      rescue RuntimeAbi::Incompatible
+      rescue StandardError
+        # Any failure (an incompatible ABI, or the engine failing to read the
+        # labels) hands nothing out, so it must not keep the lease either.
         release(entry)
         raise
       end
