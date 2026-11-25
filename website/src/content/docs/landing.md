@@ -74,7 +74,9 @@ Job bundles use the same idea for independent approved Jobs that are safe to
 land together. Syrus assembles a landing unit, validates the combined result,
 and lands the bundle as one operation. Bundles are intentionally conservative:
 they should reduce repeated grader work without hiding unrelated review or
-ownership boundaries.
+ownership boundaries. A bundle only ever contains Jobs with the same priority,
+the same owner, and the same execution requirements, so a macOS Job never
+shares a bundle with Linux Jobs.
 
 ## Stopping a Landing Attempt
 

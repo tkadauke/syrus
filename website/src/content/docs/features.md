@@ -904,7 +904,9 @@ Job bundling is gated by the `epicless_job_bundling` feature flag (on by
 default; operators can opt out from Admin → Features). Syrus only bundles
 Jobs that share the same priority tier: urgent Jobs bundle only with other
 urgent Jobs, never with medium or low-priority work, so urgent work still
-lands first. A single ready Job never waits around for a bundle — bundling
+lands first. Jobs that need different kinds of workers are never bundled
+either: a Job planned for macOS bundles only with other macOS Jobs, so one
+unavailable worker type cannot hold up Jobs that never needed it. A single ready Job never waits around for a bundle — bundling
 only kicks in once at least two same-priority Jobs are ready to land
 together; a lone ready Job lands on its own right away. Externally filed
 pull requests are never bundled, since they land directly against the
