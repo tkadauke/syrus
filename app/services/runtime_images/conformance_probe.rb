@@ -98,19 +98,19 @@ module RuntimeImages
           when /\Aok (\S+)\z/ then checks[$1] = :ok
           when /\Afail (\S+?):\s*(.*)\z/
             checks[$1] = :fail
-            problems << Problem.new(code: "check_failed", message: "#{$1}: #{$2.presence || "failed"}")
+            problems << Problem.new("check_failed", "#{$1}: #{$2.presence || "failed"}")
           when "" then next
-          else problems << Problem.new(code: "output_malformed", message: "unrecognised probe output #{line.strip.truncate(80).inspect}")
+          else problems << Problem.new("output_malformed", "unrecognised probe output #{line.strip.truncate(80).inspect}")
           end
         end
 
         (expected_checks(mode: mode) - checks.keys).each do |name|
-          problems << Problem.new(code: "check_missing", message: "probe did not report #{name}")
+          problems << Problem.new("check_missing", "probe did not report #{name}")
         end
         unless exit_status.to_i.zero?
-          problems << Problem.new(code: "probe_failed", message: "probe exited with status #{exit_status}")
+          problems << Problem.new("probe_failed", "probe exited with status #{exit_status}")
         end
-        problems << Problem.new(code: "probe_no_output", message: "probe produced no output") if checks.empty?
+        problems << Problem.new("probe_no_output", "probe produced no output") if checks.empty?
         Result.new(problems, checks)
       end
 
