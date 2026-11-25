@@ -25,7 +25,12 @@ function ManualAgenticRunDetails({ context }: { context: ToolCardContext }) {
       {base ? <Row label={i18n.t("chat:manual_agentic_run.base")} value={<Badge>{base}</Badge>} /> : null}
       <Row label={i18n.t("chat:manual_agentic_run.push")} value={<Badge>{inputBoolean(context.input?.push)}</Badge>} />
       <Row label={i18n.t("chat:manual_agentic_run.github_access")} value={<Badge>{inputBoolean(context.input?.github_access)}</Badge>} />
-      {githubAccess ? <Row label={i18n.t("chat:manual_agentic_run.destructive")} value={<Badge>{destructive ? i18n.t("chat:manual_agentic_run.confirmed") : i18n.t("chat:manual_agentic_run.unavailable")}</Badge>} /> : null}
+      {githubAccess ? (
+        <Row
+          label={i18n.t("chat:manual_agentic_run.destructive")}
+          value={<Badge>{destructive ? i18n.t("chat:manual_agentic_run.confirmed") : i18n.t("chat:manual_agentic_run.unavailable")}</Badge>}
+        />
+      ) : null}
       {workflowId ? (
         <Row label={i18n.t("chat:manual_agentic_run.failed_workflow")} value={<EntityReference id={workflowId} jobId={jobId} kind="workflow" />} />
       ) : null}
@@ -46,7 +51,14 @@ function ManualAgenticRunDetails({ context }: { context: ToolCardContext }) {
         />
       ) : null}
       {githubAccess ? <div className="text-xs text-warning-text">{i18n.t("chat:manual_agentic_run.break_glass_hint")}</div> : null}
-      {expectedOutcomes ? <MarkdownPreview maxLines={6} modalLabel={i18n.t("chat:manual_agentic_run.full_expected_outcomes")} text={expectedOutcomes} title={i18n.t("chat:manual_agentic_run.expected_outcomes")} /> : null}
+      {expectedOutcomes ? (
+        <MarkdownPreview
+          maxLines={6}
+          modalLabel={i18n.t("chat:manual_agentic_run.full_expected_outcomes")}
+          text={expectedOutcomes}
+          title={i18n.t("chat:manual_agentic_run.expected_outcomes")}
+        />
+      ) : null}
       {context.input?.push === false ? <div className="text-xs text-text-secondary">{i18n.t("chat:manual_agentic_run.no_push_hint")}</div> : null}
     </>
   )
