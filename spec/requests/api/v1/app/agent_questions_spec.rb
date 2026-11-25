@@ -112,4 +112,26 @@ RSpec.describe "workflow agent questions API", type: :request do
     expect(job.reload).to be_queued
     expect(retry_workflow.reload.runs.active).to exist
   end
+
+  it "rolls back the fix Job and dependency when the retry transition fails" do
+    question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Which dependency?", "options" => nil, "multiple" => false } ])
+    workflow = run.workflow
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 2.minutes.ago)
+    run.step.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    run.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    attach_work_unit(workflow, state: "running") unless workflow.work_unit
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+      RetryWorkflowEnqueuer::Result.new(workflow: nil, error: "Retry could not start.", circuit: nil)
+    )
+
+    expect {
+      post "/api/v1/app/jobs/#{job.id}/file_question_fix"
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(job.reload.dependencies).to be_empty
+    expect(question.reload).to be_active
+    expect(workflow.reload).to be_running
+  end
 end

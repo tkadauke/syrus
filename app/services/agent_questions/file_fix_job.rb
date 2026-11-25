@@ -5,17 +5,23 @@ module AgentQuestions
     Result = Data.define(:job)
 
     def self.call(job:, actor:)
-      retry_mode = question_retry_mode(job)
-      if retry_mode && !(preflight = retry_mode.preflight).eligible?
-        raise RetryFailed, preflight.message
-      end
+      expected_question_workflow_id = question_workflow(job)&.id
+      fix = Job.transaction do
+        Lineage.lock_active_work!(job)
+        lock_active_questions!(job, expected_question_workflow_id) if expected_question_workflow_id
+        job.reload
 
-      fix = job.with_lock do
+        retry_mode = question_retry_mode(job)
+        if expected_question_workflow_id && !retry_mode
+          raise RetryFailed, I18n.t("agent_questions.errors.inactive")
+        end
+        if retry_mode && !(preflight = retry_mode.preflight).eligible?
+          raise RetryFailed, preflight.message
+        end
+
         existing = existing_fix(job)
-        next existing if existing
-
-        Job.transaction do
-          fix = actor.jobs.create!(
+        fix = existing || begin
+          created = actor.jobs.create!(
             repository: job.repository,
             kind: "direct",
             issue_number: nil,
@@ -26,28 +32,39 @@ module AgentQuestions
             state: Job.initial_state_for_creator(actor)
           )
           job.dependencies.create!(
-            depends_on_job: fix,
+            depends_on_job: created,
             satisfaction_mode: "landed",
             source: "manual",
             created_by_user: actor
           )
-          fix.advance_after_triage! if fix.may_advance_after_triage?
-          fix
+          created.advance_after_triage! if created.may_advance_after_triage?
+          created
         end
-      end
 
-      if retry_mode && !(retry_result = retry_mode.execute).success?
-        raise RetryFailed, retry_result.error
+        if retry_mode && !(retry_result = retry_mode.execute).success?
+          raise RetryFailed, retry_result.error
+        end
+
+        fix
       end
 
       Result.new(job: fix)
     end
 
-    def self.question_retry_mode(job)
+    def self.question_workflow(job)
       workflow = job.latest_workflow
-      return unless workflow&.running? && workflow.active_agent_questions?
+      workflow if workflow&.running? && workflow.active_agent_questions?
+    end
+
+    def self.question_retry_mode(job)
+      return unless question_workflow(job)
 
       RetryJobs::Modes::Implementation.new(job: job, explicit_operator_intent: true)
+    end
+
+    def self.lock_active_questions!(job, workflow_id)
+      run_ids = Run.joins(:step).where(job_id: job.id, steps: { workflow_id: workflow_id }).select(:id)
+      AgentQuestion.active.where(run_id: run_ids).lock.to_a
     end
 
     def self.existing_fix(job)
@@ -68,6 +85,6 @@ module AgentQuestions
         Fix the underlying problem so the dependent Job can resume after this Job lands.
       PROMPT
     end
-    private_class_method :question_retry_mode, :existing_fix, :fix_title, :prompt_for
+    private_class_method :question_workflow, :question_retry_mode, :lock_active_questions!, :existing_fix, :fix_title, :prompt_for
   end
 end
