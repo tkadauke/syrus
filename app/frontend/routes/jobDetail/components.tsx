@@ -493,7 +493,7 @@ export function NeedsAttentionBanner({ job, command }: { job: JobDetailPayload["
           <div>
             <Button
               disabled={command.isPending}
-              onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/run_again` })}
+              onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/retry_implementation` })}
               variant="secondary"
             >
               {t("question_retry")}

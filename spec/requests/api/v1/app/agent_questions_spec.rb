@@ -43,6 +43,35 @@ RSpec.describe "workflow agent questions API", type: :request do
     expect(question.reload.answers).to eq([ [ "Fast", "Safe" ] ])
   end
 
+  it "forbids a visible read-tier member from answering" do
+    question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Ship it?", "options" => [ "Yes", "No" ], "multiple" => false } ])
+    reader = Factories.user
+    repository.repository_memberships.create!(user: reader, role: "read")
+    sign_in_as(reader)
+
+    post "/api/v1/app/agent_questions/#{question.id}/answer", params: { answers: [ "Yes" ] }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(question.reload).to be_active
+  end
+
+  it "retires an awaiting-answer workflow before retrying implementation" do
+    question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Ship it?", "options" => [ "Yes", "No" ], "multiple" => false } ])
+    workflow = run.workflow
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 2.minutes.ago)
+    run.step.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    run.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    attach_work_unit(workflow, state: "running") unless workflow.work_unit
+
+    post "/api/v1/app/jobs/#{job.id}/retry_implementation"
+
+    expect(response).to have_http_status(:ok), response.body
+    expect(question.reload.withdrawn_at).to be_present
+    expect(workflow.reload).to be_cancelled
+    expect(job.workflows.where(trigger_kind: "retry")).to exist
+  end
+
   it "does not expose questions on jobs the user cannot see" do
     other = Factories.user
     other_repository = Factories.repository(user: other)
@@ -54,11 +83,33 @@ RSpec.describe "workflow agent questions API", type: :request do
   end
 
   it "files a repair Job through the Job mutation gate" do
+    user.update!(claude_oauth_token: "claude-token")
+    question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Which dependency?", "options" => nil, "multiple" => false } ])
+    workflow = run.workflow
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 2.minutes.ago)
+    run.step.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    run.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    attach_work_unit(workflow, state: "running") unless workflow.work_unit
+
     post "/api/v1/app/jobs/#{job.id}/file_question_fix"
 
     expect(response).to have_http_status(:ok)
     dependency = job.dependencies.includes(:depends_on_job).find_by!(satisfaction_mode: "landed")
     expect(dependency.depends_on_job).to have_attributes(kind: "direct", repository: repository)
     expect(parse_body.fetch("message")).to include(dependency.depends_on_job.slug)
+    expect(question.reload.withdrawn_at).to be_present
+    expect(workflow.reload).to be_cancelled
+    retry_workflow = job.workflows.where(trigger_kind: "retry").order(:id).last
+    expect(retry_workflow).to be_present
+    expect(retry_workflow).to be_queued
+    expect(job.reload).to be_queued
+
+    dependency.depends_on_job.update!(landed_sha: "landed-fix-sha")
+    dependency.depends_on_job.close_with_reason!("pr_merged")
+
+    expect(dependency.reload).to be_execution_dependency_satisfied
+    expect(job.reload).to be_queued
+    expect(retry_workflow.reload.runs.active).to exist
   end
 end
