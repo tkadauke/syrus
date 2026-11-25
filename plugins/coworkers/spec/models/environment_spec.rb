@@ -35,6 +35,13 @@ RSpec.describe Coworkers::Environment do
     expect(environment).not_to be_valid
   end
 
+  it "rejects a foreign revision pointer when the environment is created" do
+    other = described_class.create!(coworker: build_coworker("env-three"))
+    environment = described_class.new(coworker: coworker, candidate_revision: revision_for(other))
+    expect(environment).not_to be_valid
+    expect { environment.save!(validate: true) }.to raise_error(ActiveRecord::RecordInvalid)
+  end
+
   it "keeps image data in the Runtime Image Service and references it" do
     expect(described_class.reflect_on_association(:active_runtime_image).klass).to eq(RuntimeImage)
     expect(described_class.reflect_on_association(:candidate_runtime_image).klass).to eq(RuntimeImage)

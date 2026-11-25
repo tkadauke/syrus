@@ -56,9 +56,10 @@ class Coworkers::Environment < ApplicationRecord
   def revisions_belong_to_environment
     %i[active_revision candidate_revision].each do |name|
       revision = public_send(name)
-      next unless revision && persisted?
+      next unless revision
 
-      errors.add(name, "must belong to this environment") if revision.coworker_environment_id != id
+      # A new environment owns no revisions yet, so any pointer is foreign.
+      errors.add(name, "must belong to this environment") if new_record? || revision.coworker_environment_id != id
     end
   end
 end
