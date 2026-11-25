@@ -21,7 +21,7 @@ module Mockups
         panel = chat_session.preview_panels.find_by(id: panel_id)
         return panel_not_found_response(panel_id) unless panel
 
-        closed = PreviewPanel::Service.new(panel).close!
+        closed = Syrus::Host::PreviewPanelRecord::Service.new(panel).close!
         mockup = Mockup.find_by(preview_panel_id: closed.id)
         ok_response(panel_payload(closed).merge(mockup_slug: mockup&.slug).compact)
       end

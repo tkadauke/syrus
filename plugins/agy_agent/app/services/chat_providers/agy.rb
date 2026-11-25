@@ -2,7 +2,7 @@ require "json"
 
 module ChatProviders
   class Agy < Syrus::Host::ChatProviderBase
-    include Syrus::Plugin::ChatProvider
+    include Syrus::Host::ChatProvider
 
     def self.provider_key = "agy"
     def self.display_name = "Antigravity"
@@ -22,7 +22,7 @@ module ChatProviders
         log_sink: ->(*) { },
         runner: runner,
         timeout: timeout,
-        agy_home: ChatWorkspace.agent_home_for(chat_session, "agy"),
+        agy_home: Syrus::Host::ChatWorkspace.agent_home_for(chat_session, "agy"),
         resume_session_id: session_id,
         resume_transcript_jsonl: transcript_jsonl,
         mcp_servers: mcp_servers_for(mcp_config),
@@ -51,7 +51,7 @@ module ChatProviders
         api_key: api_key,
         log_sink: log_sink,
         runner: runner,
-        agy_home: ChatWorkspace.agent_home_for(chat, provider),
+        agy_home: Syrus::Host::ChatWorkspace.agent_home_for(chat, provider),
         resume_session_id: resume_session_id,
         resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
         mcp_servers: mcp_servers_for(mcp_config),
@@ -70,8 +70,8 @@ module ChatProviders
       return invalid_session_capture(result) unless AgyAgent::SessionPaths.valid_session_id?(result.session_id)
 
       path = AgyAgent::SessionPaths.transcript_path_for(
-        home: ChatWorkspace.agent_home_for(chat, provider),
-        cwd: ChatWorkspace.path_for(chat),
+        home: Syrus::Host::ChatWorkspace.agent_home_for(chat, provider),
+        cwd: Syrus::Host::ChatWorkspace.path_for(chat),
         session_id: result.session_id
       )
 
@@ -118,8 +118,8 @@ module ChatProviders
     def resume_transcript_jsonl(session_id)
       return nil if session_id.blank?
 
-      if ChatContextCompactor.enabled_for?(chat)
-        return ChatSessionRehydrator::Agy.new(chat, session_id: session_id).call
+      if Syrus::Host::ChatContextCompactor.enabled_for?(chat)
+        return Syrus::Host::ChatSessionRehydrator::Agy.new(chat, session_id: session_id).call
       end
 
       session = chat.provider_session
@@ -129,7 +129,7 @@ module ChatProviders
 
       return nil unless chat.messages.exists?
 
-      ChatSessionRehydrator::Agy.new(chat, session_id: session_id).call
+      Syrus::Host::ChatSessionRehydrator::Agy.new(chat, session_id: session_id).call
     end
 
     def invalid_session_capture(result)

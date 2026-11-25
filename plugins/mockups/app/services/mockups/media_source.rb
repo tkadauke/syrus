@@ -10,7 +10,7 @@ module Mockups
     # from a version it actually built, not any PreviewPanelVersion id in the
     # system.
     def self.versions_for(chat_session)
-      PreviewPanelVersion.where(preview_panel: chat_session.preview_panels)
+      Syrus::Host::PreviewPanelVersionRecord.where(preview_panel: chat_session.preview_panels)
     end
 
     def self.chat_media_exists?(chat_session:, id:)

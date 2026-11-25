@@ -2,7 +2,7 @@ require "json"
 
 module ChatProviders
   class Codex < Syrus::Host::ChatProviderBase
-    include Syrus::Plugin::ChatProvider
+    include Syrus::Host::ChatProvider
 
     def self.provider_key = "codex"
     def self.display_name = "Codex"
@@ -12,7 +12,7 @@ module ChatProviders
     def self.configured_model = CodexInvocation.configured_model
 
     def self.invoke_event_evaluator(chat_session:, workspace_path:, prompt:, session_id:, transcript_jsonl:, mcp_config:, timeout:, max_turns:, runner:)
-      codex_home = ChatWorkspace.agent_home_for(chat_session, "codex")
+      codex_home = Syrus::Host::ChatWorkspace.agent_home_for(chat_session, "codex")
       codex_auth = CodexAuth.new(user: chat_session.user, codex_home: codex_home)
       auth = CodexAuth.with_refresh_lock(user: chat_session.user) { codex_auth.prepare! }
       CodexInvocation.new(
@@ -76,7 +76,7 @@ module ChatProviders
 
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, mcp_config:,
                          resume_session_id:, stop_requested:, process_started:, startup_timing:, workload_policy:)
-      codex_home = ChatWorkspace.agent_home_for(chat, provider)
+      codex_home = Syrus::Host::ChatWorkspace.agent_home_for(chat, provider)
       codex_auth = CodexAuth.new(user: chat.user, provider_account: provider_account, codex_home: codex_home)
       lock_started_at = startup_timing.now
       lock_options = { user: chat.user }
@@ -127,8 +127,8 @@ module ChatProviders
     def resume_transcript_jsonl(session_id)
       return nil if session_id.blank?
 
-      if ChatContextCompactor.enabled_for?(chat)
-        return ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
+      if Syrus::Host::ChatContextCompactor.enabled_for?(chat)
+        return Syrus::Host::ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
       end
 
       # Rehydrate from ChatMessage rows rather than replaying the raw Codex
@@ -137,7 +137,7 @@ module ChatProviders
       # next turn initialize MCP with a token for the previous message.
       return nil unless chat.messages.exists?
 
-      ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
+      Syrus::Host::ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
     end
 
     def log_startup_timing(event)

@@ -4,7 +4,8 @@ module Discord
   # Discord::GatewayConnectionJob for the inbound half (account linking +
   # message routing).
   class PlatformAdapter
-    include Syrus::Plugin::PlatformDelivery
+    # The platform_delivery extension point includes the delivery interface when
+    # the manifest resolves this class at boot, before Syrus::Host aliases exist.
 
     # Discord's message length cap (Telegram's is 4096).
     DISCORD_MAX_CHARS = 2000
