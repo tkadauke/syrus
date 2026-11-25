@@ -138,7 +138,7 @@ class Coworkers::EnvironmentSource
   # The effective final stage must descend from the supplied base: either it
   # names the base arg directly or an earlier stage that does.
   def dockerfile_errors(content)
-    if content.dup.force_encoding(Encoding::UTF_8).match?(/\A(?:\s*#\s*[\w-]+\s*=[^\n]*\n)*\s*#\s*escape\s*=/i)
+    if content.dup.force_encoding(Encoding::UTF_8).delete_prefix("\uFEFF").match?(/\A(?:\s*#\s*[\w-]+\s*=[^\n]*\n)*\s*#\s*escape\s*=/i)
       return [ "#{DOCKERFILE} must not set a non-default escape parser directive; the validator cannot model it" ]
     end
 
