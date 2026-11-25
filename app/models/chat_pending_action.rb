@@ -87,6 +87,7 @@ class ChatPendingAction < ApplicationRecord
     spawn_coworker_chat
     spawn_syrus_chat
     authorized_tool_call
+    workflow_outcome_override
     coworker_permission_request
     coworker_permission_revocation
     spawn_chat
@@ -139,6 +140,7 @@ class ChatPendingAction < ApplicationRecord
     repair_queue_affinity
     rerun_ci_repair
     mark_ci_repair_noop
+    workflow_outcome_override
   ].freeze
   EPIC_RESOURCE_ACTIONS = %w[
     restack_epic
