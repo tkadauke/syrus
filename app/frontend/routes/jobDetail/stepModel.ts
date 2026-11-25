@@ -323,7 +323,14 @@ export function loopDisplayStatus(item: LoopStepItem) {
 
 export function effectiveStepStatus(step: JobStep) {
   const activeRun = sortedRunsNewestFirst(step.runs).find((run) => isActiveState(run.state))
-  return activeRun?.state ?? step.display_status
+  if (activeRun) return activeRun.state
+  if (step.display_status) return step.display_status
+
+  // Step progress events carry the persisted state, but not the detail
+  // serializer's display_status projection. Once work has materialized, use
+  // that state until the next detail snapshot arrives. A future queued step
+  // with no Run intentionally remains blank.
+  return step.runs.length > 0 ? step.state : null
 }
 
 export function sortedRunsNewestFirst(runs: JobRun[]) {
