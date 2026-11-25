@@ -2,9 +2,12 @@ class Coworkers::ClaimedWorkspacePaths
   CORE_FILES = %w[AGENTS.md SOUL.md USER.md].freeze
   CODE_SPAN = /`([^`\n]+)`/
   MEMORY_PATH = %r{(?<![\w/])memory/[A-Za-z0-9_.@+-]+(?:/[A-Za-z0-9_.@+-]+)*}
-  WRITE_VERB = /(?:wrote|written|write|created?|updated?|edited?|modified?|saved?|added?|persisted?|recorded?|generated?)/i
+  WRITE_VERB = /(?:wrote|written|write|created?|updated?|edited?|modified?|changed?|touched?|saved?|added?|persisted?|recorded?|generated?)/i
   DELETE_VERB = /(?:deleted?|removed?)/i
-  NEGATED_WRITE = /(?:did|do|does|was|were|is|are|have|has|had)\s+not\s+#{WRITE_VERB}/i
+  # "did not change" and its contractions ("didn't", "haven't", curly or
+  # straight apostrophe) both deny a write.
+  NEGATOR = /(?:did|do|does|was|were|is|are|have|has|had)(?:\s+not|n['’]t)/i
+  NEGATED_WRITE = /#{NEGATOR}\s+(?:\w+\s+)?#{WRITE_VERB}/i
   OPERATION = /(?<negative>#{NEGATED_WRITE})|(?<delete>#{DELETE_VERB})|(?<write>#{WRITE_VERB})/i
   SENTENCE_BOUNDARY = /[.!?](?:\s+|\z)/
 

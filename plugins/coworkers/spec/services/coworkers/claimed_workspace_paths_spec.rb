@@ -27,6 +27,23 @@ RSpec.describe Coworkers::ClaimedWorkspacePaths do
     expect(described_class.from(summary)).to be_empty
   end
 
+  # Regression: a journaling run listed the files it edited, then said it had
+  # not changed another one; the contraction read as a write claim and the
+  # run was failed for a file it never claimed to write.
+  it "does not treat a contracted denial as a write claim" do
+    summary = <<~TEXT
+      These are the files I created or edited:
+
+      - `memory/diary/2026-11-24.md` (new)
+      - `memory/people/thomas.md`
+
+      I didn't change `memory/daily/2026-11-24.md`, so its content is as it was.
+      I haven’t touched memory/people/ada.md either.
+    TEXT
+
+    expect(described_class.from(summary)).to contain_exactly("memory/diary/2026-11-24.md", "memory/people/thomas.md")
+  end
+
   it "uses the operation nearest each path when a summary reports deletes and writes" do
     summary = "Deleted `memory/old.md`, then wrote `memory/new.md`."
 
