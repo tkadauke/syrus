@@ -2275,6 +2275,39 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(computed_folder_ids.count(folder.id)).to eq(5)
     end
+
+    it "invalidates workflow counts after parent-job ownership changes" do
+      cache_store = ActiveSupport::Cache::MemoryStore.new
+      computed_folder_ids = []
+      other_user = Factories.user
+
+      allow(Rails).to receive(:cache).and_return(cache_store)
+
+      job = Factories.job_record(user: user, owner_user: user, repository: repo, state: "backlog")
+      Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "workflow",
+        kind: "user_defined",
+        name: "My workflows",
+        filter: { "and" => [] }
+      )
+
+      allow_any_instance_of(described_class).to receive(:smart_folder_count_uncached).and_wrap_original do |method, counted_folder|
+        computed_folder_ids << counted_folder.id
+        method.call(counted_folder)
+      end
+
+      first = call(subject: "workflow", section: "chrome", ownership_scope: "mine")
+      cached = call(subject: "workflow", section: "chrome", ownership_scope: "mine")
+      job.update!(owner_user: other_user)
+      invalidated = call(subject: "workflow", section: "chrome", ownership_scope: "mine")
+
+      expect(first[:smart_folders].find { |item| item[:id] == folder.id }[:count]).to eq(1)
+      expect(cached[:smart_folders].find { |item| item[:id] == folder.id }[:count]).to eq(1)
+      expect(invalidated[:smart_folders].find { |item| item[:id] == folder.id }[:count]).to eq(0)
+      expect(computed_folder_ids.count(folder.id)).to eq(2)
+    end
   end
 
   describe "start_blocked filter" do
