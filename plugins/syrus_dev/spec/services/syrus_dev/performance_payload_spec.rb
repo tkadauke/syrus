@@ -120,4 +120,31 @@ RSpec.describe SyrusDev::PerformancePayload, requires_plugin: "syrus_dev" do
       max_duration_ms: 120.0
     )
   end
+
+  it "reports input latency component distributions" do
+    [
+      { "input_delay_ms" => "10", "processing_duration_ms" => "20", "presentation_delay_ms" => "30" },
+      { "input_delay_ms" => "30", "processing_duration_ms" => "40", "presentation_delay_ms" => "50" }
+    ].each_with_index do |metadata, index|
+      PerformanceLogging::Store.append(
+        "event" => PerformanceLogging::BROWSER_TRACE_EVENT,
+        "occurred_at" => (Time.current + index.seconds).iso8601(6),
+        "app_revision" => "new-sha",
+        "name" => "browser.input_latency",
+        "path" => "/jobs/1",
+        "duration_ms" => index.zero? ? 60.0 : 120.0,
+        "metadata" => metadata
+      )
+    end
+
+    row = described_class.new.as_json.dig(:summaries, :browser_traces).sole
+    expect(row).to include(
+      average_input_delay_ms: 20.0,
+      max_input_delay_ms: 30.0,
+      average_processing_duration_ms: 30.0,
+      max_processing_duration_ms: 40.0,
+      average_presentation_delay_ms: 40.0,
+      max_presentation_delay_ms: 50.0
+    )
+  end
 end

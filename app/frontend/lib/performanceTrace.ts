@@ -41,13 +41,13 @@ type BrowserObserverOptions = {
   eventLoopLagThresholdMs?: number
   minEventLoopReportIntervalMs?: number
   maxPlausibleEventLoopLagMs?: number
+  maxInteractionsPerSession?: number
 }
 
 type PerformanceEventTimingEntry = PerformanceEntry & {
   processingStart?: number
   processingEnd?: number
   interactionId?: number
-  target?: EventTarget | null
 }
 
 let observersStarted = false
@@ -56,8 +56,20 @@ let traceQueue: BrowserTracePayload[] = []
 let idleFlushId: number | null = null
 let fallbackFlushTimer: ReturnType<typeof setTimeout> | null = null
 let traceLifecycleCleanups: Array<() => void> = []
+let inputTelemetry: InputTelemetryState | null = null
+let deliveryFailureReported = false
 const TRACE_FLUSH_SIZE = 20
 const TRACE_FLUSH_TIMEOUT_MS = 2_000
+const DEFAULT_MAX_INTERACTIONS_PER_SESSION = 100
+
+type InputTelemetryState = {
+  sessionId: string
+  support: "supported" | "unsupported"
+  observerInitialized: boolean
+  sampled: boolean
+  sampledInteractions: number
+  droppedInteractions: number
+}
 
 export function performanceLoggingEnabled(): boolean {
   return readInitialBootstrap()?.feature_flags?.performance_logging === true
@@ -128,7 +140,11 @@ export function postBrowserTraces(payloads: BrowserTracePayload[], options: { be
       ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {})
     },
     body
-  }).catch(() => {})
+  })
+    .then((response) => {
+      if (!response.ok) reportDeliveryFailure()
+    })
+    .catch(reportDeliveryFailure)
   return true
 }
 
@@ -141,11 +157,22 @@ export function startBrowserPerformanceObservers(options: BrowserObserverOptions
   if (options.enabled === false) return
   if (options.enabled !== true && !performanceLoggingEnabled()) return
   const sampleRate = Math.min(1, Math.max(0, options.sampleRate ?? 0.1))
-  if (Math.random() >= sampleRate) return
+  const eventTimingSupported = supportsPerformanceObserverType("event")
+  const sampled = Math.random() < sampleRate
+  inputTelemetry = {
+    sessionId: browserTraceId("input-session"),
+    support: eventTimingSupported ? "supported" : "unsupported",
+    observerInitialized: false,
+    sampled,
+    sampledInteractions: 0,
+    droppedInteractions: 0
+  }
+  recordInputTelemetryHealth(sampled ? "session_eligible" : "session_sampled_out")
+  if (!sampled) return
 
   observersStarted = true
   observeLongTasks(options)
-  observeSlowEvents(options)
+  observeInteractions(options)
   observeEventLoopLag(options)
 }
 
@@ -153,6 +180,8 @@ export function resetBrowserPerformanceObserversForTest(): void {
   observerCleanups.forEach((cleanup) => cleanup())
   observerCleanups = []
   observersStarted = false
+  inputTelemetry = null
+  deliveryFailureReported = false
   traceQueue = []
   cancelScheduledTraceFlush()
   traceLifecycleCleanups.forEach((cleanup) => cleanup())
@@ -184,7 +213,14 @@ function scheduleTraceFlush(): void {
 
 function ensureTraceLifecycleListeners(): void {
   if (traceLifecycleCleanups.length > 0 || typeof document === "undefined") return
-  const flushWithBeacon = () => flushBrowserTraceQueue({ beacon: true })
+  let inputHealthFinalized = false
+  const flushWithBeacon = () => {
+    if (!inputHealthFinalized && inputTelemetry) {
+      inputHealthFinalized = true
+      recordInputTelemetryHealth("session_summary")
+    }
+    flushBrowserTraceQueue({ beacon: true })
+  }
   const onVisibilityChange = () => {
     if (document.visibilityState === "hidden") flushWithBeacon()
   }
@@ -238,32 +274,51 @@ function observeLongTasks(_options: BrowserObserverOptions): void {
   }
 }
 
-function observeSlowEvents(_options: BrowserObserverOptions): void {
-  if (!supportsPerformanceObserverType("event")) return
+function observeInteractions(options: BrowserObserverOptions): void {
+  if (!supportsPerformanceObserverType("event")) {
+    recordInputTelemetryHealth("api_unsupported")
+    return
+  }
+
+  const maxInteractions = Math.max(0, Math.floor(options.maxInteractionsPerSession ?? DEFAULT_MAX_INTERACTIONS_PER_SESSION))
+  let rateLimitReported = false
 
   const observer = new PerformanceObserver((list) => {
     list.getEntries().forEach((rawEntry) => {
       const entry = rawEntry as PerformanceEventTimingEntry
-      if (entry.duration < 50) return
+      if (!inputTelemetry) return
+      if (inputTelemetry.sampledInteractions >= maxInteractions) {
+        inputTelemetry.droppedInteractions += 1
+        if (!rateLimitReported) {
+          rateLimitReported = true
+          recordInputTelemetryHealth("rate_limited")
+        }
+        return
+      }
 
       const inputDelayMs = typeof entry.processingStart === "number" ? Math.max(0, entry.processingStart - entry.startTime) : null
       const processingDurationMs =
         typeof entry.processingStart === "number" && typeof entry.processingEnd === "number" ? Math.max(0, entry.processingEnd - entry.processingStart) : null
+      const presentationDelayMs = typeof entry.processingEnd === "number" ? Math.max(0, entry.startTime + entry.duration - entry.processingEnd) : null
+      inputTelemetry.sampledInteractions += 1
 
       recordBrowserTrace(
         {
           trace_id: browserTraceId("input"),
-          name: "browser.slow_input",
-          path: currentTracePath(),
+          interaction_id: typeof entry.interactionId === "number" && entry.interactionId > 0 ? entry.interactionId : null,
+          name: "browser.input_latency",
+          path: window.location.pathname,
           duration_ms: roundMs(entry.duration),
           visibility_state: visibilityState(),
           metadata: {
-            event_name: entry.name,
-            entry_type: entry.entryType,
+            screen: coarseScreen(),
+            interaction_kind: interactionKind(entry.name),
             input_delay_ms: inputDelayMs === null ? null : roundMs(inputDelayMs),
             processing_duration_ms: processingDurationMs === null ? null : roundMs(processingDurationMs),
-            interaction_id: typeof entry.interactionId === "number" && entry.interactionId > 0 ? entry.interactionId : null,
-            target: targetLabel(entry.target),
+            presentation_delay_ms: presentationDelayMs === null ? null : roundMs(presentationDelayMs),
+            event_timing_support: inputTelemetry.support,
+            input_session_id: inputTelemetry.sessionId,
+            app_revision: readInitialBootstrap()?.app?.revision ?? "unknown",
             source: "performance_observer"
           }
         },
@@ -274,10 +329,44 @@ function observeSlowEvents(_options: BrowserObserverOptions): void {
 
   try {
     observer.observe({ type: "event", buffered: true, durationThreshold: 40 } as PerformanceObserverInit & { durationThreshold: number })
+    if (inputTelemetry) inputTelemetry.observerInitialized = true
     observerCleanups.push(() => observer.disconnect())
+    recordInputTelemetryHealth("observer_initialized")
   } catch {
     observer.disconnect()
+    recordInputTelemetryHealth("observer_initialization_failed")
   }
+}
+
+function recordInputTelemetryHealth(status: string): void {
+  if (!inputTelemetry) return
+  recordBrowserTrace(
+    {
+      trace_id: browserTraceId("input-health"),
+      name: "browser.input_telemetry_health",
+      path: window.location.pathname,
+      duration_ms: 0,
+      visibility_state: visibilityState(),
+      metadata: {
+        status,
+        eligible_sessions: 1,
+        api_support: inputTelemetry.support,
+        observer_initialized: inputTelemetry.observerInitialized,
+        sampled: inputTelemetry.sampled,
+        sampled_interactions: inputTelemetry.sampledInteractions,
+        dropped_interactions: inputTelemetry.droppedInteractions,
+        input_session_id: inputTelemetry.sessionId,
+        app_revision: readInitialBootstrap()?.app?.revision ?? "unknown"
+      }
+    },
+    { enabled: true }
+  )
+}
+
+function reportDeliveryFailure(): void {
+  if (deliveryFailureReported || !inputTelemetry) return
+  deliveryFailureReported = true
+  recordInputTelemetryHealth("delivery_failure")
 }
 
 // A setInterval sampler cannot, on its own, tell a blocked main thread from a
@@ -454,16 +543,17 @@ function roundMs(value: number): number {
   return Math.round(value * 10) / 10
 }
 
-function targetLabel(target: EventTarget | null | undefined): string | null {
-  if (typeof Element === "undefined") return null
-  if (!(target instanceof Element)) return null
+function interactionKind(name: string): string {
+  if (name.startsWith("key")) return "keyboard"
+  if (name.startsWith("pointer") || name === "click" || name.startsWith("mouse")) return "pointer"
+  if (name.startsWith("touch")) return "touch"
+  if (name === "input" || name === "change" || name === "beforeinput") return "form_control"
+  return "other"
+}
 
-  const tag = target.tagName.toLowerCase()
-  const role = target.getAttribute("role")
-  const testId = target.getAttribute("data-testid")
-  const pieces = [tag]
-  if (role) pieces.push(`[role=${role}]`)
-  if (testId) pieces.push(`[data-testid=${testId}]`)
-
-  return pieces.join("")
+function coarseScreen(): string {
+  return window.location.pathname
+    .split("/")
+    .map((segment) => (/^\d+$/.test(segment) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment) ? ":id" : segment))
+    .join("/")
 }
