@@ -40,6 +40,7 @@ RSpec.describe AgentQuestion do
     expect(record.answer!(answers: [ "Careful", [ "Web" ], "None" ], answered_by: user, source: "chat_tool")).to eq(true)
 
     expect(run.reload).to have_attributes(state: "queued", parent_session_id: "provider-session")
+    expect(run.prompt).to include("The operator answered", "A1: Careful")
     expect(run.step.reload.state).to eq("running")
   end
 
@@ -64,5 +65,39 @@ RSpec.describe AgentQuestion do
     expect(Run.stale).not_to include(run)
     expect(run.step.awaiting_run?).to eq(false)
     expect(run.workflow).to be_running
+  end
+
+  it "resumes an existing cannot-proceed block through the same answer path" do
+    workflow = run.workflow
+    job = run.job
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 1.minute.ago)
+    run.step.update_columns(state: "running", started_at: 1.minute.ago)
+    run.update_columns(state: "running", started_at: 1.minute.ago)
+    run.create_provider_session!(session_id: "blocked-provider-session", transcript_jsonl: "")
+    unit = attach_work_unit(workflow, state: "running")
+    runner = RunJob.new
+    runner.instance_variable_set(:@run, run)
+    runner.instance_variable_set(:@step, run.step)
+    runner.instance_variable_set(:@workflow, workflow)
+    allow(runner).to receive(:log)
+
+    runner.send(:block_after_cannot_proceed!, "A credential is missing")
+
+    record = run.agent_questions.active.sole
+    expect(record.questions.sole.fetch("question")).to include("A credential is missing")
+    expect(run.reload).to be_blocked
+    expect(workflow.reload).to be_blocked
+    expect(unit.reload).to be_blocked
+    expect(workflow.send(:cleanup_blocked_by_active_descendants?)).to eq(true)
+    allow_any_instance_of(Run).to receive(:reenqueue!)
+
+    expect(record.answer!(answers: [ "Use the repository credential" ], answered_by: user, source: "chat_tool")).to eq(true)
+
+    expect(run.reload).to have_attributes(state: "queued", finished_at: nil, parent_session_id: "blocked-provider-session")
+    expect(run.step.reload).to have_attributes(state: "running", finished_at: nil)
+    expect(workflow.reload).to have_attributes(state: "running", finished_at: nil)
+    expect(unit.reload).to have_attributes(state: "running", blocked_reason: nil)
+    expect(job.reload.needs_attention_reason).to be_nil
   end
 end

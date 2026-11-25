@@ -19,6 +19,7 @@ module Mcp::Tools
         scope = AgentQuestion.where.not(run_id: nil).joins(run: :job).merge(Job.visible_to(user))
         question = scope.find_by(id: question_id)
         return Mcp::Tools.invalid("workflow question not found") unless question
+        return Mcp::Tools.not_authorized unless JobPolicy.new(user, question.run.job).write?
 
         answered = question.answer!(answers: answers, answered_by: user, source: "chat_tool")
         return Mcp::Tools.invalid("question is closed or answers are invalid") unless answered

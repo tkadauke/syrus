@@ -17,6 +17,7 @@ RSpec.describe AgentQuestionTimeoutJob do
     expect(question.reload).to have_attributes(answers: [ "Careful" ], answer_source: "timeout")
     expect(question.timed_out_at).to be_present
     expect(run.reload.state).to eq("queued")
+    expect(run.prompt).to include("timeout applied your stated defaults")
   end
 
   it "does not mark or emit a timeout after an operator answer wins" do
