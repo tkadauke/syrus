@@ -13,17 +13,36 @@ require "tmpdir"
 RSpec.describe "plugin deletion plants" do
   PLUGIN = "coworkers".freeze
 
-  def verdict_for(files)
-    Dir.mktmpdir do |dir|
-      root = Pathname.new(dir)
-      files.each do |path, content|
-        root.join(path).dirname.mkpath
-        root.join(path).write(content)
-      end
-      File.symlink(Rails.root.join("plugins").to_s, root.join("plugins").to_s)
-      audit = Admin::PluginSourceBoundaryAudit.new(root: root)
-      Formal::PluginDeletion.call(PLUGIN, audit: audit).verdict
+  # The plugin side of the scan (manifests and plugin-to-plugin violations)
+  # depends only on the symlinked plugins tree, which is identical for every
+  # plant, and it is by far the expensive part. Scan it once and re-scan only
+  # the planted core files per example.
+  class PlantedAudit
+    def initialize(audit)
+      @audit = audit
     end
+
+    def removed_plugin_names_for(name) = @audit.removed_plugin_names_for(name)
+    def bundled_manifests = @audit.bundled_manifests
+    def core_violations = @audit.core_violations
+    def plugin_violations = @plugin_violations ||= @audit.plugin_violations
+  end
+
+  before(:all) do
+    @plant_root = Pathname.new(Dir.mktmpdir)
+    File.symlink(Rails.root.join("plugins").to_s, @plant_root.join("plugins").to_s)
+    @plant_audit = PlantedAudit.new(Admin::PluginSourceBoundaryAudit.new(root: @plant_root))
+  end
+
+  after(:all) { FileUtils.remove_entry(@plant_root) }
+
+  def verdict_for(files)
+    (@plant_root.children - [ @plant_root.join("plugins") ]).each { |child| FileUtils.rm_rf(child) }
+    files.each do |path, content|
+      @plant_root.join(path).dirname.mkpath
+      @plant_root.join(path).write(content)
+    end
+    Formal::PluginDeletion.call(PLUGIN, audit: @plant_audit).verdict
   end
 
   {
