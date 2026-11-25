@@ -21,7 +21,7 @@ module SyrusMuseAgent
     surface filter_chips: { admin_user: { "has_muse_token" => "Filters::Chips::AdminUsers::HasMuseToken" } }
 
     while_enabled do |scope|
-      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("muse", ChatSessionRehydrator::Muse) }
+      scope.effect("chat session rehydrator") { Syrus::Host::ChatSessionRehydrator.register("muse", Syrus::Host::ChatSessionRehydrator::Muse) }
     end
   end
 end

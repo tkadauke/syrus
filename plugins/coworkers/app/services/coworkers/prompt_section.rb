@@ -11,7 +11,7 @@ class Coworkers::PromptSection
     return unless coworker.respond_to?(:kind) && coworker.kind == "coworker"
     return unless repository
 
-    root = ChatWorkspace.repo_path_for(chat_session, repository)
+    root = Syrus::Host::ChatWorkspace.repo_path_for(chat_session, repository)
     rendered = HEADING + grant_section(coworker)
     rendered << conflict_section(chat_session:, repository:, root:)
     rendered = truncate_aggregate(rendered) if rendered.bytesize > MAX_TOTAL_BYTES

@@ -163,7 +163,7 @@ module RuntimeTerminal
     def input(session_id, event)
       runtime_session = runtime_session_for(session_id)
       event = event.to_h.symbolize_keys
-      delivered = RuntimeControlLease.with_agent_input_control(runtime_session) do |lease|
+      delivered = Syrus::Host::RuntimeControlLease.with_agent_input_control(runtime_session) do |lease|
         terminal_session = relay_ready_terminal_session_for(runtime_session)
         with_fresh_relay_client(runtime_session, terminal_session) do |client|
           client.input(event)
@@ -173,7 +173,7 @@ module RuntimeTerminal
       end
 
       unless delivered
-        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
+        Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
         return {
           error: "lease_required",
           message: "the agent must hold an active input lease before sending input events"
@@ -203,7 +203,7 @@ module RuntimeTerminal
     def workflow_queue_name!(workflow)
       storage_key = workflow.worker_storage_key.presence
       unless storage_key
-        raise RuntimeSessionProviders::ConfigurationError,
+        raise Syrus::Host::RuntimeSessionRegistry::ConfigurationError,
               "runtime terminal cannot start because the prepared workflow workspace has no worker storage affinity"
       end
 
@@ -251,9 +251,9 @@ module RuntimeTerminal
     end
 
     def runtime_session_for(session_id)
-      return session_id if session_id.is_a?(RuntimeSession)
+      return session_id if session_id.is_a?(Syrus::Host::RuntimeSessionRecord)
 
-      RuntimeSession.find(session_id)
+      Syrus::Host::RuntimeSessionRecord.find(session_id)
     end
 
     def terminal_session_for(runtime_session)
@@ -268,7 +268,7 @@ module RuntimeTerminal
       terminal_session = relay_ready_terminal_session_for_record(terminal_session)
       return terminal_session if terminal_session.relay_ready?
 
-      raise RuntimeSessionProviders::ConfigurationError,
+      raise Syrus::Host::RuntimeSessionRegistry::ConfigurationError,
             "runtime terminal relay was not ready within #{RELAY_ADDRESS_TIMEOUT.inspect}"
     end
 
@@ -283,7 +283,7 @@ module RuntimeTerminal
       if terminal_session.finished?
         runtime_session = RuntimeTerminal::SessionLink.find_by(terminal_session_id: terminal_session.id)&.runtime_session
         detail = runtime_session&.failed? ? runtime_session.last_error : nil
-        raise RuntimeSessionProviders::ConfigurationError,
+        raise Syrus::Host::RuntimeSessionRegistry::ConfigurationError,
               detail.presence || "runtime terminal exited before its relay became ready"
       end
 

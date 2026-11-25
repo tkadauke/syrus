@@ -13,7 +13,7 @@ require "json"
 #     server / tool fields.
 #   - User ChatMessage rows are omitted; the Codex resume command takes the
 #     new user prompt directly and does not replay prior turns from the JSONL.
-class ChatSessionRehydrator::Codex
+class Syrus::Host::ChatSessionRehydrator::Codex
   BASH_TOOL_NAME = "bash"
 
   def initialize(chat_session, session_id: nil, cwd: nil, messages: nil)
@@ -128,8 +128,8 @@ class ChatSessionRehydrator::Codex
   def messages_in_order
     return @messages if @messages
 
-    if ChatContextCompactor.enabled_for?(@chat_session)
-      return ChatContextCompactor.context_messages_for(@chat_session)
+    if Syrus::Host::ChatContextCompactor.enabled_for?(@chat_session)
+      return Syrus::Host::ChatContextCompactor.context_messages_for(@chat_session)
     end
 
     @chat_session.messages.active.order(:id)
