@@ -284,3 +284,32 @@ RSpec.describe RunProcessParallelism, ".cpu_detection" do
     expect(described_class.cpu_detection.count).to eq(described_class.effective_cpu_count)
   end
 end
+
+# Regression: a worker whose processes held 1.7 GB measured ~8 GB "used"
+# because reclaimable slab (dentry/inode caches from hardlinked checkouts)
+# counted, and refused every heavy grader while landing graders queued.
+RSpec.describe RunProcessParallelism, ".working_set_bytes" do
+  def stat(lines) = lines.map { |key, value| "#{key} #{value}" }.join("\n")
+
+  it "excludes clean page cache and reclaimable slab, keeping what cannot be reclaimed" do
+    memory_stat = stat(
+      "anon" => 2.gigabytes,
+      "file" => 6.gigabytes,
+      "inactive_file" => 1.gigabyte,
+      "file_dirty" => 512.megabytes,
+      "file_writeback" => 0,
+      "slab_reclaimable" => 5.gigabytes,
+      "slab_unreclaimable" => 256.megabytes
+    )
+    usage = 2.gigabytes + 6.gigabytes + 5.gigabytes + 256.megabytes
+
+    expect(described_class.working_set_bytes(usage: usage.to_s, stat: memory_stat))
+      .to eq(2.gigabytes + 512.megabytes + 256.megabytes)
+  end
+
+  it "reads a cgroup v1 stat with no slab breakdown as before" do
+    memory_stat = stat("total_cache" => 3.gigabytes, "inactive_file" => 1.gigabyte, "total_dirty" => 0)
+
+    expect(described_class.working_set_bytes(usage: 5.gigabytes.to_s, stat: memory_stat)).to eq(2.gigabytes)
+  end
+end

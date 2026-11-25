@@ -233,6 +233,12 @@ class RunProcessParallelism
     nil
   end
 
+  # Memory the kernel would hand back under pressure is not memory a new
+  # grader would have to fight for: clean page cache, and reclaimable slab --
+  # the dentry and inode caches that hardlinked checkout trees fill. Counting
+  # that slab as used left a worker with 1.7 GB of resident processes reading
+  # ~8 GB "used", so it refused every heavy grader while the fleet's landing
+  # graders queued behind its two busy peers.
   def self.working_set_bytes(usage:, stat:)
     usage_bytes = positive_bytes(usage)
     return unless usage_bytes
@@ -243,8 +249,9 @@ class RunProcessParallelism
     writeback = stat[/^(?:file_writeback|total_writeback)\s+(\d+)$/, 1].to_i
     clean_file = [ file - dirty - writeback, 0 ].max
     reclaimable_file = [ inactive_file, clean_file ].max
+    reclaimable_slab = stat[/^slab_reclaimable\s+(\d+)$/, 1].to_i
 
-    [ usage_bytes - reclaimable_file, 0 ].max
+    [ usage_bytes - reclaimable_file - reclaimable_slab, 0 ].max
   end
 
   def self.proc_memory_total
