@@ -8063,7 +8063,12 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   agent-blocked dependency retry (only dependencies added after the block,
   through `RetryWorkflowEnqueuer`) hold as written.
 
-Checked through main `51c18d814d`. Each loop iteration continues from there:
+- Main through `bc5951dad7`: chat and UI work (ZIP attachments, historical
+  mockup versions, mockup-aware prompts, React Query placeholder data) and
+  feature-flag values in operational log context. No engine invariant; ZIP
+  attachments only widen the accepted types, nothing extracts them server-side.
+
+Checked through main `bc5951dad7`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
