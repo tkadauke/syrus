@@ -289,6 +289,8 @@ module Api
           render_job(job.reload, message: lifecycle_t("question_fix_filed", slug: result.job.slug), changed: [ "dependencies" ])
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue AgentQuestions::FileFixJob::RetryFailed => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         # Cancels (or dismisses, when already blocked) one auxiliary workflow.

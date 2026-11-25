@@ -10,6 +10,8 @@ module Api
 
         def answer
           question = visible_questions.find(params[:id])
+          return unless authorize_job_mutation!(question.run.job)
+
           if question.answer!(answers: agent_question_answers_param, answered_by: Current.user, source: "web")
             render json: { message: I18n.t("agent_questions.answered") }
           else
