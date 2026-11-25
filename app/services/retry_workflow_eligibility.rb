@@ -57,6 +57,10 @@ class RetryWorkflowEligibility
     unit_kinds_by_workflow_id = work_unit_kinds_by_workflow_id(active_workflows)
 
     active_workflows.any? do |active_workflow|
+      # A blocked Workflow is waiting for an operator, not queued or running;
+      # retrying is how it gets answered. RetryWorkflowEnqueuer releases it.
+      next false if active_workflow.blocked?
+
       retry_workflow_attempt?(
         active_workflow,
         work_unit_kind: unit_kinds_by_workflow_id[active_workflow.id]

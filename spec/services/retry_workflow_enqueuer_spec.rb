@@ -46,6 +46,28 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
+  # Regression: an agent-blocked Workflow kept its WorkUnit (and job lock)
+  # active, so every retry -- the reconciler's and the operator's -- was
+  # refused as "already queued or running" and the Job stayed blocked.
+  it "retries a Job whose implementation Workflow an agent blocked" do
+    blocked = job.latest_workflow
+    run = job.current_run
+    run.start! if run.may_start?
+    run.update_columns(state: "blocked", finished_at: Time.current)
+    blocked.first_step.update_columns(state: "blocked", finished_at: Time.current)
+    blocked.update_columns(state: "blocked", finished_at: Time.current)
+    blocked.set_artifact!("cannot_proceed", { "reason" => "Prerequisite not met" })
+    blocked.work_unit.update_columns(state: "blocked")
+
+    result = described_class.call(job: job, provider_validation: :none, automatic: true)
+
+    expect(result).to be_success
+    expect(result.workflow).not_to eq(blocked)
+    expect(blocked.reload).to be_blocked
+    expect(blocked.work_unit.reload.state).to eq("cancelled")
+    expect(blocked.work_unit.work_unit_locks.active).to be_empty
+  end
+
   it "does not carry branch-divergence artifacts into retry workflows" do
     finish_current_run!
 

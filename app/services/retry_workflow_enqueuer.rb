@@ -101,6 +101,7 @@ class RetryWorkflowEnqueuer
         if state_error
           failure_result = failure(state_error)
         else
+          release_blocked_workflow_units!
           workflow = instantiate_retry_workflow
         end
       else
@@ -120,6 +121,18 @@ class RetryWorkflowEnqueuer
   private
 
   attr_reader :job, :agent_provider, :artifacts, :provider_validation
+
+  # A blocked implementation Workflow keeps its WorkUnit, and the job lock,
+  # active while it waits for an operator. The retry is that answer, so the
+  # blocked attempt is retired here; otherwise the retry collides with its
+  # lock and is refused as "already queued or running", which left an
+  # agent-blocked Job unretryable by hand or by the reconciler.
+  def release_blocked_workflow_units!
+    job.active_runtime_workflows.select(&:blocked?).each do |blocked_workflow|
+      unit = blocked_workflow.work_unit
+      unit.mark_terminal!("cancelled") if unit&.active?
+    end
+  end
 
   def retry_artifacts(raw_artifacts)
     WorkflowArtifactSanitizer.without_branch_divergence(raw_artifacts).presence
