@@ -191,5 +191,53 @@ def skipSafe (n : Nat) : Bool :=
 
 theorem skip_queued_preserves_barrier : skipSafe 5 = true := by native_decide
 
+/-! ## Collector gating: nothing runs beside a HEAD-moving Step
+
+Every parallel kind (grader, preflight_grader, merge_train_multisect_evaluate)
+is followed by a serial collector that `waits_for_terminal_step_kind` /
+`depends_on` all of them, so no serial Step is ready while an earlier parallel
+Step is unfinished. With that and the barrier, a running serial Step is the
+only running Step: earlier parallel Steps are done, later ones still queued.
+Every HEAD-moving Step (implement, respond, rebase) is serial, so HEAD never
+moves under a running Run, which is what `running_run_before_required_review_barrier`
+would need (the queued case is caught by RunJob's start check). -/
+
+def stepAt (l : List Step) (i : Nat) : Step := l.getD i ⟨.serial, .done, false⟩
+
+/-- A serial Step is ready only when every earlier parallel Step is done. -/
+def collectorGated (l : List Step) : Bool :=
+  (List.range l.length).all fun j =>
+    !((stepAt l j).k = .serial && (stepAt l j).ready) ||
+      (List.range j).all fun i => (stepAt l i).k = .serial || (stepAt l i).st = .done
+
+/-- While a serial Step runs, every earlier parallel Step is done. -/
+def serialRunsAlone (l : List Step) : Bool :=
+  (List.range l.length).all fun j =>
+    !((stepAt l j).k = .serial && (stepAt l j).st = .running) ||
+      (List.range l.length).all fun i => i = j || (stepAt l i).st != .running
+
+def aloneInv (l : List Step) : Bool :=
+  serialBarrier l &&
+  (List.range l.length).all fun j =>
+    !((stepAt l j).k = .serial && (stepAt l j).st = .running) ||
+      (List.range j).all fun i => (stepAt l i).k = .serial || (stepAt l i).st = .done
+
+def alonePreserved (n : Nat) : Bool :=
+  (allLists n).all fun l =>
+    (List.range (l.length + 1)).all fun cur =>
+      !(aloneInv l && cursorOk l cur && collectorGated l) ||
+        aloneInv (startAll l (readySet l cur))
+
+theorem collector_gating_preserves_alone : alonePreserved 5 = true := by native_decide
+
+theorem alone_inv_means_serial_runs_alone :
+    (allLists 5).all (fun l => !aloneInv l || serialRunsAlone l) = true := by native_decide
+
+/-- Without the gate a serial Step can start beside an earlier running grader. -/
+theorem ungated_serial_runs_beside_grader :
+    let l : List Step := [⟨.parallel, .running, true⟩, ⟨.serial, .queued, true⟩]
+    aloneInv l = true ∧ aloneInv (startAll l (readySet l 1)) = false := by
+  native_decide
+
 end ReadySet
 end SyrusModel
