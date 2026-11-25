@@ -41,6 +41,7 @@ class BaseRevisionRetry
   def call
     config = base_retry_config
     return skipped("no_base_retry_config") unless config
+    return skipped("base_is_candidate_revision") if base_is_candidate_revision?
 
     return run_full_command if config.fetch("strategy") == "full_command"
 
@@ -335,6 +336,22 @@ class BaseRevisionRetry
         return nil
       end
     end
+  end
+
+  # A comparison against the revision under test proves nothing: every
+  # failure reproduces, so every failure reads as inherited. A main grader's
+  # merge-base with main is its own HEAD, and its allow_inherited graders
+  # therefore excused every real test failure on main -- main graded healthy
+  # while a localization-debt spec failed on it in CI.
+  def base_is_candidate_revision?
+    return false if @base_sha.blank?
+
+    head = git("rev-parse", "HEAD").to_s.strip
+    return false if head.blank?
+
+    head == @base_sha || (@base_sha.length >= 7 && head.start_with?(@base_sha))
+  rescue GitRunner::GitError
+    false
   end
 
   def git(*args)

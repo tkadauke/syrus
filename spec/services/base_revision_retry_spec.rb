@@ -142,6 +142,30 @@ RSpec.describe BaseRevisionRetry do
     )
   end
 
+  # Regression: a main grader's merge-base with main is its own HEAD, so its
+  # "base" rerun re-ran the failing tests on the same commit, reproduced them,
+  # and accepted every real failure on main as inherited.
+  it "refuses to compare a candidate against itself" do
+    head_sha = "50d35be2900000000000000000000000000000aa"
+    git = instance_double(GitRunner)
+    allow(git).to receive(:run) { |*args, **| args.first(2) == %w[rev-parse HEAD] ? "#{head_sha}\n" : "" }
+    allow(GitRunner).to receive(:new).and_return(git)
+    stub_focused_test_command("bin/rspec-fast spec/models/widget_spec.rb")
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: head_sha,
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command)
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: false, inherited: false, reason: "base_is_candidate_revision")
+    expect(retry_check).not_to have_received(:run_command)
+  end
+
   it "treats failed tests as inherited when the focused base run reports the same failures" do
     provider = Class.new do
       def self.command_for(**)
