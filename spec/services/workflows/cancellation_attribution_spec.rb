@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Workflows::CancellationAttribution, :hierarchical_locks do
+RSpec.describe Workflows::CancellationAttribution do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:root_job) { Factories.job_record(user: user, repository: repository) }

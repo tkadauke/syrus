@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PendingActions::RepairQueueAffinity, :hierarchical_locks do
+RSpec.describe PendingActions::RepairQueueAffinity do
   include ActiveJob::TestHelper
 
   let(:admin) { Factories.user(admin: true) }

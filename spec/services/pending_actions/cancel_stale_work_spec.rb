@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PendingActions::CancelStaleWork, :hierarchical_locks do
+RSpec.describe PendingActions::CancelStaleWork do
   let(:admin) { Factories.user(admin: true) }
   let(:admin_repository) { Factories.repository(user: admin) }
 

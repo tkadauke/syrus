@@ -305,7 +305,7 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     expect(contended).to have_attributes(steps: [], reason: "waiting_for_fair_turn")
   end
 
-  it "bounds runnable fanout work and reaches collect as completions release slots", :hierarchical_locks do
+  it "bounds runnable fanout work and reaches collect as completions release slots" do
     workflow.update_columns(state: "running")
     fanout = workflow.steps.create!(kind: "grader_fanout", position: 90, state: "succeeded", finished_at: Time.current)
     steps = grader_steps(6)

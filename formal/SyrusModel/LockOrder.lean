@@ -46,6 +46,13 @@ would change:
 
 The hot path, RunJob's Run → Job, keeps its order.
 
+**Superseded (NY40).** The enforced order is now the hierarchy, parents before
+children: AppSetting, User, Epic, Job, WorkIntent, WorkUnit, Workflow, Step,
+Run (`hierRank` below). Transactions take a record's ancestry first through
+`Lineage.lock_all!`, and every sequence it can take is in that order
+(`lock_all_in_order`). The NY25 order and its proofs below are the record of
+how the observed graph was made acyclic first.
+
 This file proves a property of the recorded graph, not of the code. The edges
 come from the audit, whose evidence is in FINDINGS M25. A new lock site
 changes the graph; that is the drift a lock-order check in CI would catch.

@@ -10,14 +10,11 @@ RSpec.describe "Lineage funnels" do
   let(:step) { workflow.steps.order(:position).first }
 
   around do |example|
-    previous_target = Syrus::LockOrder.target
     previous_mode = Syrus::LockOrder::Checker.mode
     previous_writes = ENV["SYRUS_LOCK_ORDER_WRITES"]
-    Syrus::LockOrder.target = :hierarchical
     ENV["SYRUS_LOCK_ORDER_WRITES"] = "1"
     example.run
   ensure
-    Syrus::LockOrder.target = previous_target
     Syrus::LockOrder::Checker.mode = previous_mode
     ENV["SYRUS_LOCK_ORDER_WRITES"] = previous_writes
   end

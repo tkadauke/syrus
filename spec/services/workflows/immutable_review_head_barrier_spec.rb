@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Workflows::ImmutableReviewHeadBarrier, :hierarchical_locks do
+RSpec.describe Workflows::ImmutableReviewHeadBarrier do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job(repository: repository, user: user, owner_user: user) }

@@ -117,19 +117,34 @@ Use these rules for persistence, ownership invariants, migrations, and backfills
 ## Row-lock order
 
 A transaction that locks rows of several models takes them in one global
-order, `Syrus::LockOrder::MODELS` (`lib/syrus/lock_order.rb`):
-AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit →
-User. Two transactions that each hold a lock the other wants deadlock under
-InnoDB; one order makes that impossible
-(`formal/SyrusModel/LockOrder.lean`).
+order, `Syrus::LockOrder::MODELS` (`lib/syrus/lock_order.rb`): the hierarchy,
+parents before children.
+AppSetting → User → Epic → Job → WorkIntent → WorkUnit → Workflow → Step →
+Run. Two transactions that each hold a lock the other wants deadlock under
+InnoDB; one order makes that impossible (`formal/SyrusModel/LockOrder.lean`).
+Writes count: an UPDATE or DELETE locks its row just as `SELECT ... FOR
+UPDATE` does.
 
-- Lock the higher-level record first: the Job before its Workflows, a Run
-  before its Job, an Epic before its member Jobs. `with_lock` on a
-  lower-ranked record cannot be followed by a lock on a higher-ranked one;
-  open `Model.transaction` and lock the earlier model first instead.
-- Re-locking a row the transaction already holds is fine in any order, which
-  is why `Workflow#start`'s `job.lock!` is safe under a caller that locked the
-  Job first.
+- Lock the ancestry first. A transaction that can change a Run, Step or
+  Workflow, or anything that rolls up from them, calls `Lineage.lock!(record)`
+  (`app/services/lineage.rb`) before it writes. It takes the Epic, Job,
+  WorkIntent, WorkUnit, Workflow, Step and Run top down, plus the WorkUnit's
+  member Jobs, a merge-train Workflow's train members, and the Job's other
+  active Workflows. The rollups written afterwards (a Step's outcome to its
+  Workflow, a Workflow's to its WorkUnit, intent, Job and Epic) touch rows
+  already held. Workflow, Step and Run state events already do this
+  (`before_all_events`).
+- Locks across several records go through one call: `Lineage.lock_all!`
+  locks every row of one model before any row of the next, across Jobs.
+  `Lineage.lock_subtree!` adds every Step and Run underneath, for a
+  transaction that writes Runs and Steps in mixed order; `dependent: :destroy`
+  cascades take it in a prepended `before_destroy`.
+  `Lineage.lock_active_work!(job)` locks a Job's active Workflows' subtrees,
+  for cancelling a Job's live work.
+- `with_lock` on a lower record cannot be followed by a lock on a higher one.
+  Open `Model.transaction`, call `Lineage.lock!`, then `reload` as `with_lock`
+  would.
+- Re-locking a row the transaction already holds is fine in any order.
 - A lock taken with `NOWAIT` is outside the order: it fails at once instead
   of waiting, so it can never be part of a deadlock. Provider-account
   reservation uses one on the User row as its mutex and goes ahead without it
@@ -138,13 +153,13 @@ InnoDB; one order makes that impossible
   transaction can see it before commit, so the lock never waits and nobody waits
   on it. Restarting a Job relies on this when it closes the old Job and launches
   the replacement in one transaction.
-- Work that only records what happened (an audit line, a snapshot) and needs a
-  lock of its own belongs after the outermost commit
+- Work that only records what happened, or that needs a row above what the
+  transaction holds (an audit line, a snapshot, pausing an operator's
+  landing), belongs after the outermost commit
   (`ActiveRecord.after_all_transactions_commit`), not inside the transaction.
 
 The suite enforces it: `spec/support/lock_order.rb` installs
 `Syrus::LockOrder::Checker`, which fails an example that takes a lock out of
-order and names both lock sites. `Syrus::LockOrder::PENDING_DECISION` lists the
-few inversions waiting on an operator decision; they are recorded in
-`tmp/lock_order_violations*.json` instead of failing. `SYRUS_LOCK_ORDER=record`
-records every violation instead, to survey a change.
+order, writes included, and names both lock sites. `SYRUS_LOCK_ORDER=record`
+records every violation in `tmp/lock_order_violations*.json` instead, to
+survey a change.

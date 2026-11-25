@@ -4,7 +4,7 @@ require "fileutils"
 require "open3"
 require "shellwords"
 
-RSpec.describe "RunJob distributed legacy grader projections", :ci_only, :hierarchical_locks do
+RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
   self.use_transactional_tests = false
 
   include ActiveJob::TestHelper

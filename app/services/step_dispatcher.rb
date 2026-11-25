@@ -1468,7 +1468,11 @@ class StepDispatcher
     continuation = nil
     skipped = []
 
-    @workflow.with_lock do
+    # Ancestry first, top down (NY40): skipping the check Steps rolls up to
+    # the Workflow. Then reloaded as with_lock would.
+    Workflow.transaction do
+      Lineage.lock!(@workflow)
+      @workflow.reload
       Step.transaction do
         cursor = step.next_step
         while cursor &&

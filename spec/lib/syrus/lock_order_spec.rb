@@ -135,17 +135,6 @@ RSpec.describe Syrus::LockOrder::Checker do
     }.not_to raise_error
   end
 
-  it "records the pending-decision inversions instead of raising" do
-    violation = Syrus::LockOrder::Violation.new(
-      held: "Step", taking: "Workflow",
-      site: "app/services/work_units/workflow_cancellation.rb:51",
-      held_site: "app/models/workflow.rb:568"
-    )
-
-    expect(Syrus::LockOrder.pending_decision?(violation)).to be(true)
-    expect(Syrus::LockOrder.pending_decision?(violation.with(held_site: "app/services/other.rb:1"))).to be(false)
-  end
-
   # Lead L14: an UPDATE takes an InnoDB row lock just as SELECT ... FOR UPDATE
   # does. Opt-in, for surveying: SYRUS_LOCK_ORDER_WRITES=1.
   describe "write tracking" do

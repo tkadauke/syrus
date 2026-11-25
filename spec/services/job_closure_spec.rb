@@ -43,9 +43,7 @@ RSpec.describe JobClosure do
 
   # NY33: a cancelled Workflow locks its own Steps, then applies its pending
   # closure, which cancels the Job's other Workflows. Locking those after the
-  # Steps inverted the row-lock order; they are now locked first. Asserted on
-  # the checker's record so the pending-decision entry for hook-driven nested
-  # cancellations cannot hide a regression here.
+  # Steps inverted the row-lock order; they are now locked first.
   describe "cancelling a Workflow whose pending closure cancels a sibling" do
     it "locks the sibling Workflow before any Step" do
       other = job.reload.workflows.order(:id).last
@@ -58,9 +56,7 @@ RSpec.describe JobClosure do
 
       WorkUnits::WorkflowCancellation.cancel!(workflow.reload, reason: "operator_cancelled")
 
-      # Only this spec's claim: no Workflow taken while a Step is held. Other
-      # inversions under the hierarchical target are the NY40 conversion's.
-      expect(checker.violations.drop(before).select { |v| v.held == "Step" && v.taking == "Workflow" }).to be_empty
+      expect(checker.violations.drop(before)).to be_empty
       expect(other.reload).to be_cancelled
       expect(job.reload).to have_attributes(state: "closed", closure_reason: "pr_closed")
     ensure

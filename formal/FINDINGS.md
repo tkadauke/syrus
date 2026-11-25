@@ -4863,6 +4863,15 @@ cleanup methods take their ancestry themselves, since reapers and repairs call
 them outside a Workflow event. A full suite after part 13 passes both phases
 and records one remaining site, from about 1,100.
 
+**Enforced (part 14).** The last site (the dispatcher's retry-until check
+skip) takes its ancestry first. `Syrus::LockOrder::MODELS` is now the
+hierarchy, the suite raises on any out-of-order lock with writes counted, and
+the selectable target and the NY31 pending-decision exemption are gone. Both
+phases of the full suite pass with the order enforced. `LockOrder.lean` notes
+the hierarchical order supersedes the NY25 one, and the row-lock section of
+`docs/engineering/conventions/database-and-migrations.md` describes it and the
+`Lineage` helpers.
+
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
 Job is in order after `Lineage.lock!`, and the same writes without it raise. It

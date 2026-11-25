@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkEngine::RepairExecutor, :hierarchical_locks do
+RSpec.describe WorkEngine::RepairExecutor do
   RepairResult = Data.define(:repair_plans)
 
   let(:job) { Factories.job }

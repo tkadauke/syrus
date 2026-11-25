@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe ResetJobs::Operation, :hierarchical_locks do
+RSpec.describe ResetJobs::Operation do
   let(:user) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user:) }
   let(:action) { instance_double(ChatPendingAction, id: 91) }
