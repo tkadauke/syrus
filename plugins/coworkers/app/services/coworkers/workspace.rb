@@ -1,3 +1,5 @@
+require "find"
+
 class Coworkers::Workspace
   class InvalidPath < ArgumentError; end
 

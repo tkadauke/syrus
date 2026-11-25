@@ -138,8 +138,8 @@ class Coworkers::EnvironmentSource
   # The effective final stage must descend from the supplied base: either it
   # names the base arg directly or an earlier stage that does.
   def dockerfile_errors(content)
-    froms = content.dup.force_encoding(Encoding::UTF_8).gsub(/\\\n/, " ").lines.filter_map do |line|
-      line.strip[/\AFROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?/i, 0] && Regexp.last_match
+    froms = dockerfile_instructions(content).filter_map do |line|
+      line[/\AFROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?/i, 0] && Regexp.last_match
     end
     return [ "#{DOCKERFILE} must contain a FROM instruction" ] if froms.empty?
 
@@ -151,6 +151,32 @@ class Coworkers::EnvironmentSource
       @final_descends = descends
     end
     @final_descends ? [] : [ "#{DOCKERFILE} final stage must descend from ${#{BASE_ARG}}" ]
+  end
+
+  # Logical Dockerfile instructions: continuation lines are joined and heredoc
+  # bodies are dropped so their payload can never read as an instruction.
+  def dockerfile_instructions(content)
+    raw = content.dup.force_encoding(Encoding::UTF_8).lines.map(&:chomp)
+    instructions = []
+    until raw.empty?
+      line = raw.shift
+      next if line.strip.empty? || line.strip.start_with?("#")
+
+      logical = line.rstrip
+      while logical.end_with?("\\") && raw.any?
+        logical = "#{logical.chomp("\\")} #{raw.shift.strip}"
+      end
+      instructions << logical.strip
+      next unless logical.strip.match?(/\A(RUN|COPY|ADD)\s/i)
+
+      logical.scan(/<<(-?)["']?([\w.-]+)["']?/).each do |dash, tag|
+        while raw.any?
+          body = raw.shift
+          break if (dash == "-" ? body.sub(/\A\t+/, "") : body) == tag
+        end
+      end
+    end
+    instructions
   end
 
   def manifest_errors(content)
