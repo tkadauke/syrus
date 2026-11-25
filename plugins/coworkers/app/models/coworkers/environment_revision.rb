@@ -6,15 +6,16 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
   self.table_name = "coworker_environment_revisions"
 
   DIGEST_FORMAT = /\Asha256:[0-9a-f]{64}\z/
-  STATES = %w[recorded building built candidate active superseded failed revoked].freeze
+  STATES = %w[draft building build_failed verifying candidate rejected active retired revoked].freeze
   TRANSITIONS = {
-    "recorded" => %w[building failed],
-    "building" => %w[built failed recorded],
-    "built" => %w[candidate failed revoked],
-    "candidate" => %w[active superseded failed revoked],
-    "active" => %w[superseded revoked],
-    "superseded" => %w[active revoked],
-    "failed" => [],
+    "draft" => %w[building],
+    "building" => %w[verifying build_failed],
+    "build_failed" => [],
+    "verifying" => %w[candidate rejected],
+    "candidate" => %w[active retired rejected revoked],
+    "rejected" => [],
+    "active" => %w[retired revoked],
+    "retired" => %w[active revoked],
     "revoked" => []
   }.freeze
 
@@ -29,7 +30,8 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
   belongs_to :created_by_user, class_name: "User", optional: true
   belongs_to :audit_event, class_name: "RuntimeImageAuditEvent", optional: true
 
-  attr_readonly :coworker_environment_id, :number, :source_digest, :source_manifest, :recipe_digest
+  attr_readonly :coworker_environment_id, :number, :source_digest, :source_manifest, :recipe_digest,
+                :runtime_abi, :compat_min, :compat_max, :coworker_base_release_id
 
   attribute :source_manifest, :json, default: -> { {} }
 
@@ -40,6 +42,7 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
   validates :recipe_digest, format: { with: DIGEST_FORMAT }, allow_blank: true
   validates :runtime_abi, :compat_min, :compat_max, numericality: { only_integer: true }, allow_nil: true
   validate :compat_window_ordered
+  validate :compat_window_complete
 
   STATES.each { |name| define_method(:"#{name}?") { state == name } }
 
@@ -53,12 +56,21 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
   end
 
   def compatible_with?(abi)
-    return true if compat_min.nil? || compat_max.nil?
+    # An absent window (both bounds nil) places no constraint; a half-set
+    # window is rejected by validation, so it never reaches here persisted.
+    return true if compat_min.nil? && compat_max.nil?
+    return false if compat_min.nil? || compat_max.nil?
 
     (compat_min..compat_max).cover?(abi)
   end
 
   private
+
+  def compat_window_complete
+    return if compat_min.nil? == compat_max.nil?
+
+    errors.add(compat_min.nil? ? :compat_min : :compat_max, "must be set together with the other bound")
+  end
 
   def compat_window_ordered
     return if compat_min.nil? || compat_max.nil?

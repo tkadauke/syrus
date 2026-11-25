@@ -1247,7 +1247,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
   create_table "coworker_environment_revisions", force: :cascade do |t|
     t.integer "coworker_environment_id", null: false
     t.integer "number", null: false
-    t.string "state", default: "recorded", null: false
+    t.string "state", default: "draft", null: false
     t.string "source_digest", limit: 191, null: false
     t.json "source_manifest"
     t.string "recipe_digest", limit: 191
