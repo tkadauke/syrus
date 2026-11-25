@@ -869,6 +869,7 @@ la:
       prompt_blank: "Incitamentum vacuum esse non potest."
       agent_not_configured: "Hic agens pro possessore repositorii non configuratus est."
       invalid_priority: "Prioritas una ex his esse debet: %{priorities}."
+      invalid_question_eagerness: "Studium interrogandi invalidum est."
       epic_not_found: "Epos in illo repositorio non inventum est."
       owner_not_found: "Usor dominus non inventus est."
       created: "Opus directum creatum est."

@@ -91,6 +91,22 @@ RSpec.describe "API: /api/v1/app/direct_jobs", :full_chat_access, type: :request
     expect(Job.order(:id).last).to have_attributes(question_eagerness: "collaborative")
   end
 
+  it "rejects an invalid question-eagerness override with localized copy" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Ask unpredictably",
+        prompt: "Implement the requested behavior.",
+        question_eagerness: "sometimes"
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq(I18n.t("api.direct_jobs.invalid_question_eagerness"))
+  end
+
   it "accepts an explicit planned execution override for direct Jobs" do
     sign_in_as(user)
 
