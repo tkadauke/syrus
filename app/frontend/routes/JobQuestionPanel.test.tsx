@@ -39,7 +39,7 @@ describe("JobQuestionPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry as is" }))
     fireEvent.click(screen.getByRole("button", { name: "File a fix Job" }))
     fireEvent.click(screen.getByRole("button", { name: "Give up" }))
-    expect(mutate).toHaveBeenNthCalledWith(1, { method: "post", path: "/retry" })
+    expect(mutate).toHaveBeenNthCalledWith(1, { method: "post", path: "/api/v1/app/jobs/3/retry_implementation" })
     expect(mutate).toHaveBeenNthCalledWith(2, { method: "post", path: "/api/v1/app/jobs/3/file_question_fix" })
     expect(mutate).toHaveBeenNthCalledWith(3, expect.objectContaining({ method: "post", path: "/cancel" }))
   })

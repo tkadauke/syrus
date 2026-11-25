@@ -295,7 +295,11 @@ export function JobQuestionPanel({
       <AgentQuestions questions={query.data.questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
       <div className="grid gap-2 sm:grid-cols-3">
         <div>
-          <Button disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: paths.app_run_again_path })} variant="secondary">
+          <Button
+            disabled={command.isPending}
+            onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/retry_implementation` })}
+            variant="secondary"
+          >
             {t("question_retry")}
           </Button>
           <p className="mt-1 text-xs text-text-muted">{t("question_retry_consequence")}</p>
