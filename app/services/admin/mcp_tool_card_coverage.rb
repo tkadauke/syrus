@@ -55,6 +55,7 @@ module Admin
       "read_repository_file" => "generic",
       "unland_job" => "generic",
       "unland_epic" => "generic",
+      "detach_job" => "generic",
       "runtime_wait" => "generic",
       "mail_search" => "generic",
       "mail_read_message" => "generic",

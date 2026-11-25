@@ -804,6 +804,17 @@ landing blockers. A no-op branch rebase succeeds only when the requested live
 topology is already correct; failed pushes, PR retargets, refreshes, or
 postcondition checks fail the workflow and retain recovery evidence. Disabling
 the feature restores single-Epic planning.
+
+These repairs have deliberately different meanings. **Rebase in place** keeps
+the Job's parent and moves its commits onto the latest tip of that same base.
+**Epic restack** reconciles all physical PR bases with an already-correct Job
+dependency topology. **Detach to base** is an operator-confirmed topology
+change for one accidentally stacked Job: its dry run identifies the owned
+patch relative to the former parent, then Syrus replays it onto an explicit
+destination, lease-protects publication, retargets and verifies the live PR,
+removes the former stack relationship, refreshes footers, and wakes landing.
+Partial publication remains a visible failed repair so an operator can retry
+without mistaking stale remote or PR state for success.
 For a handful of older Epics whose child Jobs still branch or fan in (from
 before same-Epic dependencies were required to form a single chain), Syrus
 can prepare a combined execution base from approved dependency PR branches
