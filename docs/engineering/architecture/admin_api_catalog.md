@@ -30,6 +30,9 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | POST | `/api/v1/admin/jobs` | `api/v1/admin/jobs#create` |
 | core | GET | `/api/v1/admin/jobs/:id` | `api/v1/admin/jobs#show` |
 | core | POST | `/api/v1/admin/jobs/:id/force_fail` | `api/v1/admin/jobs#force_fail` |
+| core | POST | `/api/v1/admin/macos_worker_releases` | `api/v1/admin/macos_worker_releases#create` |
+| core | POST | `/api/v1/admin/macos_worker_releases/activate` | `api/v1/admin/macos_worker_releases#activate` |
+| core | GET | `/api/v1/admin/macos_worker_releases/status` | `api/v1/admin/macos_worker_releases#status` |
 | core | GET | `/api/v1/admin/mcp_tool_usage` | `api/v1/admin/mcp_tool_usage#show` |
 | core | GET | `/api/v1/admin/overview` | `api/v1/admin/overview#show` |
 | core | POST | `/api/v1/admin/pending_actions/invoke` | `api/v1/admin/pending_actions#invoke` |
