@@ -125,7 +125,9 @@ module RuntimeImages
       end
 
       IMAGE_TAG = "runtime-image-build:latest".freeze
-      ALLOWED_RECIPE_KEYS = %w[dockerfile context target build_args].freeze
+      # input_policy is immutable request metadata used in deduplication and
+      # provenance. The builder deliberately does not interpret it.
+      ALLOWED_RECIPE_KEYS = %w[dockerfile context target build_args input_policy].freeze
       BUILD_ARG_NAME = /\A[A-Za-z_][A-Za-z0-9_]{0,63}\z/
       TARGET_NAME = /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/
       STORAGE_POLL_SECONDS = 5
