@@ -755,6 +755,14 @@ export type JobWorkflow = {
   agent_provider: string | null
   provider_failover?: ProviderFailover
   state: string
+  outcome_overrides?: Array<{
+    id: number
+    effective_state: "failed, overridden"
+    gate_kind: string
+    gate_identity: string
+    reason: string
+    consumed_at: string | null
+  }>
   failure_count: number
   artifacts: Record<string, unknown> | null
   cleaned_up_at: string | null

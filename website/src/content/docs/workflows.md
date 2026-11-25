@@ -338,6 +338,11 @@ implementation and landing grader failures. Authorized operators see the gate,
 revision, evidence fingerprint, and consequence before confirming, and must
 provide an audit reason. The original failed result remains visible as
 `failed, overridden`; a new revision or changed evidence cannot reuse it.
+After confirmation, Syrus resumes at the blocked collector or gate rather than
+rerunning implementation. Workflow status and Run transcripts retain the
+`failed, overridden` marker while later work continues. Repeated requests for
+the same evidence are idempotent, and cancellation or supersession prevents a
+stale request from advancing the Workflow.
 
 | Step | Agentic | Purpose |
 | --- | --- | --- |

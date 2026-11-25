@@ -447,6 +447,7 @@
   "outcome_override_confirm": "Übersteuerung bestätigen",
   "outcome_override_confirming": "Wird bestätigt…",
   "outcome_override_error": "Die Übersteuerung konnte nicht gespeichert werden.",
+  "outcome_override_effective_state": "fehlgeschlagen, übersteuert",
   "grader_unknown_name": "unbenannter Prüfer",
   "grader_fanout_selected_count_one": "{{count}} Prüfer ausgewählt",
   "grader_fanout_selected_count_other": "{{count}} Prüfer ausgewählt",
