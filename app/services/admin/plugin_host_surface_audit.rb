@@ -19,6 +19,5 @@ module Admin
         "#{result.constant} is referenced by #{result.plugins.keys.join(', ')} but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
       end
     end
-
   end
 end
