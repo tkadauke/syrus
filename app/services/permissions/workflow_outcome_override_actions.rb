@@ -5,6 +5,7 @@ module Permissions
   class WorkflowOutcomeOverrideActions
     OBSERVATION = "syrus.workflow_outcome_override_observation@v1".freeze
     CAPABILITY = "syrus.workflow_outcome_overrides@v1".freeze
+    EXECUTE_OPERATION = "syrus.workflow_outcome_overrides/execute@v1".freeze
     OPERATIONS = {
       "inspect_workflow_outcome_overrides" => [ OBSERVATION, "inspect", %i[local_read], :low, :allow ],
       "request_workflow_outcome_override" => [ CAPABILITY, "request", %i[internal_write operational], :high, :ask ],
