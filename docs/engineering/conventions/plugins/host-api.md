@@ -1050,6 +1050,17 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::ProviderContentRefusals`
+
+Since: `0.1.16`
+
+Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.
+
+Supported members:
+
+- `detect?`
+- `outcome`
+
 ### `Syrus::Host::RebaseTarget`
 
 Since: `0.1.16`
