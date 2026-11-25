@@ -39,17 +39,21 @@ export function QuestionEagernessFields({
         <span>{t(`question_eagerness.levels.${effective}.label`)}</span>
       </div>
       <p className="text-sm text-text-secondary">{t(`question_eagerness.levels.${effective}.description`)}</p>
-      {showTimeout ? <><label className="block text-sm font-medium text-text">
-        {t("question_eagerness.timeout")}
-        <Input
-          className="mt-1 w-40"
-          min={1}
-          onChange={(event) => onChange(eagerness, event.target.value ? Number(event.target.value) * 60 : null)}
-          type="number"
-          value={timeoutSeconds == null ? "" : timeoutSeconds / 60}
-        />
-      </label>
-      <p className="text-xs text-text-muted">{t("question_eagerness.timeout_help")}</p></> : null}
+      {showTimeout ? (
+        <>
+          <label className="block text-sm font-medium text-text">
+            {t("question_eagerness.timeout")}
+            <Input
+              className="mt-1 w-40"
+              min={1}
+              onChange={(event) => onChange(eagerness, event.target.value ? Number(event.target.value) * 60 : null)}
+              type="number"
+              value={timeoutSeconds == null ? "" : timeoutSeconds / 60}
+            />
+          </label>
+          <p className="text-xs text-text-muted">{t("question_eagerness.timeout_help")}</p>
+        </>
+      ) : null}
     </fieldset>
   )
 }
