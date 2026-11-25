@@ -217,6 +217,7 @@ per-user/private:
   - app/controllers/api/v1/app/tours_controller.rb
   - app/controllers/api/v1/app/users_controller.rb
   - plugins/video_walkthroughs/app/controllers/api/v1/app/video_walkthroughs_controller.rb
+  - app/controllers/api/v1/app/workflow_outcome_overrides_controller.rb
   - app/controllers/api/v1/app/workflow_warnings_controller.rb
   - app/controllers/api/v1/app/workflows_controller.rb
   - app/controllers/application_controller.rb
@@ -476,6 +477,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |
 | `app/controllers/api/v1/app/users_controller.rb` | per-user/private | Invite-picker listing excludes the current user and, when scoping to a chat, excludes that chat's existing participants found through `Current.user.accessible_chat_sessions`. No admin gate — Syrus has no team/org scoping, so any authenticated user may see the flat instance user list. |
 | `plugins/video_walkthroughs/app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |
+| `app/controllers/api/v1/app/workflow_outcome_overrides_controller.rb` | per-user/private | Finds Jobs through `Job.visible_to(Current.user)` and evaluates and records overrides as the signed-in operator. |
 | `app/controllers/api/v1/app/workflow_warnings_controller.rb` | per-user/private | Warnings are found through jobs scoped to `Current.user.jobs`; filing a fix Job creates it as `Current.user`. |
 | `app/controllers/slug_redirects_controller.rb` | per-user/private | Short slug redirects resolve through the current user and return 404 for unknown or inaccessible refs instead of revealing target paths. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |

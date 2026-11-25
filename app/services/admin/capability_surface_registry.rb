@@ -82,6 +82,19 @@ module Admin
           mcp: { status: "not_exposed", reason: "The MCP exposure is supplied by its registered tool." }
         }
       },
+      workflow_outcome_override: {
+        sources: {
+          user_api: [
+            { source: "user_api", name: "GET /api/v1/app/jobs/:job_id/workflow_outcome_overrides" },
+            { source: "user_api", name: "POST /api/v1/app/jobs/:job_id/workflow_outcome_overrides" }
+          ]
+        },
+        decisions: {
+          admin_api: { status: "not_exposed", reason: "The admin API exposure is supplied by its registered PendingAction." },
+          cli: { status: "not_exposed", reason: "No CLI command is registered for workflow outcome overrides." },
+          mcp: { status: "not_exposed", reason: "The MCP exposure is supplied by its registered inspection and request tools." }
+        }
+      },
       personal_api_token: {
         sources: {
           user_api: [

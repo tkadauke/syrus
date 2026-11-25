@@ -41,6 +41,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `get_job_diff` | chat | deferred | read | no | - | - | - | - | deniable (confidential cross boundary) |
 | `grant_permission` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
 | `ingest_pull_request` | chat | deferred | write | no | - | - | - | - | deniable (external ingestion) |
+| `inspect_workflow_outcome_overrides` | chat | deferred | read | no | - | - | - | - | essential |
 | `list_artifacts` | chat | deferred | read | no | - | - | - | - | essential |
 | `list_chat_media` | chat | deferred | read | no | - | - | - | - | essential |
 | `list_chats` | chat | deferred | read | no | - | - | - | - | essential |
@@ -77,6 +78,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `reopen_job` | chat | deferred | write | no | - | - | - | - | gated (operational) |
 | `replace_job_dependency` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
 | `request_permission` | chat | deferred | write | no | - | - | - | - | essential |
+| `request_workflow_outcome_override` | chat | deferred | write | no | - | - | - | - | gated (operational) |
 | `resolve_delivery_policy` | chat | deferred | read | no | - | - | - | - | essential |
 | `resume_landing_queue` | chat | deferred | write | no | - | - | - | - | gated (operational) |
 | `revoke_permission` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
@@ -226,6 +228,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `explain_provider_routing` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
 | `explain_stuck_job` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
 | `ingest_pull_request` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | deniable (external ingestion) |
+| `inspect_workflow_outcome_overrides` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_outcome_override_observation` | - | essential |
 | `list_artifacts` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
 | `list_chat_media` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.attachments` | - | essential |
 | `list_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
@@ -261,6 +264,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `replace_job_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `request_permission` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `request_permission_revocation` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `request_workflow_outcome_override` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_outcome_overrides` | - | gated (operational) |
 | `resolve_delivery_policy` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
 | `resume_landing_queue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.landing_queue` | - | gated (operational) |
 | `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | essential |
