@@ -363,7 +363,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::PerformanceLogging` (since 0.1.16) — Times named plugin phases; event storage and thresholds are not promised. Only the listed members are supported. Supported members: `phase`, `report_duration`.
 - `Syrus::Host::PermissionCapabilityDescriptor` (since 0.1.16) — Describes one permission capability and operation (new) and lists the grant policies (POLICIES); descriptor storage and evaluation are not promised. Supported members: `POLICIES`, `new`.
 - `Syrus::Host::PermissionCatalog` (since 0.1.16) — Looks up a registered permission capability and operation (find!) and raises UnknownCapability for unregistered ones; catalog contents are not promised. Supported members: `UnknownCapability`, `find!`.
-- `Syrus::Host::PermissionLease` (since 0.1.16) — Queries permission leases (all, none, where, active); lease storage is not promised. Supported members: `active`, `all`, `none`, `where`.
+- `Syrus::Host::PermissionLease` (since 0.1.16) — Queries permission leases (all, none, where); lease storage is not promised. Supported members: `all`, `none`, `where`.
 - `Syrus::Host::PermissionManagement` (since 0.1.16) — Manages permission rules and leases for a user (new); the rules model and PROFILE_SOURCE_PREFIX source marker are the only other members promised. Supported members: `PROFILE_SOURCE_PREFIX`, `new`.
 - `Syrus::Host::PermissionPolicyRank` (since 0.1.16) — Maps a permission policy to its strictness rank (fetch); the rank values are not promised beyond ordering. Supported members: `fetch`.
 - `Syrus::Host::PermissionProvider` (since 0.1.16) — Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported. Supported members: `migrate_permission_scope`, `register_authorization_adapter`, `register_capability`, `register_permission_preset`, `register_resource_scope`, `retire_permission_identifier`.
@@ -525,4 +525,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 116933 bytes (UTF-8, including this line).
+Size: 116915 bytes (UTF-8, including this line).

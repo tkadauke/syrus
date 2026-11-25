@@ -732,7 +732,7 @@ module Syrus
         MysqlQueryAudit: [ "Records an audit entry for a MySQL browser query (create!); audit columns are not promised.", %w[create!] ],
         PendingActionItem: [ "Queries pending action items (pending); columns are not promised.", %w[pending] ],
         PerformanceLogEvent: [ "Reads performance-log event retention bounds (retention_floor, retention_window); event storage is not promised.", %w[retention_floor retention_window] ],
-        PermissionLease: [ "Queries permission leases (all, none, where, active); lease storage is not promised.", %w[all none where active] ],
+        PermissionLease: [ "Queries permission leases (all, none, where); lease storage is not promised.", %w[all none where] ],
         PermissionRule: [ "Queries and creates permission rules (all, none, where, find_by, active, create!, transaction); rule evaluation is not promised.", %w[active all create! none transaction where find_by] ],
         PersistentMcpDaemon: [ "Addresses the persistent MCP daemon (host, port, MCP_PATH, INVOCATION_CONTEXT_HEADER); daemon lifecycle is not promised.", %w[INVOCATION_CONTEXT_HEADER MCP_PATH host port] ],
         PluginDataCleanup: [ "Bases a plugin's data-cleanup job; scheduling is not promised.", %w[] ],

@@ -12,8 +12,8 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(357)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(357)
+    expect(Syrus::Host.apis.size).to eq(368)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(368)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -320,13 +320,12 @@ RSpec.describe Syrus::Host::PublicApis do
     expect(Syrus::Host.public?("Syrus::Host::PerformanceLogging::Store")).to be(true)
     expect(Syrus::Host::PerformanceLogging::Store).to equal(PerformanceLogging::Store)
     expect(Syrus::Host::PluginJob::DEFAULT_ATTEMPTS).to eq(PluginJob::DEFAULT_ATTEMPTS)
-    # Result is defined by the file that defines Default, so load that first.
-    Syrus::Host::RetentionPolicyExecutors::Default
     constants = Syrus::Host.apis.flat_map { |api| api.members.select { |m| m.match?(/\A[A-Z]/) }.map { |m| [api.name, m] } }
     constants.each do |api_name, member|
       target = api_name.constantize
       expect(target.const_defined?(member) || target.respond_to?(member)).to be(true), "#{api_name}::#{member}"
     end
+    expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::PermissionLease" }.members).not_to include("active")
   end
 
   it "resolves a declared alias on first reference before the facades install" do

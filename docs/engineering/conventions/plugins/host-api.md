@@ -2594,11 +2594,10 @@ Supported members:
 
 Since: `0.1.16`
 
-Queries permission leases (all, none, where, active); lease storage is not promised.
+Queries permission leases (all, none, where); lease storage is not promised.
 
 Supported members:
 
-- `active`
 - `all`
 - `none`
 - `where`
