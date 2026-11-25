@@ -40,6 +40,27 @@ a provider binary does not start, or a credential-shaped variable is baked in.
 The build also runs the probe once (without the read-only check) as the final
 non-root user, so a broken provider binary fails the build.
 
+## Runtime ABI
+
+`images/coworker-base/abi.yml` is the versioned runtime ABI: entrypoint and
+handshake (`syrus-base-probe`), provider binary paths and invocation protocol
+(exec by absolute path, no shell, cwd `/workspace`), the filesystem layout
+(`/workspace`, provider home, bounded `/tmp`, the optional admin-enabled
+`/scratch`, and the read-only MCP socket), the MCP transport, the non-root
+identity, per-turn environment variables, and the minimum confinement policy.
+`RuntimeImages::RuntimeAbi` derives the `io.syrus.runtime-abi.*` OCI labels from
+it (the Dockerfile must carry them exactly; `CoworkerBase.validate` checks),
+signs the contract into the image's provenance (`runtime_abi_attestation`,
+HMAC over the contract digest bound to the build's source and recipe digests,
+signed by Syrus and never by the keyless builder), and exposes
+`validate_for_launch`, which a launcher runs against the by-digest image before
+starting it. It refuses (never falling back to host execution) images that are
+revoked, outside the compatibility range, missing labels, requiring a newer
+confinement policy than the worker enforces, for an unknown provider, or whose
+provenance is unsigned or disagrees with the labels. To change the ABI, bump
+`version` in `abi.yml` and `runtime_abi` in `base.yml`, widen or narrow
+`compatibility`, update the Dockerfile labels, and a spec fails until they agree.
+
 ## Credentials
 
 No provider credential is a build input. The Dockerfile has no credential-named

@@ -119,11 +119,19 @@ module RuntimeImages
       # traceable to its inputs. Safe to store on the image: digests and names
       # only, never log text or resolved addresses.
       def provenance_for(request, output, evidence)
-        Hash(output.provenance).merge(
+        provenance = Hash(output.provenance).merge(
           "build_request_id" => request.id, "recipe_digest" => request.recipe_digest,
           "builder_version" => evidence.builder_version, "policy_digest" => evidence.policy_digest,
           "base_images" => evidence.base_images, "layer_digests" => evidence.layer_digests
         ).compact
+        # Syrus (never the isolated builder, which holds no key) signs the
+        # runtime ABI contract the standard base was built against.
+        if request.source_kind == CoworkerBase::SOURCE_KIND
+          provenance[RuntimeAbi::ATTESTATION_KEY] = RuntimeAbi.attest(
+            source_digest: request.source_digest, recipe_digest: request.recipe_digest, build_request_id: request.id
+          )
+        end
+        provenance
       end
     end
   end

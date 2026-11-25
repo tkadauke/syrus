@@ -87,7 +87,7 @@ RSpec.describe RuntimeImages::CoworkerBase do
       Gem::Package::TarReader.new(Zlib::GzipReader.new(StringIO.new(described_class.source_archive))) do |tar|
         tar.each { |entry| names[entry.full_name] = entry.header.mode }
       end
-      expect(names.keys).to match_array(%w[Dockerfile base.yml syrus-base-probe])
+      expect(names.keys).to match_array(%w[Dockerfile abi.yml base.yml syrus-base-probe])
       expect(names["syrus-base-probe"]).to eq(0o755)
     end
 

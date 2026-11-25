@@ -101,6 +101,11 @@ module RuntimeImages
           problems << "#{binary} is not probed by syrus-base-probe" unless probe.match?(/\b#{Regexp.escape(binary)}\b/)
         end
         problems.concat(credential_problems(dockerfile))
+        problems.concat(RuntimeAbi.validate_definition)
+        RuntimeAbi.labels.each do |name, value|
+          problems << "Dockerfile label #{name} differs from abi.yml" unless dockerfile.include?(%(#{name}="#{value}"))
+        end
+        problems << "Dockerfile does not ship abi.yml into the image" unless dockerfile.include?("COPY --chmod=0644 abi.yml /usr/local/share/syrus/runtime-abi.yml")
         problems
       end
 
