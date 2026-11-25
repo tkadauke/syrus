@@ -966,6 +966,11 @@ class Job < ApplicationRecord
   # `after:` lambda.
   after_save :refresh_epic_auto_state,
              if: -> { epic_id.present? && (saved_change_to_state? || saved_change_to_validity? || saved_change_to_epic_id? || saved_change_to_closure_reason?) }
+  # The refresh writes the Epic after this Job row, so the Epic is locked
+  # before the Job is written (NY40, parents before children). Same condition,
+  # before the save.
+  before_save :lock_epic_for_rollup!,
+              if: -> { epic_id.present? && (will_save_change_to_state? || will_save_change_to_validity? || will_save_change_to_epic_id? || will_save_change_to_closure_reason?) }
   after_commit :reopen_recent_closed_epic, if: :saved_change_to_epic_id?
   after_commit :suggest_stale_closed_epic_assignment, if: :stale_closed_epic_assignment?
 
@@ -2413,6 +2418,10 @@ class Job < ApplicationRecord
 
   def refresh_epic_auto_state
     epic&.refresh_auto_state!
+  end
+
+  def lock_epic_for_rollup!
+    Epic.lock.where(id: epic_id).to_a
   end
 
   # Kinds declared issueless (cron fires, direct prompts, infrastructure

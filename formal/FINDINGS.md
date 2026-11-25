@@ -4817,8 +4817,10 @@ and `RunJob#commit_run_and_step_success!`. Part 7 converted the
 `RetryFailedStepEnqueuer`. A retry that rebuilds a merge train locks the
 train's other Jobs, so it now takes them first with its own ancestry, through
 `LandingRetrier.lock_targets_for(train)`. The landing retrier locks all its
-members and candidates up front. Left: the Epic refresh under a held Job, and
-the spec-code sites the next survey names.
+members and candidates up front. Part 8 locks a Job's Epic in a `before_save`
+under the same condition that refreshes the Epic after the save, so assigning,
+closing or changing a Job in an Epic locks the Epic first. Left: the
+spec-code sites the next survey names.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

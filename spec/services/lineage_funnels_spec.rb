@@ -124,6 +124,14 @@ RSpec.describe "Lineage funnels" do
     expect(job.reload).to be_closed
   end
 
+  it "readies a backlog Epic when a Job joins it, in order" do
+    epic = Epic.create!(repository: job.repository, title: "Rollup", user: job.user)
+
+    checked { job.reload.update!(epic: epic) }
+
+    expect(epic.reload).to be_ready
+  end
+
   it "records a Run's success and its Step's in order" do
     run = running_step_with_run
     job_runner = RunJob.new
