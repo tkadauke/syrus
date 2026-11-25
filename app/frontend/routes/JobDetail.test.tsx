@@ -1147,7 +1147,13 @@ describe("JobDetailView", () => {
           summary_state: "failed",
           branch_name: "syrus/chat-capture",
           workflows_count: 0,
-          emergency_land_source_sha: "abcdef1234567890abcdef1234567890abcdef12"
+          emergency_land_source_sha: "abcdef1234567890abcdef1234567890abcdef12",
+          approval_status: {
+            policy: "self",
+            satisfied: false,
+            pending_description: "Waiting for owner to approve.",
+            approvals_count: 0
+          }
         },
         workflows: [],
         workflows_pagination: workflowPagination(0)
@@ -1160,6 +1166,8 @@ describe("JobDetailView", () => {
       "href",
       "/app-shell/jobs/1/source?diff_base=main&diff_head=abcdef1234567890abcdef1234567890abcdef12"
     )
+    expect(screen.queryByText("Approval")).not.toBeInTheDocument()
+    expect(screen.queryByText("Waiting for owner to approve.")).not.toBeInTheDocument()
   })
 
   it("links scheduled jobs back to their scheduled task", () => {

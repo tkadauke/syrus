@@ -2523,6 +2523,11 @@ function ApprovalStatusPanel({ payload, prefix }: { payload: JobDetailPayload; p
   const status: JobApprovalStatus | null = job.approval_status
   const approvals: JobApprovalRecord[] = job.job_approvals ?? []
 
+  const failedWorkflowlessEmergencyCapture =
+    job.kind === "direct" && job.state === "failed" && Boolean(job.emergency_land_source_sha) && job.workflows_count === 0
+
+  if (failedWorkflowlessEmergencyCapture) return null
+
   const policyLabel: Record<string, string> = {
     self: t("approval_policy_self"),
     two_person: t("approval_policy_two_person"),
