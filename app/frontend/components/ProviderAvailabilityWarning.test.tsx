@@ -66,7 +66,16 @@ describe("provider availability copy", () => {
           selected_provider_label: "Claude Code",
           routing: {
             matched_rule_id: 7,
-            condition_results: { matched: true, conditions: { usage: { actual: { remaining_percent: 22 } } } }
+            condition_results: {
+              matched: true,
+              conditions: {
+                usage: {
+                  matched: true,
+                  expected: { provider: "codex", remaining_percent_less_than: 25 },
+                  actual: { provider: "codex", remaining_percent: 22 }
+                }
+              }
+            }
           }
         }}
       />
@@ -78,7 +87,11 @@ describe("provider availability copy", () => {
     expect(disclosure.closest("details")).not.toHaveAttribute("open")
     fireEvent.click(disclosure)
     expect(disclosure.closest("details")).toHaveAttribute("open")
-    expect(screen.getByText(/Routing rule 7 matched/)).toBeVisible()
-    expect(screen.getByText(/remaining_percent/)).toBeVisible()
+    const details = screen.getByText(/Routing rule 7 matched/)
+    expect(details).toBeVisible()
+    expect(details).toHaveTextContent("Usage condition matched: Codex had 22% remaining; rule applies below 25%")
+    expect(details).not.toHaveTextContent("Routing policy selected")
+    expect(details).not.toHaveTextContent("remaining_percent")
+    expect(details).not.toHaveTextContent("..")
   })
 })

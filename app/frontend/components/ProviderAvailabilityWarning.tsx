@@ -45,15 +45,15 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
   if (!failover) return null
 
   const copy = providerFailoverCopy(failover, t)
-  const label = failoverLabel(failover, copy, t)
+  const details = failoverDetails(failover, t)
 
   return (
     <div className={`inline-flex max-w-full flex-col items-start rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}>
       <span>{copy}</span>
-      {label !== copy ? (
+      {details ? (
         <details className="max-w-full font-normal">
           <summary className="cursor-pointer underline">{t("provider_warning.details")}</summary>
-          <span className="block whitespace-normal break-words pt-1">{label}</span>
+          <span className="block whitespace-normal break-words pt-1">{details}</span>
         </details>
       ) : null}
     </div>
@@ -66,7 +66,7 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
 export function providerFailoverTooltip(failover: ProviderFailover | null | undefined, t: TFunction<"common">): string | undefined {
   if (!failover) return undefined
 
-  return failoverLabel(failover, providerFailoverCopy(failover, t), t)
+  return [providerFailoverCopy(failover, t), failoverDetails(failover, t)].filter(Boolean).join(" ")
 }
 
 function providerFailoverCopy(failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
@@ -136,14 +136,13 @@ function warningLabel(availability: NonNullable<ProviderAvailability>, lowUsage:
   return parts.join(". ")
 }
 
-function failoverLabel(failover: NonNullable<ProviderFailover>, base: string, t: TFunction<"common">): string {
+function failoverDetails(failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
   const unavailable = failover.unavailable
   const routing = failover.routing
 
   return [
-    base,
     routing?.matched_rule_id ? t("provider_warning.routing_rule", { id: routing.matched_rule_id }) : null,
-    routing?.condition_results ? t("provider_warning.routing_conditions", { conditions: JSON.stringify(routing.condition_results) }) : null,
+    routing?.condition_results ? routingConditionSummary(routing.condition_results, failover, t) : null,
     unavailable?.state ? t("provider_warning.state", { provider: unavailable.label || failover.original_provider_label, state: unavailable.state }) : null,
     unavailable?.reason ? t("provider_warning.reason", { reason: unavailable.reason }) : null,
     unavailable?.retry_after ? t("provider_warning.retry_after", { time: formatTimestamp(unavailable.retry_after) }) : null,
@@ -156,6 +155,44 @@ function failoverLabel(failover: NonNullable<ProviderFailover>, base: string, t:
   ]
     .filter(Boolean)
     .join(". ")
+}
+
+function routingConditionSummary(
+  conditionResults: Record<string, unknown>,
+  failover: NonNullable<ProviderFailover>,
+  t: TFunction<"common">
+): string {
+  const conditions = recordValue(conditionResults.conditions)
+  const usage = recordValue(conditions?.usage)
+  const expected = recordValue(usage?.expected)
+  const actual = recordValue(usage?.actual)
+  const provider = stringValue(actual?.provider) || stringValue(expected?.provider)
+  const remaining = numberValue(actual?.remaining_percent)
+  const threshold = numberValue(expected?.remaining_percent_less_than)
+
+  if (provider && remaining != null && threshold != null) {
+    const providerLabel =
+      provider === failover.original_provider
+        ? failover.original_provider_label
+        : provider === failover.selected_provider
+          ? failover.selected_provider_label
+          : provider
+    return t("provider_warning.routing_usage_below", { provider: providerLabel, remaining, threshold })
+  }
+
+  return t("provider_warning.routing_conditions_matched")
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function scopeLabel(evidence: NonNullable<NonNullable<ProviderAvailability>["evidence"]>["current"], t: TFunction<"common">): string | null {
