@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 import type { JobStep } from "../../api/jobs"
-import { effectiveStepStatus, gradeDisplayStatus, gradeSummaries, gradeSummaryCounts, loopDisplayStatus, type GradeStepItem, type LoopStepItem } from "./stepModel"
+import {
+  effectiveStepStatus,
+  gradeDisplayStatus,
+  gradeSummaries,
+  gradeSummaryCounts,
+  loopDisplayStatus,
+  type GradeStepItem,
+  type LoopStepItem
+} from "./stepModel"
 
 function step(id: number, kind: string, state: string, displayStatus: string | null = state): JobStep {
   return {
