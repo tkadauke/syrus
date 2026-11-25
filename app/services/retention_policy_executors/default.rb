@@ -1,6 +1,4 @@
 module RetentionPolicyExecutors
-  Result = Data.define(:deleted_count, :backlog)
-
   class Default
     def initialize(definition)
       @definition = definition
