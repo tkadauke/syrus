@@ -186,7 +186,7 @@ module AttentionReport
     end
 
     def page_time
-      return { telemetry_state: "off", by_page_type: {} } unless AppSetting.ui_engagement_telemetry_enabled?
+      return { telemetry_state: "off", by_page_type: {} } unless Syrus::Host::AppSetting.ui_engagement_telemetry_enabled?
 
       { telemetry_state: "on", by_page_type: visit_statistics.as_json }
     end

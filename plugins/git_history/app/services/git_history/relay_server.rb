@@ -76,7 +76,7 @@ module GitHistory
       def polling_queue_consumer?
         return @polling_queue_consumer if defined?(@polling_queue_consumer)
 
-        @polling_queue_consumer = WorkerQueueTopology.consumes?(POLLING_QUEUE)
+        @polling_queue_consumer = Syrus::Host::WorkerQueueTopology.consumes?(POLLING_QUEUE)
       end
     end
 

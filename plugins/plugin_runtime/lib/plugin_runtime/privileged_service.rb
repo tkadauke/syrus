@@ -21,7 +21,7 @@ module PluginRuntime
   #       # internal/privileged.TailscaleAllowedEnvKeys) -- there is no "extra
   #       # flags" field to fill in here, because the manager would refuse it.
   #       def self.privileged_env
-  #         { "TS_AUTHKEY" => Syrus::PluginSettings.get("tailscale", "auth_key") }
+  #         { "TS_AUTHKEY" => Syrus::Host::PluginSettings.get("tailscale", "auth_key") }
   #       end
   #     end
   #   end

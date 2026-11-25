@@ -249,7 +249,7 @@ module ChatProviders
         return denied.uniq
       end
 
-      return CODING_DISALLOWED_TOOLS if Feature.coding_mode_enabled? && chat.coding?
+      return CODING_DISALLOWED_TOOLS if Syrus::Host::Feature.coding_mode_enabled? && chat.coding?
 
       PLANNING_DISALLOWED_TOOLS
     end

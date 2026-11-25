@@ -1,6 +1,6 @@
 module ContainerExecution
   class WorkflowArtifactContributor
-    include Syrus::Plugin::WorkflowArtifactContributor
+    include Syrus::Host::WorkflowArtifactContributor
 
     ARTIFACT_KEY = "container_execution_devcontainer".freeze
 

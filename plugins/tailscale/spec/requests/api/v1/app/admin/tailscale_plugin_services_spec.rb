@@ -22,9 +22,9 @@ RSpec.describe "API: admin plugin services for Tailscale", type: :request do
   before do
     PluginRecord.find_or_create_by!(name: "plugin_runtime").update!(enabled: true)
     PluginRecord.find_by!(name: "tailscale").update!(enabled: true)
-    allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return("tskey-auth-abc123")
-    allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "hostname").and_return(nil)
-    allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "exit_node").and_return(false)
+    allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return("tskey-auth-abc123")
+    allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "hostname").and_return(nil)
+    allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "exit_node").and_return(false)
     allow(PluginRuntime::Configuration).to receive(:current).and_return(managed_configuration)
     stub_request(:get, "#{manager}/v1/volumes").to_return(status: 200, body: { volumes: [] }.to_json)
     sign_in_as(admin)
@@ -88,7 +88,7 @@ RSpec.describe "API: admin plugin services for Tailscale", type: :request do
     end
 
     it "reports an error status instead of asking the manager, when no auth key is configured" do
-      allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return(nil)
+      allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return(nil)
 
       post "/api/v1/app/admin/plugin_services/tailscale/start"
 

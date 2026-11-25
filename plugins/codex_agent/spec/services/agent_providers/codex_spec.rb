@@ -29,7 +29,7 @@ RSpec.describe AgentProviders::Codex do
       models = described_class.available_models
 
       expect(models).not_to be_empty
-      expect(models).to all(be_a(Syrus::Plugin::AgentProvider::ModelInfo))
+      expect(models).to all(be_a(Syrus::Host::AgentProvider::ModelInfo))
       expect(models.map(&:id)).to include("gpt-5.5")
       expect(models.map(&:cost_tier)).to all(be_present)
       expect(models.map(&:context_window)).to all(be_present)

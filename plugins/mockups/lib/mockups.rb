@@ -1,7 +1,7 @@
 require "mockups/data_cleanup"
 
 module Mockups
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "mockups" do
     experimental false

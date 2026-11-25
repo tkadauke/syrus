@@ -33,15 +33,15 @@ module AgentProviders
     # AgyInvocation forwards via SYRUS_AGY_MODEL/AGY_MODEL.
     def self.available_models
       [
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gemini-3-pro", display_name: "Gemini 3 Pro",
           context_window: :xlarge, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gemini-3-flash", display_name: "Gemini 3 Flash",
           context_window: :large, cost_tier: :medium
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gemini-2.5-flash", display_name: "Gemini 2.5 Flash",
           context_window: :large, cost_tier: :low
         )

@@ -1,4 +1,4 @@
-class InsightSweepJob < PluginJob
+class InsightSweepJob < Syrus::Host::PluginJob
   plugin :agent_insights
 
   def perform
