@@ -27,6 +27,7 @@ export function directJobFormPayload() {
     selected_agent_provider: null,
     selected_model: null,
     selected_effort_level: null,
+    selected_question_eagerness: null,
     selected_epic_id: null,
     epic: null,
     create_more: true,

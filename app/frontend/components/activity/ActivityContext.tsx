@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react"
 
-export type ActivityTab = "notifications" | "approvals"
+export type ActivityTab = "notifications" | "approvals" | "questions"
 
 export type ActivityOpenOptions = {
   /** Control that opened Activity; focus returns to it when Activity closes. */

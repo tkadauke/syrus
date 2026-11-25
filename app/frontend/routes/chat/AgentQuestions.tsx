@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useState } from "react"
-import { answerAgentQuestion, type ChatAgentQuestion, type ChatAgentQuestionAnswer, type ChatAgentSubQuestion } from "../../api/chats"
+import { answerAgentQuestion, type ChatAgentQuestion, type ChatAgentQuestionAnswer, type ChatAgentSubQuestion, type ChatPayload } from "../../api/chats"
 import { Checkbox } from "../../components/Checkbox"
 import { Input } from "../../components/Input"
 import { Stepper } from "../../components/Stepper"
@@ -28,7 +28,7 @@ export function AgentQuestions({
   questions: ChatAgentQuestion[]
   queryKey?: ChatQueryKey
   onNotice: (message: string | null) => void
-  onAnswered?: (question: ChatAgentQuestion, answers: ChatAgentQuestionAnswer[]) => Promise<{ message?: string }>
+  onAnswered?: (question: ChatAgentQuestion, answers: ChatAgentQuestionAnswer[]) => Promise<{ message?: string | null }>
 }) {
   const { t } = useT("chat")
   return (
@@ -49,7 +49,7 @@ function AgentQuestionCard({
   question: ChatAgentQuestion
   queryKey?: ChatQueryKey
   onNotice: (message: string | null) => void
-  onAnswered?: (question: ChatAgentQuestion, answers: ChatAgentQuestionAnswer[]) => Promise<{ message?: string }>
+  onAnswered?: (question: ChatAgentQuestion, answers: ChatAgentQuestionAnswer[]) => Promise<{ message?: string | null }>
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -60,11 +60,11 @@ function AgentQuestionCard({
   const [phase, setPhase] = useState<"step" | "summary">("step")
   const [drafts, setDrafts] = useState<AgentAnswerDraft[]>(() => subQuestions.map(() => null))
 
-  const submit = useMutation({
+  const submit = useMutation<{ message?: string | null }, Error, ChatAgentQuestionAnswer[]>({
     mutationFn: (answers: ChatAgentQuestionAnswer[]) =>
       onAnswered ? onAnswered(question, answers) : answerAgentQuestion(appendSearch(question.app_answer_path, search), answers),
     onSuccess: (updated) => {
-      if (queryKey) mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      if (queryKey) mergeChatPayloadUpdate(queryClient, queryKey, updated as ChatPayload)
       onNotice(updated.message || null)
     }
   })

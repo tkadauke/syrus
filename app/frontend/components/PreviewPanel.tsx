@@ -227,6 +227,7 @@ export function PreviewPanel({
         agentProvider: "",
         model: "",
         effortLevel: "",
+        questionEagerness: null,
         epicId: "",
         title: t("preview_fix_job_title"),
         prompt: buildPreviewFixPrompt(env?.error_message ?? ""),

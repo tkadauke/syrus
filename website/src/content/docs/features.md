@@ -5,6 +5,19 @@ description: Product feature reference for Jobs, Epics, schedules, chats, creden
 
 # Features
 
+## Operator questions
+
+Workflow agents can pause and ask structured single-choice, multiple-choice,
+or free-text questions. Waiting questions appear in the sidebar inbox, in the
+mobile Activity tabs, and at the top of the affected Job. Answering resumes the
+same agent session. The Job panel also explains the consequences of retrying as
+is, filing a repair Job that becomes a dependency, or giving up and cancelling
+the Job.
+
+Question eagerness has five levels from Autonomous through Inquisitive. It can
+be set for a user or repository, overridden while filing a Job, and paired with
+an optional answer timeout in user and repository settings.
+
 This page is the broad product-level reference. Use [Concepts](/docs/concepts)
 for the data model, [Workflows](/docs/workflows) for execution chains,
 [Landing Code](/docs/landing) for merge behavior, [Tests and
