@@ -539,6 +539,17 @@ Supported members:
 
 - `where`
 
+### `Syrus::Host::ChatBridgeThreadRecord`
+
+Since: `0.1.16`
+
+Persists a bridge between chat threads; only basic lookup and creation are public. Only the listed members are supported.
+
+Supported members:
+
+- `create!`
+- `find_by`
+
 ### `Syrus::Host::ChatContextCompactor`
 
 Since: `0.1.16`
@@ -631,6 +642,23 @@ Supported members:
 - `chat_media_panel`
 - `list_chat_media`
 
+### `Syrus::Host::ChatMessageRecord`
+
+Since: `0.1.16`
+
+Chat-message persistence used by chat-surface plugins; only the listed queries, scopes and extension hooks are public. Only the listed members are supported.
+
+Supported members:
+
+- `active`
+- `find`
+- `find_by`
+- `include`
+- `none`
+- `set_callback`
+- `skip_callback`
+- `where`
+
 ### `Syrus::Host::ChatMessageSearchIndex`
 
 Since: `0.1.16`
@@ -655,6 +683,19 @@ Supported members:
 - `chat_payload`
 - `chat_payload_counts`
 - `chat_payload_paths`
+
+### `Syrus::Host::ChatPendingActionRecord`
+
+Since: `0.1.16`
+
+Pending chat-action persistence used by permission and coworker plugins; only the listed queries, scopes and checkpoint vocabulary are public. Only the listed members are supported.
+
+Supported members:
+
+- `NONTERMINAL_CHECKPOINT_STATES`
+- `none`
+- `pending`
+- `where`
 
 ### `Syrus::Host::ChatPromptInjector`
 
@@ -717,6 +758,26 @@ Supported members:
 - `normalized_chat_provider_param`
 - `validated_chat_provider_param`
 
+### `Syrus::Host::ChatQueuedMessagePromoter`
+
+Since: `0.1.16`
+
+Promotes one queued chat message when its target chat is idle. Only the listed members are supported.
+
+Supported members:
+
+- `deliver_one_if_idle!`
+
+### `Syrus::Host::ChatQueuedMessageRecord`
+
+Since: `0.1.16`
+
+Exposes the internal-role metadata key used when a plugin queues a host-delivered chat message. Only the listed members are supported.
+
+Supported members:
+
+- `INTERNAL_ROLE_KEY`
+
 ### `Syrus::Host::ChatResultBadges`
 
 Since: `0.1.16`
@@ -741,6 +802,48 @@ Supported members:
 - `repository`
 - `title`
 - `user`
+
+### `Syrus::Host::ChatSessionCreator`
+
+Since: `0.1.16`
+
+Creates chat sessions through the host lifecycle and safely enqueues their first turn. Only the listed members are supported.
+
+Supported members:
+
+- `enqueue_turn`
+- `new`
+
+### `Syrus::Host::ChatSessionLifecycle`
+
+Since: `0.1.16`
+
+Controller concern for the host chat-session lifecycle; only inclusion in app controllers is public. Only the listed members are supported.
+
+### `Syrus::Host::ChatSessionRecord`
+
+Since: `0.1.16`
+
+Chat-session persistence used by chat-surface plugins; only the listed queries, scopes, construction hooks, extension hooks and vocabularies are public. Only the listed members are supported.
+
+Supported members:
+
+- `CrossChatMessage`
+- `EFFORT_LEVELS`
+- `active`
+- `create!`
+- `define_method`
+- `fallback_title_for`
+- `find`
+- `find_by`
+- `find_by!`
+- `has_one`
+- `instance_methods`
+- `none`
+- `prepend`
+- `reflect_on_association`
+- `remove_method`
+- `where`
 
 ### `Syrus::Host::ChatSessionRehydrator`
 
@@ -783,6 +886,16 @@ Lets a plugin run work after an agent turn and before the chat releases its seri
 Supported members:
 
 - `after_chat_turn`
+
+### `Syrus::Host::ChatTurnJob`
+
+Since: `0.1.16`
+
+Enqueues a host-managed chat turn. Only the listed members are supported.
+
+Supported members:
+
+- `perform_later`
 
 ### `Syrus::Host::ChatTurnLifecycle`
 
@@ -2210,6 +2323,27 @@ Supported members:
 Since: `0.1.16`
 
 Marks a class as the plugin-provided agent memory store; store orchestration is not promised.
+
+### `Syrus::Host::Mentionable`
+
+Since: `0.1.16`
+
+Mixin for records that participate in chat mentions; implementing classes provide the mention identity and addressability methods. Only the listed members are supported.
+
+Supported members:
+
+- `KINDS`
+
+### `Syrus::Host::MentionableResolver`
+
+Since: `0.1.16`
+
+Resolves mention syntax and mention identities through host and plugin providers. Only the listed members are supported.
+
+Supported members:
+
+- `find`
+- `resolve`
 
 ### `Syrus::Host::MergeTrain`
 
@@ -4190,25 +4324,3 @@ Supported members:
 
 - `available_for?`
 - `workspace_tabs`
-
-## Legacy compatibility APIs
-
-These core constants are recognized by the compatibility scanner because
-bundled plugins still reference them. They are not supported for new or
-external plugins. Migrate to a public `Syrus::Host` facade instead.
-
-- `ChatBridgeThread`
-- `ChatMessage`
-- `ChatPendingAction`
-- `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
-- `ChatQueuedMessage::INTERNAL_ROLE_KEY`
-- `ChatQueuedMessagePromoter`
-- `ChatSession`
-- `ChatSession::CrossChatMessage`
-- `ChatSession::CrossChatMessage::ClosedThreadError`
-- `ChatSession::EFFORT_LEVELS`
-- `ChatSessionLifecycle`
-- `ChatSessions::Creator`
-- `ChatTurnJob`
-- `Mentionable`
-- `Mentionables::Resolver`

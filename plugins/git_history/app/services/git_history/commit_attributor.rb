@@ -216,7 +216,7 @@ module GitHistory
       {
         type: "chat",
         chat_session_id: chat_session_id,
-        chat_title: ChatSession.find_by(id: chat_session_id)&.title
+        chat_title: Syrus::Host::ChatSessionRecord.find_by(id: chat_session_id)&.title
       }
     end
 
