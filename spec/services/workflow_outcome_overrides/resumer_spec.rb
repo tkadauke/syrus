@@ -5,6 +5,14 @@ RSpec.describe WorkflowOutcomeOverrides::Resumer do
   let(:job) { Factories.job(user:) }
   let(:workflow) { job.workflows.last }
 
+  around do |example|
+    previous_target = Syrus::LockOrder.target
+    Syrus::LockOrder.target = :hierarchical
+    example.run
+  ensure
+    Syrus::LockOrder.target = previous_target
+  end
+
   it "reruns a failed grader collector through the registered grader strategy" do
     grader = Step.create!(workflow:, kind: "grader", position: 10, state: "failed",
       iteration: 1, loop_id: "grade-loop")
@@ -89,6 +97,55 @@ RSpec.describe WorkflowOutcomeOverrides::Resumer do
       .to raise_error(described_class::ResumeFailed, /repair already started/)
     expect(override.reload).to be_invalidated
     expect(override.invalidation_cause).to eq("resume_failed")
+  end
+
+  it "revalidates a queued repair after taking the workflow ancestry lock" do
+    reviewed_sha = "d" * 40
+    vote = panel_vote.except("panel_id").merge("step_id" => 46)
+    workflow.set_artifact!("adversarial_review_iterations", [ vote ])
+    review = Step.create!(workflow:, kind: "adversarial_review", position: 40, state: "succeeded",
+      iteration: 1, loop_id: "claim-race", details: { "reviewed_head_sha" => reviewed_sha })
+    repair = Step.create!(workflow:, kind: "implement", position: 41, state: "queued",
+      iteration: 2, loop_id: "claim-race")
+    run = Run.create!(job:, step: repair, trigger_kind: workflow.trigger_kind)
+    review.update!(next_step_id: repair.id)
+    override = record_review_override(step: review, vote:, reviewed_sha:, review_kind: "adversarial_review")
+    allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+      result = original.call(record)
+      run.update_columns(state: "running")
+      result
+    end
+
+    expect { described_class.call(override:) }
+      .to raise_error(described_class::ResumeFailed, /repair already started/)
+
+    expect(workflow.reload.artifact("adversarial_review_iterations").sole).to eq(vote)
+    expect(override.reload).to be_invalidated
+  end
+
+  it "rolls back override consumption and evidence when loop rewiring fails" do
+    reviewed_sha = "e" * 40
+    vote = panel_vote.except("panel_id").merge("step_id" => 47)
+    workflow.set_artifact!("adversarial_review_iterations", [ vote ])
+    review = Step.create!(workflow:, kind: "adversarial_review", position: 50, state: "succeeded",
+      iteration: 1, loop_id: "atomic-review", details: { "reviewed_head_sha" => reviewed_sha })
+    repair = Step.create!(workflow:, kind: "implement", position: 51, state: "queued",
+      iteration: 2, loop_id: "atomic-review")
+    continuation = Step.create!(workflow:, kind: "summarize", position: 52)
+    review.update!(next_step_id: repair.id)
+    repair.update!(next_step_id: continuation.id)
+    continuation.update!(depends_on_ids: [ repair.id ])
+    override = record_review_override(step: review, vote:, reviewed_sha:, review_kind: "adversarial_review")
+    allow_any_instance_of(WorkflowOutcomeOverrides::Resumers::Review)
+      .to receive(:rewire_continuation_dependencies!).and_raise("rewire failed")
+
+    expect { described_class.call(override:) }.to raise_error("rewire failed")
+
+    expect(override.reload).not_to be_consumed
+    expect(workflow.reload.artifact("adversarial_review_iterations").sole).to eq(vote)
+    expect(repair.reload.state).to eq("queued")
+    expect(review.reload.next_step).to eq(repair)
+    expect(continuation.reload.depends_on_ids).to eq([ repair.id ])
   end
 
   private
