@@ -37,7 +37,21 @@ cannot weaken it.
 `syrus-base-probe` read-only, as uid 1000, with all capabilities dropped and no
 network. The probe fails if the root filesystem is writable, the user is root,
 a provider binary does not start, or a credential-shaped variable is baked in.
-The build also runs the probe once (without the read-only check) as the final
+Beyond those, the full probe verifies the entrypoint, each provider at its
+contracted path, `no_new_privs` and an empty capability set, writable
+`/workspace`, provider home, and `/tmp`, `/tmp` mounted `nosuid,nodev,noexec`,
+and the MCP socket directory and path.
+
+`RuntimeImages::ConformanceProbe` judges the probe's output. The expected check
+list is derived from `abi.yml` and `base.yml`, so a check that is missing from
+the output fails exactly like one reporting `fail`; a non-zero exit also fails.
+`ConformanceProbe.verify_image!(reference, runner:)` runs the confined probe and
+raises `NonConformant` on any problem. `CoworkerBase.validate` also statically
+checks the probe script emits every expected check, and the conformance spec
+requires every bundled `*_agent` provider plugin to appear in `abi.yml`,
+`base.yml`, the Dockerfile, and the probe before it can enter the standard base.
+
+The build also runs the probe once (without the confinement checks) as the final
 non-root user, so a broken provider binary fails the build.
 
 ## Runtime ABI

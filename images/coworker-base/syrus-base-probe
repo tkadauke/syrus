@@ -16,6 +16,9 @@ status=0
 ok() { printf 'ok %s\n' "$1"; }
 fail() { printf 'fail %s: %s\n' "$1" "$2"; status=1; }
 
+# Entrypoint: this probe is the contracted handshake binary.
+[ -x /usr/local/bin/syrus-base-probe ] && ok abi-entrypoint || fail abi-entrypoint "/usr/local/bin/syrus-base-probe is not executable"
+
 # Identity: never root.
 if [ "$(id -u)" = "0" ]; then fail identity "running as root"; else ok identity; fi
 [ "$(id -un 2>/dev/null)" = "coworker" ] || fail identity-name "expected user coworker, got $(id -un 2>/dev/null)"
@@ -53,13 +56,57 @@ else
   ok no-baked-credentials
 fi
 
-# Read-only root: a write outside the declared mounts must fail.
+# Everything below needs the real confinement, so it is skipped by the
+# build-time smoke test (which runs unconfined inside the builder).
 if [ "$mode" != "--build" ]; then
+  # Read-only root: a write outside the declared mounts must fail.
   if ( : > /usr/local/syrus-base-probe-write ) 2>/dev/null; then
     rm -f /usr/local/syrus-base-probe-write
     fail read-only-root "root filesystem is writable"
   else
     ok read-only-root
+  fi
+
+  # Confinement policy: no privilege gain and no capabilities.
+  if grep -q '^NoNewPrivs:[[:space:]]*1$' /proc/self/status 2>/dev/null; then
+    ok confinement-no-new-privs
+  else
+    fail confinement-no-new-privs "no_new_privs is not set"
+  fi
+  if grep -q '^CapEff:[[:space:]]*0*$' /proc/self/status 2>/dev/null; then
+    ok confinement-caps-dropped
+  else
+    fail confinement-caps-dropped "effective capabilities are not empty"
+  fi
+
+  # Mount expectations: the declared writable mounts are writable, and /tmp is
+  # nosuid,nodev,noexec.
+  for dir in /workspace /home/coworker /tmp; do
+    name="mount-writable-$(basename "$dir")"
+    probe_file="$dir/.syrus-base-probe-$$"
+    if ( : > "$probe_file" ) 2>/dev/null; then rm -f "$probe_file"; ok "$name"; else fail "$name" "$dir is not writable"; fi
+  done
+  tmp_options="$(awk '$5 == "/tmp" { print $6 }' /proc/self/mountinfo 2>/dev/null | tail -n 1)"
+  case ",$tmp_options," in
+    *,nosuid,*) tmp_nosuid=1 ;; *) tmp_nosuid=0 ;;
+  esac
+  case ",$tmp_options," in
+    *,nodev,*) tmp_nodev=1 ;; *) tmp_nodev=0 ;;
+  esac
+  case ",$tmp_options," in
+    *,noexec,*) tmp_noexec=1 ;; *) tmp_noexec=0 ;;
+  esac
+  if [ "$tmp_nosuid$tmp_nodev$tmp_noexec" = "111" ]; then ok mount-tmp-options; else fail mount-tmp-options "/tmp is not mounted nosuid,nodev,noexec"; fi
+
+  # MCP transport: the socket directory exists, the advertised socket path is
+  # the contracted one, and a socket that is present really is a socket.
+  [ -d /run/syrus ] && ok mcp-socket-dir || fail mcp-socket-dir "/run/syrus missing"
+  if [ -n "${SYRUS_MCP_SOCKET:-}" ] && [ "$SYRUS_MCP_SOCKET" != "/run/syrus/mcp.sock" ]; then
+    fail mcp-socket-path "SYRUS_MCP_SOCKET is $SYRUS_MCP_SOCKET, expected /run/syrus/mcp.sock"
+  elif [ -e /run/syrus/mcp.sock ] && [ ! -S /run/syrus/mcp.sock ]; then
+    fail mcp-socket-path "/run/syrus/mcp.sock is not a socket"
+  else
+    ok mcp-socket-path
   fi
 fi
 

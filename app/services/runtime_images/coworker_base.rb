@@ -102,6 +102,7 @@ module RuntimeImages
         end
         problems.concat(credential_problems(dockerfile))
         problems.concat(RuntimeAbi.validate_definition)
+        problems.concat(ConformanceProbe.definition_problems)
         RuntimeAbi.labels.each do |name, value|
           problems << "Dockerfile label #{name} differs from abi.yml" unless dockerfile.include?(%(#{name}="#{value}"))
         end
@@ -146,7 +147,8 @@ module RuntimeImages
         uid_gid = "#{user.fetch("uid")}:#{user.fetch("gid")}"
         [ engine, "run", "--rm", "--read-only", "--user", uid_gid, "--cap-drop", "ALL",
           "--security-opt", "no-new-privileges", "--network", "none", "--pids-limit", "256",
-          "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--tmpfs", "#{user.fetch("home")}:rw,noexec,nosuid,size=64m,uid=#{user.fetch("uid")},gid=#{user.fetch("gid")}",
+          "--tmpfs", "/tmp:rw,nodev,noexec,nosuid,size=64m",
+          "--tmpfs", "/workspace:rw,noexec,nosuid,size=64m,uid=#{user.fetch("uid")},gid=#{user.fetch("gid")}", "--tmpfs", "#{user.fetch("home")}:rw,noexec,nosuid,size=64m,uid=#{user.fetch("uid")},gid=#{user.fetch("gid")}",
           "--entrypoint", "/usr/local/bin/syrus-base-probe", reference ]
       end
 
