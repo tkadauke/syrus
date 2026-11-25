@@ -224,7 +224,9 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
         archive = File.join(dir, "a.tgz")
         File.binwrite(archive, tar_gz({ "Dockerfile" => "x" }))
         allow(File).to receive(:open).and_call_original
-        allow(File).to receive(:open).with(File.join(dir, "dest", "Dockerfile"), "wb", anything).and_raise(Errno::ENOSPC)
+        # The extractor writes under the destination's real path; on macOS the
+        # temp dir is a symlink into /private, so stub the resolved path.
+        allow(File).to receive(:open).with(File.join(File.realpath(dir), "dest", "Dockerfile"), "wb", anything).and_raise(Errno::ENOSPC)
         expect { RuntimeImages::Builds::SourceExtractor.new.extract(archive, File.join(dir, "dest")) }
           .to raise_error(RuntimeImages::Builds::Rejected) { |e| expect(e.code).to eq("source_too_large") }
       end
