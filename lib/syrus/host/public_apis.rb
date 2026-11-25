@@ -288,7 +288,8 @@ module Syrus
         SpeechToTextResult: "ChatSpeechToText::Providers::TranscriptionResult",
         SpeechToTextTimeout: "ChatSpeechToText::Providers::TranscriptionTimeout",
         SpeechToTextUnavailable: "ChatSpeechToText::Providers::TranscriptionUnavailable",
-        SpeechToTextTelemetry: "ChatSpeechToText::Telemetry"
+        SpeechToTextTelemetry: "ChatSpeechToText::Telemetry",
+        MemoryStore: "Syrus::Plugin::MemoryStore"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -554,7 +555,8 @@ module Syrus
         SpeechToTextResult: [ "A completed transcription result.", %w[new] ],
         SpeechToTextTimeout: [ "Raised when transcription times out.", %w[new message] ],
         SpeechToTextUnavailable: [ "Raised when a transcription backend is unavailable.", %w[new message] ],
-        SpeechToTextTelemetry: [ "Shared transcription telemetry helpers; log fields may change between releases.", %w[log duration_ms monotonic_time safe_error] ]
+        SpeechToTextTelemetry: [ "Shared transcription telemetry helpers; log fields may change between releases.", %w[log duration_ms monotonic_time safe_error] ],
+        MemoryStore: [ "Marks a class as the plugin-provided agent memory store; store orchestration is not promised.", %w[] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {
