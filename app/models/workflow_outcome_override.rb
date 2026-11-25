@@ -40,7 +40,7 @@ class WorkflowOutcomeOverride < ApplicationRecord
     with_lock do
       raise ActiveRecord::RecordInvalid, self unless valid_fingerprint?(expected_fingerprint)
       if invalidated?
-        errors.add(:base, "an invalidated override cannot be consumed")
+        errors.add(:base, I18n.t("models.workflow_outcome_override.errors.invalidated_cannot_be_consumed"))
         raise ActiveRecord::RecordInvalid, self
       end
       return self if consumed?
@@ -67,12 +67,12 @@ class WorkflowOutcomeOverride < ApplicationRecord
   def registry = WorkflowOutcomeOverrides::GateRegistry.default
 
   def registered_gate_kind
-    errors.add(:gate_kind, "is not registered") unless registry.registered?(gate_kind)
+    errors.add(:gate_kind, I18n.t("models.workflow_outcome_override.errors.gate_kind_not_registered")) unless registry.registered?(gate_kind)
   end
 
   def failure_is_technically_overridable
     unless registry.registered?(gate_kind) && registry.fetch(gate_kind).overridable_failure?(gate_failure)
-      errors.add(:base, "gate failure is not technically overridable")
+      errors.add(:base, I18n.t("models.workflow_outcome_override.errors.failure_not_overridable"))
     end
   end
 
@@ -81,55 +81,55 @@ class WorkflowOutcomeOverride < ApplicationRecord
   end
 
   def lineage_is_consistent
-    errors.add(:workflow, "must belong to the override Job") if workflow && workflow.job_id != job_id
-    errors.add(:step, "requires a Workflow") if step && !workflow
-    errors.add(:step, "must belong to the override Workflow") if step && step.workflow_id != workflow_id
+    errors.add(:workflow, I18n.t("models.workflow_outcome_override.errors.workflow_job_mismatch")) if workflow && workflow.job_id != job_id
+    errors.add(:step, I18n.t("models.workflow_outcome_override.errors.step_requires_workflow")) if step && !workflow
+    errors.add(:step, I18n.t("models.workflow_outcome_override.errors.step_workflow_mismatch")) if step && step.workflow_id != workflow_id
   end
 
   def version_binding_is_present
-    errors.add(:base, "a plan or prompt version is required") if plan_version.blank? && prompt_version.blank?
+    errors.add(:base, I18n.t("models.workflow_outcome_override.errors.version_required")) if plan_version.blank? && prompt_version.blank?
   end
 
   def failure_matches_bound_evidence
     failure = gate_failure.to_h.symbolize_keys
     %i[gate_identity evidence_digest].each do |attribute|
-      errors.add(attribute, "does not match the gate failure") unless failure[attribute].to_s == public_send(attribute).to_s
+      errors.add(attribute, I18n.t("models.workflow_outcome_override.errors.gate_failure_mismatch")) unless failure[attribute].to_s == public_send(attribute).to_s
     end
 
     WorkflowOutcomeOverrides::Fingerprint::ATTRIBUTES.each do |attribute|
       next unless failure.key?(attribute)
-      errors.add(attribute, "does not match the gate failure") unless failure[attribute].to_s == public_send(attribute).to_s
+      errors.add(attribute, I18n.t("models.workflow_outcome_override.errors.gate_failure_mismatch")) unless failure[attribute].to_s == public_send(attribute).to_s
     end
   end
 
   def fingerprint_digest_is_exact
     return if fingerprint_digest.blank?
 
-    errors.add(:fingerprint_digest, "does not match the bound evidence and revision") unless fingerprint_digest == fingerprint.digest
+    errors.add(:fingerprint_digest, I18n.t("models.workflow_outcome_override.errors.fingerprint_digest_mismatch")) unless fingerprint_digest == fingerprint.digest
   end
 
   def valid_fingerprint?(expected)
     expected = WorkflowOutcomeOverrides::Fingerprint.new(**expected.symbolize_keys) if expected.respond_to?(:symbolize_keys)
     return true if expected.is_a?(WorkflowOutcomeOverrides::Fingerprint) && expected.digest == fingerprint_digest
 
-    errors.add(:base, "override fingerprint does not match the current gate evidence and revision")
+    errors.add(:base, I18n.t("models.workflow_outcome_override.errors.current_fingerprint_mismatch"))
     false
   end
 
   def claims_are_immutable
     changed = changes_to_save.keys - MUTABLE_LIFECYCLE_ATTRIBUTES
-    errors.add(:base, "override claims are immutable: #{changed.join(', ')}") if changed.any?
+    errors.add(:base, I18n.t("models.workflow_outcome_override.errors.claims_immutable", attributes: changed.join(", "))) if changed.any?
   end
 
   def lifecycle_is_monotonic
     if consumed_at_in_database.present? && consumed_at != consumed_at_in_database
-      errors.add(:consumed_at, "is immutable once set")
+      errors.add(:consumed_at, I18n.t("models.workflow_outcome_override.errors.consumed_at_immutable"))
     end
     if invalidation_cause_in_database.present? && invalidation_cause != invalidation_cause_in_database
-      errors.add(:invalidation_cause, "is immutable once set")
+      errors.add(:invalidation_cause, I18n.t("models.workflow_outcome_override.errors.invalidation_cause_immutable"))
     end
     if consumed_at.present? && invalidation_cause.present?
-      errors.add(:base, "an override cannot be both consumed and invalidated")
+      errors.add(:base, I18n.t("models.workflow_outcome_override.errors.terminal_states_mutually_exclusive"))
     end
   end
 end
