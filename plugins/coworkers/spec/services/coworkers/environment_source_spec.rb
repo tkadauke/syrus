@@ -76,6 +76,13 @@ RSpec.describe Coworkers::EnvironmentSource do
     expect(source.validate).to include(a_string_matching(/must not escape '<'/))
   end
 
+  it "rejects a non-default escape parser directive that would change continuation" do
+    source.seed!
+    workspace.write("environment/Dockerfile",
+                    "# escape=`\nARG SYRUS_COWORKER_BASE\nFROM ${SYRUS_COWORKER_BASE}\nLABEL marker=\\\nFROM ubuntu:24.04\n")
+    expect(source.validate).to include(a_string_matching(/escape parser directive/))
+  end
+
   it "still recognizes quoted heredoc tags" do
     source.seed!
     workspace.write("environment/Dockerfile",
