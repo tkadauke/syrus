@@ -528,7 +528,9 @@ RSpec.describe "maintenance task definitions" do
     before do
       result_struct = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
       stub_const("TestInsights::GraderNameBackfill", Class.new do
-        define_singleton_method(:pending_count) { |after_id: 0, up_to_id: nil| [ (up_to_id || 7) - after_id, 0 ].max }
+        # Regression: discovery counted every unfilled case every five minutes.
+        define_singleton_method(:pending_count) { |**| raise "discovery must not run the exact full-table count" }
+        define_singleton_method(:pending_in_range?) { |after_id: 0, up_to_id: nil| after_id < (up_to_id || 7) }
         define_singleton_method(:max_test_case_id) { 7 }
         define_method(:call) do |after_id: 0, up_to_id: nil, limit:|
           processed = [ limit, (up_to_id || 7) - after_id ].min
@@ -546,6 +548,21 @@ RSpec.describe "maintenance task definitions" do
         "after_id" => 7,
         "upper_bound_test_case_id" => 7
       )
+    end
+
+    it "estimates remaining work from the primary-key span without counting rows" do
+      expect(definition.estimate_total_units).to eq(7)
+      expect(definition).to be_pending
+      expect(definition.pending_reason).to include("Up to 7")
+    end
+
+    it "is not pending once the checkpoint reaches the captured upper bound" do
+      task = maintenance_task_for(definition)
+      definition.perform_batch(task)
+      task.update!(state: "succeeded")
+
+      expect(definition.estimate_total_units).to eq(0)
+      expect(definition).not_to be_pending
     end
 
     it "reports not installed when Test Insights is unavailable" do

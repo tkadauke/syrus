@@ -17,13 +17,27 @@ module MaintenanceTasks
       AFTER_ID_KEY = "after_id".freeze
       UPPER_BOUND_ID_KEY = "upper_bound_test_case_id".freeze
 
+      # Discovery evaluates pending? and the estimate every five minutes. An
+      # exact count of unfilled cases joined to their runs took about sixteen
+      # minutes on production history; repeated every five minutes it piled up,
+      # held a shared lock on test_insight_cases that stalled a deploy
+      # migration, and never finished, so this task was never created. The
+      # backfill walks a fixed primary-key range, so the remaining span bounds
+      # the remaining work and costs two indexed lookups.
       def estimate_total_units
         return 0 unless service_class
 
-        service_class.pending_count(after_id: checkpoint_after_id, up_to_id: checkpoint_upper_bound_id || current_upper_bound_id).to_i
+        remaining_span
       end
 
-      def pending_reason = "#{estimate_total_units} historical test case(s) still need grader names."
+      def pending?
+        return false unless service_class
+        return false unless remaining_span.positive?
+
+        service_class.pending_in_range?(after_id: checkpoint_after_id, up_to_id: range_upper_bound_id)
+      end
+
+      def pending_reason = "Up to #{estimate_total_units} historical test case(s) still need grader names."
 
       def build_task_attributes(trigger_kind:, trigger_key:, task_key:, requested_by: nil)
         super.tap { |attributes| attributes[:checkpoint][UPPER_BOUND_ID_KEY] = checkpoint_upper_bound_id || current_upper_bound_id }
@@ -75,6 +89,10 @@ module MaintenanceTasks
       end
 
       def current_upper_bound_id = service_class&.max_test_case_id.to_i
+
+      def range_upper_bound_id = checkpoint_upper_bound_id || current_upper_bound_id
+
+      def remaining_span = [ range_upper_bound_id.to_i - checkpoint_after_id, 0 ].max
     end
   end
 end

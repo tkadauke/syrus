@@ -8,8 +8,21 @@ module TestInsights
     def self.pending_count(after_id: 0, up_to_id: nil) = new.pending_count(after_id: after_id, up_to_id: up_to_id)
     def self.max_test_case_id = TestCase.maximum(:id).to_i
 
+    def self.pending_in_range?(after_id: 0, up_to_id: nil) = new.pending_in_range?(after_id: after_id, up_to_id: up_to_id)
+
+    # Exact, and therefore a full scan of every unfilled case joined to its
+    # run: on production history that took about sixteen minutes. Never call
+    # it from anything that runs routinely.
     def pending_count(after_id: 0, up_to_id: nil)
       candidates(after_id, up_to_id).count
+    end
+
+    # Whether any unfilled case remains in the range: a primary-key walk that
+    # stops at the first hit, with no join.
+    def pending_in_range?(after_id: 0, up_to_id: nil)
+      scope = TestCase.where(grader_name: nil).where("test_insight_cases.id > ?", after_id)
+      scope = scope.where("test_insight_cases.id <= ?", up_to_id) if up_to_id.present?
+      scope.exists?
     end
 
     def call(after_id: 0, up_to_id: nil, limit:)

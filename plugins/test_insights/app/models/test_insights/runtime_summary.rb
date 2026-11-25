@@ -178,26 +178,58 @@ module TestInsights
 
       # A partial backfill is safe once the latest possible 100 samples contain
       # no unfilled rows. Older NULL rows cannot displace that complete window.
+      #
+      # Asked as "find the 100th-newest filled sample, then is any unfilled row
+      # at least that new?" rather than "sort this identity's filled and
+      # unfilled rows together": `grader_name = ? OR grader_name IS NULL` cannot
+      # be read in order from the (identity, grader_name, created_at) index, so
+      # MySQL sorted the identity's whole history on every refresh (about 27
+      # seconds per call in production). Both probes here are bounded index
+      # range reads. A tie on created_at counts as unfilled, which only sends
+      # the pair down the exact legacy path.
       def denormalized_window_eligible_pairs(pairs)
+        thresholds = window_threshold_times(pairs)
+        blocked = pairs_with_recent_unfilled_rows(pairs, thresholds)
+        (pairs - blocked).to_set
+      end
+
+      def window_threshold_times(pairs)
         sql = pairs.map do |identity_id, grader_name|
           scope = TestCase
-            .where(test_identity_id: identity_id)
-            .where(grader_name: [ grader_name, nil ])
+            .from("#{TestCase.quoted_table_name}#{test_cases_runtime_index_hint(named_grader: true)}")
+            .where(test_identity_id: identity_id, grader_name: grader_name)
             .where.not(duration_ms: nil)
             .order(created_at: :desc, id: :desc)
-            .limit(WINDOW_SIZE)
-            .select(:grader_name)
-
-          <<~SQL.squish
-            SELECT #{identity_id.to_i} AS test_identity_id,
-                   #{connection.quote(grader_name)} AS grader_name,
-                   COUNT(*) AS sample_count
-            FROM (#{scope.to_sql}) syrus_recent_runtime_cases
-            HAVING COUNT(*) = COUNT(syrus_recent_runtime_cases.grader_name)
-          SQL
+            .offset(WINDOW_SIZE - 1)
+            .limit(1)
+            .select(
+              "#{TestCase.quoted_table_name}.#{connection.quote_column_name(:test_identity_id)}",
+              "#{connection.quote(grader_name)} AS grader_name",
+              "#{TestCase.quoted_table_name}.#{connection.quote_column_name(:created_at)}"
+            )
+          "SELECT * FROM (#{scope.to_sql}) syrus_window_thresholds"
         end.join(" UNION ALL ")
 
-        connection.select_rows(sql).map { |identity_id, grader_name,| [ identity_id, grader_name ] }.to_set
+        connection.select_rows(sql).to_h { |identity_id, grader_name, created_at| [ [ identity_id, grader_name ], created_at ] }
+      end
+
+      def pairs_with_recent_unfilled_rows(pairs, thresholds)
+        sql = pairs.map do |identity_id, grader_name|
+          scope = TestCase
+            .from("#{TestCase.quoted_table_name}#{test_cases_runtime_index_hint(named_grader: true)}")
+            .where(test_identity_id: identity_id, grader_name: nil)
+            .where.not(duration_ms: nil)
+            .limit(1)
+            .select(
+              "#{TestCase.quoted_table_name}.#{connection.quote_column_name(:test_identity_id)}",
+              "#{connection.quote(grader_name)} AS grader_name"
+            )
+          threshold = thresholds[[ identity_id, grader_name ]]
+          scope = scope.where(created_at: threshold..) if threshold
+          "SELECT * FROM (#{scope.to_sql}) syrus_unfilled_probe"
+        end.join(" UNION ALL ")
+
+        connection.select_rows(sql).map { |identity_id, grader_name| [ identity_id, grader_name ] }
       end
 
       def bounded_duration_scope(identity_id, named_grader: false)

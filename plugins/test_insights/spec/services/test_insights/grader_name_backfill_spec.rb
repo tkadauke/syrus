@@ -35,6 +35,23 @@ RSpec.describe TestInsights::GraderNameBackfill do
     expect { described_class.new.call(limit: 10) }.not_to change { TestInsights::TestCase.pluck(:grader_name) }
   end
 
+  it "detects remaining work in a range without joining test runs" do
+    filled = create_case!
+    unfilled = create_case!
+    filled.update_columns(grader_name: "rspec")
+
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| queries << payload[:sql].to_s }
+    pending = described_class.pending_in_range?(after_id: 0, up_to_id: unfilled.id)
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+
+    expect(pending).to be(true)
+    expect(described_class.pending_in_range?(after_id: unfilled.id, up_to_id: unfilled.id)).to be(false)
+    expect(described_class.pending_in_range?(after_id: 0, up_to_id: filled.id)).to be(false)
+    expect(queries.join("\n")).not_to include("test_insight_runs")
+    expect(queries.join("\n")).not_to include("COUNT")
+  end
+
   it "honors a captured upper bound while live ingestion creates newer rows" do
     historical = create_case!
     upper_bound = described_class.max_test_case_id

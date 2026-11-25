@@ -57,6 +57,27 @@ RSpec.describe TestInsights::RuntimeSummary do
     expect(selects.join("\n")).not_to include("test_insight_runs")
   end
 
+  # Regression: eligibility sorted each identity's whole history with
+  # `grader_name = ? OR grader_name IS NULL`, about 27 seconds per call.
+  it "takes the fast path when unfilled rows are all older than the recent window" do
+    rspec = create_test_run!(grader_name: "rspec")
+    create_case!(test_run: rspec, grader_name: nil, duration_ms: 999, created_at: 3.hours.ago)
+    100.times { |index| create_case!(test_run: rspec, grader_name: "rspec", duration_ms: 100, created_at: index.minutes.ago) }
+
+    window_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      window_selects << sql if sql.include?("syrus_runtime_cases")
+    end
+    described_class.refresh_many!([ identity.id ], grader_names: [ "rspec" ])
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    expect(window_selects.join("\n")).not_to include("test_insight_runs")
+    expect(described_class.find_by!(test_identity: identity, grader_name: "rspec")).to have_attributes(
+      sample_count: 100, max_duration_ms: 100
+    )
+  end
+
   it "falls back for a mixed backfill window without dropping legacy samples" do
     rspec = create_test_run!(grader_name: "rspec")
     create_case!(test_run: rspec, grader_name: nil, duration_ms: 300, created_at: 2.minutes.ago)
@@ -128,9 +149,11 @@ RSpec.describe TestInsights::RuntimeSummary do
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
-    # One batched eligibility query plus the all-grader and named-grader
-    # window queries, independent of the number of pairs in the slice.
-    expect(selects.size).to eq(3)
+    # Two batched eligibility probes (window threshold, unfilled rows) plus
+    # the all-grader and named-grader window queries, independent of the
+    # number of pairs in the slice.
+    expect(selects.size).to eq(4)
+    expect(selects.join("\n")).not_to match(/grader_name"?\s*=\s*\S+\s+OR\s+\S*grader_name"?\s+IS NULL/i)
     expect(selects.join("\n")).to include("UNION ALL")
     expect(selects.join("\n")).to include("ORDER BY")
     expect(selects.join("\n")).to include("LIMIT")
