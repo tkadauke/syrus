@@ -61,6 +61,7 @@ module Steps
         pr_number = entry["pr_number"]
         stack_job = Job.find_by(id: entry["job_id"])
         next if stack_job&.closed?
+        base = stack_job&.effective_base_branch.presence || entry["base_branch"].presence || repository.default_branch
 
         resolution = JobStackResolver.new(stack_job, workflow: workflow).resolve!
         unless resolution.ready? && resolution.parent&.id == entry["parent_job_id"]
@@ -68,13 +69,12 @@ module Steps
             "expected_parent_job_id" => entry["parent_job_id"],
             "resolved_parent_job_id" => resolution.parent&.id,
             "resolution_reason" => resolution.reason
-          }.compact
+          }
           error = StackPublicationVerifier::Mismatch.new("derived stack topology no longer matches the publication plan", evidence: evidence)
           record_publication_failure!(entry, "postcondition_mismatch", error, evidence)
           raise StepFailed.new("stack_force_push: derived stack topology no longer matches the publication plan", evidence: publication_failure_artifact)
         end
 
-        base = stack_job&.effective_base_branch.presence || entry["base_branch"].presence || repository.default_branch
         next if pr_number.blank?
 
         client.update_pull_request_base(repository.slug, pr_number, base: base)
@@ -152,7 +152,7 @@ module Steps
         "local_sha" => expected_head,
         "detected_at" => Time.current.iso8601,
         "message" => error.message
-      }.merge(extra).compact
+      }.merge(extra)
       workflow.set_artifact!("stack_publication_failure", artifact)
       if expected_head.present? && expected_head != remote_head
         workflow.set_artifact!("branch_divergence", artifact.slice("branch", "remote_sha", "local_sha", "detected_at", "message"))
