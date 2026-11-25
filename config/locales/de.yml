@@ -118,6 +118,12 @@ de:
         invalidation_cause_immutable: "ist nach dem Setzen unveränderlich"
         terminal_states_mutually_exclusive: "Eine Außerkraftsetzung kann nicht zugleich verbraucht und ungültig gemacht sein"
 
+  services:
+    workflow_outcome_overrides:
+      telemetry:
+        message: "Workflow-Ergebnis fehlgeschlagen, übersteuert"
+        transcript: "Workflow-Ergebnis fehlgeschlagen, übersteuert: %{gate_kind} %{gate_identity} bei %{candidate_head_sha} (Nachweis %{evidence_digest})."
+
   errors:
     messages:
       inclusion: "ist kein gültiger Wert"
