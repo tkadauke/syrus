@@ -798,11 +798,13 @@ repository, GitHub App identity, permissions, credential use, external-write
 risk, and whether destructive operations were separately requested.
 
 The credential exists only for that manual Run, is scoped to the Job's
-repository, and is removed when the agent invocation ends. Authenticated `gh`
-and Git transport reject other repositories. Direct Git pushes are treated as
-destructive because the credential boundary cannot safely distinguish every
-force/delete ref update; ordinary committed output should use Syrus's normal
-publication step. Invocations are audited without
+repository, and is removed when the agent invocation ends. Authenticated
+repository-scoped `gh api` and Git transport reject other repositories.
+High-level `gh pr`, `gh issue`, and other GraphQL-backed commands are
+unavailable because their requests cannot be safely repository-bound. Direct
+Git pushes are treated as destructive because the credential boundary cannot
+safely distinguish every force/delete ref update; ordinary committed output
+should use Syrus's normal publication step. Invocations are audited without
 recording the credential, and Syrus checks declared branch/PR state, labels,
 or comments through its own provider client after publication. Agent prose is
 never accepted as proof. A failed check fails the Workflow and records
