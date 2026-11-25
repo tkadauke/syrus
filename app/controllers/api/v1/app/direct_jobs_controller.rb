@@ -38,7 +38,7 @@ module Api
           effort_level = params[:effort_level].to_s.strip.presence
           question_eagerness = params[:question_eagerness].to_s.strip.presence
           unless question_eagerness.nil? || QuestionEagerness::Base::LEVELS.include?(question_eagerness)
-            render_error("validation_failed", "Question eagerness is invalid.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.direct_jobs.invalid_question_eagerness"), status: :unprocessable_content)
             return
           end
 

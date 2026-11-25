@@ -965,6 +965,7 @@ en:
       prompt_blank: "Prompt can't be blank."
       agent_not_configured: "That agent is not configured for the repository owner."
       invalid_priority: "Priority must be one of: %{priorities}."
+      invalid_question_eagerness: "Question eagerness is invalid."
       epic_not_found: "Epic not found in that repository."
       owner_not_found: "Owner user not found."
       created: "Direct job created."
