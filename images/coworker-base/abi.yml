@@ -1,0 +1,69 @@
+# The versioned runtime ABI of the standard Syrus coworker base: what an image
+# promises Syrus and what Syrus promises the image. RuntimeImages::RuntimeAbi
+# reads this file, derives the OCI labels from it, signs it into provenance, and
+# validates images against it before launch. base.yml's runtime_abi must equal
+# abi.version; a spec keeps both, and the Dockerfile labels, consistent.
+version: 1
+# Inclusive range of ABI versions this Syrus can launch. An image whose ABI is
+# outside the range is incompatible and is never started.
+compatibility:
+  min: 1
+  max: 1
+# Lowest Container Execution confinement policy version the image may run
+# under. Images cannot weaken confinement; they can only require at least this.
+min_confinement_policy: 1
+entrypoint:
+  # The image has no long-running entrypoint. Container Execution always
+  # overrides it with the provider invocation; the image only guarantees the
+  # handshake binary exists, is executable by the coworker user, and exits 0
+  # when the image satisfies this ABI.
+  path: /usr/local/bin/syrus-base-probe
+  handshake:
+    command: [/usr/local/bin/syrus-base-probe]
+    success_exit_status: 0
+    # One "ok <check>" or "fail <check>: <why>" per line on stdout.
+    output: check_lines
+providers:
+  claude: { path: /usr/local/bin/claude, probe: [--version] }
+  codex: { path: /usr/local/bin/codex, probe: [--version] }
+  agy: { path: /usr/local/bin/agy, probe: [--version] }
+  muse: { path: /opt/muse/bin/muse, probe: [--version] }
+invocation:
+  # Providers are run by absolute path, one process per turn, no shell, with
+  # the working directory set to the workspace and credentials injected only
+  # through the environment of that process.
+  protocol: exec
+  shell: false
+  cwd: /workspace
+filesystem:
+  root: read_only
+  workspace: /workspace
+  provider_home: /home/coworker
+  tmp:
+    path: /tmp
+    options: [nosuid, nodev, noexec]
+    persistence: turn
+  # Optional fixed scratch tmpfs. Absent unless an administrator enables it
+  # for the instance; never coworker-configurable and never required of images.
+  scratch:
+    path: /scratch
+    availability: admin_enabled
+    required: false
+  mcp_socket:
+    path: /run/syrus/mcp.sock
+    access: read_only
+  declared_volumes: forbidden
+mcp:
+  transport: unix_socket
+  socket: /run/syrus/mcp.sock
+  protocol: stdio_jsonrpc_bridge
+user:
+  name: coworker
+  uid: 1000
+  gid: 1000
+  root: forbidden
+environment:
+  # Set by Container Execution on every turn.
+  provided: [HOME, SYRUS_RUNTIME_ABI, SYRUS_WORKSPACE, SYRUS_MCP_SOCKET, TMPDIR]
+  # Names the image must never bake in; credentials arrive per turn only.
+  forbidden_patterns: [TOKEN, SECRET, PASSWORD, API_KEY, CREDENTIAL]

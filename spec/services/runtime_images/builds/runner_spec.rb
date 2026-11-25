@@ -16,13 +16,15 @@ RSpec.describe RuntimeImages::Builds::Runner do
   before { RuntimeImages::Builds.builder = builder }
   after { RuntimeImages::Builds.builder = nil }
 
+  let(:base_verifier) { ->(_image) { true } }
+
   def run
     claimed_request, attempt = orchestrator.claim_next
-    described_class.new(orchestrator: orchestrator, service: service).call(claimed_request, attempt)
+    described_class.new(orchestrator: orchestrator, service: service, base_verifier: base_verifier).call(claimed_request, attempt)
     [ claimed_request.reload, attempt.reload ]
   end
 
-  def output(**attrs) = RuntimeImages::Builds::Output.new(payload: "image-bytes", source_digest: source.digest, provenance: { "builder" => "t" }, **attrs)
+  def output(**attrs) = RuntimeImages::Builds::Output.new(**{ payload: "image-bytes", source_digest: source.digest, provenance: { "builder" => "t" } }.merge(attrs))
 
   it "builds, publishes, verifies, and records a successful result" do
     request
@@ -36,6 +38,72 @@ RSpec.describe RuntimeImages::Builds::Runner do
     expect(image).to be_available
     expect(image.provenance["build_request_id"]).to eq(claimed.id)
     expect(image.source_digest).to eq(source.digest)
+  end
+
+  it "signs the runtime ABI into provenance only for the standard base" do
+    request
+    allow(builder).to receive(:build).and_return(output)
+    expect(run.first.result.runtime_image.provenance).not_to have_key(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
+
+    base_source = RuntimeImages::Builds::SourceCapture.capture(kind: RuntimeImages::CoworkerBase::SOURCE_KIND, ref: "coworker-base/generation-1", revision: "sha256:#{"a" * 64}")
+    orchestrator.submit(namespace: namespace, source: base_source, recipe: { "a" => 2 }, platform: "linux/amd64", requester_kind: "test", requester_ref: "2")
+    allow(builder).to receive(:build).and_return(output(payload: "base-image-bytes").tap { |o| o.source_digest = base_source.digest })
+    claimed, = run
+    image = claimed.result.runtime_image
+    attestation = image.provenance.fetch(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
+    expect(RuntimeImages::RuntimeAbi.attestation_valid?(attestation, source_digest: image.source_digest, recipe_digest: image.provenance["recipe_digest"])).to be(true)
+  end
+
+  describe "standard base conformance" do
+    let(:base_source) { RuntimeImages::Builds::SourceCapture.capture(kind: RuntimeImages::CoworkerBase::SOURCE_KIND, ref: "coworker-base/generation-1", revision: "sha256:#{"a" * 64}") }
+
+    before do
+      orchestrator.submit(namespace: namespace, source: base_source, recipe: { "a" => 2 }, platform: "linux/amd64", requester_kind: "test", requester_ref: "2")
+      allow(builder).to receive(:build).and_return(output(payload: "base-image-bytes").tap { |o| o.source_digest = base_source.digest })
+    end
+
+    it "runs the probe on the published base image" do
+      seen = nil
+      verifier = ->(image) { seen = image }
+      allow(base_verifier).to receive(:call) { |image| verifier.call(image) }
+      claimed, = run
+      expect(claimed).to be_succeeded
+      expect(seen).to eq(claimed.result.runtime_image)
+    end
+
+    it "registers a conformant base as a promotion candidate, never as active" do
+      claimed, = run
+      release = CoworkerBaseRelease.find_by!(runtime_image: claimed.result.runtime_image)
+      expect(release).to be_candidate
+      expect(RuntimeImages::CoworkerBase.current_image).to be_nil
+    end
+
+    it "does not register a non-conformant base" do
+      result = RuntimeImages::ConformanceProbe.evaluate("fail provider-muse: not on PATH\n", exit_status: 1)
+      allow(base_verifier).to receive(:call).and_raise(RuntimeImages::ConformanceProbe::NonConformant.new(result))
+      run
+      expect(CoworkerBaseRelease.count).to eq(0)
+    end
+
+    it "revokes the image and fails permanently when the probe is non-conformant" do
+      result = RuntimeImages::ConformanceProbe.evaluate("fail provider-muse: not on PATH\n", exit_status: 1)
+      allow(base_verifier).to receive(:call).and_raise(RuntimeImages::ConformanceProbe::NonConformant.new(result))
+      claimed, = run
+      expect(claimed).to be_failed
+      expect(claimed.result.error_code).to eq("conformance_failed")
+      expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
+      expect(RuntimeImages::CoworkerBase.current_image).to be_nil
+    end
+
+    it "revokes the image and fails permanently when the base is ABI-incompatible" do
+      abi = RuntimeImages::RuntimeAbi::Result.new([RuntimeImages::RuntimeAbi::Problem.new(code: "abi_mismatch", message: "abi label mismatch")])
+      allow(base_verifier).to receive(:call).and_raise(RuntimeImages::RuntimeAbi::Incompatible.new(abi))
+      claimed, = run
+      expect(claimed).to be_failed
+      expect(claimed.result.error_code).to eq("conformance_failed")
+      expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
+      expect(RuntimeImages::CoworkerBase.current_image).to be_nil
+    end
   end
 
   it "fails non-retryably when the builder consumed a different source" do

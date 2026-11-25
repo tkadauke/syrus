@@ -14,6 +14,7 @@ recovering Syrus itself. Operator feature instructions remain in
 - [Per-spawn resource limits](resource-limits.md) — operational rollout note
 - [Runtime image registry](runtime-image-registry.md) — OCI provider configuration, credential roles, diagnostics
   for execution confinement.
+- [Standard coworker base image](coworker-base-image.md) — all-provider base build definition, identity, publishing, updates
 - [Production debugging](production-debugging.md) — inspect Kubernetes,
   processes, logs, queues, workers, and data safely.
 - [Workflow recovery](workflow-recovery.md) — diagnose and repair stuck or

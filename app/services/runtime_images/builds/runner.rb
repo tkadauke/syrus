@@ -25,7 +25,8 @@ module RuntimeImages
         end
       end
 
-      def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new)
+      def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new, base_verifier: ConformanceProbe.method(:verify_published!))
+        @base_verifier = base_verifier
         @orchestrator = orchestrator
         @service = service
         @builder = builder
@@ -112,18 +113,48 @@ module RuntimeImages
         inspection = publisher.inspect_image(image)
         raise BuildFailed.new("published image #{image.digest} could not be verified", code: "verification_failed", retryable: true) unless inspection.present
 
+        verify_conformance!(request, image)
+        register_base_release(request, image)
         image
+      end
+
+      # The standard coworker base must pass the full confined provider and
+      # confinement probe before it can be used. A non-conformant image is
+      # revoked so lookup never returns it, and the build fails permanently.
+      def verify_conformance!(request, image)
+        return unless request.source_kind == CoworkerBase::SOURCE_KIND
+
+        @base_verifier.call(image)
+      rescue ConformanceProbe::NonConformant, RuntimeAbi::Incompatible => e
+        @service.revoke(image, reason: "conformance probe failed: #{e.message}".truncate(500))
+        raise BuildFailed.new("coworker base failed conformance: #{e.message}".truncate(1000), code: "conformance_failed", retryable: false)
+      end
+
+      # A verified standard base becomes a promotion candidate. It is never
+      # active until an operator promotes it.
+      def register_base_release(request, image)
+        return unless request.source_kind == CoworkerBase::SOURCE_KIND
+
+        BaseReleases.new(service: @service).register(image)
       end
 
       # Builder-reported provenance plus the bindings that make the image
       # traceable to its inputs. Safe to store on the image: digests and names
       # only, never log text or resolved addresses.
       def provenance_for(request, output, evidence)
-        Hash(output.provenance).merge(
+        provenance = Hash(output.provenance).merge(
           "build_request_id" => request.id, "recipe_digest" => request.recipe_digest,
           "builder_version" => evidence.builder_version, "policy_digest" => evidence.policy_digest,
           "base_images" => evidence.base_images, "layer_digests" => evidence.layer_digests
         ).compact
+        # Syrus (never the isolated builder, which holds no key) signs the
+        # runtime ABI contract the standard base was built against.
+        if request.source_kind == CoworkerBase::SOURCE_KIND
+          provenance[RuntimeAbi::ATTESTATION_KEY] = RuntimeAbi.attest(
+            source_digest: request.source_digest, recipe_digest: request.recipe_digest, build_request_id: request.id
+          )
+        end
+        provenance
       end
     end
   end

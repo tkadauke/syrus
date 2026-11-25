@@ -45,6 +45,15 @@ module RuntimeImages
       worker_cache.acquire(image, &block)
     end
 
+    # The namespace for an owner identity, created on first use. Callers that
+    # submit builds need it before anything has been published.
+    def namespace_for(owner_kind, owner_ref)
+      identity = { owner_kind: owner_kind.to_s, owner_ref: owner_ref.to_s, provider_key: @provider_key }
+      RuntimeImageNamespace.find_by(identity) || RuntimeImageNamespace.create!(identity.merge(name: namespace_name(identity)))
+    rescue ActiveRecord::RecordNotUnique
+      RuntimeImageNamespace.find_by!(identity)
+    end
+
     private
 
     def worker_cache
@@ -54,13 +63,6 @@ module RuntimeImages
     # Namespaces are keyed by the full owner identity plus provider. The name
     # is globally unique, so it carries a digest of that identity: lossy
     # slugs ("repo/a" vs "repo-a") must never share a namespace.
-    def namespace_for(owner_kind, owner_ref)
-      identity = { owner_kind: owner_kind.to_s, owner_ref: owner_ref.to_s, provider_key: @provider_key }
-      RuntimeImageNamespace.find_by(identity) || RuntimeImageNamespace.create!(identity.merge(name: namespace_name(identity)))
-    rescue ActiveRecord::RecordNotUnique
-      RuntimeImageNamespace.find_by!(identity)
-    end
-
     def namespace_name(identity)
       slug = "#{identity[:owner_kind]}-#{identity[:owner_ref]}".downcase.gsub(/[^a-z0-9]+/, "-").delete_prefix("-").delete_suffix("-")
       suffix = Digest::SHA256.hexdigest(identity.values.join("\0"))[0, 12]
