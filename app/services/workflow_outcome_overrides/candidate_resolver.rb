@@ -11,7 +11,7 @@ module WorkflowOutcomeOverrides
     end
 
     def candidates
-      job.workflows.includes(:job, :workflow_artifact_values, steps: :runs).order(created_at: :desc).flat_map do |workflow|
+      job.workflows.includes(:job, :workflow_artifact_values, steps: :runs).reorder(created_at: :desc).flat_map do |workflow|
         grader_candidates(workflow) + review_candidates(workflow)
       end
     end
