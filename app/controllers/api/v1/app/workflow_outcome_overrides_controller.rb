@@ -19,11 +19,14 @@ module Api
             channel: "ui", reason: params.require(:reason),
             permission_decision: decision.to_h.deep_stringify_keys.merge("confirmation" => "explicit_ui_confirmation")
           )
+          WorkflowOutcomeOverrides::Resumer.call(override:)
           render json: { override: { id: override.id, effective_state: override.effective_state } }, status: :created
         rescue WorkflowOutcomeOverrides::CandidateResolver::NotFound => error
           render_error("outcome_override_stale", error.message, status: :conflict)
         rescue WorkflowOutcomeOverrides::Recorder::InvalidRequest, ActionController::ParameterMissing => error
           render_error("outcome_override_invalid", error.message, status: :unprocessable_content)
+        rescue WorkflowOutcomeOverrides::Resumer::ResumeFailed => error
+          render_error("outcome_override_resume_failed", error.message, status: :conflict)
         end
 
         private
@@ -34,7 +37,7 @@ module Api
           WorkflowOutcomeOverrides::Authority.call(user: Current.user, repository: job.repository, arguments: {
             job_id: job.id, fingerprint_digest: candidate.fingerprint.digest,
             gate_kind: candidate.gate_failure[:gate_kind], gate_identity: candidate.gate_failure[:gate_identity]
-          })
+          }, role: AgentRole::CHAT_PLANNER, subject_selector_type: "interactive_chat")
         end
       end
     end

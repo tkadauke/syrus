@@ -253,8 +253,8 @@ class McpToolRegistry
         read_chat(Mcp::Tools::ListJobsTool),
         read_chat(Mcp::Tools::SearchJobsTool),
         read_chat(Mcp::Tools::ReadJobTool),
-        override_observation_chat(Mcp::Tools::InspectWorkflowOutcomeOverridesTool),
-        override_request_chat(Mcp::Tools::RequestWorkflowOutcomeOverrideTool, mutation: true, approval_effect: true),
+        workflow_outcome_override_chat(Mcp::Tools::InspectWorkflowOutcomeOverridesTool),
+        workflow_outcome_override_chat(Mcp::Tools::RequestWorkflowOutcomeOverrideTool, mutation: true, approval_effect: true),
         mutation_chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
         read_chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
         read_chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),
@@ -658,13 +658,7 @@ class McpToolRegistry
       chat(tool, **metadata, descriptor:)
     end
 
-    def override_observation_chat(tool, **metadata)
-      roles = metadata[:required_roles].presence || (AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
-      descriptor = Permissions::WorkflowOutcomeOverrideActions.descriptor_for(tool_name_for(tool), required_roles: roles)
-      chat(tool, **metadata, descriptor:)
-    end
-
-    def override_request_chat(tool, **metadata)
+    def workflow_outcome_override_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || (AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
       descriptor = Permissions::WorkflowOutcomeOverrideActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
