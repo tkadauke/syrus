@@ -98,6 +98,24 @@ la:
     formats:
       long: "%Y-%m-%d %H:%M"
 
+  models:
+    workflow_outcome_override:
+      errors:
+        invalidated_cannot_be_consumed: "exceptio infirmata consumi non potest"
+        gate_kind_not_registered: "non registratum est"
+        failure_not_overridable: "defectus portae technice superari non potest"
+        workflow_job_mismatch: "ad Job exceptionis pertinere debet"
+        step_requires_workflow: "Workflow requirit"
+        step_workflow_mismatch: "ad Workflow exceptionis pertinere debet"
+        version_required: "versio consilii aut prompti requiritur"
+        gate_failure_mismatch: "cum defectu portae non congruit"
+        fingerprint_digest_mismatch: "cum testimonio et revisione conexis non congruit"
+        current_fingerprint_mismatch: "vestigium exceptionis cum testimonio portae et revisione praesentibus non congruit"
+        claims_immutable: "assertiones exceptionis immutabiles sunt: %{attributes}"
+        consumed_at_immutable: "postquam positum est mutari non potest"
+        invalidation_cause_immutable: "postquam posita est mutari non potest"
+        terminal_states_mutually_exclusive: "exceptio simul consumpta et infirmata esse non potest"
+
   errors:
     messages:
       inclusion: "non est in indice valorum permissorum"
