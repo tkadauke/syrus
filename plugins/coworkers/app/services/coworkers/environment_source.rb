@@ -169,7 +169,7 @@ class Coworkers::EnvironmentSource
       instructions << logical.strip
       next unless logical.strip.match?(/\A(RUN|COPY|ADD)\s/i)
 
-      logical.scan(/<<(-?)["']?([\w.-]+)["']?/).each do |dash, tag|
+      heredoc_openers(logical).each do |dash, tag|
         while raw.any?
           body = raw.shift
           break if (dash == "-" ? body.sub(/\A\t+/, "") : body) == tag
@@ -177,6 +177,19 @@ class Coworkers::EnvironmentSource
       end
     end
     instructions
+  end
+
+  # Heredoc operands (<<TAG, <<-TAG, <<"TAG") found outside quoted strings, so
+  # quoted text like `echo "<<CMD"` never swallows the lines that follow it.
+  HEREDOC_SCAN = /(?<!<)<<(?!<)(-?)(?:"([\w.-]+)"|'([\w.-]+)'|([\w.-]+))|"(?:[^"\\]|\\.)*"|'[^']*'/
+  private_constant :HEREDOC_SCAN
+
+  def heredoc_openers(logical)
+    logical.to_enum(:scan, HEREDOC_SCAN).filter_map do
+      m = Regexp.last_match
+      tag = m[2] || m[3] || m[4]
+      [ m[1], tag ] if tag
+    end
   end
 
   def manifest_errors(content)
