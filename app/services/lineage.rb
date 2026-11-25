@@ -62,24 +62,23 @@ module Lineage
     Workflow.where(job_id: job_ids, state: ACTIVE_WORKFLOW_STATES).includes(work_unit: :work_intent).order(:id).to_a
   end
 
-  # The ancestry and every Workflow, Step and Run below +record+, top down.
-  # A dependent: :destroy cascade deletes children before parents; with the
-  # subtree locked first, each delete touches a row the transaction holds.
-  def lock_subtree!(record)
-    workflows = record.is_a?(Job) ? Workflow.where(job_id: record.id).order(:id).to_a : []
-    lock_all!([ record, *workflows ])
-    step_ids =
-      case record
-      when Job then Step.where(workflow_id: workflows.map(&:id)).pluck(:id)
-      when Workflow then Step.where(workflow_id: record.id).pluck(:id)
-      when Step then [ record.id ]
-      else []
-      end
-    Step.lock.where(id: step_ids).order(:id).to_a if step_ids.any?
+  # The ancestries and every Workflow, Step and Run below +records+, top
+  # down, across all of them at once. A dependent: :destroy cascade deletes
+  # children before parents, and a cascade across Jobs cancels one subtree
+  # after another; with every subtree locked first, each write touches a row
+  # the transaction holds.
+  def lock_subtree!(*records)
+    records = records.flatten.compact
+    job_ids = records.grep(Job).map(&:id)
+    workflows = job_ids.any? ? Workflow.where(job_id: job_ids).order(:id).to_a : []
+    lock_all!([ *records, *workflows ])
+    workflow_ids = workflows.map(&:id) + records.grep(Workflow).map(&:id)
+    step_ids = Step.where(workflow_id: workflow_ids).pluck(:id) + records.grep(Step).map(&:id)
+    Step.lock.where(id: step_ids.uniq).order(:id).to_a if step_ids.any?
     run_ids = Run.where(step_id: step_ids).pluck(:id)
-    run_ids |= Run.where(job_id: record.id).pluck(:id) if record.is_a?(Job)
+    run_ids |= Run.where(job_id: job_ids).pluck(:id) if job_ids.any?
     Run.lock.where(id: run_ids).order(:id).to_a if run_ids.any?
-    record
+    records.one? ? records.first : records
   end
 
   # [[model class, id], ...] from the top of the hierarchy down.

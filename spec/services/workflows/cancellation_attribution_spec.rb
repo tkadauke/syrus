@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Workflows::CancellationAttribution do
+RSpec.describe Workflows::CancellationAttribution, :hierarchical_locks do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:root_job) { Factories.job_record(user: user, repository: repository) }
@@ -46,7 +46,12 @@ RSpec.describe Workflows::CancellationAttribution do
           WorkUnits::WorkflowCancellation.cancel!(child.reload, reason: "job_closed")
         end
       end
-      cancel_root!
+      # A cascade across Jobs locks both subtrees first, top down (NY40): the
+      # child's Job, Workflow and Steps must not be taken after the root's Runs.
+      ActiveRecord::Base.transaction do
+        Lineage.lock_subtree!(root[0], child)
+        cancel_root!
+      end
     end
 
     it "records a redacted root event before cleanup and propagates it to steps and runs" do

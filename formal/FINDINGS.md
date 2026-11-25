@@ -4845,7 +4845,14 @@ Part 11: a Lineage lock also takes each WorkUnit's member and scope Jobs with
 their Epics, so a caller's pre-lock and a Workflow event's lock are the same
 set. Auto-approval, stale-work cancellation and the repair executor's four
 Workflow-lock sites take their ancestries first. Their specs run with the
-order raising.
+order raising. A full survey after part 11 records 12 violations at 9 sites.
+
+Part 12: resetting a Job locks its Epic first, and refreshing required reviews
+locks the Workflow's whole subtree, since invalidation writes Steps and Runs in
+mixed order. A cascade across Jobs (cancelling a dependent Job's Workflow from
+inside another's cancellation) cannot be in order unless both subtrees are
+locked up front; no production path does it, and the one spec that simulates
+it now does, through `Lineage.lock_subtree!` over several records.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

@@ -128,7 +128,12 @@ module Workflows
       return [] if sha.blank?
 
       created = []
-      workflow.with_lock do
+      # Invalidation cancels Runs and rewrites Steps in mixed order, so the
+      # whole subtree is locked first, top down (NY40); then the Workflow is
+      # reloaded as with_lock would.
+      Workflow.transaction do
+        Lineage.lock_subtree!(workflow)
+        workflow.reload
         Step.transaction do
           invalidate_stale_evidence!(workflow)
           repair_step.reload
