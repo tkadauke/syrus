@@ -248,6 +248,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::PreviewPreparation` (since 0.1.16) — Prepares a preview for visual review. Only the listed members are supported. Supported members: `call`, `new`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `capture`, `forwarded_env`, `mounts`, `new`, `run`, `start`.
 - `Syrus::Host::PromptsGradeFailureFeedback` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `new`.
+- `Syrus::Host::ProviderContentRefusals` (since 0.1.16) — Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised. Supported members: `detect?`, `outcome`.
 - `Syrus::Host::RebaseTarget` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `artifacts`.
 - `Syrus::Host::RebaseWorkflowSelector` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `active_for_stack?`, `active_merge_train_for_stack?`, `instantiate`.
 - `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`.
@@ -320,4 +321,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 64725 bytes (UTF-8, including this line).
+Size: 64977 bytes (UTF-8, including this line).

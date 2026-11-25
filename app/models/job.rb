@@ -1,4 +1,9 @@
 class Job < ApplicationRecord
+  # Before the dependent: :destroy cascades below run (prepend): lock the
+  # subtree top down, so the cascade's child-first deletes stay in the
+  # hierarchical row-lock order (NY40).
+  before_destroy(prepend: true) { Lineage.lock_subtree!(self) }
+
   include HasProposer
   include AuthorizationCheckpointOrigin
   has_many :planned_execution_overrides, dependent: :destroy
@@ -967,6 +972,11 @@ class Job < ApplicationRecord
   # `after:` lambda.
   after_save :refresh_epic_auto_state,
              if: -> { epic_id.present? && (saved_change_to_state? || saved_change_to_validity? || saved_change_to_epic_id? || saved_change_to_closure_reason?) }
+  # The refresh writes the Epic after this Job row, so the Epic is locked
+  # before the Job is written (NY40, parents before children). Same condition,
+  # before the save.
+  before_save :lock_epic_for_rollup!,
+              if: -> { epic_id.present? && (will_save_change_to_state? || will_save_change_to_validity? || will_save_change_to_epic_id? || will_save_change_to_closure_reason?) }
   after_commit :reopen_recent_closed_epic, if: :saved_change_to_epic_id?
   after_commit :suggest_stale_closed_epic_assignment, if: :stale_closed_epic_assignment?
 
@@ -1233,9 +1243,14 @@ class Job < ApplicationRecord
     Syrus::Events.publish("job.state_changed", **domain_event_payload.merge(previous_state: previous, state: current))
   end
 
+  # Closing refreshes the Epic's state, so the Epic is locked before the Job
+  # row is written (NY40, parents before children).
   def close_with_reason!(reason)
-    update!(closure_reason: reason)
-    close!
+    transaction do
+      Lineage.lock!(self)
+      update!(closure_reason: reason)
+      close!
+    end
   end
   def approve_for_landing!
     return true if approved? || landing? || closed?
@@ -1362,7 +1377,11 @@ class Job < ApplicationRecord
     return if closed?
 
     transaction do
-      lock!
+      # The active work first, top down (NY40): cancelling Runs rolls up to
+      # their Steps and Workflows, then closing refreshes the Epic. Then
+      # reloaded as lock! did.
+      Lineage.lock_active_work!(self)
+      reload
       cancel_active_execution!
       close_with_reason!(reason)
     end
@@ -1496,6 +1515,8 @@ class Job < ApplicationRecord
 
   def mark_externally_implemented!(number)
     transaction do
+      # The active work first, top down (NY40).
+      Lineage.lock_active_work!(self)
       runs.active.find_each do |run|
         run.cancel! if run.may_cancel?
         run.save!
@@ -2409,6 +2430,10 @@ class Job < ApplicationRecord
 
   def refresh_epic_auto_state
     epic&.refresh_auto_state!
+  end
+
+  def lock_epic_for_rollup!
+    Epic.lock.where(id: epic_id).to_a
   end
 
   # Kinds declared issueless (cron fires, direct prompts, infrastructure

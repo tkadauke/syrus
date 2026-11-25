@@ -46,6 +46,9 @@ class WorkflowPatch
 
     patched = patched_graph
     Step.transaction do
+      # Ancestry first, top down (NY40): materializing writes Steps, then the
+      # Workflow records the patch.
+      Lineage.lock!(@workflow)
       materialize_live_steps!
       @workflow.update!(
         chain_template: patched,

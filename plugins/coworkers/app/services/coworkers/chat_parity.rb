@@ -70,6 +70,7 @@ module Coworkers
 
     class << self
       def context = CONTEXT
+      def agent_role = Syrus::Host::AgentRoles::COWORKER_CHAT
       def enabled? = Coworkers.enabled?
       def reason_codes = REASON_CODES
       def exceptions = EXCEPTIONS

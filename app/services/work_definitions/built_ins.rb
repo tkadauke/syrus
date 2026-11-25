@@ -250,6 +250,21 @@ module WorkDefinitions
     self.scope = "repository"
   end
 
+  # An operator's emergency merge (NY43). It runs no Workflow: the unit holds
+  # the per-branch merge lock for the one merge call, so a landing lane cannot
+  # merge between its head check and the emergency merge, and it finishes when
+  # the merge returns. One left running by a crash is released by the
+  # reconciler once it is older than STALE_AFTER.
+  class EmergencyLand < Base
+    STALE_AFTER = 10.minutes
+
+    self.kind = "emergency_land"
+    self.workflowless = true
+    self.runtime_role = "first_class"
+    self.scope = "job"
+    self.display_label = "Emergency land"
+  end
+
   class Unland < Base
     include ManagesOwnJobLifecycle
     include RecordsGraderTargetSelectionInputs
@@ -372,6 +387,15 @@ module WorkDefinitions
     self.workflow_trigger_kind = "merge_train"
     self.runtime_role = "first_class"
     self.scope = "repository"
+    # Members and the landing lane, not the whole repository: the lane key
+    # already serializes bundles on one lane, and a repository-wide lock let
+    # one bundle hold every other bundle out of the free lanes of a
+    # multi-lane repository. Main-health blocking is a WorkGate, not this key.
+    self.lock_scope = "job"
+
+    # The unique active lane and member locks make bundles exclusive where
+    # they must be; a per-repository dedup slot would allow one bundle only.
+    def scope_deduplicated? = false
     self.display_label = "Job bundle"
 
     def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
@@ -429,6 +453,7 @@ module WorkDefinitions
     self.workflow_trigger_kind = "merge_train_validation"
     self.runtime_role = "child"
     self.scope = "repository"
+    self.lock_scope = "job"
     self.parent_kind = "job_bundle"
     self.display_label = "Job bundle validation"
 

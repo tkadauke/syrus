@@ -149,7 +149,8 @@ nullable and a `priority` column exists so a train row can be either
 epic-backed (`epic_id` present, `priority` nil) or bundle-backed (`epic_id`
 nil, `priority` present), enforced by a model validation. `LandingBundleAssembler`'s
 priority-tier scope (candidate selection: same repository, epicless, approved, own-PR, grouped
-into same-priority tiers, minimum 2 members, dependency-ordered using both
+into same-priority tiers, then by owner and by declared execution capabilities such as
+`os` — a macOS Job is never bundled with Linux Jobs — minimum 2 members, dependency-ordered using both
 `parent_job` and resolved `JobDependency` rows, capped at
 `AppSetting.merge_train_max_size`) coalesces a dependency-connected set that
 crosses the current cap when the connected set still fits under the cap; if it

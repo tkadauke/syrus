@@ -10,15 +10,12 @@ RSpec.describe Lineage do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind) }
 
   around do |example|
-    previous_target = Syrus::LockOrder.target
     previous_mode = Syrus::LockOrder::Checker.mode
     previous_writes = ENV["SYRUS_LOCK_ORDER_WRITES"]
-    Syrus::LockOrder.target = :hierarchical
     Syrus::LockOrder::Checker.mode = :raise
     ENV["SYRUS_LOCK_ORDER_WRITES"] = "1"
     example.run
   ensure
-    Syrus::LockOrder.target = previous_target
     Syrus::LockOrder::Checker.mode = previous_mode
     ENV["SYRUS_LOCK_ORDER_WRITES"] = previous_writes
   end

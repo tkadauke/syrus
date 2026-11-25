@@ -306,7 +306,44 @@ class AutoRetryJob < ApplicationJob
       return retry_workflow(attempt)
     end
 
+    # A content refusal follows the provider's session: resuming it, or
+    # rerunning the step on the same provider, refuses again. Rerun just the
+    # failed step on another provider, in a fresh session.
+    if provider_content_refusal?(attempt) && attempt.retry_kind != AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND
+      return retry_failed_step_on_alternate_provider(attempt)
+    end
+
     send(RETRY_DISPATCH.fetch(attempt.retry_kind, :retry_workflow), attempt)
+  end
+
+  def provider_content_refusal?(attempt)
+    attempt.failure_classification == ProviderContentRefusal::CLASSIFICATION
+  end
+
+  def retry_failed_step_on_alternate_provider(attempt)
+    alternate = alternate_provider_for(attempt)
+    return RetryFailedStepEnqueuer::Result.new(workflow: nil, run: nil, step: nil, error: "no other provider is available for content the provider refused") unless alternate
+    return retry_workflow(attempt) unless attempt.workflow.retry_available?
+
+    RetryFailedStepEnqueuer.call(
+      workflow: attempt.workflow,
+      agent_provider: alternate,
+      disable_session_resume: true,
+      restart_grade_loop: false,
+      failed_step: attempt.run&.step
+    )
+  end
+
+  def alternate_provider_for(attempt)
+    refused = attempt.run&.agent_provider.presence || attempt.agent_provider
+    ProviderRouting::Resolver.call(job: attempt.job, task_key: "retry").each do |candidate|
+      provider = candidate.provider.to_s
+      next if provider.blank? || provider == refused.to_s
+      next if App::ProviderAvailability.for_user(attempt.job.user, provider)[:open] == true
+
+      return provider
+    end
+    nil
   end
 
   def fresh_workflow_required?(attempt)

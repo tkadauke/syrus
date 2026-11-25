@@ -822,4 +822,21 @@ RSpec.describe WorkUnits::Launcher do
       "maintenance:stack_rebase:epic:#{downstream.id}"
     )
   end
+
+  # NY43: a workflow-less unit (an emergency merge) is still started through
+  # WorkUnit#mark_running!, so it holds its definition's lock keys like any
+  # other unit and no second owner of the Job's lock can run beside it.
+  describe ".start_workflowless!" do
+    it "starts a running unit with its lock keys and no Workflow" do
+      unit = described_class.start_workflowless!(kind: "emergency_land", job: job)
+
+      expect(unit).to have_attributes(kind: "emergency_land", state: "running", workflow_id: nil)
+      expect(unit.work_unit_locks.active.pluck(:lock_key)).to include("job:#{job.id}")
+      expect(unit.work_intent).to have_attributes(kind: "emergency_land", scope_type: "job", scope_id: job.id)
+    end
+
+    it "refuses a definition that runs a Workflow" do
+      expect { described_class.start_workflowless!(kind: "initial", job: job) }.to raise_error(ArgumentError, /runs a Workflow/)
+    end
+  end
 end

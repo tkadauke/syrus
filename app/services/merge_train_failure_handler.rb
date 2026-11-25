@@ -549,6 +549,9 @@ class MergeTrainFailureHandler
 
     prepare_step = nil
     Step.transaction do
+      # Inserting the multisect Steps rewires the chain and rolls up to the
+      # Workflow, so its ancestry is locked first, top down (NY40).
+      Lineage.lock!(@workflow)
       continuation = failed_step.next_step
       insertion_position = failed_step.position + 1
       @workflow.steps.where("position >= ?", insertion_position).update_all([ "position = position + ?", 2 ])

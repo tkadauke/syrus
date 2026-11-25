@@ -364,6 +364,42 @@ module WorkEngine
         end
       end
 
+      class AgentBlockedWorkflowDependenciesSatisfied < Base
+        def plan
+          automatic_plan(
+            "retry_agent_blocked_workflow",
+            primary_workflow,
+            "The agent's blocker was answered with dependencies that are now satisfied; retry the blocked Workflow.",
+            execution_steps: [ "RetryWorkflowEnqueuer.call" ],
+            preconditions: { workflow_state: "blocked", cannot_proceed: true, added_dependencies_satisfied: true }
+          )
+        end
+      end
+
+      class QueuedGraderStarvingFailedCollect < Base
+        def plan
+          automatic_plan(
+            "cancel_starved_grader",
+            primary_run,
+            "A required sibling grader already failed, so this never-started grader cannot change the verdict; cancel it so grader_collect can fail and the repair loop start.",
+            execution_steps: [ "Run#cancel!", "Step#cancel!", "StepDispatcher.advance_from" ],
+            preconditions: { run_state: "queued", step_kind: "grader", workflow_state: "running", failed_required_sibling: true }
+          )
+        end
+      end
+
+      class QueuedRunRepeatedQueueExecutionFailure < Base
+        def plan
+          automatic_plan(
+            "fail_run_after_repeated_queue_failure",
+            primary_run,
+            "The Run's RunJob keeps crashing before the Run starts, so re-enqueueing only loops; fail the Run with the crash and let the normal retry path decide.",
+            execution_steps: [ "RunDiagnostic(run_job_crashed)", "Run#fail!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], repeated_queue_execution_failure: true }
+          )
+        end
+      end
+
       class QueuedRunWithOrphanedQueueJob < Base
         def plan
           automatic_plan(

@@ -25,6 +25,15 @@ RSpec.describe RuntimeImages::WorkerCache::CliEngine do
     expect(engine.digests("x")).to eq([])
   end
 
+  it "reads image labels, and reports none for an absent image or null labels" do
+    stub_runner(capture(stdout: '{"a":"1"}'))
+    expect(engine.labels("x")).to eq("a" => "1")
+    stub_runner(capture(stdout: "null"))
+    expect(engine.labels("x")).to eq({})
+    stub_runner(capture(success: false))
+    expect(engine.labels("x")).to eq({})
+  end
+
   it "raises EngineTimeout when a pull times out" do
     stub_runner(capture(success: false, timed_out: true))
     expect { engine.pull("host/r@sha256:a", timeout: 1) }.to raise_error(RuntimeImages::WorkerCache::EngineTimeout)

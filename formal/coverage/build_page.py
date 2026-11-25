@@ -1,7 +1,9 @@
 import json, sys, html
 
-src = sys.argv[1]
-out = sys.argv[2]
+standalone = "--standalone" in sys.argv
+args = [a for a in sys.argv[1:] if a != "--standalone"]
+src = args[0]
+out = args[1]
 d = json.load(open(src))
 
 P1 = """review-evidence-matches-head run-before-review-barrier epic-linear-children implemented-or-approved-without-pr
@@ -38,8 +40,12 @@ if missing:
     print("UNKNOWN IDS", missing); sys.exit(1)
 
 data = json.dumps({"areas": d["areas"], "items": d["items"], "commit": d.get("generated_from_commit"), "needs_you": d.get("needs_you", [])}).replace("</", "<\\/")
-tpl = open(sys.argv[3]).read()
-open(out, "w").write(tpl.replace("__DATA__", data))
+tpl = open(args[2]).read()
+page = tpl.replace("__DATA__", data)
+if standalone:
+    page = ('<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n') + page
+open(out, "w").write(page)
 counts = {}
 for it in d["items"]:
     counts[it["tier"]] = counts.get(it["tier"], 0) + 1

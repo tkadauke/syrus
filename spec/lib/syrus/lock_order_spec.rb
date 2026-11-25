@@ -30,6 +30,15 @@ RSpec.describe Syrus::LockOrder::Checker do
     }.to raise_error(Syrus::LockOrder::Error, /took Job at .* while holding Workflow/)
   end
 
+  it "names the spec frame when no application frame took the locks" do
+    expect {
+      ActiveRecord::Base.transaction do
+        workflow.lock!
+        job.lock!
+      end
+    }.to raise_error(Syrus::LockOrder::Error, %r{took Job at spec/lib/syrus/lock_order_spec\.rb:\d+ while holding Workflow from spec/lib/syrus/lock_order_spec\.rb:\d+})
+  end
+
   it "checks locking relation queries as well as lock!" do
     expect {
       ActiveRecord::Base.transaction do
@@ -124,17 +133,6 @@ RSpec.describe Syrus::LockOrder::Checker do
         workflow.lock!
       end
     }.not_to raise_error
-  end
-
-  it "records the pending-decision inversions instead of raising" do
-    violation = Syrus::LockOrder::Violation.new(
-      held: "Step", taking: "Workflow",
-      site: "app/services/work_units/workflow_cancellation.rb:51",
-      held_site: "app/models/workflow.rb:568"
-    )
-
-    expect(Syrus::LockOrder.pending_decision?(violation)).to be(true)
-    expect(Syrus::LockOrder.pending_decision?(violation.with(held_site: "app/services/other.rb:1"))).to be(false)
   end
 
   # Lead L14: an UPDATE takes an InnoDB row lock just as SELECT ... FOR UPDATE

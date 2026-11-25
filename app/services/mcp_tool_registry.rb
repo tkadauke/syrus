@@ -1,4 +1,9 @@
 class McpToolRegistry
+  # Chat roles that may start and drive Runtime Sessions: Coding Mode, plus
+  # planning and coworker chats working against an attached repository.
+  # Coworkers are deliberately no different from any other chat here.
+  RUNTIME_SESSION_ROLES = [ AgentRole::CHAT_CODING, AgentRole::CHAT_PLANNER, AgentRole::COWORKER_CHAT ].freeze
+
   ARTIFACT_WORKFLOW_ROLES = [
     AgentRole::WORKFLOW_IMPLEMENT,
     AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
@@ -287,20 +292,20 @@ class McpToolRegistry
         operational_chat(Mcp::Tools::EmergencyLandTool, feature_flag: :emergency_land, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         mutation_chat(Mcp::Tools::OpenInCodingModeTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         mutation_chat(Mcp::Tools::SubmitCodingChangesTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        read_chat(Mcp::Tools::RuntimeListSessionsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        mutation_chat(Mcp::Tools::RuntimeStartTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        read_chat(Mcp::Tools::RuntimeStatusTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        mutation_chat(Mcp::Tools::RuntimeBuildOrReloadTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        mutation_chat(Mcp::Tools::RuntimeLaunchTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        mutation_chat(Mcp::Tools::RuntimeSnapshotTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        read_chat(Mcp::Tools::RuntimeInspectTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        read_chat(Mcp::Tools::RuntimeWaitTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        read_chat(Mcp::Tools::RuntimeLogsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        mutation_chat(Mcp::Tools::RuntimeAcquireControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        mutation_chat(Mcp::Tools::RuntimeReleaseControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        mutation_chat(Mcp::Tools::RuntimeInputTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        mutation_chat(Mcp::Tools::RuntimeCaptureArtifactTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        mutation_chat(Mcp::Tools::RuntimeStopTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        read_chat(Mcp::Tools::RuntimeListSessionsTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES),
+        mutation_chat(Mcp::Tools::RuntimeStartTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        read_chat(Mcp::Tools::RuntimeStatusTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES),
+        mutation_chat(Mcp::Tools::RuntimeBuildOrReloadTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeLaunchTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeSnapshotTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        read_chat(Mcp::Tools::RuntimeInspectTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES),
+        read_chat(Mcp::Tools::RuntimeWaitTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES),
+        read_chat(Mcp::Tools::RuntimeLogsTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES),
+        mutation_chat(Mcp::Tools::RuntimeAcquireControlTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeReleaseControlTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeInputTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeCaptureArtifactTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeStopTool, feature_flag: :coding_mode, required_roles: RUNTIME_SESSION_ROLES, mutation: true),
         read_chat(Mcp::Tools::AdminOverviewTool, admin_only: true),
         read_chat(Mcp::Tools::AdminStuckJobsTool, admin_only: true),
         read_chat(Mcp::Tools::AdminQueueDetailTool, admin_only: true),

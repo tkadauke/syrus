@@ -84,7 +84,11 @@ module ResetJobs
     end
 
     def restart!
-      job.with_lock do
+      # Epic before Job (NY40): resetting the Job refreshes its Epic. Then
+      # reloaded as with_lock would.
+      Job.transaction do
+        Lineage.lock!(job)
+        job.reload
         job.update!(pr_number: nil, branch_name: nil, branch_deleted_at: Time.current,
           closure_reason: nil, landed_sha: nil)
         job.reset_from_scratch!

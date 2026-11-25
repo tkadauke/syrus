@@ -10,6 +10,12 @@ RSpec.describe WorkDefinitions do
   it "keeps WorkDefinition metadata in sync with Workflow::TriggerKind" do
     described_class.registry.each do |kind, definition_class|
       definition = definition_class.new
+      if definition.workflowless?
+        # Holds locks for work outside the engine (NY43); no trigger to match.
+        expect(definition.workflow_trigger_kind).to be_nil
+        expect(definition.scope).to be_present
+        next
+      end
       trigger_entry = Workflow::TriggerKind.fetch(definition.workflow_trigger_kind)
 
       expect(definition.kind).to eq(kind)

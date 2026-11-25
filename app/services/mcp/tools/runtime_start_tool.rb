@@ -7,7 +7,7 @@ module Mcp::Tools
     tool_name "runtime_start"
 
     description <<~DESC
-      Start a new Runtime Session (DOC-17) for this Coding Mode chat's
+      Start a new Runtime Session (DOC-17) for this chat's attached
       repository -- a live dev server/app/process the agent and operator can
       both observe and (with a control lease) interact with. Auto-detects a
       provider from the repository checkout when `provider` is omitted. The
@@ -42,9 +42,9 @@ module Mcp::Tools
         repository = resolve_repository(chat_session)
         return Mcp::Tools.invalid("this chat has no attached repository") unless repository
 
-        workspace_path = ChatWorkspace.repo_path_for(chat_session, repository).to_s
-        unless File.directory?(workspace_path)
-          return Mcp::Tools.invalid("no Coding Mode checkout found for this chat yet; the workspace may still be preparing")
+        workspace_path = ChatWorkspace.runtime_workspace_for!(chat_session, repository).to_s
+        unless workspace_path.present? && File.directory?(workspace_path)
+          return Mcp::Tools.invalid("no repository workspace for this chat yet: attach the repository first, or wait for the Coding Mode checkout to finish preparing")
         end
 
         config = normalize_options(options).merge(chat_session: chat_session, workspace_path: workspace_path)

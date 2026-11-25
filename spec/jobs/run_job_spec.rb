@@ -104,15 +104,20 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@job, job)
       attempts = 0
 
-      allow(run).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        attempts += 1
-        raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+      # Acquisition locks the Run's ancestry with Lineage.lock! (NY40).
+      # Counts the Run's: starting its Workflow and Step locks their own too.
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, *args, &block|
+        if args.first.is_a?(Run)
+          attempts += 1
+          raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+        end
 
         original.call(*args, &block)
       end
 
       expect(run_job.send(:acquire_run_execution!)).to be(true)
-      expect(attempts).to eq(2)
+      # The failed claim, its retry, and the start event's Lineage.lock! inside it.
+      expect(attempts).to eq(3)
       expect(run.reload).to be_running
       expect(run.step.reload).to be_running
       expect(run.workflow.reload).to be_running
@@ -129,7 +134,8 @@ RSpec.describe RunJob, :ci_only do
       attempts = 0
       messages = []
       allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
-      allow(run).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+      # Acquisition locks the Run's ancestry with Lineage.lock! (NY40).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, *args, &block|
         attempts += 1
         raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
 
@@ -159,7 +165,7 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@job, job)
       messages = []
       allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
-      allow(run).to receive(:with_lock).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
+      allow(Lineage).to receive(:lock!).and_raise(ActiveRecord::LockWaitTimeout, "still locked")
 
       expect { run_job.send(:acquire_run_execution!) }
         .to raise_error(ActiveRecord::LockWaitTimeout, "still locked")
@@ -1365,6 +1371,47 @@ RSpec.describe RunJob, :ci_only do
           "desired_git_sha" => "abc1234"
         )
         expect(JobLog.where(run: run).pluck(:chunk)).to include("macOS worker drain deferred before prepare: #{drain_state}")
+      end
+    end
+
+    # Regression: after a worker restart lost the workspace, a retried
+    # grader_collect crashed on the missing directory and refailed the
+    # reopened Workflow before the reconciler could reconstruct it.
+    describe "a grader collector whose workspace was lost" do
+      let(:wf) { job.workflows.last }
+      let!(:collect_step) do
+        wf.steps.where.not(id: nil).update_all(state: "succeeded")
+        wf.steps.create!(kind: "grader_collect", position: 999, state: "queued")
+      end
+      let!(:collect_run) do
+        collect_step.runs.create!(job: job, user: job.user, trigger_kind: wf.trigger_kind,
+                                  agent_provider: wf.agent_provider, state: "queued")
+      end
+
+      before do
+        wf.update_columns(state: "running", workspace_lifecycle_state: "created", worker_hostname: nil, worker_storage_key: nil)
+        FileUtils.rm_rf(WorkflowWorkspace.path_for(wf))
+      end
+
+      it "stays queued for workspace reconstruction instead of running" do
+        expect(Steps).not_to receive(:handler_for)
+
+        expect { RunJob.perform_now(collect_run.id) }.to have_enqueued_job(RunJob).with(collect_run.id)
+
+        expect(collect_run.reload).to be_queued
+        expect(JobLog.where(run: collect_run).pluck(:chunk))
+          .to include("step grader_collect is waiting for its lost workspace to be reconstructed")
+      end
+
+      it "runs normally when the workspace was never created" do
+        wf.update_columns(workspace_lifecycle_state: nil)
+        handler = instance_double(Steps::GraderCollect, call: nil)
+        allow(Steps).to receive(:handler_for).and_call_original
+        allow(Steps).to receive(:handler_for).with("grader_collect").and_return(class_double(Steps::GraderCollect, new: handler))
+
+        RunJob.perform_now(collect_run.id)
+
+        expect(handler).to have_received(:call)
       end
     end
 

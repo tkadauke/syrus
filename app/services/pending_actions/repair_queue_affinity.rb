@@ -63,12 +63,13 @@ module PendingActions
         return { outcome: "skipped", run: run, claimed_solid_queue_job_ids: claimed_job_ids } if claimed_job_ids.any?
 
         ApplicationRecord.transaction do
-          run.lock!
+          # The Run's ancestry, top down (NY40): clearing the routing affinity
+          # writes the Workflow.
+          Lineage.lock!(run)
           run.reload
           return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
 
           workflow = run.workflow
-          workflow.lock!
           workflow.reload
           return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
           validate_unsatisfied_affinity!(run, queue_jobs)

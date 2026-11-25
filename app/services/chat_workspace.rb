@@ -68,6 +68,19 @@ class ChatWorkspace
     path_for(chat_session).join("repositories", repository.owner, repository.name)
   end
 
+  def self.runtime_checkout_path_for(chat_session, repository)
+    path_for(chat_session).join("runtime-checkouts", repository.owner, repository.name)
+  end
+
+  # The checkout a runtime session (dev server, browser preview) runs in.
+  # Runtimes install dependencies and write build output into their
+  # workspace, so a read-only coworker product checkout gets a writable
+  # scratch clone of its current HEAD. The clone's origin is the read-only
+  # checkout, so nothing written there can be pushed back.
+  def self.runtime_workspace_for!(chat_session, repository)
+    new(chat_session).runtime_workspace_for!(repository)
+  end
+
   def self.agent_home_for(chat_session, provider)
     agent_homes_root_for_id(chat_session.id).join(provider.to_s)
   end
@@ -500,6 +513,26 @@ class ChatWorkspace
     path
   ensure
     protect_checkout_read_only!(path) if path && path.exist? && coworker_product_repository?(repository)
+  end
+
+  def runtime_workspace_for!(repository)
+    source = self.class.repo_path_for(@chat_session, repository)
+    return nil unless source.directory?
+    return source unless coworker_product_repository?(repository)
+
+    dest = self.class.runtime_checkout_path_for(@chat_session, repository)
+    head = @git.run("rev-parse", "HEAD", chdir: source.to_s).strip
+    if dest.join(".git").directory?
+      @git.run("fetch", "--no-tags", source.to_s, head, chdir: dest.to_s, env: @env)
+    else
+      FileUtils.mkdir_p(dest.dirname.to_s)
+      # --no-hardlinks: hard-linked objects would share mode bits with the
+      # protected checkout, so chmods on either side would leak across.
+      @git.run("clone", "--no-hardlinks", "--no-checkout", source.to_s, dest.to_s, env: @env)
+    end
+    @git.run("checkout", "--force", "--detach", head, chdir: dest.to_s)
+    GitInfoExclude.ensure_entry!(dest, EXCLUDE_ENTRY)
+    dest
   end
 
   # Coworker product checkouts share an OS user with the native agent process,

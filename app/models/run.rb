@@ -168,18 +168,15 @@ class Run < ApplicationRecord
   }
 
   aasm column: :state, whiny_transitions: false do
+    # Every event rolls up to the Workflow, WorkUnit, intent and Job, so the
+    # ancestry is locked first, top down (NY40). Locking queries keep the
+    # caller's unsaved changes.
+    before_all_events { Lineage.lock!(self) if persisted? }
     after_all_transitions :record_state_transition!
     state :queued, initial: true
     state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
-      # The Run ranks before its Job in the row lock order (NY37), and starting
-      # writes the Run, so its row is locked first. A locking query, not lock!,
-      # so the attributes the caller set before start are kept.
-      before do
-        self.class.lock.where(id: id).to_a if persisted?
-        job.lock!
-      end
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
     end
 

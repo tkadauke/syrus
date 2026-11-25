@@ -74,6 +74,14 @@ default: &default
       processes: 1
       polling_interval: 0.1
 
+    # Runtime image builds: heavy, so they live with the compute tier (Linux only).
+<% if run_queues.include?("runs") %>
+    - queues: "runtime_image_builds"
+      threads: <%= ENV.fetch("RUNTIME_IMAGE_BUILD_THREADS", 2) %>
+      processes: 1
+      polling_interval: 0.5
+<% end %>
+
 development:
   <<: *default
 

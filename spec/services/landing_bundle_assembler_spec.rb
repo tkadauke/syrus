@@ -117,6 +117,30 @@ RSpec.describe LandingBundleAssembler do
       expect(result).not_to be_ready
     end
 
+    # Regression: a macOS Job bundled with Linux Jobs held all of them while
+    # no macOS worker was online.
+    it "never bundles Jobs with different declared execution capabilities" do
+      linux_a = approved(issue_number: 1)
+      linux_b = approved(issue_number: 2)
+      mac = approved(issue_number: 3)
+      mac.update_columns(planned_execution_capabilities: { "os" => [ "macos" ] })
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to contain_exactly(linux_a.id, linux_b.id)
+      expect(described_class.ready_for_job?(mac.reload)).to be(false)
+    end
+
+    it "bundles macOS Jobs with each other, apart from Linux Jobs" do
+      approved(issue_number: 1)
+      mac_a = approved(issue_number: 2)
+      mac_b = approved(issue_number: 3)
+      [ mac_a, mac_b ].each { |job| job.update_columns(planned_execution_capabilities: { "os" => [ "macos" ] }) }
+
+      expect(described_class.ready_for_job?(mac_a.reload)).to be(true)
+    end
+
     it "still bundles same-tier Jobs that share one owner" do
       a = approved(issue_number: 1, owner_user: user)
       b = approved(issue_number: 2, owner_user: user)

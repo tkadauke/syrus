@@ -32,9 +32,14 @@ RSpec.describe "Coworkers plugin" do
   end
 
   it "owns every migration whose behavior depends on coworker data" do
-    core_migrations = Rails.root.glob("db/migrate/*.rb").select do |path|
-      path.basename.to_s.match?(/coworker/i) || path.read.match?(/coworker/i)
-    end
+    # Ownership is what the plugin's purge owns: its tables and its inline
+    # fields on core tables. Core features may still mention coworkers by
+    # name (the core runtime-image service builds the coworker base image),
+    # so the word alone is not evidence of plugin data.
+    purge = Syrus::PluginPurge.new("coworkers").report
+    owned = purge.tables + purge.inline_fields.map(&:column)
+    owned_pattern = /\b(?:#{owned.map { |name| Regexp.escape(name) }.join("|")})\b/
+    core_migrations = Rails.root.glob("db/migrate/*.rb").select { |path| path.read.match?(owned_pattern) }
 
     expect(core_migrations).to be_empty
     expect(Rails.root.glob("plugins/coworkers/db/migrate/*.rb").map { |path| path.basename.to_s }).to include(

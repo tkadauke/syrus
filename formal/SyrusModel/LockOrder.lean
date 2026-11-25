@@ -46,6 +46,13 @@ would change:
 
 The hot path, RunJob's Run → Job, keeps its order.
 
+**Superseded (NY40).** The enforced order is now the hierarchy, parents before
+children: AppSetting, User, Epic, Job, WorkIntent, WorkUnit, Workflow, Step,
+Run (`hierRank` below). Transactions take a record's ancestry first through
+`Lineage.lock_all!`, and every sequence it can take is in that order
+(`lock_all_in_order`). The NY25 order and its proofs below are the record of
+how the observed graph was made acyclic first.
+
 This file proves a property of the recorded graph, not of the code. The edges
 come from the audit, whose evidence is in FINDINGS M25. A new lock site
 changes the graph; that is the drift a lock-order check in CI would catch.
@@ -199,6 +206,52 @@ def closureCascadeAfter : List Model := [ workflow, workflow, step, step ]
 theorem closure_cascade_before_inverts : monotone closureCascadeBefore = false := by decide
 
 theorem closure_cascade_after_in_order : monotone closureCascadeAfter = true := by decide
+
+/-! ## The hierarchical target order (NY40)
+
+The order is moving to the hierarchy, parents before children:
+AppSetting, User, Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run.
+`Lineage.lock_all!` (`app/services/lineage.rb`) locks the ancestries of
+several records at once. It walks `Lineage::MODELS` top down and locks every
+row of a model, in id order, before the next model. So the models it locks are
+always a sublist of `lineageModels`, whichever rows the records name. -/
+
+def hierRank : Model → Nat
+  | appSetting => 0 | user => 1 | epic => 2 | job => 3 | workIntent => 4
+  | workUnit => 5 | workflow => 6 | step => 7 | run => 8
+
+def monotoneH : List Model → Bool
+  | a :: b :: rest => hierRank a ≤ hierRank b && monotoneH (b :: rest)
+  | _ => true
+
+/-- Every sublist of a list (each element kept or dropped, order preserved). -/
+def subs : List Model → List (List Model)
+  | [] => [ [] ]
+  | a :: rest => (subs rest).map (a :: ·) ++ subs rest
+
+/-- `Lineage::MODELS`, in the order `lock_all!` walks them. -/
+def lineageModels : List Model := [ epic, job, workIntent, workUnit, workflow, step, run ]
+
+set_option maxRecDepth 20000 in
+/-- Every sequence `lock_all!` can take is in the hierarchical order: it locks
+some sublist of `lineageModels`, whichever records it is given. -/
+theorem lock_all_in_order : ∀ s ∈ subs lineageModels, monotoneH s = true := by decide
+
+/-- The pending-closure cascade before NY40: the sibling Workflows were locked
+first, then cancelling each one locked its ancestry (Job, intent, WorkUnit). -/
+def closureLineageBefore : List Model := [ workflow, workflow, job, workIntent, workUnit ]
+
+/-- After: `JobClosure.lock_pending_workflows!` passes this Workflow and the
+siblings to `lock_all!`, so every ancestor comes first; the Steps follow. -/
+def closureLineageAfter : List Model := [ job, workIntent, workUnit, workflow, workflow, step, step ]
+
+theorem closure_lineage_before_inverts : monotoneH closureLineageBefore = false := by decide
+
+theorem closure_lineage_after_in_order : monotoneH closureLineageAfter = true := by decide
+
+/-- The models the closure's `lock_all!` takes are one of those sublists. -/
+theorem closure_lineage_after_from_lock_all :
+    [ job, workIntent, workUnit, workflow ] ∈ subs lineageModels := by decide
 
 end LockOrder
 end SyrusModel

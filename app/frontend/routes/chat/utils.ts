@@ -152,8 +152,11 @@ export function jobsTabVisible(payload: ChatPayload): boolean {
 // least one Runtime Session exists for this chat -- there is no "start a
 // session" affordance in the panel itself yet (sessions are started by the
 // agent via runtime_start), so an empty tab would have nothing useful to show.
+// Runtime Sessions run in Coding Mode and in planning or coworker chats that
+// attached a repository (ChatSession#runtime_sessions_supported?); only Local
+// Mode drives its own daemon instead.
 export function runtimeTabVisible(payload: ChatPayload): boolean {
-  return Boolean(payload.coding_mode_enabled && payload.chat.mode === "coding" && (payload.chat.runtime_session_count ?? 0) > 0)
+  return Boolean(payload.coding_mode_enabled && payload.chat.mode !== "local" && (payload.chat.runtime_session_count ?? 0) > 0)
 }
 
 export function currentRecentChat(payload: ChatPayload) {

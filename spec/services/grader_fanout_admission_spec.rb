@@ -138,7 +138,9 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
       candidate.steps.create!(kind: "grader", position: 200 + index)
     end
     lock = Mutex.new
-    settings = instance_double(AppSetting)
+    # Admission locks the Workflow's ancestry (NY40), whose queries read the
+    # beta-mode setting through feature checks.
+    settings = instance_double(AppSetting, beta_mode_enabled: false)
     allow(settings).to receive(:with_lock) { |&block| lock.synchronize(&block) }
     allow(AppSetting).to receive(:current).and_return(settings)
     allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(1)
@@ -190,7 +192,9 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(1)
 
     lock_held = false
-    settings = instance_double(AppSetting)
+    # Admission locks the Workflow's ancestry (NY40), whose queries read the
+    # beta-mode setting through feature checks.
+    settings = instance_double(AppSetting, beta_mode_enabled: false)
     allow(settings).to receive(:with_lock) do |&block|
       expect(lock_held).to be(false)
       lock_held = true

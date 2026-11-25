@@ -74,7 +74,9 @@ Job bundles use the same idea for independent approved Jobs that are safe to
 land together. Syrus assembles a landing unit, validates the combined result,
 and lands the bundle as one operation. Bundles are intentionally conservative:
 they should reduce repeated grader work without hiding unrelated review or
-ownership boundaries.
+ownership boundaries. A bundle only ever contains Jobs with the same priority,
+the same owner, and the same execution requirements, so a macOS Job never
+shares a bundle with Linux Jobs.
 
 ## Stopping a Landing Attempt
 
@@ -105,6 +107,10 @@ computing mergeability. A real conflict stops immediately; if mergeability is
 still unknown, the confirmation fails with a retryable message rather than
 claiming the branch conflicts. Retrying after any failed confirmation creates
 a fresh confirmation.
+The merge itself waits for any landing that is merging into the same branch at
+that moment, so it can never land between that landing's base check and its
+merge; if the branch stays busy for about ten minutes, the confirmation fails
+with a retryable message.
 The confirmation remains in progress until the merge succeeds; capture or
 landing failures are recorded as failed confirmations instead of appearing applied.
 

@@ -432,6 +432,16 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies a content refusal as retryable on another provider, not as transient" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
+    JobLog.append!(run: run, chunk: "[codex error] This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request.", kind: "system")
+
+    result = classification
+
+    expect(result.classification).to eq(ProviderContentRefusal::CLASSIFICATION)
+    expect(result.retryable).to eq(true)
+  end
+
   it "classifies Codex websocket 401s as expired provider auth" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
     diagnostic("CodexInvocation::Error", "websocket connection rejected with 401 Unauthorized")

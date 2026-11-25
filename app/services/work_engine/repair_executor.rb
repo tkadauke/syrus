@@ -362,7 +362,9 @@ module WorkEngine
           attempt = nil
           locked_skip = nil
           scheduled_at = provider_switched ? now : (plan.retry_after || now)
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
             if retry_blocker
@@ -633,7 +635,9 @@ module WorkEngine
           return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
           return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
-          run.with_lock do
+          # Ancestry first, top down (NY40): relaunching writes the Workflow.
+          Run.transaction do
+            Lineage.lock!(run)
             run.reload
             return skipped("Run is #{run.state}, not queued") unless run.queued?
             return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
@@ -823,6 +827,102 @@ module WorkEngine
             run.save!
           end
           success("skipped obsolete #{run_label(run)} on terminal #{step_label(step)}")
+        end
+      end
+
+      class RetryAgentBlockedWorkflow < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not blocked") unless workflow.blocked?
+
+          result = RetryWorkflowEnqueuer.call(
+            job: workflow.job,
+            artifacts: {
+              "retry_reason" => "agent blocker cleared by satisfied dependencies",
+              "blocked_workflow_id" => workflow.id,
+              "cannot_proceed" => workflow.artifact("cannot_proceed")
+            },
+            provider_validation: :none,
+            automatic: true
+          )
+          return skipped(result.error) unless result.success?
+
+          success("retried #{workflow_label(workflow)} as #{workflow_label(result.workflow)} after its added dependencies were satisfied")
+        end
+      end
+
+      class CancelStarvedGrader < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not queued") unless run.queued? && run.started_at.nil?
+
+          step = run.step
+          return skipped("Run has no grader Step") unless step&.kind == "grader"
+          return skipped("Step is #{step.state}, not queued") unless step.queued?
+          return skipped("Workflow is not running") unless step.workflow&.running?
+
+          with_transition_reason do
+            run.cancel!
+            run.save!
+            step.cancel!
+            step.save!
+          end
+          StepDispatcher.advance_from(step.reload)
+          success("cancelled starved #{run_label(run)} on #{step_label(step)}; a required sibling grader already failed")
+        end
+      end
+
+      class FailRunAfterRepeatedQueueFailure < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not queued") unless run.queued?
+          return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
+
+          error = latest_queue_error(run)
+          # Keyed by run_id, as in MarkCachedGraderCollectFailed: two passes may
+          # repair the same Run concurrently.
+          RunDiagnostic.create_or_find_by!(run_id: run.id) do |diagnostic|
+            diagnostic.error_class = error["exception_class"].presence || "RunJobCrashed"
+            diagnostic.error_message = "RunJob crashed before the Run started: #{error["message"].presence || "unknown error"}".truncate(1_000)
+            diagnostic.problem_code = "run_job_crashed"
+          end
+
+          with_transition_reason do
+            run.fail!
+            run.save!
+          end
+          classification = run.run_failure_classification || run.build_run_failure_classification
+          classification.assign_attributes(
+            classification: "run_job_crashed",
+            retryable: true,
+            confidence: 1.0,
+            reason: "The Run's RunJob crashed #{plan.evidence.to_h["failed_executions"] || "repeatedly"} times before the Run started; " \
+                    "this is the worker, not the Run's work.",
+            diagnostic_summary: "#{error["exception_class"] || "RunJobCrashed"}: #{error["message"]}".truncate(500),
+            classifier_inputs: { "failed_executions" => plan.evidence.to_h["failed_executions"] },
+            classified_at: Time.current
+          )
+          classification.save!
+
+          success("failed #{run_label(run)} after its RunJob crashed repeatedly (#{error["exception_class"] || "unknown"})")
+        end
+
+        private
+
+        def latest_queue_error(run)
+          raw = SolidQueue::FailedExecution
+            .joins(:job)
+            .where(solid_queue_jobs: { class_name: "RunJob" })
+            .where("solid_queue_jobs.arguments LIKE ?", "%[#{run.id}]%")
+            .order(created_at: :desc)
+            .pick(:error)
+          parsed = raw.is_a?(String) ? JSON.parse(raw) : raw.to_h
+          parsed.to_h.stringify_keys
+        rescue StandardError
+          {}
         end
       end
 
@@ -1058,7 +1158,9 @@ module WorkEngine
           return skipped("Workflow has no first Step") unless first
           return skipped("First Step already has a Run") if first.runs.exists?
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): starting writes the WorkUnit.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             first = workflow.first_step
@@ -1324,7 +1426,9 @@ module WorkEngine
           return skipped("Job is not closed") unless workflow.job&.closed?
           return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
             return skipped("Job is not closed") unless workflow.job&.closed?
@@ -1373,7 +1477,9 @@ module WorkEngine
           end
 
           current_base_sha = WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
@@ -1455,7 +1561,9 @@ module WorkEngine
           # Workflow while holding it, and a reopen between the terminal
           # check and the cancel had the retry's fresh Runs cancelled.
           refusal = nil
-          workflow.job.with_lock do
+          # The Workflow's ancestry, top down (NY40), which includes the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             refusal = if !workflow.terminal?
               "Workflow is #{workflow.state}, not terminal"
@@ -1526,7 +1634,9 @@ module WorkEngine
         def cancel_child_work_unit!(child)
           workflow = child.workflow
           if workflow&.may_cancel?
-            workflow.with_lock do
+            # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+            Workflow.transaction do
+              Lineage.lock!(workflow)
               workflow.reload
               if workflow.may_cancel?
                 with_transition_reason do
@@ -1817,7 +1927,9 @@ module WorkEngine
           return skipped("Keeper #{workflow_label(keeper)} belongs to a different Job") unless keeper.job_id == workflow.job_id
           return skipped("#{workflow_label(workflow)} is not older than keeper #{workflow_label(keeper)}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock_all!([ workflow, keeper ])
             workflow.reload
             keeper.reload
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
@@ -1860,7 +1972,9 @@ module WorkEngine
           keeper = Workflow.find_by(id: keeper_id)
           return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper&.queued? || keeper&.running?
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock_all!([ workflow, keeper ])
             workflow.reload
             keeper.reload
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
@@ -1966,6 +2080,7 @@ module WorkEngine
             next unless landed_commit_from_this_train?(train, job)
 
             ActiveRecord::Base.transaction do
+              Lineage.lock!(job) # Epic before Job (NY40): closing refreshes the Epic.
               job.update_column(:landed_sha, train.integration_sha)
               job.close_with_reason!("pr_merged") if job.may_close?
               member.update!(state: "merged", reason: nil)

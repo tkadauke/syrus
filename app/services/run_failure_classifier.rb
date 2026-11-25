@@ -129,6 +129,9 @@ class RunFailureClassifier
       result("run_invocation_ended", 0.95, false, "The agent's MCP calls were rejected because its Run had already ended; that earlier outcome, not credentials, is what stopped the run.")
     when provider_auth_expired?
       result("provider_auth_expired", 0.95, false, "The provider authentication token expired and needs operator reauthorization.")
+    when provider_content_refused?
+      result(ProviderContentRefusal::CLASSIFICATION, 0.95, true,
+             "The provider refused to work on this content. Retrying the same session repeats the refusal; the step has to run on a different provider.")
     when provider_model_unsupported?
       result(ProviderModelUnsupported::CLASSIFICATION, 0.95, false,
              "The provider refused the model it was asked for. Retrying cannot help; the run has to go to a provider or model that accepts it.")
@@ -355,6 +358,13 @@ class RunFailureClassifier
     return false if run.agent_provider.blank?
 
     ProviderAuthFailure.detect?(provider_failure_text)
+  end
+
+  def provider_content_refused?
+    return false if run.agent_provider.blank?
+
+    run.agent_outcome == ProviderContentRefusal::OUTCOME ||
+      ProviderContentRefusal.detect?(provider_failure_text)
   end
 
   def provider_model_unsupported?

@@ -2227,12 +2227,17 @@ describe("ReviewWorkspace", () => {
         }
       })
     )
-    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([lineComment]))
+    // Comments resolve after the diff, as they can on a loaded grader.
+    vi.mocked(fetchDiffReviewComments).mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(commentsPayload([lineComment])), 50))
+    )
 
     renderWorkspace()
 
     await screen.findByText("First review note")
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    // The comment arrives from its own query; under load it can render after the notes.
+    await within(sidebar).findAllByText("Human comment after the first note.")
     const sidebarText = sidebar.textContent || ""
 
     expect(within(sidebar).getByText("Review Notes: 2")).toBeInTheDocument()

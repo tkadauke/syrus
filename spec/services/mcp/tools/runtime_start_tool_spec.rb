@@ -89,13 +89,13 @@ RSpec.describe Mcp::Tools::RuntimeStartTool, full_chat_access: :all do
     end
   end
 
-  it "returns an error when there is no Coding Mode checkout yet" do
+  it "returns an error when the chat has no repository workspace yet" do
     allow(ChatWorkspace).to receive(:repo_path_for).with(chat_session, repository).and_return(Pathname.new("/nonexistent/path"))
 
     response = call(provider: "stub")
 
     expect(response).to be_error
-    expect(response.content.first[:text]).to include("no Coding Mode checkout found")
+    expect(response.content.first[:text]).to include("no repository workspace for this chat yet")
   end
 
   it "marks the session failed when the provider raises while starting" do

@@ -61,13 +61,19 @@ RSpec.describe "Coworker chat surface" do
     )
   end
 
-  it "gives an admin-owned coworker admin tools but never coding, local, or runtime-session tools" do
+  it "gives an admin-owned coworker admin tools but never coding or local checkout tools" do
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
 
     expect(names).to include("list_jobs", "search_jobs", "read_job", "propose_job", "propose_epic_with_jobs")
     # Admin tools follow `user.admin?`; checkout-bound tools need a checkout.
     expect(names).to include("admin_overview", "force_fail_job")
-    expect(names).not_to include("run_command", "runtime_start")
+    expect(names).not_to include("run_command", "write_file", "submit_coding_changes")
+  end
+
+  it "lets a coworker drive runtime sessions directly when Runtime Sessions are enabled" do
+    enable_coding_mode!
+
+    expect(names).to include("runtime_start", "runtime_status", "runtime_input", "runtime_stop")
   end
 
   it "finishes a turn with a clear confinement outcome when no capable worker is available" do

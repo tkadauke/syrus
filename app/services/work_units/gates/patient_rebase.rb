@@ -52,7 +52,11 @@ module WorkUnits
           .includes(:job)
           .order(:created_at, :id)
           .detect do |candidate|
-            !candidate.trigger_kind.in?(RebaseWorkflowSelector::TRIGGER_KINDS) &&
+            # A blocked workflow pushes nothing until an operator acts, and
+            # its unit stays "active" until then. Waiting on it deadlocked a
+            # production rebase for days behind an agent-blocked feedback run.
+            !candidate.blocked? &&
+              !candidate.trigger_kind.in?(RebaseWorkflowSelector::TRIGGER_KINDS) &&
               publication_branch_name(candidate).in?(publication_branches)
           end
       end

@@ -431,9 +431,11 @@ changes. Normal submissions wait for operator confirmation. When the active
 Chat Goal has automatic Job submission enabled, Syrus queues that confirmation
 immediately instead.
 
-Coding Mode chats also get a set of generic `runtime_*` tools for working
-with a live Runtime Session — a dev server, browser, or other running
-process attached to the chat's checkout — so the agent can start it, build or
+Coding Mode chats, and planning or coworker chats that have attached a
+repository, also get a set of generic `runtime_*` tools for working with a live
+Runtime Session — a dev server, browser, or other running process attached to
+the chat's repository workspace — so the agent (or a coworker doing acceptance
+testing) can start it, build or
 reload it, snapshot or inspect what's running, page through its logs, and
 tear it down when done: `runtime_list_sessions`, `runtime_start`,
 `runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
@@ -456,7 +458,7 @@ TUIs, ANSI and RGB colors, Unicode, styles, and cursor state; an optional
 checkpoint label identifies the captured moment in chat. Runtime providers also include
 browser dev-server sessions, which navigate and inspect a running web app. They are
 watchable from
-Coding Mode's right sidebar in a Runtime tab (once the chat has started a
+the chat's right sidebar in a Runtime tab (once the chat has started a
 session): session state, a generic visual frame viewer for providers that
 advertise screenshot/frame streams, latest captured screenshots as fallback, a
 scrolling log tail, and provider details. The panel also gives the operator a
@@ -902,7 +904,9 @@ Job bundling is gated by the `epicless_job_bundling` feature flag (on by
 default; operators can opt out from Admin → Features). Syrus only bundles
 Jobs that share the same priority tier: urgent Jobs bundle only with other
 urgent Jobs, never with medium or low-priority work, so urgent work still
-lands first. A single ready Job never waits around for a bundle — bundling
+lands first. Jobs that need different kinds of workers are never bundled
+either: a Job planned for macOS bundles only with other macOS Jobs, so one
+unavailable worker type cannot hold up Jobs that never needed it. A single ready Job never waits around for a bundle — bundling
 only kicks in once at least two same-priority Jobs are ready to land
 together; a lone ready Job lands on its own right away. Externally filed
 pull requests are never bundled, since they land directly against the

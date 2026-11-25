@@ -2,7 +2,7 @@ require "mcp"
 require "json"
 
 module SyrusBrowser
-  # Coding Mode chat's entry point onto the same browser_* MCP tools the
+  # Interactive chat's entry point onto the same browser_* MCP tools the
   # workflow visual_review step already uses (see McpToolSet) -- the same
   # ScreenshotTool/ClickTool/etc. classes, just reached through a second
   # aggregator gated to a different surface. Every tool's own "which session
@@ -11,24 +11,23 @@ module SyrusBrowser
   # correctly for this surface; this class only decides *when the tools are
   # offered at all*.
   #
-  # Gated to Coding Mode: a planning chat has no writable checkout or dev
-  # server for these tools to act on, and Local Mode routes browser control
-  # through its own daemon (a third, materially different backend --
-  # explicitly out of scope here; see SessionContext).
+  # Offered wherever a chat can start its own runtime session (Coding Mode,
+  # planning, and coworker chats). Local Mode routes browser control through
+  # its own daemon (a third, materially different backend -- explicitly out
+  # of scope here; see SessionContext).
   class ChatToolSet
     VISUAL_REVIEW_TOOLS = [
       Tools::RunVisualReviewTool,
       Tools::RunVisualDiffTool
     ].freeze
 
-    # Coding chats always see the tools. Coworker chats see them too: whether
-    # a compatible authorized browser runtime session exists is resource
-    # state, reported by the tool when it is called
+    # Whether a compatible authorized browser runtime session exists is
+    # resource state, reported by the tool when it is called
     # (SessionContext::NoActiveSessionError), not by hiding the tool.
     def self.available_for?(chat_session, tier:)
       return false unless chat_session.present? && %i[essential deferred].include?(tier.to_sym)
 
-      chat_session.coding? || coworker_chat?(chat_session)
+      chat_session.runtime_sessions_supported? || coworker_chat?(chat_session)
     end
 
     def self.coworker_chat?(chat_session)

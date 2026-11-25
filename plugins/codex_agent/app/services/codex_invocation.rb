@@ -415,6 +415,13 @@ class CodexInvocation
           final_text: detail
         }
       end
+      if Syrus::Host::ProviderContentRefusals.detect?(detail)
+        return {
+          is_error: true,
+          outcome: Syrus::Host::ProviderContentRefusals.outcome,
+          final_text: detail
+        }
+      end
 
       { is_error: true, outcome: "turn_failed", final_text: detail }
     when "error"
@@ -441,6 +448,13 @@ class CodexInvocation
         return {
           is_error: true,
           outcome: ProviderModelUnsupported::OUTCOME,
+          final_text: detail
+        }
+      end
+      if Syrus::Host::ProviderContentRefusals.detect?(detail)
+        return {
+          is_error: true,
+          outcome: Syrus::Host::ProviderContentRefusals.outcome,
           final_text: detail
         }
       end

@@ -107,6 +107,7 @@ module Steps
       "turn_failed" => "provider_transient",
       ProviderAuthFailure::OUTCOME => "provider_auth_expired",
       ProviderModelUnsupported::OUTCOME => "provider_model_unsupported",
+      ProviderContentRefusal::OUTCOME => "provider_content_refused",
       ProviderUsageLimit::OUTCOME => "provider_usage_limit",
       ProviderPolicyRefusal::OUTCOME => "provider_policy_refusal"
     }.freeze

@@ -148,6 +148,13 @@ class ChatSession < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0 },
             if: -> { has_attribute?(:daily_cost_usd) }
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
+
+  # Runtime Sessions (DOC-17) run against the chat's repository workspace,
+  # which Coding Mode checkouts and repositories attached to a planning or
+  # coworker chat both provide. Local Mode drives its own daemon instead.
+  def runtime_sessions_supported?
+    !local?
+  end
   # scopes: false — an auto-generated `.group` scope would shadow
   # ActiveRecord's GROUP BY `group` method, which admin chat listing
   # relies on (Api::V1::Admin::ChatsController#index).

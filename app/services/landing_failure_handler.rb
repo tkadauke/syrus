@@ -158,10 +158,17 @@ class LandingFailureHandler
     LandingFailureCode.resolve(code_or_reason) || LandingFailureCode.legacy_from_reason(code_or_reason)
   end
 
+  # After the surrounding transaction commits: the User ranks above the
+  # Epic and Job in the row-lock order (NY40), and a Workflow failure reaches
+  # here holding its Job, Workflow and Steps. Outside a transaction this runs
+  # at once.
   def pause_landing!
-    unless job.user.landing_paused?
-      job.user.update!(landing_paused: true)
-      log_pause!
+    ActiveRecord.after_all_transactions_commit do
+      user = job.user.reload
+      unless user.landing_paused?
+        user.update!(landing_paused: true)
+        log_pause!
+      end
     end
   end
 

@@ -1,4 +1,10 @@
 class Workflow < ApplicationRecord
+  # Before the dependent: :destroy cascades below run (prepend): lock its Job's
+  # whole subtree top down, siblings included, so the cascade's child-first
+  # deletes stay in the hierarchical row-lock order (NY40). An association's
+  # destroy_all deletes every sibling in one transaction.
+  before_destroy(prepend: true) { Lineage.lock_subtree!(job || self) }
+
   include AuthorizationCheckpointOrigin
   attr_accessor :syncing_from_terminal_work_unit
 
@@ -95,12 +101,20 @@ class Workflow < ApplicationRecord
   end
 
   aasm column: :state, whiny_transitions: false do
+    # Every event propagates down to Steps and Runs and up to the WorkUnit,
+    # intent, Job and Epic, so the ancestry is locked first, top down (NY40).
+    # A terminal event can also cancel the Job's other active Workflows
+    # (superseded retries, a pending closure); Lineage takes their ancestries
+    # too. Locking queries keep the caller's unsaved changes.
+    before_all_events { lock_event_lineage! if persisted? }
     after_all_transitions :record_state_transition!
     state :queued, initial: true
     state :running, :succeeded, :failed, :cancelled, :blocked
 
     event :start do
-      before { job.lock! }
+      # The event-level lock (before_all_events) has taken the ancestry and
+      # the WorkUnit's member Jobs; reload the Job as lock! did.
+      before { job.reload }
       transitions from: :queued, to: :running,
         after: -> { Workflows::LifecyclePropagation.started!(self) }
     end
@@ -332,6 +346,10 @@ class Workflow < ApplicationRecord
   def cancel_stale_terminal_descendants!(reason:)
     return cancel_active_descendants!(reason: reason) unless failed?
 
+    Lineage.lock!(self)
+    # Steps before Runs (NY40): killing processes and the cleanup below write
+    # Runs, then the stale Steps.
+    Step.lock.where(workflow_id: id).order(:id).to_a
     request_live_process_kill!
     Run.where(step_id: steps.select(:id)).active.find_each(&:cancel_without_step_cascade!)
     cancel_active_descendants!(reason: reason, step_scope: stale_terminal_steps)
@@ -534,6 +552,10 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_orphan_active_runs!
+    Lineage.lock!(self)
+    # Steps before Runs (NY40): killing processes writes Runs, and the
+    # descendant cleanup that follows writes this Workflow's Steps.
+    Step.lock.where(workflow_id: id).order(:id).to_a
     request_live_process_kill!
     Run.where(step_id: steps.select(:id)).active.find_each do |run|
       run.update_columns(state: "cancelled", finished_at: Time.current)
@@ -542,9 +564,16 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_active_descendants!(reason: "terminal_workflow_active_descendants", step_scope: persisted_active_steps)
+    # Reapers and repairs call this outside a Workflow event, so the
+    # ancestry is taken here too; held rows re-lock for free (NY40).
+    Lineage.lock!(self)
+    # Killing live processes and cancelling Runs write Runs, and cancelling a
+    # Run writes its Step, so the Steps are locked before any Run, parents
+    # before children (NY40).
+    active_steps = step_scope.to_a
+    Step.lock.where(id: active_steps.map(&:id)).order(:id).to_a if active_steps.any?
     request_live_process_kill!
     Step.suppress_cancel_cascade do
-      active_steps = step_scope.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
       publication_failure_step_ids = active_steps.filter_map do |step|
@@ -565,7 +594,12 @@ class Workflow < ApplicationRecord
       end
 
       active_steps.each do |step|
-        step.with_lock do
+        # The Step's ancestry, then the Step reloaded as with_lock would
+        # (NY40): outside a transaction the cleanup's own lock above is
+        # already released.
+        Step.transaction do
+          Lineage.lock!(step)
+          step.reload
           if publication_failure_step_ids.include?(step.id)
             step.finished_at = Time.current
             step.fail!
@@ -888,8 +922,16 @@ class Workflow < ApplicationRecord
   # workflow if it crosses the threshold. Per-Workflow scope: a
   # bad CiFailure burst doesn't take down a Job whose Initial was
   # clean.
+  # Lineage takes the WorkUnit's member Jobs and the Job's other active
+  # Workflows with it.
+  def lock_event_lineage! = Lineage.lock!(self)
+
   def record_run_failure!
-    with_lock do
+    # Ancestry first, top down (NY40): auto-failing propagates to the Job.
+    # Then reloaded as with_lock would.
+    self.class.transaction do
+      Lineage.lock!(self)
+      reload
       self.failure_count += 1
       if state == "running" && failure_count >= AppSetting.max_job_failures && may_fail?
         # Persist the counter and state transition in the same transaction.

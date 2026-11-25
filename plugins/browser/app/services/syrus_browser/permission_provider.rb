@@ -6,7 +6,7 @@ module SyrusBrowser
   class PermissionProvider
     include Syrus::Plugin::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_CODING, AgentRole::WORKFLOW_VISUAL_REVIEWER ].freeze
+    ROLES = [ AgentRole::CHAT_CODING, AgentRole::CHAT_PLANNER, AgentRole::COWORKER_CHAT, AgentRole::WORKFLOW_VISUAL_REVIEWER ].freeze
     ALLOW_DEFAULTS = ROLES.index_with { :allow }.freeze
 
     class << self

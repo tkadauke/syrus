@@ -302,7 +302,8 @@ module Syrus
         PermissionLeases: [ "Queries permission leases; issuance and expiry are not promised.", %w[where] ],
         PermissionPolicies: [ "Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.", %w[rank] ],
         DiffReviews: [ "Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.", %w[comments versions best_match_version final_review_version] ],
-        RetentionLimits: [ "Names the default batch limits for retention executors; scheduling is not promised.", %w[default_batch_size default_max_batches] ]
+        RetentionLimits: [ "Names the default batch limits for retention executors; scheduling is not promised.", %w[default_batch_size default_max_batches] ],
+        ProviderContentRefusals: [ "Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.", %w[outcome detect?] ]
       }.freeze
 
       STATIC_CONTRACTS = {

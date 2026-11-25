@@ -87,6 +87,17 @@ RSpec.describe Mcp::ChatToolParity do
       expect(described_class.core_entry_in_context?(coding, :probe, participants: [ probe ])).to be(false)
     end
 
+    it "shares a role-gated entry with a participant that declares that agent role" do
+      runtime = McpToolRegistry.entries(surface: :chat).find { |entry| entry.tool_name == "runtime_start" }
+      plain = participant
+      roled = participant(agent_role: -> { AgentRole::COWORKER_CHAT })
+
+      expect(described_class.core_entry_in_context?(runtime, :planner, participants: [ plain ])).to be(true)
+      expect(described_class.core_entry_in_context?(runtime, :local, participants: [ plain ])).to be(false)
+      expect(described_class.core_entry_in_context?(runtime, :probe, participants: [ plain ])).to be(false)
+      expect(described_class.core_entry_in_context?(runtime, :probe, participants: [ roled ])).to be(true)
+    end
+
     it "hides workflow verdict tools from every context" do
       absences = described_class.declared_absences("submit_summary", nil, participants: [ participant ])
       expect(absences).to match_array(%i[planner coding local probe])

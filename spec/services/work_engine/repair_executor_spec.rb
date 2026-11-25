@@ -79,14 +79,15 @@ RSpec.describe WorkEngine::RepairExecutor do
     # Retry-from-failed-step (which reopens the Workflow under the Job lock)
     # revived the same Workflow in between -- the retry's fresh grader Runs
     # were cancelled. The repair must decide under the same lock.
-    it "re-reads the Workflow under the Job lock and leaves a just-reopened one alone" do
+    it "re-reads the Workflow under its ancestry lock and leaves a just-reopened one alone" do
       workflow.update_columns(state: "failed", finished_at: 1.minute.ago)
       tail = workflow.steps.create!(kind: "grader", position: 99, state: "queued")
-      original = Job.instance_method(:with_lock)
-      allow_any_instance_of(Job).to receive(:with_lock) do |locked_job, *args, &block|
-        # The retry held the lock and committed its reopen just before us.
-        workflow.update_columns(state: "running", finished_at: nil)
-        original.bind(locked_job).call(*args, &block)
+      # The ancestry lock (NY40) includes the Job.
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+        result = original.call(record)
+        # The retry held the lock and committed its reopen just before we got it.
+        workflow.update_columns(state: "running", finished_at: nil) if record.is_a?(Workflow) && record.id == workflow.id
+        result
       end
 
       execution = described_class.call(

@@ -36,6 +36,18 @@ class LandingRetrier
     rebuild_merge_train!(Scopes::Bundle.new(repository, by_user: by_user, source_train: source_train))
   end
 
+  # The Jobs rebuilding +train+ locks: its failed members and the reapproval
+  # candidates. A caller that already holds Workflow rows locks these with its
+  # own ancestry first (NY40: every Job before any Workflow).
+  def self.lock_targets_for(train)
+    scope = if train.bundle_backed?
+      Scopes::Bundle.new(train.repository, source_train: train)
+    else
+      Scopes::Epic.new(train.epic, source_train: train)
+    end
+    (scope.recoverable_members.to_a + scope.reapproval_candidates.to_a).uniq
+  end
+
   def initialize(scope)
     @scope = scope
   end
@@ -93,7 +105,11 @@ class LandingRetrier
   end
 
   def recover_failed_train_members
-    @scope.recoverable_members.filter_map do |job|
+    members = @scope.recoverable_members.to_a
+    # Every member's and candidate's Epic and Job before any Workflow (NY40):
+    # deferring or reopening one member cascades into its Workflows.
+    Lineage.lock_all!(members + @scope.reapproval_candidates.to_a)
+    members.filter_map do |job|
       job.lock!
       if job.landing?
         # The train that failed is not necessarily the train that owns this

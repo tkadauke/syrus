@@ -66,6 +66,76 @@ RSpec.describe EmergencyLand::Lander do
     allow(Feature).to receive(:emergency_land_enabled?).and_return(true)
   end
 
+  # NY43: emergency landing takes the per-branch merge lock for its merge, on a
+  # short-lived WorkUnit, so it cannot merge between a landing lane's head
+  # check and that lane's merge (formal/SyrusModel/MergeExclusion.lean).
+  describe "the merge lock" do
+    def lane_holding_merge_lock!
+      other = Factories.job(user: owner, repository: repository)
+      unit = other.reload.workflows.order(:id).last.work_unit
+      unit.work_unit_locks.create!(lock_key: WorkDefinitions.merge_lock_key_for(job))
+      unit
+    end
+
+    before do
+      Steps::MergeLockControl.merge_lock_wait = 0
+      Steps::MergeLockControl.merge_lock_poll = 0
+    end
+
+    after do
+      Steps::MergeLockControl.merge_lock_wait = nil
+      Steps::MergeLockControl.merge_lock_poll = nil
+    end
+
+    it "does not merge while a landing lane holds the merge lock for the branch" do
+      lane_holding_merge_lock!
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeable_pr(number: 9)
+      stub_merge(number: 9)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_refused
+      expect(result.message).to include("merge lock")
+      expect(client).not_to have_received(:merge_pull_request)
+    end
+
+    it "refuses instead of erroring when other work claims the Job's lock before the merge" do
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeable_pr(number: 9)
+      stub_merge(number: 9)
+      allow(WorkUnits::Launcher).to receive(:start_workflowless!)
+        .and_raise(WorkUnits::Launcher::LockConflict.new(lock_key: "job:#{job.id}", work_unit: nil))
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_refused
+      expect(result.message).to include("acquired active work")
+      expect(client).not_to have_received(:merge_pull_request)
+    end
+
+    it "holds the merge lock on its own WorkUnit for the merge and releases it after" do
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeable_pr(number: 9)
+      key = WorkDefinitions.merge_lock_key_for(job)
+      held_during_merge = nil
+      allow(client).to receive(:merge_pull_request) do
+        held_during_merge = WorkUnitLock.active.find_by(lock_key: key)&.work_unit&.kind
+        OpenStruct.new(merged: true, sha: "mergedsha123")
+      end
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_success
+      expect(held_during_merge).to eq("emergency_land")
+      expect(WorkUnitLock.active.where(lock_key: key)).to be_empty
+      expect(WorkUnit.where(kind: "emergency_land").sole).to have_attributes(state: "succeeded")
+    end
+  end
+
   describe "success" do
     it "opens the PR, merges it, and records a distinguishable audit trail" do
       stub_ahead_commits

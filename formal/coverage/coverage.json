@@ -505,6 +505,66 @@
       "notes": "Production (61 executions, all applied re-enqueues, read-only). The SolidQueue failed-execution table since 2026-11-19 shows RunJob failures from ActiveRecord::LockWaitTimeout (10) and SolidQueue ProcessPrunedError (8+) -- infrastructure, before the Run starts -- plus StepFailed subclasses (e.g. Steps::PrOpen::AwaitingStableBase) that RunJob re-raises after handling the Step failure, which are finished Runs, not pre-start crashes. The reconciler's re-enqueue is the intended recovery here; no producer bug found. A lock-timeout retry inside RunJob's pre-start path would remove the 2-minute delay, but is an infrastructure-resilience choice, not a correctness fix. M37: audited; recovery is a one-step repair with the cached-failure guard shared across queued-run repairs."
     },
     {
+      "id": "queued-run-repeated-failed-execution",
+      "area": "runs-queue",
+      "title": "A queued Run's RunJob crashes the same way on every re-enqueue, so the failed-execution repair loops",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_repeated_queue_execution_failure"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "a RunJob that fails deterministically before the Run starts (for example a worker on an older release than the database), which queued_run_solid_queue_failed_execution re-enqueued once a minute",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "notes": "After REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT failed executions the Run is failed as run_job_crashed (retryable, infrastructure), so the bounded retry path and grader_collect's infrastructure handling take over instead of an unbounded re-enqueue loop."
+    },
+    {
+      "id": "agent-blocked-workflow-dependencies-satisfied",
+      "area": "workflows",
+      "title": "An agent-blocked Workflow stays blocked after the dependencies added to answer it are satisfied",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "agent_blocked_workflow_dependencies_satisfied"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "an implement agent reported cannot-proceed for a missing prerequisite; the operator filed the prerequisite as a dependency, and nothing resumed the blocked Workflow once it was satisfied",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "notes": "Only dependencies created after the block count, and all of the Job's dependencies must be satisfied for execution; the retry goes through RetryWorkflowEnqueuer, so its eligibility, runaway protection and provider checks apply."
+    },
+    {
+      "id": "queued-grader-starving-failed-collect",
+      "area": "runs-queue",
+      "title": "A never-started grader holds open a grader_collect whose required sibling already failed",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_grader_starving_failed_collect"
+      ],
+      "classifiers": [
+        "classify_queued_graders_starving_failed_collect"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "grader_collect waits for every grader it depends on to be terminal; a grader no live worker could start (for example the only macOS worker wedged) kept a landing bundle open for hours after its required rspec shards had failed",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "notes": "After STARVED_GRADER_AFTER_FAILED_SIBLING the never-started grader is cancelled; grader_collect counts a cancelled required grader as unsuccessful, so the verdict is unchanged and only the wait is removed. Graders that are running are never cancelled."
+    },
+    {
       "id": "queued-grader-collect-cached-failure",
       "area": "runs-queue",
       "title": "A lost-queue grader_collect Run whose failure is already cached is replayed instead of failed",
@@ -2235,9 +2295,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "M25 (NY25 open)",
-      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven. M25: full audit; observed graph has cycles (Job↔Workflow, Run↔Job, Run↔Workflow, Epic↔Job). LockOrder.lean proves the cycles and that a proposed global order needs exactly four edge kinds flipped (NY25)."
+      "status": "done",
+      "done_by": "M25, F110 (NY25), F130 (NY40)",
+      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven. M25: full audit; observed graph has cycles (Job↔Workflow, Run↔Job, Run↔Workflow, Epic↔Job). LockOrder.lean proves the cycles and that a proposed global order needs exactly four edge kinds flipped (NY25). NY40: the order is now the hierarchy and is enforced on every code path the suite exercises, writes included; one total order has no cycles. The production lock-wait note above (hot Workflow and User rows) is contention, not a cycle, and stays a lead."
     },
     {
       "id": "launch-funnel",
@@ -3161,11 +3221,11 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
+      "status": "done",
       "title": "Every transaction takes row locks in the global order, so lock cycles cannot deadlock",
       "producer": "Syrus::LockOrder; spec/support/lock_order.rb (suite-wide checker)",
-      "done_by": "F110 (NY25); NY31-NY33 open",
-      "notes": "LockOrder.lean proves the order acyclic; the suite fails any inversion except the three awaiting NY31-NY33."
+      "done_by": "F110 (NY25), F130 (NY40)",
+      "notes": "The enforced order is the hierarchy, parents before children: AppSetting, User, Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run. Transactions take a record's ancestry first through Lineage.lock_all!, which LockOrder.lean proves can only take sequences in that order (lock_all_in_order). The suite raises on any inversion, UPDATE and DELETE included, with no exemptions left; both phases of the full suite pass."
     },
     {
       "id": "abandoned-replication-released",
@@ -3811,7 +3871,7 @@
         "C. Parent-first order with rollups after commit: the intent sync (undoing F97) and the Epic rollup run after commit, repaired by reconciler checks for the crash window."
       ],
       "recommendation": "A. It gives the one-sentence rule the operator asked for, keeps rollups atomic, and the checker enforces it. Watch Job-row contention as it lands.",
-      "decision": "A (2026-11-24, answered on the lean-plan site): go hierarchical, with Lineage.lock! at the transaction entry points, the bottom-up sites flipped, and write tracking raising. To implement."
+      "decision": "A (2026-11-24, answered on the lean-plan site): go hierarchical, with Lineage.lock! at the transaction entry points, the bottom-up sites flipped, and write tracking raising. Implemented on the branch (F130, parts 0 to 14, 2026-11-25): Syrus::LockOrder::MODELS is the hierarchy and the full suite raises on any violation, writes included."
     },
     {
       "id": "NY41",
@@ -3849,7 +3909,8 @@
         "B. Allow a lock without a WorkUnit: make work_unit_id nullable and add a holder label and an expiry, so a crash cannot leave it held forever. MergeLock and the reconciler learn to treat an expired holder-less lock as released. Smaller conceptually, but a migration and a second cleanup path.",
         "C. Keep emergency landing as an override that does not take the lock, and document that it can race an in-flight lane merge (one API round-trip)."
       ],
-      "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing."
+      "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing.",
+      "decision": "A (2026-11-24, answered on the lean-plan site): a short-lived WorkUnit under a new emergency_land work definition holds the merge lock for the emergency merge. Implemented on the branch (F133, 2026-11-25)."
     }
   ]
 }

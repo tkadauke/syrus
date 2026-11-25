@@ -8,9 +8,13 @@ module Mcp::Tools
   module RuntimeSessionToolSupport
     private
 
+    # Runtime Sessions are not a Coding Mode privilege: a planning or coworker
+    # chat that attached the repository has the same workspace to run against,
+    # and a coworker doing acceptance testing needs a session it can drive
+    # rather than a visual-review workflow it can only request.
     def require_coding_mode(chat_session)
-      return Mcp::Tools.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
-      return Mcp::Tools.invalid("runtime_* tools are only available in Coding Mode chats") unless chat_session.coding?
+      return Mcp::Tools.invalid("Runtime Sessions are not enabled") unless Feature.coding_mode_enabled?
+      return Mcp::Tools.invalid("runtime_* tools are not available in Local Mode chats") unless chat_session.runtime_sessions_supported?
 
       nil
     end

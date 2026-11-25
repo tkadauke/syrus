@@ -53,6 +53,7 @@ It does not skip GitHub or repository mechanics:
 - A newly opened PR may temporarily have unknown mergeability while GitHub computes it. Syrus polls for up to about 30 seconds; a reported conflict refuses immediately, while a value that remains unknown produces a distinct retryable refusal.
 - Existing Job branches must already have pushed commits ahead of the repository default branch. Direct checkout submission publishes an immutable emergency branch at the captured HEAD.
 - Unsatisfied dependencies, active runtime work, and branches shared by multiple open Jobs are refused.
+- The merge waits for any landing that is merging into the same branch at that moment, the same way two landings wait for each other, so it cannot land between that landing's base check and its merge. If the branch is still busy after about ten minutes, emergency land refuses with a retryable message.
 
 ## Audit Trail
 

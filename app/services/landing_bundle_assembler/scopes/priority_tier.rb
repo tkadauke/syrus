@@ -30,6 +30,11 @@ class LandingBundleAssembler::Scopes::PriorityTier
   # one eligible Job in a tier falls through to the per-Job auto_merge path,
   # same as today's behavior for a repo/tier with too few eligible Jobs.
   #
+  # Candidates are also partitioned by their declared execution capabilities
+  # (PlannedExecutionRequirement). A bundle needs workers for every member's
+  # requirement at once: one macOS Job in a bundle of Linux Jobs held all of
+  # them for a day while no macOS worker was online.
+  #
   # Lazy so LandingBundleAssembler#call's early return on the first ready
   # partition also short-circuits candidate fetching: once e.g. `urgent` is
   # ready, `high`/`medium`/`low` are never queried, matching the original
@@ -37,7 +42,7 @@ class LandingBundleAssembler::Scopes::PriorityTier
   def partitions
     Job::PRIORITIES.lazy.flat_map do |priority|
       eligible_candidates(priority)
-        .group_by { |job| effective_owner_id(job) }
+        .group_by { |job| partition_key(job) }
         .values
         .map { |candidates| [ priority, candidates_with_satisfied_prerequisites(candidates) ] }
     end
@@ -54,7 +59,7 @@ class LandingBundleAssembler::Scopes::PriorityTier
   # Whether `priority`'s own candidate pool forms a ready bundle on its own.
   def ready_for_priority?(priority)
     eligible_candidates(priority)
-      .group_by { |job| effective_owner_id(job) }
+      .group_by { |job| partition_key(job) }
       .each_value
       .any? do |candidates|
         members_for(candidates_with_satisfied_prerequisites(candidates)).any?
@@ -69,9 +74,9 @@ class LandingBundleAssembler::Scopes::PriorityTier
   def ready_for_job?(job)
     return false if job.epic_id.present? || job.external_pr?
 
-    owner_id = effective_owner_id(job)
+    key = partition_key(job)
     candidates = eligible_candidates(job.priority).select do |candidate|
-      effective_owner_id(candidate) == owner_id
+      partition_key(candidate) == key
     end
     candidates = candidates_with_satisfied_prerequisites(candidates)
 
@@ -104,6 +109,18 @@ class LandingBundleAssembler::Scopes::PriorityTier
 
   def effective_owner_id(job)
     job.owner_user_id.presence || job.user_id
+  end
+
+  def partition_key(job)
+    [ effective_owner_id(job), capability_signature(job) ]
+  end
+
+  # Normalized so equal requirements compare equal however they were stored.
+  def capability_signature(job)
+    job.planned_execution_requirement.capabilities.to_h
+      .transform_keys(&:to_s)
+      .transform_values { |values| Array(values).map(&:to_s).sort }
+      .sort
   end
 
   # Cap the ordered candidate list at AppSetting.merge_train_max_size.

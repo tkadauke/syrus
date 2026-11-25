@@ -4785,6 +4785,93 @@ suite must stay green throughout, so the change is staged:
    enforced order, switch write tracking to raise, and update `LockOrder.lean`
    and the docs.
 
+**Progress.** Part 1 converted `RunJob`'s claim and `Run#start`. Part 2
+converted `WorkflowCancellation.cancel!` and `WorkUnit#mark_terminal!`, which
+now take their ancestry first. It also made a terminal Workflow's descendant
+cleanup lock its Steps before any Run. Specs:
+`spec/services/lineage_funnels_spec.rb`, raising on the hierarchical order.
+Part 3 converted `TerminalWorkflowSync`, `WorkUnit#preempt!`,
+`Job#close_with_reason!` (Epic before Job), and the repair executor's
+closed-Job cancel, superseded-CI-repair cancel, queued-Run relaunch and
+merge-train member close. Part 4 added `Lineage.lock_all!` for several
+ancestries at once, possibly across Jobs: every row of a model before any row
+of the next model down. `LockOrder.lean` proves every sequence it can take is
+in the hierarchical order (`lock_all_in_order`). `JobClosure.lock_pending_workflows!`
+uses it, so the sibling cascade no longer inverts
+(`closure_lineage_before_inverts`, `closure_lineage_after_in_order`).
+`TerminalLockCleanup`, the repair executor's workflow start and
+`StepDispatcher.create_run_and_enqueue` also take their ancestry first.
+Part 5 converted the callers that write Steps or the Workflow before creating
+a Run: `cancel_and_skip_to_next!`, `enqueue_try_failure_branch!`,
+`enqueue_next_loop_iteration!` and grader fan-out admission. Examples tagged
+`hierarchical_locks: true` now raise on the hierarchical order. The five
+existing examples that reach these paths are tagged, and each failed before
+the conversion. A full survey after part 5 passed all 26,477 examples and
+recorded 481 violations at 50 sites, down from about 1,100. Of those, 355 had
+no application frame on the stack: spec setup code, not production paths. The
+checker now names the first spec or lib frame for those, so they can be fixed
+before the order is enforced. Part 6 converted the two largest production
+sites, `PlannedExecutionOverrides::Operation` (Job, then Workflows, then Runs)
+and `RunJob#commit_run_and_step_success!`. Part 7 converted the
+`RepairQueueAffinity` requeue, `WorkflowPatch.apply!` and
+`RetryFailedStepEnqueuer`. A retry that rebuilds a merge train locks the
+train's other Jobs, so it now takes them first with its own ancestry, through
+`LandingRetrier.lock_targets_for(train)`. The landing retrier locks all its
+members and candidates up front. Part 8 locks a Job's Epic in a `before_save`
+under the same condition that refreshes the Epic after the save, so assigning,
+closing or changing a Job in an Epic locks the Epic first. Part 9: a
+`dependent: :destroy` cascade deletes children before parents, so Job,
+Workflow and Step lock the parent's whole subtree top down in a prepended
+`before_destroy` (`Lineage.lock_subtree!`); an association's `destroy_all`
+deletes every sibling in one transaction. `Workflow#start` locks its WorkUnit's
+member Jobs with its own ancestry, and `lock_definition_jobs!` takes their
+Epics. The retry-workflow enqueuer, `ReconcileJobStatesJob`, the base-refresh
+retry and the terminal-descendant repair lock the Epic before the Job. The
+three Workflow cleanup methods lock Steps before anything writes a Run,
+including the process-kill request. The work-engine simulation suite (102
+scenarios) now runs with the hierarchical order raising.
+
+Part 10: every Workflow event takes the Workflow's ancestry first
+(`before_all_events`), and a Lineage lock now also takes the Job's other active
+Workflows, with their intents and WorkUnits: a Workflow event can cancel its
+siblings, whose ancestries would otherwise be locked after it. Pausing landing
+after an infrastructure failure writes the operator's User row, which ranks
+above the Epic and Job, so it now runs after the transaction commits instead
+of serializing every Job of that operator on one row. The Workflow model spec
+runs with the order raising. The full suite after part 10 passes both phases
+and records 59 violations at 41 sites, down from about 1,100.
+
+Part 11: a Lineage lock also takes each WorkUnit's member and scope Jobs with
+their Epics, so a caller's pre-lock and a Workflow event's lock are the same
+set. Auto-approval, stale-work cancellation and the repair executor's four
+Workflow-lock sites take their ancestries first. Their specs run with the
+order raising. A full survey after part 11 records 12 violations at 9 sites.
+
+Part 12: resetting a Job locks its Epic first, and refreshing required reviews
+locks the Workflow's whole subtree, since invalidation writes Steps and Runs in
+mixed order. A cascade across Jobs (cancelling a dependent Job's Workflow from
+inside another's cancellation) cannot be in order unless both subtrees are
+locked up front; no production path does it, and the one spec that simulates
+it now does, through `Lineage.lock_subtree!` over several records.
+
+Part 13: Step and Run events lock their ancestry first, as Workflow events do;
+a User row is locked before its destroy cascade; a merge-train Workflow's
+lineage includes the train's member Jobs; `Lineage.lock_active_work!` locks a
+Job's active Workflows' subtrees (every Step before any Run) for Job cancel,
+close, external implementation and stale-work cancellation; the Workflow
+cleanup methods take their ancestry themselves, since reapers and repairs call
+them outside a Workflow event. A full suite after part 13 passes both phases
+and records one remaining site, from about 1,100.
+
+**Enforced (part 14).** The last site (the dispatcher's retry-until check
+skip) takes its ancestry first. `Syrus::LockOrder::MODELS` is now the
+hierarchy, the suite raises on any out-of-order lock with writes counted, and
+the selectable target and the NY31 pending-decision exemption are gone. Both
+phases of the full suite pass with the order enforced. `LockOrder.lean` notes
+the hierarchical order supersedes the NY25 one, and the row-lock section of
+`docs/engineering/conventions/database-and-migrations.md` describes it and the
+`Lineage` helpers.
+
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
 Job is in order after `Lineage.lock!`, and the same writes without it raise. It
@@ -4819,6 +4906,73 @@ The catalog is regenerated.
 **Spec.** `plugins/coworkers/spec/services/coworkers/chat_parity_spec.rb`
 rebuilds the registry memo with the plugin enabled and then disabled, and
 expects the same coworker surface without the Local Mode tools. It fails
+without the fix.
+
+---
+
+## F133. Emergency landing merged without the merge lock — fixed (NY43: A)
+
+**Invariant.** `MergeExclusion.lean`: no writer moves a landing branch between
+a lane's base check and that lane's merge, provided every writer holds the
+branch's merge lock (`no_write_between_check_and_merge`). NY41 made hotfix sync
+and promotion take it.
+
+**Counterexample.** Emergency landing merged through GitHub's API without the
+lock, so an operator's emergency merge could land between a lane's check and
+its merge, and the lane then merged onto a base it had not validated
+(`unlocked_emergency_land_breaks_it`).
+
+**Fix.** The merge lock is a WorkUnitLock, so emergency landing now launches a
+short-lived WorkUnit of a new workflow-less `emergency_land` work definition,
+through `WorkUnits::Launcher.start_workflowless!`. That entry point creates
+the unit queued and starts it through `WorkUnit#mark_running!`, so the unit
+also holds the Job's lock and stays inside the ownership argument
+(`LockSafety.lean`, `UnitReentry.lean`). It takes the merge lock with the same
+wait as a landing step, merges, and finishes the unit in an `ensure`, which
+releases the lock. If the lock stays busy, or other work claims the Job first,
+it refuses with a retryable message.
+
+Two parts of the engine assumed every unit has a Workflow. The registry
+validator now accepts definitions that declare themselves workflow-less. The
+reconciler, which cancels an active unit without a Workflow as an orphan,
+leaves a workflow-less unit alone for `EmergencyLand::STALE_AFTER` (ten
+minutes), so its merge is not interrupted, and cancels it after that, so a
+crash cannot hold the lock forever.
+
+**Specs.** `spec/services/emergency_land/lander_spec.rb` (refuses while a lane
+holds the lock; holds the lock on its own unit during the merge and releases
+it; refuses on a Job-lock conflict), `spec/services/work_units/launcher_spec.rb`
+(`start_workflowless!`), and `spec/services/work_engine/reconciler_spec.rb` (a
+fresh emergency unit is left alone, a stale one is cancelled with its lock
+released).
+
+---
+
+## F132. A worker cache holder that outlived its lease released the next holder's — fixed
+
+**Invariant.** `RuntimeImages::WorkerCache` documents that an acquired image
+is never removed: eviction claims only an unleased entry. The lease is one row
+with a holder count and an expiry, and acquiring an expired lease starts it
+over at one holder, so a crashed holder cannot pin an entry forever.
+
+**Counterexample.** A container run held its lease longer than
+`lease_seconds` (an hour by default; the container execution backend holds it
+for the whole run). Another acquisition then started the lease over at one
+holder. When the first run finished, `release` counted the lease down
+anyway, to zero, and cleared it. The entry was then evictable while the second
+holder was using it. `docker image rm` refuses an image a running container
+uses, so the exposure is the time before and between containers in one
+acquisition, but the documented guarantee did not hold.
+`CacheLease.lean`: `stale_release_unprotects`.
+
+**Fix.** Each started-over lease begins a new `lease_epoch`. A holder records
+the epoch it joined, and `release` counts down only a lease of that epoch.
+`CacheLease.lean` proves the count then always equals the live holders of the
+current epoch (`count_eq_current`), so a live lease with a current holder is
+never evictable (`current_holder_protected`).
+
+**Spec.** `spec/services/runtime_images/worker_cache_spec.rb`, "does not let a
+holder whose lease expired release a later holder's fresh lease", fails
 without the fix.
 
 ---
@@ -7726,7 +7880,21 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `6edc2c7761`. Each loop iteration continues from there:
+- A commit already inside that range, which built the coworker tool surface
+  from enabled plugins only: the invariant (a per-process memo depends only on
+  static inputs) failed. It made the full suite order-dependent and put 38
+  wrong rows in the MCP catalog. F131, fixed on main in `8f3fdf0ac1`.
+
+- The Runtime Image Service epic (contracts, OCI registry provider, worker
+  pull cache, publishing, retention and reconciliation). The worker cache's
+  invariant (an acquired image is never removed) failed when a holder
+  outlived its lease: F132, proved in `CacheLease.lean`. The eviction-claim
+  takeover is safe by its own argument: a claim is taken over only after
+  `claim_ttl`, which the constructor requires to exceed the engine's remove
+  timeout, and every write is scoped to the claim token. The terminal image
+  states (revoked, deleted) are covered by their own specs.
+
+Checked through main `d946eda665`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

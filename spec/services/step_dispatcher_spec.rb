@@ -481,25 +481,17 @@ RSpec.describe StepDispatcher, :ci_only do
       }.not_to change { s1.runs.count }
     end
 
-    it "locks the workflow before the step when creating a Run" do
-      lock_order = []
-      allow(workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        original.call(*args) do
-          lock_order << :workflow
-          block.call
-        end
-      end
-      allow(s1).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        original.call(*args) do
-          lock_order << :step
-          block.call
-        end
-      end
+    it "locks the step's ancestry top down before creating a Run (NY40)" do
+      allow(Lineage).to receive(:lock!).and_call_original
+      previous_mode = Syrus::LockOrder::Checker.mode
+      Syrus::LockOrder::Checker.mode = :raise
 
       described_class.create_run_and_enqueue(s1, workflow)
 
-      expect(lock_order).to eq(%i[workflow step])
+      expect(Lineage).to have_received(:lock!).with(s1)
       expect(s1.runs.count).to eq(1)
+    ensure
+      Syrus::LockOrder::Checker.mode = previous_mode
     end
 
     it "holds ordinary Epic child workflows while an Epic-wide workflow is active" do
@@ -2186,12 +2178,15 @@ RSpec.describe StepDispatcher, :ci_only do
       allow_any_instance_of(described_class).to receive(:handle_loop_iteration).and_wrap_original do |original|
         original.receiver.send(:enqueue_next_loop_iteration!, loop_node)
       end
-      allow_any_instance_of(Workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        mutex.synchronize do
-          lock_attempts << Thread.current.object_id
-          condition.broadcast
+      # The Workflow row lock is taken through its ancestry (NY40, Lineage).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+        if record.is_a?(Workflow)
+          mutex.synchronize do
+            lock_attempts << Thread.current.object_id
+            condition.broadcast
+          end
         end
-        original.call(*args, &block)
+        original.call(record)
       end
       allow_any_instance_of(described_class)
         .to receive(:next_loop_iteration_already_materialized?)
@@ -3477,11 +3472,11 @@ RSpec.describe StepDispatcher, :ci_only do
       push = try_workflow.steps.find_by!(kind: "push")
       push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
       lock_order = []
-      allow(try_workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        original.call(*args) do
-          lock_order << :workflow
-          block.call
-        end
+      # The Workflow row lock is taken through its ancestry (NY40, Lineage).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+        result = original.call(record)
+        lock_order << :workflow if record.is_a?(Workflow) && record.id == try_workflow.id
+        result
       end
       allow(push).to receive(:update!).and_wrap_original do |original, *args|
         lock_order << :step

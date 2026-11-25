@@ -7,35 +7,14 @@ module Syrus
   # Locks on the same model are unordered among themselves; models not listed
   # are outside the order.
   module LockOrder
-    MODELS = %w[ AppSetting Epic Run Job WorkIntent Workflow Step WorkUnit User ].freeze
+    # NY40: the hierarchy, parents before children. A transaction locks a
+    # record's ancestry first (Lineage.lock!), so the rollups it writes
+    # afterwards touch rows it already holds.
+    MODELS = %w[ AppSetting User Epic Job WorkIntent WorkUnit Workflow Step Run ].freeze
     RANKS = MODELS.each_with_index.to_h.freeze
 
-    # NY40 (decided A): the order is moving to the hierarchy, parents before
-    # children, with Lineage.lock! taking a record's ancestry first. Until every
-    # entry point is converted, MODELS stays enforced and the target is
-    # selectable for surveying: SYRUS_LOCK_ORDER_TARGET=hierarchical, or
-    # LockOrder.target = :hierarchical in a spec.
-    HIERARCHICAL = %w[ AppSetting User Epic Job WorkIntent WorkUnit Workflow Step Run ].freeze
-    ORDERS = { current: MODELS, hierarchical: HIERARCHICAL }.freeze
-
-    class << self
-      def target
-        @target ||= ENV["SYRUS_LOCK_ORDER_TARGET"] == "hierarchical" ? :hierarchical : :current
-      end
-
-      def target=(name)
-        raise ArgumentError, "unknown lock order #{name.inspect}" unless ORDERS.key?(name.to_sym)
-
-        @target = name.to_sym
-      end
-
-      def models = ORDERS.fetch(target)
-
-      def ranks
-        @ranks ||= {}
-        @ranks[target] ||= models.each_with_index.to_h.freeze
-      end
-    end
+    def self.models = MODELS
+    def self.ranks = RANKS
 
     # `entry` is the outermost application frame: where the transaction's work
     # came in (a job's perform, a controller action, a service a spec called).
@@ -45,23 +24,6 @@ module Syrus
       end
     end
 
-    # Inversions waiting on an operator decision (NY31): each is a lock site
-    # pair the order cannot fix without a design choice. The checker records
-    # them instead of raising; any other inversion fails the example.
-    PENDING_DECISION = [
-      # A Workflow cancelled from inside another Workflow's cancel (an
-      # after_cancel hook, after the outer Workflow locked its Steps). The Job
-      # closure path is pre-locked (NY33, JobClosure.lock_pending_workflows!);
-      # only a hook-driven nested cancellation is left, and in the suite only a
-      # spec stub does that.
-      { held_site: "app/models/workflow.rb", site: "app/services/work_units/workflow_cancellation.rb" }
-    ].freeze
-
-    def self.pending_decision?(violation)
-      PENDING_DECISION.any? do |pair|
-        violation.held_site.to_s.start_with?("#{pair[:held_site]}:") && violation.site.to_s.start_with?("#{pair[:site]}:")
-      end
-    end
     class Error < StandardError; end
 
     def self.rank_for(model_class)
@@ -173,7 +135,7 @@ module Syrus
         end
 
         def report(violation)
-          if mode == :record || LockOrder.pending_decision?(violation)
+          if mode == :record
             violations << violation
           else
             raise Error, "row lock order violated: took #{violation.taking} at #{violation.site} while holding " \
@@ -185,7 +147,7 @@ module Syrus
           location = caller_locations.reverse.find do |candidate|
             candidate.path.match?(%r{/(?:plugins/[^/]+/)?app/}) && !candidate.path.include?("/vendor/")
           end
-          return "unknown" unless location
+          return fallback_site(:label) unless location
 
           "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?app/)}, '\1')}:#{location.label}"
         end
@@ -196,9 +158,22 @@ module Syrus
             candidate.path.match?(%r{/(?:plugins/[^/]+/)?app/}) && !candidate.path.include?("/vendor/") &&
               !candidate.label.to_s.match?(/\b(?:reload|lock!|with_lock)\z/)
           end
-          return "unknown" unless location
+          return fallback_site(:lineno) unless location
 
           "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?app/)}, '\1')}:#{location.lineno}"
+        end
+
+        # No application frame: the locks came from spec or library code (a
+        # spec's own setup, a factory). Name its first frame so the record
+        # says where to look.
+        def fallback_site(detail)
+          location = caller_locations.find do |candidate|
+            candidate.path.match?(%r{/(?:plugins/[^/]+/)?(?:spec|lib)/}) && !candidate.path.include?("/vendor/") &&
+              !candidate.path.end_with?("lib/syrus/lock_order.rb")
+          end
+          return "unknown" unless location
+
+          "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?(?:spec|lib)/)}, '\1')}:#{location.public_send(detail)}"
         end
       end
 

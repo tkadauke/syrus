@@ -98,11 +98,13 @@ module WorkUnits
       unit = terminal_work_unit
       return false unless unit
 
-      # Job before Workflow (Syrus::LockOrder): driving the Workflow can start
-      # it, and Workflow#start locks the Job.
+      # Driving the Workflow rolls up to its WorkUnit, intent and Job, so its
+      # ancestry is locked first, top down (NY40), then both are reloaded as
+      # lock! would.
       Workflow.transaction do
-        workflow.job&.lock!
-        workflow.lock!
+        Lineage.lock!(workflow)
+        workflow.job&.reload
+        workflow.reload
         return false unless ACTIVE_WORKFLOW_STATES.include?(workflow.state)
         return false if self.class.active_replacement_owns?(workflow, stale_unit: unit)
 

@@ -14,6 +14,11 @@ lock if it is `locked`. This file proves:
   writer's write falls between a lane's check and its merge;
 * `unlocked_writer_breaks_it`: one unlocked writer is enough to put a write
   there, which is the gap NY41 closes for hotfix sync and promotion.
+* `unlocked_emergency_land_breaks_it`: the same gap for an operator's
+  emergency merge, which merged without the lock before NY43. It now holds the
+  lock on a short-lived `emergency_land` WorkUnit
+  (`EmergencyLand::Lander#with_merge_lock`), so it is one more locked writer
+  and `no_write_between_check_and_merge` covers it.
 -/
 
 namespace SyrusModel
@@ -72,6 +77,13 @@ theorem no_write_between_check_and_merge :
 theorem unlocked_writer_breaks_it :
     let t := [Event.acquire 0, .check 0, .write 2, .write 0, .release 0]
     valid (fun w => w != 2) none t = true ∧ intruded 0 t = true := by
+  decide
+
+/-- Before NY43: lane 0 checks, an emergency merge (writer 3, unlocked) merges
+the operator's PR onto the branch, lane 0 merges onto a base it did not check. -/
+theorem unlocked_emergency_land_breaks_it :
+    let t := [Event.acquire 0, .check 0, .write 3, .write 0, .release 0]
+    valid (fun w => w != 3) none t = true ∧ intruded 0 t = true := by
   decide
 
 end MergeExclusion

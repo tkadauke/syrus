@@ -73,7 +73,10 @@ class AutoApprovalRule
       return Result.new(approved: false, reason: "pull_request_missing", mode: mode, source: source)
     end
 
-    @job.with_lock do
+    # Epic before Job (NY40): approving refreshes the Epic. Then reloaded as
+    # with_lock would.
+    Job.transaction do
+      Lineage.lock!(@job)
       @job.reload
       @job.mark_implemented! if @job.may_mark_implemented?
       return Result.new(approved: false, reason: "job_not_approvable", mode: mode, source: source) unless @job.may_approve?

@@ -1,0 +1,48 @@
+# Machine-readable contract of the standard Syrus coworker base image.
+# RuntimeImages::CoworkerBase reads this file; the Dockerfile in this
+# directory is the build definition it describes. A spec keeps the two
+# consistent. Versions of third-party CLIs live only in the Dockerfile ARGs.
+generation: 1
+runtime_abi: 1
+# Debian 12 slim, pinned by digest. Same value as the Dockerfile's BASE_IMAGE
+# default; the recipe passes it as a build arg so a bump is a visible change
+# to the recipe digest.
+base_image: docker.io/library/debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e
+platforms:
+  - linux/amd64
+  - linux/arm64
+user:
+  name: coworker
+  uid: 1000
+  gid: 1000
+  home: /home/coworker
+# Every bundled agent-provider CLI. Adding a provider plugin that ships a CLI
+# means adding it here, to the Dockerfile, and to syrus-base-probe.
+providers:
+  - { key: claude, binary: claude }
+  - { key: codex, binary: codex }
+  - { key: agy, binary: agy }
+  - { key: muse, binary: muse }
+support_tools: [git, curl, jq, rg, fd, node, python3, ssh, unzip]
+# The only paths a running container may write. All are mounts supplied by
+# Container Execution; the image's own filesystem is read-only.
+writable_paths: [/workspace, /home/coworker, /tmp]
+# Where the published image is recorded in the Runtime Image Service.
+publication:
+  owner_kind: syrus_base
+  owner_ref: coworker-base
+  source_kind: syrus_base
+  source_ref: coworker-base
+# Destinations the build needs on the administrator's build-network allowlist
+# (RuntimeImageBuildNetworkRule). Nothing else is reachable during the build.
+build_network:
+  - { source_class: os_mirror, ecosystem: debian, host: deb.debian.org }
+  - { source_class: os_mirror, ecosystem: debian, host: snapshot.debian.org }
+  - { source_class: os_mirror, ecosystem: debian, host: deb.nodesource.com }
+  - { source_class: exact_domain, host: storage.googleapis.com }
+  - { source_class: exact_domain, host: api.meta.ai }
+  - { source_class: exact_domain, host: lookaside.facebook.com }
+  - { source_class: language_registry, ecosystem: npm, host: registry.npmjs.org }
+  - { source_class: artifact_registry, host: registry-1.docker.io }
+  - { source_class: artifact_registry, host: auth.docker.io }
+  - { source_class: artifact_registry, host: production.cloudflare.docker.com }

@@ -183,20 +183,20 @@ surface (see [Permission authority](permission_authority.md)):
 | `retry_from_current_pr_branch` | chat | essential | write | yes | - | - | - | - | gated (operational) |
 | `retry_job` | chat | essential | write | no | - | - | - | - | gated (operational) |
 | `run_command` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (operator_host_access) |
-| `runtime_acquire_control` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
-| `runtime_build_or_reload` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
-| `runtime_capture_artifact` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | deniable (operator scoping) |
-| `runtime_input` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
-| `runtime_inspect` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
-| `runtime_launch` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
-| `runtime_list_sessions` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
-| `runtime_logs` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
-| `runtime_release_control` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | deniable (operator scoping) |
-| `runtime_snapshot` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | deniable (operator scoping) |
-| `runtime_start` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
-| `runtime_status` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
-| `runtime_stop` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
-| `runtime_wait` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
+| `runtime_acquire_control` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | gated (operational) |
+| `runtime_build_or_reload` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | gated (operational) |
+| `runtime_capture_artifact` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | deniable (operator scoping) |
+| `runtime_input` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | gated (operational) |
+| `runtime_inspect` | chat | essential | read | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | essential |
+| `runtime_launch` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | gated (operational) |
+| `runtime_list_sessions` | chat | essential | read | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | essential |
+| `runtime_logs` | chat | essential | read | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | essential |
+| `runtime_release_control` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | deniable (operator scoping) |
+| `runtime_snapshot` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | deniable (operator scoping) |
+| `runtime_start` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | gated (operational) |
+| `runtime_status` | chat | essential | read | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | essential |
+| `runtime_stop` | chat | essential | write | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | gated (operational) |
+| `runtime_wait` | chat | essential | read | no | `chat:coding`, `chat:planner`, `chat:coworker` | - | - | `coding_mode` | essential |
 | `search_jobs` | chat | essential | read | no | - | - | - | - | essential |
 | `set_bookmark` | chat | essential | write | no | - | - | - | - | essential |
 | `set_job_priority` | chat | essential | write | no | - | - | - | - | deniable (material control) |
@@ -359,6 +359,20 @@ surface (see [Permission authority](permission_authority.md)):
 | `retire_terminal_work_unit` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | deniable (material control) |
 | `retry_from_current_pr_branch` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational) |
 | `retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `runtime_acquire_control` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | gated (operational) |
+| `runtime_build_or_reload` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | gated (operational) |
+| `runtime_capture_artifact` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | deniable (operator scoping) |
+| `runtime_input` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | gated (operational) |
+| `runtime_inspect` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime_status` | `coding_mode` | essential |
+| `runtime_launch` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | gated (operational) |
+| `runtime_list_sessions` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime_status` | `coding_mode` | essential |
+| `runtime_logs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime_status` | `coding_mode` | essential |
+| `runtime_release_control` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | deniable (operator scoping) |
+| `runtime_snapshot` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | deniable (operator scoping) |
+| `runtime_start` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | gated (operational) |
+| `runtime_status` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime_status` | `coding_mode` | essential |
+| `runtime_stop` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime` | `coding_mode` | gated (operational) |
+| `runtime_wait` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.runtime_status` | `coding_mode` | essential |
 | `search_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
 | `search_repository_code` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `set_bookmark` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |

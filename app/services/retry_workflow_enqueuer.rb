@@ -89,7 +89,10 @@ class RetryWorkflowEnqueuer
 
     failure_result = nil
     workflow = nil
-    job.with_lock do
+    # Epic before Job (NY40): retrying can change the Job's state, which
+    # refreshes its Epic. Then reloaded as with_lock would.
+    Job.transaction do
+      Lineage.lock!(job)
       job.reload
       eligibility = RetryWorkflowEligibility.call(job: job)
       reconcile_ready_pr! if eligibility.code == "pr_ready"

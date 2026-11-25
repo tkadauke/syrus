@@ -46,7 +46,7 @@ RSpec.describe Permissions::ChatReadActions do
     expect(entries.fetch("list_jobs")).to have_attributes(tier: :essential, required_roles: [])
     expect(entries.fetch("read_workflow")).to have_attributes(tier: :deferred, required_roles: [])
     expect(entries.fetch("runtime_status")).to have_attributes(
-      tier: :essential, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]
+      tier: :essential, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING, AgentRole::CHAT_PLANNER, AgentRole::COWORKER_CHAT ]
     )
     expect(entries.fetch("read_file")).to have_attributes(
       tier: :essential, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]

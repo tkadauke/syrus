@@ -284,6 +284,7 @@ module WorkEngine
       issues.concat(classify_terminal_workflows_with_active_descendants)
       issues.concat(classify_active_runs_on_terminal_steps)
       issues.concat(classify_queued_runs)
+      issues.concat(classify_queued_graders_starving_failed_collect)
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
       issues.concat(classify_active_steps_with_terminal_runs)
@@ -670,6 +671,69 @@ module WorkEngine
         .select("steps.workflow_id")
     end
 
+    # A required grader has already failed, so its grader_collect's verdict
+    # is settled -- but collect only runs once every grader it depends on is
+    # terminal. A sibling grader that never started (no worker can take it:
+    # the only capable one is busy, wedged, or on an incompatible release)
+    # then holds a known failure open indefinitely; a production landing
+    # bundle sat two hours behind one queued macOS grader after three of its
+    # required rspec shards had failed. Cancel the starved graders so collect
+    # can fail and the repair loop start.
+    def dependencies_cleared_agent_block(workflow)
+      return unless workflow.blocked? && workflow.artifact("cannot_proceed").present?
+
+      job = workflow.job
+      return unless job && !job.closed? && !job.approved? && !job.landing?
+      return unless workflow == latest_workflow_for_job(job)
+      # The blocked Workflow's own unit stays active (blocked); only other work defers this.
+      return if job.any_active_run?
+      return if active_work_units_for_job(job).any? { |unit| unit.workflow_id != workflow.id }
+
+      blocked_at = workflow.finished_at || workflow.updated_at
+      added = job.dependencies.select { |dependency| dependency.created_at && dependency.created_at > blocked_at }
+      return if added.empty?
+      return unless job.dependencies_satisfied_for_execution?
+
+      added
+    end
+
+    def classify_queued_graders_starving_failed_collect
+      runs.select(&:queued?).filter_map do |run|
+        step = run.step
+        next unless step&.kind == "grader" && step.queued? && run.started_at.nil?
+        next unless older_than?(run.created_at, STARVED_GRADER_AFTER_FAILED_SIBLING)
+
+        workflow = run.workflow
+        next unless workflow&.running?
+
+        workflow_steps = steps_for_workflow(workflow)
+        collect = workflow_steps.find do |candidate|
+          candidate.kind == "grader_collect" && candidate.queued? && candidate.depends_on_step_ids.include?(step.id)
+        end
+        next unless collect
+
+        graders = workflow_steps.select { |candidate| collect.depends_on_step_ids.include?(candidate.id) }
+        failed_required = graders.select { |grader| grader.failed? && grader.details.to_h["required"] }
+        next if failed_required.empty?
+        next unless graders.reject(&:terminal?).all?(&:queued?)
+
+        issue(
+          kind: :queued_grader_starving_failed_collect,
+          severity: :error,
+          affected_ids: ids_for(run),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "cancel_starved_grader",
+          evidence: run_evidence(run).merge(
+            grader_collect_step_id: collect.id,
+            failed_required_graders: failed_required.map { |grader| grader.details.to_h["name"] || grader.id },
+            age_seconds: seconds_since(run.created_at)
+          ),
+          explanation: "Grader Run ##{run.id} never started, and its grader_collect Step ##{collect.id} already has " \
+                       "#{failed_required.size} failed required grader(s), so waiting on it only delays a known failure."
+        )
+      end
+    end
+
     def classify_queued_runs
       return [] unless solid_queue[:available]
 
@@ -758,8 +822,24 @@ module WorkEngine
             )
           end
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:failed] })
+          failed_executions = sqs.count { |candidate| candidate[:root_run_id] == run.id && candidate[:failed] }
           if grader_collect_cached_failure?(run)
             issue(**grader_collect_cached_failure_issue(run, workflow, sq, "failed_execution"))
+          elsif failed_executions >= REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT
+            # Re-enqueueing a Run whose RunJob crashes the same way every time
+            # only loops: a worker on an old release crashed one grader Run
+            # once a minute for over an hour while a whole landing bundle
+            # waited on it. Fail the Run with the crash instead, so the
+            # ordinary retry and grader-collect handling take over.
+            issue(
+              kind: :queued_run_repeated_queue_execution_failure,
+              severity: :error,
+              affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+              safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+              recommended_repair_action: "fail_run_after_repeated_queue_failure",
+              evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "failed_execution", failed_executions: failed_executions),
+              explanation: "Run ##{run.id}'s RunJob has failed #{failed_executions} times without the Run ever starting."
+            )
           else
             issue(
               kind: :queued_run_solid_queue_failed_execution,
@@ -1268,6 +1348,26 @@ module WorkEngine
 
     def classify_workflows
       workflows.filter_map do |workflow|
+        # An agent that cannot proceed for want of a prerequisite is answered
+        # by making the prerequisite a dependency. Once every dependency added
+        # after the block is satisfied, the blocker is gone: retry rather than
+        # leave the Workflow waiting for an operator who already acted.
+        if (cleared = dependencies_cleared_agent_block(workflow))
+          next issue(
+            kind: :agent_blocked_workflow_dependencies_satisfied,
+            severity: :warning,
+            affected_ids: ids_for(workflow),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "retry_agent_blocked_workflow",
+            evidence: workflow_evidence(workflow).merge(
+              cannot_proceed: workflow.artifact("cannot_proceed"),
+              satisfied_dependency_job_ids: cleared.map(&:depends_on_job_id).compact
+            ),
+            explanation: "Workflow ##{workflow.id} is blocked by an agent cannot-proceed report, and every dependency " \
+                         "added to its Job since then is now satisfied."
+          )
+        end
+
         if workflow.blocked? && workflow.artifact("cannot_proceed").present? &&
             older_than?(workflow.finished_at || workflow.updated_at, STALE_AGENT_BLOCKED_WORKFLOW_THRESHOLD)
           next issue(
@@ -1669,6 +1769,7 @@ module WorkEngine
       work_units.select(&:active?).filter_map do |unit|
         next if unit.workflow_id.present?
         next if closed_job_scoped_unit?(unit)
+        next if workflowless_unit_in_progress?(unit)
 
         issue(
           kind: :active_work_unit_without_workflow,
@@ -2205,6 +2306,15 @@ module WorkEngine
       return false unless unit.scope_type == "job" && unit.scope_id.to_i == job.id
 
       unit.workflow.nil?
+    end
+
+    # A workflow-less unit (an emergency merge) holds its lock only for one
+    # external call; it is stale only once it has outlived that.
+    def workflowless_unit_in_progress?(unit)
+      definition = WorkDefinitions.registry[unit.kind]
+      return false unless definition&.workflowless
+
+      (unit.started_at || unit.created_at) > @now - definition::STALE_AFTER
     end
 
     def closed_job_scoped_unit?(unit)
@@ -3658,6 +3768,15 @@ module WorkEngine
     # re-enqueued jobs created the same second, one of which then started on
     # its own. A real orphan is old; require the job to have sat a while.
     ORPHANED_QUEUE_JOB_GRACE = 2.minutes
+
+    # Failed RunJob executions for one Run after which re-enqueueing it stops
+    # and the Run is failed with the crash (queued_run_repeated_queue_execution_failure).
+    REPEATED_QUEUE_EXECUTION_FAILURE_LIMIT = 3
+
+    # How long a never-started grader may hold open a grader_collect whose
+    # verdict a failed required sibling has already settled
+    # (queued_grader_starving_failed_collect).
+    STARVED_GRADER_AFTER_FAILED_SIBLING = 20.minutes
 
     def orphaned_queue_job?(sq)
       return false unless !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]

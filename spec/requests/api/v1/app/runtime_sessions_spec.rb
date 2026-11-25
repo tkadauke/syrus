@@ -56,11 +56,21 @@ RSpec.describe "App API runtime sessions", type: :request do
       expect(parse_body.dig("error", "code")).to eq("feature_disabled")
     end
 
-    it "404s for a planning-mode chat" do
+    it "lists runtime sessions for a planning-mode chat" do
       sign_in_as(user)
       planning_chat = ChatSession.create!(user: user, repository: repository, mode: "planning")
 
       get "/api/v1/app/chats/#{planning_chat.id}/runtime_sessions"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["runtime_sessions"]).to eq([])
+    end
+
+    it "404s for a Local Mode chat" do
+      sign_in_as(user)
+      local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+
+      get "/api/v1/app/chats/#{local_chat.id}/runtime_sessions"
 
       expect(response).to have_http_status(:not_found)
     end

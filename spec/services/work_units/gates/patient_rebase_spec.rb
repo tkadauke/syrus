@@ -58,6 +58,20 @@ RSpec.describe WorkUnits::Gates::PatientRebase do
     }.to have_enqueued_job(RunJob)
   end
 
+  # Regression: a feedback workflow the agent blocked kept its unit active
+  # indefinitely, and the system rebase behind it never started.
+  it "does not wait on a feedback workflow that is blocked for operator attention" do
+    feedback, feedback_unit = attach_active_feedback
+    feedback.update_columns(state: "blocked", finished_at: Time.current)
+    feedback_unit.update_columns(state: "blocked", blocked_reason: "agent_cannot_proceed")
+    rebase = RebaseWorkflowSelector.instantiate(job: job, artifacts: { "repair_reason" => "base recovered" })
+
+    expect {
+      result = WorkUnits::Launcher.start!(rebase)
+      expect(result).to be_started
+    }.to have_enqueued_job(RunJob)
+  end
+
   it "lets an explicitly requested rebase start without waiting" do
     feedback, = attach_active_feedback
     rebase = RebaseWorkflowSelector.instantiate(job: job, requested_by: "user")

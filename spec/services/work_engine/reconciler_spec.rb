@@ -132,6 +132,46 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(fresh.issues.map(&:kind)).not_to include("stale_agent_blocked_workflow")
   end
 
+  # Regression: an implement agent stopped for a missing prerequisite, the
+  # prerequisite was filed as a dependency, and the blocked Workflow then
+  # waited for an operator after that dependency had landed.
+  describe "an agent-blocked workflow whose added dependencies are satisfied" do
+    let(:blocker) { Factories.job_record(user: job.user, repository: job.repository, state: "implemented", issue_number: 321) }
+
+    before do
+      workflow.update!(state: "blocked", finished_at: 2.hours.ago)
+      workflow.set_artifact!("cannot_proceed", { "reason" => "Prerequisite not met" })
+      step.update_columns(state: "blocked")
+      run.update_columns(state: "blocked", finished_at: 2.hours.ago)
+    end
+
+    it "retries the workflow once the dependency added after the block is satisfied" do
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_at: 1.hour.ago)
+      blocker.update_columns(state: "closed", closure_reason: "pr_merged")
+      allow(RetryWorkflowEnqueuer).to receive(:call).and_return(RetryWorkflowEnqueuer::Result.new(workflow: workflow, error: nil, circuit: nil))
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :agent_blocked_workflow_dependencies_satisfied)).to be_present
+      expect(RetryWorkflowEnqueuer).to have_received(:call).with(
+        hash_including(job: job, automatic: true, artifacts: hash_including("blocked_workflow_id" => workflow.id))
+      )
+    end
+
+    it "waits while the added dependency is unfinished" do
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_at: 1.hour.ago)
+
+      expect(kind(reconcile(workflow_id: workflow.id), :agent_blocked_workflow_dependencies_satisfied)).to be_nil
+    end
+
+    it "ignores dependencies that already existed when the agent blocked" do
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_at: 3.hours.ago)
+      blocker.update_columns(state: "closed", closure_reason: "pr_merged")
+
+      expect(kind(reconcile(workflow_id: workflow.id), :agent_blocked_workflow_dependencies_satisfied)).to be_nil
+    end
+  end
+
   # A reconcile pass must never ask the database to sort rows that carry a
   # large text or JSON column. Steps carry a JSON details column that grader
   # steps fill with command output, Workflows a 16MB artifacts column, Runs two
@@ -1116,6 +1156,48 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
   end
 
+  # Regression: a worker on an old release crashed one grader Run's RunJob
+  # once a minute, the reconciler re-enqueued it every time, and a ten-Job
+  # landing bundle waited on that Run for over an hour.
+  describe "a Run whose RunJob keeps crashing before it starts" do
+    before do
+      run.update_columns(state: "queued", created_at: 30.minutes.ago, updated_at: 30.minutes.ago, started_at: nil)
+      workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    end
+
+    def crash!(at)
+      solid_queue_run_job(run, failed: true, created_at: at,
+                               error: { exception_class: "NoMethodError", message: "undefined method 'id' for nil" }.to_json)
+    end
+
+    it "still re-enqueues after a single failed execution" do
+      crash!(5.minutes.ago)
+
+      result = reconcile(run_id: run.id)
+
+      expect(kind(result, :queued_run_solid_queue_failed_execution)).to be_present
+      expect(kind(result, :queued_run_repeated_queue_execution_failure)).to be_nil
+    end
+
+    it "fails the Run with the crash once it has failed repeatedly" do
+      crash!(20.minutes.ago)
+      crash!(10.minutes.ago)
+      crash!(2.minutes.ago)
+
+      result = reconcile_and_execute(run_id: run.id)
+
+      expect(kind(result, :queued_run_repeated_queue_execution_failure)).to be_present
+      expect(result.repair_plans.map(&:action)).to include("fail_run_after_repeated_queue_failure")
+      expect(run.reload).to be_failed
+      expect(run.run_diagnostic).to have_attributes(
+        problem_code: "run_job_crashed",
+        error_class: "NoMethodError",
+        error_message: include("undefined method 'id' for nil")
+      )
+      expect(RunFailureClassification.find_by(run_id: run.id)).to have_attributes(classification: "run_job_crashed", retryable: true)
+    end
+  end
+
   it "does not repair a queued Run when a healthy queue job exists beside stale failed queue jobs" do
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-dead")
@@ -1246,6 +1328,57 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
     expect(kind(result, :queued_run_without_queue_claim)).to be_present
     expect(plan(result, :reenqueue_run)).to have_attributes(auto_executable: true, target_id: queued_run.id)
+  end
+
+  # Regression: a landing bundle sat two hours behind one never-started
+  # macOS grader after three of its required rspec shards had failed.
+  describe "a never-started grader behind a grader_collect that already has a failed required grader" do
+    let(:failed_grader) { workflow.steps.create!(kind: "grader", position: 40, state: "failed", details: { "name" => "rspec", "required" => true }) }
+    let(:starved_grader) { workflow.steps.create!(kind: "grader", position: 41, state: "queued", details: { "name" => "ios", "required" => true }) }
+    let!(:collect_step) do
+      workflow.steps.create!(kind: "grader_collect", position: 42, state: "queued", depends_on_ids: [ failed_grader.id, starved_grader.id ])
+    end
+    let!(:starved_run) do
+      starved_grader.runs.create!(job: job, user: job.user, trigger_kind: workflow.trigger_kind,
+                                  agent_provider: workflow.agent_provider, state: "queued",
+                                  created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    end
+
+    before do
+      ensure_solid_queue_test_tables!
+      workflow.update_columns(state: "running", started_at: 3.hours.ago)
+      solid_queue_run_job(starved_run, ready: true, created_at: 2.hours.ago)
+    end
+
+    it "cancels the starved grader so grader_collect can settle" do
+      allow(StepDispatcher).to receive(:advance_from)
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :queued_grader_starving_failed_collect)).to be_present
+      expect(starved_run.reload).to be_cancelled
+      expect(starved_grader.reload).to be_cancelled
+      expect(StepDispatcher).to have_received(:advance_from).with(starved_grader)
+    end
+
+    it "leaves the grader alone while it is recent" do
+      starved_run.update_columns(created_at: 5.minutes.ago)
+
+      expect(kind(reconcile(workflow_id: workflow.id), :queued_grader_starving_failed_collect)).to be_nil
+    end
+
+    it "leaves the grader alone while no required sibling has failed" do
+      failed_grader.update_columns(state: "succeeded")
+
+      expect(kind(reconcile(workflow_id: workflow.id), :queued_grader_starving_failed_collect)).to be_nil
+    end
+
+    it "waits while another sibling grader is still running" do
+      workflow.steps.create!(kind: "grader", position: 43, state: "running", details: { "name" => "lint", "required" => true })
+        .tap { |running| collect_step.update!(depends_on_ids: collect_step.depends_on_ids + [ running.id ]) }
+
+      expect(kind(reconcile(workflow_id: workflow.id), :queued_grader_starving_failed_collect)).to be_nil
+    end
   end
 
   it "marks a queued grader_collect Run failed instead of reenqueueing once its required grader conclusion is already cached failed for the same commit" do
@@ -2284,6 +2417,38 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(lock.reload).not_to be_active
     expect(member.reload).to be_present
     expect(intent.reload).to be_requested
+  end
+
+  # NY43: an emergency merge runs no Workflow; its unit holds the merge lock
+  # for one external call. Left alone while that can still be in flight,
+  # released like any orphan once it has outlived it.
+  describe "an emergency-land unit" do
+    def emergency_unit(started_at:)
+      intent = WorkIntent.create!(kind: "emergency_land", state: "requested", repository: job.repository,
+        scope_type: "job", scope_id: job.id, actor: job.user, requested_at: started_at)
+      unit = WorkUnit.create!(work_intent: intent, kind: "emergency_land", state: "running", repository: job.repository,
+        scope_type: "job", scope_id: job.id, started_at: started_at)
+      [ unit, unit.work_unit_locks.create!(lock_key: "merge:repository:#{job.repository_id}") ]
+    end
+
+    it "is left alone while its merge can still be in flight" do
+      unit, lock = emergency_unit(started_at: 1.minute.ago)
+
+      result = reconcile_and_execute
+
+      expect(kind(result, :active_work_unit_without_workflow)).to be_nil
+      expect(unit.reload).to be_running
+      expect(lock.reload).to be_active
+    end
+
+    it "is cancelled, releasing its merge lock, once it has outlived its merge" do
+      unit, lock = emergency_unit(started_at: (WorkDefinitions::EmergencyLand::STALE_AFTER + 1.minute).ago)
+
+      reconcile_and_execute
+
+      expect(unit.reload).to be_cancelled
+      expect(lock.reload).not_to be_active
+    end
   end
 
   it "finishes stale job-scoped WorkUnits for closed jobs" do

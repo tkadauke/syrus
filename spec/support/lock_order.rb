@@ -7,6 +7,9 @@ require Rails.root.join("lib/syrus/lock_order")
 # record collects every violation instead. Recorded ones are written to
 # tmp/lock_order_violations.json at the end of the run.
 Syrus::LockOrder::Checker.install!
+# Writes count: an UPDATE or DELETE takes a row lock just as SELECT ... FOR
+# UPDATE does (NY40).
+ENV["SYRUS_LOCK_ORDER_WRITES"] ||= "1"
 Syrus::LockOrder::Checker.mode = ENV.fetch("SYRUS_LOCK_ORDER", "raise").to_sym
 
 RSpec.configure do |config|

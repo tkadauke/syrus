@@ -208,16 +208,27 @@ class WorkUnit < ApplicationRecord
   end
 
   def lock_definition_jobs!
+    # With their Epics, top down (NY40): a Job state change this transaction
+    # makes refreshes its Epic.
+    Lineage.lock_all!(definition_jobs)
+  end
+
+  # Every Job this unit's definition covers: its members, its Workflow's Job
+  # and a Job scope.
+  def definition_jobs
     job_ids = work_unit_members.pluck(:job_id)
     job_ids << workflow.job_id if workflow
     job_ids << scope_id if scope_type == "job" && scope_id.present?
-    Job.where(id: job_ids.compact.uniq).order(:id).lock.load
+    Job.where(id: job_ids.compact.uniq).order(:id).to_a
   end
 
   def mark_terminal!(state)
     raise ArgumentError, "state must be terminal" unless state.to_s.in?(TERMINAL_STATES)
 
     transaction do
+      # Retiring the unit settles its intent and rolls up to its Job, so its
+      # ancestry is locked first, top down (NY40).
+      Lineage.lock!(self)
       update!(
         state: state.to_s,
         finished_at: finished_at || Time.current,
@@ -239,7 +250,9 @@ class WorkUnit < ApplicationRecord
     sync_terminal = false
 
     transaction do
-      lock!
+      # Ancestry first, top down (NY40): preempting settles the intent.
+      Lineage.lock!(self)
+      reload
       if cancelled?
         update!(
           preemption_reason: preemption_reason.presence || reason.to_s.truncate(PREEMPTION_REASON_MAX_LENGTH),
@@ -385,7 +398,7 @@ class WorkUnit < ApplicationRecord
     # otherwise-unrelated units onto the same "<scope_type>::<kind>" key,
     # so skip the dedup guarantee rather than false-collide them. The
     # per-job lock keys in create_lock! still protect these cases.
-    self.active_dedup_key = active? && scope_id.present? && lock_conflicts_enforced_for_kind? ? "#{scope_type}:#{scope_id}:#{kind}" : nil
+    self.active_dedup_key = active? && scope_id.present? && lock_conflicts_enforced_for_kind? && scope_deduplicated_for_kind? ? "#{scope_type}:#{scope_id}:#{kind}" : nil
   end
 
   # A WorkUnit's kind can belong to a plugin that has since been
@@ -398,5 +411,11 @@ class WorkUnit < ApplicationRecord
     definition.lock_conflicts_enforced?
   rescue WorkDefinitions::UnknownKind
     false
+  end
+
+  def scope_deduplicated_for_kind?
+    definition.scope_deduplicated?
+  rescue WorkDefinitions::UnknownKind
+    true
   end
 end

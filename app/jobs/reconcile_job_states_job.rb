@@ -316,7 +316,10 @@ class ReconcileJobStatesJob < ApplicationJob
     end
 
     def apply!
-      job.with_lock do
+      # Epic before Job (NY40): moving the Job refreshes its Epic. Then
+      # reloaded as with_lock would.
+      Job.transaction do
+        Lineage.lock!(job)
         job.reload
         # Re-check: the world may have moved between detection and
         # the lock. If the Job is no longer in the from_state we

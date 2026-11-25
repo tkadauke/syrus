@@ -46,8 +46,13 @@ module WorkDefinitions
     # disabled plugin's work kind disappears together with its trigger kind
     # instead of dangling as a definition pointing at an unknown trigger.
     class_attribute :plugin, instance_accessor: false
+    # A unit of this kind runs no Workflow: it only holds locks for work done
+    # outside the engine (an operator's emergency merge). It declares no
+    # workflow trigger or template.
+    class_attribute :workflowless, instance_accessor: false
 
     self.parent_kind = nil
+    self.workflowless = false
     self.review_publication_step_kinds = []
     self.display_label = nil
 
@@ -57,6 +62,7 @@ module WorkDefinitions
     end
 
     def kind = self.class.kind
+    def workflowless? = self.class.workflowless
     def workflow_trigger_kind = self.class.workflow_trigger_kind
     def runtime_role = self.class.runtime_role
     def scope = self.class.scope
@@ -148,6 +154,11 @@ module WorkDefinitions
     end
     def active_work_lock_wait_reason_for_blocked_definition(_blocked_definition) = { key: "blocked_by_active_landing_unit" }
     def active_work_lock_wait_reason_when_blocked_by_merge_train = { key: "blocked_by_active_landing_unit" }
+    # One non-terminal unit per scope and kind (work_units.active_dedup_key).
+    # A definition whose units are already exclusive through their lock keys
+    # can opt out to let several run in one scope.
+    def scope_deduplicated? = true
+
     def lock_conflicts_enforced?
       return true if WorkUnits::PathOwnership::PATH_GROUPS.key?(kind)
       return true if first_class? && scope == "job"

@@ -18,6 +18,11 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | POST | `/api/v1/admin/console/pause_runs` | `api/v1/admin/console#pause_runs` |
 | core | POST | `/api/v1/admin/console/unpause_polling` | `api/v1/admin/console#unpause_polling` |
 | core | POST | `/api/v1/admin/console/unpause_runs` | `api/v1/admin/console#unpause_runs` |
+| core | GET | `/api/v1/admin/coworker_base_releases` | `api/v1/admin/coworker_base_releases#index` |
+| core | POST | `/api/v1/admin/coworker_base_releases/:id/promote` | `api/v1/admin/coworker_base_releases#promote` |
+| core | POST | `/api/v1/admin/coworker_base_releases/:id/revoke` | `api/v1/admin/coworker_base_releases#revoke` |
+| core | POST | `/api/v1/admin/coworker_base_releases/:id/support` | `api/v1/admin/coworker_base_releases#support` |
+| core | POST | `/api/v1/admin/coworker_base_releases/rollback` | `api/v1/admin/coworker_base_releases#rollback` |
 | core | GET | `/api/v1/admin/epics` | `api/v1/admin/epics#index` |
 | core | POST | `/api/v1/admin/epics` | `api/v1/admin/epics#create` |
 | core | GET | `/api/v1/admin/epics/:id` | `api/v1/admin/epics#show` |
@@ -52,6 +57,14 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | GET | `/api/v1/admin/runs/:run_id/transcript` | `api/v1/admin/transcripts#show` |
 | core | GET | `/api/v1/admin/runs/:run_id/transcript/events/:event_index` | `api/v1/admin/transcripts#event` |
 | core | GET | `/api/v1/admin/runs/:run_id/transcript/raw` | `api/v1/admin/transcripts#raw` |
+| core | GET | `/api/v1/admin/runtime_image_build_network_rules` | `api/v1/admin/runtime_image_build_network_rules#index` |
+| core | POST | `/api/v1/admin/runtime_image_build_network_rules` | `api/v1/admin/runtime_image_build_network_rules#create` |
+| core | DELETE | `/api/v1/admin/runtime_image_build_network_rules/:id` | `api/v1/admin/runtime_image_build_network_rules#destroy` |
+| core | PATCH | `/api/v1/admin/runtime_image_build_network_rules/:id` | `api/v1/admin/runtime_image_build_network_rules#update` |
+| core | PUT | `/api/v1/admin/runtime_image_build_network_rules/:id` | `api/v1/admin/runtime_image_build_network_rules#update` |
+| core | GET | `/api/v1/admin/runtime_image_build_requests` | `api/v1/admin/runtime_image_build_requests#index` |
+| core | POST | `/api/v1/admin/runtime_image_build_requests/:id/cancel` | `api/v1/admin/runtime_image_build_requests#cancel` |
+| core | GET | `/api/v1/admin/runtime_image_build_requests/:id/evidence` | `api/v1/admin/runtime_image_build_evidences#show` |
 | core | GET | `/api/v1/admin/runtime_images` | `api/v1/admin/runtime_images#show` |
 | core | POST | `/api/v1/admin/runtime_images/reconcile` | `api/v1/admin/runtime_images#reconcile` |
 | core | GET | `/api/v1/admin/settings` | `api/v1/admin/settings#show` |

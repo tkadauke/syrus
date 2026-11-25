@@ -50,12 +50,24 @@ module RuntimeImages
     # Makes the image available locally and leases it so eviction cannot
     # remove it while in use. Yields the pullable reference when a block is
     # given and releases the lease afterwards.
-    def acquire(image, prefetch: false)
+    #
+    # Standard coworker base images are validated against the runtime ABI
+    # before the lease is handed out (fail closed): an incompatible, unsigned,
+    # or under-confined image raises RuntimeAbi::Incompatible and is never
+    # returned to a launcher. +provider+ narrows the check to the provider
+    # the turn will run; +confinement_policy+ is what the worker enforces.
+    def acquire(image, prefetch: false, provider: nil, confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION)
       unless image.reload.pullable?
         record(image, "revoked", monotonic, cache_hit: false, prefetch: prefetch)
         raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
       end
       entry, hit = lease_local(image, prefetch)
+      begin
+        validate_abi!(image, provider: provider, confinement_policy: confinement_policy)
+      rescue RuntimeAbi::Incompatible
+        release(entry)
+        raise
+      end
       return Pulled.new(reference: reference_for(image), cache_hit: hit, entry: entry) unless block_given?
       begin
         yield reference_for(image)
@@ -67,8 +79,13 @@ module RuntimeImages
     # Drops one lease. The entry stays protected until every concurrent
     # holder has released (or the lease expires). Non-block callers pass
     # Pulled#entry.
+    #
+    # Only a release of the lease epoch this holder joined counts down. A
+    # holder that outlived its lease would otherwise release the lease a later
+    # acquisition started over, and eviction could remove that holder's image
+    # (formal/SyrusModel/CacheLease.lean, `current_holder_protected`).
     def release(entry)
-      scope = RuntimeImageCacheEntry.where(id: entry.id)
+      scope = RuntimeImageCacheEntry.where(id: entry.id, lease_epoch: entry.lease_epoch)
       scope.where("lease_count > 0").update_all("lease_count = lease_count - 1")
       scope.where(lease_count: 0).update_all(leased_until: nil)
       nil
@@ -140,6 +157,11 @@ module RuntimeImages
     end
 
     private
+
+    def validate_abi!(image, provider:, confinement_policy:)
+      return unless image.source_kind == CoworkerBase::SOURCE_KIND
+      RuntimeAbi.validate_for_launch!(image: image, labels: @engine.labels(reference_for(image)), provider: provider, confinement_policy: confinement_policy)
+    end
 
     def cache_bytes = RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes)
 
@@ -291,12 +313,22 @@ module RuntimeImages
     # only matches an unleased "present" entry. The database serializes the
     # two, so exactly one wins: an acquired image is never removed, and an
     # evicted one is never reported as leased.
+    #
+    # Starting an expired lease over begins a new epoch; the holder records the
+    # epoch it joined, which scopes its release. The epoch is read after the
+    # update: it can only change again once this lease expires.
     def lease(entry)
       now = @clock.call
-      RuntimeImageCacheEntry.where(id: entry.id, state: "present").update_all([
+      leased = RuntimeImageCacheEntry.where(id: entry.id, state: "present").update_all([
+        "lease_epoch = CASE WHEN leased_until IS NULL OR leased_until <= ? THEN lease_epoch + 1 ELSE lease_epoch END, " \
         "lease_count = CASE WHEN leased_until IS NULL OR leased_until <= ? THEN 1 ELSE lease_count + 1 END, leased_until = ?",
-        now, now + @lease_seconds
+        now, now, now + @lease_seconds
       ]) == 1
+      return false unless leased
+
+      entry.lease_epoch = RuntimeImageCacheEntry.where(id: entry.id).pick(:lease_epoch)
+      entry.clear_attribute_changes([ :lease_epoch ])
+      true
     end
 
     # Ensures the image is local and leased. If eviction claimed the entry

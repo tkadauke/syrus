@@ -49,6 +49,15 @@ module WorkUnits
       ).instantiate
     end
 
+    # A unit of a workflow-less definition (an emergency merge, NY43): it runs
+    # no Workflow, so it is started here, through WorkUnit#mark_running!,
+    # which acquires its lock keys first, and finished by the caller. Raises
+    # LockConflict when an active unit already owns one of its locks.
+    def self.start_workflowless!(kind:, job:, source_type: "workflowless_launch", source_id: nil)
+      new(kind: kind, job: job, artifacts: nil, agent_provider: nil, idempotency_key: nil,
+        source_type: source_type, source_id: source_id, options: {}).start_workflowless!
+    end
+
     def self.instantiate_intent!(intent, artifacts: nil, agent_provider: nil, **options)
       relaunch_context = relaunch_context_for_intent!(intent)
       artifacts = relaunch_artifacts_for(intent, artifacts)
@@ -226,6 +235,19 @@ module WorkUnits
       @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
       @member_jobs = @member_jobs_override || @definition.members_for(job: job, artifacts: payload_artifacts, **options)
       @ref_metadata = @definition.ref_metadata_for(job: job, artifacts: payload_artifacts, **options)
+    end
+
+    def start_workflowless!
+      raise ArgumentError, "#{definition.kind} runs a Workflow; use instantiate" unless definition.workflowless?
+
+      WorkIntent.transaction do
+        intent = find_or_create_intent!
+        unit = create_unit!(intent)
+        create_locks!(unit)
+        create_members!(unit)
+        unit.mark_running!
+        unit
+      end
     end
 
     def instantiate

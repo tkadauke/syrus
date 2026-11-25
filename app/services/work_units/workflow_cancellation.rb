@@ -48,7 +48,11 @@ module WorkUnits
       staged_changes = workflow.staged_artifact_changes
       workflow.reload if workflow.has_changes_to_save?
 
-      workflow.with_lock do
+      # Cancelling rolls up to the WorkUnit, intent and Job, so the Workflow's
+      # ancestry is locked first, top down (NY40), then the Workflow is
+      # reloaded as with_lock would.
+      Workflow.transaction do
+        Lineage.lock!(workflow)
         workflow.reload
         if workflow.may_cancel? || workflow.may_dismiss?
           workflow.artifacts = workflow.artifacts.to_h.merge(staged_changes).merge(artifacts.to_h.deep_stringify_keys)

@@ -54,3 +54,17 @@ because it owns the answers to "what else should I install?"
 ingress, persistent storage, secrets management, backups, and operational
 monitoring. It is the hard-mode path; use it when you need cluster-native
 operations, not because it looks more official.
+
+## Runtime image build evidence
+
+Each runtime image build attempt records provenance evidence: source digest, resolved base image digests (including `ARG`-parameterized `FROM` lines), the build-network policy digest, builder version, reached destinations, layer digests, measured resource usage, and the terminal result. Build logs are sanitized and size-bounded before storage; output past the cap is counted, not kept. Administrators can read the full evidence at `GET /api/v1/admin/runtime_image_build_requests/:id/evidence`; other surfaces only see a safe summary without log text or addresses.
+
+## Runtime image build recovery
+
+Builds retry after a lost worker, an attempt that runs too long, registry unavailability, or quota exhaustion (with slower backoff for the last two), and stop without retrying when a build failed on destinations the allowlist refused (`network_denied`). Identical requests share one live build, and administrators can cancel a build or list requests and attempts through `/api/v1/admin/runtime_image_build_requests`. `GET /api/v1/admin/runtime_images` reports build queue age, stale attempts, failure codes, and denied-destination counts, and Prometheus alerts fire on stuck attempts and a stalled queue.
+
+## Coworker base promotion, rollback, and revocation
+
+A published, conformance-verified coworker base starts as a candidate. Administrators promote it to be the active base for its platform (one active base per platform), which retires the previous base and keeps it pullable for 90 days so it can be rolled back to. Use `POST /api/v1/admin/coworker_base_releases/:id/promote`, `POST .../rollback` (`platform`, optional `release_id` of a retired base for that platform), `POST .../:id/support` (`supported_until`, or null to clear), and `POST .../:id/revoke` (`reason`, `severity` of `standard` or `severe`). `GET /api/v1/admin/coworker_base_releases` lists releases, each platform's launch state, and the environments that need a rebuild.
+
+Revoking a base withdraws its image and blocks new launches from it; if it was active, launches stay blocked (no silent fallback to another image) until another candidate is promoted or a retired base is rolled back to. A severe revocation is also the signal used to terminate executions already running on it. After any base change, environments built on a revoked, out-of-support, or ABI-incompatible base are reported as needing a rebuild; a superseded but still supported base is not. Every change is audited with the acting administrator.
