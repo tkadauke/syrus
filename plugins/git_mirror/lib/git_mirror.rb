@@ -1,5 +1,5 @@
 module GitMirror
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "git_mirror" do
     requires_syrus nil

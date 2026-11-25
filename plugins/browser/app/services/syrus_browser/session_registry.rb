@@ -2,7 +2,7 @@ module SyrusBrowser
   # In-process registry of live browser Sessions, one per owning session key
   # (see SessionContext -- a workflow Run for visual_review, or a Coding
   # Mode chat's RuntimeSession). Lives entirely in sidecar process memory —
-  # mirrors Mcp::Tools::AgentPreviewRegistry's per-step lifecycle. The
+  # mirrors Syrus::Host::AgentPreviewRegistry's per-step lifecycle. The
   # sidecar's at_exit hook (app/services/mcp/sidecar.rb) kills every
   # remaining session so a step that never calls browser_close still
   # doesn't leak a headless Chromium process past the step's lifetime.

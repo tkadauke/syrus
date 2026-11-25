@@ -1,5 +1,5 @@
 module DesignDocs
-  class IndexSearchJob < PluginJob
+  class IndexSearchJob < Syrus::Host::PluginJob
     plugin :design_docs
 
     def perform(design_doc_id)

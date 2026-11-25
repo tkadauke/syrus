@@ -29,7 +29,7 @@ module AgentInsights
       )
 
       class << self
-        include McpToolPayloads::WorkflowPayload
+        include Syrus::Host::WorkflowPayload
 
         DEFAULT_LIMIT = 20
         MAX_LIMIT = 50

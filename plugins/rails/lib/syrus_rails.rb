@@ -12,7 +12,7 @@ require "syrus_rails/preview_provider"
 require "syrus_rails/ecosystem"
 
 module SyrusRails
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   # Returns true when the given repo path looks like a Rails application.
   # Used by :preview_provider and other consumers before activating Rails-specific behavior.

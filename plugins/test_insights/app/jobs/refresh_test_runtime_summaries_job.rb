@@ -1,7 +1,7 @@
 # Recomputes derived runtime statistics outside the grader's landing slot.
 # TestRun, TestCase, and TestIdentity rows are already durable before this is
 # enqueued, so this work does not depend on the ephemeral grader workspace.
-class RefreshTestRuntimeSummariesJob < PluginJob
+class RefreshTestRuntimeSummariesJob < Syrus::Host::PluginJob
   plugin :test_insights
 
   def perform(test_identity_ids, grader_name)

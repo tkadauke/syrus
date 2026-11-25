@@ -19,7 +19,7 @@ module SyrusDev
     end
 
     def initialize(scope_type:, scope_id: nil, initiated_by:)
-      raise ArgumentError, "syrus_dev plugin is disabled" unless PluginRecord.find_by(name: "syrus_dev")&.effective_enabled?
+      raise ArgumentError, "syrus_dev plugin is disabled" unless Syrus::Host::PluginRecord.find_by(name: "syrus_dev")&.effective_enabled?
       raise ArgumentError, "initiating user must be an admin" unless initiated_by&.admin?
 
       @scope = PermissionFactoryResetScope.for(scope_type, id: scope_id)
@@ -75,7 +75,7 @@ module SyrusDev
       factory_profiles = factory_profile_plans(lock: lock)
       fingerprint_relations = relations.merge(
         active_rules: scope.rules.active,
-        pending_authorization_items: PendingActionItem.pending.where(
+        pending_authorization_items: Syrus::Host::PendingActionItem.pending.where(
           chat_pending_action_id: relations.fetch(:requests).select(:id)
         ),
         profile_users: scope.profile_users
@@ -108,7 +108,7 @@ module SyrusDev
       resettable_rules = active_rules.where.not(source: factory_source)
       leases = scope.leases.not_revoked
       requests = scope.requests.where(state: %w[queued pending])
-      invocations = AuthorizedInvocation.unclaimed.where(
+      invocations = Syrus::Host::AuthorizedInvocation.unclaimed.where(
         "authority_type = 'PermissionRule' AND authority_id IN (?) OR authority_type = 'PermissionLease' AND authority_id IN (?) OR pending_action_item_id IN (?)",
         active_rules.select(:id), leases.select(:id), requests.joins(:authorization_items).select("pending_action_items.id")
       )
@@ -118,7 +118,7 @@ module SyrusDev
         invocations:,
         requests:,
         resumptions: requests.where(checkpoint_state: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES),
-        profiles: active_rules.where("source LIKE ?", "#{Permissions::Management::PROFILE_SOURCE_PREFIX}%").where.not(source: factory_source)
+        profiles: active_rules.where("source LIKE ?", "#{Syrus::Host::PermissionManagement::PROFILE_SOURCE_PREFIX}%").where.not(source: factory_source)
       }
     end
 
@@ -153,7 +153,7 @@ module SyrusDev
 
     def factory_profile_plans(lock: false)
       scope.profile_users.flat_map do |user|
-        management = Permissions::Management.new(user)
+        management = Syrus::Host::PermissionManagement.new(user)
         PROFILE_SUBJECTS.map do |subject|
           plan = management.profile_plan(
             profile_key: DEFAULT_PROFILE,
@@ -225,7 +225,7 @@ module SyrusDev
       )
     end
 
-    def factory_source = "#{Permissions::Management::PROFILE_SOURCE_PREFIX}#{DEFAULT_PROFILE}"
+    def factory_source = "#{Syrus::Host::PermissionManagement::PROFILE_SOURCE_PREFIX}#{DEFAULT_PROFILE}"
 
     def digest(snapshot)
       Digest::SHA256.hexdigest([ scope.key, scope.id, DEFAULT_VERSION, snapshot ].to_json)

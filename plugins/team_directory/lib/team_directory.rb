@@ -1,5 +1,5 @@
 module TeamDirectory
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "team_directory" do
     experimental false

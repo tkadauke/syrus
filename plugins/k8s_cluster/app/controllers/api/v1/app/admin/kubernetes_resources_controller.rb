@@ -193,7 +193,7 @@ module Api
           end
 
           def set_cluster
-            @cluster = KubernetesCluster.find(params[:id])
+            @cluster = Syrus::Host::KubernetesCluster.find(params[:id])
           end
 
           def require_k8s_cluster_enabled
