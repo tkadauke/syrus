@@ -60,9 +60,23 @@ module RuntimeImages
             raise BuildFailed.new("unprivileged user+mount namespaces with a size-bounded tmpfs are required to bound builder storage",
                                   code: "builder_not_isolated", retryable: false)
           end
-          return if isolated_network_available?
+          unless isolated_network_available?
+            raise BuildFailed.new("an unprivileged network namespace with only a loopback device is required to enforce build egress",
+                                  code: "builder_not_isolated", retryable: false)
+          end
+          verify_cgroup_enforceable!
+        end
 
-          raise BuildFailed.new("an unprivileged network namespace with only a loopback device is required to enforce build egress",
+        # Before the build, not only after it (verify_applied!): a build whose
+        # memory/CPU/PID cgroup cannot be created would otherwise run
+        # unconfined first and be rejected afterwards, on every retry (F135).
+        def verify_cgroup_enforceable!
+          return if Config.cgroup_optional?
+
+          reason = SpawnedProcessCgroup.unenforceable_reason(pids: true)
+          return unless reason
+
+          raise BuildFailed.new("cgroup memory/CPU/PID limits cannot be applied on this worker: #{reason}",
                                 code: "builder_not_isolated", retryable: false)
         end
 

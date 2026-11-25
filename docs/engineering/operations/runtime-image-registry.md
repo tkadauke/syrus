@@ -117,9 +117,11 @@ sampled, and nothing persists between builds or is shared across namespaces
 `_MAX_SOURCE_BYTES`, `_MAX_SOURCE_ENTRIES`; `RUNTIME_IMAGE_BUILD_BINARY` and
 `_STORAGE_DRIVER` select the tool and driver. The builder fails closed (`builder_not_isolated`): it refuses to run as root
 unless `RUNTIME_IMAGE_BUILD_WORKER_CONFINED=1` attests the worker is itself a
-confined sandbox, requires `prlimit` plus a working bounded-tmpfs user namespace (probed before each build), and rejects a command whose per-spawn
-cgroup memory/CPU limits were not applied (override only with
-`RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL=1`). Build and push run as one command under
+confined sandbox, requires `prlimit` plus a working bounded-tmpfs user namespace (probed before each build), and requires
+per-spawn cgroup memory/CPU/PID limits: before each build it checks that they can be applied (the `per_spawn_resource_limits`
+feature on, cgroup v2 with delegated memory and pids controllers) and refuses the build otherwise, and afterwards it rejects a
+command whose limits were not actually applied (override both only with `RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL=1`). With
+`per_spawn_resource_limits` off, which is its default, no build runs. Build and push run as one command under
 `prlimit` (process count, largest file, CPU seconds); the host-side source and
 output archive are re-checked after the command. Accepted recipe keys are
 `dockerfile`, `context`, `target`, and `build_args`.

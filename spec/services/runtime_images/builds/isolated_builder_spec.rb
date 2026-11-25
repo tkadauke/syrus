@@ -328,11 +328,29 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect { c.verify! }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("builder_not_isolated") }
     end
 
-    it "accepts the confinement probe when prlimit and the tmpfs namespace work" do
+    it "accepts the confinement probe when prlimit, the tmpfs namespace and the cgroup work" do
       allow(Process).to receive(:euid).and_return(1000)
+      allow(SpawnedProcessCgroup).to receive(:unenforceable_reason).with(pids: true).and_return(nil)
       c = described_class::Confinement.new
       allow(c).to receive(:probe).and_return(true, true, true)
       expect { c.verify! }.not_to raise_error
+    end
+
+    # F135: the memory/CPU/PID cgroup is checked before the build runs, not
+    # only after it: an unconfined build would already have run by then, and
+    # with the default flags every build would be rejected and retried forever.
+    it "fails closed before the build when per-spawn cgroup limits cannot be applied" do
+      allow(Process).to receive(:euid).and_return(1000)
+      allow(RuntimeImages::Builds::Config).to receive(:cgroup_optional?).and_return(false)
+      allow(Feature).to receive(:per_spawn_resource_limits_enabled?).and_return(false)
+      c = described_class::Confinement.new
+      allow(c).to receive(:probe).and_return(true, true, true)
+
+      expect { c.verify! }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e|
+        expect(e.code).to eq("builder_not_isolated")
+        expect(e.retryable).to be(false)
+        expect(e.message).to include("per_spawn_resource_limits")
+      }
     end
 
     it "fails closed when an empty network namespace cannot be created" do

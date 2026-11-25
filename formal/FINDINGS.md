@@ -4910,6 +4910,35 @@ without the fix.
 
 ---
 
+## F135. The isolated builder checked its cgroup limits only after the build ran — fixed
+
+**Invariant.** The isolated runtime image builder fails closed: a build runs
+only under the confinement it promises, which includes per-spawn cgroup memory,
+CPU and PID limits.
+
+**Counterexample.** `Confinement#verify!`, the check made before a build,
+probed root, prlimit, the bounded tmpfs and the empty network namespace, but not
+cgroups. `SpawnedProcessCgroup` marks a cgroup it cannot set up as disabled or
+unavailable and the process starts anyway; `verify_applied!` then rejected the
+result after the command had finished, as a retryable failure. With
+`per_spawn_resource_limits` off, its default, or without a delegated pids
+controller, every build ran without memory and PID limits, was rejected, and
+was retried until its attempts ran out: the promise did not hold while the
+build ran, and no build could succeed. Latent: nothing registers a builder yet.
+
+**Fix.** `SpawnedProcessCgroup.unenforceable_reason(pids:)` makes the same
+checks `#prepare` does, without creating a cgroup (`#prepare` now uses them
+too). `verify!` calls it and refuses before the build, non-retryable, unless
+`RUNTIME_IMAGE_BUILD_CGROUP_OPTIONAL=1`. `verify_applied!` stays as the check
+after the command. The operations doc says builds need the feature on.
+
+**Specs.** `spec/services/runtime_images/builds/isolated_builder_spec.rb`
+("fails closed before the build when per-spawn cgroup limits cannot be
+applied", failing without the fix) and
+`spec/services/spawned_process_cgroup_preflight_spec.rb`.
+
+---
+
 ## F134. Two overlapping build dispatches could run past the global build cap — fixed
 
 **Invariant.** At most `max_concurrent_builds` runtime image builds are in

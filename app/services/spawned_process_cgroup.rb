@@ -10,6 +10,13 @@ class SpawnedProcessCgroup
 
   attr_reader :state
 
+  # Why per-spawn limits could not be applied right now, or nil when they can.
+  # The same checks #prepare makes, without creating a cgroup, so a caller that
+  # must not run unconfined can refuse before spawning (F135).
+  def self.unenforceable_reason(pids: false)
+    allocate.send(:enforcement_blocker, pids: pids)&.last
+  end
+
   def initialize(spawned_process:, resource_limits: nil)
     @spawned_process = spawned_process
     @resource_limits = resource_limits
@@ -109,42 +116,12 @@ class SpawnedProcessCgroup
               :memory_peak_bytes, :cpu_max, :io_weight, :pids_max, :cpu_stat, :io_stat, :budget, :cleanup
 
   def prepare
-    unless Feature.per_spawn_resource_limits_enabled?
-      @state = "disabled"
-      @reason = "per_spawn_resource_limits feature flag is disabled"
-      return
-    end
-
-    unless linux_platform?
-      @state = "unavailable"
-      @reason = "no cgroup enforcement available on #{Etc.uname[:sysname]} outside a Linux container"
+    if (blocker = enforcement_blocker(pids: resource_limits&.pids_max.present?))
+      @state, @reason = blocker
       return
     end
 
     parent = parent_cgroup_path
-    unless parent
-      @state = "unavailable"
-      @reason = "cgroup v2 parent could not be detected"
-      return
-    end
-
-    unless memory_controller_available?(parent)
-      @state = "unavailable"
-      @reason = "memory controller is not available in the parent cgroup"
-      return
-    end
-
-    unless cgroup_delegation_available?(parent)
-      @state = "unavailable"
-      @reason = "worker cgroup is not delegated for child cgroup creation"
-      return
-    end
-
-    if resource_limits&.pids_max && !enable_subtree_controller(parent, "pids")
-      @state = "unavailable"
-      @reason = "pids controller is not available in the parent cgroup"
-      return
-    end
 
     budget_result = SpawnedProcessCgroupBudget.for(spawned_process: spawned_process)
     @budget = budget_result.details
@@ -180,6 +157,22 @@ class SpawnedProcessCgroup
     @state = "failed"
     @reason = "failed to prepare cgroup: #{e.class}: #{e.message}"
     cleanup!
+  end
+
+  # [state, reason] when a per-spawn cgroup cannot be set up, nil when it can.
+  def enforcement_blocker(pids:)
+    return [ "disabled", "per_spawn_resource_limits feature flag is disabled" ] unless Feature.per_spawn_resource_limits_enabled?
+    unless linux_platform?
+      return [ "unavailable", "no cgroup enforcement available on #{Etc.uname[:sysname]} outside a Linux container" ]
+    end
+
+    parent = parent_cgroup_path
+    return [ "unavailable", "cgroup v2 parent could not be detected" ] unless parent
+    return [ "unavailable", "memory controller is not available in the parent cgroup" ] unless memory_controller_available?(parent)
+    return [ "unavailable", "worker cgroup is not delegated for child cgroup creation" ] unless cgroup_delegation_available?(parent)
+    return [ "unavailable", "pids controller is not available in the parent cgroup" ] if pids && !enable_subtree_controller(parent, "pids")
+
+    nil
   end
 
   def parent_cgroup_path
