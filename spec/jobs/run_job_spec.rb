@@ -1374,6 +1374,47 @@ RSpec.describe RunJob, :ci_only do
       end
     end
 
+    # Regression: after a worker restart lost the workspace, a retried
+    # grader_collect crashed on the missing directory and refailed the
+    # reopened Workflow before the reconciler could reconstruct it.
+    describe "a grader collector whose workspace was lost" do
+      let(:wf) { job.workflows.last }
+      let!(:collect_step) do
+        wf.steps.where.not(id: nil).update_all(state: "succeeded")
+        wf.steps.create!(kind: "grader_collect", position: 999, state: "queued")
+      end
+      let!(:collect_run) do
+        collect_step.runs.create!(job: job, user: job.user, trigger_kind: wf.trigger_kind,
+                                  agent_provider: wf.agent_provider, state: "queued")
+      end
+
+      before do
+        wf.update_columns(state: "running", workspace_lifecycle_state: "created", worker_hostname: nil, worker_storage_key: nil)
+        FileUtils.rm_rf(WorkflowWorkspace.path_for(wf))
+      end
+
+      it "stays queued for workspace reconstruction instead of running" do
+        expect(Steps).not_to receive(:handler_for)
+
+        expect { RunJob.perform_now(collect_run.id) }.to have_enqueued_job(RunJob).with(collect_run.id)
+
+        expect(collect_run.reload).to be_queued
+        expect(JobLog.where(run: collect_run).pluck(:chunk))
+          .to include("step grader_collect is waiting for its lost workspace to be reconstructed")
+      end
+
+      it "runs normally when the workspace was never created" do
+        wf.update_columns(workspace_lifecycle_state: nil)
+        handler = instance_double(Steps::GraderCollect, call: nil)
+        allow(Steps).to receive(:handler_for).and_call_original
+        allow(Steps).to receive(:handler_for).with("grader_collect").and_return(class_double(Steps::GraderCollect, new: handler))
+
+        RunJob.perform_now(collect_run.id)
+
+        expect(handler).to have_received(:call)
+      end
+    end
+
     it "defers a queued Run before start when the selected compute host is saturated" do
       job
       wf = job.workflows.last

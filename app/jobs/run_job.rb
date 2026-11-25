@@ -94,6 +94,9 @@ class RunJob < ApplicationJob
   UNKNOWN_KIND_HANDBACK_LIMIT = 20
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
   STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
+  MISSING_WORKSPACE_RETRY_DELAY = 1.minute
+  # A workspace in these states existed; its absence means it was lost.
+  WORKSPACE_EXPECTED_LIFECYCLE_STATES = %w[created reconstructed storage_lost].freeze
   WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
@@ -552,6 +555,7 @@ class RunJob < ApplicationJob
     authorization_continuation = pending_authorization_continuation?
     return if !authorization_continuation && handle_running_reentry
     return if defer_until_step_dependencies_settle
+    return if defer_for_missing_workspace?
 
     if workflow_starting? && (merged_pr = merged_pull_request)
       succeed_workflow_for_merged_pull_request!(merged_pr)
@@ -623,6 +627,24 @@ class RunJob < ApplicationJob
   # existing identity.
   def record_mutable_workspace_identity!
     @workflow.record_worker_identity! unless @run.distributed_parallel_run?
+  end
+
+  # Graders and their collectors read the workflow workspace without setting
+  # it up. After a worker restart loses the workspace, a retried collector
+  # crashed on the missing directory within a second, failing the reopened
+  # Workflow before the reconciler could reconstruct it, so every retry
+  # looped. Hold the Run queued instead: the Workflow is running with a live
+  # Run, which is exactly what recover_missing_workspace repairs and resumes.
+  def defer_for_missing_workspace?
+    return false unless @step.kind.in?(WorkflowWorkspaceRecovery::REPLAY_SAFE_KINDS)
+    return false if WorkflowWorkspaceRecovery::WORKSPACE_FREE_PLACEMENTS.include?(@step.placement_policy)
+    return false unless @workflow.workspace_lifecycle_state.in?(WORKSPACE_EXPECTED_LIFECYCLE_STATES)
+    return false if File.directory?(WorkflowWorkspace.path_for(@workflow))
+    return false if WorkflowWorkspace.remote_owner_may_hold_workspace?(@workflow)
+
+    log("step #{@step.kind} is waiting for its lost workspace to be reconstructed", kind: "system")
+    defer_run(@run.id, MISSING_WORKSPACE_RETRY_DELAY)
+    true
   end
 
   def defer_until_step_dependencies_settle
