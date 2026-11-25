@@ -800,6 +800,21 @@
     "example_pending": "Ausstehender Abbruch mit ausgewählten Zielen",
     "example_error": "Nicht zulässige Abbruchanfrage"
   },
+  "hold_job": {
+    "failure_title": "Job-Anhalten",
+    "attempted": "Job anhalten",
+    "recovery": "Prüfe, ob der Job aktive Arbeit und eine unerfüllte Abhängigkeit hat, und versuche es dann erneut.",
+    "job": "Auftrag",
+    "effect": "Wirkung",
+    "effect_waiting": "Bricht aktive Läufe und Workflows ab, gibt Sperren frei und setzt den Job zurück in das Warten auf seine Abhängigkeiten.",
+    "effect_backlog": "Bricht aktive Läufe und Workflows ab, gibt Sperren frei und verschiebt den Job ins Backlog.",
+    "kept": "Bleibt erhalten",
+    "kept_value": "Der Job bleibt offen; sein PR und sein Branch werden nicht angetastet.",
+    "not_provided": "Nicht angegeben",
+    "input_unavailable": "Anfragedetails sind für diesen aufgezeichneten Werkzeugaufruf nicht verfügbar.",
+    "example_pending": "Ausstehendes Anhalten eines Jobs, der außer der Reihe läuft",
+    "example_error": "Abgelehnte Anhalten-Anfrage"
+  },
   "check_job_mergeability": {
     "job": "Auftrag",
     "not_provided": "Nicht angegeben",

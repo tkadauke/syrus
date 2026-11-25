@@ -12,14 +12,16 @@ module Mcp::Tools
         remove_dependency_job_id: { type: "integer", description: "Current prerequisite Job id to remove." },
         add_dependency_job_id: { type: "integer", description: "Replacement prerequisite Job id to add." },
         satisfaction_mode: { type: "string", enum: JobDependency::SATISFACTION_MODES },
-        required_deployment_stage_name: { type: "string" }
+        required_deployment_stage_name: { type: "string" },
+        hold_running: { type: "boolean", description: "When the new dependencies are unsatisfied and the Job has an active Run, hold the Job (cancel its active work and return it to waiting) instead of rejecting the edit. Defaults to false: the edit is rejected, naming the active Run." },
+        reason: { type: "string", description: "Audit reason recorded when hold_running holds the Job." }
       },
       required: %w[job_id remove_dependency_job_id add_dependency_job_id]
     )
 
     class << self
       def call(job_id:, remove_dependency_job_id:, add_dependency_job_id:, satisfaction_mode: nil,
-        required_deployment_stage_name: nil, server_context:)
+        required_deployment_stage_name: nil, hold_running: false, reason: nil, server_context:)
         user = server_context.fetch(:chat_session).user
         scope = job_scope_for(user)
         job = scope.find_by(id: job_id)
@@ -42,9 +44,12 @@ module Mcp::Tools
           replacement.validate!
           removed.destroy!
           replacement.save!
+          JobDependencyEditGuard.enforce!(job, hold_running: hold_running == true, reason: reason)
         end
 
         Mcp::Tools::AddJobDependencyTool.send(:success_payload, job.reload)
+      rescue JobDependencyEditGuard::ActiveRunRejection => e
+        Mcp::Tools.invalid(e.message)
       rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
       rescue ActiveRecord::RecordInvalid => e

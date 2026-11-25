@@ -491,4 +491,89 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
       expect(job.reload.depends_on_jobs).to contain_exactly(new_dependency)
     end
   end
+
+  describe "dependency edits on a started Job" do
+    let(:admin_prerequisite) { Factories.job_record(user: user, repository: repository, issue_number: 700, state: "running") }
+
+    def running_job_with_active_run
+      job = Factories.job_record(user: user, repository: repository, issue_number: 701, state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "running")
+      attach_work_unit(workflow, state: "running")
+      run = Run.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "running")
+      [ job, workflow, run ]
+    end
+
+    it "rejects adding an unsatisfied dependency while a Run is active and rolls the edit back" do
+      job, workflow, run = running_job_with_active_run
+
+      response = call_tool("add_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include(run.slug)
+      expect(job.reload.dependencies).to be_empty
+      expect(job).to be_running
+      expect(workflow.reload).to be_running
+    end
+
+    it "holds the Job in the same change with hold_running: true" do
+      job, workflow, run = running_job_with_active_run
+
+      response = call_tool("add_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id, hold_running: true, reason: "out of turn")
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload.dependencies.count).to eq(1)
+      expect(job.state).to eq("queued")
+      expect(run.reload).to be_cancelled
+      expect(workflow.reload).to be_cancelled
+    end
+
+    it "rejects a replacement by default and holds with hold_running: true" do
+      job, _workflow, run = running_job_with_active_run
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 702, state: "closed", closure_reason: "pr_merged")
+      JobDependency.create!(job: job, depends_on_job: old_dependency, source: "manual")
+
+      rejected = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: admin_prerequisite.id)
+      expect(rejected.dig(:result, :isError)).to be true
+      expect(error_text(rejected)).to include(run.slug)
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+
+      held = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: admin_prerequisite.id, hold_running: true)
+      expect(held.dig(:result, :isError)).to be_falsey
+      expect(job.reload.depends_on_jobs).to contain_exactly(admin_prerequisite)
+      expect(job.state).to eq("queued")
+    end
+
+    it "rejects removing a dependency while a Run is active and holds with hold_running: true" do
+      job, workflow, run = running_job_with_active_run
+      dependency = JobDependency.create!(job: job, depends_on_job: admin_prerequisite, source: "manual")
+      other = Factories.job_record(user: user, repository: repository, issue_number: 704, state: "running")
+      JobDependency.create!(job: job, depends_on_job: other, source: "manual")
+
+      rejected = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id)
+      expect(rejected.dig(:result, :isError)).to be true
+      expect(error_text(rejected)).to include(run.slug)
+      expect(JobDependency.exists?(dependency.id)).to be true
+      expect(workflow.reload).to be_running
+
+      held = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id, hold_running: true)
+      expect(held.dig(:result, :isError)).to be_falsey
+      expect(JobDependency.exists?(dependency.id)).to be false
+      expect(run.reload).to be_cancelled
+      expect(workflow.reload).to be_cancelled
+    end
+
+    it "returns a running Job with a blocked Workflow to the waiting state" do
+      job = Factories.job_record(user: user, repository: repository, issue_number: 703, state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "blocked")
+      attach_work_unit(workflow, state: "blocked")
+
+      response = call_tool("add_job_dependency", job_id: job.id, depends_on_job_id: admin_prerequisite.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload.state).to eq("queued")
+      expect(workflow.reload).to be_cancelled
+    end
+  end
 end
