@@ -8,7 +8,11 @@ $ARGUMENTS
 Your job is to make it mergeable again. Specifically:
 
 1. Run `git fetch origin <base_branch>` (the base branch name is given in the context above) so you have the latest base.
-2. Run `git rebase origin/<base_branch>` (you are already on the branch specified in the context).
+2. If the context identifies this as a detach repair, run the exact
+   `git rebase --onto` command given there. Its former-parent commit is the
+   verified boundary of the Job-owned patch and must not be replaced with an
+   ordinary rebase. Otherwise, run `git rebase origin/<base_branch>` (you are
+   already on the branch specified in the context).
 3. If conflicts come up, **resolve them mechanically** — preserve both intents
    where possible, prefer minimal edits, never delete code that looks like real
    work just to make the rebase clean.

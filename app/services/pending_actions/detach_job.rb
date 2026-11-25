@@ -15,7 +15,10 @@ module PendingActions
         job: job,
         destination_base: payload.fetch("destination_base"),
         reason: reason,
-        requested_by: "chat_agent"
+        requested_by: "chat_agent",
+        former_parent_id: payload.dig("plan", "inferred_parent_job_id"),
+        former_parent_head: payload.dig("plan", "former_parent_head"),
+        confirmed_head: payload.dig("plan", "current_branch_head")
       )
       action.update!(payload: payload.merge("result" => result.evidence, "status" => result.status, "workflow_id" => result.workflow&.id))
       audit!("detach repair #{result.status}; destination=#{payload.fetch('destination_base')}; workflow=#{result.workflow&.id || 'none'}", run: result.workflow&.latest_run || job.current_run)

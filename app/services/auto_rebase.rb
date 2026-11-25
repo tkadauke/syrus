@@ -63,11 +63,13 @@ class AutoRebase
     end
   end
 
-  def initialize(job, git: nil, base_branch: nil, branch_name: nil)
+  def initialize(job, git: nil, base_branch: nil, branch_name: nil, old_base_sha: nil, expected_head_sha: nil)
     @job = job
     @git = git || GitRunner.new
     @base_branch_override = base_branch.presence
     @branch_name = branch_name.presence || @job.branch_name
+    @old_base_sha = old_base_sha.presence
+    @expected_head_sha = expected_head_sha.presence
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
   end
 
@@ -88,6 +90,9 @@ class AutoRebase
     base_sha = base_head_sha
     pre_sha = head_sha
     @expected_remote_sha = pre_sha
+    if @expected_head_sha && pre_sha != @expected_head_sha
+      raise ArgumentError, "Branch head changed after confirmation (#{@expected_head_sha} -> #{pre_sha}); dry-run the repair again"
+    end
 
     if rebase_succeeded?
       post_sha = head_sha
@@ -242,13 +247,22 @@ class AutoRebase
   end
 
   def rebase_succeeded?
-    @git.run(
-      "rebase", "origin/#{base_branch}",
-      chdir: clone_path.to_s, env: @env
-    )
+    args = if @old_base_sha
+      verify_old_base_is_ancestor!
+      [ "rebase", "--onto", "origin/#{base_branch}", @old_base_sha ]
+    else
+      [ "rebase", "origin/#{base_branch}" ]
+    end
+    @git.run(*args, chdir: clone_path.to_s, env: @env)
     true
   rescue GitRunner::GitError
     false
+  end
+
+  def verify_old_base_is_ancestor!
+    @git.run("merge-base", "--is-ancestor", @old_base_sha, "HEAD", chdir: clone_path.to_s)
+  rescue GitRunner::GitError
+    raise ArgumentError, "Former parent #{@old_base_sha} is not an ancestor of #{branch_name}; refusing to replay an unverified patch range"
   end
 
   def abort_rebase
