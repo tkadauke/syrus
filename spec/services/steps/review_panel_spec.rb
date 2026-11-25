@@ -230,39 +230,41 @@ RSpec.describe "serial review panels" do
     expect(aggregate).to include("aggregate" => true, "verdict" => "needs_work", "consensus" => "unanimous")
   end
 
-  it "drops a policy-refused member and lets the remaining approval satisfy the panel" do
-    refused = Step.create!(
-      workflow: workflow, kind: "adversarial_review", position: 100, iteration: 1, loop_id: "review-loop",
-      details: { "panel_member" => true, "panel_id" => "routing-rule-44", "provider" => "codex",
-                 "model" => "gpt-5", "on_unavailable" => "drop" }
-    )
-    refused_run = Run.create!(job: job, step: refused, trigger_kind: workflow.trigger_kind, agent_provider: "codex", model: "gpt-5")
-    handler = Steps::AdversarialReview.new(refused_run)
-    refusal = Steps::Base::StepFailed.new(
-      "provider refused the request under its policy", problem_code: :provider_policy_refusal
-    )
+  [ false, true ].each do |required|
+    it "drops a policy-refused member and lets the remaining approval satisfy a required=#{required} panel" do
+      refused = Step.create!(
+        workflow: workflow, kind: "adversarial_review", position: 100, iteration: 1, loop_id: "review-loop",
+        details: { "panel_member" => true, "panel_id" => "routing-rule-44", "provider" => "codex",
+                   "model" => "gpt-5", "on_unavailable" => "drop", "min_members" => 1, "required" => required }
+      )
+      refused_run = Run.create!(job: job, step: refused, trigger_kind: workflow.trigger_kind, agent_provider: "codex", model: "gpt-5")
+      handler = Steps::AdversarialReview.new(refused_run)
+      refusal = Steps::Base::StepFailed.new(
+        "provider refused the request under its policy", problem_code: :provider_policy_refusal
+      )
 
-    expect { handler.send(:handle_unavailable_panel_member!, refusal, review_kind: "adversarial_review") }
-      .to raise_error(Steps::Base::StepSkipped, /provider_policy_refusal/)
+      expect { handler.send(:handle_unavailable_panel_member!, refusal, review_kind: "adversarial_review") }
+        .to raise_error(Steps::Base::StepSkipped, /provider_policy_refusal/)
 
-    workflow.reload
-    workflow.set_artifact!("adversarial_review_iterations", [
-      { "iteration" => 1, "panel_id" => "routing-rule-44", "provider" => "claude", "verdict" => "approved" },
-      *workflow.artifact("adversarial_review_iterations")
-    ])
-    collect = Step.create!(
-      workflow: workflow, kind: "review_panel_collect", position: 101, iteration: 1, loop_id: "review-loop",
-      details: { "panel_review_kind" => "adversarial_review", "panel_id" => "routing-rule-44",
-                 "consensus" => "majority", "min_members" => 1, "dropped_members" => [], "required" => false }
-    )
+      workflow.reload
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "panel_id" => "routing-rule-44", "provider" => "claude", "verdict" => "approved" },
+        *workflow.artifact("adversarial_review_iterations")
+      ])
+      collect = Step.create!(
+        workflow: workflow, kind: "review_panel_collect", position: 101, iteration: 1, loop_id: "review-loop",
+        details: { "panel_review_kind" => "adversarial_review", "panel_id" => "routing-rule-44",
+                   "consensus" => "majority", "min_members" => 1, "dropped_members" => [], "required" => required }
+      )
 
-    Steps::ReviewPanelCollect.new(Run.create!(job: job, step: collect, trigger_kind: workflow.trigger_kind)).call
+      Steps::ReviewPanelCollect.new(Run.create!(job: job, step: collect, trigger_kind: workflow.trigger_kind)).call
 
-    aggregate = workflow.reload.artifact("adversarial_review_iterations").last
-    expect(aggregate).to include("verdict" => "approved")
-    expect(aggregate["vote_breakdown"]).to include("approved" => 1, "skipped" => 1, "counted" => 1)
-    expect(workflow.artifact("adversarial_review_iterations").find { |entry| entry["provider"] == "codex" })
-      .to include("verdict" => "skipped", "skip_reason" => include("provider_policy_refusal"))
+      aggregate = workflow.reload.artifact("adversarial_review_iterations").last
+      expect(aggregate).to include("verdict" => "approved")
+      expect(aggregate["vote_breakdown"]).to include("approved" => 1, "skipped" => 1, "counted" => 1)
+      expect(workflow.artifact("adversarial_review_iterations").find { |entry| entry["provider"] == "codex" })
+        .to include("verdict" => "skipped", "skip_reason" => include("provider_policy_refusal"))
+    end
   end
 
   it "honors an exact-head override without replacing the submitted negative verdict" do
