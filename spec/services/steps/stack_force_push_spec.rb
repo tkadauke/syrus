@@ -111,7 +111,11 @@ RSpec.describe Steps::StackForcePush do
     end
 
     it "fails and retains recovery evidence when the requested detach cannot retarget the PR" do
+      dependency = JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: job.user)
+      child.update_columns(parent_job_id: parent.id)
       child.update_columns(mergeability_base_ref: parent.branch_name)
+      dependency.destroy!
+      child.update_columns(parent_job_id: nil)
       allow(client).to receive(:update_pull_request_base).and_raise(Octokit::Unauthorized.new)
       allow(client).to receive(:branch_head_sha).and_return("r" * 40)
 
@@ -124,6 +128,26 @@ RSpec.describe Steps::StackForcePush do
         "local_sha" => head_sha
       )
       expect(workflow.artifact("branch_divergence")).to include("remote_sha" => "r" * 40, "local_sha" => head_sha)
+      expect(workflow.artifact("stack_publication")).to be_nil
+    end
+
+    it "fails closed when removed dependency topology no longer matches the detach plan" do
+      dependency = JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: job.user)
+      child.update_columns(parent_job_id: parent.id, mergeability_base_ref: parent.branch_name)
+      dependency.destroy!
+
+      allow(client).to receive(:branch_head_sha).and_return(head_sha)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /derived stack topology/)
+
+      expect(client).not_to have_received(:update_pull_request_base)
+      expect(workflow.reload.artifact("stack_publication_failure")).to include(
+        "category" => "postcondition_mismatch",
+        "expected_parent_job_id" => nil,
+        "resolved_parent_job_id" => parent.id,
+        "remote_sha" => head_sha,
+        "local_sha" => head_sha
+      )
       expect(workflow.artifact("stack_publication")).to be_nil
     end
 
