@@ -263,10 +263,10 @@ module Api
         end
 
         def searchable_chat_messages
-          ChatMessage
+          Syrus::Host::ChatMessageRecord
             .active
             .joins(chat_session: :chat_participants)
-            .merge(ChatSession.active)
+            .merge(Syrus::Host::ChatSessionRecord.active)
             .where(chat_participants: { user_id: Syrus::Host::Current.user.id, hidden_at: nil })
         end
 
@@ -561,7 +561,7 @@ module Api
         end
 
         def chat_title(chat_session)
-          chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
+          chat_session.title.presence || Syrus::Host::ChatSessionRecord.fallback_title_for(chat_session.repository)
         end
 
         def grouped_chat_rows(rows)
@@ -631,10 +631,10 @@ module Api
           def filtered_scope(ids:, tree:, user:)
             Syrus::Host::Filters::Compiler.call(
               Syrus::Host::Filters::Ast.parse(tree),
-              scope: ChatMessage
+              scope: Syrus::Host::ChatMessageRecord
                 .active
                 .joins(chat_session: :chat_participants)
-                .merge(ChatSession.active)
+                .merge(Syrus::Host::ChatSessionRecord.active)
                 .where(chat_participants: { user_id: user.id, hidden_at: nil }, id: ids)
                 .distinct,
               user: user,

@@ -20,10 +20,8 @@ not copy a bundled plugin's internal reference into an external plugin.
 
 As part of `syrus plugin validate`, the host-surface scanner inspects Ruby
 without executing it; the validation command later boots the plugin to check
-its runtime contracts. A direct reference to an unsupported core constant is
-an error. A legacy, non-public constant is a warning from the scanner but fails
-the external-plugin host contract; replace it rather than shipping it. Literal
-core names passed to `class_name`,
+its runtime contracts. A direct reference to a non-public core constant is an
+error. Literal core names passed to `class_name`,
 `constantize`, `safe_constantize`, or `const_get` produce warnings because
 static analysis cannot prove what they resolve to. Computed strings cannot be
 detected.
@@ -235,9 +233,8 @@ requirement. Never lower it beneath the scanner's `Minimum Syrus version`.
 
 ### Non-public or unsupported host API
 
-`expected weather_tools host-surface scan to be clean; ... legacy=[...]` means
-the plugin uses a known legacy constant; `unsupported=[...]` means it uses an
-internal constant. Scanner lines label these `NON-PUBLIC` and `UNLISTED`.
+`expected weather_tools host-surface scan to be clean; ... unsupported=[...]`
+means the plugin uses an internal constant. Scanner lines label it `UNLISTED`.
 Replace the reference with a host facade. `DYNAMIC` identifies a literal string
 reference that requires manual review. Ask for a facade when no public API can
 express the capability.
