@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe AutoApprovalRule do
+RSpec.describe AutoApprovalRule, :hierarchical_locks do
   let(:user) { Factories.user }
   # auto_merge_enabled so the landing-queue blockage check passes;
   # otherwise LandingQueueProcessor.try_land! refuses to dispatch

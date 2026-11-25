@@ -111,14 +111,9 @@ class Workflow < ApplicationRecord
     state :running, :succeeded, :failed, :cancelled, :blocked
 
     event :start do
-      # Starting marks the WorkUnit running and the Job, which can refresh its
-      # Epic, so the ancestry is locked first, top down (NY40); then the Job
-      # is reloaded as lock! did.
-      before do
-        # The WorkUnit's other member Jobs too: marking it running locks them.
-        Lineage.lock_all!([ *work_unit&.definition_jobs, self ]) if persisted?
-        job.reload
-      end
+      # The event-level lock (before_all_events) has taken the ancestry and
+      # the WorkUnit's member Jobs; reload the Job as lock! did.
+      before { job.reload }
       transitions from: :queued, to: :running,
         after: -> { Workflows::LifecyclePropagation.started!(self) }
     end
@@ -916,7 +911,8 @@ class Workflow < ApplicationRecord
   # workflow if it crosses the threshold. Per-Workflow scope: a
   # bad CiFailure burst doesn't take down a Job whose Initial was
   # clean.
-  # Lineage takes the Job's other active Workflows with it.
+  # Lineage takes the WorkUnit's member Jobs and the Job's other active
+  # Workflows with it.
   def lock_event_lineage! = Lineage.lock!(self)
 
   def record_run_failure!

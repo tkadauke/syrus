@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkEngine::RepairExecutor do
+RSpec.describe WorkEngine::RepairExecutor, :hierarchical_locks do
   RepairResult = Data.define(:repair_plans)
 
   let(:job) { Factories.job }
@@ -84,9 +84,10 @@ RSpec.describe WorkEngine::RepairExecutor do
       tail = workflow.steps.create!(kind: "grader", position: 99, state: "queued")
       # The ancestry lock (NY40) includes the Job.
       allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
-        # The retry held the lock and committed its reopen just before us.
+        result = original.call(record)
+        # The retry held the lock and committed its reopen just before we got it.
         workflow.update_columns(state: "running", finished_at: nil) if record.is_a?(Workflow) && record.id == workflow.id
-        original.call(record)
+        result
       end
 
       execution = described_class.call(

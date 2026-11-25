@@ -362,7 +362,9 @@ module WorkEngine
           attempt = nil
           locked_skip = nil
           scheduled_at = provider_switched ? now : (plan.retry_after || now)
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock!(workflow)
             workflow.reload
             retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
             if retry_blocker
@@ -1536,7 +1538,9 @@ module WorkEngine
         def cancel_child_work_unit!(child)
           workflow = child.workflow
           if workflow&.may_cancel?
-            workflow.with_lock do
+            # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+            Workflow.transaction do
+              Lineage.lock!(workflow)
               workflow.reload
               if workflow.may_cancel?
                 with_transition_reason do
@@ -1827,7 +1831,9 @@ module WorkEngine
           return skipped("Keeper #{workflow_label(keeper)} belongs to a different Job") unless keeper.job_id == workflow.job_id
           return skipped("#{workflow_label(workflow)} is not older than keeper #{workflow_label(keeper)}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock_all!([ workflow, keeper ])
             workflow.reload
             keeper.reload
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
@@ -1870,7 +1876,9 @@ module WorkEngine
           keeper = Workflow.find_by(id: keeper_id)
           return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper&.queued? || keeper&.running?
 
-          workflow.with_lock do
+          # Ancestry first, top down (NY40): cancelling rolls up to the Job.
+          Workflow.transaction do
+            Lineage.lock_all!([ workflow, keeper ])
             workflow.reload
             keeper.reload
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?

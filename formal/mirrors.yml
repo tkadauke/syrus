@@ -112,7 +112,7 @@ models:
   - path: app/services/auto_approval_rule.rb
     owner: AutoApprovalRule
     method: approve_after_grader_success!
-    sha: 557fec8f25925e84
+    sha: 6c86dc6a8bc1f791
 - model: EpicTurn.lean
   mirrors:
   - path: app/services/step_dispatcher.rb

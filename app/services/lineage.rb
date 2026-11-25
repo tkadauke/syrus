@@ -19,7 +19,8 @@ module Lineage
   # model is locked before any row of the next model down, ids ascending
   # within a model, so the order holds across lineages too.
   #
-  # Each Job's active Workflows come with it, and their intents and WorkUnits:
+  # Each WorkUnit's member Jobs come with it, and each Job's active
+  # Workflows, with their intents and WorkUnits:
   # a Workflow event can cancel its siblings (superseded retries, a pending
   # closure), and a sibling's ancestry taken after this Workflow would be out
   # of order.
@@ -27,6 +28,10 @@ module Lineage
     ids_by_model = Hash.new { |hash, klass| hash[klass] = [] }
     records.compact.each do |record|
       ancestry(record).each { |klass, id| ids_by_model[klass] << id }
+    end
+    member_jobs(ids_by_model[WorkUnit].uniq).each do |job_id, epic_id|
+      ids_by_model[Job] << job_id
+      ids_by_model[Epic] << epic_id if epic_id
     end
     active_siblings(ids_by_model[Job].uniq).each do |workflow|
       ancestry(workflow).each { |klass, id| ids_by_model[klass] << id }
@@ -40,6 +45,16 @@ module Lineage
 
   MODELS = [ Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run ].freeze
   ACTIVE_WORKFLOW_STATES = %w[queued running].freeze
+
+  # A WorkUnit's member and scope Jobs, with their Epics: marking the unit
+  # running or terminal locks them.
+  def member_jobs(unit_ids)
+    return [] if unit_ids.empty?
+
+    job_ids = WorkUnitMember.where(work_unit_id: unit_ids).pluck(:job_id)
+    job_ids += WorkUnit.where(id: unit_ids, scope_type: "job").pluck(:scope_id)
+    Job.where(id: job_ids.compact.uniq).pluck(:id, :epic_id)
+  end
 
   def active_siblings(job_ids)
     return [] if job_ids.empty?

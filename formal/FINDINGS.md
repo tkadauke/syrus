@@ -4841,6 +4841,12 @@ of serializing every Job of that operator on one row. The Workflow model spec
 runs with the order raising. The full suite after part 10 passes both phases
 and records 59 violations at 41 sites, down from about 1,100.
 
+Part 11: a Lineage lock also takes each WorkUnit's member and scope Jobs with
+their Epics, so a caller's pre-lock and a Workflow event's lock are the same
+set. Auto-approval, stale-work cancellation and the repair executor's four
+Workflow-lock sites take their ancestries first. Their specs run with the
+order raising.
+
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
 Job is in order after `Lineage.lock!`, and the same writes without it raise. It
