@@ -104,6 +104,8 @@ en:
         invalid_utf8: "%{name} is not valid UTF-8 text."
         total_too_large: "Attachments must total 20 MB or less."
     mcp:
+      workflow_outcome_overrides:
+        pending_confirmation: "Outcome override is pending operator confirmation for exact evidence %{evidence}."
       unland_confirmation:
         job: "Unland %{subject}? Operator confirmation is required."
         epic: "Unland %{subject}? Operator confirmation is required."

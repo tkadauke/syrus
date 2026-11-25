@@ -73,6 +73,8 @@ de:
         invalid_utf8: "%{name} ist kein gültiger UTF-8-Text."
         total_too_large: "Anhänge dürfen insgesamt höchstens 20 MB groß sein."
     mcp:
+      workflow_outcome_overrides:
+        pending_confirmation: "Die Ergebnisübersteuerung wartet für den exakten Nachweis %{evidence} auf die Bestätigung eines Operators."
       unland_confirmation:
         job: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
         epic: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
