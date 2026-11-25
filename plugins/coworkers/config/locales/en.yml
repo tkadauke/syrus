@@ -1,6 +1,9 @@
 en:
   api:
     coworkers:
+      environment_foreign_revision: "must belong to this environment"
+      environment_compat_bound_missing: "must be set together with the other bound"
+      environment_compat_window_inverted: "must not be below compat_min"
       no_goal_summary: "No goal summary available"
       approval_inactive: "This approval is no longer pending."
       memory_unavailable: "The coworker's memory cannot be reached right now."
