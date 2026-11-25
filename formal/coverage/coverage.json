@@ -2235,9 +2235,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "M25 (NY25 open)",
-      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven. M25: full audit; observed graph has cycles (Job↔Workflow, Run↔Job, Run↔Workflow, Epic↔Job). LockOrder.lean proves the cycles and that a proposed global order needs exactly four edge kinds flipped (NY25)."
+      "status": "done",
+      "done_by": "M25, F110 (NY25), F130 (NY40)",
+      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven. M25: full audit; observed graph has cycles (Job↔Workflow, Run↔Job, Run↔Workflow, Epic↔Job). LockOrder.lean proves the cycles and that a proposed global order needs exactly four edge kinds flipped (NY25). NY40: the order is now the hierarchy and is enforced on every code path the suite exercises, writes included; one total order has no cycles. The production lock-wait note above (hot Workflow and User rows) is contention, not a cycle, and stays a lead."
     },
     {
       "id": "launch-funnel",
@@ -3161,11 +3161,11 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
+      "status": "done",
       "title": "Every transaction takes row locks in the global order, so lock cycles cannot deadlock",
       "producer": "Syrus::LockOrder; spec/support/lock_order.rb (suite-wide checker)",
-      "done_by": "F110 (NY25); NY31-NY33 open",
-      "notes": "LockOrder.lean proves the order acyclic; the suite fails any inversion except the three awaiting NY31-NY33."
+      "done_by": "F110 (NY25), F130 (NY40)",
+      "notes": "The enforced order is the hierarchy, parents before children: AppSetting, User, Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run. Transactions take a record's ancestry first through Lineage.lock_all!, which LockOrder.lean proves can only take sequences in that order (lock_all_in_order). The suite raises on any inversion, UPDATE and DELETE included, with no exemptions left; both phases of the full suite pass."
     },
     {
       "id": "abandoned-replication-released",
