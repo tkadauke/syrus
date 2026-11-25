@@ -16,7 +16,7 @@ module Mcp::Tools
     class << self
       def call(question_id:, answers:, server_context:)
         user = McpToolContext.from_server_context(server_context).owner_chat.user
-        scope = AgentQuestion.where.not(run_id: nil).joins(run: :job).merge(Job.visible_to(user))
+        scope = AgentQuestion.active.where.not(run_id: nil).joins(run: :job).merge(Job.visible_to(user))
         question = scope.find_by(id: question_id)
         return Mcp::Tools.invalid("workflow question not found") unless question
         return Mcp::Tools.not_authorized unless JobPolicy.new(user, question.run.job).write?

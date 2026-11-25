@@ -44,7 +44,7 @@ module Mcp::Tools
         )
         AgentQuestionTimeoutJob.set(wait_until: question.times_out_at).perform_later(question.id) if question.times_out_at
         Mcp::Tools.write_log(run, "[mcp] workflow question ##{question.id} recorded; awaiting operator answer")
-        Mcp::Tools.success(question_id: question.id, message: "Question(s) recorded. End your turn now.")
+        Mcp::Tools.success(question_id: question.id, message: I18n.t("agent_questions.recorded"))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
