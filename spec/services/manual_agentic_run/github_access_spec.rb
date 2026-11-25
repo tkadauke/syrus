@@ -22,8 +22,12 @@ RSpec.describe ManualAgenticRun::GithubAccess do
   it "does not place the credential in the ambient agent environment or audit evidence" do
     env = access.environment
     expect(env).not_to have_key("GH_TOKEN")
+    wrapper_dir = env.fetch("PATH").split(":").first
+    expect(Dir.children(wrapper_dir)).to contain_exactly("broker.sock", "gh", "git")
+    expect(Dir.glob("#{wrapper_dir}/**/*").select { |path| File.file?(path) }.map { |path| File.binread(path) }.join).not_to include("ghs_top_secret")
+    expect(env.to_json).not_to include("credential", "audit.jsonl", "ghs_top_secret")
 
-    _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "pr", "view")
+    _out, err, status = Open3.capture3(env, File.join(wrapper_dir, "gh"), "pr", "view")
     expect(status).to be_success
     expect(err).not_to include("ghs_top_secret")
     expect(access.collect_audit!.to_json).not_to include("ghs_top_secret")
@@ -40,6 +44,15 @@ RSpec.describe ManualAgenticRun::GithubAccess do
   it "rejects destructive commands without separate authority" do
     env = access.environment
     _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "pr", "close", "9")
+
+    expect(status.exitstatus).to eq(78)
+    expect(err).to include("separately confirmed destructive authority")
+  end
+
+  it "rejects the long gh api destructive method without separate authority" do
+    env = access.environment
+    wrapper = File.join(env.fetch("PATH").split(":").first, "gh")
+    _out, err, status = Open3.capture3(env, wrapper, "api", "/repos/acme/widgets/issues/9", "--method", "DELETE")
 
     expect(status.exitstatus).to eq(78)
     expect(err).to include("separately confirmed destructive authority")
@@ -62,5 +75,16 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     allow_any_instance_of(Installation).to receive(:scoped_token).and_return(token: "ghs_expired", expires_at: 1.second.ago)
 
     expect { access.environment }.to raise_error(ArgumentError, /already expired/)
+  end
+
+  it "rejects a credential that expires while the agent is running" do
+    env = access.environment
+    wrapper = File.join(env.fetch("PATH").split(":").first, "gh")
+
+    travel 31.minutes do
+      _out, err, status = Open3.capture3(env, wrapper, "pr", "view")
+      expect(status.exitstatus).to eq(79)
+      expect(err).to include("credential expired")
+    end
   end
 end
