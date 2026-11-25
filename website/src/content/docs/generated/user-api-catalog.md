@@ -302,6 +302,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/unpause` | `api/v1/app/job_lifecycle#unpause` |
 | core | POST | `/api/v1/app/jobs/:job_id/visual_diff` | `api/v1/app/job_run_commands#run_visual_diff` |
 | core | POST | `/api/v1/app/jobs/:job_id/visual_review` | `api/v1/app/job_run_commands#run_visual_review` |
+| core | GET | `/api/v1/app/jobs/:job_id/workflow_outcome_overrides` | `api/v1/app/workflow_outcome_overrides#index` |
+| core | POST | `/api/v1/app/jobs/:job_id/workflow_outcome_overrides` | `api/v1/app/workflow_outcome_overrides#create` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/dismiss` | `api/v1/app/workflow_warnings#dismiss` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/file_job` | `api/v1/app/workflow_warnings#file_job` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/retry_review` | `api/v1/app/workflow_warnings#retry_review` |

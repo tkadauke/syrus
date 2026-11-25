@@ -25,7 +25,8 @@ RSpec.describe Syrus::Plugin::Declarations do
       expect(Workflow::TriggerKind::Entry.members - described_class::TRIGGER_KEYS)
         .to contain_exactly(:diff_review_labeler)
       expect(described_class::STEP_KEYS - Step::Kind::Entry.members).to be_empty
-      expect(Step::Kind::Entry.members - described_class::STEP_KEYS).to contain_exactly(:dynamic_required_mcp_tools)
+      expect(Step::Kind::Entry.members - described_class::STEP_KEYS)
+        .to contain_exactly(:dynamic_required_mcp_tools, :outcome_override_collector_kind)
       expect(described_class::JOB_KEYS).to match_array(Job::Kind::Entry.members)
       expect(described_class::PROBLEM_KEYS).to match_array(Problem::Kind::Entry.members - [ :label ] + [ :label ])
     end
