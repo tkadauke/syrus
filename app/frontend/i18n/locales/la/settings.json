@@ -2137,5 +2137,19 @@
     "requested_by": "Rogatum ab",
     "duration": "Rogatum pro",
     "technical_details": "Singula technica"
+  },
+  "question_eagerness": {
+    "title": "Studium interrogandi",
+    "slider": "Gradus studii interrogandi",
+    "inherit": "Praedefinitione uti",
+    "timeout": "Terminus responsi (minuta)",
+    "timeout_help": "Ad libitum. Post hoc tempus agens responsum praedefinitum sequitur.",
+    "levels": {
+      "autonomous": { "label": "Autonomus", "description": "Rogat tantum cum opus vere procedere non potest." },
+      "independent": { "label": "Independens", "description": "Etiam ante decisiones difficulter revocandas rogat." },
+      "balanced": { "label": "Aequilibratus", "description": "Rogat cum interpretationes rationabiles ad exitus diversos ducunt." },
+      "collaborative": { "label": "Collaborativus", "description": "Etiam de ambitu, usu et verbis rogat." },
+      "inquisitive": { "label": "Inquisitivus", "description": "Rogat quandocumque aliquid non plane clarum est." }
+    }
   }
 }

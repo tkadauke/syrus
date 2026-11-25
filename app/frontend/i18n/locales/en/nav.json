@@ -393,5 +393,6 @@
     "title": "Keyboard shortcuts",
     "close": "Close keyboard shortcuts",
     "empty": "No shortcuts are active right now."
-  }
+  },
+  "question_inbox": { "open": "Open questions: {{count}}", "title": "Questions", "close": "Close", "empty": "No questions are waiting for an answer." }
 }

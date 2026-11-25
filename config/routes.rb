@@ -340,6 +340,8 @@ Rails.application.routes.draw do
         patch "chats/:id/scratchpad_items/:item_id", to: "chats#update_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         delete "chats/:id/scratchpad_items/:item_id", to: "chats#destroy_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
+        get "agent_questions", to: "agent_questions#index"
+        post "agent_questions/:id/answer", to: "agent_questions#answer", constraints: { id: /\d+/ }
         get "chats/:id/goal", to: "chats#show_goal", constraints: { id: /\d+/ }
         put "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }
         patch "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }

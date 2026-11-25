@@ -393,5 +393,6 @@
     "title": "Tastaturkürzel",
     "close": "Tastaturkürzel schließen",
     "empty": "Derzeit sind keine Tastaturkürzel aktiv."
-  }
+  },
+  "question_inbox": { "open": "Offene Fragen: {{count}}", "title": "Fragen", "close": "Schließen", "empty": "Keine Frage wartet auf eine Antwort." }
 }

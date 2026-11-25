@@ -1127,5 +1127,9 @@
   "recovery_revision": "Version {{revision}}",
   "recovery_guidance_failures": "Zu behebende dauerhafte Fehler: {{failures}}",
   "grader_loop_decision_stopped": "Schleifenentscheidung — ohne Fortschritt gestoppt",
-  "grader_loop_decision_continued": "Schleifenentscheidung — Reparatur fortgesetzt"
+  "grader_loop_decision_continued": "Schleifenentscheidung — Reparatur fortgesetzt",
+  "workflow_block_evidence": "Technische Nachweise",
+  "question_panel_title": "Der Agent braucht deine Antwort",
+  "question_panel_consequence": "Antworten und fortfahren setzt diesen Workflow in derselben Agentensitzung fort.",
+  "question_policy_effective": "Fragebereitschaft: {{level}} (Quelle: {{source}})."
 }
