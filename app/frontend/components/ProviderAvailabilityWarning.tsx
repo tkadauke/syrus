@@ -48,7 +48,9 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
   const details = failoverDetails(failover, t)
 
   return (
-    <div className={`inline-flex max-w-full flex-col items-start rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}>
+    <div
+      className={`inline-flex max-w-full flex-col items-start rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}
+    >
       <span>{copy}</span>
       {details ? (
         <details className="max-w-full font-normal">
@@ -157,11 +159,7 @@ function failoverDetails(failover: NonNullable<ProviderFailover>, t: TFunction<"
     .join(". ")
 }
 
-function routingConditionSummary(
-  conditionResults: Record<string, unknown>,
-  failover: NonNullable<ProviderFailover>,
-  t: TFunction<"common">
-): string {
+function routingConditionSummary(conditionResults: Record<string, unknown>, failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
   const conditions = recordValue(conditionResults.conditions)
   const usage = recordValue(conditions?.usage)
   const expected = recordValue(usage?.expected)
