@@ -125,13 +125,15 @@ RSpec.describe Steps::AutoRebase do
 
 
   it "passes the confirmed former-parent boundary for a detach repair" do
-    workflow.set_artifact!("detach_job", { "former_parent_head" => "a" * 40, "confirmed_head" => "b" * 40 })
+    workflow.set_artifact!("detach_job", {
+      "former_parent_head" => "a" * 40, "owned_patch_base_sha" => "c" * 40, "confirmed_head" => "b" * 40
+    })
     allow(service).to receive(:call).and_return(::AutoRebase::Result.new(false, "conflict", nil))
 
     described_class.new(run).call
 
     expect(::AutoRebase).to have_received(:new).with(
-      job, base_branch: job.effective_base_branch, old_base_sha: "a" * 40, expected_head_sha: "b" * 40
+      job, base_branch: job.effective_base_branch, old_base_sha: "c" * 40, expected_head_sha: "b" * 40
     )
   end
 end

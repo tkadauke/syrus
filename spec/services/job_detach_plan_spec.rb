@@ -13,6 +13,7 @@ RSpec.describe JobDetachPlan do
   end
   let(:child_head) { "c" * 40 }
   let(:parent_head) { "p" * 40 }
+  let(:owned_patch_base_sha) { "m" * 40 }
   let(:client) { instance_double(GithubClient) }
   let(:content) { instance_double(RepositoryContent::Reader) }
 
@@ -21,7 +22,7 @@ RSpec.describe JobDetachPlan do
     parent_revision = double("parent revision")
     child_revision = double("child revision")
     history = RepositoryContent::CommitHistory.new(
-      commits: [ double("commit", sha: child_head, message: "child change") ], merge_base_id: parent_head
+      commits: [ double("commit", sha: child_head, message: "child change") ], merge_base_id: owned_patch_base_sha
     )
     change = double("change", path: "child.rb", status: "modified", patch: "@@")
     allow(GithubClient).to receive(:for).and_return(client)
@@ -40,7 +41,8 @@ RSpec.describe JobDetachPlan do
     expect(content).to have_received(:changes).with(base: parent_revision, head: child_revision, patch: true)
     expect(plan).to include(
       "live_pr_base" => "stale-pr-base", "former_parent_branch" => parent.branch_name,
-      "former_parent_head" => parent_head, "current_branch_head" => child_head
+      "former_parent_head" => parent_head, "owned_patch_base_sha" => owned_patch_base_sha,
+      "current_branch_head" => child_head
     )
   end
 end

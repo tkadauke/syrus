@@ -38,7 +38,7 @@ module Steps
       kwargs = { base_branch: rebase_base_branch }
       kwargs[:branch_name] = rebase_source_branch if rebase_source_branch.present?
       detach = workflow.artifact("detach_job")
-      kwargs[:old_base_sha] = detach&.dig("former_parent_head")
+      kwargs[:old_base_sha] = detach&.dig("owned_patch_base_sha")
       kwargs[:expected_head_sha] = detach&.dig("confirmed_head")
       kwargs.compact!
       ::AutoRebase.new(job, **kwargs)
