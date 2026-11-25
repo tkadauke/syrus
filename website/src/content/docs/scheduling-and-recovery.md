@@ -133,7 +133,8 @@ outcomes, and external-write risk; destructive operations require an additional
 explicit declaration.
 
 Syrus mints a short-lived credential for that Run and repository only, exposes
-authenticated `gh` and Git transport only inside the authorized manual step.
+authenticated repository-scoped `gh api` and Git transport only inside the
+authorized manual step. High-level GraphQL-backed `gh` commands are unavailable.
 Direct Git pushes require destructive authority; ordinary committed output
 continues through Syrus's normal publication step. Syrus audits remote
 operations without retaining the secret. Other repositories

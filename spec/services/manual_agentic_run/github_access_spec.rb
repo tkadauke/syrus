@@ -1,4 +1,5 @@
 require "rails_helper"
+require "net/http"
 
 RSpec.describe ManualAgenticRun::GithubAccess do
   let(:user) { Factories.user }
@@ -27,7 +28,7 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     expect(Dir.glob("#{wrapper_dir}/**/*").select { |path| File.file?(path) }.map { |path| File.binread(path) }.join).not_to include("ghs_top_secret")
     expect(env.to_json).not_to include("credential", "audit.jsonl", "ghs_top_secret")
 
-    _out, err, status = Open3.capture3(env, File.join(wrapper_dir, "gh"), "pr", "view")
+    _out, err, status = Open3.capture3(env, File.join(wrapper_dir, "gh"), "api", "/repos/acme/widgets")
     expect(status).to be_success
     expect(err).not_to include("ghs_top_secret")
     expect(access.collect_audit!.to_json).not_to include("ghs_top_secret")
@@ -62,9 +63,31 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     end
   end
 
+  it "forwards the authenticated REST request shape used by gh api" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+      upstream = Struct.new(:status, :body, :headers).new(200, '{"id":123}', { "content-type" => "application/json" })
+      allow(Faraday).to receive(:get).and_return(upstream)
+      env = proxy.gh_environment
+      uri = URI("https://#{env.fetch('GH_HOST')}/api/v3/repos/acme/widgets")
+      request = Net::HTTP::Get.new(uri)
+      request["Authorization"] = "token #{env.fetch('GH_ENTERPRISE_TOKEN')}"
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      http.ca_file = env.fetch("SSL_CERT_FILE")
+
+      response = VCR.turned_off { http.request(request) }
+
+      expect(response).to have_attributes(code: "200", body: '{"id":123}')
+      expect(Faraday).to have_received(:get).with("https://api.github.com/repos/acme/widgets", "")
+    ensure
+      proxy&.stop
+    end
+  end
+
   it "rejects cross-repository access before invoking GitHub" do
     env = access.environment
-    _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "pr", "view", "-R", "other/repo")
+    _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "api", "/repos/other/repo")
 
     expect(status.exitstatus).to eq(77)
     expect(err).to include("restricted to acme/widgets")
@@ -72,10 +95,18 @@ RSpec.describe ManualAgenticRun::GithubAccess do
 
   it "rejects destructive commands without separate authority" do
     env = access.environment
-    _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "pr", "close", "9")
+    _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "api", "/repos/acme/widgets/issues/9", "-X", "PUT")
 
     expect(status.exitstatus).to eq(78)
     expect(err).to include("separately confirmed destructive authority")
+  end
+
+  it "rejects high-level GraphQL-backed gh commands explicitly" do
+    env = access.environment
+    _out, err, status = Open3.capture3(env, File.join(env.fetch("PATH").split(":").first, "gh"), "pr", "view", "9")
+
+    expect(status.exitstatus).to eq(79)
+    expect(err).to include("high-level gh commands are unavailable", "only gh api")
   end
 
   it "rejects the long gh api destructive method without separate authority" do

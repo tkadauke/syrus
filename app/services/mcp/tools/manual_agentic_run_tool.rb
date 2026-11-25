@@ -19,7 +19,7 @@ module Mcp::Tools
         reason: { type: "string", description: "Operator-facing audit reason for starting the run." },
         push: { type: "boolean", description: "Whether successful changes should be pushed to the existing PR branch. Defaults to true." },
         failed_workflow_id: { type: "integer", description: "Optional failed Workflow id when base is failed_workflow_workspace." },
-        github_access: { type: "boolean", description: "Request separately confirmed, Run-scoped authenticated GitHub access. Defaults to false." },
+        github_access: { type: "boolean", description: "Request separately confirmed, Run-scoped authenticated repository access through gh api and Git transport. High-level GraphQL-backed gh commands are unavailable. Defaults to false." },
         destructive_github_operations: { type: "boolean", description: "Separately declare destructive GitHub operations. Rejected unless github_access is true." },
         expected_outcomes: {
           type: "object",
@@ -105,7 +105,7 @@ module Mcp::Tools
         app_slug = AppSetting.current.github_app_slug.to_s.delete_suffix("[bot]").presence
         identity = [ ("#{app_slug}[bot]" if app_slug), "installation on #{job.repository.installation.account_login}" ].compact.join("; ")
         "#{base} BREAK-GLASS: grant credential use plus external write to #{job.repository.slug} as #{identity}, " \
-          "scoped to contents/pull requests/issues; commands are audited and declared outcomes are provider-verified" \
+          "scoped to contents/pull requests/issues through gh api and Git transport; commands are audited and declared outcomes are provider-verified" \
           "#{destructive ? '; destructive GitHub operations are also requested' : '; destructive operations remain unavailable'}."
       end
 

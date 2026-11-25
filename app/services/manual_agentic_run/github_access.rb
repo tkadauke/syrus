@@ -13,9 +13,7 @@ module ManualAgenticRun
   # credential and authoritative audit buffer remain in the worker process.
   class GithubAccess
     PERMISSIONS = { contents: "write", pull_requests: "write", issues: "write" }.freeze
-    DESTRUCTIVE_GH = /\A(?:repo delete|pr close|issue close|release delete|api .*\s(?:-X|--method)(?:=|\s)+(?:DELETE|PUT))/i
-    BLOCKED_GH = %w[auth alias extension config].freeze
-    REPOSITORY_GH = %w[clone view edit delete fork sync archive rename].freeze
+    DESTRUCTIVE_GH = /\Aapi .*\s(?:-X|--method)(?:=|\s)+(?:DELETE|PUT)/i
     REGISTRY = {}
     REGISTRY_MUTEX = Mutex.new
 
@@ -166,11 +164,10 @@ module ManualAgenticRun
           end
           return
         end
-        raise "this gh command is unavailable in scoped break-glass mode" if BLOCKED_GH.include?(args.first)
+        raise "high-level gh commands are unavailable; only gh api is supported in scoped break-glass mode" unless args.first == "api"
         explicit = args.each_index.filter_map { |i| args[i + 1] if %w[-R --repo].include?(args[i]) }.compact
-        explicit << args[2] if args.first == "repo" && REPOSITORY_GH.include?(args[1]) && args[2].to_s.include?("/")
         raise "access is restricted to #{@repository}" if explicit.any? { |candidate| !candidate.casecmp?(@repository) }
-        validate_api!(args) if args.first == "api"
+        validate_api!(args)
         raise "this destructive GitHub operation requires separately confirmed destructive authority" if joined.match?(DESTRUCTIVE_GH) && !@destructive
       end
 
