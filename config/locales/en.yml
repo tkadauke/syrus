@@ -143,6 +143,12 @@ en:
         invalidation_cause_immutable: "is immutable once set"
         terminal_states_mutually_exclusive: "an override cannot be both consumed and invalidated"
 
+  services:
+    workflow_outcome_overrides:
+      telemetry:
+        message: "Workflow outcome failed, overridden"
+        transcript: "Workflow outcome failed, overridden: %{gate_kind} %{gate_identity} at %{candidate_head_sha} (evidence %{evidence_digest})."
+
   errors:
     messages:
       inclusion: "is not included in the list"

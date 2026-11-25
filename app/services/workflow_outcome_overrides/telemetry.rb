@@ -14,7 +14,7 @@ module WorkflowOutcomeOverrides
       OperationalLogging.ingest(
         level: :info,
         source: LOG_KIND,
-        message: "Workflow outcome failed, overridden",
+        message: I18n.t("services.workflow_outcome_overrides.telemetry.message"),
         context: {
           job_id: override.job_id,
           workflow_id: override.workflow_id,
@@ -44,8 +44,13 @@ module WorkflowOutcomeOverrides
     end
 
     def self.transcript_chunk(override)
-      text = "Workflow outcome failed, overridden: #{override.gate_kind} #{override.gate_identity} " \
-        "at #{override.candidate_head_sha.first(12)} (evidence #{override.evidence_digest.first(12)})."
+      text = I18n.t(
+        "services.workflow_outcome_overrides.telemetry.transcript",
+        gate_kind: override.gate_kind,
+        gate_identity: override.gate_identity,
+        candidate_head_sha: override.candidate_head_sha.first(12),
+        evidence_digest: override.evidence_digest.first(12)
+      )
       "#{ToolPayloadRedactor.redact_text(text).gsub(/[[:space:]]+/, " ").strip}\n"
     end
     private_class_method :transcript_chunk

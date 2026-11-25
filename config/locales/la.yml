@@ -113,6 +113,12 @@ la:
         invalidation_cause_immutable: "postquam posita est mutari non potest"
         terminal_states_mutually_exclusive: "exceptio simul consumpta et infirmata esse non potest"
 
+  services:
+    workflow_outcome_overrides:
+      telemetry:
+        message: "Exitus Workflow defecit, superatus"
+        transcript: "Exitus Workflow defecit, superatus: %{gate_kind} %{gate_identity} apud %{candidate_head_sha} (testimonium %{evidence_digest})."
+
   errors:
     messages:
       inclusion: "non est in indice valorum permissorum"
