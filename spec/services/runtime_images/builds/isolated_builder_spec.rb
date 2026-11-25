@@ -376,7 +376,8 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect { build(request, builder(launcher: launcher(result: failing))) }.to raise_error(RuntimeImages::Builds::BuildFailed)
       event = RuntimeImageAuditEvent.where(event_type: "build.network").last
       expect(event.outcome).to eq("detected")
-      expect(event.details["denials"]).to include("evil.example")
+      expect(event.details["denials"]).to be_an(Array)
+      expect(event.details["denials"].to_json).to include("evil.example")
     end
 
     %w[network network_mode add_host dns proxy].each do |key|

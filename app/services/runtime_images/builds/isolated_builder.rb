@@ -387,7 +387,7 @@ module RuntimeImages
                                       actor: request.requester_kind,
                                       details: { "request_id" => request.id, "policy_digest" => policy.digest,
                                                  "allowed" => summary.fetch("allowed", 0), "denied" => denied,
-                                                 "denials" => summary.fetch("denials", []).first(10).to_json })
+                                                 "denials" => summary.fetch("denials", []).first(10) })
       end
 
       # Sum of file sizes, stopping early once +limit+ is passed.
