@@ -5956,6 +5956,30 @@ after the rebase (1,901 examples). A first run showed 1,529 failures from a
 test database that lacked the Epic's new plugin tables; it was green once
 `db:test:prepare` rebuilt the database.
 
+## M80. The landing queue's order computation — proved, no bug (Lead L16)
+
+`LandingQueueProcessor#ordered_landing_units` and `#dependency_order` are
+Kahn's algorithm with the ready set sorted by queue position (priority, then
+approval time) and a queue-order fallback for whatever a cycle leaves.
+`LandingOrder.lean` mirrors both and checks every dependency graph on up to
+four units, self-loops included: the result is always a permutation (nothing
+is dropped or landed twice, cycle or not); without a cycle every prerequisite
+lands first and the order is the lexicographically least one that respects
+the dependencies, so nothing waits longer than its prerequisites require;
+with no dependencies it is the queue itself; with a cycle the ordered prefix
+still respects every edge into it, and only the fallback tail does not, which
+F107 keeps from forming.
+
+Lead L16 (not fixed, low severity). `JobBundleDispatcher#try_dispatch!` locks
+its members with `job.lock!` in bundle position order, not ascending id. The
+hierarchical order (NY40) leaves rows of one model unordered and the checker
+does not see within-model order, while `Lineage.lock_all!` (merge-train
+member lineages, landing retries) takes Jobs ids ascending. A concurrent
+`lock_all!` over two of the same Jobs in the other order could deadlock; the database aborts one side, and
+the dispatcher retries on its next pass, so the cost is a logged deadlock, not
+a stuck queue. The fix would be `Job.lock.where(id: ids).order(:id)` before
+building the train.
+
 ## M79. Main through `0654328aad`
 
 - **"Keep members approved when a preserved merge train cannot relaunch"**

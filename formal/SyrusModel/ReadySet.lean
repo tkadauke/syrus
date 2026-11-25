@@ -171,7 +171,8 @@ theorem serial_finish_leaves_queued_tail : serialFinishLeavesQueuedTail 5 = true
 /-- 3. After a finished *parallel* Step a later parallel Step may already run;
     inserting a serial Step before it breaks the barrier. Every insertion site
     must therefore either follow a serial Step or insert only parallel Steps,
-    or know nothing after it has started (Lead L16). -/
+    or know nothing after it has started. Every insertion site follows a
+    serial Step, so this shape is unreachable. -/
 theorem serial_insert_after_parallel_breaks :
     let l : List Step := [⟨.parallel, .done, true⟩, ⟨.parallel, .running, true⟩]
     serialBarrier l = true ∧ serialBarrier (insertAfter l 0 [⟨.serial, .queued, true⟩]) = false := by

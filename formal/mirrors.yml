@@ -215,3 +215,13 @@ models:
     owner: Orchestrator
     method: claim
     sha: d9b336a7483f040b
+- model: LandingOrder.lean
+  mirrors:
+  - path: app/services/landing_queue_processor.rb
+    owner: LandingQueueProcessor
+    method: ordered_landing_units
+    sha: 324e376f67ba8a80
+  - path: app/services/landing_queue_processor.rb
+    owner: LandingQueueProcessor
+    method: dependency_order
+    sha: 3061da36b0650ee4
