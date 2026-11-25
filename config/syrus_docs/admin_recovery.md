@@ -23,6 +23,22 @@ normal workflow state propagation:
 - `override_job_planned_execution(job_id:, profile:, reason:)` replaces an
   eligible Job's mutable implementation-workspace placement profile and retries placement.
   It does not change immutable grader-target capability requirements.
+- `detach_job(job_id:, destination_base:, reason:, dry_run:)` repairs a Job
+  whose branch and pull request were accidentally attached to the wrong stack
+  parent. Always dry-run first: the plan shows the live branch head and PR
+  base, inferred parent, destination, owned commits and patches, and expected
+  topology. Confirmation replays that patch onto the explicit destination,
+  uses an agent only for conflicts, publishes with an exact force-with-lease,
+  retargets the PR, removes the former parent relationship and its matching
+  explicit dependency, refreshes stack footers, and wakes landing. A stale
+  lease, failed PR retarget, or failed live postcondition check is a visible
+  failure with retry evidence; it is never reported as a successful repair.
+
+Use ordinary rebase when the Job keeps the same logical parent and only its
+base tip moved. Use Epic restack when dependency topology is correct but a
+whole stack's physical PR bases need reconciliation. Use detach-to-base only
+when the Job should stop depending on its former parent and become rooted on
+an explicit branch such as the repository default branch.
 
 The stale-Run reaper handles Runs whose worker lease disappeared and asks the
 normal state machines and work engine to fail or repair the affected work.

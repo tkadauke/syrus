@@ -146,6 +146,7 @@ module Admin
       force_fail_job
       force_landing_recheck
       force_rebase
+      detach_job
       force_state_transition
       grant_permission
       local_tool_call
