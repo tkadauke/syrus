@@ -32,8 +32,41 @@ module Mcp::Tools
       end
     end
 
-    def resolve_repository(chat_session)
-      chat_session.repository
+    def resolve_runtime_repository(chat_session, repository_id: nil, repository_slug: nil)
+      if repository_id.present? && repository_slug.present?
+        return [ nil, Mcp::Tools.invalid("specify either `repository_id` or `repository_slug`, not both") ]
+      end
+
+      repositories = chat_session.attached_repositories.to_a
+      current_repository = chat_session.repository
+      repositories << current_repository if current_repository && repositories.none? { |repository| repository.id == current_repository.id }
+      accessible_ids = Repository.accessible_to(chat_session.user).where(id: repositories.map(&:id)).pluck(:id).to_set
+      repositories.select! { |repository| accessible_ids.include?(repository.id) }
+
+      repository = if repository_id.present?
+        repositories.find { |candidate| candidate.id == repository_id.to_i }
+      elsif repository_slug.present?
+        slug = repository_slug.to_s.strip
+        unless slug.match?(/\A[^\s\/]+\/[^\s\/]+\z/)
+          return [ nil, Mcp::Tools.invalid("`repository_slug` must be an attached repository slug in owner/name form") ]
+        end
+        repositories.find { |candidate| candidate.slug.casecmp?(slug) }
+      elsif repositories.one?
+        repositories.first
+      elsif repositories.many?
+        candidates = repositories.sort_by { |candidate| [ candidate.slug.downcase, candidate.id ] }
+          .map { |candidate| "#{candidate.slug} (id: #{candidate.id})" }.join(", ")
+        return [ nil, Mcp::Tools.invalid("multiple repositories are attached; specify `repository_id` or `repository_slug`. Candidates: #{candidates}") ]
+      end
+
+      unless repository
+        message = repository_id.present? || repository_slug.present? ?
+          "requested repository is not attached to this chat or is not accessible to the current user" :
+          "this chat has no attached repository"
+        return [ nil, Mcp::Tools.invalid(message) ]
+      end
+
+      [ repository, nil ]
     end
 
     # Resolves the RuntimeSession a call operates on: an explicit session_id,
