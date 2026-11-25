@@ -62,6 +62,15 @@ are computed at read time with `rate()`.
 | `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
 | `syrus_run_lifecycle_lock_retries_total` | counter | `kind`, `queue`, `outcome` | no | Run lifecycle persistence lock conflicts, including recovered and exhausted retries |
 | `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |
+| `syrus_runtime_image_build_attempts_total` | counter | `outcome`, `reason` | no | Runtime image build attempts by terminal outcome (succeeded, failed, retried, canceled) and error code |
+| `syrus_runtime_image_build_oldest_queued_seconds` | gauge | — | no | Age of the oldest queued runtime image build request, 0 when none (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_runtime_image_build_recoveries_total` | counter | `reason` | no | Runtime image build recoveries by reason (lease_expired, attempt_deadline_exceeded, orphaned_request, duplicate_delivery, duplicate_submit) |
+| `syrus_runtime_image_build_requests` | gauge | `state` | no | Runtime image build requests by state (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_runtime_image_build_stale_attempts` | gauge | — | no | Active build attempts past their lease or runtime ceiling that recovery has not reaped (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_runtime_image_cache_bytes` | gauge | `state` | no | Bytes of runtime images held in worker caches by entry state (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_runtime_image_operations_total` | counter | `kind`, `outcome` | no | Runtime Image Service operations by kind (publish, revoke, retain, delete, gc, reconcile, auth) and outcome (ok, failed, skipped, repaired, detected) |
+| `syrus_runtime_image_pulls_24h` | gauge | `outcome` | no | Worker image cache lookups and pulls in the last 24 hours by outcome (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_runtime_images` | gauge | `state` | no | Runtime images by state: pending, available, revoked, deleted, retained, cleanup_failed (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |
 | `syrus_spawned_processes` | gauge | `kind`, `state` | no | Spawned subprocesses running or recently finished, by kind and state (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_time_to_land_seconds` | histogram | — | no | Wall clock from Job creation to landing |

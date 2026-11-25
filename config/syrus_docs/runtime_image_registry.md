@@ -74,3 +74,15 @@ Every build attempt that finishes records evidence bound to its outcome: the cap
 - Administrators read the full evidence, including the log and resolved destinations, at `GET /api/v1/admin/runtime_image_build_requests/:id/evidence`. Other surfaces only receive the safe summary: digests, counts, and measurements, with no log text or addresses. The summary is stored in the build result's details and emitted as a `build.evidence` audit event.
 - The image provenance carries the builder version, network policy digest, base images, and layer digests, never log text.
 - A build can publish only into the namespace its request was made for, and only through the Runtime Image Service; it holds no registry credential and cannot revoke, delete, or read other images.
+
+## Build recovery and diagnostics
+
+Runtime image builds recover on their own from the failures a long-running build plane sees:
+
+- **Lost workers and stale attempts:** an attempt whose worker stops reporting, or that runs past `RUNTIME_IMAGE_BUILD_MAX_ATTEMPT_SECONDS`, is failed and retried with backoff. Requests left in flight with no active attempt are repaired.
+- **Cancellation:** queued builds cancel immediately; running builds stop at the next safe point. Administrators cancel with `POST /api/v1/admin/runtime_image_build_requests/:id/cancel`.
+- **Quota and registry trouble:** quota exhaustion (`quota_exhausted`) and an unreachable registry (`registry_unavailable`) are retried on a slower backoff than ordinary failures.
+- **Denied network destinations:** a build that fails after the egress proxy refused destinations ends as `network_denied` without retrying; review the build-network allowlist.
+- **Duplicates:** identical requests share one live build, and a build job delivered twice runs once.
+
+Diagnostics: `GET /api/v1/admin/runtime_images` includes a `builds` section and build health checks; `GET /api/v1/admin/runtime_image_build_requests` lists requests, attempts, and results. Metrics `syrus_runtime_image_build_requests`, `syrus_runtime_image_build_oldest_queued_seconds`, `syrus_runtime_image_build_stale_attempts`, `syrus_runtime_image_build_attempts_total`, and `syrus_runtime_image_build_recoveries_total` back the stale-attempt and stalled-queue alerts. Builds run on the `runtime_image_builds` queue of Linux compute workers, separate from the control plane that recovers them.

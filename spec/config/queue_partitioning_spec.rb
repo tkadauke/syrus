@@ -279,4 +279,46 @@ RSpec.describe "queue partitioning" do
     expect(queues_for("config/queue.compute.yml")[:dispatch].uniq).to eq([ expected ])
     expect(queues_for("config/queue.home.yml")[:dispatch]).to be_empty
   end
+
+  describe "runtime image build plane partitioning" do
+    def build_workers(config, capabilities: nil)
+      Array(load_config(config, capabilities: capabilities).dig("default", "workers"))
+        .select { |worker| Array(worker["queues"]).map(&:to_s).include?("runtime_image_builds") }
+    end
+
+    it "runs builds on their own pool, never sharing threads with agent runs or control-plane work" do
+      %w[config/queue.yml config/queue.compute.yml].each do |config|
+        workers = build_workers(config, capabilities: "os:linux")
+        expect(workers.size).to eq(1), config
+        expect(Array(workers.first["queues"]).map(&:to_s)).to eq([ "runtime_image_builds" ])
+        expect(workers.first["threads"]).to eq(2)
+      end
+    end
+
+    it "bounds the build pool by RUNTIME_IMAGE_BUILD_THREADS" do
+      stub_const("ENV", ENV.to_h.merge("RUNTIME_IMAGE_BUILD_THREADS" => "1"))
+      expect(build_workers("config/queue.compute.yml", capabilities: "os:linux").first["threads"]).to eq(1)
+    end
+
+    it "never claims builds on the home worker or on macOS compute workers" do
+      expect(build_workers("config/queue.home.yml")).to be_empty
+      expect(build_workers("config/queue.compute.yml", capabilities: "os:macos")).to be_empty
+    end
+
+    it "keeps the dispatcher and its recovery on the always-running control plane, apart from the build queue" do
+      expect(RuntimeImageBuildDispatchJob.new.queue_name).to eq("control_plane")
+      expect(RuntimeImageBuildJob.new.queue_name).to eq("runtime_image_builds")
+      expect(queues_for("config/queue.home.yml")[:regular]).to include("control_plane")
+      expect(queues_for("config/queue.home.yml")[:regular]).not_to include("runtime_image_builds")
+
+      recurring = YAML.safe_load(ERB.new(File.read(ROOT.join("config/recurring.yml"))).result, aliases: true).values.flat_map(&:values)
+      dispatch = recurring.find { |entry| entry.is_a?(Hash) && entry["class"] == "RuntimeImageBuildDispatchJob" }
+      expect(dispatch).to include("queue" => "control_plane")
+    end
+
+    it "leaves the recovery pass independent of the build queue so a saturated build pool cannot starve it" do
+      expect(RuntimeImageBuildDispatchJob.new.queue_name).not_to eq(RuntimeImageBuildJob.new.queue_name)
+      expect(RuntimeImageBuildDispatchJob.included_modules).to include(SkipIfPending)
+    end
+  end
 end

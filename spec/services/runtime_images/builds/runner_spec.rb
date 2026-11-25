@@ -71,14 +71,63 @@ RSpec.describe RuntimeImages::Builds::Runner do
     expect(attempt.error_code).to eq("verification_failed")
   end
 
-  it "treats provider errors as retryable infrastructure failures" do
+  it "treats an unreachable registry as a retryable failure with its own code" do
     request
     allow(builder).to receive(:build).and_raise(RuntimeImages::ProviderError, "registry down")
 
     claimed, attempt = run
 
     expect(claimed).to be_queued
-    expect(attempt).to have_attributes(error_code: "infrastructure_error", retryable: true)
+    expect(attempt).to have_attributes(error_code: "registry_unavailable", retryable: true)
+    expect(claimed.next_attempt_at).to be > Time.current + 1.minute
+  end
+
+  it "treats a registry that rejects a publish for quota as quota exhaustion, retried on the slow schedule" do
+    request
+    allow(builder).to receive(:build).and_return(output)
+    allow_any_instance_of(RuntimeImages::Builds::ScopedPublisher).to receive(:publish).and_raise(RuntimeImages::ProviderError, "429 Too Many Requests: quota exceeded")
+
+    claimed, attempt = run
+
+    expect(claimed).to be_queued
+    expect(attempt).to have_attributes(error_code: "quota_exhausted", retryable: true)
+    expect(claimed.next_attempt_at).to be > Time.current + 5.minutes
+  end
+
+  it "treats a full disk as quota exhaustion" do
+    request
+    allow(builder).to receive(:build).and_raise(Errno::ENOSPC)
+
+    _, attempt = run
+
+    expect(attempt).to have_attributes(error_code: "quota_exhausted", retryable: true)
+  end
+
+  it "fails terminally, naming no hosts, when a build fails after the egress proxy refused destinations" do
+    request
+    allow(builder).to receive(:build) do |control:, **|
+      control.evidence.instance_variable_set(:@network, { "denials" => [ { "host" => "evil.example", "port" => 443, "reason" => "not_allowlisted", "count" => 2 } ] })
+      raise RuntimeImages::Builds::BuildFailed.new("build exited with status 1", code: "build_failed")
+    end
+
+    claimed, attempt = run
+
+    expect(claimed).to be_failed
+    expect(attempt).to have_attributes(error_code: "network_denied", retryable: false)
+    expect(claimed.result.message).to include("2 refused network request", "not_allowlisted")
+    expect(claimed.result.message).not_to include("evil.example")
+  end
+
+  it "keeps a non-generic failure code even when destinations were refused" do
+    request
+    allow(builder).to receive(:build) do |control:, **|
+      control.evidence.instance_variable_set(:@network, { "denials" => [ { "host" => "x", "reason" => "not_allowlisted", "count" => 1 } ] })
+      raise RuntimeImages::Builds::BuildFailed.new("too slow", code: "build_timeout")
+    end
+
+    claimed, = run
+
+    expect(claimed.result.error_code).to eq("build_timeout")
   end
 
   it "records unexpected errors as terminal failures" do
@@ -162,7 +211,7 @@ RSpec.describe RuntimeImages::Builds::Runner do
       claimed, attempt = run
 
       expect(claimed).to be_queued
-      expect(attempt.evidence).to have_attributes(outcome: "failed", error_code: "infrastructure_error")
+      expect(attempt.evidence).to have_attributes(outcome: "failed", error_code: "registry_unavailable")
       expect(claimed.result).to be_nil
     end
 

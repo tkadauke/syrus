@@ -33,6 +33,18 @@ RSpec.describe "runtime image build jobs" do
       expect(request.reload).to be_building
     end
 
+    it "repairs an orphaned in-flight request, requeueing it with backoff" do
+      RuntimeImages::Builds.builder = double("builder")
+      request = submit
+      orchestrator.claim_next
+      request.attempts.update_all(state: "failed")
+
+      expect { described_class.perform_now }.not_to have_enqueued_job(RuntimeImageBuildJob)
+
+      expect(request.reload).to be_queued
+      expect(request.next_attempt_at).to be > Time.current
+    end
+
     it "reaps expired leases" do
       RuntimeImages::Builds.builder = double("builder")
       request = submit
@@ -56,6 +68,31 @@ RSpec.describe "runtime image build jobs" do
 
       described_class.perform_now(request.id, attempt.id)
 
+      expect(request.reload).to be_succeeded
+    end
+
+    it "does not build again when another delivery already started the attempt" do
+      builder = double("builder")
+      expect(builder).not_to receive(:build)
+      RuntimeImages::Builds.builder = builder
+      request, attempt = (submit && orchestrator.claim_next)
+      orchestrator.begin_execution(attempt)
+
+      described_class.perform_now(request.id, attempt.id)
+
+      expect(request.reload).to be_building
+    end
+
+    it "marks the attempt executing on the first delivery" do
+      builder = double("builder")
+      allow(builder).to receive(:build).and_return(RuntimeImages::Builds::Output.new(payload: "x", source_digest: source.digest, provenance: {}))
+      RuntimeImages::Builds.builder = builder
+      allow_any_instance_of(RuntimeImages::Service).to receive(:provider_for).and_return(provider)
+      request, attempt = (submit && orchestrator.claim_next)
+
+      described_class.perform_now(request.id, attempt.id)
+
+      expect(attempt.reload.execution_started_at).to be_present
       expect(request.reload).to be_succeeded
     end
 

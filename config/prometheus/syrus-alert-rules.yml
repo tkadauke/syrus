@@ -113,3 +113,21 @@ groups:
         annotations:
           summary: "Coworker {{ $labels.coworker }} exceeded the daily spend cap"
           description: "The last 24 hours exceeded the configured default cap of $100."
+
+      - alert: SyrusRuntimeImageBuildStaleAttempts
+        expr: max(syrus_runtime_image_build_stale_attempts) > 0
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Runtime image build attempts are stuck past their lease"
+          description: "The dispatcher is not recovering active build attempts whose lease or runtime ceiling has passed."
+
+      - alert: SyrusRuntimeImageBuildQueueStalled
+        expr: max(syrus_runtime_image_build_oldest_queued_seconds) > 1800
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A runtime image build has been queued for over 30 minutes"
+          description: "Check the runtime_image_builds queue, the build executor registration, and the concurrency caps."

@@ -58,3 +58,7 @@ operations, not because it looks more official.
 ## Runtime image build evidence
 
 Each runtime image build attempt records provenance evidence: source digest, resolved base image digests (including `ARG`-parameterized `FROM` lines), the build-network policy digest, builder version, reached destinations, layer digests, measured resource usage, and the terminal result. Build logs are sanitized and size-bounded before storage; output past the cap is counted, not kept. Administrators can read the full evidence at `GET /api/v1/admin/runtime_image_build_requests/:id/evidence`; other surfaces only see a safe summary without log text or addresses.
+
+## Runtime image build recovery
+
+Builds retry after a lost worker, an attempt that runs too long, registry unavailability, or quota exhaustion (with slower backoff for the last two), and stop without retrying when a build failed on destinations the allowlist refused (`network_denied`). Identical requests share one live build, and administrators can cancel a build or list requests and attempts through `/api/v1/admin/runtime_image_build_requests`. `GET /api/v1/admin/runtime_images` reports build queue age, stale attempts, failure codes, and denied-destination counts, and Prometheus alerts fire on stuck attempts and a stalled queue.

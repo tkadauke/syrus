@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_012227) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3974,6 +3974,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_010000) do
     t.boolean "retryable", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "execution_started_at"
     t.index ["runtime_image_build_request_id", "number"], name: "idx_ri_build_attempts_number", unique: true
     t.index ["state", "lease_expires_at"], name: "idx_ri_build_attempts_lease"
   end
