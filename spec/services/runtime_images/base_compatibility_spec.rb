@@ -49,6 +49,16 @@ RSpec.describe RuntimeImages::BaseCompatibility do
     expect(described_class.new(now: 2.hours.from_now).environments_needing_rebuild.first.reasons).to eq([ "support_ended" ])
   end
 
+  it "does not offer an expired but still active base as its own replacement" do
+    release = active_base
+    publish_environment(release)
+    base_releases.set_support_deadline!(release, until_time: 1.hour.from_now, actor: "t")
+    finding = described_class.new(now: 2.hours.from_now).environments_needing_rebuild.first
+    expect(finding.reasons).to eq([ "support_ended" ])
+    expect(finding.replacement).to be_nil
+    expect(finding.to_h[:blocked]).to be(true)
+  end
+
   it "finds environments on a base whose ABI this Syrus no longer launches" do
     release = active_base
     publish_environment(release)

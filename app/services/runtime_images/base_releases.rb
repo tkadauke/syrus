@@ -94,6 +94,7 @@ module RuntimeImages
     def rollback!(platform: BuiltImages::DEFAULT_PLATFORM, to: nil, actor:)
       target = to || rollback_targets(platform: platform).first
       raise Refused, [ Problem.new("no_rollback_target", "no retired base is available to roll back to for #{platform}") ] unless target
+      raise Refused, [ Problem.new("platform_mismatch", "release is for #{target.platform}, not #{platform}") ] unless target.platform == platform
       raise Refused, [ Problem.new("not_retired", "release is #{target.status}; only a retired base can be rolled back to") ] unless target.retired?
       activate!(target, actor: actor, event: "base_release.rollback")
     end
