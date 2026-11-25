@@ -41,7 +41,7 @@ module Mcp::Tools
           message: "Detach #{job.slug} from its inferred parent and restack PR ##{job.pr_number} onto #{destination_base}?",
           extra: { plan: plan }
         )
-      rescue RepositoryContent::Error, Octokit::Error => e
+      rescue RepositoryContent::Error, Octokit::Error, ArgumentError => e
         Mcp::Tools.invalid("Could not produce a live detach plan: #{e.message}")
       end
     end

@@ -13,9 +13,15 @@ class JobDetachPlan
     pr = client.pull_request(job.repository.slug, job.pr_number, bypass_cache: true)
     live_base = MergeabilityRecorder.base_ref(pr)
     head_sha = client.branch_head_sha(job.repository.slug, job.branch_name)
+    former_parent = job.parent_job
+    raise ArgumentError, "Job has no stack parent to detach" unless former_parent&.branch_name.present?
+
+    former_parent_head = client.branch_head_sha(job.repository.slug, former_parent.branch_name)
+    raise ArgumentError, "Former parent branch #{former_parent.branch_name} is missing" if former_parent_head.blank?
+
     content = RepositoryContent.for(job.repository)
-    history = content.history(base: content.resolve(live_base), head: content.resolve(head_sha))
-    changes = content.changes(base: content.resolve(live_base), head: content.resolve(head_sha), patch: true)
+    history = content.history(base: content.resolve(former_parent_head), head: content.resolve(head_sha))
+    changes = content.changes(base: content.resolve(former_parent_head), head: content.resolve(head_sha), patch: true)
 
     {
       "job_id" => job.id,
@@ -26,6 +32,8 @@ class JobDetachPlan
       "current_branch_head" => head_sha,
       "live_pr_base" => live_base,
       "inferred_parent_job_id" => job.parent_job_id,
+      "former_parent_branch" => former_parent.branch_name,
+      "former_parent_head" => former_parent_head,
       "destination_base" => destination_base,
       "commits_to_preserve" => history.commits.map { |commit| { "sha" => commit.sha, "message" => commit.message } },
       "patches_to_preserve" => changes.map { |change| { "path" => change.path, "status" => change.status, "patch" => change.patch } },
