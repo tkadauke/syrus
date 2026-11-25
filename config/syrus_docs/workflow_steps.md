@@ -1104,6 +1104,19 @@ implementation a prior visual review rejected.
 
 Non-agentic / Agentic / Non-agentic. Same as the single-PR rebase chain but operates across a dependent PR stack in dependency order.
 
+Publication is fail-closed for every open stack member. After any leased branch
+push and PR retarget, `stack_force_push` rereads the uncached remote branch and
+PR and verifies the intended head SHA, PR base, and Syrus stack parent. It then
+records the live mergeability/base identities, recomputes
+`commits_behind_base`, and refreshes landing blockers. A push, retarget, footer,
+provider/auth, refresh, or postcondition failure fails the step with a
+`stack_publication_failure` artifact; when the intended local output differs
+from the remote branch, it also records recoverable `branch_divergence`
+evidence. A branch rebase no-op is successful only when this publication check
+proves the requested topology is already live. The verified
+`stack_publication` artifact distinguishes `branch_publication: already_correct`
+from a rewritten publication.
+
 ## Landing steps
 
 ### mergeability_preflight

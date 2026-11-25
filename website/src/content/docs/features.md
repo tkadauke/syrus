@@ -787,7 +787,13 @@ boundaries. Rebasing an upstream root walks each dependent Epic in order and
 uses the newly rebased upstream tail as the next root's base; rebasing a
 downstream root leaves its upstream Epic unchanged. Syrus locks every Job and
 Epic participating in the operation so another restack or merge train cannot
-race the branch updates. Disabling the feature restores single-Epic planning.
+race the branch updates. Before reporting success, Syrus rereads every affected
+remote branch and pull request without cached provider state, verifies the
+intended head, PR base, and stack parent, then refreshes commits-behind and
+landing blockers. A no-op branch rebase succeeds only when the requested live
+topology is already correct; failed pushes, PR retargets, refreshes, or
+postcondition checks fail the workflow and retain recovery evidence. Disabling
+the feature restores single-Epic planning.
 For a handful of older Epics whose child Jobs still branch or fan in (from
 before same-Epic dependencies were required to form a single chain), Syrus
 can prepare a combined execution base from approved dependency PR branches
