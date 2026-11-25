@@ -56,6 +56,7 @@ RSpec.describe RuntimeImages::Builds::LogCapture do
     log, text = capture("x" * 100_000, limit: 100_000)
     expect(text.bytesize).to be < 20_000
     expect(log.seen_bytes).to eq(100_000)
+    expect(log.dropped_bytes).to be > 70_000
   end
 
   it "survives invalid UTF-8" do

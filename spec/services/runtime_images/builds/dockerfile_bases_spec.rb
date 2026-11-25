@@ -20,4 +20,10 @@ RSpec.describe RuntimeImages::Builds::DockerfileBases do
     resolved = described_class.resolve([ "debian" ], [ { "names" => [ "debian:latest" ], "digest" => "not-a-digest" } ])
     expect(resolved.first).not_to have_key("digest")
   end
+
+  it "resolves ARG defaults and build-arg overrides in FROM references" do
+    text = "ARG BASE=alpine:3.20\nARG TAG\nFROM $BASE\nFROM debian:${TAG:-12}\nFROM ${MISSING}\n"
+    expect(described_class.references(text)).to eq([ "alpine:3.20", "debian:12", "${MISSING}" ])
+    expect(described_class.references(text, "BASE" => "alpine:3.21", "TAG" => "13").first(2)).to eq([ "alpine:3.21", "debian:13" ])
+  end
 end

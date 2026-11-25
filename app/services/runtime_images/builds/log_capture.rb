@@ -68,10 +68,17 @@ module RuntimeImages
 
       def emit(raw)
         line = raw.byteslice(0, MAX_LINE_BYTES * 4) || +""
+        @dropped_bytes += raw.bytesize - line.bytesize
         text = private_key_filtered(self.class.sanitize_line(line).rstrip)
-        return if text.nil?
+        if text.nil?
+          @dropped_bytes += line.bytesize
+          return
+        end
 
-        text = "#{text.byteslice(0, MAX_LINE_BYTES).scrub("")}…" if text.bytesize > MAX_LINE_BYTES
+        if text.bytesize > MAX_LINE_BYTES
+          @dropped_bytes += text.bytesize - MAX_LINE_BYTES
+          text = "#{text.byteslice(0, MAX_LINE_BYTES).scrub("")}…"
+        end
         text = "#{text}\n"
         room = [ @limit - @out.bytesize, 0 ].max
         if text.bytesize <= room
