@@ -122,6 +122,20 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.run).to eq("bin/test")
   end
 
+  it "requires an explicit boolean before a grader failure is technically overridable" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+          technically_overridable: true
+    YAML
+
+    expect(config.grade.steps.first.metadata).to include("technically_overridable" => true)
+    expect {
+      parse("grade:\n  - name: tests\n    run: bin/test\n    technically_overridable: sometimes\n")
+    }.to raise_error(described_class::ParseError, /technically_overridable: must be true or false/)
+  end
+
   it "allows explicit custom grader type for shell commands" do
     config = parse(<<~YAML)
       grade:
@@ -165,11 +179,13 @@ RSpec.describe SyrusYml do
         steps:
           - type: example
             name: smoke
+            technically_overridable: true
     YAML
 
     expect(config.grade.steps.first.name).to eq("smoke")
     expect(config.grade.steps.first.run).to eq("bin/example")
     expect(config.grade.steps.first.failures).to eq("allow_inherited")
+    expect(config.grade.steps.first.metadata).to include("technically_overridable" => true)
   end
 
   it "rejects plugin-defined grader types with run commands" do
