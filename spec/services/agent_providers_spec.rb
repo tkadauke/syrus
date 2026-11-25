@@ -74,7 +74,7 @@ RSpec.describe AgentProviders do
       allow(ManualAgenticRun::GithubAccess).to receive(:cleanup).with(run)
       allow(Rails.logger).to receive(:error)
 
-      expect { adapter.run(prompt: "repair", log_sink: ->(*) {}) }.to raise_error("primary invocation failure")
+      expect { adapter.run(prompt: "repair", log_sink: ->(*) { }) }.to raise_error("primary invocation failure")
       expect(Rails.logger).to have_received(:error).with(include("audit collection failed", "audit persistence failure"))
       expect(ManualAgenticRun::GithubAccess).to have_received(:cleanup).with(run)
     end
