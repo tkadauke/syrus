@@ -123,6 +123,24 @@ en:
     formats:
       long: "%Y-%m-%d %H:%M"
 
+  models:
+    workflow_outcome_override:
+      errors:
+        invalidated_cannot_be_consumed: "an invalidated override cannot be consumed"
+        gate_kind_not_registered: "is not registered"
+        failure_not_overridable: "gate failure is not technically overridable"
+        workflow_job_mismatch: "must belong to the override Job"
+        step_requires_workflow: "requires a Workflow"
+        step_workflow_mismatch: "must belong to the override Workflow"
+        version_required: "a plan or prompt version is required"
+        gate_failure_mismatch: "does not match the gate failure"
+        fingerprint_digest_mismatch: "does not match the bound evidence and revision"
+        current_fingerprint_mismatch: "override fingerprint does not match the current gate evidence and revision"
+        claims_immutable: "override claims are immutable: %{attributes}"
+        consumed_at_immutable: "is immutable once set"
+        invalidation_cause_immutable: "is immutable once set"
+        terminal_states_mutually_exclusive: "an override cannot be both consumed and invalidated"
+
   errors:
     messages:
       inclusion: "is not included in the list"
