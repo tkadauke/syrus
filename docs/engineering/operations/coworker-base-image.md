@@ -119,3 +119,11 @@ After merging, submit the build for each platform. Previously published digests
 stay immutable and available for rollback until retention collects them; a bad
 image is withdrawn with the Runtime Image Service's revoke operation (see
 [runtime image registry](runtime-image-registry.md)).
+
+## Probe in the build path
+
+`Builds::Runner` runs `ConformanceProbe.verify_published!` on every published
+`syrus_base` image after registry inspection. The image is pulled through the
+worker cache and probed under the real confinement. A non-conformant image is
+revoked (so `CoworkerBase.current_image` never returns it) and the build fails
+permanently with `conformance_failed`.

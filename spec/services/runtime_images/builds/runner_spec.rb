@@ -16,9 +16,11 @@ RSpec.describe RuntimeImages::Builds::Runner do
   before { RuntimeImages::Builds.builder = builder }
   after { RuntimeImages::Builds.builder = nil }
 
+  let(:base_verifier) { ->(_image) { true } }
+
   def run
     claimed_request, attempt = orchestrator.claim_next
-    described_class.new(orchestrator: orchestrator, service: service).call(claimed_request, attempt)
+    described_class.new(orchestrator: orchestrator, service: service, base_verifier: base_verifier).call(claimed_request, attempt)
     [ claimed_request.reload, attempt.reload ]
   end
 
@@ -50,6 +52,34 @@ RSpec.describe RuntimeImages::Builds::Runner do
     image = claimed.result.runtime_image
     attestation = image.provenance.fetch(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
     expect(RuntimeImages::RuntimeAbi.attestation_valid?(attestation, source_digest: image.source_digest, recipe_digest: image.provenance["recipe_digest"])).to be(true)
+  end
+
+  describe "standard base conformance" do
+    let(:base_source) { RuntimeImages::Builds::SourceCapture.capture(kind: RuntimeImages::CoworkerBase::SOURCE_KIND, ref: "coworker-base/generation-1", revision: "sha256:#{"a" * 64}") }
+
+    before do
+      orchestrator.submit(namespace: namespace, source: base_source, recipe: { "a" => 2 }, platform: "linux/amd64", requester_kind: "test", requester_ref: "2")
+      allow(builder).to receive(:build).and_return(output(payload: "base-image-bytes").tap { |o| o.source_digest = base_source.digest })
+    end
+
+    it "runs the probe on the published base image" do
+      seen = nil
+      verifier = ->(image) { seen = image }
+      allow(base_verifier).to receive(:call) { |image| verifier.call(image) }
+      claimed, = run
+      expect(claimed).to be_succeeded
+      expect(seen).to eq(claimed.result.runtime_image)
+    end
+
+    it "revokes the image and fails permanently when the probe is non-conformant" do
+      result = RuntimeImages::ConformanceProbe.evaluate("fail provider-muse: not on PATH\n", exit_status: 1)
+      allow(base_verifier).to receive(:call).and_raise(RuntimeImages::ConformanceProbe::NonConformant.new(result))
+      claimed, = run
+      expect(claimed).to be_failed
+      expect(claimed.result.error_code).to eq("conformance_failed")
+      expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
+      expect(RuntimeImages::CoworkerBase.current_image(built_images: RuntimeImages::BuiltImages.new(service: service))).to be_nil
+    end
   end
 
   it "fails non-retryably when the builder consumed a different source" do

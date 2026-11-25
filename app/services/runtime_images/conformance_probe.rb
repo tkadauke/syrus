@@ -128,6 +128,26 @@ module RuntimeImages
         evaluate!(output, exit_status: status, mode: FULL_MODE)
       end
 
+      # Verifies a published image: makes it local through the worker cache
+      # (which also checks its ABI labels), then runs the confined probe
+      # against its digest-pinned reference. Raises NonConformant on failure.
+      def verify_published!(image, built_images: BuiltImages.new, runner: method(:run_confined))
+        built_images.acquire(image) do |reference|
+          verify_image!(reference, runner: runner)
+        end
+      end
+
+      # Default runner: executes the argv through ProcessRunner and returns
+      # [output, exit_status].
+      def run_confined(argv, timeout: 120)
+        capture = ProcessRunner.new(
+          env: ENV.slice("PATH", "HOME", "DOCKER_HOST", "XDG_RUNTIME_DIR").compact,
+          command: argv, mounts: ProcessRunner.probe_mounts, network: "prepare", timeout: timeout
+        ).capture(limit: 64.kilobytes)
+        result = capture.result
+        [ capture.stdout.to_s + capture.stderr.to_s, result.timed_out? ? nil : (result.success? ? 0 : 1) ]
+      end
+
       private
 
       def provider_keys = RuntimeAbi.providers.keys
