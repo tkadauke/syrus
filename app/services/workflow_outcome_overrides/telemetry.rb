@@ -36,12 +36,18 @@ module WorkflowOutcomeOverrides
       JobLog.append!(
         run:,
         kind: LOG_KIND,
-        chunk: "Workflow outcome failed, overridden: #{override.gate_kind} #{override.gate_identity} " \
-          "at #{override.candidate_head_sha.first(12)} (evidence #{override.evidence_digest.first(12)}).\n"
+        chunk: transcript_chunk(override)
       )
     rescue StandardError => error
       Rails.logger.warn("[WorkflowOutcomeOverrides::Telemetry] recording failed: #{error.class}: #{error.message}")
       nil
     end
+
+    def self.transcript_chunk(override)
+      text = "Workflow outcome failed, overridden: #{override.gate_kind} #{override.gate_identity} " \
+        "at #{override.candidate_head_sha.first(12)} (evidence #{override.evidence_digest.first(12)})."
+      "#{ToolPayloadRedactor.redact_text(text).gsub(/[[:space:]]+/, " ").strip}\n"
+    end
+    private_class_method :transcript_chunk
   end
 end
