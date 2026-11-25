@@ -6,6 +6,8 @@ class RuntimeImageBuildAttempt < ApplicationRecord
 
   belongs_to :request, class_name: "RuntimeImageBuildRequest", foreign_key: :runtime_image_build_request_id,
              inverse_of: :attempts
+  has_one :evidence, class_name: "RuntimeImageBuildEvidence", foreign_key: :runtime_image_build_attempt_id,
+          inverse_of: :attempt, dependent: :destroy
 
   validates :number, numericality: { only_integer: true, greater_than: 0 }
   validates :state, inclusion: { in: STATES }

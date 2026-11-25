@@ -28,6 +28,8 @@ class RuntimeImageBuildRequest < ApplicationRecord
            foreign_key: :runtime_image_build_request_id, inverse_of: :request, dependent: :destroy
   has_one :result, class_name: "RuntimeImageBuildResult",
           foreign_key: :runtime_image_build_request_id, inverse_of: :request, dependent: :destroy
+  has_many :evidences, -> { order(:runtime_image_build_attempt_id) }, class_name: "RuntimeImageBuildEvidence",
+           foreign_key: :runtime_image_build_request_id, inverse_of: :request, dependent: :destroy
   has_one_attached :source_archive
 
   attr_readonly :runtime_image_namespace_id, :platform, :dedup_key, :source_kind, :source_ref, :source_digest,

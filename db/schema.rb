@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_002309) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_010000) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3976,6 +3976,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_002309) do
     t.datetime "updated_at", null: false
     t.index ["runtime_image_build_request_id", "number"], name: "idx_ri_build_attempts_number", unique: true
     t.index ["state", "lease_expires_at"], name: "idx_ri_build_attempts_lease"
+  end
+
+  create_table "runtime_image_build_evidences", force: :cascade do |t|
+    t.bigint "runtime_image_build_request_id", null: false
+    t.bigint "runtime_image_build_attempt_id", null: false
+    t.bigint "runtime_image_id"
+    t.string "outcome", limit: 24, null: false
+    t.string "error_code", limit: 64
+    t.string "source_digest", limit: 71, null: false
+    t.string "recipe_digest", limit: 71
+    t.string "platform", limit: 64
+    t.string "image_digest", limit: 71
+    t.string "policy_digest", limit: 71
+    t.string "builder_version", limit: 191
+    t.json "base_images"
+    t.json "policy_snapshot"
+    t.json "destinations"
+    t.json "layer_digests"
+    t.json "resources"
+    t.integer "log_bytes", default: 0, null: false
+    t.integer "log_dropped_bytes", default: 0, null: false
+    t.text "log", limit: 16777215
+    t.datetime "finished_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_build_attempt_id"], name: "idx_ri_build_evidence_attempt", unique: true
+    t.index ["runtime_image_build_request_id"], name: "idx_ri_build_evidence_request"
+    t.index ["runtime_image_id"], name: "idx_ri_build_evidence_image"
   end
 
   create_table "runtime_image_build_network_rules", force: :cascade do |t|

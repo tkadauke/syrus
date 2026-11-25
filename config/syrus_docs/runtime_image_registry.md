@@ -65,3 +65,12 @@ Runtime image builds run with no direct network. All build egress goes through a
 - Package registries that no rule declares are refused.
 - Blocked: literal-IP destinations in any notation, redirects to undeclared hosts, hosts resolving to private, loopback, link-local, or cloud-metadata addresses (or a mix of public and private), DNS rebinding (names are resolved once and dialed by that address), unauthorized `CONNECT`, and host or shared network modes.
 - Denied attempts are recorded as `build.network` audit events and the network policy digest is recorded in the image provenance.
+
+## Build provenance and evidence
+
+Every build attempt that finishes records evidence bound to its outcome: the captured source digest, the Dockerfile's base images (with the digest each resolved to, or the digest pinned in the reference), a snapshot of the build-network rules and their digest, the builder version, the destinations the build actually reached (host, port, resolved address, source class), the published image's layer digests, measured resource usage (peak memory, CPU time, duration, scratch storage, output size, OOM kills) next to the limits it ran under, and the attempt's terminal result.
+
+- The build log is sanitized line by line before it is stored (credential-shaped values, authorization headers, URL passwords, tokens, and private key blocks are replaced; control sequences are removed) and is capped at the configured log limit. Output past the cap is counted, not stored.
+- Administrators read the full evidence, including the log and resolved destinations, at `GET /api/v1/admin/runtime_image_build_requests/:id/evidence`. Other surfaces only receive the safe summary: digests, counts, and measurements, with no log text or addresses. The summary is stored in the build result's details and emitted as a `build.evidence` audit event.
+- The image provenance carries the builder version, network policy digest, base images, and layer digests, never log text.
+- A build can publish only into the namespace its request was made for, and only through the Runtime Image Service; it holds no registry credential and cannot revoke, delete, or read other images.

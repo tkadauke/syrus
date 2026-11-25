@@ -48,6 +48,7 @@ module RuntimeImages
         @allowed = 0
         @denied = 0
         @denials = {}
+        @destinations = {}
       end
 
       def start
@@ -69,7 +70,10 @@ module RuntimeImages
       def summary
         @mutex.synchronize do
           { "policy_digest" => @policy.digest, "allowed" => @allowed, "denied" => @denied,
-            "denials" => @denials.map { |(host, port, reason), count| { "host" => host, "port" => port, "reason" => reason, "count" => count } } }
+            "denials" => @denials.map { |(host, port, reason), count| { "host" => host, "port" => port, "reason" => reason, "count" => count } },
+            "destinations" => @destinations.map do |(host, port, address, source_class), count|
+              { "host" => host, "port" => port, "address" => address, "source_class" => source_class, "count" => count }
+            end }
         end
       end
 
@@ -155,7 +159,7 @@ module RuntimeImages
         end
 
         address = @resolver.resolve(decision.host, allow_private: decision.allow_private).first
-        record(decision)
+        record(decision, address: address)
         address
       rescue Resolver::Blocked => e
         record(Decision.deny(e.reason, host: decision.host, port: decision.port))
@@ -320,10 +324,12 @@ module RuntimeImages
         nil
       end
 
-      def record(decision)
+      def record(decision, address: nil)
         @mutex.synchronize do
           if decision.allowed?
             @allowed += 1
+            key = [ decision.host, decision.port, address.to_s, decision.source_class.to_s ]
+            @destinations[key] = @destinations.fetch(key, 0) + 1 if @destinations.key?(key) || @destinations.size < MAX_RECORDED_DENIALS
           else
             @denied += 1
             key = [ decision.host, decision.port, decision.reason ]

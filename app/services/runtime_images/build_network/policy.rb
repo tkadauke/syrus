@@ -25,6 +25,9 @@ module RuntimeImages
 
       def empty? = rules.empty?
 
+      # The rules this build was bound to, as stored evidence.
+      def snapshot = rules.map { |rule| rule.to_h.stringify_keys }
+
       def digest
         "sha256:#{Digest::SHA256.hexdigest(rules.map(&:to_h).map(&:to_json).sort.join("\n"))}"
       end
