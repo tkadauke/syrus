@@ -389,6 +389,9 @@ module SyrusDev
 
       grouped.map do |(name, path), rows|
         durations = rows.map { |event| event["duration_ms"].to_f }
+        input_delays = browser_metadata_durations(rows, "input_delay_ms")
+        processing_durations = browser_metadata_durations(rows, "processing_duration_ms")
+        presentation_delays = browser_metadata_durations(rows, "presentation_delay_ms")
         api_requests = rows.flat_map { |event| Array(event["api_requests"]) }
         api_durations = api_requests.map { |request| request["duration_ms"].to_f }
         spans = rows.flat_map { |event| Array(event["spans"]) }
@@ -400,6 +403,12 @@ module SyrusDev
           total_duration_ms: durations.sum.round(1),
           average_duration_ms: average(durations),
           max_duration_ms: durations.max&.round(1),
+          average_input_delay_ms: average(input_delays),
+          max_input_delay_ms: input_delays.max&.round(1),
+          average_processing_duration_ms: average(processing_durations),
+          max_processing_duration_ms: processing_durations.max&.round(1),
+          average_presentation_delay_ms: average(presentation_delays),
+          max_presentation_delay_ms: presentation_delays.max&.round(1),
           average_api_duration_ms: average(api_durations),
           max_api_duration_ms: api_durations.max&.round(1),
           average_span_duration_ms: average(span_durations),
@@ -410,6 +419,13 @@ module SyrusDev
           last_seen_at: rows.map { |event| event["occurred_at"] }.compact.max
         }
       end.sort_by { |row| [ -row[:total_duration_ms].to_f, -row[:count] ] }
+    end
+
+    def browser_metadata_durations(rows, key)
+      rows.filter_map do |event|
+        value = event["metadata"].to_h[key]
+        Float(value, exception: false) unless value.nil?
+      end
     end
 
     def grouped_sql_fingerprints(events)

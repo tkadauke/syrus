@@ -577,6 +577,38 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "allowlists input telemetry metadata at the ingestion boundary" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+
+    described_class.record_browser_trace(
+      trace_id: "input-1",
+      name: "browser.input_latency",
+      path: "/jobs/1",
+      duration_ms: 80,
+      metadata: {
+        screen: "/jobs/:id",
+        interaction_kind: "pointer",
+        input_delay_ms: 10,
+        processing_duration_ms: 30,
+        presentation_delay_ms: 40,
+        target: "button#secret",
+        text: "user-entered content",
+        selector: "[data-testid=secret]"
+      }
+    )
+
+    metadata = described_class::Store.recent.first.fetch("metadata")
+    expect(metadata).to include(
+      "screen" => "/jobs/:id",
+      "interaction_kind" => "pointer",
+      "input_delay_ms" => "10",
+      "processing_duration_ms" => "30",
+      "presentation_delay_ms" => "40"
+    )
+    expect(metadata).not_to include("target", "text", "selector")
+  end
+
   it "retains bounded structured SPA startup timing metadata" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
