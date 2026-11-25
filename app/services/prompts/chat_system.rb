@@ -480,7 +480,8 @@ module Prompts
 
     def repository_workspace_guidance
       if coworker_chat?
-        "Use the coworker workspace tools for identity and memory files. Treat every attached product repository as read-only."
+        "Use the coworker workspace tools for identity and memory files. Treat every attached product repository as read-only. " \
+          "When starting a Runtime Session for an attached product repository, pass its `repository_id` or `repository_slug` to `runtime_start`."
       elsif local_mode_chat?
         <<~TEXT.squish
           Local Mode uses the connected local repository exposed by
