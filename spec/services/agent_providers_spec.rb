@@ -61,6 +61,23 @@ RSpec.describe AgentProviders do
 
       expect(run.reload.cost_usd).to eq(BigDecimal("0.123456"))
     end
+
+    it "preserves the invocation error when break-glass audit persistence also fails" do
+      run = Factories.run
+      provider_class = Class.new(described_class) do
+        def invoke(**) = raise("primary invocation failure")
+      end
+      adapter = provider_class.new(run: run, workspace: double(path: Rails.root), parent_session_id: nil)
+      access = instance_double(ManualAgenticRun::GithubAccess, enabled?: true)
+      allow(access).to receive(:collect_audit!).and_raise("audit persistence failure")
+      allow(ManualAgenticRun::GithubAccess).to receive(:for).with(run).and_return(access)
+      allow(ManualAgenticRun::GithubAccess).to receive(:cleanup).with(run)
+      allow(Rails.logger).to receive(:error)
+
+      expect { adapter.run(prompt: "repair", log_sink: ->(*) {}) }.to raise_error("primary invocation failure")
+      expect(Rails.logger).to have_received(:error).with(include("audit collection failed", "audit persistence failure"))
+      expect(ManualAgenticRun::GithubAccess).to have_received(:cleanup).with(run)
+    end
   end
 
   describe ".for" do

@@ -131,7 +131,11 @@ module AgentProviders
       if defined?(ManualAgenticRun::GithubAccess)
         begin
           access = ManualAgenticRun::GithubAccess.for(@run)
-          access.collect_audit! if access.enabled?
+          begin
+            access.collect_audit! if access.enabled?
+          rescue StandardError => e
+            Rails.logger.error("[ManualAgenticRun::GithubAccess] audit collection failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
+          end
         ensure
           ManualAgenticRun::GithubAccess.cleanup(@run)
         end
