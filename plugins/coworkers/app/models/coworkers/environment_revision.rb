@@ -64,6 +64,19 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
     (compat_min..compat_max).cover?(abi)
   end
 
+  # The source snapshot starts as a draft. Build admission binds its immutable
+  # base/ABI tuple exactly once before leaving draft; ordinary updates remain
+  # protected by attr_readonly afterward.
+  def bind_build_inputs!(base_release_id:, runtime_abi:, compat_min:, compat_max:, recipe_digest:)
+    raise ActiveRecord::ReadonlyAttributeError, "build inputs are already bound" if coworker_base_release_id
+    raise InvalidTransition, "build inputs can only be bound to a draft revision" unless draft?
+
+    self.class.where(id: id).update_all(coworker_base_release_id: base_release_id, runtime_abi: runtime_abi,
+                                        compat_min: compat_min, compat_max: compat_max, recipe_digest: recipe_digest,
+                                        updated_at: Time.current)
+    reload
+  end
+
   private
 
   def compat_window_complete
