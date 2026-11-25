@@ -335,6 +335,7 @@ module ManualAgenticRun
       end
 
       def destructive_request?(method, path, body)
+        path = URI.parse(path).path
         return true if %w[DELETE PUT].include?(method)
         return true if path.include?("/git-receive-pack")
         return true if method == "POST" && path.match?(%r{/repos/#{Regexp.escape(@repository)}/issues/\d+/lock\z})
