@@ -6,7 +6,7 @@ import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionR
 import { Badge, CardShell, displayValue, EntityReference, Row, StatePill } from "../toolCardUi"
 
 function inputBoolean(value: unknown) {
-  return value === false ? i18n.t("chat:manual_agentic_run.false") : i18n.t("chat:manual_agentic_run.true")
+  return value === true ? i18n.t("chat:manual_agentic_run.true") : i18n.t("chat:manual_agentic_run.false")
 }
 
 function ManualAgenticRunDetails({ context }: { context: ToolCardContext }) {
@@ -127,6 +127,28 @@ export const examples: ToolCardExample[] = [
       pending_action_id: 501,
       state: "pending",
       message: "Start a manual agentic run for repair-ci from failed workflow workspace; push=false?"
+    }
+  },
+  {
+    id: "pending_break_glass",
+    label: i18n.t("chat:manual_agentic_run.example_break_glass"),
+    input: {
+      ...commonInput,
+      push: true,
+      github_access: true,
+      destructive_github_operations: true,
+      expected_outcomes: {
+        remote_branch: { name: "repair-ci", sha: "a".repeat(40) },
+        pull_request: { number: 314, base: "main", state: "open" },
+        labels: ["ready-for-review"],
+        comment: { issue_number: 314, body_includes: "Repair published" }
+      }
+    },
+    parsedResult: {
+      pending_confirmation_id: 502,
+      pending_action_id: 502,
+      state: "pending",
+      message: "Authorize repository-scoped break-glass GitHub access and destructive operations for this repair?"
     }
   },
   ...[

@@ -1481,7 +1481,8 @@
     "failed_summary": "Manual agentic run failed: {{message}}",
     "error_details": "Error details",
     "valid_bases": "Valid bases",
-    "example_pending": "Pending manual run"
+    "example_pending": "Pending manual run",
+    "example_break_glass": "Pending break-glass GitHub repair"
   },
   "retire_terminal_work_unit": {
     "reason": "Reason",

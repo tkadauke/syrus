@@ -38,11 +38,31 @@ describe("manual_agentic_run tool card", () => {
     expect(manualAgenticRunToolCard.toolName).toBe("manual_agentic_run")
     expect(examples.map((example) => example.id)).toEqual([
       "pending_confirmation",
+      "pending_break_glass",
       "missing_reason",
       "fresh_checkout_push_not_supported",
       "missing_pr_branch",
       "missing_pr"
     ])
+  })
+
+  it("renders absent GitHub access as false without break-glass details", () => {
+    const ordinary = examples.find((example) => example.id === "pending_confirmation")
+    render(<>{manualAgenticRunToolCard.renderExpanded(context({ input: ordinary?.input, parsedResult: ordinary?.parsedResult }))}</>)
+
+    expect(screen.getByText("Authenticated GitHub access").parentElement).toHaveTextContent("false")
+    expect(screen.queryByText("Destructive operations")).not.toBeInTheDocument()
+    expect(screen.queryByText(/limited to this repository/i)).not.toBeInTheDocument()
+  })
+
+  it("supplies a catalog fixture that exercises confirmed break-glass details", () => {
+    const breakGlass = examples.find((example) => example.id === "pending_break_glass")
+    render(<>{manualAgenticRunToolCard.renderExpanded(context({ input: breakGlass?.input, parsedResult: breakGlass?.parsedResult }))}</>)
+
+    expect(screen.getByText("Authenticated GitHub access").parentElement).toHaveTextContent("true")
+    expect(screen.getByText("Destructive operations").parentElement).toHaveTextContent("separately confirmed")
+    expect(screen.getByText(/limited to this repository/i)).toBeInTheDocument()
+    expect(screen.getByText("Expected remote outcomes")).toBeInTheDocument()
   })
 
   it.each([
