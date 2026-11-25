@@ -69,12 +69,12 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
   def compat_window_complete
     return if compat_min.nil? == compat_max.nil?
 
-    errors.add(compat_min.nil? ? :compat_min : :compat_max, "must be set together with the other bound")
+    errors.add(compat_min.nil? ? :compat_min : :compat_max, I18n.t("api.coworkers.environment_compat_bound_missing"))
   end
 
   def compat_window_ordered
     return if compat_min.nil? || compat_max.nil?
 
-    errors.add(:compat_max, "must not be below compat_min") if compat_max < compat_min
+    errors.add(:compat_max, I18n.t("api.coworkers.environment_compat_window_inverted")) if compat_max < compat_min
   end
 end

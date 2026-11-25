@@ -38,16 +38,6 @@ class Coworkers::EnvironmentSource
     echo "environment ok"
   SH
 
-  class Disabled < StandardError; end
-  class Invalid < StandardError
-    attr_reader :errors
-
-    def initialize(errors)
-      @errors = Array(errors)
-      super(@errors.join("; "))
-    end
-  end
-
   Result = Struct.new(:revision, :created, keyword_init: true)
 
   def initialize(coworker, workspace)

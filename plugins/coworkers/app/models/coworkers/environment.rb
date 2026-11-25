@@ -59,7 +59,7 @@ class Coworkers::Environment < ApplicationRecord
       next unless revision
 
       # A new environment owns no revisions yet, so any pointer is foreign.
-      errors.add(name, "must belong to this environment") if new_record? || revision.coworker_environment_id != id
+      errors.add(name, I18n.t("api.coworkers.environment_foreign_revision")) if new_record? || revision.coworker_environment_id != id
     end
   end
 end
