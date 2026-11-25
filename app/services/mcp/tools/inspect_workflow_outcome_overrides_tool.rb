@@ -15,8 +15,6 @@ module Mcp::Tools
       def call(job_id:, server_context:)
         job = find_job!(job_id)
         Mcp::Tools.success(job_id: job.id, candidates: WorkflowOutcomeOverrides::CandidateResolver.for_job(job).map(&:as_json))
-      rescue WorkflowOutcomeOverrides::CandidateResolver::NotFound => error
-        Mcp::Tools.invalid(error.message)
       end
     end
   end
