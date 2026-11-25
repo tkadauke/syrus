@@ -14,7 +14,6 @@ module ManualAgenticRun
   class GithubAccess
     PERMISSIONS = { contents: "write", pull_requests: "write", issues: "write" }.freeze
     DESTRUCTIVE_GH = /\A(?:repo delete|pr close|issue close|release delete|api .*\s(?:-X|--method)(?:=|\s)+(?:DELETE|PUT))/i
-    DESTRUCTIVE_GIT = /(?:\A|\s)(?:--force(?:-with-lease)?|--delete|\+[^\s]+|:[^\s]+)(?:\s|\z)/i
     BLOCKED_GH = %w[auth alias extension config].freeze
     REPOSITORY_GH = %w[clone view edit delete fork sync archive rename].freeze
     REGISTRY = {}
@@ -162,7 +161,7 @@ module ManualAgenticRun
         raise "access is restricted to #{@repository}" if refs.any? { |candidate| !candidate.sub(/\.git\z/, "").casecmp?(@repository) }
         if name == "git"
           raise "this git command is unavailable in scoped break-glass mode" if args.first == "credential" || joined.match?(/(?:^|\s)-c\s+alias\./)
-          if args.first == "push" && joined.match?(DESTRUCTIVE_GIT) && !@destructive
+          if args.first == "push" && !@destructive
             raise "this destructive Git operation requires separately confirmed destructive authority"
           end
           return
@@ -214,11 +213,10 @@ module ManualAgenticRun
     # worker-owned outbound requests. Provider subprocesses receive a harmless
     # placeholder credential and a public CA certificate, never the grant.
     class CredentialProxy
-      PLACEHOLDER = "syrus-broker-placeholder".freeze
-
       def initialize(dir:, token:, repository:, destructive:, on_request: nil)
         @dir, @token, @repository, @destructive = dir, token, repository, destructive
         @on_request = on_request
+        @proxy_capability = SecureRandom.hex(32)
       end
 
       def start
@@ -244,15 +242,16 @@ module ManualAgenticRun
       end
 
       def gh_environment
-        { "GH_HOST" => host, "GH_ENTERPRISE_TOKEN" => PLACEHOLDER, "SSL_CERT_FILE" => @certificate_path }
+        { "GH_HOST" => host, "GH_ENTERPRISE_TOKEN" => @proxy_capability, "SSL_CERT_FILE" => @certificate_path }
       end
 
       def git_environment
         {
-          "GIT_CONFIG_COUNT" => "3",
+          "GIT_CONFIG_COUNT" => "4",
           "GIT_CONFIG_KEY_0" => "url.https://#{host}/.insteadOf", "GIT_CONFIG_VALUE_0" => "https://github.com/",
           "GIT_CONFIG_KEY_1" => "url.https://#{host}/.insteadOf", "GIT_CONFIG_VALUE_1" => "git@github.com:",
-          "GIT_CONFIG_KEY_2" => "http.https://#{host}/.sslCAInfo", "GIT_CONFIG_VALUE_2" => @certificate_path
+          "GIT_CONFIG_KEY_2" => "http.https://#{host}/.sslCAInfo", "GIT_CONFIG_VALUE_2" => @certificate_path,
+          "GIT_CONFIG_KEY_3" => "http.https://#{host}/.extraHeader", "GIT_CONFIG_VALUE_3" => "Authorization: Bearer #{@proxy_capability}"
         }
       end
 
@@ -278,9 +277,11 @@ module ManualAgenticRun
         request_line = client.gets("\r\n")&.strip.to_s
         method, target, = request_line.split(" ", 3)
         headers = read_headers(client)
+        supplied_capability = headers["authorization"].to_s.sub(/\A(?:Bearer|token)\s+/i, "")
+        raise "proxy authorization is invalid" unless ActiveSupport::SecurityUtils.secure_compare(supplied_capability, @proxy_capability)
         body = request_body(client, headers)
         upstream, path, authorization = upstream_for(target)
-        raise "destructive proxy request requires authority" if %w[DELETE PUT].include?(method) && !@destructive
+        raise "destructive proxy request requires authority" if destructive_request?(method, path, body) && !@destructive
         response = Faraday.public_send(method.downcase, "#{upstream}#{path}", body) do |request|
           headers.each { |key, value| request.headers[key] = value unless %w[host authorization connection content-length].include?(key) }
           request.headers["Authorization"] = authorization
@@ -321,9 +322,12 @@ module ManualAgenticRun
       end
 
       def upstream_for(target)
-        path = URI.parse(target).request_uri
+        uri = URI.parse(target)
+        path = uri.path.to_s
+        path = "/#{path}" unless path.start_with?("/")
+        path = "#{path}?#{uri.query}" if uri.query
         api_path = path.delete_prefix("/api/v3")
-        if api_path.start_with?("/repos/#{@repository}")
+        if api_path == "/repos/#{@repository}" || api_path.start_with?("/repos/#{@repository}/")
           [ "https://api.github.com", api_path, "Bearer #{@token}" ]
         elsif path.start_with?("/#{@repository}.git/") || path == "/#{@repository}.git"
           basic = Base64.strict_encode64("x-access-token:#{@token}")
@@ -331,6 +335,25 @@ module ManualAgenticRun
         else
           raise "proxy request is restricted to #{@repository}"
         end
+      end
+
+      def destructive_request?(method, path, body)
+        return true if %w[DELETE PUT].include?(method)
+        return true if path.include?("/git-receive-pack")
+        return true if method == "POST" && path.match?(%r{/repos/#{Regexp.escape(@repository)}/issues/\d+/lock\z})
+        if method == "PATCH" && path == "/repos/#{@repository}"
+          return ActiveModel::Type::Boolean.new.cast(parse_body(body)["archived"])
+        end
+        return false unless method == "PATCH" && path.match?(%r{/repos/#{Regexp.escape(@repository)}/(?:pulls|issues)/\d+\z})
+
+        values = parse_body(body)
+        values["state"].to_s.casecmp?("closed")
+      end
+
+      def parse_body(body)
+        JSON.parse(body.to_s)
+      rescue JSON::ParserError
+        URI.decode_www_form(body.to_s).to_h
       end
 
       def certificate_pair
