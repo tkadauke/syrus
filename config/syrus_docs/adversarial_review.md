@@ -78,7 +78,10 @@ review gate continues to read the final entry. Member entries include
 are retained as non-blocking notes rather than required repair feedback.
 Unavailable members follow the rule's `drop`, `hold`, or `fail` policy and its
 minimum-member requirement. Rules that resolve to zero or one effective member
-retain the ordinary single-review behavior.
+retain the ordinary single-review behavior. Permanent provider refusals found
+during execution use the same unavailable-member policy and are not retried.
+An authorized override can make an exact-commit negative or unavailable member
+non-blocking without replacing its original verdict or evidence.
 
 ## Configuration
 

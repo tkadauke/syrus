@@ -978,6 +978,7 @@ class StepDispatcher
       "members" => panel.available_members,
       "dropped_members" => panel.unavailable_members,
       "consensus" => panel.consensus,
+      "on_unavailable" => panel.on_unavailable,
       "min_members" => panel.min_members,
       "disposition" => panel.disposition
     }
@@ -1641,6 +1642,7 @@ class StepDispatcher
     return false unless gate
 
     stamp_review_artifact!(gate.fetch(:artifact_key))
+    apply_review_outcome_override!(gate.fetch(:artifact_key), effective_review_kind) unless @from_step.kind == "review_panel_collect"
 
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
@@ -1660,7 +1662,8 @@ class StepDispatcher
   end
 
   def review_loop_exit?(artifact_key, exit_verdicts)
-    verdict = @workflow.artifacts&.dig(artifact_key)&.last&.fetch("verdict", nil)
+    entry = @workflow.artifacts&.dig(artifact_key)&.last
+    verdict = entry&.fetch("effective_verdict", nil) || entry&.fetch("verdict", nil)
     exit_verdicts.include?(verdict)
   end
 
@@ -1675,6 +1678,23 @@ class StepDispatcher
     return unless index
 
     entries[index] = entries[index].merge("reviewed_head_sha" => sha)
+    @workflow.set_artifact!(artifact_key, entries)
+  end
+
+  def apply_review_outcome_override!(artifact_key, review_kind)
+    entries = Array(@workflow.artifact(artifact_key))
+    index = entries.rindex { |entry| entry["iteration"].to_i == @from_step.iteration && !entry["aggregate"] }
+    return unless index
+
+    entry = entries[index]
+    reviewed_head_sha = entry["reviewed_head_sha"].presence || @from_step.details.to_h["reviewed_head_sha"]
+    effective = WorkflowOutcomeOverrides::ReviewVerdict.apply!(
+      workflow: @workflow, collector_step: @from_step, review_kind:,
+      panel_id: entry["panel_id"], reviewed_head_sha:, vote: entry
+    )
+    return if effective == entry
+
+    entries[index] = effective
     @workflow.set_artifact!(artifact_key, entries)
   end
 
