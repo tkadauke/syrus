@@ -1,0 +1,6 @@
+de:
+  admin_mysql:
+    inspector:
+      ddl_progress_unavailable:
+        message: "Performance Schema erfasst den Fortschritt von InnoDB-ALTER-Vorgängen nicht (deaktiviert: %{disabled})."
+        hint: "Aktiviere die InnoDB-ALTER-Stage-Instrumente und die Stage-Consumer. Diese Einstellungen gehen bei einem MySQL-Neustart verloren; setze sie dauerhaft mit performance-schema-instrument='stage/innodb/alter%=ON' und performance-schema-consumer-events-stages-current=ON in der Serverkonfiguration."

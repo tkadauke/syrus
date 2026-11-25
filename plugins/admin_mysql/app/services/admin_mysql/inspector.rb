@@ -287,10 +287,8 @@ module AdminMysql
       {
         available: false,
         error: {
-          message: "Performance Schema is not collecting InnoDB ALTER progress (disabled: #{disabled.join(', ')}).",
-          hint: "Enable the InnoDB alter stage instruments and the stage consumers. These settings reset on MySQL restart; " \
-                "persist them with performance-schema-instrument='stage/innodb/alter%=ON' and " \
-                "performance-schema-consumer-events-stages-current=ON in the server configuration.",
+          message: I18n.t("admin_mysql.inspector.ddl_progress_unavailable.message", disabled: disabled.join(", ")),
+          hint: I18n.t("admin_mysql.inspector.ddl_progress_unavailable.hint"),
           setup_sql: DDL_SETUP_SQL
         }
       }

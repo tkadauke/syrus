@@ -35,21 +35,12 @@ module PendingActions
     end
 
     def presentation_label
-      "Hold #{presentation_job_slug}"
+      I18n.t("server.mcp.hold_job_confirmation.label", job: presentation_job_slug)
     end
 
     def presentation_detail
-      job = repair_action_job_or_nil
-      return nil unless job
-
-      runs = JobHold.active_runs(job).map(&:slug)
-      workflows = JobHold.active_workflows(job).map(&:slug)
-      [
-        runs.presence&.then { |slugs| "Cancels Runs: #{slugs.join(", ")}" },
-        workflows.presence&.then { |slugs| "Cancels Workflows: #{slugs.join(", ")}" },
-        to_backlog? ? "Moves to backlog" : "Returns to waiting on dependencies",
-        "Keeps the Job open, its PR and its branch"
-      ].compact.join("\n")
+      key = to_backlog? ? "detail_backlog" : "detail_waiting"
+      I18n.t("server.mcp.hold_job_confirmation.#{key}")
     end
 
     repairs_job!
