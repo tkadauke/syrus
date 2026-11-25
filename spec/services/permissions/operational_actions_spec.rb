@@ -41,6 +41,20 @@ RSpec.describe Permissions::OperationalActions do
     expect(classification[:effects]).to include(:irreversible, :destructive, :external_write)
   end
 
+  it "classifies declared break-glass GitHub access separately from ordinary manual runs" do
+    descriptor = chat_entries.fetch("manual_agentic_run").descriptor
+
+    ordinary = descriptor.classify(job_id: 7)
+    break_glass = descriptor.classify(job_id: 7, github_access: true)
+    destructive = descriptor.classify(job_id: 7, github_access: true, destructive_github_operations: true)
+
+    expect(ordinary[:effects]).not_to include(:credential_use, :external_write)
+    expect(break_glass).to include(risk: :high)
+    expect(break_glass[:effects]).to include(:credential_use, :external_write)
+    expect(destructive).to include(risk: :critical)
+    expect(destructive[:effects]).to include(:destructive)
+  end
+
   it "fingerprints exact arguments and collapses single and bulk Job targets" do
     descriptor = described_class.descriptor_for("force_fail_job")
 
