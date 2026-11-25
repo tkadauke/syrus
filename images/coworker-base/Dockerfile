@@ -28,6 +28,10 @@ FROM ${BASE_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_MAJOR=22
+# Exact NodeSource package version; published versions are immutable.
+ARG NODE_VERSION=22.12.0-1nodesource1
+# Debian packages resolve from this immutable snapshot, not the moving mirror.
+ARG DEBIAN_SNAPSHOT=20261101T000000Z
 ARG NODESOURCE_GPG_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
 ARG CLAUDE_CODE_VERSION=2.1.330
 ARG CODEX_CLI_VERSION=0.171.0
@@ -51,6 +55,9 @@ ARG COWORKER_GID=1000
 # (python3), and procps for process inspection. Node comes from NodeSource
 # because the npm-packaged provider CLIs need a current LTS.
 RUN set -eu; \
+    rm -f /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list; \
+    printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s bookworm main\ndeb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/%s bookworm-security main\n' \
+      "${DEBIAN_SNAPSHOT}" "${DEBIAN_SNAPSHOT}" > /etc/apt/sources.list; \
     apt-get update -qq; \
     apt-get install --no-install-recommends -y \
       ca-certificates curl git gnupg jq less openssh-client procps python3 ripgrep fd-find unzip; \
@@ -60,7 +67,7 @@ RUN set -eu; \
     gpg --dearmor -o /usr/share/keyrings/nodesource.gpg /tmp/nodesource.key; \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list; \
     apt-get update -qq; \
-    apt-get install --no-install-recommends -y nodejs; \
+    apt-get install --no-install-recommends -y "nodejs=${NODE_VERSION}"; \
     rm -f /tmp/nodesource.key /etc/apt/sources.list.d/nodesource.list /usr/share/keyrings/nodesource.gpg; \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

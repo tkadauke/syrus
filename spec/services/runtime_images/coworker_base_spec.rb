@@ -36,6 +36,14 @@ RSpec.describe RuntimeImages::CoworkerBase do
     expect(dockerfile).to include("NODESOURCE_GPG_FINGERPRINT")
   end
 
+  it "pins OS and Node packages to immutable inputs" do
+    expect(dockerfile).to match(/^ARG DEBIAN_SNAPSHOT=\d{8}T\d{6}Z$/)
+    expect(dockerfile).to include("snapshot.debian.org/archive/debian/")
+    expect(dockerfile).to match(/^ARG NODE_VERSION=\d+\.\d+\.\d+-\S+$/)
+    expect(dockerfile).to include('"nodejs=${NODE_VERSION}"')
+    expect(YAML.safe_load(described_class::DIRECTORY.join("base.yml").read)["build_network"].map { |r| r["host"] }).to include("snapshot.debian.org")
+  end
+
   describe "credential hygiene" do
     it "rejects credential-named build inputs, secret mounts, and auth files" do
       bad = [ "ARG GITHUB_TOKEN\n", "ENV ANTHROPIC_API_KEY=x\n", "RUN --mount=type=secret,id=x true\n", "RUN echo a > ~/.npmrc\n", "RUN docker login r\n" ]

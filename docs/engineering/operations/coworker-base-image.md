@@ -15,7 +15,9 @@ never requires rebuilding its environment.
 | `images/coworker-base/syrus-base-probe` | In-image check of identity, provider binaries, tools, baked credentials, and read-only operation. |
 | `RuntimeImages::CoworkerBase` | Reads the contract, validates the definition, archives it deterministically, and submits the build. |
 
-Reproducibility: the base is pinned by digest, provider CLIs by exact version,
+Reproducibility: the base is pinned by digest, Debian packages by an immutable
+`snapshot.debian.org` date (`DEBIAN_SNAPSHOT`), Node by exact package version
+(`NODE_VERSION`), provider CLIs by exact version,
 and every downloaded artifact by a checksum verified in the same `RUN`. The
 build source is a deterministic archive (sorted entries, fixed mtime and
 modes), so identical files always produce the same source digest; the build
