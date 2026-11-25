@@ -95,6 +95,16 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool, :full_chat_access do
     expect(chat_session.proposals.find_by(slug: "invalid-priority-epic")).to be_nil
   end
 
+  it "requires a reason for every child question eagerness override" do
+    response = call_tool(
+      epic: { slug: "question-policy", title: "Question policy", description: "Build it.", target_repo: repository.slug },
+      jobs: [ { slug: "child", title: "Child", description: "Build it.", question_eagerness: "inquisitive" } ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("question_eagerness_reason is required")
+  end
+
   it "tells agents to declare where work runs and that the text is never read" do
     schema = described_class.input_schema_value.to_h
     child_schema = schema.fetch(:properties).fetch(:jobs).fetch(:items)

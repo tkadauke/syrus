@@ -1,6 +1,19 @@
 require "rails_helper"
 
 RSpec.describe ChatAgentQuestion do
+  it "excludes withdrawn questions from the active scope" do
+    question = described_class.create!(
+      chat_session: ChatSession.create!(user: Factories.user),
+      questions: [ { "question" => "Continue?", "options" => nil, "multiple" => false } ],
+      asked_at: Time.current
+    )
+
+    question.withdraw!
+
+    expect(question).not_to be_active
+    expect(described_class.active).not_to include(question)
+  end
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

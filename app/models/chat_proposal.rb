@@ -83,6 +83,8 @@ class ChatProposal < ApplicationRecord
   validates :slug, uniqueness: { scope: :chat_session_id }
   validates :provider_setting, presence: true, inclusion: { in: ->(_) { Job.provider_settings } }
   validates :priority, presence: true, inclusion: { in: Job::PRIORITIES }
+  validates :question_eagerness, inclusion: { in: QuestionEagerness::Base::LEVELS }, allow_nil: true
+  validates :question_eagerness_reason, presence: true, if: -> { question_eagerness.present? }
   validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true
   validate :repository_belongs_to_chat_user
   validate :target_epic_matches_repository

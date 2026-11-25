@@ -20,6 +20,7 @@ module Permissions
       "list_proposals" => Operation.new(CHATS, "list_proposals"),
       "list_pending_actions" => Operation.new(CHATS, "list_pending_actions"),
       "list_jobs" => Operation.new(JOBS, "list"),
+      "list_open_agent_questions" => Operation.new(JOBS, "list_open_agent_questions"),
       "search_jobs" => Operation.new(JOBS, "search"),
       "read_job" => Operation.new(JOBS, "read"),
       "read_provider_routing_rules" => Operation.new(JOBS, "read_provider_routing_rules"),

@@ -263,6 +263,8 @@ class McpToolRegistry
         read_chat(Mcp::Tools::ReadJobTool),
         workflow_outcome_override_chat(Mcp::Tools::InspectWorkflowOutcomeOverridesTool),
         workflow_outcome_override_chat(Mcp::Tools::RequestWorkflowOutcomeOverrideTool, mutation: true, approval_effect: true),
+        read_chat(Mcp::Tools::ListOpenAgentQuestionsTool),
+        mutation_chat(Mcp::Tools::AnswerAgentQuestionTool, mutation: true),
         mutation_chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
         read_chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
         read_chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),
