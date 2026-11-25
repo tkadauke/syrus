@@ -641,6 +641,9 @@ class RunJob < ApplicationJob
     rescue Steps::Base::AuthorizationCheckpointReached
       log("step #{@step.kind} released its provider while waiting for permission", kind: "system")
       return
+    rescue Steps::Base::AwaitingOperatorAnswer
+      park_for_operator_answer!
+      return
     rescue Steps::Base::RunEndedExternally => e
       log("step #{@step.kind} stopped: #{e.message}", kind: "system")
       return
@@ -984,6 +987,19 @@ class RunJob < ApplicationJob
     @run.save!
     @step.skip_with_reason!(exception.reason)
     StepDispatcher.advance_from(@step.reload) if @step.skipped?
+  end
+
+  def park_for_operator_answer!
+    log("step #{@step.kind} is awaiting an operator answer", kind: "system")
+    @run.reload
+    @step.reload
+    @run.await_answer! if @run.may_await_answer?
+    @run.save!
+    @step.await_answer! if @step.may_await_answer?
+    @step.save!
+
+    question = @run.agent_questions.order(:id).last
+    AgentQuestions::Resume.call(question) if question && !question.reload.active?
   end
 
   def block_after_cannot_proceed!(reason)

@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  include HasAgentQuestionPolicy
   # The User ranks first in the row-lock order (NY40); its dependents'
   # destroy cascades lock their subtrees, so the User row comes before them.
   before_destroy(prepend: true) { self.class.lock.where(id: id).to_a }

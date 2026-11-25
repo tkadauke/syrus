@@ -24,6 +24,8 @@ module Mcp::Tools
       preparation failures caused by those conditions, and slow or
       inconclusive graders are transient failures, not blockers; Syrus will
       fail and retry those reports through the normal failure machinery.
+      If an operator could resolve the uncertainty or provide missing information,
+      use ask_user_question instead.
     DESC
 
     input_schema(

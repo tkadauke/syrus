@@ -1,4 +1,5 @@
 class Job < ApplicationRecord
+  include HasAgentQuestionPolicy
   # Before the dependent: :destroy cascades below run (prepend): lock the
   # subtree top down, so the cascade's child-first deletes stay in the
   # hierarchical row-lock order (NY40).
