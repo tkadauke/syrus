@@ -15,7 +15,7 @@ module RuntimeImages
     end
 
     def checks
-      [ provider_check, pending_check, cleanup_check, corruption_check, auth_check, storage_check, retention_check ]
+      [ provider_check, pending_check, cleanup_check, corruption_check, auth_check, storage_check, retention_check ] + builds.checks
     end
 
     def ok? = checks.none? { |check| check.status == :fail }
@@ -24,6 +24,7 @@ module RuntimeImages
     def snapshot
       {
         checks: checks.map(&:to_h),
+        builds: builds.snapshot,
         images: RuntimeImage.group(:availability).count,
         retained: retained_summary,
         cleanup_failures: cleanup_failures,
@@ -36,6 +37,8 @@ module RuntimeImages
         end
       }
     end
+
+    def builds = @builds ||= Builds::Health.new(now: @now)
 
     def cleanup_failures
       RuntimeImage.cleanup_failed.order(cleanup_failed_at: :desc).limit(50).map do |image|

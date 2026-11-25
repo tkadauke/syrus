@@ -62,7 +62,8 @@ live worker capability metadata before admission and enqueue.
 
 `config/queue.yml` and `config/queue.compute.yml` render their compute queues
 from the worker's advertised capabilities. A default Linux worker consumes
-`runs`, `runs-linux-amd64`, `merges`, and `merges-linux-amd64`; a macOS worker
+`runs`, `runs-linux-amd64`, `merges`, `merges-linux-amd64`, and
+`runtime_image_builds` (the runtime image build pool); a macOS worker
 advertising `os:macos` consumes the macOS lanes. This keeps scarce native workers from
 claiming ordinary Linux work while still documenting every queue Syrus may
 select.

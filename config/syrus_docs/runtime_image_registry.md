@@ -54,3 +54,35 @@ When the registry is configured, a devcontainer that builds from a Dockerfile is
 - An hourly reconciliation compares records with the registry and repairs drift. Unrecorded registry digests are reported and removed only with `bin/rails runtime_images:reconcile DELETE_ORPHANS=1`.
 - Pull outcomes, authentication failures, corruption, and lifecycle decisions are kept as audit events and exposed as metrics (`syrus_runtime_image_*`).
 
+
+## Build-network allowlists
+
+Runtime image builds run with no direct network. All build egress goes through an enforcing proxy and resolver that permits only destinations an administrator has declared.
+
+- Rules are managed at `/api/v1/admin/runtime_image_build_network_rules` (`GET` lists rules, source classes, and language ecosystems; `POST`, `PATCH`, and `DELETE` manage a rule). Edits apply to the next build.
+- Each rule has a source class: `os_mirror`, `language_registry` (with an `ecosystem` such as npm or pypi), `source_host`, `artifact_registry`, `exact_domain`, `repository_namespace` (host plus a path prefix), or `internal_mirror`. A rule may set a port, a path prefix, `required`, and `enabled`.
+- A required internal mirror displaces the public OS mirrors and language registries of its ecosystem (all of them when it names no ecosystem), so builds must use the mirror. Other ecosystems and source hosts stay allowed.
+- Package registries that no rule declares are refused.
+- Blocked: literal-IP destinations in any notation, redirects to undeclared hosts, hosts resolving to private, loopback, link-local, or cloud-metadata addresses (or a mix of public and private), DNS rebinding (names are resolved once and dialed by that address), unauthorized `CONNECT`, and host or shared network modes.
+- Denied attempts are recorded as `build.network` audit events and the network policy digest is recorded in the image provenance.
+
+## Build provenance and evidence
+
+Every build attempt that finishes records evidence bound to its outcome: the captured source digest, the Dockerfile's base images (with the digest each resolved to, or the digest pinned in the reference), a snapshot of the build-network rules and their digest, the builder version, the destinations the build actually reached (host, port, resolved address, source class), the published image's layer digests, measured resource usage (peak memory, CPU time, duration, scratch storage, output size, OOM kills) next to the limits it ran under, and the attempt's terminal result.
+
+- The build log is sanitized line by line before it is stored (credential-shaped values, authorization headers, URL passwords, tokens, and private key blocks are replaced; control sequences are removed) and is capped at the configured log limit. Output past the cap is counted, not stored.
+- Administrators read the full evidence, including the log and resolved destinations, at `GET /api/v1/admin/runtime_image_build_requests/:id/evidence`. Other surfaces only receive the safe summary: digests, counts, and measurements, with no log text or addresses. The summary is stored in the build result's details and emitted as a `build.evidence` audit event.
+- The image provenance carries the builder version, network policy digest, base images, and layer digests, never log text.
+- A build can publish only into the namespace its request was made for, and only through the Runtime Image Service; it holds no registry credential and cannot revoke, delete, or read other images.
+
+## Build recovery and diagnostics
+
+Runtime image builds recover on their own from the failures a long-running build plane sees:
+
+- **Lost workers and stale attempts:** an attempt whose worker stops reporting, or that runs past `RUNTIME_IMAGE_BUILD_MAX_ATTEMPT_SECONDS`, is failed and retried with backoff. Requests left in flight with no active attempt are repaired.
+- **Cancellation:** queued builds cancel immediately; running builds stop at the next safe point. Administrators cancel with `POST /api/v1/admin/runtime_image_build_requests/:id/cancel`.
+- **Quota and registry trouble:** quota exhaustion (`quota_exhausted`) and an unreachable registry (`registry_unavailable`) are retried on a slower backoff than ordinary failures.
+- **Denied network destinations:** a build that fails after the egress proxy refused destinations ends as `network_denied` without retrying; review the build-network allowlist.
+- **Duplicates:** identical requests share one live build, and a build job delivered twice runs once.
+
+Diagnostics: `GET /api/v1/admin/runtime_images` includes a `builds` section and build health checks; `GET /api/v1/admin/runtime_image_build_requests` lists requests, attempts, and results. Metrics `syrus_runtime_image_build_requests`, `syrus_runtime_image_build_oldest_queued_seconds`, `syrus_runtime_image_build_stale_attempts`, `syrus_runtime_image_build_attempts_total`, and `syrus_runtime_image_build_recoveries_total` back the stale-attempt and stalled-queue alerts. Builds run on the `runtime_image_builds` queue of Linux compute workers, separate from the control plane that recovers them.

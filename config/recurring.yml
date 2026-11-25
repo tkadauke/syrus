@@ -121,6 +121,10 @@ default: &default
     class: RuntimeImageReconcileJob
     queue: cleanup
     schedule: every hour
+  dispatch_runtime_image_builds:
+    class: RuntimeImageBuildDispatchJob
+    queue: control_plane
+    schedule: every minute
   sample_worker_host_health:
     class: WorkerHostHealthSampleJob
     queue: cleanup

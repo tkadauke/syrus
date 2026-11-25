@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_205837) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_012227) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3963,6 +3963,113 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_205837) do
     t.index ["event_type", "occurred_at"], name: "idx_ri_audit_type_time"
     t.index ["occurred_at"], name: "idx_ri_audit_time"
     t.index ["runtime_image_id", "occurred_at"], name: "idx_ri_audit_image_time"
+  end
+
+  create_table "runtime_image_build_attempts", force: :cascade do |t|
+    t.bigint "runtime_image_build_request_id", null: false
+    t.integer "number", null: false
+    t.string "state", limit: 24, default: "building", null: false
+    t.string "worker_hostname", limit: 191
+    t.datetime "lease_expires_at"
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.string "error_code", limit: 64
+    t.string "error_message", limit: 500
+    t.boolean "retryable", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "execution_started_at"
+    t.index ["runtime_image_build_request_id", "number"], name: "idx_ri_build_attempts_number", unique: true
+    t.index ["state", "lease_expires_at"], name: "idx_ri_build_attempts_lease"
+  end
+
+  create_table "runtime_image_build_evidences", force: :cascade do |t|
+    t.bigint "runtime_image_build_request_id", null: false
+    t.bigint "runtime_image_build_attempt_id", null: false
+    t.bigint "runtime_image_id"
+    t.string "outcome", limit: 24, null: false
+    t.string "error_code", limit: 64
+    t.string "source_digest", limit: 71, null: false
+    t.string "recipe_digest", limit: 71
+    t.string "platform", limit: 64
+    t.string "image_digest", limit: 71
+    t.string "policy_digest", limit: 71
+    t.string "builder_version", limit: 191
+    t.json "base_images"
+    t.json "policy_snapshot"
+    t.json "destinations"
+    t.json "layer_digests"
+    t.json "resources"
+    t.integer "log_bytes", default: 0, null: false
+    t.integer "log_dropped_bytes", default: 0, null: false
+    t.text "log", limit: 16777215
+    t.datetime "finished_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_build_attempt_id"], name: "idx_ri_build_evidence_attempt", unique: true
+    t.index ["runtime_image_build_request_id"], name: "idx_ri_build_evidence_request"
+    t.index ["runtime_image_id"], name: "idx_ri_build_evidence_image"
+  end
+
+  create_table "runtime_image_build_network_rules", force: :cascade do |t|
+    t.string "source_class", limit: 32, null: false
+    t.string "host", limit: 253, null: false
+    t.integer "port", default: 443, null: false
+    t.string "path_prefix", limit: 255, default: "", null: false
+    t.string "ecosystem", limit: 32, default: "", null: false
+    t.boolean "required", default: false, null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "note", limit: 500
+    t.string "actor", limit: 191
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source_class", "host", "port", "path_prefix"], name: "idx_ri_build_net_rules_identity", unique: true
+  end
+
+  create_table "runtime_image_build_requests", force: :cascade do |t|
+    t.bigint "runtime_image_namespace_id", null: false
+    t.string "state", limit: 24, default: "queued", null: false
+    t.string "platform", limit: 64, null: false
+    t.string "dedup_key", limit: 64, null: false
+    t.string "active_dedup_key", limit: 64
+    t.string "source_kind", limit: 64, null: false
+    t.string "source_ref", limit: 500, null: false
+    t.string "source_digest", limit: 71, null: false
+    t.json "source_manifest"
+    t.string "recipe_digest", limit: 71, null: false
+    t.json "recipe"
+    t.string "requester_kind", limit: 64, null: false
+    t.string "requester_ref", limit: 191, null: false
+    t.integer "attempts_count", default: 0, null: false
+    t.integer "max_attempts", default: 3, null: false
+    t.datetime "next_attempt_at"
+    t.datetime "cancel_requested_at"
+    t.string "cancel_reason", limit: 500
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active_dedup_key"], name: "idx_ri_build_requests_active_dedup", unique: true
+    t.index ["dedup_key"], name: "idx_ri_build_requests_dedup"
+    t.index ["requester_kind", "requester_ref"], name: "idx_ri_build_requests_requester"
+    t.index ["runtime_image_namespace_id"], name: "idx_ri_build_requests_namespace"
+    t.index ["state", "next_attempt_at"], name: "idx_ri_build_requests_state"
+  end
+
+  create_table "runtime_image_build_results", force: :cascade do |t|
+    t.bigint "runtime_image_build_request_id", null: false
+    t.bigint "runtime_image_id"
+    t.string "outcome", limit: 24, null: false
+    t.string "digest", limit: 71
+    t.string "error_code", limit: 64
+    t.string "message", limit: 500
+    t.integer "attempts_used", default: 0, null: false
+    t.json "details"
+    t.datetime "finished_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_build_request_id"], name: "idx_ri_build_results_request", unique: true
+    t.index ["runtime_image_id"], name: "idx_ri_build_results_image"
   end
 
   create_table "runtime_image_cache_entries", force: :cascade do |t|

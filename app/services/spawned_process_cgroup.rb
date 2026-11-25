@@ -20,6 +20,7 @@ class SpawnedProcessCgroup
     @memory_max_bytes = nil
     @memory_swap_max_bytes = nil
     @cpu_max = nil
+    @pids_max = nil
     @io_weight = nil
     @memory_events_before = {}
     @memory_events_after = {}
@@ -83,6 +84,7 @@ class SpawnedProcessCgroup
       "memory_swap_max_bytes" => memory_swap_max_bytes,
       "cpu_max" => cpu_max,
       "io_weight" => io_weight,
+      "pids_max" => pids_max,
       "budget" => budget,
       "memory_oom_group" => state.in?(%w[ready applied]),
       "memory_events" => memory_events_delta.presence || memory_events_after.presence,
@@ -104,7 +106,7 @@ class SpawnedProcessCgroup
 
   attr_reader :spawned_process, :resource_limits, :reason, :path, :memory_high_bytes, :memory_max_bytes,
               :memory_swap_max_bytes, :memory_events_before, :memory_events_after,
-              :memory_peak_bytes, :cpu_max, :io_weight, :cpu_stat, :io_stat, :budget, :cleanup
+              :memory_peak_bytes, :cpu_max, :io_weight, :pids_max, :cpu_stat, :io_stat, :budget, :cleanup
 
   def prepare
     unless Feature.per_spawn_resource_limits_enabled?
@@ -138,6 +140,12 @@ class SpawnedProcessCgroup
       return
     end
 
+    if resource_limits&.pids_max && !enable_subtree_controller(parent, "pids")
+      @state = "unavailable"
+      @reason = "pids controller is not available in the parent cgroup"
+      return
+    end
+
     budget_result = SpawnedProcessCgroupBudget.for(spawned_process: spawned_process)
     @budget = budget_result.details
     @memory_max_bytes = resource_limits&.memory_max&.to_i || budget_result.memory_max_bytes
@@ -155,6 +163,7 @@ class SpawnedProcessCgroup
     @memory_swap_max_bytes = budget_result.memory_swap_max_bytes
     @cpu_max = resource_limits&.cpu_max.presence
     @io_weight = resource_limits&.io_weight&.to_i
+    @pids_max = resource_limits&.pids_max&.to_i
 
     @path = File.join(parent, "syrus-spawned-process-#{spawned_process.id}-#{SecureRandom.hex(4)}")
     FileUtils.mkdir_p(path)
@@ -163,6 +172,7 @@ class SpawnedProcessCgroup
     write_limit("memory.max", memory_max_bytes)
     write_limit("memory.swap.max", memory_swap_max_bytes)
     write_limit("cpu.max", cpu_max) if cpu_max
+    write_limit("pids.max", pids_max) if pids_max
     write_limit("io.weight", io_weight) if io_weight
     @memory_events_before = read_key_value_file("memory.events")
     @state = "ready"
@@ -240,6 +250,19 @@ class SpawnedProcessCgroup
 
     File.write(subtree_control, "+memory")
     File.read(subtree_control).split.include?("memory")
+  rescue Errno::EACCES, Errno::EROFS, Errno::ENOENT, Errno::EBUSY, Errno::EINVAL
+    false
+  end
+
+  def enable_subtree_controller(parent, controller)
+    return true if fake_cgroup_parent_path?(parent)
+
+    subtree_control = File.join(parent, "cgroup.subtree_control")
+    return false unless File.exist?(subtree_control)
+    return true if File.read(subtree_control).split.include?(controller)
+
+    File.write(subtree_control, "+#{controller}")
+    File.read(subtree_control).split.include?(controller)
   rescue Errno::EACCES, Errno::EROFS, Errno::ENOENT, Errno::EBUSY, Errno::EINVAL
     false
   end
