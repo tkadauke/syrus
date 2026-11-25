@@ -513,6 +513,7 @@ most once per workflow workspace.
 | `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
+| `technically_overridable` | no | `false` | Allows an authorized exact-evidence override of a reproducible test failure. Infrastructure failures remain non-overridable; the failed result and output remain recorded and never become reusable passing evidence. |
 | `timeout_minutes` | no | 15 | Clamped to 150 max |
 | `<mode>_timeout_minutes` / `timeouts` | no | `timeout_minutes` | Plugin-defined graders can override generated `full`, `focused`, or `ci` grader timeouts |
 | `<mode>_display_name` / `display_names` | no | mode-aware default | Plugin-defined graders can override one generated mode's display name without changing `display_name`, which applies to every generated mode |
