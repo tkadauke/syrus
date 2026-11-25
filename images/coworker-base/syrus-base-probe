@@ -1,0 +1,56 @@
+#!/bin/sh
+# Verifies the coworker base runtime contract from inside the image.
+#
+#   syrus-base-probe          full probe; run under the real confinement
+#                             (read-only root filesystem, non-root user)
+#   syrus-base-probe --build  build-time smoke test; skips the read-only check
+#
+# Prints one "ok <check>" or "fail <check>: <why>" line per check and exits
+# non-zero if any check failed. It reads no credentials and writes nowhere
+# except an attempted write that is expected to fail.
+set -u
+
+mode="${1:-full}"
+status=0
+
+ok() { printf 'ok %s\n' "$1"; }
+fail() { printf 'fail %s: %s\n' "$1" "$2"; status=1; }
+
+# Identity: never root.
+if [ "$(id -u)" = "0" ]; then fail identity "running as root"; else ok identity; fi
+[ "$(id -un 2>/dev/null)" = "coworker" ] || fail identity-name "expected user coworker, got $(id -un 2>/dev/null)"
+
+# Provider binaries all start.
+for provider in claude codex agy muse; do
+  if ! command -v "$provider" >/dev/null 2>&1; then
+    fail "provider-$provider" "not on PATH"
+  elif "$provider" --version >/dev/null 2>&1; then
+    ok "provider-$provider"
+  else
+    fail "provider-$provider" "--version failed"
+  fi
+done
+
+# Support tools.
+for tool in git curl jq rg fd node python3 ssh unzip; do
+  if command -v "$tool" >/dev/null 2>&1; then ok "tool-$tool"; else fail "tool-$tool" "not on PATH"; fi
+done
+
+# No credential-shaped variable is baked into the image environment.
+if env | grep -Eiq '^[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|API_KEY|CREDENTIAL)[A-Z0-9_]*='; then
+  fail no-baked-credentials "credential-shaped environment variable present"
+else
+  ok no-baked-credentials
+fi
+
+# Read-only root: a write outside the declared mounts must fail.
+if [ "$mode" != "--build" ]; then
+  if ( : > /usr/local/syrus-base-probe-write ) 2>/dev/null; then
+    rm -f /usr/local/syrus-base-probe-write
+    fail read-only-root "root filesystem is writable"
+  else
+    ok read-only-root
+  fi
+fi
+
+exit "$status"
