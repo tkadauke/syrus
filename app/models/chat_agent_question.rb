@@ -4,11 +4,6 @@ class ChatAgentQuestion < AgentQuestion
 
   after_commit :broadcast_app_event
 
-  validates :asked_at, presence: true
-  validate :questions_are_well_formed
-
-  scope :active, -> { where(answered_at: nil, expired_at: nil).order(:asked_at, :id) }
-
   # answers is index-aligned with questions: one entry per sub-question,
   # each a non-blank string (single-select/free-text) or a non-empty array
   # of strings (multi-select).

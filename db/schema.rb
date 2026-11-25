@@ -828,6 +828,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.integer "proposer_id"
     t.integer "response_chat_session_id"
     t.bigint "insert_after_job_id"
+    t.string "question_eagerness"
+    t.text "question_eagerness_reason"
     t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
