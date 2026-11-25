@@ -346,8 +346,9 @@ fraction of it; two concurrent `all` graders split what is left.
 Read those variables instead of calling `nproc`: inside a container without a
 CPU quota, `nproc` reports the whole node and the grader will oversubscribe.
 Framework grader types set a sensible default — `type: rspec` asks for `all`
-wherever `parallel_rspec` is enabled — so most repositories need no `resources`
-block at all.
+wherever `parallel_rspec` is enabled, and `type: vitest` asks for `all` on its
+full and CI runs and sizes its workers from the grant — so most repositories
+need no `resources` block at all.
 
 Retuning a resource request never invalidates a passing grade. The request
 changes how fast a grader runs, not what it asserts, so it stays out of the

@@ -61,6 +61,30 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
   end
 
+  it "asks for every core on whole-suite runs and stays serial when focused" do
+    full, focused, ci = described_class.grade_steps(config: {}, default_failures: "strict")
+
+    expect(full.resources).to eq(GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2))
+    expect(ci.resources).to eq(GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2))
+    expect(focused.resources).to be_nil
+  end
+
+  it "lets an explicit resources declaration win" do
+    steps = described_class.grade_steps(config: { "resources" => { "cpu" => 3 } }, default_failures: "strict")
+
+    expect(steps.map { |step| step.resources&.cpu }).to all(eq(3))
+  end
+
+  it "sizes Vitest workers from the resource grant without baking a host width into the command" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").third.run
+    expect(command).to include("--maxWorkers ${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}")
+
+    expand = ->(env) { Open3.capture2(env, "bash", "-c", "echo ${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}").first.strip }
+    expect(expand.call("SYRUS_PROCESS_PARALLELISM" => "5")).to eq("5")
+    expect(expand.call("SYRUS_PROCESS_PARALLELISM" => "5", "VITEST_MAX_WORKERS" => "3")).to eq("3")
+    expect(expand.call({})).to eq("2")
+  end
+
   it "synthesizes mode-aware operator-facing display names by default" do
     steps = described_class.grade_steps(config: {}, default_failures: "strict")
 

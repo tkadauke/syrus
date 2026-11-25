@@ -213,9 +213,28 @@ module JavaScript
       ActiveModel::Type::Boolean.new.cast(value)
     end
 
+    # Sized from the resource grant at runtime, through the environment rather
+    # than the command text (which is fingerprinted), so a green grade stays
+    # carryable across workers of different sizes. VITEST_MAX_WORKERS and an
+    # explicit `max_workers` still win; 2 is the fallback when no grant exists.
     def max_workers
       raw = config["max_workers"].to_s.strip.presence
-      raw || "${VITEST_MAX_WORKERS:-2}"
+      raw || "${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}"
+    end
+
+    # A whole-suite run scales with its workers, so it asks for every core and
+    # lets GraderResourceGrant decide. Undeclared, it claimed one core while
+    # running two workers plus `tsc`, so rspec shards claiming `cpu: all` on
+    # the same host took the cores it was actually using: the CI suite, which
+    # normally needs ~22 of its 30 minutes, timed out on a busy host and turned
+    # main red. A focused run touches a handful of files and stays serial. An
+    # explicit `resources:` in `.syrus.yml` wins either way.
+    def resource_request_for(mode)
+      explicit = GraderResourceRequest.parse(config["resources"])
+      return explicit if explicit
+      return nil if mode == "focused"
+
+      GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2)
     end
 
     def junit_output(name)
@@ -343,6 +362,7 @@ module JavaScript
         failures: failures,
         base_retry: base_retry,
         deps: configured_deps,
+        resources: resource_request_for(mode),
         metadata: {
           "grader_type" => self.class.type_name,
           "grader_framework" => "vitest",
