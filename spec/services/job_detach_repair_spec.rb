@@ -7,8 +7,16 @@ RSpec.describe JobDetachRepair do
   let(:job) { Factories.job_record(user: owner, repository: repository, issue_number: 10068, pr_number: 10068, branch_name: "syrus/child", parent_job: parent, state: "implemented") }
   let!(:dependency) { JobDependency.create!(job: job, depends_on_job: parent, source: "manual", satisfaction_mode: "success") }
   let(:head) { "a" * 40 }
+  let(:former_parent_head) { "b" * 40 }
   let(:client) { instance_double(GithubClient) }
-  let(:pr) { OpenStruct.new(head: OpenStruct.new(sha: head), base: OpenStruct.new(ref: "main")) }
+  let(:pr) { double("pull request", head: double("head", sha: head), base: double("base", ref: "main")) }
+
+  def call_repair(auto_rebase)
+    described_class.call(
+      job: job, destination_base: "main", reason: "Repair accidental parent.", requested_by: "chat_agent",
+      former_parent_id: parent.id, former_parent_head: former_parent_head, confirmed_head: head, auto_rebase: auto_rebase
+    )
+  end
 
   before do
     allow(GithubClient).to receive(:for).and_return(client)
@@ -24,7 +32,7 @@ RSpec.describe JobDetachRepair do
   it "cleanly detaches, retargets, removes the former-parent dependency, verifies, and wakes landing" do
     rebase = instance_double(AutoRebase, call: AutoRebase::Result.new(true, "rebased", "ok", changed: true, pre_sha: "b" * 40, post_sha: head, base_sha: "c" * 40))
 
-    result = described_class.call(job: job, destination_base: "main", reason: "Repair accidental parent.", requested_by: "chat_agent", auto_rebase: rebase)
+    result = call_repair(rebase)
 
     expect(result.status).to eq("verified")
     expect(job.reload.parent_job).to be_nil
@@ -40,10 +48,18 @@ RSpec.describe JobDetachRepair do
     allow(WorkUnits::Launcher).to receive(:instantiate).and_return(workflow)
     allow(WorkUnits::Launcher).to receive(:start!)
 
-    result = described_class.call(job: job, destination_base: "main", reason: "Repair accidental parent.", requested_by: "chat_agent", auto_rebase: rebase)
+    result = call_repair(rebase)
 
     expect(result.status).to eq("conflict_fallback")
-    expect(WorkUnits::Launcher).to have_received(:instantiate).with(hash_including(kind: "rebase", job: job, base_branch: "main"))
+    expect(WorkUnits::Launcher).to have_received(:instantiate).with(hash_including(
+      kind: "rebase", job: job, base_branch: "main",
+      artifacts: hash_including(
+        "detach_job" => {
+          "destination_base" => "main", "former_parent_id" => parent.id,
+          "former_parent_head" => former_parent_head, "confirmed_head" => head
+        }
+      )
+    ))
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
     expect(job.reload.parent_job).to eq(parent)
   end
@@ -52,11 +68,18 @@ RSpec.describe JobDetachRepair do
     rejected = instance_double(AutoRebase, call: AutoRebase::Result.new(false, "lease_rejected", "remote moved", pre_sha: head))
 
     expect {
-      described_class.call(job: job, destination_base: "main", reason: "Repair accidental parent.", requested_by: "chat_agent", auto_rebase: rejected)
+      call_repair(rejected)
     }.to raise_error(ArgumentError, /remote moved/)
 
     expect(job.reload.parent_job).to eq(parent)
     expect(client).not_to have_received(:update_pull_request_base)
+  end
+
+  it "refuses to act when the confirmed parent relationship changed" do
+    job.update!(parent_job: nil)
+
+    expect { call_repair(instance_double(AutoRebase)) }
+      .to raise_error(ArgumentError, /Stack parent changed after confirmation/)
   end
 
   it "leaves topology intact when PR retargeting fails so retry can recover visibly" do

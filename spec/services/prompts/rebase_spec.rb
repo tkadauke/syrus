@@ -35,4 +35,16 @@ RSpec.describe Prompts::Rebase do
     expect(prompt).to include("unpublished work on branch `syrus/direct-42`")
     expect(prompt).not_to include("owner/repo#`")
   end
+
+
+  it "preserves the former-parent patch boundary for a detach conflict" do
+    prompt = described_class.new(
+      repo_slug: "owner/repo", branch_name: "child", base_branch: "main", pr_number: 7,
+      old_base_sha: "a" * 40
+    ).to_s
+
+    expect(prompt).to include("git rebase --onto origin/main #{'a' * 40}")
+    expect(prompt).to include("do not replay the former parent's commits")
+    expect(prompt).to match(/must not be replaced with an\s+ordinary rebase/)
+  end
 end
