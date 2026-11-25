@@ -3,6 +3,9 @@ import type { TFunction } from "i18next"
 import { useT } from "../hooks/useT"
 import { TonePill } from "./StatusPill"
 
+type ProviderFailoverValue = NonNullable<ProviderFailover>
+type RoutingConditionResults = Record<string, unknown>
+
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
   const { t } = useT("common")
   if (!availability) return null
@@ -138,7 +141,7 @@ function warningLabel(availability: NonNullable<ProviderAvailability>, lowUsage:
   return parts.join(". ")
 }
 
-function failoverDetails(failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
+function failoverDetails(failover: ProviderFailoverValue, t: TFunction<"common">): string {
   const unavailable = failover.unavailable
   const routing = failover.routing
 
@@ -159,7 +162,7 @@ function failoverDetails(failover: NonNullable<ProviderFailover>, t: TFunction<"
     .join(". ")
 }
 
-function routingConditionSummary(conditionResults: Record<string, unknown>, failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
+function routingConditionSummary(conditionResults: RoutingConditionResults, failover: ProviderFailoverValue, t: TFunction<"common">): string {
   const conditions = recordValue(conditionResults.conditions)
   const usage = recordValue(conditions?.usage)
   const expected = recordValue(usage?.expected)
