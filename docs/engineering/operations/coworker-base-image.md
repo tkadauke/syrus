@@ -51,13 +51,15 @@ identity, per-turn environment variables, and the minimum confinement policy.
 `RuntimeImages::RuntimeAbi` derives the `io.syrus.runtime-abi.*` OCI labels from
 it (the Dockerfile must carry them exactly; `CoworkerBase.validate` checks),
 signs the contract into the image's provenance (`runtime_abi_attestation`,
-HMAC over the contract digest bound to the build's source and recipe digests,
+HMAC over the contract digest, version, compatibility range, and minimum
+confinement policy, bound to the build's source and recipe digests,
 signed by Syrus and never by the keyless builder), and exposes
-`validate_for_launch`, which a launcher runs against the by-digest image before
-starting it. It refuses (never falling back to host execution) images that are
+`validate_for_launch`, which `RuntimeImages::WorkerCache#acquire` runs against
+the engine-inspected labels of every standard base image before it returns the
+lease (so a launcher never receives an unvalidated one). It refuses (never falling back to host execution) images that are
 revoked, outside the compatibility range, missing labels, requiring a newer
 confinement policy than the worker enforces, for an unknown provider, or whose
-provenance is unsigned or disagrees with the labels. To change the ABI, bump
+provenance is unsigned or any ABI label disagrees with the signed contract. To change the ABI, bump
 `version` in `abi.yml` and `runtime_abi` in `base.yml`, widen or narrow
 `compatibility`, update the Dockerfile labels, and a spec fails until they agree.
 

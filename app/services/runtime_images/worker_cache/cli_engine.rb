@@ -42,6 +42,14 @@ module RuntimeImages
         end
       end
 
+      def labels(reference)
+        out, status, = run({}, "image", "inspect", "--format", "{{json .Config.Labels}}", reference, timeout: 30)
+        return {} unless status&.success?
+        Hash(JSON.parse(out.to_s.strip)).transform_values(&:to_s)
+      rescue JSON::ParserError
+        {}
+      end
+
       def size_bytes(reference)
         out, status, = run({}, "image", "inspect", "--format", "{{.Size}}", reference, timeout: 30)
         status&.success? ? out.to_s.strip.to_i : nil

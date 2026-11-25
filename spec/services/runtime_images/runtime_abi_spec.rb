@@ -80,6 +80,13 @@ RSpec.describe RuntimeImages::RuntimeAbi do
       expect(check(labels: labels.merge("io.syrus.runtime-abi.contract-digest" => "sha256:#{"e" * 64}")).codes).to eq([ "contract_mismatch" ])
     end
 
+    it "refuses widened compatibility or lowered confinement labels the signature does not cover" do
+      { "compat-min" => "0", "compat-max" => "99", "min-confinement-policy" => "0", "version" => "2" }.each do |name, value|
+        tampered = labels.merge("io.syrus.runtime-abi.#{name}" => value)
+        expect(check(labels: tampered).codes).to include("label_mismatch"), "#{name} tampering was not detected"
+      end
+    end
+
     it "raises a typed error from the bang form" do
       expect { described_class.validate_for_launch!(image: image, labels: {}, provider: "claude") }.to raise_error(described_class::Incompatible, /abi_missing|ABI/)
     end
