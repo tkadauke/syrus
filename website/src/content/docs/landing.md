@@ -106,8 +106,14 @@ When opening the pull request, Syrus retries HTTP 500, 502, 503, and 504
 responses up to four total attempts with jittered exponential backoff capped at
 eight seconds. Before each repeated create request, it looks for a matching open
 pull request and adopts it if GitHub created it despite the earlier error. Other
-errors are not retried. Exhausting the retry budget leaves the Job and pushed
-branch available for another operator-confirmed attempt.
+errors are not retried. If landing fails after a direct checkout capture,
+Syrus marks the newly created audit Job failed so it cannot be approved or
+appear as awaiting approval. The immutable branch, captured source commit, and
+any pull request already opened remain attached to that Job. A new
+operator-confirmed emergency-land attempt targeting the Job reuses those
+artifacts instead of recapturing the checkout or creating another Job. A
+failed attempt targeting an existing Job leaves that Job's lifecycle state
+unchanged.
 For a newly opened PR, Syrus gives GitHub up to about 30 seconds to finish
 computing mergeability. A real conflict stops immediately; if mergeability is
 still unknown, the confirmation fails with a retryable message rather than
@@ -120,10 +126,13 @@ with a retryable message.
 The confirmation remains in progress until the merge succeeds; capture or
 landing failures are recorded as failed confirmations instead of appearing applied.
 
-Every successful emergency land is auditable: the Job closes with
+Job detail shows a captured source commit and comparison link even when the
+direct capture has no Workflow or Run diff, including after a landing failure.
+Every successful emergency land is additionally auditable: the Job closes with
 `closure_reason: "emergency_landed"` and records the confirming operator,
-permission tier, timestamp, source SHA, and skipped controls. Admins can find past uses through Job filters or
-the admin Jobs API with `closure_reason=emergency_landed`.
+permission tier, timestamp, source SHA, and skipped controls. Admins can find
+past successful uses through Job filters or the admin Jobs API with
+`closure_reason=emergency_landed`.
 
 ## What Can Block Landing
 
