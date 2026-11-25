@@ -71,6 +71,7 @@ class Epic < ApplicationRecord
   after_create :seed_parsed_epic_dependencies
   after_create :resolve_pending_epic_dependencies_targeting_self
   after_create_commit :broadcast_app_epic_created
+  after_commit -> { App::DashboardChromeCache.invalidate_counts!(repository_id, subjects: %w[job epic]) }
   after_update_commit :sync_job_epic_titles, if: :saved_change_to_title?
   after_update_commit :record_version, if: :title_or_description_changed?
   # One declaration for both -- see Job: Rails keeps only the last commit

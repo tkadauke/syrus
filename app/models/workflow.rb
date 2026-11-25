@@ -160,6 +160,7 @@ class Workflow < ApplicationRecord
   after_create_commit :record_workflow_activity_created!
   after_create_commit :link_as_replacement_in_cancellation_attribution
   after_update_commit :record_workflow_activity_state_change!, if: :saved_change_to_state?
+  after_commit -> { App::DashboardChromeCache.invalidate_counts!(job&.repository_id, subjects: %w[job workflow]) }
 
   def saved_change_to_state_to_failed?
     saved_change_to_state? && state == "failed"
