@@ -1,0 +1,6 @@
+en:
+  admin_mysql:
+    inspector:
+      ddl_progress_unavailable:
+        message: "Performance Schema is not collecting InnoDB ALTER progress (disabled: %{disabled})."
+        hint: "Enable the InnoDB alter stage instruments and the stage consumers. These settings reset on MySQL restart; persist them with performance-schema-instrument='stage/innodb/alter%=ON' and performance-schema-consumer-events-stages-current=ON in the server configuration."

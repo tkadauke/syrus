@@ -1,0 +1,6 @@
+la:
+  admin_mysql:
+    inspector:
+      ddl_progress_unavailable:
+        message: "Performance Schema progressum mutationum InnoDB ALTER non colligit (inactiva: %{disabled})."
+        hint: "Instrumenta gradus InnoDB ALTER et consumptores graduum activa. Haec optiones post MySQL renovatum evanescunt; eas perpetuas fac per performance-schema-instrument='stage/innodb/alter%=ON' et performance-schema-consumer-events-stages-current=ON in configuratione servitoris."
