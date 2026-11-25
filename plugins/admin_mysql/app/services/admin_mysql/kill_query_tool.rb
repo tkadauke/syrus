@@ -2,7 +2,7 @@ require "mcp"
 
 module AdminMysql
   class KillQueryTool < MCP::Tool
-    extend Mcp::Tools::AdminPendingActionToolSupport
+    extend Syrus::Host::AdminPendingActionToolSupport
 
     tool_name "admin_mysql_kill_query"
 

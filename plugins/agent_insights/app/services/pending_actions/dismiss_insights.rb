@@ -1,5 +1,5 @@
 module PendingActions
-  class DismissInsights < Base
+  class DismissInsights < Syrus::Host::PendingActionBase
     action_key "dismiss_insights"
 
     def execute = mutation.apply!.then { action }

@@ -30,7 +30,7 @@ module AgentInsights
       )
 
       class << self
-        include McpToolPayloads::WorkflowPayload
+        include Syrus::Host::WorkflowPayload
 
         DEFAULT_PER = 50
         MAX_PER = 200

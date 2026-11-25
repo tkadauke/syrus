@@ -13,7 +13,7 @@ module Tailscale
         connected: status.present? && status["connected"] == true,
         hostname: hostname,
         tailscale_url: hostname ? "https://#{hostname}" : nil,
-        auth_key_present: Syrus::PluginSettings.for("tailscale").present?(:auth_key)
+        auth_key_present: Syrus::Host::PluginSettings.for("tailscale").present?(:auth_key)
       }
     end
   end

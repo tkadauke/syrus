@@ -1,5 +1,5 @@
 module PendingActions
-  class AdminMysqlKillQuery < Base
+  class AdminMysqlKillQuery < Syrus::Host::PendingActionBase
     action_key "admin_mysql_kill_query"
 
     def execute

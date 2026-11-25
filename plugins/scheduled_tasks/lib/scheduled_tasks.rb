@@ -1,7 +1,7 @@
 require "scheduled_tasks/data_cleanup"
 
 module ScheduledTasks
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "scheduled_tasks" do
     experimental false
@@ -79,7 +79,7 @@ module ScheduledTasks
     route :get,    "/api/v1/admin/cron_templates/:id", to: "api/v1/admin/cron_templates#show"
 
     # A plain aggregate value on a timer -- the declarative sample-block form
-    # (see Syrus::PluginApi::Definition#metrics) samples this on the shared
+    # (see Syrus::Host::PluginApi::Definition#metrics) samples this on the shared
     # control-plane tick, independent of Callbacks#on_tick's own poll cadence.
     metrics do
       gauge :autopaused_total,

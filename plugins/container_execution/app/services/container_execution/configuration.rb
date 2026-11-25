@@ -37,7 +37,7 @@ module ContainerExecution
     # namespace.
     def docker_image_namespace
       ENV["SYRUS_CONTAINER_EXECUTION_DOCKER_NAMESPACE"].presence ||
-        "#{SyrusVersion.hostname}:#{ENV['DOCKER_HOST'].presence || docker_socket_path}"
+        "#{Syrus::Host::SyrusVersion.hostname}:#{ENV['DOCKER_HOST'].presence || docker_socket_path}"
     end
 
     def docker_transport_available?

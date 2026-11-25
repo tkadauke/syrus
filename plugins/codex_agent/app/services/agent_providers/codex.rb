@@ -33,19 +33,19 @@ module AgentProviders
     # CodexInvocation accepts via `model =` in config.toml.
     def self.available_models
       [
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.6-sol", display_name: "GPT-5.6 Sol",
           context_window: :large, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.5", display_name: "GPT-5.5",
           context_window: :large, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.2-codex", display_name: "GPT-5.2 Codex",
           context_window: :large, cost_tier: :medium
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.1-codex-mini", display_name: "GPT-5.1 Codex Mini",
           context_window: :standard, cost_tier: :low
         )

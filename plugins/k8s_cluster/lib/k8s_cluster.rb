@@ -1,5 +1,5 @@
 module K8sCluster
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "k8s_cluster" do
     requires_syrus nil

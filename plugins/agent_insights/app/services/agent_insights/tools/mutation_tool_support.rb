@@ -1,7 +1,7 @@
 module AgentInsights
   module Tools
     module MutationToolSupport
-      include Mcp::Tools::BulkPendingActionToolSupport
+      include Syrus::Host::BulkPendingActionToolSupport
 
       private
 

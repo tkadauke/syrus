@@ -7,14 +7,14 @@ module SyrusDev
     end
 
     def as_json(*)
-      raw_events = filtered_events(PerformanceLogging::Store.recent(limit: limit))
+      raw_events = filtered_events(Syrus::Host::PerformanceLogging::Store.recent(limit: limit))
       current_events = raw_events.select { |event| event["app_revision"] == current_revision }
       events = revision_scope == "all" ? raw_events : current_events
       summaries = summaries_payload(events)
       current_summaries = revision_scope == "all" ? summaries_payload(current_events) : summaries
       baseline_revision = previous_revision(raw_events)
       {
-        enabled: Feature.enabled?(PerformanceLogging::FEATURE_SLUG),
+        enabled: Syrus::Host::Feature.enabled?(Syrus::Host::PerformanceLogging::FEATURE_SLUG),
         current_revision: current_revision,
         revision_scope: revision_scope,
         filter: filter_payload,
@@ -28,7 +28,7 @@ module SyrusDev
     end
 
     def events_json
-      raw_events = PerformanceLogging::Store.recent(limit: limit)
+      raw_events = Syrus::Host::PerformanceLogging::Store.recent(limit: limit)
       matched_events = filtered_events(raw_events)
       request_ids = matched_events.filter_map { |event| event["request_id"].presence }.to_set
       related_events = raw_events.select { |event| request_ids.include?(event["request_id"]) }
@@ -43,16 +43,16 @@ module SyrusDev
 
     def limit
       raw = Integer(params[:limit], exception: false) || DEFAULT_LIMIT
-      PerformanceLogging::Store.clamp_limit(raw)
+      Syrus::Host::PerformanceLogging::Store.clamp_limit(raw)
     end
 
     def storage_payload
       {
         kind: "performance_log_events",
-        max_events: PerformanceLogging::Store::MAX_EVENTS,
-        expires_in_seconds: PerformanceLogEvent.retention_window&.to_i,
-        buffered: Observability::EventSink.stats.dig(:buffered, :performance).to_i,
-        dropped: Observability::EventSink.stats.dig(:dropped, :performance).to_i
+        max_events: Syrus::Host::PerformanceLogging::Store::MAX_EVENTS,
+        expires_in_seconds: Syrus::Host::PerformanceLogEvent.retention_window&.to_i,
+        buffered: Syrus::Host::ObservabilityEventSink.stats.dig(:buffered, :performance).to_i,
+        dropped: Syrus::Host::ObservabilityEventSink.stats.dig(:dropped, :performance).to_i
       }
     end
 
@@ -82,7 +82,7 @@ module SyrusDev
           { value: "current", label: "Current SHA" },
           { value: "all", label: "All SHAs" }
         ] },
-        { field: "event_name", label: "Event", bucket: "text", operators: [ "is" ], expansions: { placeholder: PerformanceLogging::SLOW_REQUEST_EVENT } },
+        { field: "event_name", label: "Event", bucket: "text", operators: [ "is" ], expansions: { placeholder: Syrus::Host::PerformanceLogging::SLOW_REQUEST_EVENT } },
         { field: "request_id", label: "Request ID", bucket: "text", operators: [ "is" ] },
         { field: "trace_id", label: "Trace ID", bucket: "text", operators: [ "is" ] },
         { field: "job_class", label: "Job class", bucket: "text", operators: [ "is" ] },
@@ -94,7 +94,7 @@ module SyrusDev
     end
 
     def current_revision
-      SyrusVersion.current
+      Syrus::Host::SyrusVersion.current
     end
 
     def filtered_events(events)
@@ -231,8 +231,8 @@ module SyrusDev
     end
 
     def previous_persisted_revision
-      PerformanceLogEvent
-        .where(occurred_at: PerformanceLogEvent.retention_floor..)
+      Syrus::Host::PerformanceLogEvent
+        .where(occurred_at: Syrus::Host::PerformanceLogEvent.retention_floor..)
         .where.not(app_revision: [ nil, "", current_revision ])
         .reorder(occurred_at: :desc, id: :desc)
         .limit(1)
@@ -241,8 +241,8 @@ module SyrusDev
 
     def events_for_revision(raw_events, revision)
       events = raw_events.select { |event| event["app_revision"] == revision }
-      persisted = PerformanceLogEvent
-        .where(app_revision: revision, occurred_at: PerformanceLogEvent.retention_floor..)
+      persisted = Syrus::Host::PerformanceLogEvent
+        .where(app_revision: revision, occurred_at: Syrus::Host::PerformanceLogEvent.retention_floor..)
         .recent_first
         .limit(limit)
         .map(&:as_event_hash)
@@ -321,7 +321,7 @@ module SyrusDev
     end
 
     def grouped_slow_requests(events)
-      grouped = events.select { |event| event_type(event) == PerformanceLogging::SLOW_REQUEST_EVENT }
+      grouped = events.select { |event| event_type(event) == Syrus::Host::PerformanceLogging::SLOW_REQUEST_EVENT }
         .group_by { |event| [ event["method"], event["path"], event["controller"], event["action"] ] }
 
       grouped.map do |(method, path, controller, action), rows|
@@ -343,7 +343,7 @@ module SyrusDev
     end
 
     def grouped_slow_jobs(events)
-      grouped = events.select { |event| event_type(event) == PerformanceLogging::SLOW_JOB_EVENT }
+      grouped = events.select { |event| event_type(event) == Syrus::Host::PerformanceLogging::SLOW_JOB_EVENT }
         .group_by { |event| [ event["job_class"], event["queue_name"] ] }
 
       grouped.map do |(job_class, queue_name), rows|
@@ -366,7 +366,7 @@ module SyrusDev
     end
 
     def grouped_slow_phases(events)
-      grouped = events.select { |event| event_type(event) == PerformanceLogging::SLOW_PHASE_EVENT }
+      grouped = events.select { |event| event_type(event) == Syrus::Host::PerformanceLogging::SLOW_PHASE_EVENT }
         .group_by { |event| phase_label(event) }
 
       grouped.map do |phase, rows|
@@ -384,7 +384,7 @@ module SyrusDev
     end
 
     def grouped_browser_traces(events)
-      grouped = events.select { |event| event_type(event) == PerformanceLogging::BROWSER_TRACE_EVENT }
+      grouped = events.select { |event| event_type(event) == Syrus::Host::PerformanceLogging::BROWSER_TRACE_EVENT }
         .group_by { |event| [ event["name"], event["path"] ] }
 
       grouped.map do |(name, path), rows|
@@ -431,7 +431,7 @@ module SyrusDev
     def grouped_sql_fingerprints(events)
       rows = []
       events.each do |event|
-        next unless event_type(event) == PerformanceLogging::SLOW_SQL_EVENT && event["fingerprint"].present?
+        next unless event_type(event) == Syrus::Host::PerformanceLogging::SLOW_SQL_EVENT && event["fingerprint"].present?
 
         duration = event["duration_ms"].to_f
         rows << {
