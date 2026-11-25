@@ -48,8 +48,8 @@ class Coworkers::Activity
 
   def week_range = @now.beginning_of_week..@now
   def chat_ids = @chat_ids ||= @coworker.coworker_chats.select(:chat_session_id)
-  def chats = ChatSession.where(id: chat_ids)
-  def side_chats = ChatSession.where(id: @coworker.coworker_chats.where(role: "side").select(:chat_session_id))
+  def chats = Syrus::Host::ChatSessionRecord.where(id: chat_ids)
+  def side_chats = Syrus::Host::ChatSessionRecord.where(id: @coworker.coworker_chats.where(role: "side").select(:chat_session_id))
   def jobs = @jobs ||= Syrus::Host::JobRecord.visible_to(@user).where(kind: "coworker_task", origin: "coworkers", origin_id: @coworker.id.to_s)
   def all_runs = @all_runs ||= Syrus::Host::RunRecord.where(job_id: jobs.select(:id))
 

@@ -3,7 +3,7 @@ module Api
     module App
       class CognitiveReviewNotesController < Syrus::Host::AppController
         include Syrus::Host::ChatLockErrors
-        include ChatSessionLifecycle
+        include Syrus::Host::ChatSessionLifecycle
 
         def show
           job = find_job
@@ -105,7 +105,7 @@ module Api
         end
 
         def discussion_chat_for(job)
-          chat_session = job.discussion_chat || ChatSession.create!(user: Syrus::Host::Current.user, repository: job.repository)
+          chat_session = job.discussion_chat || Syrus::Host::ChatSessionRecord.create!(user: Syrus::Host::Current.user, repository: job.repository)
           chat_session.chat_attachments.find_or_create_by!(attachable: job)
           chat_session.pin_chat_provider!
           chat_session

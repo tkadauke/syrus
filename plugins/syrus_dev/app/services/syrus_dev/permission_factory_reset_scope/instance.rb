@@ -4,7 +4,7 @@ module SyrusDev
     def profile_users = users
     def rules = Syrus::Host::PermissionRule.all
     def leases = Syrus::Host::PermissionLease.all
-    def requests = ChatPendingAction.where(request_kind: "authorization_request")
+    def requests = Syrus::Host::ChatPendingActionRecord.where(request_kind: "authorization_request")
 
     private
 

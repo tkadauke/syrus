@@ -35,34 +35,34 @@ module Coworkers
   module ChatExtension
     def self.install_into(scope)
       scope.effect("chat coworker resolver") do
-        ChatMessage.include(Coworkers::MentionMessageCallback) unless ChatMessage < Coworkers::MentionMessageCallback
-        ChatSession.prepend(Coworkers::MentionActivityProxy) unless ChatSession < Coworkers::MentionActivityProxy
-        ChatMessage.set_callback(:commit, :after, :delegate_coworker_mention, on: :create)
-        unless ChatSession.reflect_on_association(:coworker_chat)
-          ChatSession.has_one :coworker_chat,
+        Syrus::Host::ChatMessageRecord.include(Coworkers::MentionMessageCallback) unless Syrus::Host::ChatMessageRecord < Coworkers::MentionMessageCallback
+        Syrus::Host::ChatSessionRecord.prepend(Coworkers::MentionActivityProxy) unless Syrus::Host::ChatSessionRecord < Coworkers::MentionActivityProxy
+        Syrus::Host::ChatMessageRecord.set_callback(:commit, :after, :delegate_coworker_mention, on: :create)
+        unless Syrus::Host::ChatSessionRecord.reflect_on_association(:coworker_chat)
+          Syrus::Host::ChatSessionRecord.has_one :coworker_chat,
             class_name: "Coworkers::Chat",
             foreign_key: :chat_session_id,
             inverse_of: :chat_session
         end
 
-        ChatSession.define_method(:coworker) do
+        Syrus::Host::ChatSessionRecord.define_method(:coworker) do
           coworker_chat&.coworker || ::Coworker::Syrus.for(user)
         end
 
-        ChatSession.define_method(:ephemeral_agent_turn?) { coworker_chat.present? }
+        Syrus::Host::ChatSessionRecord.define_method(:ephemeral_agent_turn?) { coworker_chat.present? }
 
-        ChatSession.define_method(:owner_facing_chat_session) do
+        Syrus::Host::ChatSessionRecord.define_method(:owner_facing_chat_session) do
           link = Coworkers::Chat.find_by(chat_session_id: id)
           link&.mention? ? link.source_chat_session : self
         end
 
-        ChatSession.define_method(:workspace_file_read_policy) do |relative_path|
+        Syrus::Host::ChatSessionRecord.define_method(:workspace_file_read_policy) do |relative_path|
           next unless coworker_chat
 
           Coworkers::WorkspaceFileReadPolicy.for(relative_path)
         end
 
-        ChatSession.define_method(:coworker_grant_availability) do |capability|
+        Syrus::Host::ChatSessionRecord.define_method(:coworker_grant_availability) do |capability|
           descriptor = Coworkers::GrantCatalog.all.find { |entry| entry.name == capability.to_s }
           next unless descriptor
 
@@ -70,15 +70,15 @@ module Coworkers
           { available: availability.available?, reason: availability.reason }
         end
 
-        ChatSession.define_method(:coworker_workspace?) do
+        Syrus::Host::ChatSessionRecord.define_method(:coworker_workspace?) do
           coworker_chat.present?
         end
 
-        ChatSession.define_method(:coworker_workspace_repository_id) do
+        Syrus::Host::ChatSessionRecord.define_method(:coworker_workspace_repository_id) do
           coworker_workspace_repository&.id
         end
 
-        ChatSession.define_method(:coworker_workspace_repository) do
+        Syrus::Host::ChatSessionRecord.define_method(:coworker_workspace_repository) do
           linked_coworker = coworker_chat&.coworker
           next unless linked_coworker
 
@@ -92,9 +92,9 @@ module Coworkers
         end
 
         -> do
-          ChatMessage.skip_callback(:commit, :after, :delegate_coworker_mention, on: :create)
+          Syrus::Host::ChatMessageRecord.skip_callback(:commit, :after, :delegate_coworker_mention, on: :create)
           %i[coworker ephemeral_agent_turn? owner_facing_chat_session workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
-            ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
+            Syrus::Host::ChatSessionRecord.remove_method(method) if Syrus::Host::ChatSessionRecord.instance_methods(false).include?(method)
           end
         end
       end

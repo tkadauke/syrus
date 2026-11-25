@@ -749,7 +749,7 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
   const toggleState = usePluginToggle(plugin, betaModeEnabled, () => pageReload.reloadPage())
   const hostSurface = plugin.health?.host_surface
-  const hostSurfaceFindings = hostSurface ? [...hostSurface.public, ...hostSurface.legacy, ...hostSurface.unlisted, ...hostSurface.dynamic] : []
+  const hostSurfaceFindings = hostSurface ? [...hostSurface.public, ...hostSurface.unlisted, ...hostSurface.dynamic] : []
   const showHostSurfaceDetails = plugin.health?.state !== "ok" && hostSurfaceFindings.length > 0
 
   return (

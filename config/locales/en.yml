@@ -1044,7 +1044,6 @@ en:
       host_surface:
         scan_failed: "Host API scan failed: %{error}"
         unsupported: "%{count} unsupported host API reference(s)"
-        legacy: "%{count} non-public host API reference(s)"
         dynamic: "%{count} dynamic non-public host API reference(s)"
         minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
 
