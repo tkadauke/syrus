@@ -24,9 +24,10 @@ module WorkflowOutcomeOverrides
     class << self
       def default
         @default ||= new.tap do |registry|
-          %w[review reviewer_infrastructure implementation_grader landing_grader].each do |name|
-            registry.register(GateKind.new(name) { |failure| failure[:gate_identity].present? })
-          end
+          registry.register(GateKind.new("review", resumer: Resumers::Review) { |failure| failure[:gate_identity].present? })
+          registry.register(GateKind.new("reviewer_infrastructure", resumer: Resumers::Review) { |failure| failure[:gate_identity].present? })
+          registry.register(GateKind.new("implementation_grader", resumer: Resumers::Grader) { |failure| failure[:gate_identity].present? })
+          registry.register(GateKind.new("landing_grader", resumer: Resumers::Grader) { |failure| failure[:gate_identity].present? })
         end
       end
     end

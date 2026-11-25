@@ -52,7 +52,8 @@ class Step
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_fallback_step_kinds, :resource_profile_default_overrides, :waits_for_terminal_step_kind,
-                        :review_gate, :panel_capable, :reviewer_target_required, :runtime_inserted, :placement_policy) do
+                        :review_gate, :panel_capable, :reviewer_target_required, :runtime_inserted,
+                        :outcome_override_collector_kind, :placement_policy) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      dynamic_required_mcp_tools: nil,
@@ -72,6 +73,7 @@ class Step
                      panel_capable: false,
                      reviewer_target_required: false,
                      runtime_inserted: false,
+                     outcome_override_collector_kind: nil,
                      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
         repair_semantics ||= agentic ? :agentic : :operator_review
         resource_profile_step_kinds ||= [ kind ]
@@ -266,6 +268,7 @@ class Step
       Entry.new(kind: "grader",             handler: "Grader",             label: "Grader",                     style: "bg-violet-100 text-violet-700", agentic: false,
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent,
+                outcome_override_collector_kind: "grader_collect",
                 runtime_inserted: true,
                 resource_profile_grader_name_key: "name",
                 placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT),
@@ -339,6 +342,7 @@ class Step
       Entry.new(kind: "preflight_grader",         handler: "PreflightGrader",         label: "Preflight grader",         style: "bg-gray-100 text-gray-500",     agentic: false,
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent,
+                outcome_override_collector_kind: "preflight_grader_collect",
                 resource_profile_grader_name_key: "name",
                 placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT),
       Entry.new(kind: "preflight_grader_fanout",  handler: "PreflightGraderFanout",  label: "Plan preflight graders",   style: "bg-violet-100 text-violet-700", agentic: false,
