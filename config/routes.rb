@@ -686,6 +686,11 @@ Rails.application.routes.draw do
 
         get "runtime_images", to: "runtime_images#show"
         post "runtime_images/reconcile", to: "runtime_images#reconcile"
+        get "coworker_base_releases", to: "coworker_base_releases#index"
+        post "coworker_base_releases/rollback", to: "coworker_base_releases#rollback"
+        post "coworker_base_releases/:id/promote", to: "coworker_base_releases#promote"
+        post "coworker_base_releases/:id/revoke", to: "coworker_base_releases#revoke"
+        post "coworker_base_releases/:id/support", to: "coworker_base_releases#support"
         resources :runtime_image_build_network_rules, only: %i[index create update destroy]
         get "runtime_image_build_requests", to: "runtime_image_build_requests#index"
         post "runtime_image_build_requests/:id/cancel", to: "runtime_image_build_requests#cancel"

@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_012227) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_030128) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -1186,6 +1186,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_012227) do
     t.datetime "updated_at", null: false
     t.boolean "allow_as_owner", default: false, null: false
     t.index ["provider_key"], name: "idx_connected_accounts_provider_key", unique: true
+  end
+
+  create_table "coworker_base_releases", force: :cascade do |t|
+    t.bigint "runtime_image_id", null: false
+    t.string "platform", limit: 64, null: false
+    t.integer "generation", null: false
+    t.integer "runtime_abi", null: false
+    t.integer "compat_min", null: false
+    t.integer "compat_max", null: false
+    t.string "status", limit: 32, default: "candidate", null: false
+    t.string "active_key", limit: 64
+    t.datetime "promoted_at"
+    t.string "promoted_by", limit: 100
+    t.datetime "retired_at"
+    t.string "retired_by", limit: 100
+    t.datetime "supported_until"
+    t.datetime "revoked_at"
+    t.string "revoked_by", limit: 100
+    t.string "revocation_severity", limit: 32
+    t.string "revoked_reason", limit: 500
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active_key"], name: "idx_cbr_active_key", unique: true
+    t.index ["platform", "status"], name: "idx_cbr_platform_status"
+    t.index ["runtime_image_id"], name: "idx_cbr_image", unique: true
   end
 
   create_table "coworker_chats", force: :cascade do |t|

@@ -15,7 +15,7 @@ module RuntimeImages
     end
 
     def checks
-      [ provider_check, pending_check, cleanup_check, corruption_check, auth_check, storage_check, retention_check ] + builds.checks
+      [ provider_check, pending_check, cleanup_check, corruption_check, auth_check, storage_check, retention_check, base_check ] + builds.checks
     end
 
     def ok? = checks.none? { |check| check.status == :fail }
@@ -31,6 +31,7 @@ module RuntimeImages
         pulls: RuntimeImagePullEvent.since(@now - WINDOW).group(:outcome).count,
         pull_hit_ratio: RuntimeImagePullEvent.hit_ratio(RuntimeImagePullEvent.since(@now - WINDOW)),
         cache: cache_summary,
+        coworker_base: base_snapshot,
         recent_audit: RuntimeImageAuditEvent.recent_first.limit(25).map do |event|
           { id: event.id, event_type: event.event_type, outcome: event.outcome, digest: event.digest,
             actor: event.actor, details: event.details, occurred_at: event.occurred_at }
@@ -65,7 +66,56 @@ module RuntimeImages
       entries.map { |host, count, bytes| { hostname: host, entries: count.to_i, bytes: bytes.to_i } }
     end
 
+    # Promotion state of the standard coworker base: what is active and
+    # rollback-able per platform, candidates awaiting promotion, revocations,
+    # and the environments that now need a rebuild.
+    def base_snapshot
+      releases = CoworkerBaseRelease.includes(:runtime_image).newest_first.limit(100).to_a
+      {
+        platforms: CoworkerBase.platforms.map do |platform|
+          state = BaseReleases.new.launch_state(platform: platform, now: @now)
+          { platform: platform, state: state.state, message: state.message,
+            active: state.release && base_release_json(state.release),
+            rollback_targets: BaseReleases.new.rollback_targets(platform: platform, now: @now).map { |release| base_release_json(release) } }
+        end,
+        candidates: releases.select(&:candidate?).map { |release| base_release_json(release) },
+        revoked: releases.select(&:revoked?).map { |release| base_release_json(release) },
+        needing_rebuild: base_compatibility.summary
+      }
+    end
+
+    def base_release_json(release)
+      { id: release.id, digest: release.digest, platform: release.platform, generation: release.generation,
+        runtime_abi: release.runtime_abi, compatibility: [ release.compat_min, release.compat_max ], status: release.status,
+        promoted_at: release.promoted_at, promoted_by: release.promoted_by, retired_at: release.retired_at,
+        supported_until: release.supported_until, revoked_at: release.revoked_at, revoked_by: release.revoked_by,
+        revocation_severity: release.revocation_severity, revoked_reason: release.revoked_reason }
+    end
+
     private
+
+    def base_compatibility = @base_compatibility ||= BaseCompatibility.new(now: @now)
+
+    # Launching is blocked (warn, not fail: a Syrus without coworker bases
+    # configured is a valid install) when a base was ever published but none is
+    # launchable, and failed when a promoted base was revoked or environments
+    # are left without any base to rebuild against.
+    def base_check
+      return Check.new("coworker base", :ok, "no coworker base published") unless CoworkerBaseRelease.exists?
+
+      blocked = CoworkerBaseRelease.distinct.pluck(:platform).sort.filter_map do |platform|
+        state = BaseReleases.new.launch_state(platform: platform, now: @now)
+        "#{platform}: #{state.state}" unless state.ready?
+      end
+      needing = base_compatibility.environments_needing_rebuild
+      candidates = CoworkerBaseRelease.candidates.count
+      if blocked.any? && CoworkerBaseRelease.where.not(promoted_at: nil).exists?
+        return Check.new("coworker base", :fail, "new coworker turns are blocked (#{blocked.join(", ")}); promote a candidate or roll back")
+      end
+      return Check.new("coworker base", :warn, "#{needing.size} environment(s) need a rebuild against the active coworker base") if needing.any?
+      return Check.new("coworker base", :warn, "#{candidates} base candidate(s) awaiting promotion, none active") if blocked.any?
+      Check.new("coworker base", :ok, candidates.positive? ? "active; #{candidates} candidate(s) awaiting promotion" : "active")
+    end
 
     def provider_check
       keys = RuntimeImageNamespace.distinct.pluck(:provider_key)

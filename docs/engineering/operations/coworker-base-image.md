@@ -97,7 +97,9 @@ layer.
    `/api/v1/admin/runtime_image_build_requests`.
 3. The isolated builder publishes through the Runtime Image Service to the
    `syrus_base / coworker-base` namespace with source ref
-   `coworker-base/generation-<generation>`. Consumers resolve it with
+   `coworker-base/generation-<generation>`. A build that passes conformance is
+   registered as a **candidate** release; it is not launchable until promoted
+   (see Promotion). Consumers resolve the active base with
    `CoworkerBase.current_image` and run it only by the registry-verified digest.
 
 ## Updating
@@ -127,3 +129,49 @@ image is withdrawn with the Runtime Image Service's revoke operation (see
 worker cache and probed under the real confinement. A non-conformant image is
 revoked (so `CoworkerBase.current_image` never returns it) and the build fails
 permanently with `conformance_failed`.
+
+## Promotion, rollback, and revocation
+
+`CoworkerBaseRelease` (one per published base image) tracks a base through
+`candidate -> active -> retired`, or `revoked` from any state.
+`RuntimeImages::BaseReleases` is the only way to change it, and every change is
+audited (`base_release.*` events in the Runtime Image Service audit log).
+
+- **Active**: at most one release per platform (a unique database key). New
+  coworker turns launch only from it. `CoworkerBase.current_image` returns it, or
+  nil; there is never a fallback to "the newest published base".
+  `BaseReleases#launch_state` explains a nil with a stable code
+  (`no_active_base`, `base_revoked`) for the blocked-turn error.
+- **Promote**: validates the base is pullable, its ABI is inside what this Syrus
+  launches, and its provenance carries Syrus's ABI signature. The replaced base
+  becomes `retired` and is retained for 90 days (`ROLLBACK_RETENTION`) so
+  garbage collection cannot remove a rollback target. If the registry cannot
+  retain it, nothing changes.
+- **Rollback**: re-activates a retired, still pullable, non-revoked base (the
+  newest by default) and retires the current one.
+- **Compatibility window**: each release carries the ABI range it declared in
+  its signed attestation, plus an optional `supported_until`. A superseded base
+  keeps working for environments built on it; only a revoked base, an ended
+  window, or an ABI outside this Syrus's range makes them need a rebuild.
+- **Rebuild discovery**: `BaseCompatibility` finds published images whose build
+  provenance (`base_images[].digest`) names such a base and reports the active
+  base to rebuild against, or that none is launchable (blocked).
+  `BaseRebuildDiscoveryJob` runs after every lifecycle change, repairs releases
+  whose image was revoked outside the lifecycle, and audits
+  `base_release.rebuild_needed`.
+- **Revocation**: records a mandatory reason and a severity, revokes the image
+  at the registry (so it can no longer be pulled), and leaves the platform
+  blocked until another candidate is promoted or a retired base is rolled back
+  to. `standard` stops new launches only. `severe` additionally is the
+  termination signal: turn runtimes ask `BaseRevocation.terminate?(digest)` (or
+  poll `BaseRevocation.terminating(since:)`) with the digest a running turn is
+  pinned to and stop it when true.
+
+Operator surface: `GET /api/v1/admin/coworker_base_releases` (releases, launch
+state and rollback targets per platform, candidates, revocations, environments
+needing a rebuild) and `POST` to `.../:id/promote`, `.../rollback`
+(`platform`, optional `release_id`), `.../:id/revoke` (`reason`, `severity`),
+and `.../:id/support` (`supported_until`). The same data is the `coworker_base`
+section of `GET /api/v1/admin/runtime_images` and the `coworker base` health
+check, which fails when a promoted base was revoked and none replaced it and
+warns when environments need a rebuild.

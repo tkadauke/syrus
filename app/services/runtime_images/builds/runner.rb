@@ -114,6 +114,7 @@ module RuntimeImages
         raise BuildFailed.new("published image #{image.digest} could not be verified", code: "verification_failed", retryable: true) unless inspection.present
 
         verify_conformance!(request, image)
+        register_base_release(request, image)
         image
       end
 
@@ -127,6 +128,14 @@ module RuntimeImages
       rescue ConformanceProbe::NonConformant, RuntimeAbi::Incompatible => e
         @service.revoke(image, reason: "conformance probe failed: #{e.message}".truncate(500))
         raise BuildFailed.new("coworker base failed conformance: #{e.message}".truncate(1000), code: "conformance_failed", retryable: false)
+      end
+
+      # A verified standard base becomes a promotion candidate. It is never
+      # active until an operator promotes it.
+      def register_base_release(request, image)
+        return unless request.source_kind == CoworkerBase::SOURCE_KIND
+
+        BaseReleases.new(service: @service).register(image)
       end
 
       # Builder-reported provenance plus the bindings that make the image

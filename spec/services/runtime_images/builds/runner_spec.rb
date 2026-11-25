@@ -71,6 +71,20 @@ RSpec.describe RuntimeImages::Builds::Runner do
       expect(seen).to eq(claimed.result.runtime_image)
     end
 
+    it "registers a conformant base as a promotion candidate, never as active" do
+      claimed, = run
+      release = CoworkerBaseRelease.find_by!(runtime_image: claimed.result.runtime_image)
+      expect(release).to be_candidate
+      expect(RuntimeImages::CoworkerBase.current_image).to be_nil
+    end
+
+    it "does not register a non-conformant base" do
+      result = RuntimeImages::ConformanceProbe.evaluate("fail provider-muse: not on PATH\n", exit_status: 1)
+      allow(base_verifier).to receive(:call).and_raise(RuntimeImages::ConformanceProbe::NonConformant.new(result))
+      run
+      expect(CoworkerBaseRelease.count).to eq(0)
+    end
+
     it "revokes the image and fails permanently when the probe is non-conformant" do
       result = RuntimeImages::ConformanceProbe.evaluate("fail provider-muse: not on PATH\n", exit_status: 1)
       allow(base_verifier).to receive(:call).and_raise(RuntimeImages::ConformanceProbe::NonConformant.new(result))
@@ -78,7 +92,7 @@ RSpec.describe RuntimeImages::Builds::Runner do
       expect(claimed).to be_failed
       expect(claimed.result.error_code).to eq("conformance_failed")
       expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
-      expect(RuntimeImages::CoworkerBase.current_image(built_images: RuntimeImages::BuiltImages.new(service: service))).to be_nil
+      expect(RuntimeImages::CoworkerBase.current_image).to be_nil
     end
 
     it "revokes the image and fails permanently when the base is ABI-incompatible" do
@@ -88,7 +102,7 @@ RSpec.describe RuntimeImages::Builds::Runner do
       expect(claimed).to be_failed
       expect(claimed.result.error_code).to eq("conformance_failed")
       expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
-      expect(RuntimeImages::CoworkerBase.current_image(built_images: RuntimeImages::BuiltImages.new(service: service))).to be_nil
+      expect(RuntimeImages::CoworkerBase.current_image).to be_nil
     end
   end
 
