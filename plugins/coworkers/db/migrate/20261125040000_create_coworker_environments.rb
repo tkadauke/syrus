@@ -17,7 +17,7 @@ class CreateCoworkerEnvironments < ActiveRecord::Migration[8.1]
     create_table :coworker_environment_revisions, if_not_exists: true do |t|
       t.integer :coworker_environment_id, null: false
       t.integer :number, null: false
-      t.string :state, null: false, default: "recorded"
+      t.string :state, null: false, default: "draft"
       t.string :source_digest, limit: 191, null: false
       t.json :source_manifest
       t.string :recipe_digest, limit: 191

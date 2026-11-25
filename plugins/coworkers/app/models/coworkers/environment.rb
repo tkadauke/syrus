@@ -1,7 +1,8 @@
 # The single execution-environment definition a coworker owns, living in its
 # existing persistent workspace. It points at immutable source revisions and
 # at the candidate and active Runtime Image Service images; image data itself
-# stays in RuntimeImage. Behavior is gated by coworker_custom_environments.
+# stays in RuntimeImage. This is a passive domain record; behavior built on
+# it must sit behind the coworker_custom_environments gate.
 class Coworkers::Environment < ApplicationRecord
   self.table_name = "coworker_environments"
 
@@ -55,7 +56,9 @@ class Coworkers::Environment < ApplicationRecord
   def revisions_belong_to_environment
     %i[active_revision candidate_revision].each do |name|
       revision = public_send(name)
-      errors.add(name, "must belong to this environment") if revision && revision.coworker_environment_id != id
+      next unless revision && persisted?
+
+      errors.add(name, "must belong to this environment") if revision.coworker_environment_id != id
     end
   end
 end
