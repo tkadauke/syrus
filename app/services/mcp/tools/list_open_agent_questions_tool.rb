@@ -16,7 +16,7 @@ module Mcp::Tools
       def call(server_context:, job_id: nil, limit: 20)
         user = McpToolContext.from_server_context(server_context).owner_chat.user
         limit = Integer(limit, exception: false).to_i.clamp(1, 100)
-        scope = AgentQuestion.active.where.not(run_id: nil).joins(run: :job).merge(Job.visible_to(user))
+        scope = AgentQuestion.active.where.not(run_id: nil).joins(run: :job).merge(Job.visible_to(user)).preload(run: :job)
         scope = scope.where(jobs: { id: job_id }) if job_id
 
         Mcp::Tools.success(questions: scope.limit(limit).map { |question| payload(question) })

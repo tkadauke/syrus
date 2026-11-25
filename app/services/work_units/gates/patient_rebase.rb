@@ -48,6 +48,7 @@ module WorkUnits
 
         Workflow
           .where(id: WorkUnits::Ownership.active_workflow_ids(jobs.map(&:id), kinds: WorkDefinitions.first_class_work_unit_kinds))
+          .where.not(id: Step.where(state: "awaiting_answer").select(:workflow_id))
           .where.not(id: workflow.id)
           .includes(:job)
           .order(:created_at, :id)

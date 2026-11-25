@@ -122,7 +122,8 @@ After the agent turn returns, Syrus marks the Run, Step, and Workflow
 `blocked` rather than `failed`. Blocked Workflows are terminal for cleanup and
 dashboard grouping, but they do not trigger the failed-workflow auto-retry
 path. The Job remains open and attention-marked so an operator can review the
-warning, file follow-up work from it, or dismiss it. This preserves the
+warning, answer the generated free-text question to resume the same run, file
+follow-up work from it, or dismiss it. This preserves the
 surface-then-promote discipline used by `workflow_warnings`: workflow agents
 can surface the blocker and suggested fix, but they do not directly create
 Jobs or GitHub issues.

@@ -930,6 +930,15 @@ class RunJob < ApplicationJob
     @step.reload
     @workflow.reload
 
+    @run.agent_questions.create!(
+      questions: [ {
+        "question" => "The agent reported it cannot proceed: #{reason}\n\nWhat should it do next?",
+        "options" => nil,
+        "multiple" => false
+      } ],
+      asked_at: Time.current
+    ) unless @run.agent_questions.active.exists?
+
     if @run.may_block?
       @run.block!
       @run.save!

@@ -235,7 +235,7 @@ class Step < ApplicationRecord
     end
 
     event :resume_from_answer do
-      transitions from: :awaiting_answer, to: :running
+      transitions from: [ :awaiting_answer, :blocked ], to: :running
     end
 
     # Reopen a failed Step so a new Run can be created on it. Used

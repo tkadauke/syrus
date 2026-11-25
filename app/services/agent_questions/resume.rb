@@ -12,14 +12,23 @@ module AgentQuestions
         Lineage.lock!(@run)
         @run.reload
         step = @run.step.reload
-        return false unless @run.awaiting_answer? && step.awaiting_answer?
+        workflow = step.workflow.reload
+        awaiting = @run.awaiting_answer? && step.awaiting_answer?
+        blocked = @run.blocked? && step.blocked? && workflow.blocked?
+        return false unless awaiting || blocked
 
-        @run.prompt = fallback_prompt unless resumable_session?
-        @run.parent_session_id = @run.provider_session.session_id if resumable_session?
+        if resumable_session?
+          @run.prompt = answer_prompt
+          @run.parent_session_id = @run.provider_session.session_id
+        else
+          @run.prompt = fallback_prompt
+        end
+        @run.finished_at = nil
+        step.finished_at = nil
+        workflow.finished_at = nil
+        workflow.resume_from_answer! if workflow.may_resume_from_answer?
         @run.resume_from_answer!
-        @run.save!
         step.resume_from_answer!
-        step.save!
       end
       @run.reenqueue!
       true
@@ -32,7 +41,12 @@ module AgentQuestions
     end
 
     def fallback_prompt
-      [ @run.prompt, "The operator answered your earlier questions:\n\n#{answer_text}\n\nContinue the step using these answers." ].compact.join("\n\n")
+      [ @run.prompt, answer_prompt ].compact.join("\n\n")
+    end
+
+    def answer_prompt
+      resolution = @question.answer_source == "timeout" ? "The answer timeout applied your stated defaults." : "The operator answered your earlier questions."
+      "#{resolution}\n\n#{answer_text}\n\nContinue the step using these answers."
     end
 
     def answer_text

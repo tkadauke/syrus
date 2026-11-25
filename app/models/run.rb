@@ -206,7 +206,7 @@ class Run < ApplicationRecord
     end
 
     event :resume_from_answer do
-      transitions from: :awaiting_answer, to: :queued
+      transitions from: [ :awaiting_answer, :blocked ], to: :queued
     end
   end
 

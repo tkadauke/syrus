@@ -71,6 +71,19 @@ RSpec.describe WorkUnits::Gates::PatientRebase do
     expect(feedback.reload).to be_running
   end
 
+  it "does not wait for a workflow parked on an operator answer" do
+    feedback, = attach_active_feedback
+    feedback.steps.where(state: "queued").first!.update_columns(state: "awaiting_answer")
+    rebase = RebaseWorkflowSelector.instantiate(job: job)
+
+    expect {
+      result = WorkUnits::Launcher.start!(rebase)
+      expect(result).to be_started
+    }.to have_enqueued_job(RunJob)
+
+    expect(feedback.reload).to be_running
+  end
+
   it "defers a system stack rebase for active feedback on a non-root member" do
     child = Factories.job_record(
       user: job.user,

@@ -817,6 +817,10 @@ An answer from chat or another operator surface closes the question everywhere
 and resumes the same provider session when possible. Chat and coworker agents
 can use `list_open_agent_questions` and `answer_agent_question` to handle open
 questions they are authorized to see.
+Answering requires write access to the Job. A workflow already blocked by
+`report_cannot_proceed` appears as one free-text question; answering it resumes
+the blocked run and its provider session. Workflows waiting for an answer do
+not delay patient automatic rebases.
 
 Question eagerness resolves from a Job override, then repository setting, then
 user setting, and defaults to `balanced`. The available levels are
