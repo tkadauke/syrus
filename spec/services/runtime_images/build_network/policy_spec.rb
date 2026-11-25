@@ -82,6 +82,7 @@ RSpec.describe RuntimeImages::BuildNetwork::Policy do
       expect(decide(rules, "registry.npmjs.org").reason).to eq("internal_mirror_required")
       expect(decide(rules, "npm.corp.example")).to be_allowed
       expect(decide(rules, "pypi.org")).to be_allowed
+      expect(decide(rules, "deb.debian.org")).to be_allowed
       expect(decide(rules, "github.com")).to be_allowed
     end
 

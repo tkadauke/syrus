@@ -54,3 +54,14 @@ When the registry is configured, a devcontainer that builds from a Dockerfile is
 - An hourly reconciliation compares records with the registry and repairs drift. Unrecorded registry digests are reported and removed only with `bin/rails runtime_images:reconcile DELETE_ORPHANS=1`.
 - Pull outcomes, authentication failures, corruption, and lifecycle decisions are kept as audit events and exposed as metrics (`syrus_runtime_image_*`).
 
+
+## Build-network allowlists
+
+Runtime image builds run with no direct network. All build egress goes through an enforcing proxy and resolver that permits only destinations an administrator has declared.
+
+- Rules are managed at `/api/v1/admin/runtime_image_build_network_rules` (`GET` lists rules, source classes, and language ecosystems; `POST`, `PATCH`, and `DELETE` manage a rule). Edits apply to the next build.
+- Each rule has a source class: `os_mirror`, `language_registry` (with an `ecosystem` such as npm or pypi), `source_host`, `artifact_registry`, `exact_domain`, `repository_namespace` (host plus a path prefix), or `internal_mirror`. A rule may set a port, a path prefix, `required`, and `enabled`.
+- A required internal mirror displaces the public OS mirrors and language registries of its ecosystem (all of them when it names no ecosystem), so builds must use the mirror. Other ecosystems and source hosts stay allowed.
+- Package registries that no rule declares are refused.
+- Blocked: literal-IP destinations in any notation, redirects to undeclared hosts, hosts resolving to private, loopback, link-local, or cloud-metadata addresses (or a mix of public and private), DNS rebinding (names are resolved once and dialed by that address), unauthorized `CONNECT`, and host or shared network modes.
+- Denied attempts are recorded as `build.network` audit events and the network policy digest is recorded in the image provenance.
