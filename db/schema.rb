@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_030128) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_133454) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -5106,6 +5106,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_030128) do
     t.datetime "updated_at", null: false
     t.index ["workflow_id", "key"], name: "index_workflow_artifact_values_on_workflow_id_and_key", unique: true
     t.index ["workflow_id"], name: "index_workflow_artifact_values_on_workflow_id"
+  end
+
+  create_table "workflow_outcome_overrides", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "workflow_id"
+    t.integer "step_id"
+    t.string "actor_type", null: false
+    t.integer "actor_id", null: false
+    t.string "gate_kind", null: false
+    t.string "gate_identity", null: false
+    t.string "original_outcome", null: false
+    t.string "candidate_head_sha", null: false
+    t.string "candidate_tree_sha"
+    t.string "candidate_base_sha"
+    t.string "plan_version"
+    t.string "prompt_version"
+    t.string "evidence_digest", null: false
+    t.string "fingerprint_digest", null: false
+    t.string "channel", null: false
+    t.text "reason", null: false
+    t.json "permission_decision", null: false
+    t.datetime "consumed_at"
+    t.string "invalidation_cause"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_type", "actor_id"], name: "index_workflow_outcome_overrides_on_actor"
+    t.index ["gate_kind", "gate_identity", "fingerprint_digest"], name: "idx_workflow_outcome_overrides_fingerprint"
+    t.index ["job_id", "created_at"], name: "idx_workflow_outcome_overrides_job_created"
+    t.index ["job_id"], name: "index_workflow_outcome_overrides_on_job_id"
+    t.index ["step_id"], name: "index_workflow_outcome_overrides_on_step_id"
+    t.index ["workflow_id"], name: "index_workflow_outcome_overrides_on_workflow_id"
   end
 
   create_table "workflow_source_snapshots", force: :cascade do |t|

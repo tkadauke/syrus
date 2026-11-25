@@ -25,6 +25,7 @@ class User < ApplicationRecord
   has_many :dashboard_owned_epics, class_name: "Epic", foreign_key: :owner_user_id, dependent: :nullify, inverse_of: :owner_user
   has_many :owned_jobs, class_name: "Job", foreign_key: :owner_user_id, dependent: :nullify, inverse_of: :owner_user
   has_many :workflows, through: :jobs
+  has_many :workflow_outcome_overrides, as: :actor, dependent: :restrict_with_error
   has_many :job_pins, dependent: :destroy
   has_many :pinned_jobs, through: :job_pins, source: :job
   has_many :diff_review_comments, dependent: :destroy
