@@ -234,7 +234,8 @@ class LandingValidationManifest
 
     def covers_ci_target?(target)
       target["outcome"] == GraderOutcome::PASSED ||
-        (target["outcome"] == GraderOutcome::TEST_FAILED && target["accepted_failure"].present?)
+        (target["outcome"] == GraderOutcome::TEST_FAILED &&
+          (target["accepted_failure"].present? || target["outcome_override_id"].present?))
     end
 
     # --- diagnostics --------------------------------------------------
@@ -330,11 +331,12 @@ class LandingValidationManifest
         [ Blocker.new("required_result_infrastructure_failed", "#{label} could not run (#{target["reason"]}); this is an infrastructure problem, not a code verdict -- retry validation", label) ]
       when GraderOutcome::TEST_FAILED
         # grader_collect's rung-zero adjudication (confirmed-flaky history, a
-        # failure inherited from main, ...) accepted this failure and passed the
-        # collect; the gate honours that verdict instead of re-litigating it.
+        # failure inherited from main, ...) or an exact-evidence outcome
+        # override accepted this failure and passed the collect; the gate
+        # honours that decision instead of re-litigating it.
         # It is held to the same SHA binding and fingerprint evidence as a pass
         # (formal/SyrusModel/ValidationGate.lean, `targetOk`).
-        if target["accepted_failure"].present?
+        if target["accepted_failure"].present? || target["outcome_override_id"].present?
           if binding == "exact_head" && target["source_sha"].present? && target["source_sha"] != expected_sha.to_s
             return [ Blocker.new("sha_mismatch", "#{label} failure was accepted on #{short(target["source_sha"])}, not #{short(expected_sha)}", label) ]
           end
@@ -368,7 +370,8 @@ class LandingValidationManifest
         "environment_fingerprint" => fingerprints["environment_fingerprint"],
         "input_fingerprint" => fingerprints["input_fingerprint"],
         "has_evidence" => evidence?(details, fingerprints),
-        "accepted_failure" => details.dig("accepted_failure", "adjudicator").presence
+        "accepted_failure" => details.dig("accepted_failure", "adjudicator").presence,
+        "outcome_override_id" => details.dig("outcome_override", "id")
       }.compact
     end
 
