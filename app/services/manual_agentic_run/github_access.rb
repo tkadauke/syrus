@@ -1,15 +1,20 @@
 require "base64"
+require "faraday"
 require "fileutils"
 require "open3"
+require "openssl"
 require "socket"
+require "securerandom"
 require "tmpdir"
+require "uri"
 
 module ManualAgenticRun
   # Run-scoped broker. Agent-visible wrappers know only a local socket; the
   # credential and authoritative audit buffer remain in the worker process.
   class GithubAccess
     PERMISSIONS = { contents: "write", pull_requests: "write", issues: "write" }.freeze
-    DESTRUCTIVE_GH = /\A(?:repo delete|pr close|issue close|release delete|api .*\s(?:-X|--method)\s+(?:DELETE|PUT))/i
+    DESTRUCTIVE_GH = /\A(?:repo delete|pr close|issue close|release delete|api .*\s(?:-X|--method)(?:=|\s)+(?:DELETE|PUT))/i
+    DESTRUCTIVE_GIT = /(?:\A|\s)(?:--force(?:-with-lease)?|--delete|\+[^\s]+|:[^\s]+)(?:\s|\z)/i
     BLOCKED_GH = %w[auth alias extension config].freeze
     REPOSITORY_GH = %w[clone view edit delete fork sync archive rename].freeze
     REGISTRY = {}
@@ -45,7 +50,7 @@ module ManualAgenticRun
       raise ArgumentError, "scoped GitHub credential is already expired" unless grant.fetch(:expires_at) > Time.current
       dir = Dir.mktmpdir("syrus-github-run-#{@run.id}-")
       socket_path = File.join(dir, "broker.sock")
-      broker = Broker.new(socket_path:, token: grant.fetch(:token), expires_at: grant.fetch(:expires_at), repository: @repository.slug,
+      broker = Broker.new(socket_path:, proxy_dir: dir, token: grant.fetch(:token), expires_at: grant.fetch(:expires_at), repository: @repository.slug,
         destructive: @workflow.artifact("manual_agentic_run_github_destructive") == true,
         commands: { "gh" => real_command("gh"), "git" => real_command("git") }).start
       self.class::REGISTRY_MUTEX.synchronize do
@@ -90,13 +95,18 @@ module ManualAgenticRun
     end
 
     class Broker
-      def initialize(socket_path:, token:, expires_at:, repository:, destructive:, commands:)
+      def initialize(socket_path:, proxy_dir:, token:, expires_at:, repository:, destructive:, commands:)
         @socket_path, @token, @expires_at, @repository = socket_path, token, expires_at, repository
+        @proxy_dir = proxy_dir
         @destructive, @commands = destructive, commands
         @audit_entries, @audit_mutex = [], Mutex.new
       end
 
       def start
+        @proxy = CredentialProxy.new(
+          dir: @proxy_dir, token: @token, repository: @repository, destructive: @destructive,
+          on_request: method(:record_proxy_request)
+        ).start
         @server = UNIXServer.new(@socket_path)
         File.chmod(0o600, @socket_path)
         @thread = Thread.new { serve }
@@ -109,6 +119,7 @@ module ManualAgenticRun
       rescue IOError, Errno::EBADF
         nil
       ensure
+        @proxy&.stop
         @token = nil
       end
 
@@ -151,6 +162,9 @@ module ManualAgenticRun
         raise "access is restricted to #{@repository}" if refs.any? { |candidate| !candidate.sub(/\.git\z/, "").casecmp?(@repository) }
         if name == "git"
           raise "this git command is unavailable in scoped break-glass mode" if args.first == "credential" || joined.match?(/(?:^|\s)-c\s+alias\./)
+          if args.first == "push" && joined.match?(DESTRUCTIVE_GIT) && !@destructive
+            raise "this destructive Git operation requires separately confirmed destructive authority"
+          end
           return
         end
         raise "this gh command is unavailable in scoped break-glass mode" if BLOCKED_GH.include?(args.first)
@@ -169,10 +183,9 @@ module ManualAgenticRun
       def repo_refs(args) = args.filter_map { |arg| arg[%r{(?:github\.com[:/]|repos/)([^/\s]+/[^/\s]+)}, 1] }
 
       def command_environment(name)
-        return { "GH_TOKEN" => @token, "GH_HOST" => "github.com", "GH_REPO" => @repository } if name == "gh"
-        basic = Base64.strict_encode64("x-access-token:#{@token}")
-        { "GIT_CONFIG_COUNT" => "1", "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
-          "GIT_CONFIG_VALUE_0" => "Authorization: Basic #{basic}", "GIT_TERMINAL_PROMPT" => "0" }
+        return @proxy.gh_environment.merge("GH_REPO" => @repository) if name == "gh"
+
+        @proxy.git_environment.merge("GIT_TERMINAL_PROMPT" => "0")
       end
 
       def record(name, args, stdout, status, started)
@@ -181,6 +194,160 @@ module ManualAgenticRun
           "finished_at" => Time.now.utc.iso8601, "result" => status.success? ? "succeeded" : "failed", "exit_status" => status.exitstatus,
           "provider_object_identifiers" => stdout.scan(%r{https://github\.com/[^\s]+|\b[0-9a-f]{40}\b}).uniq }
         @audit_mutex.synchronize { @audit_entries << entry }
+      end
+
+      def record_proxy_request(method:, path:, status:, body:, started_at:)
+        return if %w[GET HEAD OPTIONS].include?(method)
+
+        entry = {
+          "category" => path.include?(".git/") ? "git_transport" : "gh_api",
+          "operation" => [ method, path ], "targets" => [ @repository ],
+          "started_at" => started_at, "finished_at" => Time.now.utc.iso8601,
+          "result" => status.between?(200, 399) ? "succeeded" : "failed", "exit_status" => nil,
+          "provider_object_identifiers" => body.to_s.scan(%r{https://github\.com/[^\s"']+|\b[0-9a-f]{40}\b}).uniq
+        }
+        @audit_mutex.synchronize { @audit_entries << entry }
+      end
+    end
+
+    # Loopback TLS reverse proxy that adds the real credential only to
+    # worker-owned outbound requests. Provider subprocesses receive a harmless
+    # placeholder credential and a public CA certificate, never the grant.
+    class CredentialProxy
+      PLACEHOLDER = "syrus-broker-placeholder".freeze
+
+      def initialize(dir:, token:, repository:, destructive:, on_request: nil)
+        @dir, @token, @repository, @destructive = dir, token, repository, destructive
+        @on_request = on_request
+      end
+
+      def start
+        key, certificate = certificate_pair
+        @certificate_path = File.join(@dir, "broker-ca.pem")
+        File.write(@certificate_path, certificate.to_pem, mode: "w", perm: 0o644)
+        tcp = TCPServer.new("127.0.0.1", 0)
+        @port = tcp.addr[1]
+        context = OpenSSL::SSL::SSLContext.new
+        context.cert, context.key = certificate, key
+        @server = OpenSSL::SSL::SSLServer.new(tcp, context)
+        @thread = Thread.new { serve }
+        self
+      end
+
+      def stop
+        @server&.close
+        @thread&.join(1)
+      rescue IOError, Errno::EBADF
+        nil
+      ensure
+        @token = nil
+      end
+
+      def gh_environment
+        { "GH_HOST" => host, "GH_ENTERPRISE_TOKEN" => PLACEHOLDER, "SSL_CERT_FILE" => @certificate_path }
+      end
+
+      def git_environment
+        {
+          "GIT_CONFIG_COUNT" => "3",
+          "GIT_CONFIG_KEY_0" => "url.https://#{host}/.insteadOf", "GIT_CONFIG_VALUE_0" => "https://github.com/",
+          "GIT_CONFIG_KEY_1" => "url.https://#{host}/.insteadOf", "GIT_CONFIG_VALUE_1" => "git@github.com:",
+          "GIT_CONFIG_KEY_2" => "http.https://#{host}/.sslCAInfo", "GIT_CONFIG_VALUE_2" => @certificate_path
+        }
+      end
+
+      private
+
+      def host = "127.0.0.1:#{@port}"
+
+      def serve
+        loop do
+          client = @server.accept
+          handle(client)
+        rescue IOError, Errno::EBADF
+          break
+        rescue StandardError
+          client&.write("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n") rescue nil
+        ensure
+          client&.close
+        end
+      end
+
+      def handle(client)
+        started_at = Time.now.utc.iso8601
+        request_line = client.gets("\r\n")&.strip.to_s
+        method, target, = request_line.split(" ", 3)
+        headers = read_headers(client)
+        body = request_body(client, headers)
+        upstream, path, authorization = upstream_for(target)
+        raise "destructive proxy request requires authority" if %w[DELETE PUT].include?(method) && !@destructive
+        response = Faraday.public_send(method.downcase, "#{upstream}#{path}", body) do |request|
+          headers.each { |key, value| request.headers[key] = value unless %w[host authorization connection content-length].include?(key) }
+          request.headers["Authorization"] = authorization
+          request.headers["User-Agent"] = GithubClient::USER_AGENT
+        end
+        response_body = response.body.to_s.b
+        @on_request&.call(method:, path:, status: response.status, body: response_body, started_at:)
+        client.write("HTTP/1.1 #{response.status} Proxy Response\r\n")
+        response.headers.each { |key, value| client.write("#{key}: #{value}\r\n") unless %w[transfer-encoding connection content-length].include?(key.downcase) }
+        client.write("Content-Length: #{response_body.bytesize}\r\nConnection: close\r\n\r\n")
+        client.write(response_body)
+      end
+
+      def request_body(client, headers)
+        return client.read(Integer(headers["content-length"])) if headers["content-length"]
+        return "" unless headers["transfer-encoding"].to_s.downcase.include?("chunked")
+
+        body = +"".b
+        loop do
+          size = Integer(client.gets("\r\n").to_s.strip, 16)
+          break if size.zero?
+          body << client.read(size)
+          client.read(2)
+        end
+        while (line = client.gets("\r\n")) && line != "\r\n"
+          nil
+        end
+        body
+      end
+
+      def read_headers(client)
+        {}.tap do |headers|
+          while (line = client.gets("\r\n")) && line != "\r\n"
+            key, value = line.split(":", 2)
+            headers[key.downcase] = value.to_s.strip
+          end
+        end
+      end
+
+      def upstream_for(target)
+        path = URI.parse(target).request_uri
+        api_path = path.delete_prefix("/api/v3")
+        if api_path.start_with?("/repos/#{@repository}")
+          [ "https://api.github.com", api_path, "Bearer #{@token}" ]
+        elsif path.start_with?("/#{@repository}.git/") || path == "/#{@repository}.git"
+          basic = Base64.strict_encode64("x-access-token:#{@token}")
+          [ "https://github.com", path, "Basic #{basic}" ]
+        else
+          raise "proxy request is restricted to #{@repository}"
+        end
+      end
+
+      def certificate_pair
+        key = OpenSSL::PKey::RSA.new(2048)
+        certificate = OpenSSL::X509::Certificate.new
+        certificate.version = 2
+        certificate.serial = SecureRandom.random_number(2**63)
+        certificate.subject = certificate.issuer = OpenSSL::X509::Name.parse("/CN=127.0.0.1")
+        certificate.public_key = key.public_key
+        certificate.not_before = Time.now - 60
+        certificate.not_after = Time.now + 2.hours
+        extensions = OpenSSL::X509::ExtensionFactory.new
+        extensions.subject_certificate = extensions.issuer_certificate = certificate
+        certificate.add_extension(extensions.create_extension("basicConstraints", "CA:TRUE", true))
+        certificate.add_extension(extensions.create_extension("subjectAltName", "IP:127.0.0.1"))
+        certificate.sign(key, OpenSSL::Digest::SHA256.new)
+        [ key, certificate ]
       end
     end
   end
