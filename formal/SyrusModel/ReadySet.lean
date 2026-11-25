@@ -22,9 +22,11 @@ cancels it at start (`running_run_before_required_review_barrier` needs a
 violation of this invariant).
 
 Checked exhaustively (by `native_decide`) for every Workflow of up to 5 Steps,
-every readiness assignment, and every legal cursor. Not modelled: dynamically
-inserted Steps (review re-materialization and grader fan-out insert Steps and
-shift positions while preserving relative order) and `skippable_queued_step?`.
+every readiness assignment, and every legal cursor. Inserted Steps (loop
+iterations, Try branches, review re-materialization, grader fan-out) are
+modelled at the end: safe after a finished serial Step, and after a finished
+parallel Step only if nothing after it has started; skipping a queued Step
+keeps the barrier too.
 -/
 
 namespace SyrusModel
@@ -124,6 +126,70 @@ theorem cursor_needed :
     let l : List Step := [⟨.serial, .running, true⟩, ⟨.serial, .queued, true⟩]
     serialBarrier l = true ∧ cursorOk l 1 = false ∧ serialBarrier (startAll l (readySet l 1)) = false := by
   native_decide
+
+/-! ## Inserted Steps
+
+Loop iterations (`enqueue_next_loop_iteration!`), Try failure branches
+(`enqueue_try_failure_branch!`), review re-materialization
+(`ImmutableReviewHeadBarrier.refresh_required_reviews!`) and grader fan-out all
+insert new, queued Steps directly after the Step that just finished, shifting
+later positions while keeping their relative order. -/
+
+/-- Insert queued Steps after position `p`. -/
+def insertAfter (l : List Step) (p : Nat) (new : List Step) : List Step :=
+  l.take (p + 1) ++ new.map (fun s => { s with st := .queued }) ++ l.drop (p + 1)
+
+def finishAt (l : List Step) (p : Nat) : List Step :=
+  l.mapIdx (fun i s => if i = p then { s with st := .done } else s)
+
+/-- Everything after `p` is still queued. -/
+def restQueued (l : List Step) (p : Nat) : Bool := (l.drop (p + 1)).all (·.st = .queued)
+
+def smallInserts : List (List Step) := [[]] ++ allSteps.map ([·]) ++ (allSteps.flatMap fun a => allSteps.map fun b => [a, b])
+
+/-- 1. Inserting after a finished Step whose successors are all still queued
+    keeps the barrier. -/
+def insertSafe (n : Nat) : Bool :=
+  (allLists n).all fun l =>
+    (List.range l.length).all fun p =>
+      !(serialBarrier l && (l.getD p ⟨.serial, .queued, false⟩).st = .done && restQueued l p) ||
+        smallInserts.all fun new => serialBarrier (insertAfter l p new)
+
+theorem insert_after_queued_tail_preserves_barrier : insertSafe 4 = true := by native_decide
+
+/-- 2. When the Step that finishes is serial, the barrier held while it was
+    unfinished already forced everything after it to be queued, so the
+    precondition of (1) holds at every serial insertion point. -/
+def serialFinishLeavesQueuedTail (n : Nat) : Bool :=
+  (allLists n).all fun l =>
+    (List.range l.length).all fun p =>
+      !(serialBarrier l && (l.getD p ⟨.parallel, .done, false⟩).k = .serial && (l.getD p ⟨.parallel, .done, false⟩).st = .running) ||
+        restQueued (finishAt l p) p
+
+theorem serial_finish_leaves_queued_tail : serialFinishLeavesQueuedTail 5 = true := by native_decide
+
+/-- 3. After a finished *parallel* Step a later parallel Step may already run;
+    inserting a serial Step before it breaks the barrier. Every insertion site
+    must therefore either follow a serial Step or insert only parallel Steps,
+    or know nothing after it has started (Lead L16). -/
+theorem serial_insert_after_parallel_breaks :
+    let l : List Step := [⟨.parallel, .done, true⟩, ⟨.parallel, .running, true⟩]
+    serialBarrier l = true ∧ serialBarrier (insertAfter l 0 [⟨.serial, .queued, true⟩]) = false := by
+  native_decide
+
+/-- 4. `skippable_queued_step?` turns a queued Step terminal without starting
+    it. The scan only reaches a Step while every serial Step before it is
+    finished (it breaks at the first unfinished one, and the cursor is legal),
+    and skipping there never breaks the barrier. Without that precondition a
+    skip behind an unfinished serial Step would leave a finished Step after it,
+    which is why the scan's break matters for skips as well as starts. -/
+def skipSafe (n : Nat) : Bool :=
+  (allLists n).all fun l =>
+    (List.range l.length).all fun p =>
+      !(serialBarrier l && cursorOk l p && (l.getD p ⟨.serial, .done, false⟩).st = .queued) ||
+        serialBarrier (finishAt l p)
+
+theorem skip_queued_preserves_barrier : skipSafe 5 = true := by native_decide
 
 end ReadySet
 end SyrusModel
