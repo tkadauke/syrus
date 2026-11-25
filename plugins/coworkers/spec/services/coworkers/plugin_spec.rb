@@ -59,6 +59,8 @@ RSpec.describe "Coworkers plugin" do
 
     expect(report.tables).to contain_exactly(
       "coworker_chats",
+      "coworker_environment_revisions",
+      "coworker_environments",
       "coworker_grants",
       "coworker_provisioning_attempts",
       "coworker_review_contexts",

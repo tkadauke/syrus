@@ -1244,6 +1244,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
+  create_table "coworker_environment_revisions", force: :cascade do |t|
+    t.integer "coworker_environment_id", null: false
+    t.integer "number", null: false
+    t.string "state", default: "recorded", null: false
+    t.string "source_digest", limit: 191, null: false
+    t.json "source_manifest"
+    t.string "recipe_digest", limit: 191
+    t.integer "runtime_image_build_request_id"
+    t.integer "runtime_image_id"
+    t.integer "coworker_base_release_id"
+    t.integer "runtime_abi"
+    t.integer "compat_min"
+    t.integer "compat_max"
+    t.integer "created_by_user_id"
+    t.integer "audit_event_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coworker_environment_id", "number"], name: "idx_coworker_env_revisions_number", unique: true
+    t.index ["coworker_environment_id", "source_digest"], name: "idx_coworker_env_revisions_source"
+    t.index ["runtime_image_build_request_id"], name: "idx_coworker_env_revisions_build"
+    t.index ["runtime_image_id"], name: "idx_coworker_env_revisions_image"
+  end
+
+  create_table "coworker_environments", force: :cascade do |t|
+    t.integer "coworker_id", null: false
+    t.string "state", default: "unconfigured", null: false
+    t.integer "active_revision_id"
+    t.integer "candidate_revision_id"
+    t.integer "active_runtime_image_id"
+    t.integer "candidate_runtime_image_id"
+    t.integer "last_audit_event_id"
+    t.string "last_error_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coworker_id"], name: "index_coworker_environments_on_coworker_id", unique: true
+    t.index ["state"], name: "index_coworker_environments_on_state"
+  end
+
   create_table "coworker_grants", force: :cascade do |t|
     t.integer "coworker_id", null: false
     t.string "capability", null: false

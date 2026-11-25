@@ -16,6 +16,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   has_many :chats, through: :coworker_chats, source: :chat_session
   has_many :chat_agents, class_name: "Coworkers::ChatAgent", dependent: :destroy, inverse_of: :coworker
   has_many :review_contexts, class_name: "Coworkers::ReviewContext", dependent: :destroy, inverse_of: :coworker
+  has_one :environment, class_name: "Coworkers::Environment", dependent: :destroy, inverse_of: :coworker
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
