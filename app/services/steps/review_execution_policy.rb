@@ -20,13 +20,6 @@ module Steps
       case details.fetch("on_unavailable", "fail")
       when "drop"
         skip_review!(reason)
-        if details["required"] == true && details["min_members"].to_i.positive?
-          fail_with!(
-            :review_execution_unavailable,
-            "required #{review_kind} panel did not meet its minimum member count",
-            evidence: { review_kind:, provider: details["provider"], reason: problem.code }
-          )
-        end
         raise Base::StepSkipped.new(reason, reason: problem.code)
       when "hold"
         raise Base::CannotProceed, "#{review_kind} panel member #{details['provider']} is unavailable: #{reason}"
