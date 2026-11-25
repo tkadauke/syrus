@@ -1127,8 +1127,11 @@ describe("RecentChatsSidebar action and marker slot", () => {
       const reference = marker.closest('[role="button"]')!
       const markerSlot = screen.getByTestId("recent-chat-marker-slot")
       expect(reference).toHaveAttribute("aria-expanded", "false")
-      expect(markerSlot).toHaveClass("h-11", "min-w-11", "justify-center")
-      expect(reference).toHaveClass("h-full", "w-full", "items-center", "justify-center")
+      // The 44px touch target must not set the row height (regression: a
+      // 44px slot doubled every sidebar row on mobile).
+      expect(markerSlot).toHaveClass("h-6", "min-w-6", "justify-center")
+      expect(markerSlot).not.toHaveClass("h-11")
+      expect(reference).toHaveClass("relative", "h-full", "w-full", "items-center", "justify-center", "after:absolute", "after:-inset-2.5")
       const row = screen.getByTitle("Chat").parentElement!
       fireEvent.mouseEnter(row)
       expect(screen.queryByTestId("recent-chat-indicator-popover")).not.toBeInTheDocument()

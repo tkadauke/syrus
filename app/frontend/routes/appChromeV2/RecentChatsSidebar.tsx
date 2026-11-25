@@ -740,7 +740,7 @@ export function RecentChatsSidebar({
                           </span>
                           {chat.archived_at ? <span className="shrink-0 text-xs text-text-muted">{t("chat:archived")}</span> : null}
                           <span
-                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} ${canHover ? "h-6 min-w-6 justify-end pr-[0.3125rem]" : "h-11 min-w-11 justify-center"} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} ${canHover ? "h-6 min-w-6 justify-end pr-[0.3125rem]" : "h-6 min-w-6 justify-center"} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                             data-testid="recent-chat-marker-slot"
                           >
                             <IndicatorPopover canHover={canHover} chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
@@ -1447,7 +1447,9 @@ function IndicatorPopover({
     <>
       <span
         aria-expanded={open}
-        className={canHover ? undefined : "inline-flex h-full w-full items-center justify-center"}
+        // On touch the tap target is 44px, but through an overlay that takes no
+        // layout space: a 44px slot made every sidebar row 44px tall.
+        className={canHover ? undefined : "relative inline-flex h-full w-full items-center justify-center after:absolute after:-inset-2.5 after:content-['']"}
         role="button"
         onClick={(event) => {
           if (canHover) return
