@@ -80,6 +80,16 @@ RSpec.describe RuntimeImages::Builds::Runner do
       expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
       expect(RuntimeImages::CoworkerBase.current_image(built_images: RuntimeImages::BuiltImages.new(service: service))).to be_nil
     end
+
+    it "revokes the image and fails permanently when the base is ABI-incompatible" do
+      abi = RuntimeImages::RuntimeAbi::Result.new([RuntimeImages::RuntimeAbi::Problem.new(code: "abi_mismatch", message: "abi label mismatch")])
+      allow(base_verifier).to receive(:call).and_raise(RuntimeImages::RuntimeAbi::Incompatible.new(abi))
+      claimed, = run
+      expect(claimed).to be_failed
+      expect(claimed.result.error_code).to eq("conformance_failed")
+      expect(RuntimeImage.where(source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND)).to all(satisfy { |i| !i.pullable? })
+      expect(RuntimeImages::CoworkerBase.current_image(built_images: RuntimeImages::BuiltImages.new(service: service))).to be_nil
+    end
   end
 
   it "fails non-retryably when the builder consumed a different source" do

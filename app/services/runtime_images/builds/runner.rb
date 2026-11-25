@@ -124,7 +124,7 @@ module RuntimeImages
         return unless request.source_kind == CoworkerBase::SOURCE_KIND
 
         @base_verifier.call(image)
-      rescue ConformanceProbe::NonConformant => e
+      rescue ConformanceProbe::NonConformant, RuntimeAbi::Incompatible => e
         @service.revoke(image, reason: "conformance probe failed: #{e.message}".truncate(500))
         raise BuildFailed.new("coworker base failed conformance: #{e.message}".truncate(1000), code: "conformance_failed", retryable: false)
       end
