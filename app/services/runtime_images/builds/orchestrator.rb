@@ -5,6 +5,7 @@ module RuntimeImages
     # terminal states) result together, so a worker crash, a cancel, and a lease
     # reaper racing each other cannot leave them disagreeing.
     class Orchestrator
+      ORPHANED_MESSAGE = "build lost its attempt".freeze # operator-facing diagnostic text, stored in the request record
       # Creates a request, or returns the live/finished one for the same tuple.
       #  - a live request (queued/building/verifying) is returned as-is;
       #  - a request that already produced a still-pullable image is returned
@@ -221,7 +222,7 @@ module RuntimeImages
             next nil
           elsif request.attempts_exhausted?
             request.transition_to!("failed", finished_at: now)
-            finish(request, outcome: "failed", error_code: "orphaned_request", message: "build lost its attempt", now: now)
+            finish(request, outcome: "failed", error_code: "orphaned_request", message: ORPHANED_MESSAGE, now: now)
           else
             request.transition_to!("queued", next_attempt_at: now + Config.retry_delay(request.attempts_count))
           end
