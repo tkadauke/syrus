@@ -187,6 +187,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.index ["user_id", "scope", "scope_id"], name: "index_agent_memory_entries_on_user_id_and_scope_and_scope_id"
   end
 
+  create_table "agent_question_events", force: :cascade do |t|
+    t.integer "agent_question_id", null: false
+    t.string "event_type", null: false
+    t.string "source", null: false
+    t.json "payload"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agent_question_id"], name: "index_agent_question_events_on_agent_question_id"
+  end
+
   create_table "agents", force: :cascade do |t|
     t.string "resumable_type", null: false
     t.bigint "resumable_id", null: false
@@ -490,7 +501,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
   end
 
   create_table "chat_agent_questions", force: :cascade do |t|
-    t.integer "chat_session_id", null: false
+    t.integer "chat_session_id"
     t.datetime "asked_at", null: false
     t.datetime "answered_at"
     t.datetime "expired_at"
@@ -499,9 +510,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.json "questions"
     t.json "answers"
     t.integer "response_chat_session_id"
+    t.integer "run_id"
+    t.integer "answered_by_id"
+    t.string "answer_source"
+    t.json "defaults"
+    t.datetime "times_out_at"
+    t.datetime "timed_out_at"
+    t.datetime "withdrawn_at"
+    t.index ["answered_by_id"], name: "index_chat_agent_questions_on_answered_by_id"
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
     t.index ["response_chat_session_id"], name: "index_chat_agent_questions_on_response_chat_session_id"
+    t.index ["run_id", "answered_at", "expired_at"], name: "idx_agent_questions_run_active"
+    t.index ["run_id"], name: "index_chat_agent_questions_on_run_id"
   end
 
   create_table "chat_attachments", force: :cascade do |t|
@@ -2255,6 +2276,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.string "proposer_type"
     t.integer "proposer_id"
     t.json "landing_blocker_override_params"
+    t.string "question_eagerness"
+    t.integer "question_answer_timeout_seconds"
+    t.text "question_eagerness_reason"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
@@ -3673,6 +3697,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.string "pr_check_gate", default: "all", null: false
     t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.integer "landing_concurrency", default: 1, null: false
+    t.string "question_eagerness"
+    t.integer "question_answer_timeout_seconds"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
@@ -4910,6 +4936,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.json "approval_delivery_preferences"
     t.string "time_zone", default: "Etc/UTC", null: false
     t.string "time_zone_mode", default: "automatic", null: false
+    t.string "question_eagerness"
+    t.integer "question_answer_timeout_seconds"
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["color_theme_id"], name: "index_users_on_color_theme_id"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true

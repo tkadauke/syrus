@@ -1,9 +1,6 @@
-class ChatAgentQuestion < ApplicationRecord
+class ChatAgentQuestion < AgentQuestion
   attribute :questions, :json
   attribute :answers, :json
-
-  belongs_to :chat_session
-  belongs_to :response_chat_session, class_name: "ChatSession", optional: true
 
   after_commit :broadcast_app_event
 
@@ -11,10 +8,6 @@ class ChatAgentQuestion < ApplicationRecord
   validate :questions_are_well_formed
 
   scope :active, -> { where(answered_at: nil, expired_at: nil).order(:asked_at, :id) }
-
-  def active?
-    answered_at.blank? && expired_at.blank?
-  end
 
   # answers is index-aligned with questions: one entry per sub-question,
   # each a non-blank string (single-select/free-text) or a non-empty array
@@ -54,7 +47,7 @@ class ChatAgentQuestion < ApplicationRecord
       end
       response_chat.update!(last_message_at: now)
       response_chat.pin_chat_provider!
-      update!(answers: normalized_answers, answered_at: now)
+      update!(answers: normalized_answers, answered_at: now, answered_by: sender_user, answer_source: "chat")
     end
 
     ChatTurnJob.perform_later((response_chat_session_id || chat_session_id), user_message_id) if enqueue_turn
