@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe RetryFailedStepEnqueuer do
+RSpec.describe RetryFailedStepEnqueuer, :hierarchical_locks do
   def grade_retry_chain_template(repair: [ "implement" ], repair_first: false)
     [
       {

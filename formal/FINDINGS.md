@@ -4812,9 +4812,13 @@ no application frame on the stack: spec setup code, not production paths. The
 checker now names the first spec or lib frame for those, so they can be fixed
 before the order is enforced. Part 6 converted the two largest production
 sites, `PlannedExecutionOverrides::Operation` (Job, then Workflows, then Runs)
-and `RunJob#commit_run_and_step_success!`. Left: the `RepairQueueAffinity`
-requeue, `RetryFailedStepEnqueuer`, `WorkflowPatch` and the Epic refresh under
-a held Job.
+and `RunJob#commit_run_and_step_success!`. Part 7 converted the
+`RepairQueueAffinity` requeue, `WorkflowPatch.apply!` and
+`RetryFailedStepEnqueuer`. A retry that rebuilds a merge train locks the
+train's other Jobs, so it now takes them first with its own ancestry, through
+`LandingRetrier.lock_targets_for(train)`. The landing retrier locks all its
+members and candidates up front. Left: the Epic refresh under a held Job, and
+the spec-code sites the next survey names.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

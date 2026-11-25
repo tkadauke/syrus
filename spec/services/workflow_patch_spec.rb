@@ -3,7 +3,7 @@ require "rails_helper"
 # workflow-engine-v3 A7. An agent can add work to itself, never remove work,
 # and never grant itself the ability to publish. All three are enforced here
 # rather than trusted, which is why the plan sequences agent authoring last.
-RSpec.describe WorkflowPatch do
+RSpec.describe WorkflowPatch, :hierarchical_locks do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.first }
 
