@@ -123,7 +123,7 @@ module SpendingInsights
     end
 
     def scoped_chat_spend_entries
-      relation = ChatSpendEntry.all
+      relation = Syrus::Host::ChatSpendEntryRecord.all
       relation = relation.where(incurred_at: day_start(filter.start_date)..) if filter.start_date
       relation = relation.where(incurred_at: ...day_start(filter.end_date.next_day)) if filter.end_date
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
@@ -133,7 +133,7 @@ module SpendingInsights
     end
 
     def unwindowed_chat_spend_entries
-      relation = ChatSpendEntry.all
+      relation = Syrus::Host::ChatSpendEntryRecord.all
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 

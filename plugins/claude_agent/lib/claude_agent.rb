@@ -22,7 +22,7 @@ module SyrusClaudeAgent
     surface filter_chips: { admin_user: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" } }
 
     while_enabled do |scope|
-      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude) }
+      scope.effect("chat session rehydrator") { Syrus::Host::ChatSessionRehydrator.register("claude", Syrus::Host::ChatSessionRehydrator::Claude) }
     end
   end
 end

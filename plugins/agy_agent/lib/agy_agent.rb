@@ -20,7 +20,7 @@ module SyrusAgyAgent
     toolkit credential_probes: { "agy" => "AgyCredentialProbe" },
             secret_extractors: [ "AgyCredentialProbe::SECRET_EXTRACTOR" ]
     while_enabled do |scope|
-      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("agy", ChatSessionRehydrator::Agy) }
+      scope.effect("chat session rehydrator") { Syrus::Host::ChatSessionRehydrator.register("agy", Syrus::Host::ChatSessionRehydrator::Agy) }
     end
   end
 end

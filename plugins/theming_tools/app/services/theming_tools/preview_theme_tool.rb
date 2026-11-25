@@ -41,7 +41,7 @@ module ThemingTools
       "enforces (color tokens only) and returns any failing pairs as a non-blocking `contrast_warnings` " \
       "array -- the draft still saves either way."
 
-    TOKEN_PROPERTIES = Theme::TOKEN_KEYS.index_with do |_key|
+    TOKEN_PROPERTIES = Syrus::Host::ThemeRecord::TOKEN_KEYS.index_with do |_key|
       { type: "string", description: "CSS color value, e.g. a hex code." }
     end
 
@@ -61,7 +61,7 @@ module ThemingTools
         user = chat_session.user
         baseline = user.color_theme&.tokens || {}
 
-        theme = Theme.find_or_initialize_by(slug: draft_slug(user))
+        theme = Syrus::Host::ThemeRecord.find_or_initialize_by(slug: draft_slug(user))
         theme.owner_user = user
         theme.built_in = false
         theme.name = name
@@ -92,7 +92,7 @@ module ThemingTools
       def merged_tokens(baseline, mode, overrides)
         base = baseline[mode] || {}
         supplied = (overrides || {}).stringify_keys
-        Theme::TOKEN_KEYS.index_with { |key| supplied[key].presence || base[key] }.compact
+        Syrus::Host::ThemeRecord::TOKEN_KEYS.index_with { |key| supplied[key].presence || base[key] }.compact
       end
 
       def broadcast_preview(chat_session, theme)

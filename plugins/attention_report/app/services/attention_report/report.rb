@@ -38,7 +38,7 @@ module AttentionReport
     private
 
     def deciding
-      proposal_scope = ChatProposal.joins(:chat_session).where(chat_sessions: { user_id: @user.id })
+      proposal_scope = Syrus::Host::ChatProposalRecord.joins(:chat_session).where(chat_sessions: { user_id: @user.id })
       proposals = proposal_scope.where(confirmed_at: @from..@to).order(:chat_session_id, :confirmed_at, :id)
       {
         figures: {
@@ -205,7 +205,7 @@ module AttentionReport
     end
 
     def sample_scope
-      UiEngagementSample.where(user_id: @user.id, started_at: @from..@to)
+      Syrus::Host::UiEngagementSampleRecord.where(user_id: @user.id, started_at: @from..@to)
     end
 
     def visit_statistics
