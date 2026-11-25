@@ -1,6 +1,6 @@
 require "json"
 
-class ChatSessionRehydrator::Muse
+class Syrus::Host::ChatSessionRehydrator::Muse
   def initialize(chat_session, session_id: nil, cwd: nil, messages: nil)
     @chat_session = chat_session
     @session_id = session_id || chat_session.provider_session&.session_id
@@ -35,8 +35,8 @@ class ChatSessionRehydrator::Muse
   def messages_in_order
     return @messages if @messages
 
-    if ChatContextCompactor.enabled_for?(@chat_session)
-      return ChatContextCompactor.context_messages_for(@chat_session)
+    if Syrus::Host::ChatContextCompactor.enabled_for?(@chat_session)
+      return Syrus::Host::ChatContextCompactor.context_messages_for(@chat_session)
     end
 
     @chat_session.messages.active.order(:id)

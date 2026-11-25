@@ -20,7 +20,7 @@ module ThemingTools
       "first (color tokens only) and rejects with a specific message (which pair, the actual ratio, the " \
       "required ratio) instead of installing an illegible palette."
 
-    TOKEN_PROPERTIES = Theme::TOKEN_KEYS.index_with do |_key|
+    TOKEN_PROPERTIES = Syrus::Host::ThemeRecord::TOKEN_KEYS.index_with do |_key|
       { type: "string", description: "CSS color value, e.g. a hex code." }
     end
 
@@ -65,14 +65,14 @@ module ThemingTools
 
       def resolve_theme(user, theme_id:, name:, light:, dark:, shape:, shadow:, spacing:, density:, typography:)
         if theme_id.present?
-          theme = Theme.selectable_by(user).find_by(id: theme_id)
+          theme = Syrus::Host::ThemeRecord.selectable_by(user).find_by(id: theme_id)
           return [ nil, "No theme with id #{theme_id} is available to you." ] unless theme
 
           [ theme, nil ]
         elsif name.present? && light.present? && dark.present?
           tokens = { "light" => light, "dark" => dark }
             .merge(ExtendedTokenSchema.merge_groups({}, shape: shape, shadow: shadow, spacing: spacing, density: density, typography: typography))
-          [ Theme.new(name: name, slug: unique_slug_for(user, name), tokens: tokens), nil ]
+          [ Syrus::Host::ThemeRecord.new(name: name, slug: unique_slug_for(user, name), tokens: tokens), nil ]
         else
           [ nil, "Provide either theme_id (from a prior preview_theme call) or name, light, and dark." ]
         end
@@ -82,7 +82,7 @@ module ThemingTools
         base = name.to_s.parameterize.presence || "theme"
         candidate = "#{base}-#{user.id}"
         suffix = 1
-        while Theme.exists?(slug: candidate)
+        while Syrus::Host::ThemeRecord.exists?(slug: candidate)
           suffix += 1
           candidate = "#{base}-#{user.id}-#{suffix}"
         end

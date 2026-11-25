@@ -16,7 +16,7 @@ module Filters
         def apply
           ids = Array(value).filter_map { |candidate| Integer(candidate, exception: false) }
           chats = ChatSession.where(id: ids, user_id: user&.id, deleted_at: nil)
-          matching_scope = scope.where(id: ChatAssociatedJobs.scope_for(chats).select(:id))
+          matching_scope = scope.where(id: Syrus::Host::ChatAssociatedJobs.scope_for(chats).select(:id))
 
           case op
           when :is, :is_one_of then matching_scope

@@ -58,7 +58,7 @@ module SyrusDev
     end
 
     def target_repository
-      ::BugReports::Router.new(user: user).target_repository
+      Syrus::Host::BugReportRouter.new(user: user).target_repository
     end
 
     def normalize_screenshot(screenshot)

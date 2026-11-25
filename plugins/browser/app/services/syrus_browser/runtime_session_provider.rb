@@ -30,7 +30,7 @@ module SyrusBrowser
         workspace_path = config[:workspace_path] || config["workspace_path"]
         return false if workspace_path.blank?
 
-        PreviewCommandSource.new(workspace_path).resolve.present?
+        Syrus::Host::PreviewCommandSource.new(workspace_path).resolve.present?
       end
 
       def capabilities(_repository, _config)
@@ -48,7 +48,7 @@ module SyrusBrowser
       config = config.to_h.symbolize_keys
       port = Integer(config[:port] || DEFAULT_PORT)
 
-      result = PreviewProcessLauncher.new(workspace_ref).launch!(key: workspace_ref, port: port)
+      result = Syrus::Host::PreviewProcessLauncher.new(workspace_ref).launch!(key: workspace_ref, port: port)
 
       { workspace_ref: workspace_ref, pid: result.pid, port: result.port, url: result.url }
     end
@@ -101,7 +101,7 @@ module SyrusBrowser
       lease = input_lease_for(runtime_session, owner)
 
       unless lease
-        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
+        Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
         return { error: "lease_required", message: "the #{owner} must hold an active input lease before sending input events" }
       end
 
@@ -136,9 +136,9 @@ module SyrusBrowser
     private
 
     def find_runtime_session(session_id)
-      return session_id if session_id.is_a?(RuntimeSession)
+      return session_id if session_id.is_a?(Syrus::Host::RuntimeSessionRecord)
 
-      RuntimeSession.find(session_id)
+      Syrus::Host::RuntimeSessionRecord.find(session_id)
     end
 
     def running_preview_for!(runtime_session)
@@ -169,7 +169,7 @@ module SyrusBrowser
     end
 
     def resolved_log_path(workspace_path)
-      source = PreviewCommandSource.new(workspace_path).resolve
+      source = Syrus::Host::PreviewCommandSource.new(workspace_path).resolve
       raw_path = source&.log_paths&.first
       return nil if raw_path.blank? || workspace_path.blank?
 
