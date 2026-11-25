@@ -171,6 +171,26 @@ RSpec.describe JobBundleDispatcher do
     expect(positioned_jobs).to eq([ prerequisite, dependent ])
   end
 
+  # Lead L16: Lineage.lock_all! takes Jobs ids ascending; locking members in
+  # bundle position order could deadlock against it on two shared Jobs.
+  it "locks its members in ascending id order, whatever their bundle order" do
+    AppSetting.current.update!(merge_train_max_size: 2)
+    dependent = approved_job(1)
+    prerequisite = approved_job(2)
+    dependent.update_columns(parent_job_id: prerequisite.id)
+    locked_job_ids = []
+    allow(Syrus::LockOrder::Checker).to receive(:observe).and_wrap_original do |original, model_class, connection, ids: []|
+      locked_job_ids.concat(ids) if model_class == Job && MergeTrain.none?
+      original.call(model_class, connection, ids: ids)
+    end
+
+    described_class.try_dispatch!(repository)
+
+    expect(MergeTrain.last.members.order(:position).map(&:job)).to eq([ prerequisite, dependent ])
+    member_ids = [ dependent.id, prerequisite.id ]
+    expect(locked_job_ids.select { |id| member_ids.include?(id) }.uniq).to eq(member_ids.sort)
+  end
+
   it "does nothing when the feature flag is disabled" do
     Feature.find_by(slug: "epicless_job_bundling").update!(enabled: false)
     approved_job(1)

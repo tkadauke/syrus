@@ -34,7 +34,10 @@ class JobBundleDispatcher
 
     workflow = nil
     MergeTrain.transaction do
-      members = result.members.map { |job| job.tap(&:lock!) }
+      # Ids ascending, as Lineage.lock_all! takes Jobs: locking in bundle
+      # order could deadlock against it on two shared members (Lead L16).
+      locked = Job.lock.where(id: result.members.map(&:id)).order(:id).index_by(&:id)
+      members = result.members.map { |job| locked.fetch(job.id) }
       delivery_policy = self.delivery_policy
 
       raise ActiveRecord::Rollback if landing_job_in_progress(job: members.last, policy: delivery_policy)

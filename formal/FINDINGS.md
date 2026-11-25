@@ -5956,7 +5956,7 @@ after the rebase (1,901 examples). A first run showed 1,529 failures from a
 test database that lacked the Epic's new plugin tables; it was green once
 `db:test:prepare` rebuilt the database.
 
-## M80. The landing queue's order computation — proved, no bug (Lead L16)
+## M80. The landing queue's order computation — proved, no bug (Lead L16, fixed as F139)
 
 `LandingQueueProcessor#ordered_landing_units` and `#dependency_order` are
 Kahn's algorithm with the ready set sorted by queue position (priority, then
@@ -5970,15 +5970,20 @@ with no dependencies it is the queue itself; with a cycle the ordered prefix
 still respects every edge into it, and only the fallback tail does not, which
 F107 keeps from forming.
 
-Lead L16 (not fixed, low severity). `JobBundleDispatcher#try_dispatch!` locks
+Lead L16 (low severity; fixed as F139, below). `JobBundleDispatcher#try_dispatch!` locked
 its members with `job.lock!` in bundle position order, not ascending id. The
 hierarchical order (NY40) leaves rows of one model unordered and the checker
 does not see within-model order, while `Lineage.lock_all!` (merge-train
 member lineages, landing retries) takes Jobs ids ascending. A concurrent
 `lock_all!` over two of the same Jobs in the other order could deadlock; the database aborts one side, and
 the dispatcher retries on its next pass, so the cost is a logged deadlock, not
-a stuck queue. The fix would be `Job.lock.where(id: ids).order(:id)` before
-building the train.
+a stuck queue.
+
+F139 (fixed). The dispatcher now locks its members with one
+`Job.lock.where(id: ids).order(:id)` and keeps the bundle order for the train
+positions. Spec first: "locks its members in ascending id order, whatever
+their bundle order" (a dependent with the lower id) failed with `[2, 1]`
+before the change.
 
 ## M79. Main through `0654328aad`
 
