@@ -209,3 +209,9 @@ models:
     owner: WorkerCache
     method: lease
     sha: 16f7c8ff6960519d
+- model: BuildAdmission.lean
+  mirrors:
+  - path: app/services/runtime_images/builds/orchestrator.rb
+    owner: Orchestrator
+    method: claim
+    sha: d9b336a7483f040b

@@ -120,6 +120,17 @@ module Syrus
                                           rows: (held ? held[:rows] : Set.new).merge(rows) }
         end
 
+        # Whether the current application transaction holds +record+'s row
+        # lock, for specs that assert a check runs under a lock.
+        def holds?(record)
+          connection = record.class.connection
+          root = application_transaction(connection)
+          held = (Thread.current[:syrus_lock_order_state] || {})[connection.object_id]
+          return false unless root && held && held[:transaction].equal?(root)
+
+          held[:rows].include?([ record.class.base_class.name, record.id ])
+        end
+
         private
 
         def created_in?(connection, root, row)

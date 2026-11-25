@@ -128,6 +128,22 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
       expect(orchestrator.claim_next).to be_nil
     end
 
+    # Two dispatch runs can overlap (the recurring job only skips while one is
+    # pending). Claims in different namespaces each hold only their own
+    # namespace's lock, so the global cap must be checked under a lock every
+    # claim takes (formal/SyrusModel/BuildAdmission.lean).
+    it "checks the global cap under the instance-wide admission lock" do
+      submit
+      held = nil
+      allow(orchestrator).to receive(:capacity_exhausted?).and_wrap_original do |original, *args|
+        held = Syrus::LockOrder::Checker.holds?(AppSetting.current)
+        original.call(*args)
+      end
+
+      expect(orchestrator.claim_next).not_to be_nil
+      expect(held).to be(true)
+    end
+
     it "enforces the per-namespace cap while letting other namespaces proceed" do
       other_ns = RuntimeImageNamespace.create!(name: "acme/other", owner_kind: "k", owner_ref: "2", provider_key: provider.key)
       submit

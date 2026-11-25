@@ -54,18 +54,22 @@ module RuntimeImages
 
       def claim(request_id, worker: Socket.gethostname, now: Time.current)
         request = RuntimeImageBuildRequest.find(request_id)
-        # The namespace row serializes admission for a namespace, so its cap
-        # cannot be oversubscribed by concurrent claimers.
-        request.runtime_image_namespace.with_lock do
-          request.with_lock do
-            next nil unless request.queued? && !request.cancel_requested?
-            next nil if request.next_attempt_at && request.next_attempt_at > now
-            next nil if capacity_exhausted?(request)
+        # The instance-wide AppSetting row serializes every claim, so the
+        # global cap cannot be oversubscribed by claimers in different
+        # namespaces (two dispatch runs can overlap); the namespace row then
+        # serializes that namespace's cap (formal/SyrusModel/BuildAdmission.lean).
+        AppSetting.current.with_lock do
+          request.runtime_image_namespace.with_lock do
+            request.with_lock do
+              next nil unless request.queued? && !request.cancel_requested?
+              next nil if request.next_attempt_at && request.next_attempt_at > now
+              next nil if capacity_exhausted?(request)
 
-            attempt = request.attempts.create!(number: request.attempts_count + 1, state: "building", worker_hostname: worker,
-                                               started_at: now, lease_expires_at: now + Config.lease_duration)
-            request.transition_to!("building", attempts_count: attempt.number, started_at: request.started_at || now, next_attempt_at: nil)
-            [ request, attempt ]
+              attempt = request.attempts.create!(number: request.attempts_count + 1, state: "building", worker_hostname: worker,
+                                                 started_at: now, lease_expires_at: now + Config.lease_duration)
+              request.transition_to!("building", attempts_count: attempt.number, started_at: request.started_at || now, next_attempt_at: nil)
+              [ request, attempt ]
+            end
           end
         end
       end

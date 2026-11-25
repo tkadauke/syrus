@@ -4910,6 +4910,31 @@ without the fix.
 
 ---
 
+## F134. Two overlapping build dispatches could run past the global build cap — fixed
+
+**Invariant.** At most `max_concurrent_builds` runtime image builds are in
+flight. `Orchestrator#claim` checks the in-flight count and then creates the
+attempt that adds one (check-then-act).
+
+**Counterexample.** The check ran under the request's namespace lock only.
+`RuntimeImageBuildDispatchJob` is recurring and `SkipIfPending` only skips
+while another run is *pending*, so a run still executing when the next tick
+fires overlaps it. Two claimers in different namespaces each saw one free slot
+and both admitted. `BuildAdmission.lean`: `per_namespace_lock_oversubscribes`.
+
+**Fix.** Every claim first takes the AppSetting row (the instance-wide mutex
+grader fan-out admission already uses; it ranks first in the row-lock order),
+then the namespace and request rows. `global_lock_respects_cap`: no
+interleaving admits past the cap.
+
+**Spec.** `spec/services/runtime_images/builds/orchestrator_spec.rb`, "checks
+the global cap under the instance-wide admission lock". Real lock contention
+needs MySQL, which no grader runs, so the spec asserts through the row-lock
+checker (`Syrus::LockOrder::Checker.holds?`) that the capacity check runs while
+the admission row is held. It fails without the fix.
+
+---
+
 ## F133. Emergency landing merged without the merge lock — fixed (NY43: A)
 
 **Invariant.** `MergeExclusion.lean`: no writer moves a landing branch between
