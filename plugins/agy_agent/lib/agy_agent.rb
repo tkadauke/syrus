@@ -1,7 +1,7 @@
 require "syrus/installer"
 
 module SyrusAgyAgent
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "agy_agent" do
     requires_syrus nil

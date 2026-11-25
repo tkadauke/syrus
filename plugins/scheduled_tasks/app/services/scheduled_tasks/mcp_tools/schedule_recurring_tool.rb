@@ -3,7 +3,7 @@ require "mcp"
 module ScheduledTasks
   module McpTools
     class ScheduleRecurringTool < MCP::Tool
-      extend ::Mcp::Tools::ProposalToolSupport
+      extend Syrus::Host::ProposalToolSupport
 
       tool_name "schedule_recurring"
 

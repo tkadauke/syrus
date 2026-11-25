@@ -18,7 +18,7 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(Syrus::PluginApi.default_version)
+      expect(registration.version).to eq(Syrus::Host::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(20)
       expect(registration.category).to eq("language")
     end
@@ -360,7 +360,7 @@ RSpec.describe JavaScript::Engine do
       Syrus::PluginRegistry.reset!
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:             "javascript",
-        version:          Syrus::PluginApi.default_version,
+        version:          Syrus::Host::PluginApi.default_version,
         description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 20,
@@ -370,28 +370,28 @@ RSpec.describe JavaScript::Engine do
       )
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:             "ruby",
-        version:          Syrus::PluginApi.default_version,
+        version:          Syrus::Host::PluginApi.default_version,
         description:      "Ruby language support.",
         prepare_priority: 10,
         provides:         {}
       )
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:             "python",
-        version:          Syrus::PluginApi.default_version,
+        version:          Syrus::Host::PluginApi.default_version,
         description:      "Python language support.",
         prepare_priority: 30,
         provides:         {}
       )
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:             "syrus-rails",
-        version:          Syrus::PluginApi.default_version,
+        version:          Syrus::Host::PluginApi.default_version,
         description:      "Ruby on Rails framework intelligence.",
         depends_on:       [ "ruby" ],
         provides:         { preview_provider: SyrusRails::PreviewProvider }
       )
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:             "django",
-        version:          Syrus::PluginApi.default_version,
+        version:          Syrus::Host::PluginApi.default_version,
         description:      "Django framework intelligence.",
         depends_on:       [ "python" ],
         provides:         { preview_provider: Django::PreviewProvider }

@@ -7,7 +7,7 @@ module RuntimeTerminal
   module DataCleanup
     def self.install_into(scope)
       scope.effect("runtime session terminal links") do
-        Syrus::DataCleanup.register("RuntimeSession", "runtime_terminal.session_links") do |runtime_session|
+        Syrus::Host::DataCleanup.register("RuntimeSession", "runtime_terminal.session_links") do |runtime_session|
           RuntimeTerminal::SessionLink.where(runtime_session_id: runtime_session.id).find_each(&:destroy)
         end
       end

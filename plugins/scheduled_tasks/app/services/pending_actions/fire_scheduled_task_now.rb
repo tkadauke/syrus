@@ -1,5 +1,5 @@
 module PendingActions
-  class FireScheduledTaskNow < Base
+  class FireScheduledTaskNow < Syrus::Host::PendingActionBase
     action_key "fire_scheduled_task_now"
 
     def authorize_execution!

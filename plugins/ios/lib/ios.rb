@@ -4,7 +4,7 @@ require "ios/xcodebuild_grader_type"
 require "ios/ecosystem"
 
 module Ios
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "ios" do
     default_enabled true

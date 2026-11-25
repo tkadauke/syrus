@@ -51,7 +51,7 @@ RSpec.describe SyrusBrowser::Engine do
   it "registers a manifest named 'browser'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "browser" }
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
+    expect(manifest.version).to eq(Syrus::Host::PluginApi.default_version)
     expect(SyrusBrowser.syrus_plugin_definition.frontend[:i18n]).to eq([ "app/frontend/i18n/locales/*/browser.json" ])
   end
 

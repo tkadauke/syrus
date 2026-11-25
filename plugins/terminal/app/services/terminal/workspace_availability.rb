@@ -45,8 +45,8 @@ module Terminal
     def storage_key_result(path)
       storage_key = workflow.worker_storage_key
       queue = Syrus::Host::WorkflowRecord.resume_queue_name(storage_key)
-      return unavailable(DEAD_STORAGE_REASON, path) unless InstanceVersion.worker_queue_live?(queue)
-      return available(path, queue_name: queue) if storage_key != WorkerStorageIdentity.queue_key
+      return unavailable(DEAD_STORAGE_REASON, path) unless Syrus::Host::InstanceVersion.worker_queue_live?(queue)
+      return available(path, queue_name: queue) if storage_key != Syrus::Host::WorkerStorageIdentity.queue_key
       return available(path, queue_name: queue) if File.directory?(path)
 
       unavailable(MISSING_PATH_REASON, path)
@@ -54,8 +54,8 @@ module Terminal
 
     def hostname_result(path)
       hostname = workflow.worker_hostname
-      remote = hostname != SyrusVersion.hostname
-      return unavailable(DEAD_WORKER_REASON, path) if remote && !InstanceVersion.worker_live?(hostname)
+      remote = hostname != Syrus::Host::SyrusVersion.hostname
+      return unavailable(DEAD_WORKER_REASON, path) if remote && !Syrus::Host::InstanceVersion.worker_live?(hostname)
       return available(path, queue_name: Syrus::Host::WorkflowRecord.resume_queue_name(hostname)) if remote
       return available(path) if File.directory?(path)
 

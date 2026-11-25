@@ -33,7 +33,7 @@ module K8sCluster
       end
 
       def lookup_cluster(identifier, context:)
-        cluster = KubernetesCluster.find_by(id: identifier)
+        cluster = Syrus::Host::KubernetesCluster.find_by(id: identifier)
         return unless cluster&.agentic_access_enabled?
 
         credential = ClusterCredential.credential_for(cluster)
@@ -79,7 +79,7 @@ module K8sCluster
       def scope_label(scope, context:)
         return "All Kubernetes #{scope.fetch('kind')} resources" unless scope["cluster_id"]
 
-        cluster = KubernetesCluster.find_by(id: scope.fetch("cluster_id"))
+        cluster = Syrus::Host::KubernetesCluster.find_by(id: scope.fetch("cluster_id"))
         [ cluster&.label || "Kubernetes cluster #{scope.fetch('cluster_id')}", scope["namespace"], scope["kind"], scope["name"] ].compact.join(" / ")
       end
 

@@ -145,7 +145,7 @@ module Api
 
           def admin_credential_context
             Syrus::Host::ToolContext.new(
-              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
+              surface: Syrus::Host::MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
               allowed_repository_ids: Syrus::Host::RepositoryRecord.ids
             )
           end
@@ -174,7 +174,7 @@ module Api
           end
 
           def set_connection
-            @connection = MysqlConnection.find(params[:id])
+            @connection = Syrus::Host::MysqlConnection.find(params[:id])
           end
 
           def require_mysql_db_browser_enabled
