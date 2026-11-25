@@ -13,7 +13,7 @@ module Mockups
     MAX_FILE_BYTES = 2.megabytes
 
     def initialize(chat_session, panel_id)
-      @root = ChatWorkspace.path_for(chat_session).join("previews", panel_id.to_s).cleanpath
+      @root = Syrus::Host::ChatWorkspace.path_for(chat_session).join("previews", panel_id.to_s).cleanpath
     end
 
     attr_reader :root

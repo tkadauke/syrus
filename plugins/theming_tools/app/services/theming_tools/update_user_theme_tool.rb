@@ -15,7 +15,7 @@ module ThemingTools
       "default for a non-color key the theme never set). Re-runs the WCAG AA contrast check (color tokens " \
       "only) and rejects with a specific message if the update would make the theme illegible."
 
-    TOKEN_PROPERTIES = Theme::TOKEN_KEYS.index_with do |_key|
+    TOKEN_PROPERTIES = Syrus::Host::ThemeRecord::TOKEN_KEYS.index_with do |_key|
       { type: "string", description: "CSS color value, e.g. a hex code." }
     end
 
@@ -33,7 +33,7 @@ module ThemingTools
     class << self
       def call(theme_id:, server_context:, name: nil, light: nil, dark: nil, shape: nil, shadow: nil, spacing: nil, density: nil, typography: nil)
         user = server_context.fetch(:chat_session).user
-        theme = Theme.where(owner_user: user, built_in: false).find_by(id: theme_id)
+        theme = Syrus::Host::ThemeRecord.where(owner_user: user, built_in: false).find_by(id: theme_id)
         return Syrus::Host::McpTools.invalid("No custom theme with id #{theme_id} owned by you was found.") unless theme
 
         previous_theme = theme.public_payload
@@ -59,7 +59,7 @@ module ThemingTools
       def merged_tokens(existing, overrides)
         base = existing || {}
         supplied = (overrides || {}).stringify_keys
-        Theme::TOKEN_KEYS.index_with { |key| supplied[key].presence || base[key] }.compact
+        Syrus::Host::ThemeRecord::TOKEN_KEYS.index_with { |key| supplied[key].presence || base[key] }.compact
       end
 
       def rejection_message(issues)

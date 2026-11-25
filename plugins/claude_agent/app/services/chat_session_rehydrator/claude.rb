@@ -12,7 +12,7 @@ require "json"
 #     into one JSONL assistant event (Claude's API returns them in one response).
 #   - Consecutive tool_result ChatMessages are merged into one JSONL user event
 #     with an array content (Claude's API expects all results bundled).
-class ChatSessionRehydrator::Claude
+class Syrus::Host::ChatSessionRehydrator::Claude
   def initialize(chat_session, session_id: nil, cwd: nil, model: nil, tools: nil, messages: nil)
     @chat_session = chat_session
     @session_id   = session_id || chat_session.provider_session&.session_id
@@ -123,8 +123,8 @@ class ChatSessionRehydrator::Claude
   def messages_in_order
     return @messages if @messages
 
-    if ChatContextCompactor.enabled_for?(@chat_session)
-      return ChatContextCompactor.context_messages_for(@chat_session)
+    if Syrus::Host::ChatContextCompactor.enabled_for?(@chat_session)
+      return Syrus::Host::ChatContextCompactor.context_messages_for(@chat_session)
     end
 
     @chat_session.messages.active.order(:id)

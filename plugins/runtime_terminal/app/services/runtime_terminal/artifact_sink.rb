@@ -12,7 +12,7 @@ module RuntimeTerminal
     def capture(bytes:, title:, metadata: {})
       return capture_for_workflow(bytes: bytes, title: title, metadata: metadata) if runtime_session.workflow
 
-      document = ChatMediaLibrary.materialize_captured_image!(
+      document = Syrus::Host::ChatMediaLibrary.materialize_captured_image!(
         runtime_session.chat_session,
         bytes: bytes,
         content_type: "image/png",

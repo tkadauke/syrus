@@ -14,7 +14,7 @@ class Coworkers::Activity
     ids = coworkers.map(&:id)
     return {} if ids.empty?
     range = now.beginning_of_week..now
-    chat = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+    chat = Syrus::Host::ChatSpendEntryRecord.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
       .where(coworker_chats: { coworker_id: ids }, incurred_at: range).group("coworker_chats.coworker_id").sum(:cost_usd)
     visible = Syrus::Host::JobRecord.visible_to(user).where(kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s))
     run = Syrus::Host::RunRecord.joins(:job).where(job_id: visible.select(:id), finished_at: range).group("jobs.origin_id").sum(:cost_usd)
@@ -54,7 +54,7 @@ class Coworkers::Activity
   def all_runs = @all_runs ||= Syrus::Host::RunRecord.where(job_id: jobs.select(:id))
 
   def spend_json
-    chat_entries = ChatSpendEntry.where(chat_session_id: chat_ids)
+    chat_entries = Syrus::Host::ChatSpendEntryRecord.where(chat_session_id: chat_ids)
     {
       week_usd: decimal(chat_entries.where(incurred_at: week_range).sum(:cost_usd) + all_runs.where(finished_at: week_range).sum(:cost_usd)),
       total_usd: decimal(chats.sum(:cumulative_cost_usd) + all_runs.sum(:cost_usd))
