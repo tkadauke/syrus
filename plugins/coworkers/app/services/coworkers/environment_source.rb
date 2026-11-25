@@ -138,7 +138,12 @@ class Coworkers::EnvironmentSource
   # The effective final stage must descend from the supplied base: either it
   # names the base arg directly or an earlier stage that does.
   def dockerfile_errors(content)
-    froms = dockerfile_instructions(content).filter_map do |line|
+    instructions = dockerfile_instructions(content)
+    if instructions.any? { |line| line.match?(/\A(RUN|COPY|ADD)\s/i) && line.include?("\\<") }
+      return [ "#{DOCKERFILE} must not escape '<' in RUN, COPY, or ADD; the validator cannot model it" ]
+    end
+
+    froms = instructions.filter_map do |line|
       line[/\AFROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?/i, 0] && Regexp.last_match
     end
     return [ "#{DOCKERFILE} must contain a FROM instruction" ] if froms.empty?
