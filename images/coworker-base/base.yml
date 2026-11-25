@@ -37,6 +37,7 @@ publication:
 # (RuntimeImageBuildNetworkRule). Nothing else is reachable during the build.
 build_network:
   - { source_class: os_mirror, ecosystem: debian, host: deb.debian.org }
+  - { source_class: os_mirror, ecosystem: debian, host: snapshot.debian.org }
   - { source_class: os_mirror, ecosystem: debian, host: deb.nodesource.com }
   - { source_class: exact_domain, host: storage.googleapis.com }
   - { source_class: exact_domain, host: api.meta.ai }
