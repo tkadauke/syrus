@@ -4910,6 +4910,34 @@ without the fix.
 
 ---
 
+## F138. A coworker base revoked during a promotion could be made active again — fixed
+
+**Invariant.** `BaseReleases` documents revoked as terminal and at most one
+active release per platform (a unique key), and the base it replaces is
+retained for rollback before the switch.
+
+**Counterexample.** `activate!` (promote and rollback) checked the release's
+status and launch problems, and read the active release it would retire,
+before locking the platform's releases. A `revoke!` committing in between was
+overwritten by `status: "active"`, so a revoked release was active again
+(launches stayed blocked, because `launch_state` re-checks the revoked image,
+and `sync_with_images!` would later repair the record). A concurrent promotion
+of another candidate in the same gap made the second activation fail with a
+raw `RecordNotUnique`.
+
+**Fix.** Under the lock, the release is reloaded and must still have the
+status the operation expects (candidate for promote, retired for rollback) and
+no launch problems, and the active release must still be the one retained for
+rollback; otherwise the operation is refused (`not_a_candidate`, `not_retired`,
+or `concurrent_change`, retryable by the operator).
+
+**Specs.** `spec/services/runtime_images/base_releases_spec.rb`: "refuses to
+activate a release revoked after the check, keeping it revoked" and "refuses
+cleanly when another promotion switched the active base after the check"; both
+fail without the fix.
+
+---
+
 ## F137. A source archive could plant a symlink out of the build source through another symlink — fixed
 
 **Invariant.** `SourceExtractor` unpacks an untrusted archive and rejects

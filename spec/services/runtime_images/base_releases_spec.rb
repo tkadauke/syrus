@@ -53,6 +53,41 @@ RSpec.describe RuntimeImages::BaseReleases do
       expect(CoworkerBaseRelease.active.count).to eq(1)
     end
 
+    # F138: activate! checked the release before taking the platform lock, so
+    # a revocation landing in between was overwritten by status "active".
+    it "refuses to activate a release revoked after the check, keeping it revoked" do
+      release = candidate
+      allow(base_service).to receive(:retain).and_wrap_original do |original, image, **args|
+        if image == release.runtime_image
+          # A concurrent revoke! commits here, between the check and the switch.
+          release.class.where(id: release.id).update_all(status: "revoked", active_key: nil, revoked_at: Time.current, revoked_reason: "spec")
+        end
+        original.call(image, **args)
+      end
+
+      expect { base_releases.promote!(release, actor: "test") }.to raise_error(described_class::Refused) { |e| expect(e.codes).to include("not_a_candidate") }
+      expect(release.reload).to be_revoked
+      expect(CoworkerBaseRelease.active.count).to eq(0)
+    end
+
+    it "refuses cleanly when another promotion switched the active base after the check" do
+      first = active_base
+      winner = candidate
+      loser = candidate
+      allow(base_service).to receive(:retain).and_wrap_original do |original, image, **args|
+        if image == loser.runtime_image && !winner.reload.active?
+          # A concurrent promote! of another candidate commits here.
+          RuntimeImages::BaseReleases.new(service: RuntimeImages::Service.new(provider: base_provider)).promote!(winner, actor: "other")
+        end
+        original.call(image, **args)
+      end
+
+      expect { base_releases.promote!(loser, actor: "test") }.to raise_error(described_class::Refused) { |e| expect(e.codes).to include("concurrent_change") }
+      expect(winner.reload).to be_active
+      expect(loser.reload).to be_candidate
+      expect(first.reload).to be_retired
+    end
+
     it "keeps one active base per platform independently" do
       amd = active_base
       arm = active_base(platform: "linux/arm64")

@@ -85,8 +85,8 @@ module RuntimeImages
     # Makes a candidate the active base for its platform, retiring (but keeping
     # retained for rollback) the one it replaces.
     def promote!(release, actor:)
-      raise Refused, [ Problem.new("not_a_candidate", "release is #{release.status}; only a candidate can be promoted (use rollback for a retired base)") ] unless release.candidate?
-      activate!(release, actor: actor, event: "base_release.promote")
+      raise Refused, [ not_a_candidate(release) ] unless release.candidate?
+      activate!(release, actor: actor, event: "base_release.promote", from: "candidate")
     end
 
     # Re-activates a retired base: +to+, or the most recently retired launchable
@@ -95,8 +95,8 @@ module RuntimeImages
       target = to || rollback_targets(platform: platform).first
       raise Refused, [ Problem.new("no_rollback_target", "no retired base is available to roll back to for #{platform}") ] unless target
       raise Refused, [ Problem.new("platform_mismatch", "release is for #{target.platform}, not #{platform}") ] unless target.platform == platform
-      raise Refused, [ Problem.new("not_retired", "release is #{target.status}; only a retired base can be rolled back to") ] unless target.retired?
-      activate!(target, actor: actor, event: "base_release.rollback")
+      raise Refused, [ not_retired(target) ] unless target.retired?
+      activate!(target, actor: actor, event: "base_release.rollback", from: "retired")
     end
 
     # Retired bases that could still be rolled back to, most recent first.
@@ -171,7 +171,10 @@ module RuntimeImages
 
     private
 
-    def activate!(release, actor:, event:)
+    # +from+ is the status the release must still have once the platform's
+    # releases are locked: the checks above ran without the lock, and a
+    # revoke! landing in between must not be overwritten (F138).
+    def activate!(release, actor:, event:, from:)
       problems = launch_problems(release)
       raise Refused, problems if problems.any?
 
@@ -184,17 +187,36 @@ module RuntimeImages
       now = Time.current
       CoworkerBaseRelease.transaction do
         CoworkerBaseRelease.for_platform(release.platform).lock.to_a
+        release.reload
+        raise Refused, [ from == "candidate" ? not_a_candidate(release) : not_retired(release) ] unless release.status == from
+        locked_problems = launch_problems(release)
+        raise Refused, locked_problems if locked_problems.any?
+        # The base retained for rollback above is the one read before the
+        # lock; if another promotion switched it meanwhile, retiring the new
+        # one would skip its rollback retention, so let the operator retry.
+        current = active(platform: release.platform)
+        unless current&.id == previous&.id
+          raise Refused, [ Problem.new("concurrent_change", "the active base for #{release.platform} changed while this was being applied; retry") ]
+        end
         previous&.reload
         if previous&.active?
           previous.update!(status: "retired", active_key: nil, retired_at: now, retired_by: actor.to_s)
         end
-        release.reload.update!(status: "active", active_key: release.platform, promoted_at: now, promoted_by: actor.to_s, retired_at: nil, retired_by: nil)
+        release.update!(status: "active", active_key: release.platform, promoted_at: now, promoted_by: actor.to_s, retired_at: nil, retired_by: nil)
       end
       Audit.record(event, outcome: :ok, image: release.runtime_image, actor: actor,
                    details: { platform: release.platform, generation: release.generation, runtime_abi: release.runtime_abi,
                               replaced: previous&.digest })
       BaseRebuildDiscoveryJob.perform_later
       release
+    end
+
+    def not_a_candidate(release)
+      Problem.new("not_a_candidate", "release is #{release.status}; only a candidate can be promoted (use rollback for a retired base)")
+    end
+
+    def not_retired(release)
+      Problem.new("not_retired", "release is #{release.status}; only a retired base can be rolled back to")
     end
 
     def mark_revoked!(release, reason:, actor:, severity:)
