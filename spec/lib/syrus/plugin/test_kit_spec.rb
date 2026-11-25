@@ -234,7 +234,7 @@ RSpec.describe Syrus::Plugin::TestKit do
   end
 
   it "accepts a clean host surface and reports unsupported constants" do
-    clean = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
+    clean = Syrus::PluginHostSurface::Scanner::Result.new(public: [], unlisted: [], dynamic: [],
       minimum_syrus_version: nil, content_hash: "clean", error: nil)
     finding = Syrus::PluginHostSurface::Scanner::Finding.new(constant: "Syrus::PrivateApi", tier: "unlisted", path: "lib/broken.rb", line: 1)
     dirty = clean.with(unlisted: [ finding ])

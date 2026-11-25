@@ -27,7 +27,7 @@ module SyrusDev
     def profile_users = users
     def rules = Syrus::Host::PermissionRule.none
     def leases = Syrus::Host::PermissionLease.none
-    def requests = ChatPendingAction.none
+    def requests = Syrus::Host::ChatPendingActionRecord.none
 
     private
 

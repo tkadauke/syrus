@@ -260,7 +260,7 @@ module Admin
       payload[:circuits] = circuits if circuits.any?
       scan = manifest.metadata.to_h[:plugin_host_surface_scan]
       payload[:host_surface] = scan.to_h.merge(
-        public: scan.public.map(&:to_h), legacy: scan.legacy.map(&:to_h), unlisted: scan.unlisted.map(&:to_h),
+        public: scan.public.map(&:to_h), unlisted: scan.unlisted.map(&:to_h),
         dynamic: scan.dynamic.map(&:to_h)
       ) if scan
       payload
