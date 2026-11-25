@@ -42,6 +42,7 @@ import { Select } from "../components/Select"
 import { DataTable, Form, Surface, Text } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
+import { QuestionEagernessFields } from "../components/QuestionEagernessFields"
 import { PluginUiSlot } from "../pluginUiSlots"
 
 const LINEAR_TEAM_LOOKUP_DEBOUNCE_MS = 400
@@ -429,6 +430,12 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <SectionHeading>{t("repository_form.automation_section")}</SectionHeading>
+
+          <QuestionEagernessFields
+            eagerness={values.question_eagerness}
+            onChange={(question_eagerness, question_answer_timeout_seconds) => setValues({ ...values, question_eagerness, question_answer_timeout_seconds })}
+            timeoutSeconds={values.question_answer_timeout_seconds}
+          />
 
           {mode === "edit" && payload.repository.id ? (
             <ProviderRoutingRulesEditor
@@ -947,7 +954,9 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     review_policy: payload.repository.review_policy,
     epic_dependency_policy: payload.repository.epic_dependency_policy,
     github_owner_id: payload.repository.github_owner_id == null ? "" : String(payload.repository.github_owner_id),
-    github_repository_id: payload.repository.github_repository_id == null ? "" : String(payload.repository.github_repository_id)
+    github_repository_id: payload.repository.github_repository_id == null ? "" : String(payload.repository.github_repository_id),
+    question_eagerness: payload.repository.question_eagerness || null,
+    question_answer_timeout_seconds: payload.repository.question_answer_timeout_seconds || null
   }
 }
 

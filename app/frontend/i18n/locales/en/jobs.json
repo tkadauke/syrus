@@ -1082,5 +1082,9 @@
   "reset_job_checkpoints_one": "Delete {{count}} checkpoint",
   "reset_job_checkpoints_other": "Delete {{count}} checkpoints",
   "reset_job_workflows_one": "Cancel {{count}} active workflow",
-  "reset_job_workflows_other": "Cancel {{count}} active workflows"
+  "reset_job_workflows_other": "Cancel {{count}} active workflows",
+  "workflow_block_evidence": "Technical evidence",
+  "question_panel_title": "The agent needs your answer",
+  "question_panel_consequence": "Answer and continue resumes this workflow in the same agent session.",
+  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}})."
 }

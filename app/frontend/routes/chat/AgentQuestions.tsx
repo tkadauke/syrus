@@ -22,17 +22,19 @@ type AgentAnswerDraft = string | string[] | null
 export function AgentQuestions({
   questions,
   queryKey,
-  onNotice
+  onNotice,
+  onAnswered
 }: {
   questions: ChatAgentQuestion[]
-  queryKey: ChatQueryKey
+  queryKey?: ChatQueryKey
   onNotice: (message: string | null) => void
+  onAnswered?: (question: ChatAgentQuestion, answers: ChatAgentQuestionAnswer[]) => Promise<{ message?: string }>
 }) {
   const { t } = useT("chat")
   return (
     <section aria-label={t("aria_agent_questions")} className="w-full max-w-3xl space-y-3 rounded border border-info/30 bg-info/10 p-3">
       {questions.map((question) => (
-        <AgentQuestionCard key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />
+        <AgentQuestionCard key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} onAnswered={onAnswered} />
       ))}
     </section>
   )
@@ -41,15 +43,17 @@ export function AgentQuestions({
 function AgentQuestionCard({
   question,
   queryKey,
-  onNotice
+  onNotice,
+  onAnswered
 }: {
   question: ChatAgentQuestion
-  queryKey: ChatQueryKey
+  queryKey?: ChatQueryKey
   onNotice: (message: string | null) => void
+  onAnswered?: (question: ChatAgentQuestion, answers: ChatAgentQuestionAnswer[]) => Promise<{ message?: string }>
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
-  const search = queryKey[2]
+  const search = queryKey?.[2] || ""
   const subQuestions = question.questions
   const single = subQuestions.length === 1
   const [stepIndex, setStepIndex] = useState(0)
@@ -57,9 +61,10 @@ function AgentQuestionCard({
   const [drafts, setDrafts] = useState<AgentAnswerDraft[]>(() => subQuestions.map(() => null))
 
   const submit = useMutation({
-    mutationFn: (answers: ChatAgentQuestionAnswer[]) => answerAgentQuestion(appendSearch(question.app_answer_path, search), answers),
+    mutationFn: (answers: ChatAgentQuestionAnswer[]) =>
+      onAnswered ? onAnswered(question, answers) : answerAgentQuestion(appendSearch(question.app_answer_path, search), answers),
     onSuccess: (updated) => {
-      mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      if (queryKey) mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(updated.message || null)
     }
   })

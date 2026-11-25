@@ -1,10 +1,12 @@
 de:
   agent_questions:
     recorded: "Frage(n) gespeichert. Beende jetzt deinen Durchlauf."
+    answered: "Antwort gesendet. Der Workflow wird fortgesetzt."
     errors:
       exactly_one_owner: "muss entweder zu einer Chatsitzung oder zu einem Lauf gehören"
       questions_malformed: "muss eine Liste aus 1 bis 4 korrekt aufgebauten Fragen sein"
       defaults_malformed: "muss für jede Frage eine nicht leere Standardantwort enthalten"
+      answers_malformed: "Die Antworten müssen zu allen Fragen passen."
   unlanding:
     disabled: "Unlanding ist für diese Instanz nicht aktiviert."
   notifications:

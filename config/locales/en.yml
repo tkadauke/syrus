@@ -30,10 +30,12 @@
 en:
   agent_questions:
     recorded: "Question(s) recorded. End your turn now."
+    answered: "Answer submitted. The workflow will continue."
     errors:
       exactly_one_owner: "must belong to either a chat session or a run"
       questions_malformed: "must be an array of 1 to 4 well-formed questions"
       defaults_malformed: "must provide one non-blank default per question"
+      answers_malformed: "Answers must match every question."
   unlanding:
     disabled: "Unlanding is not enabled for this instance."
   notifications:

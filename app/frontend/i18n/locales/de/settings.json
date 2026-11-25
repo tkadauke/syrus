@@ -2092,5 +2092,19 @@
     "last_used": "zuletzt benutzt {{time}}",
     "never_used": "nie benutzt",
     "none": "Keine MCP-Brücken-Tokens."
+  },
+  "question_eagerness": {
+    "title": "Fragebereitschaft",
+    "slider": "Stufe der Fragebereitschaft",
+    "inherit": "Standard verwenden",
+    "timeout": "Antwortfrist (Minuten)",
+    "timeout_help": "Optional. Danach fährt der Agent mit seiner angegebenen Standardantwort fort.",
+    "levels": {
+      "autonomous": { "label": "Autonom", "description": "Fragt nur, wenn die Arbeit wirklich nicht fortgesetzt werden kann." },
+      "independent": { "label": "Selbstständig", "description": "Fragt auch vor schwer rückgängig zu machenden Entscheidungen." },
+      "balanced": { "label": "Ausgewogen", "description": "Fragt, wenn vernünftige Auslegungen zu deutlich verschiedenen Ergebnissen führen." },
+      "collaborative": { "label": "Kollaborativ", "description": "Fragt auch zu Umfang, UX und Textentscheidungen." },
+      "inquisitive": { "label": "Wissbegierig", "description": "Fragt, sobald etwas nicht völlig klar ist." }
+    }
   }
 }

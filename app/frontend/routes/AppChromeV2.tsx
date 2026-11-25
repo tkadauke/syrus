@@ -40,6 +40,7 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { ActivityProvider } from "../components/activity/ActivityProvider"
 import { PermissionInboxDrawer } from "../components/PermissionInboxDrawer"
+import { QuestionInboxDrawer } from "../components/QuestionInboxDrawer"
 import { ToolPresentationModal } from "./chat/ToolPresentationModal"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -848,6 +849,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     <BugReportTriggerButton onClick={() => openBugReport()} />
                     {user ? <ConnectionStatusButton prefix={prefix} /> : null}
                     {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
+                    {user ? <QuestionInboxDrawer prefix={prefix} /> : null}
                     {user ? <NotificationsBell initialUnreadCount={data?.unread_notifications_count ?? 0} prefix={prefix} /> : null}
                   </div>
                 </div>
@@ -1567,6 +1569,7 @@ function SidebarContent({
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <ConnectionStatusButton onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <PermissionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
+            {user ? <QuestionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <NotificationsBell initialUnreadCount={unreadNotificationsCount} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}

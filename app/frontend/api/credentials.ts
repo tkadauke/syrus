@@ -27,6 +27,8 @@ export type CredentialsUser = {
   provider_availability_overrides: Record<string, unknown>
   scheduling_paused: boolean
   mobile_chat_auto_hide_header?: boolean
+  question_eagerness: import("../components/QuestionEagernessFields").QuestionEagerness | null
+  question_answer_timeout_seconds: number | null
   auto_approve_mode: string
   locale: string
 }
@@ -196,6 +198,8 @@ export type CredentialsInput = {
   provider_availability_pause_thresholds: Record<string, number>
   scheduling_paused: boolean
   mobile_chat_auto_hide_header: boolean
+  question_eagerness: import("../components/QuestionEagernessFields").QuestionEagerness | null
+  question_answer_timeout_seconds: number | null
   auto_approve_mode: string
   locale: string
 }

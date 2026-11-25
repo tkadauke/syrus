@@ -169,6 +169,8 @@ export type RepositoryInput = {
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_owner_id: string
   github_repository_id: string
+  question_eagerness: import("../components/QuestionEagernessFields").QuestionEagerness | null
+  question_answer_timeout_seconds: number | null
 }
 
 export type RepositoryCredentialStatus = {

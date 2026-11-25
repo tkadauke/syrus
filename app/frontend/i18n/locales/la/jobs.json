@@ -1082,5 +1082,9 @@
   "reset_job_checkpoints_one": "{{count}} punctum servatum delere",
   "reset_job_checkpoints_other": "{{count}} puncta servata delere",
   "reset_job_workflows_one": "{{count}} fluxum activum sistere",
-  "reset_job_workflows_other": "{{count}} fluxus activos sistere"
+  "reset_job_workflows_other": "{{count}} fluxus activos sistere",
+  "workflow_block_evidence": "Testimonium technicum",
+  "question_panel_title": "Agens responsum tuum requirit",
+  "question_panel_consequence": "Respondere et pergere hunc fluxum in eadem sessione agentis resumit.",
+  "question_policy_effective": "Studium interrogandi: {{level}} (fons: {{source}})."
 }
