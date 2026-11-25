@@ -56,6 +56,12 @@ RSpec.describe Coworkers::EnvironmentSource do
     expect { source.snapshot! }.to raise_error(described_class::Invalid)
   end
 
+  it "ignores FROM lines inside heredoc bodies" do
+    source.seed!
+    workspace.write("environment/Dockerfile", "FROM ubuntu:24.04\nRUN <<EOF\nFROM ${SYRUS_COWORKER_BASE}\nEOF\n")
+    expect(source.validate).to include(a_string_matching(/final stage must descend/))
+  end
+
   it "accepts multi-stage builds whose final stage descends from the base" do
     source.seed!
     workspace.write("environment/Dockerfile",
