@@ -7,7 +7,8 @@ module PendingActions
       decision = WorkflowOutcomeOverrides::Authority.call(user:, repository: job.repository, arguments: {
         job_id: job.id, fingerprint_digest: payload.fetch("fingerprint_digest"),
         gate_kind: payload.fetch("gate_kind"), gate_identity: payload.fetch("gate_identity")
-      }, role: payload.fetch("permission_role"), subject_selector_type: payload.fetch("subject_selector_type"))
+      }, role: payload.fetch("permission_role"), subject_selector_type: payload.fetch("subject_selector_type"),
+        subject_selector_id: payload["subject_selector_id"])
       raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "permission policy denies this outcome override" if decision.deny?
       override = WorkflowOutcomeOverrides::Recorder.call(
         job:, fingerprint_digest: payload.fetch("fingerprint_digest"), actor: user,
@@ -27,6 +28,12 @@ module PendingActions
     def validate_payload(errors)
       %w[job_id fingerprint_digest gate_kind gate_identity candidate_head_sha evidence_digest consequence permission_role subject_selector_type].each do |key|
         errors.add(:payload, "#{key} is required") if payload[key].blank?
+      end
+      unless PermissionRule::SUBJECT_SELECTOR_TYPES.include?(payload["subject_selector_type"])
+        errors.add(:payload, "subject_selector_type is invalid")
+      end
+      if payload["subject_selector_type"] == "agent" && payload["subject_selector_id"].blank?
+        errors.add(:payload, "subject_selector_id is required for an agent")
       end
       errors.add(:reason, "is required") if action.reason.blank?
     end

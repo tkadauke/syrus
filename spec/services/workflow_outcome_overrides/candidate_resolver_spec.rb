@@ -62,4 +62,16 @@ RSpec.describe WorkflowOutcomeOverrides::CandidateResolver do
       evidence_digest: WorkflowOutcomeOverrides::ReviewVerdict.evidence_digest(vote)
     )
   end
+
+  it "does not offer review evidence that an override already made effective" do
+    grader.destroy!
+    workflow.set_artifact!("adversarial_review_iterations", [ {
+      "iteration" => 1, "step_id" => 91, "verdict" => "needs_work",
+      "effective_verdict" => "approved", "outcome_override_id" => 7
+    } ])
+    Step.create!(workflow:, kind: "adversarial_review", position: 20, iteration: 1,
+      details: { "reviewed_head_sha" => "d" * 40 })
+
+    expect(described_class.for_job(job)).to be_empty
+  end
 end
