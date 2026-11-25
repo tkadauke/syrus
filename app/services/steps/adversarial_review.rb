@@ -83,6 +83,7 @@ module Steps
       end
       verify_reviewer_side_effects!
     rescue StandardError => e
+      handle_unavailable_panel_member!(e, review_kind: review_step_kind)
       raise unless skippable_review_failure?(e)
 
       log("[#{review_step_kind}] skipped after reviewer failure: #{e.class}: #{e.message}", kind: "system")
@@ -319,7 +320,16 @@ module Steps
       undersized = members.size < decision["min_members"].to_i
       raise StepFailed, "review panel has unavailable members and policy is fail" if decision["disposition"] == "fail"
       step.update!(details: step.details.to_h.merge("required" => review_config&.required == true))
-      return false if members.one? && !undersized
+      if members.one? && !undersized
+        member = members.first
+        step.update!(details: step.details.to_h.merge(
+          "panel_member" => true, "panel_id" => decision.fetch("panel_id"),
+          "provider" => member["provider"], "model" => member["model"],
+          "effort_level" => member["effort_level"], "on_unavailable" => decision.fetch("on_unavailable", "fail"),
+          "min_members" => decision.fetch("min_members"), "required" => review_config&.required == true
+        ).compact)
+        return false
+      end
 
       panel_id = decision.fetch("panel_id")
       continuation = step.next_step
@@ -332,7 +342,9 @@ module Steps
             details: {
               "panel_member" => true, "panel_id" => panel_id,
               "provider" => member["provider"], "model" => member["model"], "effort_level" => member["effort_level"],
-              "reviewer_target" => member["reviewer_target"]
+              "reviewer_target" => member["reviewer_target"],
+              "on_unavailable" => decision.fetch("on_unavailable", "fail"),
+              "min_members" => decision.fetch("min_members"), "required" => review_config&.required == true
             }.compact
           )
         end
@@ -407,7 +419,7 @@ module Steps
         "verdict" => "skipped",
         "skipped" => true,
         "skip_reason" => reason
-      }
+      }.merge(step.details.to_h.slice("panel_id", "provider", "model"))
       workflow.set_artifact!(Step::Kind.fetch(review_step_kind).review_gate.fetch(:artifact_key), iterations)
       ReviewFindingEvents.record(
         workflow: workflow,

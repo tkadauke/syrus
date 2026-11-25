@@ -5,11 +5,17 @@ module Steps
       review_kind = details.fetch("panel_review_kind")
       artifact_key = Step::Kind.fetch(review_kind).review_gate.fetch(:artifact_key)
       entries = Array(workflow.artifact(artifact_key))
-      votes = entries.select do |entry|
+      submitted_votes = entries.select do |entry|
         entry["panel_id"] == details["panel_id"] && entry["iteration"].to_i == step.iteration && !entry["aggregate"]
       end
+      votes = submitted_votes.map do |vote|
+        WorkflowOutcomeOverrides::ReviewVerdict.apply!(
+          workflow:, collector_step: step, review_kind:, panel_id: details["panel_id"],
+          reviewed_head_sha: details["reviewed_head_sha"], vote:
+        )
+      end
       result = ProviderRouting::PanelConsensus.call(
-        member_verdicts: votes,
+        member_verdicts: votes.map { |vote| vote.merge("verdict" => vote["effective_verdict"] || vote["verdict"]) },
         consensus: details.fetch("consensus"),
         min_members: details.fetch("min_members")
       )
@@ -20,7 +26,7 @@ module Steps
         "reviewed_head_sha" => details["reviewed_head_sha"],
         "verdict" => result.verdict,
         "vote_breakdown" => result.breakdown,
-        "votes" => votes.map { |vote| vote.slice("provider", "model", "verdict") },
+        "votes" => votes.map { |vote| vote.slice("provider", "model", "verdict", "effective_verdict", "original_verdict", "outcome_override_id") },
         "consensus" => details["consensus"],
         "dropped_members" => details["dropped_members"],
         "non_blocking_findings" => result.verdict == "approved" ? votes.select { |vote| vote["verdict"] == "needs_work" }.map { |vote| vote.slice("provider", "model", "critique") } : []

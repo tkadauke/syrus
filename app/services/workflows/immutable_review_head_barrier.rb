@@ -236,11 +236,12 @@ module Workflows
 
     def self.approved_evidence?(workflow, step, snapshot)
       artifact_key = snapshot.fetch("verdict_artifact")
-      verdict = Array(workflow.artifact(artifact_key)).reverse.find do |entry|
+      entry = Array(workflow.artifact(artifact_key)).reverse.find do |entry|
         entry["reviewed_head_sha"] == step.details.to_h["reviewed_head_sha"] &&
           (!step.details.to_h["panel_id"] || entry["panel_id"] == step.details.to_h["panel_id"]) &&
           (step.kind != "review_panel_collect" || entry["aggregate"] == true)
-      end&.fetch("verdict", nil)
+      end
+      verdict = entry&.fetch("effective_verdict", nil) || entry&.fetch("verdict", nil)
       Array(snapshot.fetch("exit_verdicts", %w[approved skipped])).include?(verdict)
     end
 

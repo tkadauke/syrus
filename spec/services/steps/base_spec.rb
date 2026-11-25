@@ -318,6 +318,21 @@ RSpec.describe Steps::Base, :ci_only do
       handler.send(:run_agent, prompt: "summarize")
     end
 
+    it "turns a successful process carrying an explicit policy refusal into a typed non-retryable failure" do
+      refusal = AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success",
+        final_text: "I can't assist with this request because it is disallowed by our safety policy.", session_id: nil
+      )
+      fake_adapter = instance_double(AgentProviders::Base, run: refusal)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:record_result!).and_return(refusal)
+
+      expect { handler.send(:run_agent, prompt: "review") }
+        .to raise_error(Steps::Base::StepFailed, /provider refused/) { |error|
+          expect(error.problem).to have_attributes(code: "provider_policy_refusal", retryable?: false)
+        }
+    end
+
     it "logs MCP sidecar stderr when the agent reports sidecar startup failure" do
       result = AgentInvocation::Result.new(
         turns: nil,
