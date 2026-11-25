@@ -455,6 +455,7 @@
   "outcome_override_confirm": "Confirm override",
   "outcome_override_confirming": "Confirming…",
   "outcome_override_error": "The override could not be recorded.",
+  "outcome_override_effective_state": "failed, overridden",
   "grader_unknown_name": "unnamed grader",
   "grader_fanout_selected_count_one": "{{count}} grader selected",
   "grader_fanout_selected_count_other": "{{count}} graders selected",

@@ -26,6 +26,7 @@ class WorkflowOutcomeOverride < ApplicationRecord
 
   before_destroy { raise ActiveRecord::ReadOnlyRecord, "WorkflowOutcomeOverride is append-only" }
   before_validation :set_fingerprint_digest, on: :create
+  after_update_commit :record_consumption_telemetry, if: :consumed_now?
 
   def self.record!(gate_failure:, **attributes)
     create!(attributes.merge(gate_failure:, original_outcome: ORIGINAL_OUTCOME))
@@ -131,5 +132,13 @@ class WorkflowOutcomeOverride < ApplicationRecord
     if consumed_at.present? && invalidation_cause.present?
       errors.add(:base, I18n.t("models.workflow_outcome_override.errors.terminal_states_mutually_exclusive"))
     end
+  end
+
+  def consumed_now?
+    consumed_at_before_last_save.blank? && consumed_at.present?
+  end
+
+  def record_consumption_telemetry
+    WorkflowOutcomeOverrides::Telemetry.record_consumed(self)
   end
 end

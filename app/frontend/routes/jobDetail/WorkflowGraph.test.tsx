@@ -141,6 +141,29 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  it("keeps consumed failure evidence visible after the workflow resumes", () => {
+    const workflow = workflowWithStepDetails({} as never)
+    workflow.state = "running"
+    workflow.outcome_overrides = [
+      {
+        id: 7,
+        effective_state: "failed, overridden",
+        gate_kind: "implementation_grader",
+        gate_identity: "rspec",
+        reason: "Confirmed false positive",
+        consumed_at: "2026-11-25T12:00:00Z"
+      }
+    ]
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("failed, overridden")).toBeInTheDocument()
+  })
+
   it("consolidates eligible mobile workflow commands and keeps disclosure compact", async () => {
     mockMobileViewport()
     const detailed = workflowWithStepDetails({} as never)

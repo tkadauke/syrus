@@ -567,6 +567,7 @@ function WorkflowCard({
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+            {workflow.outcome_overrides?.length ? <SmallPill>{t("outcome_override_effective_state")}</SmallPill> : null}
             <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
             {workflow.retry_available ? (
               <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
@@ -703,6 +704,7 @@ function WorkflowMobileControls({
   return (
     <div className="flex shrink-0 items-center gap-1">
       {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+      {workflow.outcome_overrides?.length ? <SmallPill>{t("outcome_override_effective_state")}</SmallPill> : null}
       {hasCommands ? (
         <div>
           <Button

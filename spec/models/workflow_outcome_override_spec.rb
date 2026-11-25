@@ -72,11 +72,13 @@ RSpec.describe WorkflowOutcomeOverride do
   it "consumes once idempotently only for the exact candidate and evidence fingerprint" do
     override = record
     consumed_at = Time.zone.parse("2026-11-25 12:00:00")
+    allow(WorkflowOutcomeOverrides::Telemetry).to receive(:record_consumed)
 
     override.consume!(override.fingerprint, at: consumed_at)
     override.consume!(override.fingerprint, at: consumed_at + 1.hour)
 
     expect(override.reload.consumed_at).to eq(consumed_at)
+    expect(WorkflowOutcomeOverrides::Telemetry).to have_received(:record_consumed).with(override).once
     stale = override.fingerprint.to_h.merge(candidate_head_sha: "e" * 40)
     expect { override.consume!(stale) }.to raise_error(ActiveRecord::RecordInvalid, /fingerprint does not match/)
   end
