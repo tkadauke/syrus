@@ -68,9 +68,9 @@ module MetricsDashboard
       cluster_counters_available = true
       Syrus::Host::Metrics.samplers.each do |sampler|
         refreshed = sampler.refresh_gauges!
-        cluster_counters_available = false if sampler == Metrics::ClusterCounterSampler && !refreshed
+        cluster_counters_available = false if sampler == Syrus::Host::ClusterCounterSampler && !refreshed
       rescue StandardError => e
-        cluster_counters_available = false if sampler == Metrics::ClusterCounterSampler
+        cluster_counters_available = false if sampler == Syrus::Host::ClusterCounterSampler
         Rails.logger.warn("[MetricsDashboard::Recorder] could not refresh #{sampler}: #{e.class}: #{e.message}")
       end
       rendered = Syrus::Host::Metrics.render

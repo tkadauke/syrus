@@ -22,7 +22,7 @@ module SyrusDev
         context = Syrus::Host::ToolContext.from_server_context(server_context)
         unless coworker_diagnostics_authorized?(context)
           return Syrus::Host::McpTools.not_authorized unless authorized_role?(context.role)
-          return Syrus::Host::McpTools.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+          return Syrus::Host::McpTools.invalid("Syrus logs are only available for Syrus repositories") unless Syrus::Host::McpToolPolicy.syrus_repository?(context.repository)
         end
         return Syrus::Host::OperationalLogSearch.disabled_response unless Syrus::Host::OperationalLogging.enabled_for_instance?
 

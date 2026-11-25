@@ -41,7 +41,7 @@ RSpec.describe BuildCache::Subscribers do
   it "is reached through the inline event published by a step" do
     allow(BuildCache::StatsCapture).to receive(:capture).and_return({ "cache_hits" => 9 })
 
-    Syrus::Events.publish(
+    Syrus::Host::Events.publish(
       "step.command.completed",
       run_id: run.id, workflow_id: workflow.id, job_id: job.id,
       step_kind: "prepare", label: "bundle install",

@@ -26,7 +26,7 @@ RSpec.describe "Coworker scheduled tasks" do
   def allow_schedule_tool
     definition = Coworkers::ChatToolSet.tool_definitions(tier: :essential)
       .find { |item| item[:name] == "manage_coworker_schedule" }
-    descriptor = Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition)
+    descriptor = Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition)
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
       subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,

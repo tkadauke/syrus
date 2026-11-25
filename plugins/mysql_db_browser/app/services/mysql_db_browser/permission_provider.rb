@@ -29,7 +29,7 @@ module MysqlDbBrowser
       end
 
       def lookup_connection(identifier, context:)
-        connection = MysqlConnection.find_by(id: identifier)
+        connection = Syrus::Host::MysqlConnection.find_by(id: identifier)
         return unless connection&.agentic_access_enabled?
 
         credential = CredentialMaterial.credential_for(connection)
@@ -58,7 +58,7 @@ module MysqlDbBrowser
       def scope_label(scope, context:)
         return "All MySQL #{scope.fetch('kind')} targets" unless scope["mysql_connection_id"]
 
-        connection = MysqlConnection.find_by(id: scope.fetch("mysql_connection_id"))
+        connection = Syrus::Host::MysqlConnection.find_by(id: scope.fetch("mysql_connection_id"))
         [ connection&.label || "MySQL connection #{scope.fetch('mysql_connection_id')}", scope["database"], scope["table"] ].compact.join(" / ")
       end
 

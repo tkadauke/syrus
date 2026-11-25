@@ -55,7 +55,7 @@ RSpec.describe Coworkers::SpawnSyrusChatTool do
 
   it "enforces an explicit deny without creating a generic approval card" do
     definition = Coworkers::ChatToolSet.tool_definitions(tier: :essential).find { |tool| tool[:name] == "spawn_syrus_chat" }
-    descriptor = Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition)
+    descriptor = Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition)
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
       subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,

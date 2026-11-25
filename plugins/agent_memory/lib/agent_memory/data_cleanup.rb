@@ -8,7 +8,7 @@ module AgentMemory
   module DataCleanup
     def self.install_into(scope)
       scope.effect("user memories") do
-        Syrus::DataCleanup.register("User", "agent_memory.entries") do |user|
+        Syrus::Host::DataCleanup.register("User", "agent_memory.entries") do |user|
           AgentMemory::Entry.for_user(user).find_each(&:destroy)
         end
       end

@@ -1,7 +1,7 @@
 require "github_source/data_cleanup"
 
 module SyrusGithubSource
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "github_source" do
     experimental false

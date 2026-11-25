@@ -38,7 +38,7 @@ module SyrusDev
         context = Syrus::Host::ToolContext.from_server_context(server_context)
         unless coworker_diagnostics_authorized?(context)
           return Syrus::Host::McpTools.not_authorized unless context.role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT
-          return Syrus::Host::McpTools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+          return Syrus::Host::McpTools.invalid("performance diagnostics are only available for Syrus repositories") unless Syrus::Host::McpToolPolicy.syrus_repository?(context.repository)
         end
 
         payload, events = Syrus::Host::PerformanceLogging.suppress do
