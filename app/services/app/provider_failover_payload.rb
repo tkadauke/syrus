@@ -29,15 +29,16 @@ module App
       return nil unless original.present? && selected.present? && original != selected
 
       {
-        mode: decision["manual_override"] ? "operator" : "automatic",
-        automatic: decision["automatic_failover"] != false && !decision["manual_override"],
+        mode: decision_mode(decision),
+        automatic: decision_mode(decision) == "availability_failover",
         original_provider: original,
         original_provider_label: provider_label(original),
         selected_provider: selected,
         selected_provider_label: provider_label(selected),
         reason: decision["reason"],
         decided_at: decision["decided_at"],
-        unavailable: unavailable_payload(decision)
+        unavailable: unavailable_payload(decision),
+        routing: routing_payload(decision)
       }.compact
     end
 
@@ -59,6 +60,8 @@ module App
     end
 
     def unavailable_payload(decision)
+      return nil unless decision_mode(decision) == "availability_failover"
+
       details = decision["unavailable"] || {}
       details = {} unless details.is_a?(Hash)
       provider = details["provider"].presence || decision["original_provider"].presence
@@ -76,6 +79,35 @@ module App
         evidence_status: evidence["status"],
         observed_at: details["observed_at"].presence || evidence["observed_at"].presence || decision["evidence_observed_at"]
       }.compact
+    end
+
+    def routing_payload(decision)
+      resolution = decision["routing_resolution"]
+      return nil unless resolution.is_a?(Hash)
+
+      rule = resolution["matched_rule"]
+      rule = {} unless rule.is_a?(Hash)
+      {
+        source_scope: resolution["source_scope"],
+        source_id: resolution["source_id"],
+        matched_rule_id: rule["id"],
+        matched_rule_position: rule["position"],
+        conditions: rule["conditions"],
+        condition_results: resolution["condition_results"]
+      }.compact
+    end
+
+    def decision_mode(decision)
+      return "operator" if decision["manual_override"]
+      return decision["decision_mode"] if decision["decision_mode"].present?
+
+      # Legacy artifacts conflated every provider change with failover. When
+      # their recorded state says the original provider was healthy, present
+      # the change as routing rather than contradicting the stored evidence.
+      states = [ decision["availability_state"], decision.dig("unavailable", "state") ].compact
+      return "policy_routing" if states.any? && states.all? { |state| state == "available" }
+
+      "availability_failover"
     end
 
     def provider_label(provider)

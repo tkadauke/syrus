@@ -497,7 +497,11 @@
   },
   "provider_warning": {
     "automatic_failover": "{{original}} ist nicht verfügbar; dieser Workflow läuft mit {{selected}}.",
+    "policy_routing": "Die Routing-Richtlinie hat {{selected}} anstelle von {{original}} ausgewählt.",
     "operator_failover": "Der Operator hat für diesen Workflow {{selected}} statt {{original}} ausgewählt.",
+    "details": "Details",
+    "routing_rule": "Routing-Regel {{id}} wurde angewendet",
+    "routing_conditions": "Bedingungen: {{conditions}}",
     "mismatch": "Der Job läuft mit {{jobProvider}}; Repository-Standard ist {{repositoryProvider}}.",
     "usage_low": "Die Nutzung von {{provider}} ist niedrig ({{remaining}} % verbleibend; Schwellenwert {{threshold}} %).",
     "usage_reached": "Das Nutzungslimit von {{provider}} ist erreicht. Dieses Element verwendet {{provider}}, bis die Nutzung zurückgesetzt wird.",

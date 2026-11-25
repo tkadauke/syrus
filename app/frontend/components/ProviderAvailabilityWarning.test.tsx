@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import i18n from "../i18n"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice, ProviderMismatchPill } from "./ProviderAvailabilityWarning"
@@ -52,5 +52,33 @@ describe("provider availability copy", () => {
     } finally {
       await i18n.changeLanguage("en")
     }
+  })
+
+  it("shows policy routing truthfully and exposes rule evidence through a touch-accessible disclosure", () => {
+    render(
+      <ProviderFailoverNotice
+        failover={{
+          mode: "policy_routing",
+          automatic: false,
+          original_provider: "codex",
+          original_provider_label: "Codex",
+          selected_provider: "claude",
+          selected_provider_label: "Claude Code",
+          routing: {
+            matched_rule_id: 7,
+            condition_results: { matched: true, conditions: { usage: { actual: { remaining_percent: 22 } } } }
+          }
+        }}
+      />
+    )
+
+    expect(screen.getByText("Routing policy selected Claude Code instead of Codex.")).toBeInTheDocument()
+    expect(screen.queryByText(/Codex unavailable/)).not.toBeInTheDocument()
+    const disclosure = screen.getByText("Details")
+    expect(disclosure.closest("details")).not.toHaveAttribute("open")
+    fireEvent.click(disclosure)
+    expect(disclosure.closest("details")).toHaveAttribute("open")
+    expect(screen.getByText(/Routing rule 7 matched/)).toBeVisible()
+    expect(screen.getByText(/remaining_percent/)).toBeVisible()
   })
 })

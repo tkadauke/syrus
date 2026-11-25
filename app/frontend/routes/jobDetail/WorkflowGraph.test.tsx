@@ -947,6 +947,55 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
   })
 
+  it("does not call an available original provider unavailable for policy-routed workflow cards", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [
+              {
+                id: 14,
+                slug: "WF-14",
+                path: "/jobs/1?tab=workflows#workflow-14",
+                trigger_kind: "retry",
+                agent_provider: "claude",
+                provider_failover: {
+                  mode: "policy_routing",
+                  automatic: false,
+                  original_provider: "codex",
+                  original_provider_label: "Codex",
+                  selected_provider: "claude",
+                  selected_provider_label: "Claude Code",
+                  routing: { matched_rule_id: 7, condition_results: { matched: true } }
+                },
+                state: "succeeded",
+                failure_count: 0,
+                artifacts: {},
+                cleaned_up_at: null,
+                retry_available: false,
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-01T12:01:00Z",
+                updated_at: null,
+                app_retry_step_path: "/workflows/14/retry",
+                app_push_commits_path: "/workflows/14/push_commits",
+                app_force_push_branch_path: "/workflows/14/force_push_branch",
+                app_discard_branch_output_path: "/workflows/14/discard_branch_output",
+                steps: []
+              }
+            ]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Routing policy selected Claude Code instead of Codex.")).toBeInTheDocument()
+    expect(screen.queryByText(/Codex unavailable/)).not.toBeInTheDocument()
+    expect(screen.getByText("Details")).toBeInTheDocument()
+  })
+
   it("labels operator-selected workflow providers separately from automatic failover", () => {
     render(
       <MemoryRouter>
