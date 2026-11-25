@@ -69,6 +69,13 @@ RSpec.describe Coworkers::EnvironmentSource do
     expect(source.validate).to include(a_string_matching(/final stage must descend/))
   end
 
+  it "rejects escaped < that BuildKit would not read as a heredoc" do
+    source.seed!
+    workspace.write("environment/Dockerfile",
+                    "ARG SYRUS_COWORKER_BASE\nFROM ${SYRUS_COWORKER_BASE}\nRUN touch CMD && echo \\<<CMD\nFROM ubuntu:24.04\nCMD echo hello\n")
+    expect(source.validate).to include(a_string_matching(/must not escape '<'/))
+  end
+
   it "still recognizes quoted heredoc tags" do
     source.seed!
     workspace.write("environment/Dockerfile",
