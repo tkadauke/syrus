@@ -50,7 +50,7 @@ module RuntimeImages
             name = BuildPaths.relative!(entry.full_name.delete_prefix("./"), what: "archive entry")
             target = File.join(root, name)
             if entry.directory?
-              FileUtils.mkdir_p(target)
+              make_dir_inside!(root, target)
             elsif entry.file?
               bytes = charge(bytes, entry.header.size, max_bytes)
               write_file(root, target, entry)
@@ -61,6 +61,7 @@ module RuntimeImages
             end
           end
         end
+        verify_links_inside!(root)
       end
 
       def charge(bytes, cost, max_bytes)
@@ -70,20 +71,57 @@ module RuntimeImages
       end
 
       def write_file(root, target, entry)
-        FileUtils.mkdir_p(File.dirname(target))
-        ensure_inside!(root, File.dirname(target))
+        make_dir_inside!(root, File.dirname(target))
         raise Rejected.new("source_invalid", "archive entry overwrites a link") if File.symlink?(target)
         File.open(target, "wb", entry.header.mode.to_i & 0o755 | 0o600) { |file| IO.copy_stream(entry, file) }
       end
 
+      # The lexical check only rejects early; it does not follow links, so
+      # "d" -> "." then "d/x" -> ".." passes it while d/x really is the root's
+      # parent (F137). What a link really resolves to is checked once the tree
+      # is complete (verify_links_inside!), and every directory is checked
+      # through its real path before anything is created in it.
       def write_symlink(root, target, linkname)
-        FileUtils.mkdir_p(File.dirname(target))
-        ensure_inside!(root, File.dirname(target))
-        resolved = File.expand_path(linkname, File.dirname(target))
+        make_dir_inside!(root, File.dirname(target))
+        resolved = File.expand_path(linkname, File.realpath(File.dirname(target)))
         unless !linkname.start_with?("/") && (resolved == root || resolved.start_with?("#{root}/"))
           raise Rejected.new("path_traversal", "symlink #{linkname} leaves the source")
         end
         File.symlink(linkname, target)
+      end
+
+      # Checks the deepest existing ancestor through its real path before
+      # creating anything, so a directory is never made outside the source,
+      # then the created directory itself.
+      def make_dir_inside!(root, dir)
+        ensure_inside!(root, deepest_existing(dir))
+        FileUtils.mkdir_p(dir)
+        ensure_inside!(root, dir)
+      rescue Errno::EEXIST, Errno::ENOTDIR, Errno::ELOOP
+        raise Rejected.new("source_invalid", "archive entry #{dir.delete_prefix("#{root}/")} cannot be created")
+      end
+
+      def deepest_existing(path)
+        path = File.dirname(path) until File.exist?(path) || path == File.dirname(path)
+        path
+      end
+
+      # Every link that resolves at all must resolve inside the source; a
+      # dangling link points at nothing and is left alone.
+      def verify_links_inside!(root)
+        Dir.glob("**/*", File::FNM_DOTMATCH, base: root).each do |relative|
+          path = File.join(root, relative)
+          next unless File.symlink?(path)
+
+          real = begin
+            File.realpath(path)
+          rescue Errno::ENOENT, Errno::ELOOP
+            next
+          end
+          next if real == root || real.start_with?("#{root}/")
+
+          raise Rejected.new("path_traversal", "symlink #{relative} leaves the source")
+        end
       end
 
       def ensure_inside!(root, dir)

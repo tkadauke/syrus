@@ -4910,6 +4910,35 @@ without the fix.
 
 ---
 
+## F137. A source archive could plant a symlink out of the build source through another symlink — fixed
+
+**Invariant.** `SourceExtractor` unpacks an untrusted archive and rejects
+anything that could write outside the destination, including symlinks that
+leave the tree.
+
+**Counterexample.** A link's target was checked lexically from the path the
+link was written under, which does not follow symlinks. With `d -> .`, the
+entry `d/x -> ..` checked as the root but really was the root's parent, and a
+directory entry `d/x/escaped` was then created outside the destination,
+because directory entries were made with `mkdir_p` without any check (file
+and link entries also ran `mkdir_p` before checking). `y -> d/..` escaped the
+same way through a target's own segments. The extraction runs inside the
+build's private tmpfs mount namespace, which bounds the damage, but the
+promise did not hold.
+
+**Fix.** Every directory is checked through the real path of its deepest
+existing ancestor before anything is created, a link's lexical check starts
+from the real directory, and once the tree is complete every link that
+resolves must resolve inside it. Relative links that stay inside (such as
+`app/lib -> ../shared`) still work.
+
+**Specs.** `spec/services/runtime_images/builds/isolated_builder_spec.rb`:
+"rejects a symlink that leaves the source through another symlink" and
+"rejects a symlink whose target climbs out through another symlink" (both
+fail without the fix), "keeps a relative symlink that stays inside the source".
+
+---
+
 ## F136. A coworker base whose labels could not be read kept its cache lease — fixed (minor)
 
 **Invariant.** `WorkerCache#acquire` hands out a lease only with an image; a

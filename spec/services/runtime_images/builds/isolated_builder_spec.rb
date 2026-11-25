@@ -142,6 +142,58 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect { build(request_for({}, bytes: bytes)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("path_traversal") }
     end
 
+    # F137: a symlink's target was checked lexically from the path it was
+    # written under, not from where that path really is. Through "d" -> ".",
+    # "d/x" -> ".." looked like the root but was the root's parent.
+    it "rejects a symlink that leaves the source through another symlink" do
+      Dir.mktmpdir do |dir|
+        archive = File.join(dir, "a.tar")
+        File.open(archive, "wb") do |io|
+          Gem::Package::TarWriter.new(io) do |tar|
+            tar.add_symlink("d", ".", 0o777)
+            tar.add_symlink("d/x", "..", 0o777)
+            tar.mkdir("d/x/escaped", 0o755)
+          end
+        end
+
+        expect { RuntimeImages::Builds::SourceExtractor.new.extract(archive, File.join(dir, "dest")) }
+          .to raise_error(RuntimeImages::Builds::Rejected) { |e| expect(e.code).to eq("path_traversal") }
+        expect(File.exist?(File.join(dir, "escaped"))).to be(false)
+      end
+    end
+
+    it "rejects a symlink whose target climbs out through another symlink" do
+      Dir.mktmpdir do |dir|
+        archive = File.join(dir, "a.tar")
+        File.open(archive, "wb") do |io|
+          Gem::Package::TarWriter.new(io) do |tar|
+            tar.add_symlink("d", ".", 0o777)
+            tar.add_symlink("y", "d/..", 0o777)
+          end
+        end
+
+        expect { RuntimeImages::Builds::SourceExtractor.new.extract(archive, File.join(dir, "dest")) }
+          .to raise_error(RuntimeImages::Builds::Rejected) { |e| expect(e.code).to eq("path_traversal") }
+      end
+    end
+
+    it "keeps a relative symlink that stays inside the source" do
+      Dir.mktmpdir do |dir|
+        archive = File.join(dir, "a.tar")
+        File.open(archive, "wb") do |io|
+          Gem::Package::TarWriter.new(io) do |tar|
+            tar.mkdir("shared", 0o755)
+            tar.add_file_simple("shared/lib.rb", 0o644, 1) { |f| f.write("x") }
+            tar.mkdir("app", 0o755)
+            tar.add_symlink("app/lib", "../shared", 0o777)
+          end
+        end
+
+        RuntimeImages::Builds::SourceExtractor.new.extract(archive, File.join(dir, "dest"))
+        expect(File.read(File.join(dir, "dest", "app", "lib", "lib.rb"))).to eq("x")
+      end
+    end
+
     it "rejects archives containing traversing entries" do
       bytes = tar_gz({ "../evil" => "x", "Dockerfile" => "x" })
       expect { build(request_for({}, bytes: bytes)) }.to raise_error(RuntimeImages::Builds::BuildFailed) { |e| expect(e.code).to eq("path_traversal") }
