@@ -100,6 +100,12 @@ class Workflow < ApplicationRecord
   end
 
   aasm column: :state, whiny_transitions: false do
+    # Every event propagates down to Steps and Runs and up to the WorkUnit,
+    # intent, Job and Epic, so the ancestry is locked first, top down (NY40).
+    # A terminal event can also cancel the Job's other active Workflows
+    # (superseded retries, a pending closure); Lineage takes their ancestries
+    # too. Locking queries keep the caller's unsaved changes.
+    before_all_events { lock_event_lineage! if persisted? }
     after_all_transitions :record_state_transition!
     state :queued, initial: true
     state :running, :succeeded, :failed, :cancelled, :blocked
@@ -910,8 +916,15 @@ class Workflow < ApplicationRecord
   # workflow if it crosses the threshold. Per-Workflow scope: a
   # bad CiFailure burst doesn't take down a Job whose Initial was
   # clean.
+  # Lineage takes the Job's other active Workflows with it.
+  def lock_event_lineage! = Lineage.lock!(self)
+
   def record_run_failure!
-    with_lock do
+    # Ancestry first, top down (NY40): auto-failing propagates to the Job.
+    # Then reloaded as with_lock would.
+    self.class.transaction do
+      Lineage.lock!(self)
+      reload
       self.failure_count += 1
       if state == "running" && failure_count >= AppSetting.max_job_failures && may_fail?
         # Persist the counter and state transition in the same transaction.

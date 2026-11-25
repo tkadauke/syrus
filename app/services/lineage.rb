@@ -18,10 +18,18 @@ module Lineage
   # Several records' ancestries at once, possibly across Jobs: every row of a
   # model is locked before any row of the next model down, ids ascending
   # within a model, so the order holds across lineages too.
+  #
+  # Each Job's active Workflows come with it, and their intents and WorkUnits:
+  # a Workflow event can cancel its siblings (superseded retries, a pending
+  # closure), and a sibling's ancestry taken after this Workflow would be out
+  # of order.
   def lock_all!(records)
     ids_by_model = Hash.new { |hash, klass| hash[klass] = [] }
     records.compact.each do |record|
       ancestry(record).each { |klass, id| ids_by_model[klass] << id }
+    end
+    active_siblings(ids_by_model[Job].uniq).each do |workflow|
+      ancestry(workflow).each { |klass, id| ids_by_model[klass] << id }
     end
     MODELS.each do |klass|
       ids = ids_by_model[klass].uniq.sort
@@ -31,6 +39,13 @@ module Lineage
   end
 
   MODELS = [ Epic, Job, WorkIntent, WorkUnit, Workflow, Step, Run ].freeze
+  ACTIVE_WORKFLOW_STATES = %w[queued running].freeze
+
+  def active_siblings(job_ids)
+    return [] if job_ids.empty?
+
+    Workflow.where(job_id: job_ids, state: ACTIVE_WORKFLOW_STATES).includes(work_unit: :work_intent).order(:id).to_a
+  end
 
   # The ancestry and every Workflow, Step and Run below +record+, top down.
   # A dependent: :destroy cascade deletes children before parents; with the

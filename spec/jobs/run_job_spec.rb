@@ -105,9 +105,12 @@ RSpec.describe RunJob, :ci_only do
       attempts = 0
 
       # Acquisition locks the Run's ancestry with Lineage.lock! (NY40).
+      # Counts the Run's: starting its Workflow and Step locks their own too.
       allow(Lineage).to receive(:lock!).and_wrap_original do |original, *args, &block|
-        attempts += 1
-        raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+        if args.first.is_a?(Run)
+          attempts += 1
+          raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+        end
 
         original.call(*args, &block)
       end

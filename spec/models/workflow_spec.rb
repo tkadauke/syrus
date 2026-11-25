@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Workflow, :ci_only do
+RSpec.describe Workflow, :ci_only, :hierarchical_locks do
   include ActiveJob::TestHelper
 
   let(:job) { Factories.job }

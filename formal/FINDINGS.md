@@ -4831,6 +4831,16 @@ three Workflow cleanup methods lock Steps before anything writes a Run,
 including the process-kill request. The work-engine simulation suite (102
 scenarios) now runs with the hierarchical order raising.
 
+Part 10: every Workflow event takes the Workflow's ancestry first
+(`before_all_events`), and a Lineage lock now also takes the Job's other active
+Workflows, with their intents and WorkUnits: a Workflow event can cancel its
+siblings, whose ancestries would otherwise be locked after it. Pausing landing
+after an infrastructure failure writes the operator's User row, which ranks
+above the Epic and Job, so it now runs after the transaction commits instead
+of serializing every Job of that operator on one row. The Workflow model spec
+runs with the order raising. The full suite after part 10 passes both phases
+and records 59 violations at 41 sites, down from about 1,100.
+
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
 Job is in order after `Lineage.lock!`, and the same writes without it raise. It
