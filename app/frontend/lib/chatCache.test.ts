@@ -45,6 +45,29 @@ describe("mergeChatPayloadUpdate", () => {
     expect(queryClient.getQueryData<ChatPayload>(queryKey)).toEqual(merged)
   })
 
+  it("appends messages returned by a slim mutation without replacing cached history", () => {
+    const queryClient = new QueryClient()
+    const queryKey = ["chat", "8", ""] as const
+    const cached = chatPayload()
+    queryClient.setQueryData<ChatPayload>(queryKey, cached)
+
+    const sentMessage = {
+      type: "message" as const,
+      id: 102,
+      role: "user" as const,
+      text: "Visible without realtime",
+      bookmarkable: true,
+      client_idempotency_key: "send-102"
+    }
+    const merged = mergeChatPayloadUpdate(queryClient, queryKey, {
+      message: "Message sent.",
+      chat: { id: 8, turn_in_flight: true },
+      messages: [sentMessage]
+    })
+
+    expect(merged.messages).toEqual([cached.messages[0], sentMessage])
+  })
+
   it("does not leave a middle-history gap when a mutation returns only the latest page", () => {
     const queryClient = new QueryClient()
     const queryKey = ["chat", "8", ""] as const

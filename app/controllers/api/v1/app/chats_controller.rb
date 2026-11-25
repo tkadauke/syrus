@@ -422,7 +422,13 @@ module Api
             return
           end
 
-          render json: chat_mutation_payload(chat_session, message: "Message sent.")
+          # The sender must not depend on Action Cable to see its own write.
+          # A resource-channel event can race subscription confirmation or be
+          # missed during a mobile reconnect, while the HTTP response is the
+          # authoritative acknowledgement for this request.
+          render json: chat_mutation_payload(chat_session, message: "Message sent.").merge(
+            messages: ::App::ChatMessagePayload.messages([ user_message ], repository: chat_session.repository)
+          )
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 

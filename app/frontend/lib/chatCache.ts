@@ -26,7 +26,14 @@ export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: Query
       return merged
     }
 
-    merged = { ...current, ...update, chat: { ...current.chat, ...update.chat } }
+    merged = {
+      ...current,
+      ...update,
+      // A slim mutation may return only the records it created. Merge those
+      // into the transcript instead of replacing the whole cached history.
+      messages: update.messages ? mergeMessageTail(current.messages, update.messages) : current.messages,
+      chat: { ...current.chat, ...update.chat }
+    }
     return merged
   })
 

@@ -1120,7 +1120,7 @@ export type ChatPayload = {
 export type ChatMetadataUpdatePayload = {
   message?: string | null
   chat: Partial<ChatRecord> & Pick<ChatRecord, "id">
-} & Partial<Omit<ChatPayload, "chat" | "message" | "messages">>
+} & Partial<Omit<ChatPayload, "chat" | "message">>
 
 export type ChatPayloadUpdate = ChatPayload | ChatMetadataUpdatePayload
 

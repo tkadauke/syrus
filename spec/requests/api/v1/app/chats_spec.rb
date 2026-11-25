@@ -8057,6 +8057,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.last_message_at).to be > 1.minute.ago
     expect(parse_body["message"]).to eq("Message sent.")
+    expect(parse_body.fetch("messages")).to contain_exactly(
+      include(
+        "role" => "user",
+        "text" => "Now inspect proposals"
+      )
+    )
     expect(parse_body).not_to include("turn_in_flight", "agent_busy")
     expect(parse_body.dig("chat", "turn_in_flight")).to eq(true)
     expect(parse_body.dig("chat", "agent_busy")).to eq(false)

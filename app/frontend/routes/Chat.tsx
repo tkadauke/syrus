@@ -266,9 +266,14 @@ export function ChatRoute() {
     staleTime: 0,
     refetchInterval: (query) => {
       if (document.visibilityState !== "visible") return false
-      if (!isDisconnected) return false
       const data = query.state.data as ChatPayload | undefined
-      return data && isAgentActive(data) ? 3_000 : 30_000
+      // Realtime remains the fast path, but an active turn must keep making
+      // progress if the resource-scoped ChatChannel is rejected, races its
+      // initial subscription, or silently drops events on a mobile network.
+      // Poll only the one visible active chat; retain the slower disconnected
+      // recovery cadence while idle.
+      if (data && isAgentActive(data)) return 3_000
+      return isDisconnected ? 30_000 : false
     },
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
   })
