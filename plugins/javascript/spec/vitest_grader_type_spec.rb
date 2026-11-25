@@ -79,7 +79,10 @@ RSpec.describe JavaScript::VitestGraderType do
     command = described_class.grade_steps(config: {}, default_failures: "strict").third.run
     expect(command).to include("--maxWorkers ${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}")
 
-    expand = ->(env) { Open3.capture2(env, "bash", "-c", "echo ${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}").first.strip }
+    # Start from an environment with neither variable: this spec itself runs
+    # inside a grader, which exports SYRUS_PROCESS_PARALLELISM.
+    unset = { "SYRUS_PROCESS_PARALLELISM" => nil, "VITEST_MAX_WORKERS" => nil }
+    expand = ->(env) { Open3.capture2(unset.merge(env), "bash", "-c", "echo ${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}").first.strip }
     expect(expand.call("SYRUS_PROCESS_PARALLELISM" => "5")).to eq("5")
     expect(expand.call("SYRUS_PROCESS_PARALLELISM" => "5", "VITEST_MAX_WORKERS" => "3")).to eq("3")
     expect(expand.call({})).to eq("2")
