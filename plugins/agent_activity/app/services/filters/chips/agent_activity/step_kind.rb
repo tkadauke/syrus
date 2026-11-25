@@ -11,7 +11,7 @@ module Filters
         operators :is_one_of
         values(
           *Syrus::Host::Step::AGENTIC_KINDS.map { |kind| { "value" => kind, "label" => Syrus::Host::Step::Kind.label_for(kind) } },
-          *ChatSession::MODES.map { |mode| { "value" => mode, "label" => mode.humanize } },
+          *Syrus::Host::ChatSession::MODES.map { |mode| { "value" => mode, "label" => mode.humanize } },
           { "value" => "design_doc", "label" => "Design Doc" }
         )
 
@@ -27,7 +27,7 @@ module Filters
 
         def role_sql(values)
           workflow_kinds = values & Syrus::Host::Step::AGENTIC_KINDS
-          chat_modes = values & ChatSession::MODES
+          chat_modes = values & Syrus::Host::ChatSession::MODES
           predicates = []
           binds = []
 

@@ -3,7 +3,7 @@ require "json"
 
 module ChatProviders
   class Claude < Syrus::Host::ChatProviderBase
-    include Syrus::Plugin::ChatProvider
+    include Syrus::Host::ChatProvider
 
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
     PLANNING_DISALLOWED_TOOLS = %w[
@@ -121,7 +121,7 @@ module ChatProviders
 
       path = Syrus::Host::ProviderSession.canonical_path_for(
         home: ENV.fetch("HOME"),
-        cwd: ChatWorkspace.path_for(chat),
+        cwd: Syrus::Host::ChatWorkspace.path_for(chat),
         session_id: session_id
       )
 
@@ -133,7 +133,7 @@ module ChatProviders
           transcript_jsonl: transcript,
           normalized_messages: normalized_messages_for(
             merge_subagent_transcripts(transcript, home: ENV.fetch("HOME"),
-                                                     cwd: ChatWorkspace.path_for(chat), session_id: session_id)
+                                                     cwd: Syrus::Host::ChatWorkspace.path_for(chat), session_id: session_id)
           ),
           missing_message: nil
         )
@@ -152,7 +152,7 @@ module ChatProviders
 
     def run_invocation(workspace_path:, prompt:, mcp_config:, resume_session_id:,
                        stop_requested:, process_started:, log_sink:, workload_policy:)
-      claude_home = ChatWorkspace.agent_home_for(chat, provider).to_s
+      claude_home = Syrus::Host::ChatWorkspace.agent_home_for(chat, provider).to_s
       FileUtils.mkdir_p(claude_home)
       confined_mcp_config = mcp_config
       if File.file?(mcp_config)
@@ -188,7 +188,7 @@ module ChatProviders
     end
 
     def recovery_prompt(prompt)
-      recovery_context = ChatHistoryTranscriptRenderer.resume_recovery(chat_session: chat)
+      recovery_context = Syrus::Host::ChatHistoryTranscriptRenderer.resume_recovery(chat_session: chat)
       [ recovery_context, prompt_without_compact_fallback(prompt) ].compact.join("\n\n---\n\n")
     end
 
@@ -229,10 +229,10 @@ module ChatProviders
           cwd: workspace_path,
           session_id: session_id
         )
-        next if File.exist?(path) && !ChatContextCompactor.enabled_for?(chat)
+        next if File.exist?(path) && !Syrus::Host::ChatContextCompactor.enabled_for?(chat)
         next unless chat.messages.exists?
 
-        jsonl = ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
+        jsonl = Syrus::Host::ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
         FileUtils.mkdir_p(File.dirname(path))
         File.write(path, jsonl)
       end
