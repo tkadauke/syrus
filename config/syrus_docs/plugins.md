@@ -394,15 +394,15 @@ policy requires fail-closed execution.
 
 Runtime-capable plugins expose these tools in Coding, planning, and coworker chats (not Local Mode):
 
-`runtime_list_providers`, `runtime_list_sessions`, `runtime_start`,
-`runtime_stop`, `runtime_inspect`, `runtime_input`, `runtime_wait`,
-`runtime_snapshot`, `runtime_capture_artifact`, `runtime_build`,
-`runtime_get_capabilities`, `runtime_acquire_control`, and
-`runtime_release_control`.
+`runtime_list_providers`, `runtime_list_sessions`, `runtime_start`, `runtime_stop`, `runtime_inspect`, `runtime_input`,
+`runtime_wait`, `runtime_snapshot`, `runtime_capture_artifact`, `runtime_build`, `runtime_get_capabilities`, `runtime_acquire_control`, and `runtime_release_control`.
 
 They are gated by the `coding_mode` flag. Tools that send keyboard, stdin,
 pointer, or resize input require a current control lease obtained through
 `runtime_acquire_control`; read-only inspection and waiting do not.
+
+`runtime_start` accepts `repository_id` or `repository_slug` to select an attached repository. Omit the selector only when the chat has one accessible repository; with several, the tool lists their slugs and IDs for an explicit choice.
+The selected repository must be attached to the current chat and accessible to its user. Coworker product checkouts remain read-only; their Runtime Sessions use separate writable runtime workspaces.
 
 Plugins may declare `:secret_env` configuration whose value is read from the
 process environment and is never stored in the database.
