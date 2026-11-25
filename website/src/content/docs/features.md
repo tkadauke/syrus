@@ -434,8 +434,13 @@ immediately instead.
 Coding Mode chats, and planning or coworker chats that have attached a
 repository, also get a set of generic `runtime_*` tools for working with a live
 Runtime Session — a dev server, browser, or other running process attached to
-the chat's repository workspace — so the agent (or a coworker doing acceptance
-testing) can start it, build or
+an attached repository workspace. When multiple repositories are attached,
+`runtime_start` requires the target's `repository_id` or `repository_slug`;
+this lets a coworker keep its persistent home repository while running an
+attached product repository. The selected product checkout remains read-only,
+while the runtime uses a separate writable scratch clone. The tools let the
+agent (or a coworker doing acceptance
+testing) start it, build or
 reload it, snapshot or inspect what's running, page through its logs, and
 tear it down when done: `runtime_list_sessions`, `runtime_start`,
 `runtime_status`, `runtime_build_or_reload`, `runtime_launch`,

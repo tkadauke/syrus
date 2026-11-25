@@ -700,6 +700,7 @@ RSpec.describe Prompts::ChatSystem do
       expect(prompt).to include("do not claim it was saved unless the workspace tool\n  returned success")
       expect(prompt).to include("Never commit, merge, push, open pull requests, deploy")
       expect(prompt).to include("Attached product repositories are read-only")
+      expect(prompt).to include("pass its `repository_id` or `repository_slug` to `runtime_start`")
       expect(prompt).to include("Git metadata, commits, merges, and pushes are orchestrator-owned")
       expect(prompt).to include("never run Git persistence commands yourself")
       expect(prompt).not_to include("when useful", "when they will help future work")
