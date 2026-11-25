@@ -23,16 +23,17 @@ module Mcp::Tools
         reason: { type: "string", description: "Why overriding the remaining failure is justified." },
         bug_report_url: { type: "string", description: "Optional linked Syrus bug report." }
       },
-      required: %w[job_id fingerprint_digest diagnosis remediation_attempted reason]
+      required: %w[job_id fingerprint_digest reason]
     )
 
     class << self
       include JobLifecycleToolSupport
       include ProposalToolSupport
 
-      def call(job_id:, fingerprint_digest:, diagnosis:, remediation_attempted:, reason:, bug_report_url: nil, server_context:)
+      def call(job_id:, fingerprint_digest:, reason:, diagnosis: nil, remediation_attempted: nil, bug_report_url: nil, server_context:)
         job = find_job!(job_id)
         candidate = WorkflowOutcomeOverrides::CandidateResolver.new(job).find!(fingerprint_digest)
+        tool_context = McpToolContext.from_server_context(server_context)
         action = create_pending_action_for_current_message!(
           server_context, server_context.fetch(:chat_session), action: "workflow_outcome_override",
           requested_by: "agent", reason: reason.to_s.strip,
@@ -41,7 +42,9 @@ module Mcp::Tools
             "gate_kind" => candidate.gate_failure[:gate_kind], "gate_identity" => candidate.gate_failure[:gate_identity],
             "candidate_head_sha" => candidate.gate_failure[:candidate_head_sha], "evidence_digest" => candidate.gate_failure[:evidence_digest],
             "diagnosis" => diagnosis.to_s.strip, "remediation_attempted" => remediation_attempted.to_s.strip,
-            "bug_report_url" => bug_report_url.to_s.strip.presence, "consequence" => candidate.consequence
+            "bug_report_url" => bug_report_url.to_s.strip.presence, "consequence" => candidate.consequence,
+            "permission_role" => tool_context.role,
+            "subject_selector_type" => tool_context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? "agent" : "interactive_chat"
           }.compact
         )
         Mcp::Tools.success(pending_action_id: action.id, state: action.state,
