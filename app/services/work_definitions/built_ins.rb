@@ -250,6 +250,21 @@ module WorkDefinitions
     self.scope = "repository"
   end
 
+  # An operator's emergency merge (NY43). It runs no Workflow: the unit holds
+  # the per-branch merge lock for the one merge call, so a landing lane cannot
+  # merge between its head check and the emergency merge, and it finishes when
+  # the merge returns. One left running by a crash is released by the
+  # reconciler once it is older than STALE_AFTER.
+  class EmergencyLand < Base
+    STALE_AFTER = 10.minutes
+
+    self.kind = "emergency_land"
+    self.workflowless = true
+    self.runtime_role = "first_class"
+    self.scope = "job"
+    self.display_label = "Emergency land"
+  end
+
   class Unland < Base
     include ManagesOwnJobLifecycle
     include RecordsGraderTargetSelectionInputs

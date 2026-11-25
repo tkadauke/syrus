@@ -155,6 +155,10 @@ models:
     sha: 55658a63dc4d0d36
 - model: MergeExclusion.lean
   mirrors:
+  - path: app/services/emergency_land/lander.rb
+    owner: Lander
+    method: with_merge_lock
+    sha: 455a0d960270aebb
   - path: app/services/merge_lock.rb
     owner: MergeLock
     method: try_acquire

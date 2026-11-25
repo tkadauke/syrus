@@ -46,8 +46,13 @@ module WorkDefinitions
     # disabled plugin's work kind disappears together with its trigger kind
     # instead of dangling as a definition pointing at an unknown trigger.
     class_attribute :plugin, instance_accessor: false
+    # A unit of this kind runs no Workflow: it only holds locks for work done
+    # outside the engine (an operator's emergency merge). It declares no
+    # workflow trigger or template.
+    class_attribute :workflowless, instance_accessor: false
 
     self.parent_kind = nil
+    self.workflowless = false
     self.review_publication_step_kinds = []
     self.display_label = nil
 
@@ -57,6 +62,7 @@ module WorkDefinitions
     end
 
     def kind = self.class.kind
+    def workflowless? = self.class.workflowless
     def workflow_trigger_kind = self.class.workflow_trigger_kind
     def runtime_role = self.class.runtime_role
     def scope = self.class.scope

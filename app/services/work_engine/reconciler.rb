@@ -1669,6 +1669,7 @@ module WorkEngine
       work_units.select(&:active?).filter_map do |unit|
         next if unit.workflow_id.present?
         next if closed_job_scoped_unit?(unit)
+        next if workflowless_unit_in_progress?(unit)
 
         issue(
           kind: :active_work_unit_without_workflow,
@@ -2205,6 +2206,15 @@ module WorkEngine
       return false unless unit.scope_type == "job" && unit.scope_id.to_i == job.id
 
       unit.workflow.nil?
+    end
+
+    # A workflow-less unit (an emergency merge) holds its lock only for one
+    # external call; it is stale only once it has outlived that.
+    def workflowless_unit_in_progress?(unit)
+      definition = WorkDefinitions.registry[unit.kind]
+      return false unless definition&.workflowless
+
+      (unit.started_at || unit.created_at) > @now - definition::STALE_AFTER
     end
 
     def closed_job_scoped_unit?(unit)

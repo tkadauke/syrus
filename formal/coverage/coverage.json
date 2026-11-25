@@ -3850,7 +3850,7 @@
         "C. Keep emergency landing as an override that does not take the lock, and document that it can race an in-flight lane merge (one API round-trip)."
       ],
       "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing.",
-      "decision": "A (2026-11-24, answered on the lean-plan site): a short-lived WorkUnit under a new emergency_land work definition holds the merge lock for the emergency merge. To implement."
+      "decision": "A (2026-11-24, answered on the lean-plan site): a short-lived WorkUnit under a new emergency_land work definition holds the merge lock for the emergency merge. Implemented on the branch (F133, 2026-11-25)."
     }
   ]
 }

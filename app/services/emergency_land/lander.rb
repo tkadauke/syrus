@@ -78,11 +78,14 @@ module EmergencyLand
       end
       return refuse("#{job.slug} acquired active runtime work while emergency land was validating; retry after it finishes.") unless runtime_retired
 
-      merge = merge!(pr_number, expected_sha: expected_sha)
+      merge = with_merge_lock { merge!(pr_number, expected_sha: expected_sha) }
+      return refuse(merge_lock_busy_message) if merge == :merge_lock_busy
       return failure("GitHub did not report PR ##{pr_number} as merged.") unless merged?(merge)
 
       record_audit!(pr_number: pr_number, merge: merge, source_sha: expected_sha)
       success(pr_number)
+    rescue WorkUnits::Launcher::LockConflict => e
+      refuse("#{job.slug} acquired active work (#{e.work_unit&.slug || e.lock_key}) while emergency land was validating; retry after it finishes.")
     rescue Octokit::Error => e
       failure("GitHub error: #{e.class}: #{e.message}")
     rescue RepositoryContent::Error => e
@@ -199,6 +202,49 @@ module EmergencyLand
         commit_title: "Merge #{repository.slug}##{pr_number} via Syrus (emergency land)",
         expected_sha: expected_sha
       )
+    end
+
+    # NY43: the per-branch merge lock, held on a short-lived emergency_land
+    # WorkUnit for the merge call, so a landing lane cannot merge between its
+    # head check and this merge (formal/SyrusModel/MergeExclusion.lean). Waits
+    # as long as a landing step would, then refuses; the operator retries.
+    def with_merge_lock
+      key = WorkDefinitions.merge_lock_key_for(job)
+      return yield if key.nil?
+
+      unit = launch_merge_lock_unit!
+      outcome = "cancelled"
+      return :merge_lock_busy unless acquire_merge_lock(unit, key)
+
+      outcome = "failed"
+      result = yield
+      outcome = "succeeded" if merged?(result)
+      result
+    ensure
+      unit&.mark_terminal!(outcome) if unit && !unit.reload.terminal?
+    end
+
+    def launch_merge_lock_unit!
+      WorkUnits::Launcher.start_workflowless!(kind: "emergency_land", job: job, source_type: "emergency_land")
+    end
+
+    def acquire_merge_lock(unit, key)
+      deadline = Time.current + Steps::MergeLockControl.merge_lock_wait
+      loop do
+        begin
+          return unit.work_unit_locks.create!(lock_key: key) unless WorkUnitLock.active.exists?(lock_key: key)
+        rescue ActiveRecord::RecordNotUnique
+          nil
+        end
+        return nil if Time.current >= deadline
+
+        poll = Steps::MergeLockControl.merge_lock_poll.to_f
+        @sleeper.call(poll) if poll.positive?
+      end
+    end
+
+    def merge_lock_busy_message
+      "A landing lane holds the merge lock for #{job.effective_base_branch}; retry emergency land when it finishes."
     end
 
     def merged?(merge)

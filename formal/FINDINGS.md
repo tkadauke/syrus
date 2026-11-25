@@ -4910,6 +4910,44 @@ without the fix.
 
 ---
 
+## F133. Emergency landing merged without the merge lock — fixed (NY43: A)
+
+**Invariant.** `MergeExclusion.lean`: no writer moves a landing branch between
+a lane's base check and that lane's merge, provided every writer holds the
+branch's merge lock (`no_write_between_check_and_merge`). NY41 made hotfix sync
+and promotion take it.
+
+**Counterexample.** Emergency landing merged through GitHub's API without the
+lock, so an operator's emergency merge could land between a lane's check and
+its merge, and the lane then merged onto a base it had not validated
+(`unlocked_emergency_land_breaks_it`).
+
+**Fix.** The merge lock is a WorkUnitLock, so emergency landing now launches a
+short-lived WorkUnit of a new workflow-less `emergency_land` work definition,
+through `WorkUnits::Launcher.start_workflowless!`. That entry point creates
+the unit queued and starts it through `WorkUnit#mark_running!`, so the unit
+also holds the Job's lock and stays inside the ownership argument
+(`LockSafety.lean`, `UnitReentry.lean`). It takes the merge lock with the same
+wait as a landing step, merges, and finishes the unit in an `ensure`, which
+releases the lock. If the lock stays busy, or other work claims the Job first,
+it refuses with a retryable message.
+
+Two parts of the engine assumed every unit has a Workflow. The registry
+validator now accepts definitions that declare themselves workflow-less. The
+reconciler, which cancels an active unit without a Workflow as an orphan,
+leaves a workflow-less unit alone for `EmergencyLand::STALE_AFTER` (ten
+minutes), so its merge is not interrupted, and cancels it after that, so a
+crash cannot hold the lock forever.
+
+**Specs.** `spec/services/emergency_land/lander_spec.rb` (refuses while a lane
+holds the lock; holds the lock on its own unit during the merge and releases
+it; refuses on a Job-lock conflict), `spec/services/work_units/launcher_spec.rb`
+(`start_workflowless!`), and `spec/services/work_engine/reconciler_spec.rb` (a
+fresh emergency unit is left alone, a stale one is cancelled with its lock
+released).
+
+---
+
 ## F132. A worker cache holder that outlived its lease released the next holder's — fixed
 
 **Invariant.** `RuntimeImages::WorkerCache` documents that an acquired image

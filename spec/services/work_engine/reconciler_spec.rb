@@ -2286,6 +2286,38 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(intent.reload).to be_requested
   end
 
+  # NY43: an emergency merge runs no Workflow; its unit holds the merge lock
+  # for one external call. Left alone while that can still be in flight,
+  # released like any orphan once it has outlived it.
+  describe "an emergency-land unit" do
+    def emergency_unit(started_at:)
+      intent = WorkIntent.create!(kind: "emergency_land", state: "requested", repository: job.repository,
+        scope_type: "job", scope_id: job.id, actor: job.user, requested_at: started_at)
+      unit = WorkUnit.create!(work_intent: intent, kind: "emergency_land", state: "running", repository: job.repository,
+        scope_type: "job", scope_id: job.id, started_at: started_at)
+      [ unit, unit.work_unit_locks.create!(lock_key: "merge:repository:#{job.repository_id}") ]
+    end
+
+    it "is left alone while its merge can still be in flight" do
+      unit, lock = emergency_unit(started_at: 1.minute.ago)
+
+      result = reconcile_and_execute
+
+      expect(kind(result, :active_work_unit_without_workflow)).to be_nil
+      expect(unit.reload).to be_running
+      expect(lock.reload).to be_active
+    end
+
+    it "is cancelled, releasing its merge lock, once it has outlived its merge" do
+      unit, lock = emergency_unit(started_at: (WorkDefinitions::EmergencyLand::STALE_AFTER + 1.minute).ago)
+
+      reconcile_and_execute
+
+      expect(unit.reload).to be_cancelled
+      expect(lock.reload).not_to be_active
+    end
+  end
+
   it "finishes stale job-scoped WorkUnits for closed jobs" do
     closed_job = Factories.job_record(
       user: job.user,

@@ -105,6 +105,10 @@ computing mergeability. A real conflict stops immediately; if mergeability is
 still unknown, the confirmation fails with a retryable message rather than
 claiming the branch conflicts. Retrying after any failed confirmation creates
 a fresh confirmation.
+The merge itself waits for any landing that is merging into the same branch at
+that moment, so it can never land between that landing's base check and its
+merge; if the branch stays busy for about ten minutes, the confirmation fails
+with a retryable message.
 The confirmation remains in progress until the merge succeeds; capture or
 landing failures are recorded as failed confirmations instead of appearing applied.
 
