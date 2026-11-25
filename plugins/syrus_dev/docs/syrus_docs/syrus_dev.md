@@ -69,8 +69,13 @@ registry:
   phases (by phase/name/plugin-derived label), browser traces (by
   name/path, including nested API-request and span durations), and SQL
   fingerprints (deduplicated by a stable fingerprint, sample SQL attached).
-  Each summary row carries count/total/average/max duration. When a prior
-  app revision's data is available, `baseline.comparisons` diffs each
+  Each summary row carries count/total/average/max duration. Input-latency
+  browser summaries additionally carry average and maximum input delay,
+  processing duration, and presentation delay. Their companion input telemetry
+  health traces distinguish eligible and sampled-out sessions, Event Timing
+  support and observer initialization, rate limiting, and delivery failures;
+  use those statuses to explain an empty latency window. When a prior app
+  revision's data is available, `baseline.comparisons` diffs each
   current-revision row against its same-key baseline row and classifies it
   `regressed`/`improved`/`new`/`unchanged` (regressed: ≥250ms slower *and*
   ≥1.5x; improved: ≥250ms faster *and* ≤0.75x), letting operators spot
