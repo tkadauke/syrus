@@ -684,6 +684,9 @@ Rails.application.routes.draw do
         post "workflows/:id/retry_step",        to: "workflows#retry_step"
         post "workflows/:id/cleanup_workspace", to: "workflows#cleanup_workspace"
 
+        get "runtime_images", to: "runtime_images#show"
+        post "runtime_images/reconcile", to: "runtime_images#reconcile"
+
         # Subprocess inventory for external admin API clients.
         # Index supports ?state=running|finished|all (default
         # "active_or_recent"), ?kind=, ?hostname=, ?since=,

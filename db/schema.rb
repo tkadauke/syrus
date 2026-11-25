@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_205837) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3948,6 +3948,93 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_132530) do
     t.index ["runtime_session_id", "mode", "state"], name: "index_runtime_control_leases_on_session_mode_state"
     t.index ["runtime_session_id", "state"], name: "index_runtime_control_leases_on_runtime_session_id_and_state"
     t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"
+  end
+
+  create_table "runtime_image_audit_events", force: :cascade do |t|
+    t.bigint "runtime_image_id"
+    t.bigint "runtime_image_namespace_id"
+    t.string "event_type", limit: 64, null: false
+    t.string "outcome", limit: 32, null: false
+    t.string "digest", limit: 191
+    t.string "actor", limit: 100
+    t.json "details"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.index ["event_type", "occurred_at"], name: "idx_ri_audit_type_time"
+    t.index ["occurred_at"], name: "idx_ri_audit_time"
+    t.index ["runtime_image_id", "occurred_at"], name: "idx_ri_audit_image_time"
+  end
+
+  create_table "runtime_image_cache_entries", force: :cascade do |t|
+    t.string "hostname", limit: 191, null: false
+    t.bigint "runtime_image_id", null: false
+    t.string "digest", limit: 191, null: false
+    t.string "state", limit: 32, default: "present", null: false
+    t.bigint "size_bytes"
+    t.boolean "prefetched", default: false, null: false
+    t.datetime "pulled_at"
+    t.datetime "last_used_at"
+    t.datetime "leased_until"
+    t.integer "lease_count", default: 0, null: false
+    t.string "claim_token", limit: 32
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname", "runtime_image_id"], name: "idx_ri_cache_entries_host_image", unique: true
+    t.index ["hostname", "state", "last_used_at"], name: "idx_ri_cache_entries_lru"
+  end
+
+  create_table "runtime_image_namespaces", force: :cascade do |t|
+    t.string "name", limit: 191, null: false
+    t.string "owner_kind", limit: 100, null: false
+    t.string "owner_ref", limit: 191, null: false
+    t.string "provider_key", limit: 100, null: false
+    t.integer "retention_days"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "idx_runtime_image_namespaces_name", unique: true
+    t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
+  end
+
+  create_table "runtime_image_pull_events", force: :cascade do |t|
+    t.string "hostname", limit: 191, null: false
+    t.bigint "runtime_image_id"
+    t.string "digest", limit: 191, null: false
+    t.string "outcome", limit: 32, null: false
+    t.boolean "cache_hit", default: false, null: false
+    t.boolean "prefetch", default: false, null: false
+    t.integer "duration_ms"
+    t.string "error_class", limit: 191
+    t.string "error_message", limit: 500
+    t.datetime "created_at", null: false
+    t.index ["hostname", "created_at"], name: "idx_ri_pull_events_host_time"
+    t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
+  end
+
+  create_table "runtime_images", force: :cascade do |t|
+    t.bigint "runtime_image_namespace_id", null: false
+    t.string "digest", limit: 191, null: false
+    t.string "platform", limit: 64, default: "linux/amd64", null: false
+    t.string "locator", limit: 1000
+    t.string "source_kind", limit: 100, null: false
+    t.string "source_ref", limit: 191, null: false
+    t.string "source_digest", limit: 191
+    t.json "provenance", null: false
+    t.string "availability", limit: 32, default: "pending", null: false
+    t.datetime "published_at"
+    t.datetime "revoked_at"
+    t.string "revoked_reason", limit: 500
+    t.string "retention_state", limit: 32, default: "default", null: false
+    t.datetime "retain_until"
+    t.string "retention_reason", limit: 500
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "cleanup_failure_count", default: 0, null: false
+    t.datetime "cleanup_failed_at"
+    t.string "cleanup_last_error", limit: 500
+    t.index ["availability", "retention_state"], name: "idx_runtime_images_state"
+    t.index ["runtime_image_namespace_id", "digest", "platform"], name: "idx_runtime_images_identity", unique: true
+    t.index ["source_kind", "source_ref"], name: "idx_runtime_images_source"
   end
 
   create_table "runtime_sessions", force: :cascade do |t|

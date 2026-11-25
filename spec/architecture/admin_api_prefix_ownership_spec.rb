@@ -136,6 +136,8 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/browser_errors api/v1/admin/browser_errors#index
     GET /api/v1/admin/backend_exceptions api/v1/admin/backend_exceptions#index
     GET /api/v1/admin/worker_health api/v1/admin/worker_health#show
+    GET /api/v1/admin/runtime_images api/v1/admin/runtime_images#show
+    POST /api/v1/admin/runtime_images/reconcile api/v1/admin/runtime_images#reconcile
     GET /api/v1/admin/plugins api/v1/admin/plugins#index
     POST /api/v1/admin/plugins/:name/enable api/v1/admin/plugins#enable
     POST /api/v1/admin/plugins/:name/disable api/v1/admin/plugins#disable

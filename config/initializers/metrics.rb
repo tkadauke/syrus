@@ -21,6 +21,8 @@ Rails.application.config.to_prepare do
     "Metrics::LandingSampler",
     "Metrics::WorkerSampler",
     "Metrics::FleetSampler",
+    "Metrics::RuntimeImageSampler",
+    "RuntimeImages::Telemetry",
     "Metrics::ResilienceSampler",
     "Metrics::MaintenanceSampler",
     "WorkflowAdmissionBudget",
