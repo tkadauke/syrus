@@ -5,6 +5,7 @@ class EmergencyLandConfirmJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   def perform(pending_action_id)
+    direct_capture_created = false
     action = ChatPendingAction.find(pending_action_id)
     return unless action.confirming?
 
@@ -22,7 +23,12 @@ class EmergencyLandConfirmJob < ApplicationJob
     raise ArgumentError, "Emergency land requires repository admin permissions" unless EmergencyLand::Permission.granted?(user: user, repository: repository)
 
     action.update_confirmation_progress!("running", "Capturing and emergency landing the confirmed change...")
-    job = payload["job_id"].present? ? existing_job!(payload, repository) : capture_direct_job!(payload, chat, user, repository, action)
+    if payload["job_id"].present?
+      job = existing_job!(payload, repository)
+    else
+      job = capture_direct_job!(payload, chat, user, repository, action)
+      direct_capture_created = true
+    end
     result = EmergencyLand::Lander.land(job: job, user: user)
     raise ArgumentError, result.message if result.refused?
     raise StandardError, result.message if result.failure?
@@ -30,6 +36,7 @@ class EmergencyLandConfirmJob < ApplicationJob
     action.complete_confirmation!(result.job)
     post_message!(chat, "Emergency landed #{result.job.slug} from #{result.job.emergency_land_source_sha} via PR ##{result.pr_number}.")
   rescue StandardError => e
+    job.force_fail! if direct_capture_created && job&.may_force_fail?
     action&.fail_confirmation!(e) if action&.confirming?
     post_message!(chat, "Emergency land failed: #{e.message}") if chat
   end
@@ -51,7 +58,7 @@ class EmergencyLandConfirmJob < ApplicationJob
 
     user.jobs.create!(repository: repository, kind: "direct", issue_title: payload.fetch("title"),
       issue_body: payload.fetch("description"), branch_name: snapshot.fetch("handoff_branch"),
-      state: "implemented")
+      emergency_land_source_sha: snapshot.fetch("head_sha"), state: "implemented")
   end
 
   def post_message!(chat, text)

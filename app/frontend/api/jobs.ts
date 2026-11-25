@@ -149,6 +149,7 @@ export type JobRecord = {
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
   stack_base: string
+  effective_base_branch: string
   issue_number: number | null
   issue_url: string | null
   issue_title: string | null
