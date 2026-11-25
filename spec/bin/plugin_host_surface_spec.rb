@@ -16,7 +16,9 @@ RSpec.describe "bin/plugin-host-surface" do
 
       expect(stderr).to be_empty
       expect(status.exitstatus).to eq(1)
-      expect(JSON.parse(stdout).fetch("unlisted").first).to include(
+      payload = JSON.parse(stdout)
+      expect(payload).not_to have_key("legacy")
+      expect(payload.fetch("unlisted").first).to include(
         "constant" => "MainHealthChangedService", "path" => "lib/external.rb", "line" => 1
       )
     end
