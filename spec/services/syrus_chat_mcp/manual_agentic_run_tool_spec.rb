@@ -86,4 +86,46 @@ RSpec.describe Mcp::Tools::ManualAgenticRunTool do
     expect(action.after_snapshot).to include("jobs")
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
+
+  it "rejects unconfirmed or unverifiable break-glass credential use" do
+    response = described_class.call(
+      job_id: job.id, base: "current_pr_branch", instructions: "Use gh.",
+      reason: "Exceptional provider repair.", github_access: true,
+      server_context: { chat_session: chat_session }
+    )
+
+    expect(JSON.parse(response_text(response))).to include("error" => "missing_expected_outcomes")
+    expect(chat_session.pending_actions.where(action: "manual_agentic_run")).to be_empty
+  end
+
+  it "rejects destructive authority without credential authority" do
+    response = described_class.call(
+      job_id: job.id, base: "current_pr_branch", instructions: "Close the PR.",
+      reason: "Exceptional provider repair.", destructive_github_operations: true,
+      server_context: { chat_session: chat_session }
+    )
+
+    expect(JSON.parse(response_text(response))).to include("error" => "destructive_access_requires_github_access")
+  end
+
+  it "creates a distinct risk confirmation for scoped break-glass access" do
+    installation = Factories.installation(user: admin, account_login: repository.owner)
+    repository.update!(installation: installation, github_repository_id: 12_345)
+
+    response = described_class.call(
+      job_id: job.id, base: "current_pr_branch", instructions: "Repair the provider state.",
+      reason: "Deterministic tools cannot express this repair.", github_access: true,
+      expected_outcomes: { remote_branch: { name: job.branch_name, sha: "a" * 40 } },
+      server_context: { chat_session: chat_session }
+    )
+    parsed = JSON.parse(response_text(response))
+    action = ChatPendingAction.find(parsed.fetch("pending_action_id"))
+
+    expect(parsed.fetch("message")).to include("BREAK-GLASS", repository.slug, installation.account_login, "external write")
+    expect(action.payload).to include(
+      "github_access" => true,
+      "destructive_github_operations" => false,
+      "expected_outcomes" => { "remote_branch" => { "name" => job.branch_name, "sha" => "a" * 40 } }
+    )
+  end
 end

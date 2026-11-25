@@ -127,6 +127,15 @@ module AgentProviders
         effort_level: effort_level,
         workload_policy: workload_policy
       )
+    ensure
+      if defined?(ManualAgenticRun::GithubAccess)
+        begin
+          access = ManualAgenticRun::GithubAccess.for(@run)
+          access.collect_audit! if access.enabled?
+        ensure
+          ManualAgenticRun::GithubAccess.cleanup(@run)
+        end
+      end
     end
 
     def run_once(prompt:, log_sink:, timeout:, max_turns:)
@@ -211,7 +220,7 @@ module AgentProviders
           provider: provider,
           expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
         )
-      }.compact
+      }.compact.merge(ManualAgenticRun::GithubAccess.for(@run).environment)
     end
 
     def app_api_url

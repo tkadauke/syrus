@@ -11,7 +11,10 @@ module PendingActions
         instructions: payload.fetch("instructions"),
         reason: reason,
         push: payload.fetch("push", true),
-        failed_workflow_id: payload["failed_workflow_id"]
+        failed_workflow_id: payload["failed_workflow_id"],
+        github_access: payload.fetch("github_access", false),
+        destructive_github_operations: payload.fetch("destructive_github_operations", false),
+        expected_outcomes: payload["expected_outcomes"]
       )
       result.workflow
     end
@@ -25,10 +28,12 @@ module PendingActions
       errors.add(:payload, "base is invalid") unless ::ManualAgenticRun::BaseSelection::VALUES.include?(payload["base"].to_s)
       errors.add(:payload, "instructions are required") if payload["instructions"].to_s.strip.blank?
       errors.add(:reason, "is required") if reason.blank?
+      errors.add(:payload, "expected_outcomes are required for GitHub access") if payload["github_access"] == true && payload["expected_outcomes"].to_h.blank?
+      errors.add(:payload, "destructive operations require GitHub access") if payload["destructive_github_operations"] == true && payload["github_access"] != true
     end
 
     def action_detail
-      "job_id: #{payload["job_id"]}, base: #{payload["base"]}, push: #{payload.fetch("push", true)}"
+      "job_id: #{payload["job_id"]}, base: #{payload["base"]}, push: #{payload.fetch("push", true)}, github_access: #{payload.fetch("github_access", false)}"
     end
 
     def presentation_label

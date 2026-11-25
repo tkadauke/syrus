@@ -27,6 +27,34 @@ class Installation < ApplicationRecord
     refresh_token!
   end
 
+  # Minted for a single agent invocation. Unlike +fresh_token+, this token is
+  # never cached or persisted and GitHub limits it to one repository and the
+  # explicitly requested permission set.
+  def scoped_token(repository:, permissions:)
+    raise ArgumentError, "installation does not cover repository" unless covers_repository?(repository)
+
+    settings = AppSetting.current
+    raise ArgumentError, "GitHub App is not configured" if settings.github_app_id.blank? || settings.github_app_private_key_pem.blank?
+
+    response = Faraday.post(
+      "#{GithubAppClient::API_ROOT}#{format(ACCESS_TOKENS_PATH, id: github_installation_id)}"
+    ) do |req|
+      req.headers["Accept"] = "application/vnd.github+json"
+      req.headers["Authorization"] = "Bearer #{GithubAppClient.app_jwt(settings)}"
+      req.headers["User-Agent"] = GithubClient::USER_AGENT
+      req.headers["X-GitHub-Api-Version"] = "2022-11-28"
+      req.headers["Content-Type"] = "application/json"
+      req.body = JSON.generate(
+        repository_ids: [ repository.github_repository_id ],
+        permissions: permissions
+      )
+    end
+    raise github_error(response) unless response.success?
+
+    payload = JSON.parse(response.body)
+    { token: payload.fetch("token"), expires_at: Time.iso8601(payload.fetch("expires_at")) }
+  end
+
   def invalidate_cached_token!
     update!(cached_token: nil, cached_token_expires_at: nil)
   end
