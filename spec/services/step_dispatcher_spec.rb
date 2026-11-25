@@ -481,25 +481,20 @@ RSpec.describe StepDispatcher, :ci_only do
       }.not_to change { s1.runs.count }
     end
 
-    it "locks the workflow before the step when creating a Run" do
-      lock_order = []
-      allow(workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        original.call(*args) do
-          lock_order << :workflow
-          block.call
-        end
-      end
-      allow(s1).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        original.call(*args) do
-          lock_order << :step
-          block.call
-        end
-      end
+    it "locks the step's ancestry top down before creating a Run (NY40)" do
+      allow(Lineage).to receive(:lock!).and_call_original
+      previous_target = Syrus::LockOrder.target
+      previous_mode = Syrus::LockOrder::Checker.mode
+      Syrus::LockOrder.target = :hierarchical
+      Syrus::LockOrder::Checker.mode = :raise
 
       described_class.create_run_and_enqueue(s1, workflow)
 
-      expect(lock_order).to eq(%i[workflow step])
+      expect(Lineage).to have_received(:lock!).with(s1)
       expect(s1.runs.count).to eq(1)
+    ensure
+      Syrus::LockOrder.target = previous_target
+      Syrus::LockOrder::Checker.mode = previous_mode
     end
 
     it "holds ordinary Epic child workflows while an Epic-wide workflow is active" do
