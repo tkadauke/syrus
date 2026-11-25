@@ -49,7 +49,8 @@ module Mcp::Tools
           }.compact
         )
         Mcp::Tools.success(pending_action_id: action.id, state: action.state,
-          message: "Outcome override is pending operator confirmation for exact evidence #{candidate.fingerprint.digest.first(12)}.")
+          message: I18n.t("server.mcp.workflow_outcome_overrides.pending_confirmation",
+            evidence: candidate.fingerprint.digest.first(12)))
       rescue WorkflowOutcomeOverrides::CandidateResolver::NotFound => error
         Mcp::Tools.invalid(error.message)
       end
