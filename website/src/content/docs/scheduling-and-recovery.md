@@ -133,8 +133,10 @@ outcomes, and external-write risk; destructive operations require an additional
 explicit declaration.
 
 Syrus mints a short-lived credential for that Run and repository only, exposes
-authenticated `gh` and Git transport only inside the authorized manual step,
-and audits remote operations without retaining the secret. Other repositories
+authenticated `gh` and Git transport only inside the authorized manual step.
+Direct Git pushes require destructive authority; ordinary committed output
+continues through Syrus's normal publication step. Syrus audits remote
+operations without retaining the secret. Other repositories
 are rejected. After publication, Syrus independently reads the provider state
 to verify declared branch SHAs, pull-request state/base, labels, or comments.
 The agent's summary alone cannot make the Workflow succeed. Failed verification
