@@ -109,6 +109,9 @@ en:
         epic: "Unland %{subject}? Operator confirmation is required."
       hold_job_confirmation:
         message: "Hold %{job}?"
+        label: "Hold %{job}"
+        detail_waiting: "Cancel active Runs and Workflows, return the Job to waiting on dependencies, and keep its PR and branch."
+        detail_backlog: "Cancel active Runs and Workflows, move the Job to backlog, and keep its PR and branch."
       bulk_confirmation:
         cleanup_workspaces: "Delete %{count} workflow workspaces?"
         cancel_stale_work: "Cancel stale work for %{count} Jobs?"

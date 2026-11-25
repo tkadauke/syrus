@@ -217,11 +217,17 @@ class JobDependency < ApplicationRecord
   end
 
   def recheck_dependent_job_start_blocks
-    job&.recheck_queued_workflow_start_blocks!
+    # A dependency can commit inside a savepoint whose surrounding Job import
+    # subsequently rolls back. Resolve the owner again instead of reloading a
+    # stale association from that abandoned import.
+    dependent_job = Job.find_by(id: job_id)
+    return unless dependent_job
+
+    dependent_job.recheck_queued_workflow_start_blocks!
     # A started Job with no active Run must not keep reading `running` once an
     # edit leaves its dependencies unsatisfied. A Job that is still executing
     # is left to the tools, which reject or hold it explicitly.
-    JobDependencyEditGuard.demote_if_gate_unmet!(job) if job
+    JobDependencyEditGuard.demote_if_gate_unmet!(dependent_job)
   end
 
   def unresolved_reference_present?

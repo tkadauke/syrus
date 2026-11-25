@@ -522,7 +522,15 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     it "keeps running jobs in the running Kanban lane even when blocked diagnostics are visible" do
       user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[blocked queued running])
       prerequisite = Factories.job_record(repository: repo, owner_user: user, issue_number: 5, issue_title: "Finish paving", state: "queued")
-      running = Factories.job_record(repository: repo, owner_user: user, issue_number: 6, issue_title: "Raise aqueduct", state: "running")
+      running = Factories.job_with_run(
+        repository: repo,
+        owner_user: user,
+        issue_number: 6,
+        issue_title: "Raise aqueduct",
+        state: "running",
+        workflow_attrs: { state: "running" },
+        run_attrs: { state: "running" }
+      )
       JobDependency.create!(job: running, depends_on_job: prerequisite, source: "manual", created_by_user: user)
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
