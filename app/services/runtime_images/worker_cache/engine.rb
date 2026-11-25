@@ -16,6 +16,10 @@ module RuntimeImages
       # an OCI layout.
       def export_oci(_reference, platform:, timeout: 600) = raise(NotImplementedError, "#{self.class.name} must implement #export_oci")
 
+      # OCI image labels (String => String) of a locally stored reference, read
+      # from the engine's own copy, or {} when the image is absent.
+      def labels(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #labels")
+
       def size_bytes(_reference) = raise(NotImplementedError, "#{self.class.name} must implement #size_bytes")
       # Upper bound, in seconds, on #remove. WorkerCache requires its eviction
       # claim TTL to exceed this so a stale-claim takeover never overlaps a

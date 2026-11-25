@@ -50,12 +50,24 @@ module RuntimeImages
     # Makes the image available locally and leases it so eviction cannot
     # remove it while in use. Yields the pullable reference when a block is
     # given and releases the lease afterwards.
-    def acquire(image, prefetch: false)
+    #
+    # Standard coworker base images are validated against the runtime ABI
+    # before the lease is handed out (fail closed): an incompatible, unsigned,
+    # or under-confined image raises RuntimeAbi::Incompatible and is never
+    # returned to a launcher. +provider+ narrows the check to the provider
+    # the turn will run; +confinement_policy+ is what the worker enforces.
+    def acquire(image, prefetch: false, provider: nil, confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION)
       unless image.reload.pullable?
         record(image, "revoked", monotonic, cache_hit: false, prefetch: prefetch)
         raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
       end
       entry, hit = lease_local(image, prefetch)
+      begin
+        validate_abi!(image, provider: provider, confinement_policy: confinement_policy)
+      rescue RuntimeAbi::Incompatible
+        release(entry)
+        raise
+      end
       return Pulled.new(reference: reference_for(image), cache_hit: hit, entry: entry) unless block_given?
       begin
         yield reference_for(image)
@@ -140,6 +152,11 @@ module RuntimeImages
     end
 
     private
+
+    def validate_abi!(image, provider:, confinement_policy:)
+      return unless image.source_kind == CoworkerBase::SOURCE_KIND
+      RuntimeAbi.validate_for_launch!(image: image, labels: @engine.labels(reference_for(image)), provider: provider, confinement_policy: confinement_policy)
+    end
 
     def cache_bytes = RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes)
 

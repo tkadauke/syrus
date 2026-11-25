@@ -4,7 +4,7 @@ require "support/synthetic_runtime_image_provider"
 RSpec.describe RuntimeImages::WorkerCache do
   # In-memory engine; no container runtime is touched.
   class FakeCacheEngine < RuntimeImages::WorkerCache::Engine
-    attr_accessor :usage, :pull_error, :pull_delay, :corrupt
+    attr_accessor :usage, :pull_error, :pull_delay, :corrupt, :image_labels
     attr_reader :pulls, :removed
 
     def initialize
@@ -22,6 +22,7 @@ RSpec.describe RuntimeImages::WorkerCache do
     end
 
     def digests(reference) = @images.key?(reference) ? [@images[reference]] : []
+    def labels(_reference) = image_labels || {}
     def size_bytes(_reference) = 100
     def remove(reference)
       @removed << reference
@@ -52,6 +53,41 @@ RSpec.describe RuntimeImages::WorkerCache do
     expect(engine.pulls).to eq([image.locator])
     expect(outcomes).to eq(%w[pulled hit])
     expect(RuntimeImagePullEvent.hit_ratio).to eq(0.5)
+  end
+
+  describe "runtime ABI admission" do
+    let(:source_digest) { "sha256:#{"a" * 64}" }
+    let(:recipe_digest) { "sha256:#{"b" * 64}" }
+
+    def publish_base
+      provenance = { "recipe_digest" => recipe_digest,
+                     RuntimeImages::RuntimeAbi::ATTESTATION_KEY => RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) }
+      service.publish(namespace: namespace, source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND, source_ref: "base", platform: "linux/amd64",
+                      source_digest: source_digest, provenance: provenance, payload: "base")
+    end
+
+    it "hands out a compatible standard base image" do
+      engine.image_labels = RuntimeImages::RuntimeAbi.labels
+      image = publish_base
+      pulled = cache.acquire(image, provider: "claude")
+      expect(pulled.reference).to eq(image.locator)
+    end
+
+    it "blocks an incompatible image before it is returned and releases its lease" do
+      engine.image_labels = RuntimeImages::RuntimeAbi.labels.merge("io.syrus.runtime-abi.compat-max" => "99")
+      image = publish_base
+      expect { cache.acquire(image) { raise "launched" } }.to raise_error(RuntimeImages::RuntimeAbi::Incompatible, /label_mismatch|compat-max/)
+      expect(RuntimeImageCacheEntry.where(runtime_image: image).first.lease_count).to eq(0)
+    end
+
+    it "blocks an image carrying no ABI labels" do
+      engine.image_labels = {}
+      expect { cache.acquire(publish_base) }.to raise_error(RuntimeImages::RuntimeAbi::Incompatible)
+    end
+
+    it "does not apply to images that are not the standard base" do
+      expect(cache.acquire(publish("plain")).cache_hit).to be(false)
+    end
   end
 
   it "does not touch worker capabilities or identity records" do

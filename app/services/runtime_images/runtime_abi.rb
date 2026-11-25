@@ -108,6 +108,8 @@ module RuntimeImages
       # from the pulled-by-digest image, +image+ the RuntimeImage record.
       # +provider+ is the provider key the turn will run; +confinement_policy+
       # is the version the worker backend verified it enforces.
+      # A nil +provider+ skips the provider check (cache warm-up paths that
+      # do not yet know which provider will run).
       def validate_for_launch(image:, labels:, provider:, confinement_policy: CONFINEMENT_POLICY_VERSION)
         problems = []
         add = ->(code, message) { problems << Problem.new(code: code, message: message) }
@@ -136,7 +138,7 @@ module RuntimeImages
           add.call("confinement_policy_too_old", "image requires confinement policy #{required_policy}; worker enforces #{confinement_policy}")
         end
 
-        add.call("provider_unsupported", "provider #{provider.inspect} is not provided by ABI #{version}") unless providers.key?(provider.to_s)
+        add.call("provider_unsupported", "provider #{provider.inspect} is not provided by ABI #{version}") unless provider.nil? || providers.key?(provider.to_s)
 
         verify_provenance(image, labels, add)
         Result.new(problems)
@@ -159,11 +161,17 @@ module RuntimeImages
         end
         signed = attestation.fetch("payload")
         add.call("contract_mismatch", "image labels do not match the signed contract") unless labels["#{LABEL_PREFIX}.contract-digest"] == signed["contract_digest"]
-        add.call("abi_mismatch", "image ABI label differs from the signed ABI version") unless labels["#{LABEL_PREFIX}.version"].to_s == signed["version"].to_s
+        # Every label the launch decision trusts must equal what Syrus signed,
+        # so a builder cannot widen the range or lower the confinement floor.
+        { "version" => "version", "compat-min" => "compat_min", "compat-max" => "compat_max", "min-confinement-policy" => "min_confinement_policy" }.each do |label, key|
+          next if labels["#{LABEL_PREFIX}.#{label}"].to_s == signed[key].to_s
+          add.call("label_mismatch", "image label #{LABEL_PREFIX}.#{label} differs from the signed contract (#{key})")
+        end
       end
 
       def attestation_payload(source_digest:, recipe_digest:, build_request_id:)
-        { "version" => version, "contract_digest" => digest, "generation" => CoworkerBase.generation,
+        { "version" => version, "compat_min" => compatibility.fetch("min"), "compat_max" => compatibility.fetch("max"),
+          "min_confinement_policy" => min_confinement_policy, "contract_digest" => digest, "generation" => CoworkerBase.generation,
           "source_digest" => source_digest, "recipe_digest" => recipe_digest, "build_request_id" => build_request_id }.compact
       end
 
