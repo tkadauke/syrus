@@ -1896,19 +1896,60 @@ describe("WorkflowsTab", () => {
   })
 
   it("shows exact evidence and requires a reason before confirming a grader override", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [{
-      job_id: 1, workflow_id: 1, step_id: 30, gate_kind: "implementation_grader",
-      gate_identity: "//:grade/rspec", candidate_head_sha: "a".repeat(40), evidence_digest: "b".repeat(64),
-      fingerprint_digest: "c".repeat(64), label: "RSpec", consequence: "The failed evidence remains visible.",
-      policy: "ask", technically_overridable: true
-    }] }), { status: 200, headers: { "Content-Type": "application/json" } })))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                job_id: 1,
+                workflow_id: 1,
+                step_id: 30,
+                gate_kind: "implementation_grader",
+                gate_identity: "//:grade/rspec",
+                candidate_head_sha: "a".repeat(40),
+                evidence_digest: "b".repeat(64),
+                fingerprint_digest: "c".repeat(64),
+                label: "RSpec",
+                consequence: "The failed evidence remains visible.",
+                policy: "ask",
+                technically_overridable: true
+              }
+            ]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    )
     render(
       <MemoryRouter>
-        <WorkflowsTab command={command()} payload={payload({ workflows: [workflowWithStepDetails({
-          id: 30, kind: "grader", display_name: "RSpec", display_status: "failed", position: 1,
-          iteration: null, loop_id: null, state: "failed", started_at: null, finished_at: null,
-          created_at: null, updated_at: null, details: { name: "rspec", required: true }, warnings: [], latest: true, runs: []
-        })] })} prefix="" />
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader",
+                display_name: "RSpec",
+                display_status: "failed",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "failed",
+                started_at: null,
+                finished_at: null,
+                created_at: null,
+                updated_at: null,
+                details: { name: "rspec", required: true },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
+          })}
+          prefix=""
+        />
       </MemoryRouter>
     )
     fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
