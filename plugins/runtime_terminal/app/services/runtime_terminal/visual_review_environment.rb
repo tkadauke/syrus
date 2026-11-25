@@ -11,7 +11,7 @@ module RuntimeTerminal
     NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/
     FORBIDDEN = Syrus::Host::SyrusYmlConfig::VISUAL_REVIEW_FORBIDDEN_ENV.to_set.freeze
 
-    class Error < RuntimeSessionProviders::ConfigurationError; end
+    class Error < Syrus::Host::RuntimeSessionRegistry::ConfigurationError; end
 
     class InputResolver
       def self.for(name)

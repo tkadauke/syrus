@@ -88,7 +88,7 @@ module SyrusBrowser
       def capture(bytes:, content_type:, title:, metadata: {})
         return nil unless @chat_session
 
-        document = ChatMediaLibrary.materialize_captured_image!(
+        document = Syrus::Host::ChatMediaLibrary.materialize_captured_image!(
           @chat_session,
           bytes: bytes,
           content_type: content_type,

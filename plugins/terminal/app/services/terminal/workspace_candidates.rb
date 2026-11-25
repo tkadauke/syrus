@@ -274,7 +274,7 @@ module Terminal
 
     class ChatCandidate < Candidate
       def self.for(chat)
-        working_directory = ChatWorkspace.path_for(chat)
+        working_directory = Syrus::Host::ChatWorkspace.path_for(chat)
         return nil unless working_directory.directory?
 
         new(chat, working_directory:)
