@@ -151,6 +151,30 @@ inclusive of nested work, but phase SQL fingerprint drilldowns are exclusive:
 each query is attributed to the deepest active phase so the same statement does
 not appear under multiple nested phases.
 
+Browser traces include sampled real-user input latency where the browser
+supports the Event Timing API. An input-latency trace records the normalized
+screen, a coarse interaction kind, visibility, application revision, total
+duration, and the input, processing, and presentation components. It does not
+record entered text, selectors, element IDs, test IDs, or other DOM details.
+Sampling is decided once per page session, capture is capped at 100 interactions
+per session, and events are sent in bounded batches with a page-hide flush.
+
+When a retained window has no input-latency traces, inspect the accompanying
+input telemetry health traces before drawing a conclusion:
+
+- `session_eligible` means the session was selected for capture.
+- `observer_initialized` means the Event Timing observer started successfully.
+- `session_sampled_out` means the session was outside the configured sample.
+- `api_unsupported` means that browser did not expose Event Timing.
+- `rate_limited` means the per-session interaction cap dropped later entries.
+- `delivery_failure` means a batch could not reach Syrus.
+
+No latency traces and no health traces can mean there was no eligible signed-in
+activity, or that instrumentation did not run. Compare other browser traces for
+the same revision and time window: their presence points to an input telemetry
+defect, while a wholly quiet browser window supports the no-activity
+classification. Do not treat an unexplained empty window as healthy.
+
 ## Page engagement telemetry
 
 Syrus can collect opt-in estimates of an operator's active time on Job,
