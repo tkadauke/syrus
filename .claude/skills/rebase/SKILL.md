@@ -9,7 +9,7 @@ Your job is to make it mergeable again. Specifically:
 
 1. Run `git fetch origin <base_branch>` (the base branch name is given in the context above) so you have the latest base.
 2. If the context identifies this as a detach repair, run the exact
-   `git rebase --onto` command given there. Its former-parent commit is the
+   `git rebase --onto` command given there. Its owned-patch boundary is the
    verified boundary of the Job-owned patch and must not be replaced with an
    ordinary rebase. Otherwise, run `git rebase origin/<base_branch>` (you are
    already on the branch specified in the context).

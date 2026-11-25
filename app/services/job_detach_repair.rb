@@ -1,10 +1,10 @@
 class JobDetachRepair
   Result = Data.define(:status, :workflow, :evidence)
 
-  def self.call(job:, destination_base:, reason:, requested_by:, former_parent_id:, former_parent_head:, confirmed_head:, auto_rebase: nil)
+  def self.call(job:, destination_base:, reason:, requested_by:, former_parent_id:, former_parent_head:, owned_patch_base_sha:, confirmed_head:, auto_rebase: nil)
     new(job: job, destination_base: destination_base, reason: reason, requested_by: requested_by,
       former_parent_id: former_parent_id, former_parent_head: former_parent_head,
-      confirmed_head: confirmed_head, auto_rebase: auto_rebase).call
+      owned_patch_base_sha: owned_patch_base_sha, confirmed_head: confirmed_head, auto_rebase: auto_rebase).call
   end
 
   def self.finalize!(job:, destination_base:, expected_head:, reason:, former_parent_id: nil, client: nil)
@@ -23,16 +23,17 @@ class JobDetachRepair
     evidence.merge("reason" => reason, "verified_at" => Time.current.iso8601)
   end
 
-  def initialize(job:, destination_base:, reason:, requested_by:, former_parent_id:, former_parent_head:, confirmed_head:, auto_rebase: nil)
+  def initialize(job:, destination_base:, reason:, requested_by:, former_parent_id:, former_parent_head:, owned_patch_base_sha:, confirmed_head:, auto_rebase: nil)
     @job = job
     @destination_base = destination_base
     @reason = reason
     @requested_by = requested_by
     @former_parent_id = former_parent_id
     @former_parent_head = former_parent_head.to_s.presence || raise(ArgumentError, "former_parent_head is required")
+    @owned_patch_base_sha = owned_patch_base_sha.to_s.presence || raise(ArgumentError, "owned_patch_base_sha is required")
     @confirmed_head = confirmed_head.to_s.presence || raise(ArgumentError, "confirmed_head is required")
     @auto_rebase = auto_rebase || AutoRebase.new(
-      job, base_branch: destination_base, old_base_sha: @former_parent_head, expected_head_sha: @confirmed_head
+      job, base_branch: destination_base, old_base_sha: @owned_patch_base_sha, expected_head_sha: @confirmed_head
     )
   end
 
@@ -60,6 +61,7 @@ class JobDetachRepair
           "destination_base" => @destination_base,
           "former_parent_id" => @former_parent_id,
           "former_parent_head" => @former_parent_head,
+          "owned_patch_base_sha" => @owned_patch_base_sha,
           "confirmed_head" => @confirmed_head
         }
       }
