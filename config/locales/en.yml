@@ -316,6 +316,8 @@ en:
       stacked_children: "Live stacked children depend on this branch: %{slugs}; reset or land them first."
       state: "%{slug} cannot be reset from %{state}; retry or reopen it first."
   api:
+    workflow_outcome_overrides:
+      denied: "You do not have permission to override this workflow outcome."
     cli_commands:
       errors:
         plugin_not_found: "That plugin is not installed."

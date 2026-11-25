@@ -3,7 +3,8 @@ module Permissions
     class UnknownCapability < ArgumentError; end
 
     def self.descriptors
-      existing = (McpToolRegistry.entries.map(&:descriptor) + plugin_tool_descriptors + ExecutionActions.descriptors)
+      existing = (McpToolRegistry.entries.map(&:descriptor) + plugin_tool_descriptors + ExecutionActions.descriptors +
+        WorkflowOutcomeOverrideActions.authority_descriptors)
         .uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
       (existing + permission_provider_descriptors)
         .group_by { |descriptor| [ descriptor.capability, descriptor.operation ] }

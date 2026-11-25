@@ -39,6 +39,7 @@ module Permissions
       list_repo_documents read_repo_document list_wakeups list_proposals list_pending_actions
       list_permissions explain_permission list_artifacts read_pr list_open_prs list_open_issues
       search_chats list_chats
+      inspect_workflow_outcome_overrides
     ].freeze
 
     # Drafting a proposal only creates the operator's confirmation card; that
@@ -85,6 +86,7 @@ module Permissions
         add_epic_dependency remove_epic_dependency add_job_dependency remove_job_dependency replace_job_dependency
         select_job_delivery_track mark_ci_repair_noop repair_provider_circuit_evidence
         retire_terminal_work_unit create_coding_job
+        request_workflow_outcome_override
       ],
       privilege_change: %w[grant_permission deny_permission revoke_permission create_permission_lease apply_permission_preset],
       shared_state: %w[create_repo_document],
