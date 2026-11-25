@@ -138,6 +138,10 @@ class Coworkers::EnvironmentSource
   # The effective final stage must descend from the supplied base: either it
   # names the base arg directly or an earlier stage that does.
   def dockerfile_errors(content)
+    if content.dup.force_encoding(Encoding::UTF_8).match?(/\A(?:\s*#\s*[\w-]+\s*=[^\n]*\n)*\s*#\s*escape\s*=/i)
+      return [ "#{DOCKERFILE} must not set a non-default escape parser directive; the validator cannot model it" ]
+    end
+
     instructions = dockerfile_instructions(content)
     if instructions.any? { |line| line.match?(/\A(RUN|COPY|ADD)\s/i) && line.include?("\\<") }
       return [ "#{DOCKERFILE} must not escape '<' in RUN, COPY, or ADD; the validator cannot model it" ]
