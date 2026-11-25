@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PlannedExecutionOverrides::Operation do
+RSpec.describe PlannedExecutionOverrides::Operation, :hierarchical_locks do
   let(:user) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }

@@ -4810,10 +4810,11 @@ the conversion. A full survey after part 5 passed all 26,477 examples and
 recorded 481 violations at 50 sites, down from about 1,100. Of those, 355 had
 no application frame on the stack: spec setup code, not production paths. The
 checker now names the first spec or lib frame for those, so they can be fixed
-before the order is enforced. The largest production sites left are
-`PlannedExecutionOverrides::Operation`, `RunJob`'s step recording, the
-`RepairQueueAffinity` requeue, `RetryFailedStepEnqueuer`, `WorkflowPatch` and
-the Epic refresh under a held Job.
+before the order is enforced. Part 6 converted the two largest production
+sites, `PlannedExecutionOverrides::Operation` (Job, then Workflows, then Runs)
+and `RunJob#commit_run_and_step_success!`. Left: the `RepairQueueAffinity`
+requeue, `RetryFailedStepEnqueuer`, `WorkflowPatch` and the Epic refresh under
+a held Job.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

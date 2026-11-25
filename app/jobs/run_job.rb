@@ -720,6 +720,9 @@ class RunJob < ApplicationJob
   # chain advance among them -- would then never fire.
   def commit_run_and_step_success!
     ActiveRecord::Base.transaction do
+      # The Step is written after the Run, so the ancestry is locked first,
+      # top down (NY40). Locking queries keep the Run's unsaved outcome.
+      Lineage.lock!(@run)
       unless @run.succeeded?
         @run.agent_outcome = nil if @run.agent_outcome == "worker_died"
         @run.succeed!

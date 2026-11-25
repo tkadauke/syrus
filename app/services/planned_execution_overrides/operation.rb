@@ -66,13 +66,15 @@ class Operation
     audit = nil
     before = nil
     ApplicationRecord.transaction do
-      # Runs, then the Job, then its Workflows (Syrus::LockOrder).
-      runs = all_runs(lock: true)
-      job.lock!
+      # Parents before children (NY40): the Epic and Job, then its
+      # Workflows, then its Runs.
+      Lineage.lock!(job)
+      job.reload
       if expected_revision.present? && job.entity_revision != expected_revision.to_i
         raise Unsafe, "#{job.slug} changed after the repair was proposed; run a new dry-run and confirm again."
       end
       workflows = all_workflows(lock: true)
+      runs = all_runs(lock: true)
       workflow = eligible_initial_workflow(workflows)
       refusal = refusal_reason(workflows, runs)
       raise Unsafe, refusal if refusal

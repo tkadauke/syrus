@@ -124,6 +124,18 @@ RSpec.describe "Lineage funnels" do
     expect(job.reload).to be_closed
   end
 
+  it "records a Run's success and its Step's in order" do
+    run = running_step_with_run
+    job_runner = RunJob.new
+    job_runner.instance_variable_set(:@run, run)
+    job_runner.instance_variable_set(:@step, step.reload)
+
+    checked { job_runner.send(:commit_run_and_step_success!) }
+
+    expect(run.reload).to be_succeeded
+    expect(step.reload).to be_succeeded
+  end
+
   it "cancels a closed Job's active Workflow from the reconciler in order" do
     running_step_with_run
     job.update_columns(state: "closed", finished_at: 2.minutes.ago, closure_reason: "operator_cancelled")
