@@ -37,7 +37,7 @@ module Mockups
         return error_response("title is required") if title.blank?
 
         if panel_id.blank?
-          panel = PreviewPanel::Service.open!(chat_session: chat_session, title: title, files: {})
+          panel = Syrus::Host::PreviewPanelRecord::Service.open!(chat_session: chat_session, title: title, files: {})
           return ok_response(panel_payload(
             panel,
             note: "Opened an empty preview panel. Write files into its scratch directory with " \
@@ -54,12 +54,12 @@ module Mockups
         files = scratch.files
         return error_response("No files found in panel #{panel.id}'s scratch directory yet -- use write_preview_file first.") if files.empty?
 
-        resolved_entry_file = entry_file.presence || PreviewPanel::DEFAULT_ENTRY_FILENAME
+        resolved_entry_file = entry_file.presence || Syrus::Host::PreviewPanelRecord::DEFAULT_ENTRY_FILENAME
         unless scratch.exist?(resolved_entry_file)
           return error_response("entry_file #{resolved_entry_file.inspect} was not found among the scratch files: #{files.keys.sort.join(', ')}.")
         end
 
-        updated = PreviewPanel::Service.new(panel).update!(
+        updated = Syrus::Host::PreviewPanelRecord::Service.new(panel).update!(
           files: files.transform_values { |path| File.binread(path) },
           entry_file: resolved_entry_file
         )

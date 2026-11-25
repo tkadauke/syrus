@@ -343,6 +343,23 @@ Supported members:
 - `upload`
 - `verify`
 
+### `Syrus::Host::BugReportRouter`
+
+Since: `0.1.16`
+
+Resolves the repository a bug report about Syrus itself should be filed against for a user; routing rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `target_repository`
+
+### `Syrus::Host::CableChannel`
+
+Since: `0.1.16`
+
+Bases plugin-owned Action Cable channels; connection authentication and stream naming of core channels are not promised. Only the listed members are supported.
+
 ### `Syrus::Host::Callbacks`
 
 Since: `0.1.16`
@@ -393,6 +410,47 @@ Supported members:
 - `message`
 - `new`
 
+### `Syrus::Host::ChatAssociatedJobs`
+
+Since: `0.1.16`
+
+Scopes jobs associated with the given chat sessions (scope_for); association rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `scope_for`
+
+### `Syrus::Host::ChatAttachmentRecord`
+
+Since: `0.1.16`
+
+Queries what a chat session has attached to a record (where); columns beyond the attachable filters are not promised. Chat is planned to become a plugin, so this contract may move with it. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::ChatContextCompactor`
+
+Since: `0.1.16`
+
+Answers whether context compaction is enabled for a chat and supplies its compacted context messages; compaction itself is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `context_messages_for`
+- `enabled_for?`
+
+### `Syrus::Host::ChatHistoryTranscriptRenderer`
+
+Since: `0.1.16`
+
+Renders a chat's history as recovery context for a resumed agent session (resume_recovery); the transcript format is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `resume_recovery`
+
 ### `Syrus::Host::ChatIdentityProvider`
 
 Since: `0.1.16`
@@ -419,6 +477,17 @@ Supported members:
 
 - `payload`
 
+### `Syrus::Host::ChatLockErrors`
+
+Since: `0.1.16`
+
+Controller concern that renders a temporary chat-lock error response and detects transient lock errors; only those helpers are promised. Only the listed members are supported.
+
+Supported members:
+
+- `render_temporary_chat_lock_error`
+- `transient_chat_lock_error?`
+
 ### `Syrus::Host::ChatMcpToolSet`
 
 Since: `0.1.16`
@@ -430,6 +499,16 @@ Supported members:
 - `available_for?`
 - `handle`
 - `tool_definitions`
+
+### `Syrus::Host::ChatMediaLibrary`
+
+Since: `0.1.16`
+
+Materializes a captured image into a chat session's media library (materialize_captured_image!); media storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `materialize_captured_image!`
 
 ### `Syrus::Host::ChatMediaSource`
 
@@ -478,6 +557,23 @@ Supported members:
 
 - `chat_prompt_section`
 
+### `Syrus::Host::ChatProposalRecord`
+
+Since: `0.1.16`
+
+Queries chat proposals joined to their chat session; columns beyond the join and filters are not promised. Chat is planned to become a plugin, so this contract may move with it. Only the listed members are supported.
+
+Supported members:
+
+- `joins`
+- `where`
+
+### `Syrus::Host::ChatProvider`
+
+Since: `0.1.16`
+
+Marks a class as a chat provider a plugin supplies for the chat agent loop; turn orchestration, queueing and session persistence are not promised. Only the listed members are supported.
+
 ### `Syrus::Host::ChatProviderBase`
 
 Since: `0.1.16`
@@ -512,19 +608,52 @@ Supported members:
 - `normalized_chat_provider_param`
 - `validated_chat_provider_param`
 
+### `Syrus::Host::ChatResultBadges`
+
+Since: `0.1.16`
+
+Builds result badges for a set of chat sessions (for); badge kinds are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `for`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
 
-Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.
+Reads a chat session's identity, title, owner, and repository through find; MODES lists the chat modes; turns, broadcasts, artifacts, persistence, and other associations are not promised.
 
 Supported members:
 
+- `MODES`
 - `find`
 - `id`
 - `repository`
 - `title`
 - `user`
+
+### `Syrus::Host::ChatSessionRehydrator`
+
+Since: `0.1.16`
+
+Registers a per-provider rehydrator that rebuilds an agent session from chat history (register); provider plugins define their rehydrators under this namespace. Only the listed members are supported.
+
+Supported members:
+
+- `register`
+
+### `Syrus::Host::ChatSpendEntryRecord`
+
+Since: `0.1.16`
+
+Queries per-chat spend entries (all, where, joins); columns beyond the filters are not promised. Chat is planned to become a plugin, so this contract may move with it. Only the listed members are supported.
+
+Supported members:
+
+- `all`
+- `joins`
+- `where`
 
 ### `Syrus::Host::ChatTitles`
 
@@ -570,6 +699,42 @@ Supported members:
 
 - `chat_turn_orientation`
 
+### `Syrus::Host::ChatWakeupRecord`
+
+Since: `0.1.16`
+
+Queries scheduled chat wakeups (pending, where); columns beyond the filters are not promised. Chat is planned to become a plugin, so this contract may move with it. Only the listed members are supported.
+
+Supported members:
+
+- `pending`
+- `where`
+
+### `Syrus::Host::ChatWorkEvents`
+
+Since: `0.1.16`
+
+Publishes a work event into a chat (publish!); severity vocabulary and event storage are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `publish!`
+
+### `Syrus::Host::ChatWorkspace`
+
+Since: `0.1.16`
+
+Resolves a chat's on-disk workspace paths (path_for, repo_path_for, agent_home_for), creates its root (ensure_root!) and reads checkout state (uncommitted_changes?, rebase_in_progress?); workspace layout beyond these is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `agent_home_for`
+- `ensure_root!`
+- `path_for`
+- `rebase_in_progress?`
+- `repo_path_for`
+- `uncommitted_changes?`
+
 ### `Syrus::Host::ChatWorkspaceLifecycle`
 
 Since: `0.1.16`
@@ -605,6 +770,18 @@ Derives the Codex usage-account scope for a user; the derivation may change betw
 Supported members:
 
 - `for_user`
+
+### `Syrus::Host::ColorPalette`
+
+Since: `0.1.16`
+
+Reads the agent accent-color palette: HEX_PATTERN validates a color, default_agent_order lists the defaults and next_default_color picks one not yet used; the colors themselves may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `HEX_PATTERN`
+- `default_agent_order`
+- `next_default_color`
 
 ### `Syrus::Host::CommandRedactor`
 
@@ -1422,6 +1599,16 @@ Supported members:
 - `release!`
 - `rename!`
 
+### `Syrus::Host::InboundMessageRouter`
+
+Since: `0.1.16`
+
+Routes an inbound platform message to the chat or job it belongs to; routing rules and the returned result members are not promised beyond new. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::InputSource`
 
 Since: `0.1.16`
@@ -1905,6 +2092,12 @@ Supported members:
 
 - `find_or_initialize_by`
 
+### `Syrus::Host::PlatformPollingJob`
+
+Since: `0.1.16`
+
+Bases a platform-delivery polling job (at most one live instance per key); scheduling and deduplication internals are not promised. Only the listed members are supported.
+
 ### `Syrus::Host::PluginApi`
 
 Since: `0.1.16`
@@ -1977,6 +2170,30 @@ Supported members:
 - `joins`
 - `where`
 
+### `Syrus::Host::PreviewCommandSource`
+
+Since: `0.1.16`
+
+Resolves the command that starts a workspace's preview from its configuration; resolution rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `resolve`
+
+### `Syrus::Host::PreviewPanelRecord`
+
+Since: `0.1.16`
+
+Reads preview panels visible to a user (accessible_to), opens and updates them through Service, serializes them through Payload and exposes DEFAULT_ENTRY_FILENAME; storage and versioning are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `DEFAULT_ENTRY_FILENAME`
+- `Payload`
+- `Service`
+- `accessible_to`
+
 ### `Syrus::Host::PreviewPanelRetention`
 
 Since: `0.1.16`
@@ -1986,6 +2203,27 @@ Lets a plugin declare which preview panels must be retained; the retention sweep
 Supported members:
 
 - `retained_preview_panel?`
+
+### `Syrus::Host::PreviewPanelVersionRecord`
+
+Since: `0.1.16`
+
+Queries the built versions of preview panels (where); columns beyond the filters are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
+### `Syrus::Host::PreviewProcessLauncher`
+
+Since: `0.1.16`
+
+Launches a workspace's preview process on a port (launch!); process supervision is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `launch!`
+- `new`
 
 ### `Syrus::Host::ProcessRunner`
 
@@ -2501,6 +2739,17 @@ Supported members:
 - `terminal`
 - `where`
 
+### `Syrus::Host::RuntimeControlLease`
+
+Since: `0.1.16`
+
+Audits rejected agent input against a runtime session (audit_input_rejected!) and runs a block under agent input control (with_agent_input_control); lease acquisition and expiry are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `audit_input_rejected!`
+- `with_agent_input_control`
+
 ### `Syrus::Host::RuntimeSessionProvider`
 
 Since: `0.1.16`
@@ -2523,6 +2772,27 @@ Supported members:
 - `start_session`
 - `stop_session`
 - `visual_review_start_required?`
+
+### `Syrus::Host::RuntimeSessionRecord`
+
+Since: `0.1.16`
+
+Finds a runtime session by id; state transitions, persistence and other associations are not promised. Runtime-session plugins implement Syrus::Host::RuntimeSessionProvider. Only the listed members are supported.
+
+Supported members:
+
+- `find`
+
+### `Syrus::Host::RuntimeSessionRegistry`
+
+Since: `0.1.16`
+
+Resolves the runtime-session provider class for a provider key (for) and defines ConfigurationError, raised for misconfigured providers; provider discovery is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ConfigurationError`
+- `for`
 
 ### `Syrus::Host::SearchDatabaseTasks`
 
@@ -2913,6 +3183,24 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::ThemeRecord`
+
+Since: `0.1.16`
+
+Reads and writes user-owned themes (find_by, where, exists?, new, find_or_initialize_by, selectable_by, terracotta) and exposes the TOKEN_KEYS and EXTENDED_TOKEN_GROUPS vocabularies themes validate against; the stored columns and built-in themes are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `EXTENDED_TOKEN_GROUPS`
+- `TOKEN_KEYS`
+- `exists?`
+- `find_by`
+- `find_or_initialize_by`
+- `new`
+- `selectable_by`
+- `terracotta`
+- `where`
+
 ### `Syrus::Host::TimelineMacroQuery`
 
 Since: `0.1.16`
@@ -2979,6 +3267,26 @@ Supported members:
 
 - `chat_tool_set_for`
 - `chat_tool_sets`
+
+### `Syrus::Host::TypedArtifactRenderer`
+
+Since: `0.1.16`
+
+Enriches a workflow's typed artifacts with their rendered presentation; the renderers themselves are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `enrich`
+
+### `Syrus::Host::UiEngagementSampleRecord`
+
+Since: `0.1.16`
+
+Queries recorded UI engagement samples by user and time; columns beyond those filters are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
 
 ### `Syrus::Host::UiSlot`
 
@@ -3208,43 +3516,24 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `AdminAction`
 - `AppEvents`
 - `AppSetting`
-- `Appearance::ColorPalette`
-- `Appearance::ColorPalette::HEX_PATTERN`
-- `ApplicationCable::Channel`
 - `AuthorizationCheckpointOrigin`
 - `AuthorizedInvocation`
 - `BackendExceptionLogging`
-- `BugReports::Router`
-- `ChatAssociatedJobs`
-- `ChatAttachment`
 - `ChatBridgeThread`
-- `ChatContextCompactor`
-- `ChatHistoryTranscriptRenderer`
-- `ChatLockErrors`
-- `ChatMediaLibrary`
 - `ChatMessage`
 - `ChatPendingAction`
 - `ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES`
-- `ChatProposal`
 - `ChatQueuedMessage::INTERNAL_ROLE_KEY`
 - `ChatQueuedMessagePromoter`
-- `ChatResultBadges`
 - `ChatSession`
 - `ChatSession::CrossChatMessage`
 - `ChatSession::CrossChatMessage::ClosedThreadError`
 - `ChatSession::EFFORT_LEVELS`
-- `ChatSession::MODES`
 - `ChatSessionLifecycle`
-- `ChatSessionRehydrator`
 - `ChatSessions::Creator`
-- `ChatSpendEntry`
 - `ChatTurnJob`
-- `ChatWakeup`
-- `ChatWorkEvents`
-- `ChatWorkspace`
 - `Feature`
 - `HasConfigurableRetention`
-- `InboundMessageRouter`
 - `InstanceVersion`
 - `InstanceVersion::HEARTBEAT_STALE_THRESHOLD`
 - `KubernetesCluster`
@@ -3303,47 +3592,28 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PersistentMcpDaemon`
 - `PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER`
 - `PersistentMcpDaemon::MCP_PATH`
-- `PlatformPollingJob`
 - `PluginDataCleanup`
 - `PluginJob`
 - `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
-- `PreviewCommandSource`
-- `PreviewPanel`
-- `PreviewPanel::DEFAULT_ENTRY_FILENAME`
-- `PreviewPanel::Payload`
-- `PreviewPanel::Service`
-- `PreviewPanelVersion`
-- `PreviewProcessLauncher`
 - `RetentionPolicyExecutors::Default`
 - `RetentionPolicyExecutors::Result`
 - `RetentionPolicyRegistry::Definition`
 - `RetentionPruner::DEFAULT_BATCH_SIZE`
 - `RetentionPruner::DEFAULT_MAX_BATCHES`
-- `RuntimeControlLease`
-- `RuntimeSession`
-- `RuntimeSessionProviders`
-- `RuntimeSessionProviders::ConfigurationError`
 - `SkipIfPending`
 - `Syrus::DataCleanup`
 - `Syrus::Events`
 - `Syrus::Installer`
 - `Syrus::Memory`
 - `Syrus::Plugin::AgentProvider::ModelInfo`
-- `Syrus::Plugin::ChatProvider`
 - `Syrus::Plugin::MemoryStore`
-- `Syrus::Plugin::PlatformDelivery`
 - `Syrus::Plugin::WorkflowArtifactContributor`
 - `Syrus::PluginApi`
 - `Syrus::PluginSettings`
 - `SyrusMcp::TypedArtifactProvenance`
 - `SyrusVersion`
-- `Theme`
-- `Theme::EXTENDED_TOKEN_GROUPS`
-- `Theme::TOKEN_KEYS`
 - `TracksFinishedAt`
-- `TypedArtifactRenderer`
-- `UiEngagementSample`
 - `WorkerCapabilities`
 - `WorkerHealthRunCorrelation`
 - `WorkerHealthSampleAnalysis`

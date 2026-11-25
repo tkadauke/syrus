@@ -25,7 +25,7 @@ class Coworkers::Coworker < Syrus::Host::Record
   validates :handle, presence: true, format: { with: Syrus::Host::Handle::FORMAT }, uniqueness: { case_sensitive: false }
   validates :state, inclusion: { in: STATES }
   validates :chat_effort, inclusion: { in: ChatSession::EFFORT_LEVELS }, allow_nil: true
-  validates :accent_hex, format: { with: Appearance::ColorPalette::HEX_PATTERN }
+  validates :accent_hex, format: { with: Syrus::Host::ColorPalette::HEX_PATTERN }
   validates :avatar_key, inclusion: { in: AVATAR_KEYS }, allow_nil: true
   validate :avatar_is_image
 
@@ -92,7 +92,7 @@ class Coworkers::Coworker < Syrus::Host::Record
 
   def assign_default_color
     used = self.class.where(owner_user_id: owner_user_id).where.not(id: id).pluck(:accent_hex)
-    self.accent_hex = Appearance::ColorPalette.next_default_color(used) || Appearance::ColorPalette.default_agent_order.first
+    self.accent_hex = Syrus::Host::ColorPalette.next_default_color(used) || Syrus::Host::ColorPalette.default_agent_order.first
   end
   def claim_handle! = Syrus::Host::HandleRegistry.claim!(handle: handle, owner: self)
   def rename_handle! = Syrus::Host::HandleRegistry.rename!(owner: self, handle: handle)

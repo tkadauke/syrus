@@ -35,7 +35,7 @@ module Api
             mockup: summary_json(mockup),
             # The panel is core's; this is the same payload the chat sidebar
             # renders, pointed at the chat-independent panel routes.
-            panel: PreviewPanel::Payload.new(
+            panel: Syrus::Host::PreviewPanelRecord::Payload.new(
               mockup.preview_panel,
               scheme: request.ssl? ? "https" : "http",
               include_versions: params[:versions] == "all"
@@ -49,7 +49,7 @@ module Api
         # the panel's own rule -- not a second, looser one defined here.
         def base_scope
           Mockups::Mockup
-            .where(preview_panel_id: PreviewPanel.accessible_to(Syrus::Host::Current.user).select(:id))
+            .where(preview_panel_id: Syrus::Host::PreviewPanelRecord.accessible_to(Syrus::Host::Current.user).select(:id))
             .includes(preview_panel: :latest_version)
         end
 

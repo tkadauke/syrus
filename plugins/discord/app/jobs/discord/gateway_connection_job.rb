@@ -10,7 +10,7 @@ module Discord
   # returns, the base class re-enqueues a fresh job, which opens a
   # fresh connection after a backoff, giving reconnection across worker
   # restarts/deploys the same way Telegram's long-poll loop does.
-  class GatewayConnectionJob < PlatformPollingJob
+  class GatewayConnectionJob < Syrus::Host::PlatformPollingJob
     PluginJob.configure(self, :discord)
     RECONNECT_BACKOFF_SECONDS = 5
     MAX_RECONNECT_BACKOFF_SECONDS = 5.minutes
@@ -104,7 +104,7 @@ module Discord
     end
 
     def route_message(text:, author:, message:)
-      result = InboundMessageRouter.new(
+      result = Syrus::Host::InboundMessageRouter.new(
         platform: "discord",
         external_id: author["id"].to_s,
         external_handle: author["username"],

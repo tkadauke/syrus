@@ -227,7 +227,7 @@ module OperatorBriefing
         Syrus::Host::WorkflowRecord.joins(:job)
           .where(id: workflow_ids, jobs: { repository_id: enabled_repository_ids })
           .each_with_object({}) do |workflow, index|
-            index[workflow.id] = TypedArtifactRenderer.enrich(Array(workflow.artifact("typed_artifacts")))
+            index[workflow.id] = Syrus::Host::TypedArtifactRenderer.enrich(Array(workflow.artifact("typed_artifacts")))
           end
       end
     end

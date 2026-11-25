@@ -1,48 +1,34 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
+# Chat internals still listed below (ChatSession, ChatMessage, ChatPendingAction,
+# ChatSession::CrossChatMessage, ChatSession::EFFORT_LEVELS, ChatSessionLifecycle,
+# ChatSessions::Creator, ChatBridgeThread, ChatQueuedMessage*, ChatTurnJob,
+# Mentionable, Mentionables::Resolver) are deliberately not promoted: chat is
+# planned to become a plugin, so the chat extraction decides their seams.
 ---
-legacy_baseline: 147
+legacy_baseline: 109
 constants:
 - name: AdminAction
 - name: AppEvents
 - name: AppSetting
-- name: Appearance::ColorPalette
-- name: Appearance::ColorPalette::HEX_PATTERN
-- name: ApplicationCable::Channel
 - name: AuthorizationCheckpointOrigin
 - name: AuthorizedInvocation
 - name: BackendExceptionLogging
-- name: BugReports::Router
-- name: ChatAssociatedJobs
-- name: ChatAttachment
 - name: ChatBridgeThread
-- name: ChatContextCompactor
-- name: ChatHistoryTranscriptRenderer
-- name: ChatLockErrors
-- name: ChatMediaLibrary
 - name: ChatMessage
 - name: ChatPendingAction
 - name: ChatPendingAction::NONTERMINAL_CHECKPOINT_STATES
-- name: ChatProposal
 - name: ChatQueuedMessage::INTERNAL_ROLE_KEY
 - name: ChatQueuedMessagePromoter
-- name: ChatResultBadges
 - name: ChatSession
 - name: ChatSession::CrossChatMessage
 - name: ChatSession::CrossChatMessage::ClosedThreadError
 - name: ChatSession::EFFORT_LEVELS
-- name: ChatSession::MODES
 - name: ChatSessionLifecycle
-- name: ChatSessionRehydrator
 - name: ChatSessions::Creator
-- name: ChatSpendEntry
 - name: ChatTurnJob
-- name: ChatWakeup
-- name: ChatWorkEvents
-- name: ChatWorkspace
 - name: Feature
 - name: HasConfigurableRetention
-- name: InboundMessageRouter
 - name: InstanceVersion
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
 - name: KubernetesCluster
@@ -101,47 +87,28 @@ constants:
 - name: PersistentMcpDaemon
 - name: PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER
 - name: PersistentMcpDaemon::MCP_PATH
-- name: PlatformPollingJob
 - name: PluginDataCleanup
 - name: PluginJob
 - name: PluginJob::DEFAULT_ATTEMPTS
 - name: PluginRecord
-- name: PreviewCommandSource
-- name: PreviewPanel
-- name: PreviewPanel::DEFAULT_ENTRY_FILENAME
-- name: PreviewPanel::Payload
-- name: PreviewPanel::Service
-- name: PreviewPanelVersion
-- name: PreviewProcessLauncher
 - name: RetentionPolicyExecutors::Default
 - name: RetentionPolicyExecutors::Result
 - name: RetentionPolicyRegistry::Definition
 - name: RetentionPruner::DEFAULT_BATCH_SIZE
 - name: RetentionPruner::DEFAULT_MAX_BATCHES
-- name: RuntimeControlLease
-- name: RuntimeSession
-- name: RuntimeSessionProviders
-- name: RuntimeSessionProviders::ConfigurationError
 - name: SkipIfPending
 - name: Syrus::DataCleanup
 - name: Syrus::Events
 - name: Syrus::Installer
 - name: Syrus::Memory
 - name: Syrus::Plugin::AgentProvider::ModelInfo
-- name: Syrus::Plugin::ChatProvider
 - name: Syrus::Plugin::MemoryStore
-- name: Syrus::Plugin::PlatformDelivery
 - name: Syrus::Plugin::WorkflowArtifactContributor
 - name: Syrus::PluginApi
 - name: Syrus::PluginSettings
 - name: SyrusMcp::TypedArtifactProvenance
 - name: SyrusVersion
-- name: Theme
-- name: Theme::EXTENDED_TOKEN_GROUPS
-- name: Theme::TOKEN_KEYS
 - name: TracksFinishedAt
-- name: TypedArtifactRenderer
-- name: UiEngagementSample
 - name: WorkerCapabilities
 - name: WorkerHealthRunCorrelation
 - name: WorkerHealthSampleAnalysis
