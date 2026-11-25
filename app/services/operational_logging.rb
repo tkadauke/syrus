@@ -225,6 +225,8 @@ module OperationalLogging
     return true if plugin_route_dispatcher_wrapper_request?(payload)
 
     path = payload[:path].to_s
+    return true if path.in?(%w[/up /readyz]) && payload[:status].to_i < 400 && payload[:exception].blank?
+
     path.start_with?(
       "/api/v1/admin/performance",
       "/api/v1/app/admin/performance",
