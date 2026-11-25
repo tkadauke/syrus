@@ -14,7 +14,7 @@ require "ruby/focused_test_command"
 require "ruby/ecosystem"
 
 module Ruby
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "ruby" do
     default_enabled true

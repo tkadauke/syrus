@@ -8,7 +8,7 @@ module Throughput
   # docs/engineering/architecture/metrics.md). This class instead follows
   # Metrics::LandingSampler's shape: registers via the manifest's
   # `metrics do ... sampler MetricsSampler end` (see
-  # Syrus::PluginApi::Definition#metrics) rather than a plugin-owned
+  # Syrus::Host::PluginApi::Definition#metrics) rather than a plugin-owned
   # tick_interval/on_tick, so #sample! runs on the shared control-plane tick
   # and folds newly-finished landing attempts into a cumulative,
   # cache-mediated total (a cursor over `finished_at`, set exactly once and

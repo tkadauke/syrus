@@ -57,7 +57,7 @@ module GlobalSearch
       finish_content_version! if batch[:done]
       processed = batch[:processed].to_i
 
-      MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+      Syrus::Host::MaintenanceTaskResult.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
     end
 
     def self.indexed_count(table = TABLE_NAME, id_column = ID_COLUMN)

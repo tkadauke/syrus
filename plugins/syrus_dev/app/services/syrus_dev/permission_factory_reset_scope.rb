@@ -25,8 +25,8 @@ module SyrusDev
     def key = self.class.name.demodulize.underscore
     def users = Syrus::Host::UserRecord.none
     def profile_users = users
-    def rules = PermissionRule.none
-    def leases = PermissionLease.none
+    def rules = Syrus::Host::PermissionRule.none
+    def leases = Syrus::Host::PermissionLease.none
     def requests = ChatPendingAction.none
 
     private

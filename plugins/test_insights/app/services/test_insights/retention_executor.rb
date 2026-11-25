@@ -1,10 +1,10 @@
 module TestInsights
-  class RetentionExecutor < RetentionPolicyExecutors::Default
-    def call(batch_size: RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: RetentionPruner::DEFAULT_MAX_BATCHES)
+  class RetentionExecutor < Syrus::Host::RetentionPolicyExecutors::Default
+    def call(batch_size: Syrus::Host::RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: Syrus::Host::RetentionPruner::DEFAULT_MAX_BATCHES)
       result = super
       dependent_deleted = prune_empty_runs(batch_size:, max_batches:) + prune_attempts(batch_size:, max_batches:) +
         prune_shard_runtime_snapshots(batch_size:, max_batches:)
-      RetentionPolicyExecutors::Result.new(
+      Syrus::Host::RetentionPolicyExecutors::Result.new(
         deleted_count: result.deleted_count + dependent_deleted,
         backlog: result.backlog || dependent_backlog?
       )

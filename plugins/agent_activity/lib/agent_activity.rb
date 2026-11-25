@@ -1,5 +1,5 @@
 module AgentActivity
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   FILTER_CHIPS = {
     "repository_id"  => "Filters::Chips::AgentActivity::RepositoryId",

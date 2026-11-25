@@ -1,5 +1,5 @@
 module ConnectedAccounts
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "connected_accounts" do
     requires_syrus nil

@@ -1,5 +1,5 @@
 module Calendar
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "calendar" do
     experimental false

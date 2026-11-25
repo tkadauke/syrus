@@ -14,7 +14,7 @@ RSpec.describe ScheduledTasks::MetricsDashboardTabs do
   # /metrics exposes.
   it "only charts metrics its own `metrics do ... end` block declares" do
     PluginRecord.find_or_initialize_by(name: "scheduled_tasks").update!(enabled: true)
-    Syrus::Installer.sync!
+    Syrus::Host::Installer.sync!
 
     described_class.metrics_dashboard_tabs.each do |tab|
       tab[:panels].each do |panel|

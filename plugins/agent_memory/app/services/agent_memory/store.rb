@@ -1,9 +1,9 @@
 module AgentMemory
   # The plugin's `memory_store` provider: everything core asks of a memory
   # store, in one place. Core never names `AgentMemory::Entry`; it asks
-  # `Syrus::Memory`, which asks this.
+  # `Syrus::Host::Memory`, which asks this.
   class Store
-    include Syrus::Plugin::MemoryStore
+    include Syrus::Host::MemoryStore
 
     ORDER = Arel.sql(
       "CASE WHEN scope = 'repository' THEN 0 ELSE 1 END, " \
