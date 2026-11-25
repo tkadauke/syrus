@@ -187,6 +187,42 @@ RSpec.describe OperationalLogging do
     Thread.current[:syrus_current_run] = nil
   end
 
+  it "does not ingest health probe requests" do
+    %w[/up /readyz].each do |path|
+      expect(
+        described_class.ingest_request(
+          {
+            method: "GET",
+            path: path,
+            controller: "Rails::HealthController",
+            action: "show",
+            status: 200
+          },
+          0.3
+        )
+      ).to be_nil
+    end
+
+    Observability::EventSink.flush!(kinds: [ :operational ])
+
+    expect(OperationalLogEvent.where(source: "action_controller")).to be_empty
+  end
+
+  it "retains failed health probe requests" do
+    event = described_class.ingest_request(
+      {
+        method: "GET",
+        path: "/readyz",
+        controller: "ReadinessController",
+        action: "show",
+        status: 503
+      },
+      12.3
+    )
+
+    expect(event).to include("level" => "error", "message" => "GET /readyz 503 12.3ms")
+  end
+
   it "includes job-specific diagnostic context without indexing arbitrary arguments" do
     task = MaintenanceTask.create!(
       definition_key: "spec",

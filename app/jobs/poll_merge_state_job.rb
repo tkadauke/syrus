@@ -13,7 +13,51 @@ class PollMergeStateJob < ApplicationJob
 
   limits_concurrency to: 1, key: ->(job_id) { "merge_state_poll:#{job_id}" }
 
+  LOCK_RETRY_ERRORS = [
+    ActiveRecord::Deadlocked,
+    ActiveRecord::LockWaitTimeout
+  ].freeze
+  LOCK_RETRY_ATTEMPTS = 2
+
+  # Bounded retry on MySQL lock contention. When it persists, skip this
+  # poll: PollAllMergeStatesJob re-selects the Job on its next tick, so a
+  # contended poll is deferred rather than raised as a job failure.
   def perform(job_id)
+    attempts = 0
+    begin
+      poll_merge_state(job_id)
+    rescue *LOCK_RETRY_ERRORS => e
+      attempts += 1
+      if attempts <= LOCK_RETRY_ATTEMPTS
+        Rails.logger.warn("[PollMergeStateJob] job #{job_id} lock conflict (#{e.class}); retrying #{attempts}/#{LOCK_RETRY_ATTEMPTS}")
+        sleep(0.05 * attempts) unless Rails.env.test?
+        retry
+      end
+
+      # The exception is swallowed, so BackendExceptionLogging never sees it;
+      # keep the call site and the transactions holding locks in the log.
+      Rails.logger.warn(
+        "[PollMergeStateJob] job #{job_id} lock conflict persisted (#{e.class}: #{e.message}); " \
+        "skipping until next poll\n#{Array(e.backtrace).first(8).join("\n")}\n" \
+        "lock_holders=#{MysqlLockDiagnostics.snapshot.to_json}"
+      )
+      record_contention_event(e)
+      nil
+    end
+  end
+
+  private
+
+  # The skip returns normally, so the perform.active_job notification carries
+  # no exception; record the exhausted contention in the backend exception
+  # event view (backtrace + lock holders) directly.
+  def record_contention_event(error)
+    BackendExceptionEvent.record_job!({ exception_object: error, job: self }, 0)
+  rescue StandardError => e
+    Rails.logger.error("[PollMergeStateJob] contention event dropped: #{e.class}: #{e.message}")
+  end
+
+  def poll_merge_state(job_id)
     return if AppSetting.polling_paused?
 
     @job = Job.find_by(id: job_id)
@@ -82,8 +126,6 @@ class PollMergeStateJob < ApplicationJob
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
     Rails.logger.warn("[PollMergeStateJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
   end
-
-  private
 
   def persist_mergeability(pr)
     MergeabilityRecorder.record_github!(job: @job, pr: pr)

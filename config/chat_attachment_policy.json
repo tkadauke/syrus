@@ -5,7 +5,8 @@
     ".png": ["image/png"],
     ".gif": ["image/gif"],
     ".webp": ["image/webp"],
-    ".pdf": ["application/pdf"]
+    ".pdf": ["application/pdf"],
+    ".zip": ["application/zip", "application/x-zip-compressed", "application/x-zip", "application/octet-stream", "binary/octet-stream"]
   },
   "text_extensions": [
     ".txt", ".md", ".markdown", ".rst", ".rtf", ".tex",

@@ -31,6 +31,26 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
   end
 
   def parse_body = JSON.parse(response.body)
+
+  describe "lock contention on job detail" do
+    it "answers 503 with a retry hint instead of a 500 on header lock wait" do
+      allow(App::JobDetailPayload).to receive(:header).and_raise(ActiveRecord::LockWaitTimeout)
+
+      get "/api/v1/app/jobs/#{job.id}"
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(response.headers["Retry-After"]).to eq("2")
+      expect(parse_body.dig("error", "code")).to eq("temporary_lock")
+    end
+
+    it "answers 503 on tab lock wait" do
+      allow(App::JobDetailPayload).to receive(:tab).and_raise(ActiveRecord::Deadlocked)
+
+      get "/api/v1/app/jobs/#{job.id}/tabs/summary"
+
+      expect(response).to have_http_status(:service_unavailable)
+    end
+  end
   def app_job_chat_feedback_path(job_record) = "/api/v1/app/jobs/#{job_record.id}/chat_feedback"
   def capture_sql
     queries = []

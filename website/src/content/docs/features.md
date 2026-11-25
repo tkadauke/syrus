@@ -1243,8 +1243,9 @@ documents and markup, structured data and configuration, logs and patches, and
 source files for Syrus's commonly used languages, plus recognized names such as
 `Dockerfile`, `Makefile`, `Gemfile`, and `Rakefile`. Filename and MIME checks
 allow normal browser fallbacks such as `text/plain` only for recognized files;
-archives, executables, Office files, media, and other binary formats remain
-unsupported. Each file is limited to 5 MB and attachments total 20 MB per
+ZIP archives are also accepted and stored as opaque files that Syrus never
+extracts automatically. Other archives, executables, disk images, Office files,
+media, and other binary formats remain unsupported. Each file is limited to 5 MB and attachments total 20 MB per
 message. Attachments upload as soon as they are selected, and drafts retain
 lightweight references while thumbnails and downloads use secure file URLs.
 HTML and SVG attachments are treated as untrusted source and download
@@ -2927,6 +2928,11 @@ an agent iterates. Closing the preview tab only dismisses it from chat; the
 published mockup remains viewable from the Mockups page. Mockups are visible to
 whoever can see the chat they came from.
 
+Chat agents can also inspect earlier versions of a preview read-only: they can
+list a preview's preserved versions and read a text file from any of them (binary
+files are reported as metadata), for open or closed previews in the same chat.
+This lets an agent reuse a design from an older version without restoring it.
+
 Preview and list payloads carry only the current revision's stored summary;
 the version picker loads older revisions when opened. Exporting the same
 revision again reuses its cached zip archive.
@@ -3083,3 +3089,18 @@ going stale and is independent of the per-Job base branch.
 
 For command examples, continue to [Recipes](/docs/recipes). For failure
 paths, use [Troubleshooting](/docs/troubleshooting).
+
+## Permission decision cards
+
+When an agent needs your approval, the chat card and the permission inbox show
+the same decision layout. It leads with a plain-language question such as
+"Allow Syrus to capture a screenshot?", followed by the target, whether data is
+read or changed, who asked, and how long the approval lasts. Session IDs, raw
+arguments, and capability details stay behind a collapsed "Technical details"
+section.
+
+"Allow once" is the primary action and "Deny" is secondary. To remember a
+decision, pick one option from the scope control, for example "Allow
+screenshots for this chat". Before anything is saved, the card summarizes what
+will be remembered, where it applies, how long it lasts, and how to revoke it
+under Settings → Permissions.

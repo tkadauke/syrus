@@ -1,7 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter, useLocation } from "react-router-dom"
+import { Link, MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
 import { RepositoriesIndex } from "./Repositories"
@@ -861,5 +861,38 @@ describe("RepositoriesIndex responsive gutter", () => {
     const banner = await screen.findByText("Request failed with 500")
     const marginWrapper = banner.parentElement?.parentElement
     expect(marginWrapper?.className).toContain("mx-4 sm:mx-0")
+  })
+})
+
+describe("RepositoriesIndex collection filter transitions", () => {
+  it("keeps the previous result set on screen while a new filter's query is in flight", async () => {
+    let releaseSecond: (() => void) | undefined
+    const second = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("x=1")) {
+        await second
+        return jsonResponse(repositoriesPayload({ active_repositories: [repositoryRow({ id: 2, slug: "bob/gadgets" })] }))
+      }
+      return jsonResponse(repositoriesPayload({ active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets" })] }))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+          <Link to="/app-shell/repositories?x=1">change filter</Link>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await screen.findByRole("link", { name: "acme/widgets" })
+
+    fireEvent.click(screen.getByText("change filter"))
+
+    expect(screen.getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(screen.queryByText("Loading repositories...")).not.toBeInTheDocument()
+    releaseSecond?.()
+    await screen.findByRole("link", { name: "bob/gadgets" })
   })
 })

@@ -36,6 +36,7 @@ module Admin
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
+      "inspect_preview_versions" => "generic",
       "reset_workspace" => "hidden",
       "override_job_planned_execution" => "generic",
       "read_backend_exception_events" => "generic",

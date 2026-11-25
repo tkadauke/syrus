@@ -20,8 +20,17 @@ RSpec.describe ChatAttachmentPolicy do
     end
   end
 
+  it "accepts ZIP archives for the MIME types browsers commonly supply" do
+    %w[application/zip application/x-zip-compressed application/octet-stream binary/octet-stream].each do |mime_type|
+      result = described_class.check(filename: "archive.ZIP", mime_type: mime_type)
+      expect(result).to be_accepted, mime_type
+      expect(result.text?).to be(false)
+    end
+    expect(described_class.check(filename: "archive.zip", mime_type: "text/plain")).not_to be_accepted
+  end
+
   it "rejects binary, executable, archive, Office, media, font, disk-image, unknown, and MIME-mismatched files" do
-    %w[program.exe archive.zip document.docx song.mp3 movie.mp4 font.woff disk.iso unknown.bin].each do |filename|
+    %w[program.exe archive.tar.gz archive.7z archive.rar document.docx song.mp3 movie.mp4 font.woff disk.iso disk.dmg unknown.bin].each do |filename|
       expect(described_class.check(filename: filename, mime_type: "application/octet-stream")).not_to be_accepted, filename
     end
 

@@ -273,4 +273,27 @@ RSpec.describe Prompts::Implement do
       expect(injected_pos).to be < skill_pos
     end
   end
+
+  describe "attached mockup guidance" do
+    subject(:out) { described_class.new(issue: issue).to_s }
+
+    it "tells the agent to treat an attached mockup as a rendered design reference" do
+      expect(out).to include("Attached mockups")
+      expect(out).to include("Inspect the complete mockup")
+      expect(out).to include("Render and interact with it")
+      expect(out).to include("primary visual and interaction reference")
+      expect(out).to include("follow the written requirements")
+      expect(out).to include("layout, hierarchy, spacing, typography,")
+      expect(out).to include("animation, gestures, overlays,")
+      expect(out).to include("Convenience is not a reason for material")
+    end
+
+    it "keeps the guidance conditional and leaves the rest of the prompt intact for ordinary Jobs" do
+      expect(out).to include("if the Job includes an attached UI mockup")
+      expect(out).to include("Jobs without an attached mockup are unaffected")
+      expect(out).to include("Issue title:\n\nAdd greeting helper")
+      expect(out).to include("Git pipeline contract")
+      expect(out).to include("Phased execution note")
+    end
+  end
 end

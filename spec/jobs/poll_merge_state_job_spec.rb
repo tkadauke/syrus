@@ -338,6 +338,48 @@ RSpec.describe PollMergeStateJob, :ci_only do
     }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
   end
 
+  describe "lock contention" do
+    it "retries a lock wait and completes the poll when contention clears" do
+      calls = 0
+      allow_any_instance_of(described_class).to receive(:poll_merge_state) do
+        calls += 1
+        raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded" if calls == 1
+      end
+
+      expect { described_class.new.perform(job.id) }.not_to raise_error
+      expect(calls).to eq(2)
+    end
+
+    it "skips the poll without raising when the lock wait persists" do
+      calls = 0
+      allow_any_instance_of(described_class).to receive(:poll_merge_state) do
+        calls += 1
+        raise ActiveRecord::Deadlocked, "Deadlock found"
+      end
+
+      expect { described_class.new.perform(job.id) }.not_to raise_error
+      expect(calls).to eq(described_class::LOCK_RETRY_ATTEMPTS + 1)
+    end
+
+    it "logs the backtrace and lock holders when the lock wait persists" do
+      allow_any_instance_of(described_class).to receive(:poll_merge_state)
+        .and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded")
+      allow(MysqlLockDiagnostics).to receive(:snapshot).and_return([ { "trx_id" => "42", "statement" => "UPDATE jobs" } ])
+      messages = []
+      allow(Rails.logger).to receive(:warn) { |msg| messages << msg.to_s }
+
+      described_class.new.perform(job.id)
+
+      persisted = messages.find { |m| m.include?("lock conflict persisted") }
+      expect(persisted).to include("Lock wait timeout exceeded", "lock_holders=", "UPDATE jobs")
+
+      event = BackendExceptionEvent.where(job_class: "PollMergeStateJob").last
+      expect(event).to be_present
+      expect(event.exception_class).to eq("ActiveRecord::LockWaitTimeout")
+      expect(event.backtrace).to be_present
+    end
+  end
+
   describe "external PR ingest readiness gate" do
     def failed_ingest_external_job(state: "failed")
       external_job = Job.create!(

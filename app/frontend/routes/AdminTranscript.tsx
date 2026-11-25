@@ -1,5 +1,6 @@
+import { keepPreviousDataWithin } from "../lib/placeholderData"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent, type ReactNode } from "react"
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -27,8 +28,9 @@ export function AdminTranscript() {
   const payloadRef = useRef<TranscriptPayload | undefined>(undefined)
   const cursorRef = useRef<number | undefined>(undefined)
   const pageKeyRef = useRef(`${runId}:${page}:${per}`)
+  const transcriptKey = ["admin", "transcript", runId, { page, per }] as const
   const transcript = useQuery({
-    queryKey: ["admin", "transcript", runId, { page, per }],
+    queryKey: transcriptKey,
     queryFn: async () => {
       const pageKey = `${runId}:${page}:${per}`
       if (pageKeyRef.current !== pageKey) {
@@ -48,7 +50,7 @@ export function AdminTranscript() {
     enabled: runId.length > 0,
     staleTime: 0,
     refetchInterval: (query) => transcriptRefetchInterval(query.state.data),
-    placeholderData: keepPreviousData
+    placeholderData: keepPreviousDataWithin(transcriptKey, [0, 1, 2])
   })
 
   return (

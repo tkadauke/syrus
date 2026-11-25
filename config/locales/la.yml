@@ -397,6 +397,7 @@ la:
     jobs:
       errors:
         invalid_tab: "Tabula Job ignota est."
+        temporary_lock: "Singula Job ob certamen basis datorum ad tempus non praesto sunt. Iterum tenta."
         invalid_priority: "Valor prioritatis invalidus est."
         invalid_provider_setting: "Optio provisoris invalida est."
         provider_not_configured: "Ille agens configuratus non est."

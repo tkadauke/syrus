@@ -7,6 +7,7 @@ import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { applyAppEvent } from "../../lib/appEvents"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
+import type { SmartPermissionOption } from "../../api/permissionRequests"
 import type { ChatQueryKey } from "./constants"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 
@@ -542,13 +543,16 @@ describe("PendingActionCard", () => {
     )
 
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
-    expect(screen.getByText("Allow permission to read the database")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Allow permission to read the database?" })).toBeInTheDocument()
     expect(screen.getByText("Maya · Chat")).toBeInTheDocument()
     expect(screen.getByText("This one time")).toBeInTheDocument()
     expect(screen.getByText("Your settings require your approval before an agent does this.")).toBeInTheDocument()
-    expect(screen.getByText("Run a database query")).toBeInTheDocument()
-    expect(screen.getByText("Orders database · read confidential information")).toBeInTheDocument()
-    expect(screen.queryByText(/database\.read/)).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Allow: Run a database query?" })).toBeInTheDocument()
+    expect(screen.getByText("Orders database")).toBeInTheDocument()
+    expect(screen.getByText("read confidential information")).toBeInTheDocument()
+    // Capability and operation names are implementation metadata, kept behind a collapsed disclosure.
+    for (const details of screen.getAllByTestId("permission-technical-details") as HTMLDetailsElement[]) expect(details.open).toBe(false)
+    expect(screen.getAllByText("database.read · database.read/query")).toHaveLength(1)
     fireEvent.click(screen.getAllByRole("button", { name: "Allow once" })[0])
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
@@ -592,6 +596,8 @@ describe("PendingActionCard", () => {
     expect(screen.getByText("production deploy")).toBeInTheDocument()
     expect(screen.getByText(/Authorization: Bearer \[redacted\]/)).toBeInTheDocument()
     expect(screen.getByText("SSH deploy@app.example.test")).toBeInTheDocument()
+    // The raw invocation sits behind the Technical details disclosure.
+    expect((screen.getByTestId("authorization-technical-details") as HTMLDetailsElement).open).toBe(false)
     expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
   })
@@ -632,6 +638,44 @@ describe("PendingActionCard", () => {
     expect(preview).toHaveTextContent("Allows interactive chats to run mail/send until revoked.")
     expect(preview).toHaveTextContent("Representative non-matches")
     expect(screen.getByRole("link", { name: "Open in Permissions Hub" })).toHaveAttribute("href", "/settings/permissions")
+  })
+
+  it("names the operation in remembered-scope labels when only the request-level presentation carries the statement", () => {
+    const option: SmartPermissionOption = {
+      kind: "allow_chat",
+      duration: "chat_session",
+      breadth: "resource",
+      digest: "chat-digest",
+      summary: { allows: ["Allow screenshots in this chat."], excludes: [] },
+      draft: {},
+      ceiling: {},
+      context: { coworker: "Maya", operation: "screen.capture", repository: "acme/app", resource_scope_label: "Screen", duration: "chat_session" }
+    }
+    renderCard(
+      pendingAction({
+        action: "coworker_tool_call",
+        request_kind: "authorization_request",
+        authorization_presentation: { statement: "capture a screenshot" },
+        authorization_items: [
+          {
+            id: 42,
+            kind: "operation",
+            state: "pending",
+            capability: "screen",
+            operation: "screen.capture",
+            effects: [],
+            prerequisite_ids: [],
+            app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/decision",
+            app_smart_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/smart_decision",
+            smart_option: option,
+            smart_options: [option]
+          }
+        ]
+      })
+    )
+
+    const labels = Array.from(screen.getByLabelText("Remember this decision").querySelectorAll("option")).map((o) => o.textContent)
+    expect(labels.join("|")).toContain("capture a screenshot")
   })
 
   it("previews and confirms the adaptive permission through the smart decision endpoint", async () => {
@@ -708,14 +752,17 @@ describe("PendingActionCard", () => {
 
     expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
-    // The adaptive chat-scoped action stays one click away; the permanent
-    // command grant is behind More options.
-    expect(screen.queryByRole("button", { name: "Always allow this command" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "More options…" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
+    // Remembered scopes live in one explicit scope control, not competing buttons.
+    expect(screen.queryByRole("button", { name: /Always allow/ })).not.toBeInTheDocument()
+    expect(Array.from(screen.getByLabelText("Remember this decision").querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+      "Remember this decision…",
+      "Allow this action for this chat",
+      "Always allow this action"
+    ])
+    fireEvent.change(screen.getByLabelText("Remember this decision"), { target: { value: "chat_session:resource" } })
     expect(screen.getByText("Maya")).toBeInTheDocument()
-    expect(screen.getByText("acme/app")).toBeInTheDocument()
-    expect(screen.getByText("SSH deploy@app.example.com")).toBeInTheDocument()
+    expect(screen.getByText("acme/app · SSH deploy@app.example.com")).toBeInTheDocument()
+    expect(screen.getByText("This chat only")).toBeInTheDocument()
     expect(screen.getByText("Other chats")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Customize" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -1207,10 +1254,10 @@ describe("ProposalCard routing", () => {
   })
 })
 
-describe("ProposalCard first-run jobs sidebar tab navigation", () => {
+describe("ProposalCard jobs tab attention callback", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("selects the jobs sidebar tab after confirming a Job proposal when it isn't visible yet", async () => {
+  it("reports the confirmed jobs after confirming a Job proposal (never selects a tab)", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
@@ -1222,10 +1269,10 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), vi.fn(), { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalledWith(1))
   })
 
-  it("selects the jobs sidebar tab after confirming an Epic proposal when it isn't visible yet", async () => {
+  it("reports the confirmed jobs after confirming an Epic proposal (never selects a tab)", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
@@ -1242,7 +1289,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("selects the jobs sidebar tab after confirming a syrus_issue proposal when it isn't visible yet", async () => {
+  it("reports the confirmed jobs after confirming a syrus_issue proposal (never selects a tab)", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
@@ -1259,7 +1306,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("does not select the jobs sidebar tab after confirming a github_issue proposal", async () => {
+  it("does not report jobs after confirming a github_issue proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(
@@ -1278,7 +1325,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
   })
 
-  it("does not select the jobs sidebar tab when it is already visible", async () => {
+  it("still reports newly confirmed jobs when the jobs tab is already visible", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
@@ -1291,11 +1338,10 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
     renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { onSelectWorkspaceTab, chatOverrides: { confirmed_proposal_count: 1 } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal confirmed."))
-    expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalledWith(1))
   })
 
-  it("does not select the jobs sidebar tab when rejecting a proposal", async () => {
+  it("does not report jobs when rejecting a proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST")
         return Promise.resolve(

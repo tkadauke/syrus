@@ -14,6 +14,7 @@ import {
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Select } from "./Select"
+import { PermissionDecisionSummary, permissionActionPhrase, type TechnicalDetail } from "./PermissionDecisionSummary"
 import { LinkedPermissionRule, SmartPermissionActions } from "./SmartPermissionActions"
 
 export function PermissionRequestCard({ request, jobId }: { request: PermissionRequest; jobId?: number }) {
@@ -81,15 +82,11 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
   const linkedAuthority = displayedRequest.items.find((item) => item.resulting_authority)?.resulting_authority
 
   const summary = displayedRequest.presentation ?? {}
-  const context = [summary.agent, summary.origin].filter((value): value is string => Boolean(value))
-  const details = (
-    [
-      [t("approval_inbox.scope"), summary.scope],
-      [t("approval_inbox.consequence"), summary.consequences?.join(", ")],
-      [t("approval_inbox.requested_duration"), summary.requested_durations?.join(", ")],
-      [t("approval_inbox.why_required"), summary.why_approval_required]
-    ] as Array<[string, string | undefined]>
-  ).filter((entry): entry is [string, string] => Boolean(entry[1]))
+  const technical: TechnicalDetail[] = displayedRequest.items.flatMap((item) => [
+    [t("approval_inbox.capability"), [item.capability, item.operation].filter(Boolean).join(" · ")],
+    [t("approval_inbox.resource_scope"), item.resource_scope],
+    [t("approval_inbox.arguments"), item.arguments]
+  ])
 
   return (
     <article
@@ -97,15 +94,11 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
       data-testid={`permission-request-${request.id}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-warning-surface px-2 py-0.5 text-xs font-medium text-warning-text">{t("approval_inbox.request_badge")}</span>
-            <span className="text-xs text-text-muted">
-              {request.checkpoint_state || t(`approval_inbox.states.${request.state}`, { defaultValue: request.state })}
-            </span>
-          </div>
-          <h2 className="mt-2 break-words font-semibold text-text-primary">{summary.statement || request.purpose || t("approval_inbox.fallback_purpose")}</h2>
-          {context.length ? <p className="mt-1 break-words text-xs text-text-secondary">{context.join(" · ")}</p> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded bg-warning-surface px-2 py-0.5 text-xs font-medium text-warning-text">{t("approval_inbox.request_badge")}</span>
+          <span className="text-xs text-text-muted">
+            {request.checkpoint_state || t(`approval_inbox.states.${request.state}`, { defaultValue: request.state })}
+          </span>
         </div>
         {request.origin?.type === "Job" ? (
           <Link className="shrink-0 text-xs font-medium text-brand hover:underline" to={`/jobs/${request.origin.id}`}>
@@ -113,38 +106,39 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
           </Link>
         ) : null}
       </div>
-      {details.length ? (
-        <dl className="mt-3 min-w-0 space-y-1 rounded-lg bg-surface-subtle p-3 text-xs text-text-secondary">
-          {details.map(([label, value]) => (
-            <div className="min-w-0" key={label}>
-              <dt className="font-medium text-text-muted">{label}</dt>
-              <dd className="[overflow-wrap:anywhere]">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      {pending && smartItem ? (
-        <SmartPermissionActions
-          busy={decide.isPending || smartDecide.isPending}
-          error={smartDecide.error || decide.error}
-          onAllowOnce={() => {
-            smartDecide.reset()
-            decide.mutate("approved")
-          }}
-          onConfirm={(option) => smartDecide.mutate(option)}
-          onDeny={() => {
-            smartDecide.reset()
-            decide.mutate("denied")
-          }}
-          onCustomized={(decision) => {
-            smartDecide.reset()
-            decide.mutate(decision)
-          }}
-          onStale={() => refresh()}
-          option={smartItem.smart_option}
-          options={smartItem.smart_options}
-          request={{ requestId: request.id, itemId: smartItem.id }}
+      <div className="mt-2">
+        <PermissionDecisionSummary
+          fallbackStatement={request.purpose || t("approval_inbox.fallback_purpose")}
+          headingLevel={2}
+          presentation={summary}
+          technical={technical}
         />
+      </div>
+      {pending && smartItem ? (
+        <div className="mt-3">
+          <SmartPermissionActions
+            busy={decide.isPending || smartDecide.isPending}
+            error={smartDecide.error || decide.error}
+            onAllowOnce={() => {
+              smartDecide.reset()
+              decide.mutate("approved")
+            }}
+            onConfirm={(option) => smartDecide.mutate(option)}
+            onDeny={() => {
+              smartDecide.reset()
+              decide.mutate("denied")
+            }}
+            onCustomized={(decision) => {
+              smartDecide.reset()
+              decide.mutate(decision)
+            }}
+            actionPhrase={permissionActionPhrase(smartItem.presentation?.statement || summary.statement)}
+            onStale={() => refresh()}
+            option={smartItem.smart_option}
+            options={smartItem.smart_options}
+            request={{ requestId: request.id, itemId: smartItem.id }}
+          />
+        </div>
       ) : pending ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
           {durationChoices.length ? (

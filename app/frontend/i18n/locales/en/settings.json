@@ -74,7 +74,9 @@
       "chat_session": "This chat",
       "job": "This Job",
       "permanent": "Permanent"
-    }
+    },
+    "capability": "Capability",
+    "resource_scope": "Resource scope"
   },
   "permissions": {
     "title": "Permissions",
@@ -2009,6 +2011,39 @@
       "resource": "This resource only",
       "tool": "Every use of this tool",
       "family": "The whole tool family"
+    },
+    "remember_control": "Remember this decision",
+    "remember_placeholder": "Remember this decision…",
+    "remembered_intro": "This is what will be remembered:",
+    "applies_where": "Where it applies",
+    "revoke": "Revoke",
+    "revoke_how": "Any time in Settings → Permissions.",
+    "remember": {
+      "action": {
+        "chat_session": "Allow “{{action}}” for this chat",
+        "job": "Allow “{{action}}” for this job",
+        "permanent": "Always allow “{{action}}”"
+      },
+      "generic": {
+        "chat_session": "Allow this action for this chat",
+        "job": "Allow this action for this job",
+        "permanent": "Always allow this action"
+      },
+      "tool": {
+        "chat_session": "Allow every use of this tool for this chat",
+        "job": "Allow every use of this tool for this job",
+        "permanent": "Always allow every use of this tool"
+      },
+      "family": {
+        "chat_session": "Allow the whole tool family for this chat",
+        "job": "Allow the whole tool family for this job",
+        "permanent": "Always allow the whole tool family"
+      },
+      "prefix": {
+        "chat_session": "Allow commands starting with “{{prefix}}” for this chat",
+        "job": "Allow commands starting with “{{prefix}}” for this job",
+        "permanent": "Always allow commands starting with “{{prefix}}”"
+      }
     }
   },
   "permission_editor": {
@@ -2092,5 +2127,13 @@
     "last_used": "last used {{time}}",
     "never_used": "never used",
     "none": "No MCP bridge tokens."
+  },
+  "permission_decision": {
+    "question": "Allow: {{action}}?",
+    "what_happens": "What will happen",
+    "applies_to": "Affects",
+    "requested_by": "Requested by",
+    "duration": "Requested for",
+    "technical_details": "Technical details"
   }
 }

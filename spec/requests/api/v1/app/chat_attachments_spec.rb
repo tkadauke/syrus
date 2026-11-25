@@ -21,6 +21,38 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
     expect(response.headers["Cache-Control"]).to include("immutable")
   end
 
+  it "stores a ZIP as an opaque file and securely downloads it" do
+    sign_in_as(user)
+    bytes = "PK\x03\x04\x00\xFF../evil".b
+    file = Rack::Test::UploadedFile.new(StringIO.new(bytes), "application/x-zip-compressed", original_filename: "assets.zip")
+
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
+
+    expect(response).to have_http_status(:created)
+    payload = JSON.parse(response.body)
+    expect(payload).to include("name" => "assets.zip", "size" => bytes.bytesize)
+    expect(payload.fetch("mime_type")).to match(%r{\Aapplication/(x-)?zip})
+
+    get payload.fetch("url")
+    expect(response).to have_http_status(:ok)
+    expect(response.body.b).to eq(bytes)
+    expect(response.headers["Content-Disposition"]).to include("assets.zip")
+  end
+
+  it "rejects unsupported archives and enforces the size limit for ZIPs" do
+    sign_in_as(user)
+    exe = Rack::Test::UploadedFile.new(StringIO.new("MZ"), "application/octet-stream", original_filename: "setup.exe")
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: exe }
+    expect(response).to have_http_status(:unprocessable_content)
+
+    big = Rack::Test::UploadedFile.new(
+      StringIO.new("x" * (ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES + 1)), "application/zip", original_filename: "big.zip"
+    )
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: big }
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(chat.chat_file_attachments).to be_empty
+  end
+
   it "does not route the retired inline attachment download endpoint" do
     sign_in_as(user)
 

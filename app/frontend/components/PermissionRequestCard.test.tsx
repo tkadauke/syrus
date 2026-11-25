@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PermissionRequest } from "../api/permissionRequests"
@@ -69,7 +69,7 @@ describe("PermissionRequestCard smart actions", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("button", { name: "Allow for this job" })).toBeInTheDocument()
+    expect(await screen.findByLabelText("Remember this decision")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_requests/9", expect.anything())
   })
 
@@ -88,7 +88,7 @@ describe("PermissionRequestCard smart actions", () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Allow for this job" }))
+    fireEvent.change(screen.getByLabelText("Remember this decision"), { target: { value: "job:resource" } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
@@ -115,7 +115,13 @@ describe("PermissionRequestCard smart actions", () => {
     expect(card.className).not.toContain("overflow-x-auto")
     expect(screen.getByRole("heading").className).toContain("break-words")
     expect(screen.getByText(/y{50}/).className).toContain("[overflow-wrap:anywhere]")
-    expect(card.textContent).not.toMatch(/SECRET_ARGUMENT|777|mail\.send|\{|—/)
+    // Implementation metadata lives only behind the collapsed disclosure.
+    const details = within(card).getByTestId("permission-technical-details") as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    expect(details).toHaveTextContent("SECRET_ARGUMENT")
+    const visible = card.cloneNode(true) as HTMLElement
+    visible.querySelector("details")?.remove()
+    expect(visible.textContent).not.toMatch(/SECRET_ARGUMENT|777|mail\.send|\{|—/)
   })
 
   it("omits optional context that is not available", () => {
@@ -126,7 +132,8 @@ describe("PermissionRequestCard smart actions", () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    expect(screen.getByText("Draft an email")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /Draft an email/ })).toBeInTheDocument()
+    expect(screen.queryByText("{}")).not.toBeInTheDocument()
     expect(screen.queryByText("Why is approval required?")).not.toBeInTheDocument()
     expect(screen.queryByText("Applies to")).not.toBeInTheDocument()
   })

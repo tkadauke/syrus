@@ -208,4 +208,110 @@ RSpec.describe ReapOrphanedSpawnedProcessesJob do
       [ "system", { "text" => "Agent turn failed." } ]
     )
   end
+
+  describe "lock contention" do
+    before do
+      allow_any_instance_of(described_class).to receive(:backoff)
+      stub_live_hosts("live-pod")
+    end
+
+    it "retries a contended conditional update and finalizes the row after the lock releases" do
+      row = fixture(hostname: "dead-pod", pid: nil, started_at: 2.minutes.ago)
+      calls = 0
+      allow(SpawnedProcess).to receive(:where).and_wrap_original do |m, *args|
+        rel = m.call(*args)
+        if args.first.is_a?(Hash) && args.first[:id] == row.id
+          allow(rel).to receive(:update_all).and_wrap_original do |u, *a|
+            calls += 1
+            raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded" if calls < 3
+
+            u.call(*a)
+          end
+        end
+        rel
+      end
+
+      described_class.perform_now
+
+      expect(calls).to be >= 3
+      expect(row.reload.outcome).to eq("orphaned")
+    end
+
+    it "reports phase, attempts and scope when contention is exhausted, without starving later phases" do
+      row = fixture(hostname: "dead-pod", pid: nil, started_at: 2.minutes.ago)
+      allow(ChatStopReconciler).to receive(:reconcile_stale_turns!).and_return(0)
+      swept = false
+      allow(ChatTurnAutoRetryReconciler).to receive(:sweep!) { swept = true; 0 }
+      allow(SpawnedProcess).to receive(:where).and_wrap_original do |m, *args|
+        rel = m.call(*args)
+        if args.first.is_a?(Hash) && args.first[:id] == row.id
+          allow(rel).to receive(:update_all).and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded; UPDATE spawned_processes")
+        end
+        rel
+      end
+
+      expect { described_class.perform_now }
+        .to raise_error(described_class::ContentionExhausted) { |e|
+          failure = e.failures.find { |f| f[:phase] == :pidless }
+          expect(failure).to include(scope: "spawned_process:#{row.id}", attempts: described_class::MAX_ATTEMPTS)
+          expect(failure[:statement]).to include("UPDATE spawned_processes")
+        }
+      expect(swept).to be(true)
+      expect(row.reload).not_to be_finished
+    end
+
+    it "does not reconcile twice when a second reaper loses the conditional update" do
+      row = fixture(hostname: "dead-pod", pid: nil, started_at: 2.minutes.ago)
+      row.update_columns(finished_at: Time.current, outcome: "exited")
+      expect(ChatStopReconciler).not_to receive(:reconcile_spawned_process!)
+
+      described_class.perform_now
+    end
+
+    it "rolls the row back to running when reconciliation exhausts, so a later sweep revisits it" do
+      row = fixture(hostname: "dead-pod", pid: nil, started_at: 2.minutes.ago)
+      allow(ChatTurnAutoRetryReconciler).to receive(:sweep!).and_return(0)
+      allow(ChatStopReconciler).to receive(:reconcile_stale_turns!).and_return(0)
+      allow(ChatTurnAutoRetryReconciler).to receive(:reconcile_spawned_process!).and_return(false)
+      allow(ChatStopReconciler).to receive(:reconcile_spawned_process!)
+        .and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded; UPDATE chat_sessions")
+
+      expect { described_class.perform_now }
+        .to raise_error(described_class::ContentionExhausted, /pidless/)
+      expect(row.reload).not_to be_finished
+
+      allow(ChatStopReconciler).to receive(:reconcile_spawned_process!).and_return(true)
+      described_class.perform_now
+      expect(row.reload.outcome).to eq("orphaned")
+      expect(ChatStopReconciler).to have_received(:reconcile_spawned_process!).at_least(:once)
+    end
+
+    it "reports lock waits in host discovery instead of silently skipping cross-host cleanup" do
+      allow_any_instance_of(described_class)
+        .to receive(:live_solid_queue_hostnames).and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded; SELECT solid_queue_processes")
+      allow(ChatTurnAutoRetryReconciler).to receive(:sweep!).and_return(0)
+      allow(ChatStopReconciler).to receive(:reconcile_stale_turns!).and_return(0)
+
+      expect { described_class.perform_now }
+        .to raise_error(described_class::ContentionExhausted) { |e|
+          failure = e.failures.find { |f| f[:phase] == :host_discovery }
+          expect(failure).to include(attempts: described_class::MAX_ATTEMPTS)
+          expect(failure[:statement]).to include("solid_queue_processes")
+        }
+    end
+
+    it "keeps the cleanup queue" do
+      expect(described_class.new.queue_name).to eq("cleanup")
+    end
+
+    it "fails a contended chat phase after retries but still runs the next phase" do
+      allow(ChatTurnAutoRetryReconciler).to receive(:sweep!).and_raise(ActiveRecord::Deadlocked, "Deadlock found")
+      stale = false
+      allow(ChatStopReconciler).to receive(:reconcile_stale_turns!) { stale = true; 0 }
+
+      expect { described_class.perform_now }.to raise_error(described_class::ContentionExhausted, /crashed_chat_turns/)
+      expect(stale).to be(true)
+      expect(ChatTurnAutoRetryReconciler).to have_received(:sweep!).exactly(described_class::MAX_ATTEMPTS).times
+    end
+  end
 end

@@ -447,6 +447,18 @@ describe("Compose attachments", () => {
     expect(screen.queryByText("Dockerfile is not a supported attachment type.")).not.toBeInTheDocument()
   })
 
+  it("accepts ZIP archives and rejects unsupported archive formats", async () => {
+    renderCompose()
+    const input = screen.getByLabelText("Chat attachments")
+
+    fireEvent.change(input, { target: { files: [new File(["PK"], "assets.zip", { type: "application/x-zip-compressed" })] } })
+    expect(await screen.findByTitle("assets.zip")).toBeInTheDocument()
+    expect(screen.queryByText("assets.zip is not a supported attachment type.")).not.toBeInTheDocument()
+
+    fireEvent.change(input, { target: { files: [new File(["MZ"], "setup.exe", { type: "application/octet-stream" })] } })
+    expect(await screen.findByText("setup.exe is not a supported attachment type.")).toBeInTheDocument()
+  })
+
   it("replaces an annotated image with a Blob without fetching a data URL", async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)

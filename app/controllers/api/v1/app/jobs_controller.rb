@@ -67,10 +67,14 @@ module Api
 
         def show
           render json: ::App::JobDetailPayload.header(job: find_job, user: Current.user, params: params)
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked
+          render_job_detail_contended
         end
 
         def tab
           render json: ::App::JobDetailPayload.tab(job: find_job, user: Current.user, tab: params[:tab])
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked
+          render_job_detail_contended
         rescue ArgumentError
           render_error("invalid_tab", t("api.jobs.errors.invalid_tab"), status: :not_found)
         end
@@ -520,6 +524,17 @@ module Api
         end
 
         private
+
+        # A read that loses a MySQL lock race is transient: answer 503 with a
+        # retry hint instead of a 500.
+        def render_job_detail_contended
+          response.set_header("Retry-After", "2")
+          render_error(
+            "temporary_lock",
+            t("api.jobs.errors.temporary_lock"),
+            status: :service_unavailable
+          )
+        end
 
         def render_job_mutation(job, **changed_fields)
           render json: {

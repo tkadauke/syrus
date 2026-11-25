@@ -74,7 +74,9 @@
       "chat_session": "Hic sermo",
       "job": "Hoc Opus",
       "permanent": "Perpetua"
-    }
+    },
+    "capability": "Facultas",
+    "resource_scope": "Ambitus rei"
   },
   "permissions": {
     "title": "Permissiones",
@@ -2009,6 +2011,39 @@
       "resource": "Haec res tantum",
       "tool": "Omnis usus huius instrumenti",
       "family": "Tota familia instrumentorum"
+    },
+    "remember_control": "Hanc decisionem memento",
+    "remember_placeholder": "Hanc decisionem memento…",
+    "remembered_intro": "Haec memorabuntur:",
+    "applies_where": "Ubi valet",
+    "revoke": "Revocare",
+    "revoke_how": "Quovis tempore in Optionibus → Permissionibus.",
+    "remember": {
+      "action": {
+        "chat_session": "«{{action}}» in hoc colloquio permitte",
+        "job": "«{{action}}» in hoc job permitte",
+        "permanent": "«{{action}}» semper permitte"
+      },
+      "generic": {
+        "chat_session": "Hanc actionem in hoc colloquio permitte",
+        "job": "Hanc actionem in hoc job permitte",
+        "permanent": "Hanc actionem semper permitte"
+      },
+      "tool": {
+        "chat_session": "Omnem usum huius instrumenti in hoc colloquio permitte",
+        "job": "Omnem usum huius instrumenti in hoc job permitte",
+        "permanent": "Omnem usum huius instrumenti semper permitte"
+      },
+      "family": {
+        "chat_session": "Totam instrumentorum familiam in hoc colloquio permitte",
+        "job": "Totam instrumentorum familiam in hoc job permitte",
+        "permanent": "Totam instrumentorum familiam semper permitte"
+      },
+      "prefix": {
+        "chat_session": "Mandata a «{{prefix}}» incipientia in hoc colloquio permitte",
+        "job": "Mandata a «{{prefix}}» incipientia in hoc job permitte",
+        "permanent": "Mandata a «{{prefix}}» incipientia semper permitte"
+      }
     }
   },
   "permission_editor": {
@@ -2092,5 +2127,13 @@
     "last_used": "ultimo usa {{time}}",
     "never_used": "numquam usa",
     "none": "Nullae tesserae pontis MCP."
+  },
+  "permission_decision": {
+    "question": "Permitte: {{action}}?",
+    "what_happens": "Quid fiet",
+    "applies_to": "Afficit",
+    "requested_by": "Rogatum ab",
+    "duration": "Rogatum pro",
+    "technical_details": "Singula technica"
   }
 }

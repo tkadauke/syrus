@@ -455,3 +455,17 @@ A descriptor may also declare `budget_dimensions` (`model_tokens`,
 `compute_time`, `network_egress`, `external_spend`, `storage`). This is effect
 metadata only. Budgets are not permission grants, and budget observers never
 change the permission decision.
+
+## Permission decision cards
+
+Chat authorization cards and the permission inbox share one decision layout.
+The card leads with a plain-language statement of the action, then the target,
+whether data is read or changed, who requested it, and the duration. Session
+IDs, raw arguments, and capability/operation details sit under a collapsed
+"Technical details" section. "Allow once" is the primary action and "Deny" is
+secondary. Remembered permissions are chosen from a single scope control whose
+options name the exact scope (for example "Allow screenshots for this chat").
+When a remembered scope needs confirmation, the card summarizes what will be
+remembered, where it applies, how long it lasts, and how to revoke it in
+Settings → Permissions. Allow once, stale-request handling, and rule semantics
+are unchanged.
