@@ -48,6 +48,13 @@ Emergency land skips only Syrus's own automation gates:
 It does not skip GitHub or repository mechanics:
 
 - Syrus still opens a normal pull request if the Job has no PR yet.
+- HTTP 500, 502, 503, and 504 failures while opening that pull request are
+  retried up to four total attempts with jittered exponential backoff capped at
+  eight seconds. Before each repeated create attempt, Syrus checks for an open
+  pull request with the same head and base so an ambiguous response cannot
+  create a duplicate. Other errors are not retried. If all attempts fail, the
+  error reports the attempt count and the Job and branch remain available for a
+  fresh operator retry.
 - Syrus merges through GitHub's merge API rather than pushing directly to the default branch.
 - GitHub branch protection, mergeability, required checks, repository permissions, and merge conflicts still apply.
 - A newly opened PR may temporarily have unknown mergeability while GitHub computes it. Syrus polls for up to about 30 seconds; a reported conflict refuses immediately, while a value that remains unknown produces a distinct retryable refusal.
