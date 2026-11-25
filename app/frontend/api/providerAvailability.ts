@@ -29,7 +29,7 @@ export type ProviderAvailability = {
 } | null
 
 export type ProviderFailover = {
-  mode: "automatic" | "operator" | string
+  mode: "availability_failover" | "policy_routing" | "operator" | "automatic" | string
   automatic: boolean
   original_provider: string
   original_provider_label: string
@@ -47,6 +47,14 @@ export type ProviderFailover = {
     evidence_source?: string | null
     evidence_status?: string | null
     observed_at?: string | null
+  } | null
+  routing?: {
+    source_scope?: string | null
+    source_id?: number | string | null
+    matched_rule_id?: number | string | null
+    matched_rule_position?: number | null
+    conditions?: Record<string, unknown> | null
+    condition_results?: Record<string, unknown> | null
   } | null
 } | null
 
