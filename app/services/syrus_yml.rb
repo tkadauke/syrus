@@ -679,6 +679,13 @@ class SyrusYml
     steps = expand_plugin_grade_type(type, raw, label, default_failures: default_failures)
     raise ParseError, "#{label}: plugin grader type #{type.inspect} produced no grade steps" if steps.empty?
 
+    steps = steps.map do |step|
+      next step unless raw.key?("technically_overridable")
+
+      step.with(metadata: step.metadata.merge(
+        "technically_overridable" => parse_technically_overridable(raw["technically_overridable"], label)
+      ))
+    end
     steps.each_with_index do |step, expanded_index|
       raise ParseError, "#{label}: plugin grader type #{type.inspect} produced an invalid grade step" unless step.is_a?(GradeStep)
       validate_grade_step!(step, "#{label}.expanded[#{expanded_index}]", seen)
@@ -722,7 +729,7 @@ class SyrusYml
       failures: failures,
       base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry") || default_base_retry_for_custom_grader(raw, failures),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps"),
-      metadata: parse_grade_metadata(raw, label),
+      metadata: grade_metadata_with_override(raw, label),
       capabilities: parse_capabilities(raw["capabilities"], "#{label}.capabilities"),
       resources: parse_grade_resources(raw["resources"], "#{label}.resources")
     )
@@ -759,6 +766,21 @@ class SyrusYml
     raise ParseError, "#{label}.metadata: must be a mapping" unless raw["metadata"].is_a?(Hash)
 
     raw["metadata"].deep_stringify_keys
+  end
+
+  def grade_metadata_with_override(raw, label)
+    metadata = parse_grade_metadata(raw, label)
+    return metadata unless raw.key?("technically_overridable")
+
+    metadata.merge("technically_overridable" => parse_technically_overridable(raw["technically_overridable"], label))
+  end
+
+  def parse_technically_overridable(value, label)
+    unless value == true || value == false
+      raise ParseError, "#{label}.technically_overridable: must be true or false"
+    end
+
+    value
   end
 
   def parse_base_retry(raw, label)

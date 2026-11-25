@@ -1088,6 +1088,7 @@ module Steps
         "grader_type" => grader.metadata["grader_type"],
         "grader_framework" => grader.metadata["grader_framework"],
         "grader_mode" => grader.metadata["grader_mode"],
+        "technically_overridable" => grader.metadata["technically_overridable"] == true,
         "ci_checks" => ci_checks_for(grader),
         "project_path" => grader.metadata["project_path"],
         "coverage_outputs" => grader.metadata["coverage_outputs"],
