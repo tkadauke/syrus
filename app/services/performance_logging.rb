@@ -304,18 +304,21 @@ module PerformanceLogging
 
     attrs = payload.to_h
     duration_ms = rounded_duration(attrs[:duration_ms] || attrs["duration_ms"])
+    name = safe_string(attrs[:name] || attrs["name"], 200)
+    metadata = attrs[:metadata] || attrs["metadata"] || {}
+    metadata = safe_input_metadata(metadata) if name.in?([ "browser.input_latency", "browser.input_telemetry_health" ])
     event = base_event(BROWSER_TRACE_EVENT).merge(
       request_context,
       "duration_ms" => duration_ms,
       "trace_id" => safe_string(attrs[:trace_id] || attrs["trace_id"], 100),
       "parent_id" => safe_string(attrs[:parent_id] || attrs["parent_id"], 100).presence,
       "interaction_id" => safe_string(attrs[:interaction_id] || attrs["interaction_id"], 100).presence,
-      "name" => safe_string(attrs[:name] || attrs["name"], 200),
+      "name" => name,
       "path" => safe_string(attrs[:path] || attrs["path"], 500),
       "visibility_state" => safe_string(attrs[:visibility_state] || attrs["visibility_state"], 50),
       "api_requests" => safe_api_requests(attrs[:api_requests] || attrs["api_requests"]),
       "spans" => safe_browser_spans(attrs[:spans] || attrs["spans"]),
-      "metadata" => safe_metadata(attrs[:metadata] || attrs["metadata"] || {})
+      "metadata" => safe_metadata(metadata)
     ).compact
     emit(event, flush: false)
   end
@@ -588,6 +591,17 @@ module PerformanceLogging
       safe_key = safe_string(key, 100)
       [ safe_key, safe_key == "startup_timings" ? safe_startup_timings(value) : safe_string(value, 500) ]
     end
+  end
+
+  INPUT_METADATA_KEYS = %w[
+    screen interaction_kind input_delay_ms processing_duration_ms
+    presentation_delay_ms event_timing_support input_session_id app_revision
+    source status eligible_sessions api_support observer_initialized sampled
+    sampled_interactions dropped_interactions
+  ].freeze
+
+  def safe_input_metadata(metadata)
+    metadata.to_h.slice(*INPUT_METADATA_KEYS, *INPUT_METADATA_KEYS.map(&:to_sym))
   end
 
   def safe_startup_timings(value)

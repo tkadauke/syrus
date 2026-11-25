@@ -193,6 +193,131 @@ describe("recordBrowserTrace", () => {
 
     expect(observe).not.toHaveBeenCalled()
   })
+
+  it("records privacy-safe input latency components in supported browsers", () => {
+    let eventCallback: PerformanceObserverCallback | undefined
+    class FakePerformanceObserver {
+      static supportedEntryTypes = ["event"]
+      constructor(callback: PerformanceObserverCallback) {
+        eventCallback = callback
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    window.history.replaceState({}, "", "/jobs/123?secret=user-entered")
+
+    startBrowserPerformanceObservers({ enabled: true, sampleRate: 1 })
+    eventCallback?.(
+      {
+        getEntries: () => [
+          { name: "click", entryType: "event", startTime: 10, duration: 100, processingStart: 30, processingEnd: 70, interactionId: 42, target: document.body }
+        ]
+      } as unknown as PerformanceObserverEntryList,
+      {} as PerformanceObserver
+    )
+    flushBrowserTraceQueue()
+
+    const body = JSON.parse(String((fetchSpy.mock.calls.at(-1)?.[1] as RequestInit).body))
+    const interaction = body.performance_events.find((event: { name: string }) => event.name === "browser.input_latency")
+    expect(interaction).toMatchObject({ path: "/jobs/123", duration_ms: 100, interaction_id: 42 })
+    expect(interaction.metadata).toMatchObject({
+      screen: "/jobs/:id",
+      interaction_kind: "pointer",
+      input_delay_ms: 20,
+      processing_duration_ms: 40,
+      presentation_delay_ms: 40,
+      event_timing_support: "supported"
+    })
+    expect(JSON.stringify(interaction)).not.toContain("user-entered")
+    expect(interaction.metadata).not.toHaveProperty("target")
+    expect(interaction.metadata).not.toHaveProperty("event_name")
+  })
+
+  it("reports unsupported Event Timing sessions instead of silently producing no samples", () => {
+    class FakePerformanceObserver {
+      static supportedEntryTypes: string[] = []
+      constructor(_callback: PerformanceObserverCallback) {}
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+
+    startBrowserPerformanceObservers({ enabled: true, sampleRate: 1 })
+    flushBrowserTraceQueue()
+
+    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))
+    expect(body.performance_events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "browser.input_telemetry_health",
+          metadata: expect.objectContaining({ status: "api_unsupported", api_support: "unsupported" })
+        })
+      ])
+    )
+  })
+
+  it("bounds sampled interactions and reports dropped entries", () => {
+    let eventCallback: PerformanceObserverCallback | undefined
+    class FakePerformanceObserver {
+      static supportedEntryTypes = ["event"]
+      constructor(callback: PerformanceObserverCallback) {
+        eventCallback = callback
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    startBrowserPerformanceObservers({ enabled: true, sampleRate: 1, maxInteractionsPerSession: 1 })
+
+    eventCallback?.(
+      {
+        getEntries: () => [
+          { name: "click", entryType: "event", startTime: 0, duration: 50, processingStart: 10, processingEnd: 30 },
+          { name: "keydown", entryType: "event", startTime: 50, duration: 60, processingStart: 55, processingEnd: 80 }
+        ]
+      } as unknown as PerformanceObserverEntryList,
+      {} as PerformanceObserver
+    )
+    flushBrowserTraceQueue()
+
+    const events = fetchSpy.mock.calls.flatMap((call) => JSON.parse(String((call[1] as RequestInit).body)).performance_events)
+    expect(events.filter((event: { name: string }) => event.name === "browser.input_latency")).toHaveLength(1)
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "browser.input_telemetry_health",
+          metadata: expect.objectContaining({ status: "rate_limited", dropped_interactions: 1 })
+        })
+      ])
+    )
+  })
+
+  it("queues one delivery-failure health event when a batch cannot be delivered", async () => {
+    class FakePerformanceObserver {
+      static supportedEntryTypes = ["event"]
+      constructor(_callback: PerformanceObserverCallback) {}
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
+    const fetchSpy = vi.spyOn(window, "fetch").mockRejectedValue(new TypeError("offline"))
+    startBrowserPerformanceObservers({ enabled: true, sampleRate: 1 })
+    flushBrowserTraceQueue()
+    await Promise.resolve()
+    await Promise.resolve()
+    flushBrowserTraceQueue()
+
+    const lastBody = JSON.parse(String((fetchSpy.mock.calls.at(-1)?.[1] as RequestInit).body))
+    expect(lastBody.performance_events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "browser.input_telemetry_health", metadata: expect.objectContaining({ status: "delivery_failure" }) })
+      ])
+    )
+  })
 })
 
 // A setInterval sampler cannot distinguish a blocked main thread from a timer
