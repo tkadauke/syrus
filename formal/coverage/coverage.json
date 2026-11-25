@@ -3811,7 +3811,7 @@
         "C. Parent-first order with rollups after commit: the intent sync (undoing F97) and the Epic rollup run after commit, repaired by reconciler checks for the crash window."
       ],
       "recommendation": "A. It gives the one-sentence rule the operator asked for, keeps rollups atomic, and the checker enforces it. Watch Job-row contention as it lands.",
-      "decision": "A (2026-11-24, answered on the lean-plan site): go hierarchical, with Lineage.lock! at the transaction entry points, the bottom-up sites flipped, and write tracking raising. To implement."
+      "decision": "A (2026-11-24, answered on the lean-plan site): go hierarchical, with Lineage.lock! at the transaction entry points, the bottom-up sites flipped, and write tracking raising. Implemented on the branch (F130, parts 0 to 14, 2026-11-25): Syrus::LockOrder::MODELS is the hierarchy and the full suite raises on any violation, writes included."
     },
     {
       "id": "NY41",
@@ -3849,7 +3849,8 @@
         "B. Allow a lock without a WorkUnit: make work_unit_id nullable and add a holder label and an expiry, so a crash cannot leave it held forever. MergeLock and the reconciler learn to treat an expired holder-less lock as released. Smaller conceptually, but a migration and a second cleanup path.",
         "C. Keep emergency landing as an override that does not take the lock, and document that it can race an in-flight lane merge (one API round-trip)."
       ],
-      "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing."
+      "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing.",
+      "decision": "A (2026-11-24, answered on the lean-plan site): a short-lived WorkUnit under a new emergency_land work definition holds the merge lock for the emergency merge. To implement."
     }
   ]
 }
