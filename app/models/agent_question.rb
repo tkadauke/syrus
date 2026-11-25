@@ -83,15 +83,15 @@ class AgentQuestion < ApplicationRecord
   end
 
   def exactly_one_owner
-    errors.add(:base, "must belong to either a chat session or a run") unless [ chat_session_id, run_id ].compact.one?
+    errors.add(:base, I18n.t("agent_questions.errors.exactly_one_owner")) unless [ chat_session_id, run_id ].compact.one?
   end
 
   def questions_are_well_formed
-    errors.add(:questions, "must be an array of 1 to 4 well-formed questions") unless self.class.normalize_questions(questions) == questions
+    errors.add(:questions, I18n.t("agent_questions.errors.questions_malformed")) unless self.class.normalize_questions(questions) == questions
   end
 
   def defaults_match_questions
     return if defaults.nil?
-    errors.add(:defaults, "must provide one non-blank default per question") unless normalize_answers(defaults)
+    errors.add(:defaults, I18n.t("agent_questions.errors.defaults_malformed")) unless normalize_answers(defaults)
   end
 end
