@@ -70,12 +70,21 @@ RSpec.describe Coworkers::Environment do
       ok = revision_for(environment, compat_min: 1, compat_max: 3)
       expect(ok.compatible_with?(2)).to be(true)
       expect(ok.compatible_with?(4)).to be(false)
+      expect(described_class.new.compatible_with?(9)).to be(true)
+      half = described_class.new(environment: environment, number: 1, source_digest: digest, compat_min: 5)
+      expect(half).not_to be_valid
+      expect(half.compatible_with?(1)).to be(false)
+    end
+
+    it "keeps the compatibility window immutable" do
+      revision = revision_for(environment, compat_min: 1, compat_max: 3)
+      expect { revision.update!(compat_max: 9) }.to raise_error(ActiveRecord::ReadonlyAttributeError)
     end
 
     it "only moves along declared transitions" do
       revision = revision_for(environment)
       revision.transition_to!(:building)
-      revision.transition_to!(:failed)
+      revision.transition_to!(:build_failed)
       expect { revision.transition_to!(:active) }.to raise_error(described_class::InvalidTransition)
     end
   end
