@@ -15,6 +15,8 @@ class RuntimeImageBuildAttempt < ApplicationRecord
 
   scope :active, -> { where(state: ACTIVE_STATES) }
   scope :lease_expired, ->(now = Time.current) { active.where(lease_expires_at: ..now) }
+  # Active for longer than +max_runtime+ regardless of heartbeats.
+  scope :overdue, ->(now = Time.current, max_runtime: RuntimeImages::Builds::Config.max_attempt_runtime) { active.where(started_at: ..(now - max_runtime)) }
 
   def active? = ACTIVE_STATES.include?(state)
 end

@@ -21,7 +21,7 @@ module RuntimeImages
         key = RuntimeImageBuildRequest.dedup_key_for(namespace_id: namespace.id, source_digest: source.digest,
                                                      recipe_digest: recipe_digest, platform: platform)
         existing = reusable(key)
-        return existing if existing
+        return duplicate(existing) if existing
 
         request = RuntimeImageBuildRequest.new(
           runtime_image_namespace: namespace, platform: platform, dedup_key: key,
@@ -35,7 +35,8 @@ module RuntimeImages
         request
       rescue ActiveRecord::RecordNotUnique
         # Lost the race against a concurrent submitter of the same tuple.
-        reusable(key) || raise
+        existing = reusable(key)
+        existing ? duplicate(existing) : raise
       end
 
       # Claims the next startable request that fits under the concurrency caps
@@ -65,6 +66,23 @@ module RuntimeImages
             request.transition_to!("building", attempts_count: attempt.number, started_at: request.started_at || now, next_attempt_at: nil)
             [ request, attempt ]
           end
+        end
+      end
+
+      # Marks an attempt as being executed by exactly one job delivery. A
+      # duplicate delivery (queue redelivery, retried enqueue) finds the mark
+      # and must not run the build again; a lost worker is handled by the lease
+      # reaper, which starts a new attempt rather than re-running this one.
+      def begin_execution(attempt, now: Time.current)
+        locked(attempt) do |request, attempt|
+          next false unless attempt.active? && request.in_flight?
+
+          if attempt.execution_started_at
+            Telemetry.recovery("duplicate_delivery")
+            next false
+          end
+          attempt.update!(execution_started_at: now)
+          true
         end
       end
 
@@ -98,6 +116,7 @@ module RuntimeImages
           end
 
           attempt.update!(state: "succeeded", finished_at: now, lease_expires_at: nil)
+          Telemetry.attempt("succeeded")
           request.transition_to!("succeeded", finished_at: now)
           finish(request, outcome: "succeeded", image: image, digest: image.digest, now: now)
         end
@@ -112,12 +131,15 @@ module RuntimeImages
           attempt.update!(state: "failed", finished_at: now, lease_expires_at: nil, error_code: code.to_s,
                           error_message: detail.to_s.truncate(500), retryable: retryable)
           if request.cancel_requested?
+            Telemetry.attempt("canceled", code)
             cancel_now(request, now: now)
           elsif retryable && !request.attempts_exhausted?
-            request.transition_to!("queued", next_attempt_at: now + Config.retry_delay(request.attempts_count))
+            Telemetry.attempt("retried", code)
+            request.transition_to!("queued", next_attempt_at: now + Config.retry_delay(request.attempts_count, code: code))
             Audit.record("build.retry", outcome: "ok", namespace: request.runtime_image_namespace, details: audit_details(request).merge("error_code" => code.to_s))
             nil
           else
+            Telemetry.attempt("failed", code)
             request.transition_to!("failed", finished_at: now)
             finish(request, outcome: "failed", error_code: code.to_s, message: detail, now: now)
           end
@@ -143,22 +165,74 @@ module RuntimeImages
           next request.result unless request.in_flight? && attempt.active?
 
           attempt.update!(state: "canceled", finished_at: now, lease_expires_at: nil)
+          Telemetry.attempt("canceled")
           cancel_now(request, now: now)
         end
       end
 
       def cancel_requested?(request) = RuntimeImageBuildRequest.where(id: request.id).where.not(cancel_requested_at: nil).exists?
 
-      # Fails attempts whose worker stopped heartbeating. They are retryable:
-      # a vanished worker says nothing about the build itself.
+      # Fails attempts that can no longer be trusted: the worker stopped
+      # heartbeating (lease expired), or the attempt has outlived the hard
+      # runtime ceiling even though something keeps renewing its lease. Both are
+      # retryable: neither says anything about the build itself.
       def reap_expired(now: Time.current)
-        RuntimeImageBuildAttempt.lease_expired(now).includes(:request).filter_map do |attempt|
-          fail_attempt(attempt, code: "lease_expired", detail: "build worker stopped reporting progress", retryable: true, now: now)
-          attempt
-        end
+        expired = RuntimeImageBuildAttempt.lease_expired(now).includes(:request).to_a
+        overdue = RuntimeImageBuildAttempt.overdue(now).includes(:request).where.not(id: expired.map(&:id)).to_a
+        expired.map { |attempt| reap(attempt, "lease_expired", "build worker stopped reporting progress", now) } +
+          overdue.map { |attempt| reap(attempt, "attempt_deadline_exceeded", "attempt exceeded #{Config.max_attempt_runtime.to_i}s", now) }
+      end
+
+      # Repairs requests that say they are in flight but have no active
+      # attempt (a crash between two writes, a manual edit) and queued requests
+      # that carry a cancellation nobody completed. Returns the repaired requests.
+      def reap_orphans(now: Time.current)
+        with_attempt = RuntimeImageBuildAttempt.active.select(:runtime_image_build_request_id)
+        candidates = RuntimeImageBuildRequest.in_flight.where.not(id: with_attempt).or(
+          RuntimeImageBuildRequest.queued.where.not(cancel_requested_at: nil)
+        )
+        candidates.filter_map { |candidate| repair_orphan(candidate.id, now) }
+      end
+
+      # The recovery pass the dispatcher runs before admitting new work.
+      def recover(now: Time.current)
+        { attempts: reap_expired(now: now), orphans: reap_orphans(now: now) }
       end
 
       private
+
+      def reap(attempt, code, detail, now)
+        Telemetry.recovery(code)
+        fail_attempt(attempt, code: code, detail: detail, retryable: true, now: now)
+        attempt
+      end
+
+      def repair_orphan(request_id, now)
+        request = RuntimeImageBuildRequest.find(request_id)
+        request.with_lock do
+          next nil if request.terminal? || RuntimeImageBuildAttempt.active.exists?(runtime_image_build_request_id: request.id)
+
+          Telemetry.recovery("orphaned_request")
+          Audit.record("build.recovered", outcome: "repaired", namespace: request.runtime_image_namespace,
+                                          details: audit_details(request).merge("state" => request.state))
+          if request.cancel_requested?
+            cancel_now(request, now: now)
+          elsif request.queued?
+            next nil
+          elsif request.attempts_exhausted?
+            request.transition_to!("failed", finished_at: now)
+            finish(request, outcome: "failed", error_code: "orphaned_request", message: "build lost its attempt", now: now)
+          else
+            request.transition_to!("queued", next_attempt_at: now + Config.retry_delay(request.attempts_count))
+          end
+          request
+        end
+      end
+
+      def duplicate(request)
+        Telemetry.recovery("duplicate_submit")
+        request
+      end
 
       def locked(attempt)
         request = attempt.request

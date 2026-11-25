@@ -497,4 +497,64 @@ RSpec.describe RuntimeImages::Builds::IsolatedBuilder do
       expect(evidence.resources["network"]).to eq("allowed" => 2, "denied" => 0)
     end
   end
+
+  # Negative fixtures: with every kind of ambient authority present in the
+  # worker's own environment, none of it may reach the build.
+  describe "negative security fixtures" do
+    AMBIENT = {
+      "GITHUB_TOKEN" => "ghp_ambient", "DATABASE_URL" => "mysql2://root:dbpass@db/syrus", "RAILS_MASTER_KEY" => "masterkey123",
+      "SECRET_KEY_BASE" => "sekb", "ANTHROPIC_API_KEY" => "sk-ant-ambient", "AWS_ACCESS_KEY_ID" => "AKIAAMBIENT",
+      "AWS_SECRET_ACCESS_KEY" => "awssecret", "DOCKER_HOST" => "unix:///var/run/docker.sock", "CONTAINER_HOST" => "unix:///run/podman/podman.sock",
+      "KUBECONFIG" => "/root/.kube/config", "KUBERNETES_SERVICE_HOST" => "10.43.0.1", "KUBERNETES_SERVICE_PORT" => "443",
+      "SYRUS_RUNTIME_IMAGE_REGISTRY_BUILDER_PASSWORD" => "regbuilderpw", "SYRUS_RUNTIME_IMAGE_REGISTRY_ADMIN_PASSWORD" => "regadminpw",
+      "HTTP_PROXY" => "http://app-proxy.internal:3128", "ALL_PROXY" => "socks5://app-proxy.internal:1080",
+      "REGISTRY_AUTH_FILE" => "/root/auth.json", "XDG_RUNTIME_DIR" => "/run/user/0", "SSH_AUTH_SOCK" => "/tmp/agent.sock"
+    }.freeze
+
+    around do |example|
+      saved = AMBIENT.keys.to_h { |key| [ key, ENV[key] ] }
+      AMBIENT.each { |key, value| ENV[key] = value }
+      example.run
+    ensure
+      saved.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+    end
+
+    let(:calls) { [] }
+
+    before { build(request_for({ "Dockerfile" => "FROM scratch\n" }), builder(launcher: launcher(calls: calls))) }
+
+    it "passes none of the worker's credentials or endpoints into the build environment" do
+      env = calls.first[:env]
+      # Proxy and registry-auth variables exist but are rebuilt by the builder (checked below); every other ambient variable is dropped.
+      AMBIENT.except("HTTP_PROXY", "ALL_PROXY", "REGISTRY_AUTH_FILE").each_key { |key| expect(env).not_to have_key(key) }
+      expect(env.values.join(" ")).not_to match(/ghp_ambient|dbpass|masterkey123|sk-ant-ambient|awssecret|regbuilderpw|regadminpw|app-proxy\.internal|docker\.sock|podman\.sock/)
+    end
+
+    it "points proxy variables only at the in-namespace relay and the registry auth at an empty file" do
+      env = calls.first[:env]
+      expect(env.values_at("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")).to all(eq("http://127.0.0.1:3128"))
+      expect(env["ALL_PROXY"]).to eq("http://127.0.0.1:3128")
+      expect(env["REGISTRY_AUTH_FILE"]).not_to eq(AMBIENT["REGISTRY_AUTH_FILE"])
+    end
+
+    it "mounts nothing but the build's own scratch and relay directories, never a socket or credential path" do
+      hosts = calls.flat_map { |c| c[:mounts].declared_mounts.map(&:host_path) }.map(&:to_s)
+      expect(hosts).not_to be_empty
+      # The build's scratch under the data root, plus the private directory holding only the proxy socket.
+      expect(hosts).to all(start_with(data_root.to_s).or(match(%r{\A#{Regexp.escape(Dir.tmpdir)}/rib[^/]+\z})))
+      expect(hosts.join(" ")).not_to match(%r{\.sock|/var/run|/run/|docker|containerd|podman|\.kube|serviceaccount|/etc/|/root|\.ssh|/proc|/sys|/dev/})
+    end
+
+    it "never runs the command with a host or shared network, device, or privilege flag" do
+      command = calls.flat_map { |c| c[:command] }.join(" ")
+      expect(command).to include("--net")
+      expect(command).not_to match(/--network[ =]host|--net[ =]host|--privileged|--cap-add|--device|--security-opt|--pid[ =]host|--ipc[ =]host|--userns[ =]host|-v\s|--volume|--add-host|--dns/)
+      expect(command).not_to match(/docker\.sock|dockerd|nsenter|sudo/)
+    end
+
+    it "has no way to name the host socket or metadata endpoint in the command it runs" do
+      command = calls.flat_map { |c| c[:command] }.join(" ")
+      expect(command).not_to match(/169\.254|metadata|kubernetes|\.svc|localhost|docker\.sock/)
+    end
+  end
 end

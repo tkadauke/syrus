@@ -9,6 +9,8 @@ class RuntimeImageBuildJob < ApplicationJob
   def perform(request_id, attempt_id)
     attempt = RuntimeImageBuildAttempt.find_by(id: attempt_id, runtime_image_build_request_id: request_id)
     return unless attempt&.active?
+    # A duplicate delivery of the same attempt must not run the build twice.
+    return unless RuntimeImages::Builds::Orchestrator.new.begin_execution(attempt)
 
     RuntimeImages::Builds::Runner.new.call(attempt.request, attempt)
   end

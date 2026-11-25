@@ -26,8 +26,23 @@ module RuntimeImages
       def self.build_binary = ENV.fetch("RUNTIME_IMAGE_BUILD_BINARY", "buildah")
       def self.storage_driver = ENV.fetch("RUNTIME_IMAGE_BUILD_STORAGE_DRIVER", "vfs")
 
+      # Hard ceiling on one attempt's wall clock, heartbeats or not: the build
+      # timeout plus time to publish and verify. Past it the attempt is stale.
+      def self.max_attempt_runtime = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_MAX_ATTEMPT_SECONDS", build_duration + 900)).seconds
+      # A queued request older than this with free capacity is reported as stuck.
+      def self.stuck_queue_after = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_STUCK_QUEUE_SECONDS", 900)).seconds
+      # An attempt whose lease lapsed this long ago means the reaper is not running.
+      def self.stale_lease_grace = Integer(ENV.fetch("RUNTIME_IMAGE_BUILD_STALE_LEASE_GRACE_SECONDS", 300)).seconds
+
       # Exponential backoff before the next attempt: 30s, 60s, 120s, ...
-      def self.retry_delay(attempts_made) = (30 * (2**[ attempts_made - 1, 0 ].max)).seconds
+      # Registry and quota trouble does not clear in seconds, so those failures
+      # back off from a longer base instead of burning attempts immediately.
+      SLOW_RETRY_BASE = { "quota_exhausted" => 600, "registry_unavailable" => 120 }.freeze
+
+      def self.retry_delay(attempts_made, code: nil)
+        base = SLOW_RETRY_BASE.fetch(code.to_s, 30)
+        (base * (2**[ attempts_made - 1, 0 ].max)).seconds
+      end
     end
   end
 end

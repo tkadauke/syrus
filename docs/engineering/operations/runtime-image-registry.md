@@ -194,3 +194,40 @@ a failure to record is logged and never changes the build's outcome.
 `ScopedPublisher` is the only registry authority a build has: publish and
 inspect inside the request's namespace, nothing else.
 
+
+## Build recovery and diagnostics
+
+`RuntimeImageBuildDispatchJob` runs `Orchestrator#recover` before admitting
+work. Recovery is idempotent and every write takes the request's row lock, so a
+cancel, a late worker callback, and the reaper can race without disagreeing:
+
+| Situation | Handling |
+| --- | --- |
+| Worker lost (no heartbeat) | Attempt fails `lease_expired`, retryable; request re-queues with backoff. |
+| Attempt outlives `RUNTIME_IMAGE_BUILD_MAX_ATTEMPT_SECONDS` (default build timeout + 900) even with fresh heartbeats | Attempt fails `attempt_deadline_exceeded`, retryable. |
+| Request in building/verifying with no active attempt, or queued with an unfinished cancel | `reap_orphans` re-queues it, fails it as `orphaned_request` when attempts are used up, or completes the cancel; audited as `build.recovered`. |
+| Cancel | Queued requests cancel at once; in-flight ones are flagged, then cancel when the builder observes it, the attempt fails, or the lease expires. |
+| Quota exhaustion (registry quota/429, `ENOSPC`/`EDQUOT`) | `quota_exhausted`, retryable on a slow backoff (base 10 min). |
+| Registry unavailable | `registry_unavailable`, retryable on a 2 min base backoff. |
+| Build failed after the egress proxy refused destinations | `network_denied`, terminal: retrying cannot help until an administrator changes the allowlist. The message carries only counts and reasons; hosts stay in the restricted evidence. |
+| Duplicate submit | Returns the live request (or the existing pullable image); counted as `duplicate_submit`. |
+| Duplicate job delivery | `begin_execution` sets `execution_started_at` once under the lock; later deliveries do nothing (`duplicate_delivery`). |
+
+Diagnostics:
+
+- `GET /api/v1/admin/runtime_images` includes a `builds` section (requests by state, oldest queued age, stale attempts, orphans, 24h outcomes and error codes, denied-destination count, in-flight attempts, recent failures) and the checks `build executor`, `build queue`, `stale build attempts`, `orphaned build requests`, `build failures`, `build network`, `build quota`. `bin/rails runtime_images:status` prints them.
+- `GET /api/v1/admin/runtime_image_build_requests[?state=&limit=]` lists requests with their current attempt and result; `POST .../:id/cancel` cancels one. Log text and addresses remain only on `.../:id/evidence`.
+- Metrics: `syrus_runtime_image_build_requests{state}`, `syrus_runtime_image_build_oldest_queued_seconds`, `syrus_runtime_image_build_stale_attempts` (sampled), `syrus_runtime_image_build_attempts_total{outcome,reason}` and `syrus_runtime_image_build_recoveries_total{reason}` (counters). Alerts: `SyrusRuntimeImageBuildStaleAttempts`, `SyrusRuntimeImageBuildQueueStalled`.
+- Tunables: `RUNTIME_IMAGE_BUILD_MAX_ATTEMPT_SECONDS`, `_STUCK_QUEUE_SECONDS` (default 900), `_STALE_LEASE_GRACE_SECONDS` (default 300).
+
+Queue partitioning: the dispatcher and recovery live on `control_plane` (home
+worker); builds run on `runtime_image_builds`, a dedicated pool on Linux compute
+workers only (`RUNTIME_IMAGE_BUILD_THREADS`), so a saturated build pool cannot
+starve recovery. `spec/config/queue_partitioning_spec.rb` pins this.
+
+Negative fixtures proving the isolation contract live in
+`spec/services/runtime_images/build_network/negative_fixtures_spec.rb`
+(metadata, loopback, application-network, lookalike, and rebinding
+destinations) and the "negative security fixtures" group of
+`spec/services/runtime_images/builds/isolated_builder_spec.rb` (no ambient
+credentials, sockets, host mounts, or non-isolated network flags reach a build).

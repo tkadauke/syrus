@@ -46,10 +46,12 @@ module RuntimeImages
       rescue Canceled
         @orchestrator.acknowledge_cancel(attempt)
       rescue BuildFailed => e
-        @orchestrator.fail_attempt(attempt, code: e.code, detail: e.message, retryable: e.retryable)
+        failure = classify_build_failure(e, evidence)
+        @orchestrator.fail_attempt(attempt, **failure)
       rescue RuntimeImages::ProviderError, ActiveRecord::ConnectionNotEstablished, Timeout::Error, SystemCallError => e
-        # Registry and infrastructure trouble is transient by nature.
-        @orchestrator.fail_attempt(attempt, code: "infrastructure_error", detail: "#{e.class}: #{e.message}", retryable: true)
+        # Registry and infrastructure trouble is transient by nature, but a
+        # full quota or an unreachable registry needs its own, slower backoff.
+        @orchestrator.fail_attempt(attempt, code: infrastructure_code(e), detail: "#{e.class}: #{e.message}", retryable: true)
       rescue StandardError => e
         @orchestrator.fail_attempt(attempt, code: "unexpected_error", detail: "#{e.class}: #{e.message}", retryable: false)
       ensure
@@ -57,7 +59,32 @@ module RuntimeImages
         @recorder.record(request: request, attempt: attempt, evidence: evidence) if evidence
       end
 
+      QUOTA_PATTERN = /quota|too\s*many\s*requests|toomanyrequests|\b429\b|storage limit|rate limit|limit exceeded/i
+
       private
+
+      # A build that failed while the egress proxy refused destinations did not
+      # fail for a reason a retry can fix: the allowlist has to change first.
+      # The detail carries only counts and reasons; hosts stay in the
+      # administrator-only evidence.
+      def classify_build_failure(error, evidence)
+        failure = { code: error.code, detail: error.message, retryable: error.retryable }
+        denials = evidence.denials
+        return failure if denials.empty? || error.code != "build_failed"
+
+        reasons = denials.map { |entry| entry["reason"] }.compact.uniq.sort.join(", ")
+        { code: "network_denied", retryable: false,
+          detail: "build failed after #{denials.sum { |entry| entry["count"].to_i }} refused network request(s) (#{reasons}); " \
+                  "review the build-network allowlist" }
+      end
+
+      def infrastructure_code(error)
+        return "quota_exhausted" if error.is_a?(Errno::ENOSPC) || error.is_a?(Errno::EDQUOT)
+        return "quota_exhausted" if error.is_a?(RuntimeImages::ProviderError) && error.message.match?(QUOTA_PATTERN)
+        return "registry_unavailable" if error.is_a?(RuntimeImages::ProviderError)
+
+        "infrastructure_error"
+      end
 
       def builder
         @builder || Builds.builder || raise(BuildFailed.new("no build executor is registered", code: "builder_unavailable", retryable: true))
