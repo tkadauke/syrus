@@ -8085,7 +8085,16 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   MySQL inspector, Test Insights reads, sidebar badges) carry no engine
   invariant.
 
-Checked through main `50d35be290`. Each loop iteration continues from there:
+- Main through `0db71863d9`: emergency land retries transient (5xx) pull
+  request creation. No duplicate PR: every attempt goes through
+  `PullRequestOpener#open`, which adopts an existing open PR for the branch
+  first and again on GitHub's already-exists answer, so an ambiguous 5xx that
+  did create the PR is adopted on the next attempt. The retries run before
+  the Job lock and the merge-lock WorkUnit are taken and outside any
+  transaction, so the bounded backoff (at most three sleeps, about 10.5 s in
+  all) holds no row or landing lock. Holds.
+
+Checked through main `0db71863d9`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
