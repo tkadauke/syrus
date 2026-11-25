@@ -7,10 +7,12 @@ module Mcp::Tools
     tool_name "runtime_start"
 
     description <<~DESC
-      Start a new Runtime Session (DOC-17) for this chat's attached
-      repository -- a live dev server/app/process the agent and operator can
-      both observe and (with a control lease) interact with. Auto-detects a
-      provider from the repository checkout when `provider` is omitted. The
+      Start a new Runtime Session (DOC-17) for a repository attached to this
+      chat -- a live dev server/app/process the agent and operator can both
+      observe and (with a control lease) interact with. Select an attached
+      product repository with `repository_id` or `repository_slug`; omission
+      is allowed only when the chat has one repository. Auto-detects a provider
+      from the selected repository checkout when `provider` is omitted. The
       first session started for a chat becomes its primary session.
     DESC
 
@@ -20,6 +22,14 @@ module Mcp::Tools
           type: "string",
           description: "Runtime session provider key (e.g. \"browser\" or \"cli_tui\"). " \
                        "Auto-detected from the repository checkout when omitted."
+        },
+        repository_id: {
+          type: "integer",
+          description: "ID of the attached repository to run. Mutually exclusive with repository_slug."
+        },
+        repository_slug: {
+          type: "string",
+          description: "Attached repository slug in owner/name form. Mutually exclusive with repository_id."
         },
         name: {
           type: "string",
@@ -34,13 +44,15 @@ module Mcp::Tools
     )
 
     class << self
-      def call(provider: nil, name: nil, options: nil, server_context:)
+      def call(provider: nil, repository_id: nil, repository_slug: nil, name: nil, options: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         guard = require_coding_mode(chat_session)
         return guard if guard
 
-        repository = resolve_repository(chat_session)
-        return Mcp::Tools.invalid("this chat has no attached repository") unless repository
+        repository, repository_error = resolve_runtime_repository(
+          chat_session, repository_id: repository_id, repository_slug: repository_slug
+        )
+        return repository_error if repository_error
 
         workspace_path = ChatWorkspace.runtime_workspace_for!(chat_session, repository).to_s
         unless workspace_path.present? && File.directory?(workspace_path)

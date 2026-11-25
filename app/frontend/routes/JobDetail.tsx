@@ -1081,6 +1081,11 @@ function SummaryTab({
                   <code className="break-all">{payload.job.branch_name}</code>
                 </KeyValue>
               ) : null}
+              {payload.job.emergency_land_source_sha ? (
+                <KeyValue label={t("detail_emergency_capture")}>
+                  <EmergencyCaptureEvidence job={payload.job} prefix={prefix} />
+                </KeyValue>
+              ) : null}
               <KeyValue label={t("detail_stack_base")}>
                 <StackBaseForm command={command} payload={payload} />
               </KeyValue>
@@ -1286,6 +1291,24 @@ function EmergencyLandAudit({ job }: { job: JobDetailPayload["job"] }) {
         {t("emergency_confirmed_by", { user: userLabel })}
         {tier ? ` (${tier})` : ""}
       </span>
+    </span>
+  )
+}
+
+function EmergencyCaptureEvidence({ job, prefix }: { job: JobDetailPayload["job"]; prefix: string }) {
+  const { t } = useT("jobs")
+  const sha = job.emergency_land_source_sha
+  if (!sha) return null
+
+  const params = new URLSearchParams({ diff_base: job.effective_base_branch, diff_head: sha })
+  const path = withRoutePrefix(`/jobs/${job.id}/source?${params.toString()}`, prefix)
+
+  return (
+    <span className="inline-flex flex-col items-start gap-1 text-sm">
+      <code className="break-all text-xs">{sha}</code>
+      <Link className="text-brand hover:underline" to={path}>
+        {t("compare_emergency_capture")}
+      </Link>
     </span>
   )
 }
@@ -2499,6 +2522,11 @@ function ApprovalStatusPanel({ payload, prefix }: { payload: JobDetailPayload; p
   const { job, repository } = payload
   const status: JobApprovalStatus | null = job.approval_status
   const approvals: JobApprovalRecord[] = job.job_approvals ?? []
+
+  const failedWorkflowlessEmergencyCapture =
+    job.kind === "direct" && job.state === "failed" && Boolean(job.emergency_land_source_sha) && job.workflows_count === 0
+
+  if (failedWorkflowlessEmergencyCapture) return null
 
   const policyLabel: Record<string, string> = {
     self: t("approval_policy_self"),

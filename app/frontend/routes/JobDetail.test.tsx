@@ -1138,6 +1138,38 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Confirmed by Unknown user")).toBeInTheDocument()
   })
 
+  it("links a workflowless emergency capture to its immutable source comparison", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "failed",
+          summary_state: "failed",
+          branch_name: "syrus/chat-capture",
+          workflows_count: 0,
+          emergency_land_source_sha: "abcdef1234567890abcdef1234567890abcdef12",
+          approval_status: {
+            policy: "self",
+            satisfied: false,
+            pending_description: "Waiting for owner to approve.",
+            approvals_count: 0
+          }
+        },
+        workflows: [],
+        workflows_pagination: workflowPagination(0)
+      })
+    )
+
+    expect(screen.getByText("Emergency capture")).toBeInTheDocument()
+    expect(screen.getByText("abcdef1234567890abcdef1234567890abcdef12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Compare immutable capture" })).toHaveAttribute(
+      "href",
+      "/app-shell/jobs/1/source?diff_base=main&diff_head=abcdef1234567890abcdef1234567890abcdef12"
+    )
+    expect(screen.queryByText("Approval")).not.toBeInTheDocument()
+    expect(screen.queryByText("Waiting for owner to approve.")).not.toBeInTheDocument()
+  })
+
   it("links scheduled jobs back to their scheduled task", () => {
     renderJobDetail(
       jobPayload({
@@ -6118,6 +6150,7 @@ function baseJob(): JobDetailPayload["job"] {
     },
     provider_failover: undefined,
     stack_base: "auto",
+    effective_base_branch: "main",
     issue_number: null,
     issue_url: null,
     issue_title: "Add origin chat link",

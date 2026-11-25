@@ -307,6 +307,8 @@
   "detail_started": "Inceptum",
   "detail_closed": "Clausum",
   "detail_emergency_land": "Subitus landing",
+  "detail_emergency_capture": "Captura subita",
+  "compare_emergency_capture": "Capturam immutabilem compara",
   "detail_runaway_protection": "Tutela aberrantis",
   "detail_runaway_protection_hint": "iterationes automaticae prohibitae — preme Retemptare ad removendum",
   "approval_policy": "Regula",

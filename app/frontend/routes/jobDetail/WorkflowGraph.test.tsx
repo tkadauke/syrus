@@ -303,6 +303,52 @@ describe("WorkflowsTab", () => {
     expect(screen.queryByRole("button", { name: "Retry failed step" })).not.toBeInTheDocument()
   })
 
+  it("renders a terminal materialized step consistently with its succeeded workflow while leaving future work blank", () => {
+    const baseStep = {
+      position: 1,
+      iteration: null,
+      loop_id: null,
+      started_at: null,
+      finished_at: null,
+      created_at: "2026-08-25T12:00:00Z",
+      updated_at: "2026-08-25T12:00:00Z",
+      details: null,
+      warnings: [],
+      latest: false,
+      runs: []
+    }
+    const completed = {
+      ...baseStep,
+      id: 91,
+      kind: "push",
+      display_name: "Push",
+      state: "succeeded",
+      display_status: null,
+      runs: [{ id: 901, state: "succeeded", health_snapshots: [] }]
+    }
+    const future = {
+      ...baseStep,
+      id: 92,
+      kind: "summarize",
+      display_name: "Publish summary",
+      state: "queued",
+      display_status: null,
+      runs: []
+    }
+    const workflow = workflowWithStepDetails(completed as never)
+    Object.assign(workflow, { state: "succeeded", steps: [completed, future], steps_total: 2, steps_displayed: 2 })
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getAllByText("succeeded")).toHaveLength(2)
+    expect(screen.getByRole("button", { name: /Pushsucceeded/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^2\.Publish summary$/ })).toBeInTheDocument()
+  })
+
   describe("dismiss action", () => {
     function renderWith(overrides: Record<string, unknown>, cmd = command()) {
       const workflow = { ...workflowWithStepDetails({} as never), steps: [], ...overrides }

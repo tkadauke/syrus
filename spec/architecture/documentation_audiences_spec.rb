@@ -182,6 +182,7 @@ RSpec.describe "documentation audiences" do
     expect(searchable.lines.length).to be < 500
     %w[
       runtime_acquire_control known_flaky_failure_dismissal_enabled
+      repository_id repository_slug
       isolated_repro_dismissal_enabled grader_type base_retry
       detect_prepare autofix dependency_audit affected_tests review_criteria
       target_graph execution_backend secret_env

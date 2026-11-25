@@ -434,8 +434,13 @@ immediately instead.
 Coding Mode chats, and planning or coworker chats that have attached a
 repository, also get a set of generic `runtime_*` tools for working with a live
 Runtime Session — a dev server, browser, or other running process attached to
-the chat's repository workspace — so the agent (or a coworker doing acceptance
-testing) can start it, build or
+an attached repository workspace. When multiple repositories are attached,
+`runtime_start` requires the target's `repository_id` or `repository_slug`;
+this lets a coworker keep its persistent home repository while running an
+attached product repository. The selected product checkout remains read-only,
+while the runtime uses a separate writable scratch clone. The tools let the
+agent (or a coworker doing acceptance
+testing) start it, build or
 reload it, snapshot or inspect what's running, page through its logs, and
 tear it down when done: `runtime_list_sessions`, `runtime_start`,
 `runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
@@ -558,7 +563,12 @@ this way close with `closure_reason: "emergency_landed"` and show the confirming
 operator, permission tier, and timestamp on the Job detail page.
 Syrus briefly waits for GitHub to compute a newly opened PR's mergeability;
 if GitHub still reports it as unknown, the operator gets a retryable failure.
-A retry after a failed confirmation creates a new pending action.
+A retry after a failed confirmation creates a new pending action. When direct
+checkout capture succeeded before the landing failure, its audit Job is marked
+failed and kept out of approval surfaces while retaining the immutable branch,
+source commit, and any opened pull request. Retrying emergency land against
+that Job reuses those artifacts. Job detail provides a source comparison even
+when the capture has no Workflow or Run diff.
 
 If handoff graders fail, Syrus keeps repair inside the CodingHandoff workflow:
 a fresh workflow agent fixes the committed handoff branch and graders retry
