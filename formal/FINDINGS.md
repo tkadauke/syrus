@@ -4801,10 +4801,13 @@ uses it, so the sibling cascade no longer inverts
 (`closure_lineage_before_inverts`, `closure_lineage_after_in_order`).
 `TerminalLockCleanup`, the repair executor's workflow start and
 `StepDispatcher.create_run_and_enqueue` also take their ancestry first.
-Remaining: the callers that write Steps or the Workflow before creating a Run
-(`enqueue_next_loop_iteration!`, `enqueue_try_failure_branch!` and the
-parallel grader admission), and Run-before-Step writes in a Run's own
-cancellation.
+Part 5 converted the callers that write Steps or the Workflow before creating
+a Run: `cancel_and_skip_to_next!`, `enqueue_try_failure_branch!`,
+`enqueue_next_loop_iteration!` and grader fan-out admission. Examples tagged
+`hierarchical_locks: true` now raise on the hierarchical order. The five
+existing examples that reach these paths are tagged, and each failed before
+the conversion. Remaining: Run-before-Step writes in a Run's own cancellation,
+and whatever the next full survey finds.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and

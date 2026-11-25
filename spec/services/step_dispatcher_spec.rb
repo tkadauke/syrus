@@ -2141,7 +2141,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(wf.reload.state).to eq("failed")
     end
 
-    it "materializes the next loop iteration when grade fails with budget remaining" do
+    it "materializes the next loop iteration when grade fails with budget remaining", :hierarchical_locks do
       loop_wf = workflow_with_loop(max_iterations: 3)
       implement = loop_wf.steps.find_by!(kind: "implement", iteration: 1)
       grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
@@ -2181,12 +2181,15 @@ RSpec.describe StepDispatcher, :ci_only do
       allow_any_instance_of(described_class).to receive(:handle_loop_iteration).and_wrap_original do |original|
         original.receiver.send(:enqueue_next_loop_iteration!, loop_node)
       end
-      allow_any_instance_of(Workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        mutex.synchronize do
-          lock_attempts << Thread.current.object_id
-          condition.broadcast
+      # The Workflow row lock is taken through its ancestry (NY40, Lineage).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+        if record.is_a?(Workflow)
+          mutex.synchronize do
+            lock_attempts << Thread.current.object_id
+            condition.broadcast
+          end
         end
-        original.call(*args, &block)
+        original.call(record)
       end
       allow_any_instance_of(described_class)
         .to receive(:next_loop_iteration_already_materialized?)
@@ -3309,7 +3312,7 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
-    it "expands the merge_train_land failure branch when base moved" do
+    it "expands the merge_train_land failure branch when base moved", :hierarchical_locks do
       try_workflow = workflow_with_try_merge_train_land_branch
       land = try_workflow.steps.find_by!(kind: "merge_train_land")
       land.update!(details: land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
@@ -3472,11 +3475,11 @@ RSpec.describe StepDispatcher, :ci_only do
       push = try_workflow.steps.find_by!(kind: "push")
       push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
       lock_order = []
-      allow(try_workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
-        original.call(*args) do
-          lock_order << :workflow
-          block.call
-        end
+      # The Workflow row lock is taken through its ancestry (NY40, Lineage).
+      allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
+        result = original.call(record)
+        lock_order << :workflow if record.is_a?(Workflow) && record.id == try_workflow.id
+        result
       end
       allow(push).to receive(:update!).and_wrap_original do |original, *args|
         lock_order << :step
@@ -3512,7 +3515,7 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
-    it "runs retry_until repair iterations inside an expanded Try branch" do
+    it "runs retry_until repair iterations inside an expanded Try branch", :hierarchical_locks do
       try_workflow = workflow_with_try_push_branch
       push = try_workflow.steps.find_by!(kind: "push")
       push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
@@ -3552,7 +3555,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(review_workflow.steps.where(loop_id: review.loop_id).to_a).to eq([ review ])
     end
 
-    it "uses an approved panel aggregate at the collect step to exit the review loop" do
+    it "uses an approved panel aggregate at the collect step to exit the review loop", :hierarchical_locks do
       review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
       review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
       continuation = review.next_step

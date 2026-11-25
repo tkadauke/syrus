@@ -1697,7 +1697,11 @@ class StepDispatcher
     continuation = implement_step ? implement_step.next_step : fallback_continuation
     return unless continuation
 
-    @workflow.with_lock do
+    # Ancestry first, top down (NY40): the new Steps' Runs roll up to the
+    # WorkUnit, intent and Job.
+    Workflow.transaction do
+      Lineage.lock!(@workflow)
+      @workflow.reload
       Step.transaction do
         implement_step.skip_with_reason!(cancellation_reason) if implement_step&.may_skip?
 
@@ -2006,7 +2010,11 @@ class StepDispatcher
   end
 
   def enqueue_try_failure_branch!(branch_nodes, failure_code)
-    @workflow.with_lock do
+    # Ancestry first, top down (NY40): the new Steps' Runs roll up to the
+    # WorkUnit, intent and Job.
+    Workflow.transaction do
+      Lineage.lock!(@workflow)
+      @workflow.reload
       @from_step.reload
       next if @from_step.details.to_h["try_branch_expanded"]
 
@@ -2103,7 +2111,11 @@ class StepDispatcher
   end
 
   def enqueue_next_loop_iteration!(loop_node)
-    @workflow.with_lock do
+    # Ancestry first, top down (NY40): the new Steps' Runs roll up to the
+    # WorkUnit, intent and Job.
+    Workflow.transaction do
+      Lineage.lock!(@workflow)
+      @workflow.reload
       current_grade = @from_step.reload
       next if next_loop_iteration_already_materialized?(current_grade)
 

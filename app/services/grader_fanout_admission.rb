@@ -12,6 +12,9 @@ class GraderFanoutAdmission
   # mutex would still let two worker pods admit the same slots.
   def self.synchronize(workflow:, steps:, now: Time.current, &block)
     AppSetting.current.with_lock do
+      # The Workflow's ancestry and the Steps next, top down (NY40): admitting
+      # them records on the Workflow and starts their Runs.
+      Lineage.lock_all!(steps.presence || [ workflow ])
       block.call(new(workflow: workflow, steps: steps, now: now).call)
     end
   end

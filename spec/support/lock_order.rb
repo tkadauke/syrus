@@ -17,6 +17,20 @@ ENV["SYRUS_LOCK_ORDER_WRITES"] ||= "1"
 Syrus::LockOrder::Checker.mode = ENV.fetch("SYRUS_LOCK_ORDER", "record").to_sym
 
 RSpec.configure do |config|
+  # An example tagged hierarchical_locks: true raises on the hierarchical order
+  # with writes counted: the funnels it exercises are already converted, so a
+  # regression fails there instead of only being recorded.
+  config.around(:each, :hierarchical_locks) do |example|
+    previous_target = Syrus::LockOrder.target
+    previous_mode = Syrus::LockOrder::Checker.mode
+    Syrus::LockOrder.target = :hierarchical
+    Syrus::LockOrder::Checker.mode = :raise
+    example.run
+  ensure
+    Syrus::LockOrder.target = previous_target
+    Syrus::LockOrder::Checker.mode = previous_mode
+  end
+
   config.after(:suite) do
     violations = Syrus::LockOrder::Checker.violations
     next if violations.empty?
