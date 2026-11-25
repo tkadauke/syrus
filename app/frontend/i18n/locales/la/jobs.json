@@ -445,6 +445,7 @@
   "outcome_override_confirm": "Superationem confirma",
   "outcome_override_confirming": "Confirmatur…",
   "outcome_override_error": "Superatio servari non potuit.",
+  "outcome_override_effective_state": "defecit, superatum",
   "grader_unknown_name": "examinator innominatus",
   "grader_fanout_selected_count_one": "{{count}} examinator selectus",
   "grader_fanout_selected_count_other": "{{count}} examinatores selecti",
