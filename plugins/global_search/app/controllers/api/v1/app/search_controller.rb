@@ -537,7 +537,7 @@ module Api
         end
 
         def chat_result_badges
-          @chat_result_badges ||= ChatResultBadges.for(chat_messages_by_id.values.map(&:chat_session))
+          @chat_result_badges ||= Syrus::Host::ChatResultBadges.for(chat_messages_by_id.values.map(&:chat_session))
         end
 
         def result_ids(key)

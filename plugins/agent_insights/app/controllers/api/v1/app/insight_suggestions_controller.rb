@@ -3,7 +3,7 @@ module Api
     module App
       class InsightSuggestionsController < Syrus::Host::AppController
         include ChatSessionLifecycle
-        include ChatLockErrors
+        include Syrus::Host::ChatLockErrors
         include Syrus::Host::Paginatable
         prepend_before_action :require_agent_insights_feature
 
