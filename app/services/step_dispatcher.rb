@@ -1635,7 +1635,7 @@ class StepDispatcher
     return false unless gate
 
     stamp_review_artifact!(gate.fetch(:artifact_key))
-    apply_review_outcome_override!(gate.fetch(:artifact_key), effective_review_kind) unless @from_step.kind == "review_panel_collect"
+    apply_review_outcome_override!(gate.fetch(:artifact_key), effective_review_kind) if @from_step.kind == effective_review_kind
 
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
