@@ -83,6 +83,13 @@ RSpec.describe Coworkers::EnvironmentSource do
     expect(source.validate).to include(a_string_matching(/escape parser directive/))
   end
 
+  it "rejects a BOM-prefixed escape parser directive" do
+    source.seed!
+    workspace.write("environment/Dockerfile",
+                    "\uFEFF# escape=`\nARG SYRUS_COWORKER_BASE\nFROM ${SYRUS_COWORKER_BASE}\nLABEL marker=\\\nFROM ubuntu:24.04\n")
+    expect(source.validate).to include(a_string_matching(/escape parser directive/))
+  end
+
   it "still recognizes quoted heredoc tags" do
     source.seed!
     workspace.write("environment/Dockerfile",
