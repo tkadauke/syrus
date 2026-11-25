@@ -964,7 +964,7 @@ class Job < ApplicationRecord
   after_create :seed_parsed_dependencies
   after_create :resolve_pending_dependencies_targeting_self
   after_create_commit :broadcast_app_job_created
-  after_commit -> { App::DashboardChromeCache.invalidate_counts!(repository_id, subjects: %w[job epic]) }
+  after_commit -> { App::DashboardChromeCache.invalidate_counts!(repository_id, subjects: %w[job epic workflow]) }
   # `after_save :refresh_epic_auto_state` used to fire on every save.
   # Keep it scoped to changes that actually affect the epic rollup:
   # state transitions, validity, epic membership, and closure metadata.
