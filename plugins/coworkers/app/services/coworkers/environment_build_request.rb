@@ -6,9 +6,6 @@ require "yaml"
 # and binds the generic isolated-plane request to the immutable revision. It
 # never publishes or activates the resulting image.
 class Coworkers::EnvironmentBuildRequest
-  class Disabled < StandardError; end
-  class BaseUnavailable < StandardError; end
-
   Result = Data.define(:revision, :build_request) do
     def status
       request = build_request.reload
