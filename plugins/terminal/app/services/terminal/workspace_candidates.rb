@@ -298,7 +298,7 @@ module Terminal
       def queue_name = "chat"
 
       def label
-        title = @chat.title.presence || ChatSession.fallback_title_for(repository) || "Chat ##{@chat.id}"
+        title = @chat.title.presence || Syrus::Host::ChatSessionRecord.fallback_title_for(repository) || "Chat ##{@chat.id}"
         "Chat ##{@chat.id} - #{title}"
       end
 

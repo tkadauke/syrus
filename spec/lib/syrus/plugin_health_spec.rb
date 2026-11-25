@@ -39,8 +39,8 @@ RSpec.describe Syrus::PluginHealth do
       requires_syrus:, metadata: { plugin_host_surface_scan: scan })
   end
 
-  def scan(legacy: [], unlisted: [], dynamic: [], minimum: nil, error: nil)
-    Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy:, unlisted:, dynamic:,
+  def scan(unlisted: [], dynamic: [], minimum: nil, error: nil)
+    Syrus::PluginHostSurface::Scanner::Result.new(public: [], unlisted:, dynamic:,
       minimum_syrus_version: minimum, content_hash: "digest", error:)
   end
 

@@ -40,8 +40,9 @@ RSpec.describe "Syrus::Host chat, runtime, preview and appearance facades" do
     expect(Syrus::Host.apis.find { |api| api.name == "Syrus::Host::ChatSession" }.members).to include("MODES")
   end
 
-  it "keeps the removed constants out of the legacy baseline" do
-    names = Syrus::PluginHostSurface.new.legacy_entries.map(&:name)
-    expect(names).not_to include("RuntimeSession", "PreviewPanel", "Theme", "ChatWorkspace", "ChatSession::MODES")
+  it "publishes the chat persistence and lifecycle facades" do
+    %w[ChatSessionRecord ChatMessageRecord ChatPendingActionRecord ChatTurnJob MentionableResolver].each do |name|
+      expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true)
+    end
   end
 end
