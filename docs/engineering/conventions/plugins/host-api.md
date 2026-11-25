@@ -1935,14 +1935,16 @@ Supported members:
 
 Since: `0.1.16`
 
-Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.
+Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, and leases images on the calling worker; provider, builder, and cache internals are not promised.
 
 Supported members:
 
 - `acquire`
+- `active_base`
 - `available?`
 - `find`
 - `publish_local`
+- `request_build`
 
 ### `Syrus::Host::Settings`
 

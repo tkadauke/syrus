@@ -336,7 +336,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::Run` (since 0.1.16) — Reads a run's identity, state, workflow, and job through find; dispatch, lifecycle transitions, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `state`, `workflow`.
 - `Syrus::Host::RunJob` (since 0.1.16) — Exposes the agent runner seam; run admission is not promised. Only the listed members are supported. Supported members: `agent_runner`.
 - `Syrus::Host::Runs` (since 0.1.16) — Queries runs; dispatch, lifecycle transitions, and persistence are not promised. Supported members: `find`, `joins`, `where`.
-- `Syrus::Host::RuntimeImages` (since 0.1.16) — Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised. Supported members: `acquire`, `available?`, `find`, `publish_local`.
+- `Syrus::Host::RuntimeImages` (since 0.1.16) — Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, and leases images on the calling worker; provider, builder, and cache internals are not promised. Supported members: `acquire`, `active_base`, `available?`, `find`, `publish_local`, `request_build`.
 - `Syrus::Host::Settings` (since 0.1.16) — Reads instance-wide operator settings; setting storage is not promised. Supported members: `ui_engagement_telemetry_enabled?`.
 - `Syrus::Host::SidebarPage` (since 0.1.16) — Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
 - `Syrus::Host::SkillBase` (since 0.1.16) — Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported. Supported members: `definition`.
@@ -406,4 +406,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 84793 bytes (UTF-8, including this line).
+Size: 84827 bytes (UTF-8, including this line).
