@@ -2166,7 +2166,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
   describe "smart folder count caching" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 
-    it "caches stable sidebar counts as one snapshot and recomputes volatile counts" do
+    it "keeps stable sidebar counts cached beyond two minutes and recomputes volatile counts" do
       cache_store = ActiveSupport::Cache::MemoryStore.new
       fetch_keys = []
       computed_folder_ids = []
@@ -2183,7 +2183,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
       end
 
       first = call(subject: "job", section: "chrome")
-      second = call(subject: "job", section: "chrome")
+      second = travel 3.minutes do
+        call(subject: "job", section: "chrome")
+      end
       active_folder_id = first[:active_smart_folder_id]
       volatile_ids = SmartFolder.builtins(:job)
                                 .select { |folder| folder.builtin_key.in?(%w[in_progress paused queued landing_queue]) }
@@ -2207,6 +2209,71 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(computed_folder_ids.tally).to include(stable_counted_ids.index_with(1))
       expect(computed_folder_ids.tally).to include(volatile_ids.index_with(2))
       expect(computed_folder_ids & stable_uncounted_ids).to be_empty
+    end
+
+    it "isolates count snapshots by user, repository scope, ownership scope, selected owner, and subject" do
+      cache_store = ActiveSupport::Cache::MemoryStore.new
+      fetch_keys = []
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user, owner: "other", name: "count-cache")
+      RepositoryMembership.create!(repository: repo, user: other_user, role: "read")
+
+      allow(Rails).to receive(:cache).and_return(cache_store)
+      allow(cache_store).to receive(:fetch).and_wrap_original do |method, key, **options, &block|
+        fetch_keys << key if Array(key).first == "dashboard_smart_folder_counts"
+        method.call(key, **options, &block)
+      end
+
+      call(subject: "job", section: "chrome", ownership_scope: "mine")
+      call(subject: "job", section: "chrome", ownership_scope: "team")
+      call(subject: "job", section: "chrome", ownership_scope: "user", owner_id: other_user.id)
+      described_class.call(user: other_user, params: ActionController::Parameters.new(subject: "job", section: "chrome"))
+      call(subject: "workflow", section: "chrome")
+
+      expect(fetch_keys.map { |key| key[1] }).to include(user.id, other_user.id)
+      expect(fetch_keys.map { |key| key[3] }).to include("mine", "team", "user")
+      expect(fetch_keys).to include(a_collection_including(other_user.id))
+      repository_scopes = fetch_keys.map { |key| key[5] }
+      expect(repository_scopes).to include([ repo.id ])
+      expect(repository_scopes).to include(match_array([ repo.id, other_repo.id ]))
+      expect(fetch_keys.map { |key| key[2] }).to include("job", "workflow")
+      expect(fetch_keys.uniq.size).to eq(fetch_keys.size)
+    end
+
+    it "invalidates nonvolatile counts after relevant job, workflow, epic, and smart-folder mutations" do
+      cache_store = ActiveSupport::Cache::MemoryStore.new
+      computed_folder_ids = []
+      job = Factories.job_record(user: user, repository: repo, state: "backlog")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+      epic = Factories.epic(user: user, repository: repo)
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        kind: "user_defined",
+        name: "Backlog work",
+        filter: { "and" => [] }
+      )
+
+      allow(Rails).to receive(:cache).and_return(cache_store)
+      allow_any_instance_of(described_class).to receive(:smart_folder_count_uncached).and_wrap_original do |method, counted_folder|
+        computed_folder_ids << counted_folder.id
+        method.call(counted_folder)
+      end
+
+      call(subject: "job", section: "chrome")
+      call(subject: "job", section: "chrome")
+      expect(computed_folder_ids.count(folder.id)).to eq(1)
+
+      job.update!(priority: "high")
+      call(subject: "job", section: "chrome")
+      workflow.update!(state: "running")
+      call(subject: "job", section: "chrome")
+      epic.update!(title: "Updated epic")
+      call(subject: "job", section: "chrome")
+      folder.update!(name: "Renamed backlog work")
+      call(subject: "job", section: "chrome")
+
+      expect(computed_folder_ids.count(folder.id)).to eq(5)
     end
   end
 
