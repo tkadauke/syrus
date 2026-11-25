@@ -816,7 +816,6 @@ class RunJob < ApplicationJob
       Run.transaction do
         Lineage.lock!(@run)
         @run.reload
-        @run.reload
         @step = @run.step
         @workflow = @step&.workflow
         @job = @run.job

@@ -73,6 +73,8 @@ la:
         invalid_utf8: "%{name} textus UTF-8 validus non est."
         total_too_large: "Adiuncta simul non maiora quam 20 MB esse debent."
     mcp:
+      workflow_outcome_overrides:
+        pending_confirmation: "Superatio exitus confirmationem operatoris pro testimonio exacto %{evidence} exspectat."
       unland_confirmation:
         job: "%{subject} revocare? Confirmatio operatoris requiritur."
         epic: "%{subject} revocare? Confirmatio operatoris requiritur."
