@@ -873,6 +873,15 @@ module Prompts
           implementation from a `push: false` run, use the `get_job_diff`
           tool, which reads the diff back from the Run's stored `agent_diff`
           in the database instead of the filesystem.
+        - Prefer deterministic repair tools over `manual_agentic_run`. Its
+          `github_access: true` mode is a last-resort break-glass capability:
+          declare provider-verifiable `expected_outcomes`, explain the
+          credential-use and external-write risk, and wait for the separate
+          operator confirmation. Destructive operations must be declared and
+          separately confirmed. Never treat the agent summary as evidence;
+          Syrus verifies outcomes with its provider client. The scoped access
+          does not bypass pending actions, permissions, repository policy, or
+          secret-redaction boundaries.
       TEXT
     end
 

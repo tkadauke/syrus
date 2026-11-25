@@ -13,7 +13,10 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
       failed_workflow_id: 61270,
       instructions: `**Repair** the partial implementation. ${"Keep the public API stable. ".repeat(30)}`,
       reason: `The failed workflow contains useful work. ${"Review it carefully. ".repeat(30)}`,
-      push: false
+      push: false,
+      github_access: true,
+      destructive_github_operations: false,
+      expected_outcomes: { remote_branch: { name: "repair", sha: "a".repeat(40) } }
     },
     resultBody: "",
     resultError: false,
@@ -55,6 +58,9 @@ describe("manual_agentic_run tool card", () => {
     expect(screen.getByRole("link", { name: "WF-61270" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-61270")
     expect(screen.getByText("failed_workflow_workspace")).toBeInTheDocument()
     expect(screen.getByText("false")).toBeInTheDocument()
+    expect(screen.getByText("Authenticated GitHub access")).toBeInTheDocument()
+    expect(screen.getByText("unavailable")).toBeInTheDocument()
+    expect(screen.getByText(/limited to this repository/i)).toBeInTheDocument()
     expect(screen.getByText(/temporary workspace is deleted/i)).toHaveTextContent("get_job_diff")
     expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
   })

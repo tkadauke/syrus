@@ -89,7 +89,7 @@ module Permissions
           maximum_autonomy: :invocation,
           authority_durations: %i[invocation],
           resource_scope: { type: :none },
-          classifier: ->(_arguments) { { operation: identifier, effects: operation.effects, risk: operation.risk, confidence: :certain } },
+          classifier: ->(arguments) { classification_for(operation, identifier, arguments) },
           fingerprint_normalizer: method(:normalize_arguments),
           redactor: method(:normalize_arguments)
         )
@@ -104,6 +104,21 @@ module Permissions
         ids = TARGET_KEYS.keys.flat_map { |key| Array(source[key]) }.compact.map { |id| Integer(id, exception: false) || id.to_s }
         normalized["job_ids"] = ids.uniq.sort_by(&:to_s) if ids.any?
         normalized.sort_by { |key, _| key }.to_h
+      end
+
+      def classification_for(operation, identifier, arguments)
+        effects = operation.effects
+        risk = operation.risk
+        if operation.name == "manual_agentic_run" && arguments.to_h.with_indifferent_access[:github_access] == true
+          effects = (effects + %i[credential_use external_write]).uniq.freeze
+          if arguments.to_h.with_indifferent_access[:destructive_github_operations] == true
+            effects = (effects + %i[destructive]).uniq.freeze
+            risk = :critical
+          else
+            risk = :high
+          end
+        end
+        { operation: identifier, effects: effects, risk: risk, confidence: :certain }
       end
     end
   end
