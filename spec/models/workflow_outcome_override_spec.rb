@@ -93,6 +93,21 @@ RSpec.describe WorkflowOutcomeOverride do
     expect { override.destroy! }.to raise_error(ActiveRecord::ReadOnlyRecord)
   end
 
+  it "rejects setting both terminal lifecycle states at once" do
+    override = record
+
+    expect {
+      override.update!(consumed_at: Time.current, invalidation_cause: "candidate_advanced")
+    }.to raise_error(ActiveRecord::RecordInvalid, /both consumed and invalidated/)
+  end
+
+  it "does not allow a consumed override to be invalidated" do
+    override = record
+    override.consume!(override.fingerprint)
+
+    expect { override.invalidate!("candidate_advanced") }.to raise_error(ActiveRecord::ReadOnlyRecord)
+  end
+
   it "rejects lineage that does not match the bound Job and Workflow" do
     other_job = Factories.job
     override = described_class.new(attributes(workflow: other_job.latest_workflow).merge(
