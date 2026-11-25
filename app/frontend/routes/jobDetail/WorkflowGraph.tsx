@@ -1508,7 +1508,7 @@ function OutcomeOverrideAction({ jobId, stepId }: { jobId: number; stepId: numbe
     queryFn: () => fetchWorkflowOutcomeOverrideCandidates(jobId),
     enabled: stepId > 0
   })
-  const candidates = query.data?.candidates.filter((item) => item.step_id === stepId) || []
+  const candidates = query.data?.candidates?.filter((item) => item.step_id === stepId) || []
   const candidate = candidates.find((item) => item.fingerprint_digest === selectedFingerprint)
   const mutation = useMutation({
     mutationFn: () => createWorkflowOutcomeOverride(jobId, candidate!.fingerprint_digest, reason.trim()),
