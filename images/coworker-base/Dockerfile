@@ -122,7 +122,7 @@ COPY --chmod=0644 abi.yml /usr/local/share/syrus/runtime-abi.yml
 RUN set -eu; \
     groupadd --system --gid "${COWORKER_GID}" coworker; \
     useradd coworker --uid "${COWORKER_UID}" --gid "${COWORKER_GID}" --no-create-home --home-dir /home/coworker --shell /bin/bash; \
-    mkdir -p /workspace /home/coworker; \
+    mkdir -p /workspace /home/coworker /run/syrus; \
     chown "${COWORKER_UID}:${COWORKER_GID}" /workspace /home/coworker; \
     chmod 1777 /tmp
 
