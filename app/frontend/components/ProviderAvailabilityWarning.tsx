@@ -48,12 +48,15 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
   const label = failoverLabel(failover, copy, t)
 
   return (
-    <span
-      className={`inline-flex max-w-full items-center rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}
-      title={label}
-    >
-      {copy}
-    </span>
+    <div className={`inline-flex max-w-full flex-col items-start rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}>
+      <span>{copy}</span>
+      {label !== copy ? (
+        <details className="max-w-full font-normal">
+          <summary className="cursor-pointer underline">{t("provider_warning.details")}</summary>
+          <span className="block whitespace-normal break-words pt-1">{label}</span>
+        </details>
+      ) : null}
+    </div>
   )
 }
 
@@ -67,9 +70,13 @@ export function providerFailoverTooltip(failover: ProviderFailover | null | unde
 }
 
 function providerFailoverCopy(failover: NonNullable<ProviderFailover>, t: TFunction<"common">): string {
-  return failover.automatic
-    ? t("provider_warning.automatic_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
-    : t("provider_warning.operator_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+  if (failover.mode === "policy_routing") {
+    return t("provider_warning.policy_routing", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+  }
+  if (failover.mode === "operator") {
+    return t("provider_warning.operator_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+  }
+  return t("provider_warning.automatic_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
 }
 
 // Compact alternative to ProviderFailoverNotice for dense list rows (e.g. the
@@ -131,18 +138,20 @@ function warningLabel(availability: NonNullable<ProviderAvailability>, lowUsage:
 
 function failoverLabel(failover: NonNullable<ProviderFailover>, base: string, t: TFunction<"common">): string {
   const unavailable = failover.unavailable
-  if (!unavailable) return base
+  const routing = failover.routing
 
   return [
     base,
-    unavailable.state ? t("provider_warning.state", { provider: unavailable.label || failover.original_provider_label, state: unavailable.state }) : null,
-    unavailable.reason ? t("provider_warning.reason", { reason: unavailable.reason }) : null,
-    unavailable.retry_after ? t("provider_warning.retry_after", { time: formatTimestamp(unavailable.retry_after) }) : null,
-    unavailable.reset_at ? t("provider_warning.reset", { time: formatTimestamp(unavailable.reset_at) }) : null,
-    unavailable.evidence_source || unavailable.evidence_status
+    routing?.matched_rule_id ? t("provider_warning.routing_rule", { id: routing.matched_rule_id }) : null,
+    routing?.condition_results ? t("provider_warning.routing_conditions", { conditions: JSON.stringify(routing.condition_results) }) : null,
+    unavailable?.state ? t("provider_warning.state", { provider: unavailable.label || failover.original_provider_label, state: unavailable.state }) : null,
+    unavailable?.reason ? t("provider_warning.reason", { reason: unavailable.reason }) : null,
+    unavailable?.retry_after ? t("provider_warning.retry_after", { time: formatTimestamp(unavailable.retry_after) }) : null,
+    unavailable?.reset_at ? t("provider_warning.reset", { time: formatTimestamp(unavailable.reset_at) }) : null,
+    unavailable && (unavailable.evidence_source || unavailable.evidence_status)
       ? t("provider_warning.evidence", { status: unavailable.evidence_status || "—", source: unavailable.evidence_source || "—" })
       : null,
-    unavailable.observed_at ? t("provider_warning.observed", { time: formatTimestamp(unavailable.observed_at) }) : null,
+    unavailable?.observed_at ? t("provider_warning.observed", { time: formatTimestamp(unavailable.observed_at) }) : null,
     failover.decided_at ? t("provider_warning.decided", { time: formatTimestamp(failover.decided_at) }) : null
   ]
     .filter(Boolean)

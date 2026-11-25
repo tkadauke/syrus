@@ -1035,7 +1035,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     item = parse_body["jobs"].find { |job| job["id"] == failed_over.id }
     expect(item["provider_failover"]).to include(
-      "mode" => "automatic",
+      "mode" => "availability_failover",
       "automatic" => true,
       "original_provider_label" => "Claude Code",
       "selected_provider_label" => "Codex",

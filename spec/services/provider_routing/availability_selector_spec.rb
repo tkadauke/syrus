@@ -191,6 +191,42 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(decision.candidate.provider).to eq("codex")
       expect(decision).to be_failover
       expect(decision).not_to be_exhausted
+      expect(decision.artifact).to include(
+        "decision_mode" => "availability_failover",
+        "automatic_failover" => true,
+        "unavailable" => include("provider" => "claude", "state" => "auth_error")
+      )
+    end
+
+    it "records a usage-threshold rule selecting a different healthy provider as policy routing" do
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        task_key: "initial",
+        conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } },
+        candidates: [ { provider: "claude" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(
+        state: "available", usage: { remaining_percent: 22, observed_at: Time.current.iso8601 }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "codex")
+      )
+
+      expect(decision.candidate.provider).to eq("claude")
+      expect(decision.artifact).to include(
+        "decision_mode" => "policy_routing",
+        "automatic_failover" => false,
+        "availability_state" => "available",
+        "routing_resolution" => include(
+          "matched_rule" => include("id" => rule.id),
+          "condition_results" => include("conditions" => include("usage" => include("matched" => true)))
+        )
+      )
+      expect(decision.artifact["unavailable"]).to be_nil
     end
 
     # Mirrors a real incident: the provider kept refusing the only model it

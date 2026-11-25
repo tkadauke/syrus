@@ -497,7 +497,11 @@
   },
   "provider_warning": {
     "automatic_failover": "{{original}} non praesto est; hic Workflow per {{selected}} currit.",
+    "policy_routing": "Regula itineris {{selected}} pro {{original}} elegit.",
     "operator_failover": "Operator {{selected}} pro hoc Workflow loco {{original}} elegit.",
+    "details": "Singula",
+    "routing_rule": "Regula itineris {{id}} congruit",
+    "routing_conditions": "Condiciones: {{conditions}}",
     "mismatch": "Job per {{jobProvider}} currit; norma Repository est {{repositoryProvider}}.",
     "usage_low": "Usus {{provider}} exiguus est ({{remaining}}% reliquum; limen {{threshold}}%).",
     "usage_reached": "Finis usus {{provider}} attactus est. Haec res {{provider}} utitur donec usus renovetur.",
