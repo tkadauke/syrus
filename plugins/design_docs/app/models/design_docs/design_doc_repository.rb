@@ -13,7 +13,7 @@ module DesignDocs
     private
 
     def publish_design_doc_search_upsert
-      Syrus::Events.publish("design_doc.upserted", design_doc_id: design_doc_id)
+      Syrus::Host::Events.publish("design_doc.upserted", design_doc_id: design_doc_id)
     end
   end
 end

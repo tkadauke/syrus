@@ -1,5 +1,5 @@
 module GitHistory
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "git_history" do
     requires_syrus nil
@@ -24,7 +24,7 @@ module GitHistory
     # WorkerQueueTopology so it only actually starts on the worker pod(s)
     # configured to consume the `polling` queue.
     on_boot do
-      if SyrusVersion.server_process? && SyrusVersion.role == "worker"
+      if Syrus::Host::SyrusVersion.server_process? && Syrus::Host::SyrusVersion.role == "worker"
         begin
           GitHistory::RelayServer.ensure_running!
         rescue NameError

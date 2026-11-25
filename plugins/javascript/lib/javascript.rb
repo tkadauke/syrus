@@ -11,7 +11,7 @@ require "javascript/grade_detector"
 require "javascript/ecosystem"
 
 module JavaScript
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "javascript" do
     default_enabled true
