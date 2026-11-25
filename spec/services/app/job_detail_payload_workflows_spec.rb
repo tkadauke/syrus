@@ -86,6 +86,30 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       AppSetting.current.update!(show_work_unit_debug: true)
     end
 
+    it "presents consumed failures as failed, overridden without rewriting workflow state" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow:, kind: "grader", position: 0, state: "failed")
+      override = WorkflowOutcomeOverride.record!(
+        gate_failure: { outcome: "failed", technically_overridable: true, structural: false,
+                        gate_identity: "rspec", evidence_digest: "d" * 64 },
+        job:, workflow:, step:, actor: user, gate_kind: "implementation_grader",
+        gate_identity: "rspec", candidate_head_sha: "a" * 40, plan_version: "plan-v1",
+        evidence_digest: "d" * 64, channel: "ui", reason: "Confirmed false positive",
+        permission_decision: { "policy" => "allow" }
+      )
+      allow(WorkflowOutcomeOverrides::Telemetry).to receive(:record_consumed)
+      override.consume!(override.fingerprint)
+
+      serialized = workflows_payload_for(job).fetch(:workflows).find { |item| item[:id] == workflow.id }
+
+      expect(serialized[:state]).to eq("running")
+      expect(serialized.fetch(:outcome_overrides).sole).to include(
+        effective_state: "failed, overridden", gate_kind: "implementation_grader",
+        gate_identity: "rspec", reason: "Confirmed false positive"
+      )
+    end
+
     it "labels review panel member steps with their providers" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

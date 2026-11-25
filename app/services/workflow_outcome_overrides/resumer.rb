@@ -19,6 +19,8 @@ module WorkflowOutcomeOverrides
     end
 
     def call
+      return override if override.consumed?
+
       GateRegistry.default.fetch(override.gate_kind).resume(override)
     end
 
