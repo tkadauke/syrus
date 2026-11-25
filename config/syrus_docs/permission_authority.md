@@ -473,3 +473,11 @@ agents can inspect candidates and request confirmation with
 Agent requests include diagnosis, remediation attempted, justification, and an
 optional linked Syrus bug report; agents should repair the cause or report a
 product defect whenever practical.
+
+Consumption resumes the blocked collector or gate instead of repeating the
+implementation step. The original failure remains labeled `failed, overridden`
+on the Workflow after execution continues. Syrus also writes that marker to the
+Run transcript and operational audit, and counts consumed overrides by the
+bounded gate kind and request channel. Repeating the same exact-evidence request
+is idempotent; cancellation, supersession, a changed revision, or changed
+evidence prevents the old request from advancing work.

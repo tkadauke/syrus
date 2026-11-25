@@ -5,12 +5,18 @@ RSpec.describe WorkflowOutcomeOverrides::Resumer do
   let(:job) { Factories.job(user:) }
   let(:workflow) { job.workflows.last }
 
+  it "does not resume or emit side effects again for a consumed override" do
+    override = instance_double(WorkflowOutcomeOverride, consumed?: true)
+
+    expect(described_class.call(override:)).to eq(override)
+  end
+
   it "reruns a failed grader collector through the registered grader strategy" do
     grader = Step.create!(workflow:, kind: "grader", position: 10, state: "failed",
       iteration: 1, loop_id: "grade-loop")
     collector = Step.create!(workflow:, kind: "grader_collect", position: 11, state: "failed",
       iteration: 1, loop_id: "grade-loop")
-    override = instance_double(WorkflowOutcomeOverride, gate_kind: "implementation_grader", workflow:, step: grader)
+    override = instance_double(WorkflowOutcomeOverride, gate_kind: "implementation_grader", workflow:, step: grader, consumed?: false)
     result = RetryFailedStepEnqueuer::Result.new(run: instance_double(Run), workflow:, step: collector, error: nil)
     allow(workflow).to receive(:failed?).and_return(true)
     allow(RetryFailedStepEnqueuer).to receive(:call).and_return(result)
