@@ -32,7 +32,8 @@
   --ok: #7cc996; --ok-soft: #1c3226; --warn: #e2b061; --warn-soft: #3a2e18;
   --crit: #ef8a7f; --crit-soft: #3d221f; --info: #a3adea; --info-soft: #252a45; color-scheme: dark }
 
-body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 64px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
@@ -77,6 +78,7 @@ details > summary::-webkit-details-marker { display: none; }
 .ttl .t { font-weight: 500; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .chip { font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--rule); color: var(--muted); white-space: nowrap; }
+.chip.by { white-space: normal; font-family: var(--font-mono); }
 .chip.prod { border-color: transparent; background: var(--warn-soft); color: var(--warn); font-variant-numeric: tabular-nums; }
 .pill { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
 .s-open { background: var(--crit-soft); color: var(--crit); }
@@ -90,10 +92,25 @@ details > summary::-webkit-details-marker { display: none; }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 560px) { .kv { grid-template-columns: 1fr; } .body { padding-left: 4px; } }
 
-.needs { margin: 0 0 28px; background: var(--surface); border: 1px solid var(--warn); border-radius: 8px; padding: 16px 18px; display: grid; gap: 10px; }
-.needs .why { color: var(--muted); font-size: 0.9rem; margin: 0; max-width: 72ch; }
-.q { border-top: 1px solid var(--rule); padding-top: 12px; display: grid; gap: 6px; }
-.q h3 { font-size: 1.05rem; font-weight: 600; }
+.needs { margin: 0 0 28px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 16px; }
+.needs.has-open { border-color: var(--warn); }
+.needs > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 2px 0; }
+.needs > summary h2 { font-size: 1.15rem; }
+.needs[open] > summary { margin-bottom: 8px; }
+.needs .why { color: var(--muted); font-size: 0.9rem; margin: 0 0 6px; max-width: 72ch; }
+.needs-count { color: var(--muted); font-size: 0.85rem; }
+.needs-count .open { color: var(--warn); font-weight: 600; }
+.chev { display: inline-block; width: 1em; color: var(--muted); transition: transform 0.15s; }
+details[open] > summary .chev { transform: rotate(90deg); }
+.q { border-top: 1px solid var(--rule); }
+.q > summary { display: grid; grid-template-columns: 1em minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; padding: 10px 0; }
+.q > summary .ref { grid-column: 2; }
+.q > summary .q-title { grid-column: 2; font-family: var(--font-display); font-weight: 600; font-size: 0.98rem; }
+.q > summary .pill { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+.q .q-body { display: grid; gap: 6px; padding: 0 0 12px calc(1em + 8px); }
+.pill.q-open { background: var(--accent-soft); color: var(--warn); }
+.pill.q-decided { background: var(--accent-soft); color: var(--muted); }
+@media (max-width: 560px) { .q .q-body { padding-left: 0; } }
 .q .ref { font-family: var(--font-mono); font-size: 0.75rem; color: var(--warn); }
 .q p, .q li { margin: 0; max-width: 72ch; font-size: 0.92rem; }
 .q ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
@@ -115,11 +132,11 @@ details > summary::-webkit-details-marker { display: none; }
 
   <div class="stats" id="stats"></div>
 
-  <section class="needs" id="needs" hidden>
-    <h2>Needs you</h2>
+  <details class="needs" id="needs" hidden>
+    <summary><span class="chev" aria-hidden="true">&#9656;</span><h2>Needs you</h2><span class="needs-count" id="needs-count"></span></summary>
     <p class="why">Design or intent questions found while working the list. The loop keeps going on other items; these wait for a decision.</p>
     <div id="needs-list"></div>
-  </section>
+  </details>
 
   <div class="legend">
     <div><strong>Preventable (class a)</strong>Some code path wrongly produces the state. Model it, find the path, fix it, prove it unreachable.</div>
@@ -198,8 +215,9 @@ details > summary::-webkit-details-marker { display: none; }
         '<span class="chip">' + esc(classLabel[it.class] || it.class) + '</span>' +
         '<span class="chip">' + esc(it.safety_or_liveness) + '</span>' + prod +
         (it.simulator && it.simulator.length ? '<span class="chip">' + it.simulator.length + ' scenario' + (it.simulator.length > 1 ? "s" : "") + '</span>' : "") +
+        (it.done_by ? '<span class="chip by">' + esc(it.done_by) + '</span>' : "") +
       '</span></span>' +
-      '<span class="pill s-' + it.status + '">' + statusLabel[it.status] + (it.done_by ? " · " + esc(it.done_by) : "") + '</span>' +
+      '<span class="pill s-' + it.status + '">' + statusLabel[it.status] + '</span>' +
       '</summary><div class="body">' +
         (it.notes ? '<p>' + esc(it.notes) + '</p>' : "") +
         '<dl class="kv">' +
@@ -238,12 +256,22 @@ details > summary::-webkit-details-marker { display: none; }
   }
   var NY = D.needs_you || [];
   if (NY.length) {
-    document.getElementById("needs").hidden = false;
-    document.getElementById("needs-list").innerHTML = NY.map(function (q) {
-      return '<div class="q"><span class="ref">' + esc(q.id) + ' · ' + esc(q.item) + '</span><h3>' + esc(q.title) + '</h3>' +
+    var needs = document.getElementById("needs");
+    needs.hidden = false;
+    // Open questions first, then decided ones, newest first.
+    var open = NY.filter(function (q) { return !q.decision; }).reverse();
+    var decided = NY.filter(function (q) { return q.decision; }).reverse();
+    if (open.length) needs.classList.add("has-open");
+    document.getElementById("needs-count").innerHTML =
+      (open.length ? '<span class="open">' + open.length + ' open</span> · ' : 'none open · ') + decided.length + ' decided';
+    document.getElementById("needs-list").innerHTML = open.concat(decided).map(function (q) {
+      var status = q.decision ? '<span class="pill q-decided">Decided</span>' : '<span class="pill q-open">Open</span>';
+      return '<details class="q"><summary><span class="chev" aria-hidden="true">&#9656;</span>' +
+        '<span class="ref">' + esc(q.id) + ' · ' + esc(q.item) + '</span>' + status +
+        '<span class="q-title">' + esc(q.title) + '</span></summary><div class="q-body">' +
         '<p>' + esc(q.context) + '</p><ul>' + (q.options || []).map(function (o) { return '<li>' + esc(o) + '</li>'; }).join("") + '</ul>' +
         (q.recommendation ? '<p class="rec"><b>Recommendation:</b> ' + esc(q.recommendation) + '</p>' : "") +
-        (q.decision ? '<p class="rec"><b>Decided:</b> ' + esc(q.decision) + '</p>' : "") + '</div>';
+        (q.decision ? '<p class="rec"><b>Decided:</b> ' + esc(q.decision) + '</p>' : "") + '</div></details>';
     }).join("");
   }
   ["f-area", "f-status", "f-q"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });
