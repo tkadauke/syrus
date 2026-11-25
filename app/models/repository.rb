@@ -1,4 +1,5 @@
 class Repository < ApplicationRecord
+  include HasAgentQuestionPolicy
   DASHBOARD_CHROME_CONFIGURATION_COLUMNS = %w[
     archived_at installation_id name owner trigger_label
   ].freeze

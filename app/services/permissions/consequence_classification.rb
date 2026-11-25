@@ -44,7 +44,7 @@ module Permissions
     # Drafting a proposal only creates the operator's confirmation card; that
     # card is the decision that creates real work.
     WORKFLOW_OUTPUT = %w[
-      report_cannot_proceed record_isolated_repro submit_summary
+      ask_user_question report_cannot_proceed record_isolated_repro submit_summary
       submit_test_plan submit_report submit_job_metadata submit_adversarial_review
       submit_security_review submit_visual_review submit_visual_artifact submit_artifact
     ].freeze

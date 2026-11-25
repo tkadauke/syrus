@@ -289,7 +289,7 @@ RSpec.describe McpToolRegistry do
           read_live_state
           read_run_worker_health start_preview stop_preview
           read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
-          submit_adversarial_review
+          ask_user_question submit_adversarial_review
         ]
       )
     end
