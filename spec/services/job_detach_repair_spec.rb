@@ -8,13 +8,15 @@ RSpec.describe JobDetachRepair do
   let!(:dependency) { JobDependency.create!(job: job, depends_on_job: parent, source: "manual", satisfaction_mode: "success") }
   let(:head) { "a" * 40 }
   let(:former_parent_head) { "b" * 40 }
+  let(:owned_patch_base_sha) { "c" * 40 }
   let(:client) { instance_double(GithubClient) }
   let(:pr) { double("pull request", head: double("head", sha: head), base: double("base", ref: "main")) }
 
   def call_repair(auto_rebase)
     described_class.call(
       job: job, destination_base: "main", reason: "Repair accidental parent.", requested_by: "chat_agent",
-      former_parent_id: parent.id, former_parent_head: former_parent_head, confirmed_head: head, auto_rebase: auto_rebase
+      former_parent_id: parent.id, former_parent_head: former_parent_head,
+      owned_patch_base_sha: owned_patch_base_sha, confirmed_head: head, auto_rebase: auto_rebase
     )
   end
 
@@ -56,7 +58,8 @@ RSpec.describe JobDetachRepair do
       artifacts: hash_including(
         "detach_job" => {
           "destination_base" => "main", "former_parent_id" => parent.id,
-          "former_parent_head" => former_parent_head, "confirmed_head" => head
+          "former_parent_head" => former_parent_head, "owned_patch_base_sha" => owned_patch_base_sha,
+          "confirmed_head" => head
         }
       )
     ))
