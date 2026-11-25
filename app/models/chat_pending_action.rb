@@ -13,6 +13,7 @@ class ChatPendingAction < ApplicationRecord
     base_refresh_retry_job
     rebase_job
     force_rebase
+    detach_job
     restack_epic
     archive_epic
     reopen_job
@@ -117,6 +118,7 @@ class ChatPendingAction < ApplicationRecord
     override_job_planned_execution
     rebase_job
     force_rebase
+    detach_job
     reopen_job
     poll_job_feedback
     run_visual_review

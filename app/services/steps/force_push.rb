@@ -33,6 +33,7 @@ module Steps
       record_accepted_push!
       persist_rebase_diff_review_version!
       carry_forward_landing_validation!
+      finalize_job_detach!
     rescue GithubPushProtection::Rejected => e
       handle_push_protection_rejection!(e) do
         git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
@@ -42,6 +43,7 @@ module Steps
       end
       persist_rebase_diff_review_version!
       carry_forward_landing_validation!
+      finalize_job_detach!
     rescue GitRunner::GitError => e
       raise unless push_rejected?(e)
 
@@ -52,6 +54,25 @@ module Steps
     end
 
     private
+
+    def finalize_job_detach!
+      detach = workflow.artifact("detach_job")
+      return unless detach.is_a?(Hash)
+
+      expected_head = streaming_git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+      evidence = JobDetachRepair.finalize!(
+        job: job,
+        destination_base: detach.fetch("destination_base"),
+        expected_head: expected_head,
+        reason: workflow.artifact("repair_reason"),
+        former_parent_id: detach["former_parent_id"]
+      )
+      workflow.set_artifact!("detach_job_postconditions", evidence)
+      log("force_push: verified detached branch, PR base, and Syrus topology")
+    rescue StandardError => e
+      workflow.set_artifact!("detach_job_failure", { "message" => e.message, "at" => Time.current.iso8601 })
+      raise StepFailed, "detach_job: publication was partial and postconditions failed: #{e.message}"
+    end
 
     def verify_latest_coding_handoff_fix!
       CodingHandoffRevisionGuard.verify_latest_fix!(

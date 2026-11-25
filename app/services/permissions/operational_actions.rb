@@ -42,6 +42,7 @@ module Permissions
       "admin_kill_process" => Operation.new(ADMIN_REPAIR, "kill_process", DESTRUCTIVE_CONTROL, :high),
       "manual_agentic_run" => Operation.new(ADMIN_REPAIR, "manual_agentic_run", WORK_CONTROL, :medium),
       "force_rebase" => Operation.new(ADMIN_REPAIR, "force_rebase", EXTERNAL_CONTROL, :high),
+      "detach_job" => Operation.new(ADMIN_REPAIR, "detach_job", EXTERNAL_CONTROL, :high),
       "restack_epic" => Operation.new(ADMIN_REPAIR, "restack_epic", EXTERNAL_CONTROL, :high),
       "adopt_current_pr_head" => Operation.new(ADMIN_REPAIR, "adopt_current_pr_head", EXTERNAL_CONTROL, :high),
       "replace_pr_branch_with_workflow_output" => Operation.new(ADMIN_REPAIR, "replace_pr_branch", EXTERNAL_CONTROL, :critical),
