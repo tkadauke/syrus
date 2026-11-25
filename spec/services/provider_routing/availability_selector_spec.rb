@@ -198,6 +198,38 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       )
     end
 
+    it "preserves unavailability semantics when reordered candidates are exhausted" do
+      user.update!(provider_availability_pause_thresholds: { "claude" => 0, "codex" => 0 })
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        task_key: "initial",
+        candidates: [ { provider: "claude" }, { provider: "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "auth_error", reason: "token_expired", open: true }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "rate_limited", reason: "usage_limit", open: true }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "codex")
+      )
+
+      expect(decision.candidate.provider).to eq("claude")
+      expect(decision).to be_exhausted
+      expect(decision.artifact).to include(
+        "decision_mode" => "availability_failover",
+        "automatic_failover" => true,
+        "availability_state" => "auth_error",
+        "candidate_availability_state" => "auth_error",
+        "unavailable" => include("provider" => "claude", "state" => "auth_error", "reason" => "token_expired")
+      )
+    end
+
     it "records a usage-threshold rule selecting a different healthy provider as policy routing" do
       rule = ProviderRoutingRule.create!(
         scope_type: "repository",

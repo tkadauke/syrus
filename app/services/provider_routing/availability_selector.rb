@@ -160,7 +160,7 @@ module ProviderRouting
         available, account, candidate_availability = select_account(candidate)
         unless available
           first_unavailable_candidate ||= candidate
-          first_unavailable_availability ||= candidate_availability
+          first_unavailable_availability ||= candidate_availability.to_h.merge(provider: candidate.provider)
           next
         end
 
@@ -181,6 +181,7 @@ module ProviderRouting
       decision(
         first_unavailable_candidate || candidates.first,
         candidate_availability: first_unavailable_availability,
+        unavailable_availability: first_unavailable_availability,
         exhausted: true
       )
     end
