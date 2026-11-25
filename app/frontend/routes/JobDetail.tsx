@@ -11,6 +11,8 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { PermissionRequestCard } from "../components/PermissionRequestCard"
+import { AgentQuestions } from "./chat/AgentQuestions"
+import { answerWorkflowAgentQuestion, fetchOpenAgentQuestions, type WorkflowAgentQuestion } from "../api/agentQuestions"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
@@ -257,6 +259,31 @@ export function JobDetailRoute() {
         />
       ) : null}
     </Page.Root>
+  )
+}
+
+function JobQuestionPanel({ job, onNotice }: { job: JobDetailPayload["job"]; onNotice: (message: string | null) => void }) {
+  const { t } = useT("jobs")
+  const client = useQueryClient()
+  const queryKey = ["agent-questions", "job", job.id] as const
+  const query = useQuery({ queryKey, queryFn: () => fetchOpenAgentQuestions(job.id), refetchInterval: 15_000 })
+  if (!query.data?.questions.length) return null
+
+  async function answer(question: WorkflowAgentQuestion, answers: import("../api/chats").ChatAgentQuestionAnswer[]) {
+    const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
+    await Promise.all([client.invalidateQueries({ queryKey }), client.invalidateQueries({ queryKey: ["agent-questions", "open"] })])
+    return result
+  }
+
+  return (
+    <section aria-label={t("question_panel_title")} className="space-y-3 rounded border border-warning-border bg-warning/10 p-4">
+      <div>
+        <h2 className="font-semibold">{t("question_panel_title")}</h2>
+        <p className="text-sm text-text-secondary">{t("question_panel_consequence")}</p>
+        <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
+      </div>
+      <AgentQuestions questions={query.data.questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
+    </section>
   )
 }
 
@@ -515,6 +542,7 @@ export function JobDetailView({
       </Page.Header>
 
       <NoticeToast message={notice?.message ?? null} onDismiss={() => setNotice(null)} tone={notice?.tone ?? "notice"} />
+      <JobQuestionPanel job={payload.job} onNotice={(message) => setNotice(message ? { message, tone: "notice" } : null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
       {unlandDialog}

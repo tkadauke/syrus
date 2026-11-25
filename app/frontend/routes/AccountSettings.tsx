@@ -42,6 +42,7 @@ import {
 import { deleteJson } from "../api/client"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
+import { QuestionEagernessFields } from "../components/QuestionEagernessFields"
 import { useConfirm } from "../hooks/useConfirm"
 import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, registerPasskey, type PasskeyRecord } from "../api/passkeys"
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
@@ -436,6 +437,14 @@ function CredentialsForm({
             queryKey={routingQueryKey}
             rules={payload.provider_routing_rules}
             title={t("provider_routing.account_title")}
+          />
+        ) : null}
+
+        {section === "preferences" ? (
+          <QuestionEagernessFields
+            eagerness={values.question_eagerness}
+            onChange={(question_eagerness, question_answer_timeout_seconds) => setValues({ ...values, question_eagerness, question_answer_timeout_seconds })}
+            timeoutSeconds={values.question_answer_timeout_seconds}
           />
         ) : null}
 
@@ -847,6 +856,8 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     provider_availability_pause_thresholds: payload.user.provider_availability_pause_thresholds || { claude: 10, codex: 10 },
     scheduling_paused: payload.user.scheduling_paused,
     mobile_chat_auto_hide_header: payload.user.mobile_chat_auto_hide_header === true,
+    question_eagerness: payload.user.question_eagerness,
+    question_answer_timeout_seconds: payload.user.question_answer_timeout_seconds,
     auto_approve_mode: payload.user.auto_approve_mode,
     locale: payload.user.locale
   }

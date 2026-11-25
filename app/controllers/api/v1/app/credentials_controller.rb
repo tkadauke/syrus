@@ -404,6 +404,8 @@ module Api
             provider_availability_overrides: user.provider_availability_overrides.to_h,
             scheduling_paused: user.scheduling_paused,
             mobile_chat_auto_hide_header: user.mobile_chat_auto_hide_header?,
+            question_eagerness: user.question_eagerness,
+            question_answer_timeout_seconds: user.question_answer_timeout_seconds,
             auto_approve_mode: user.auto_approve_mode,
             locale: user.locale
           }
@@ -521,7 +523,8 @@ module Api
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :gemini_api_key, :muse_api_key, :github_token,
-                                :agent_max_turns, :recent_chats_group_size, :scheduling_paused, :mobile_chat_auto_hide_header, :auto_approve_mode, :locale,
+                                :agent_max_turns, :recent_chats_group_size, :scheduling_paused, :mobile_chat_auto_hide_header, :question_eagerness,
+                                :question_answer_timeout_seconds, :auto_approve_mode, :locale,
                                 { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
         end
 

@@ -1127,5 +1127,9 @@
   "recovery_revision": "Revision {{revision}}",
   "recovery_guidance_failures": "Persistent failures to address: {{failures}}",
   "grader_loop_decision_stopped": "Loop decision — stopped for no progress",
-  "grader_loop_decision_continued": "Loop decision — continued repair"
+  "grader_loop_decision_continued": "Loop decision — continued repair",
+  "workflow_block_evidence": "Technical evidence",
+  "question_panel_title": "The agent needs your answer",
+  "question_panel_consequence": "Answer and continue resumes this workflow in the same agent session.",
+  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}})."
 }

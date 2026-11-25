@@ -349,6 +349,7 @@ module App
     end
 
     def job_json
+      question_policy = AgentQuestions::PolicyResolution.for(@job)
       job_detail_dependencies
       workflow_agent_provider = PerformanceLogging.phase("job_detail.job.workflow_agent_provider", job_id: @job.id) { @job.workflow_agent_provider }
       provider_availability = PerformanceLogging.phase("job_detail.job.provider_availability", job_id: @job.id, provider: workflow_agent_provider) do
@@ -477,6 +478,8 @@ module App
         delivery_target_ref: delivery_policy.job_landing_branch(@job),
         needs_attention: @job.needs_attention?,
         needs_attention_reason: @job.needs_attention_reason,
+        question_eagerness: question_policy.eagerness,
+        question_eagerness_source: question_policy.eagerness_source,
         blocked_workflow_dismissal: blocked_workflow_dismissal_json,
         needs_attention_since: iso8601(@job.needs_attention_since),
         grace_period_expires_at: iso8601(@job.grace_period_expires_at),

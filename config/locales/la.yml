@@ -1,10 +1,12 @@
 la:
   agent_questions:
     recorded: "Quaestio vel quaestiones servatae sunt. Nunc vicem tuam fini."
+    answered: "Responsum missum est. Fluxus operis continuabit."
     errors:
       exactly_one_owner: "aut ad sessionem colloquii aut ad cursum pertinere debet"
       questions_malformed: "series unius ad quattuor quaestionum rite formatarum esse debet"
       defaults_malformed: "pro unaquaque quaestione responsum praedefinitum non vacuum praebere debet"
+      answers_malformed: "Responsa omnibus quaestionibus congruere debent."
   unlanding:
     disabled: "Unlanding in hac instantia non activatum est."
   notifications:

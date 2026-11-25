@@ -393,5 +393,6 @@
     "title": "Claves compendiariae",
     "close": "Claves compendiarias claude",
     "empty": "Nullae claves compendiariae nunc actae sunt."
-  }
+  },
+  "question_inbox": { "open": "Quaestiones apertae: {{count}}", "title": "Quaestiones", "close": "Claudere", "empty": "Nulla quaestio responsum exspectat." }
 }
