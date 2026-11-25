@@ -38,6 +38,8 @@ function makePayload(
       provider_availability_pause_thresholds: { claude: 10, codex: 10 },
       provider_availability_overrides: {},
       scheduling_paused: false,
+      question_eagerness: null,
+      question_answer_timeout_seconds: null,
       auto_approve_mode: "never",
       locale: "en"
     },

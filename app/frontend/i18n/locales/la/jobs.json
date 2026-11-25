@@ -1131,5 +1131,12 @@
   "workflow_block_evidence": "Testimonium technicum",
   "question_panel_title": "Agens responsum tuum requirit",
   "question_panel_consequence": "Respondere et pergere hunc fluxum in eadem sessione agentis resumit.",
+  "question_retry": "Sic iterare",
+  "question_retry_consequence": "Novum conatum incipit impedimento non mutato.",
+  "question_file_fix": "Opus emendationis crea",
+  "question_file_fix_consequence": "Opus reparationis creat et hoc Opus post descensum reparationis resumit.",
+  "question_give_up": "Desistere",
+  "question_give_up_confirm": "Ab hoc conatu desistere et Opus cancellare?",
+  "question_give_up_consequence": "Conatum activum cancellat et hoc Opus ut cancellatum claudit.",
   "question_policy_effective": "Studium interrogandi: {{level}} (fons: {{source}})."
 }

@@ -273,8 +273,10 @@
     "close": "Aktivität schließen",
     "tab_notifications": "Benachrichtigungen",
     "tab_approvals": "Freigaben",
+    "tab_questions": "Fragen",
     "count_notifications": "{{count}} ungelesen",
     "count_approvals": "{{count}} ausstehend",
+    "count_questions": "{{count}} offen",
     "loading": "Lädt …",
     "empty": "Nichts vorhanden",
     "error": "Konnte nicht geladen werden."
@@ -394,5 +396,11 @@
     "close": "Tastaturkürzel schließen",
     "empty": "Derzeit sind keine Tastaturkürzel aktiv."
   },
-  "question_inbox": { "open": "Offene Fragen: {{count}}", "title": "Fragen", "close": "Schließen", "empty": "Keine Frage wartet auf eine Antwort." }
+  "question_inbox": {
+    "open": "Offene Fragen: {{count}}",
+    "title": "Fragen",
+    "close": "Schließen",
+    "empty": "Keine Frage wartet auf eine Antwort.",
+    "arrived": "{{count}} neue Frage ist eingetroffen."
+  }
 }

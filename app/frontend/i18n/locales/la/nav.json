@@ -273,8 +273,10 @@
     "close": "Actionem claude",
     "tab_notifications": "Nuntii",
     "tab_approvals": "Approbationes",
+    "tab_questions": "Quaestiones",
     "count_notifications": "{{count}} non lecti",
     "count_approvals": "{{count}} pendentes",
+    "count_questions": "{{count}} apertae",
     "loading": "Oneratur...",
     "empty": "Nihil hic",
     "error": "Onerari non potuit."
@@ -394,5 +396,11 @@
     "close": "Claves compendiarias claude",
     "empty": "Nullae claves compendiariae nunc actae sunt."
   },
-  "question_inbox": { "open": "Quaestiones apertae: {{count}}", "title": "Quaestiones", "close": "Claudere", "empty": "Nulla quaestio responsum exspectat." }
+  "question_inbox": {
+    "open": "Quaestiones apertae: {{count}}",
+    "title": "Quaestiones",
+    "close": "Claudere",
+    "empty": "Nulla quaestio responsum exspectat.",
+    "arrived": "{{count}} nova quaestio advenit."
+  }
 }

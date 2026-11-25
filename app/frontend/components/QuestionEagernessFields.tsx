@@ -7,11 +7,13 @@ export type QuestionEagerness = (typeof QUESTION_EAGERNESS_LEVELS)[number]
 export function QuestionEagernessFields({
   eagerness,
   timeoutSeconds,
-  onChange
+  onChange,
+  showTimeout = true
 }: {
   eagerness: QuestionEagerness | null
   timeoutSeconds: number | null
   onChange: (eagerness: QuestionEagerness | null, timeoutSeconds: number | null) => void
+  showTimeout?: boolean
 }) {
   const { t } = useT("settings")
   const value = eagerness == null ? 0 : QUESTION_EAGERNESS_LEVELS.indexOf(eagerness) + 1
@@ -37,7 +39,7 @@ export function QuestionEagernessFields({
         <span>{t(`question_eagerness.levels.${effective}.label`)}</span>
       </div>
       <p className="text-sm text-text-secondary">{t(`question_eagerness.levels.${effective}.description`)}</p>
-      <label className="block text-sm font-medium text-text">
+      {showTimeout ? <><label className="block text-sm font-medium text-text">
         {t("question_eagerness.timeout")}
         <Input
           className="mt-1 w-40"
@@ -47,7 +49,7 @@ export function QuestionEagernessFields({
           value={timeoutSeconds == null ? "" : timeoutSeconds / 60}
         />
       </label>
-      <p className="text-xs text-text-muted">{t("question_eagerness.timeout_help")}</p>
+      <p className="text-xs text-text-muted">{t("question_eagerness.timeout_help")}</p></> : null}
     </fieldset>
   )
 }

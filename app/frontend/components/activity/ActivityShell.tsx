@@ -6,12 +6,13 @@ import { NotificationsActivityPanel, useNotificationsQuery } from "../Notificati
 import type { ActivityTab } from "./ActivityContext"
 import { ApprovalsActivityPanel } from "./ApprovalsActivityPanel"
 import { usePendingApprovals } from "./usePendingApprovals"
+import { QuestionsActivityPanel, useOpenAgentQuestions } from "../QuestionInboxDrawer"
 
 const SHELL_CLASS = [
   "fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] w-screen flex-col overflow-hidden",
   "bg-surface text-text-primary motion-safe:transition-opacity"
 ].join(" ")
-const TABS: ActivityTab[] = ["notifications", "approvals"]
+const TABS: ActivityTab[] = ["notifications", "approvals", "questions"]
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -39,12 +40,17 @@ export function ActivityShell({
 }) {
   const { t } = useT("nav")
   const rootRef = useRef<HTMLDivElement>(null)
-  const scrollRefs = useRef<Record<ActivityTab, HTMLDivElement | null>>({ notifications: null, approvals: null })
-  const savedScroll = useRef<Record<ActivityTab, number>>({ notifications: 0, approvals: 0 })
-  const tabRefs = useRef<Record<ActivityTab, HTMLButtonElement | null>>({ notifications: null, approvals: null })
+  const scrollRefs = useRef<Record<ActivityTab, HTMLDivElement | null>>({ notifications: null, approvals: null, questions: null })
+  const savedScroll = useRef<Record<ActivityTab, number>>({ notifications: 0, approvals: 0, questions: 0 })
+  const tabRefs = useRef<Record<ActivityTab, HTMLButtonElement | null>>({ notifications: null, approvals: null, questions: null })
   const notifications = useNotificationsQuery({ enabled: true })
   const { pendingCount } = usePendingApprovals()
-  const counts: Record<ActivityTab, number> = { notifications: notifications.data?.unread_count ?? 0, approvals: pendingCount }
+  const questions = useOpenAgentQuestions()
+  const counts: Record<ActivityTab, number> = {
+    notifications: notifications.data?.unread_count ?? 0,
+    approvals: pendingCount,
+    questions: questions.data?.questions.length ?? 0
+  }
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
@@ -164,7 +170,7 @@ export function ActivityShell({
             {t("activity.title")}
           </h2>
         </div>
-        <div aria-label={t("activity.tabs")} className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-surface-subtle p-1" role="tablist">
+        <div aria-label={t("activity.tabs")} className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-surface-subtle p-1" role="tablist">
           {TABS.map((key, index) => {
             const selected = key === tab
             return (
@@ -212,8 +218,10 @@ export function ActivityShell({
         >
           {key === "notifications" ? (
             <NotificationsActivityPanel navigateTo={navigateTo} prefix={prefix} />
-          ) : (
+          ) : key === "approvals" ? (
             <ApprovalsActivityPanel navigateTo={navigateTo} prefix={prefix} />
+          ) : (
+            <QuestionsActivityPanel navigateTo={navigateTo} prefix={prefix} />
           )}
         </div>
       ))}

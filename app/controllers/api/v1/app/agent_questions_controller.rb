@@ -10,7 +10,7 @@ module Api
 
         def answer
           question = visible_questions.find(params[:id])
-          if question.answer!(answers: params[:answers], answered_by: Current.user, source: "web")
+          if question.answer!(answers: agent_question_answers_param, answered_by: Current.user, source: "web")
             render json: { message: I18n.t("agent_questions.answered") }
           else
             render_error("invalid_answers", I18n.t("agent_questions.errors.answers_malformed"), status: :unprocessable_content)
@@ -18,6 +18,21 @@ module Api
         end
 
         private
+
+        def agent_question_answers_param
+          raw = params[:answers]
+          return [] unless raw.is_a?(Array) || raw.is_a?(ActionController::Parameters)
+
+          entries = raw.is_a?(ActionController::Parameters) ? raw.values : raw
+          entries.map do |entry|
+            if entry.is_a?(Array) || entry.is_a?(ActionController::Parameters)
+              values = entry.is_a?(ActionController::Parameters) ? entry.values : entry
+              values.map(&:to_s)
+            else
+              entry.to_s
+            end
+          end
+        end
 
         def visible_questions
           AgentQuestion.active.where.not(run_id: nil).joins(run: :job).merge(Job.visible_to(Current.user)).preload(run: { job: :repository })
