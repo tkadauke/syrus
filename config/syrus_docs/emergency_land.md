@@ -29,6 +29,14 @@ Repeating the same request reuses only an identical action that is still queued,
 
 With `job_id`, the target is the Job's recorded, already-pushed branch; an optional `branch_name` must match that recorded branch. Without `job_id`, confirmation captures the active clean, committed Coding Mode checkout, publishes an immutable emergency branch, and creates the audit Job needed to record the landing.
 
+If landing fails after that direct capture succeeds, Syrus marks the newly
+created audit Job failed so it cannot be approved or appear as awaiting
+approval. The immutable branch, captured source SHA, and any pull request that
+was already opened remain recorded. Start a fresh emergency-land confirmation
+with that Job's `job_id` to retry the same branch and pull request without
+capturing the checkout again or creating another Job. A failed attempt against
+an existing Job does not change that Job's lifecycle state.
+
 The pending-action UI renders with warning styling and states the consequence explicitly: Syrus graders, adversarial review, and visual review are skipped, and the PR is about to be merged directly through GitHub. Confirmation re-checks the feature flag, Coding Mode session, branch validity, repository access, and repository-admin permission before landing.
 
 Emergency land is mutually exclusive with the normal `complete_implement_step` handoff for the same Job. Direct submission captures and verifies the checkout HEAD only after confirmation and rejects dirty worktrees, the wrong active branch, empty diffs, or an unverifiable push. Existing Jobs may be in `implemented`, `approved`, `failed`, `queued`, or `coding` when they have a trustworthy recorded branch and no active runtime work.
@@ -64,6 +72,9 @@ It does not skip GitHub or repository mechanics:
 
 ## Audit Trail
 
-Successful emergency lands close the Job as emergency-landed. The Job detail
-page shows the confirming user, membership tier, timestamp, source commit, and
-skipped controls. Dashboard filters can surface these Jobs by closure reason.
+Job detail shows the captured source SHA and a comparison link even when a
+direct capture has no Workflow or Run artifact. This evidence remains visible
+when landing fails. Successful emergency lands additionally close the Job as
+emergency-landed and show the confirming user, membership tier, timestamp, and
+skipped controls. Dashboard filters can surface successful uses by closure
+reason.
