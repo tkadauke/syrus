@@ -10,6 +10,10 @@ module Syrus
       def self.publish_local(**) = ::RuntimeImages::BuiltImages.new.publish_local(**)
 
       def self.acquire(image, &) = ::RuntimeImages::BuiltImages.new.acquire(image, &)
+
+      def self.active_base(**) = ::RuntimeImages::BuildRequests.new.active_base(**)
+
+      def self.request_build(**) = ::RuntimeImages::BuildRequests.new.submit(**)
     end
   end
 end
