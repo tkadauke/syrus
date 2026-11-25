@@ -7,7 +7,7 @@ module MetricsDashboard
 
     def self.retention_definitions
       [
-        RetentionPolicyRegistry::Definition.new(
+        Syrus::Host::RetentionPolicyRegistry::Definition.new(
           key: :metrics_dashboard_sample,
           model: "MetricsDashboard::Sample",
           table_name: "metrics_dashboard_samples",

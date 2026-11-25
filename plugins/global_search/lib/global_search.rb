@@ -1,7 +1,7 @@
 require "global_search/source"
 
 module GlobalSearch
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "global_search" do
     experimental false

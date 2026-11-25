@@ -1,5 +1,5 @@
 module GithubHost
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "github_host" do
     experimental false

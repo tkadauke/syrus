@@ -1,5 +1,5 @@
 module DesignDocs
-  class AgentRunJob < PluginJob
+  class AgentRunJob < Syrus::Host::PluginJob
     plugin :design_docs
     DEFAULT_TIMEOUT_SECONDS = 2.minutes.to_i
     DEFAULT_MAX_TURNS = 2

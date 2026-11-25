@@ -2,9 +2,9 @@ require "rails_helper"
 
 RSpec.describe Tailscale::RuntimeService do
   def stub_settings(auth_key: "tskey-auth-abc123", hostname: nil, exit_node: false)
-    allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return(auth_key)
-    allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "hostname").and_return(hostname)
-    allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "exit_node").and_return(exit_node)
+    allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return(auth_key)
+    allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "hostname").and_return(hostname)
+    allow(Syrus::Host::PluginSettings).to receive(:get).with("tailscale", "exit_node").and_return(exit_node)
   end
 
   describe ".privileged_service_name" do

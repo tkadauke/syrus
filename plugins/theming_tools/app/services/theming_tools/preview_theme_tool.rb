@@ -96,7 +96,7 @@ module ThemingTools
       end
 
       def broadcast_preview(chat_session, theme)
-        AppEvents.broadcast(
+        Syrus::Host::AppEvents.broadcast(
           user: theme.owner_user,
           type: "updated",
           resource: "chat",

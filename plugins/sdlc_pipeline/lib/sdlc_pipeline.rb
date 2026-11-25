@@ -1,5 +1,5 @@
 module SdlcPipeline
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "sdlc_pipeline" do
     requires_syrus nil
