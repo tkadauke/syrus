@@ -7,6 +7,9 @@ module WorkflowOutcomeOverrides
     def self.call(override:)
       new(override:).call
     rescue ResumeFailed
+      # A failed reconciliation transaction may have rolled back lifecycle
+      # writes while leaving the caller's instance dirty.
+      override.reload
       override.invalidate!("resume_failed") unless override.consumed? || override.invalidated?
       raise
     end
