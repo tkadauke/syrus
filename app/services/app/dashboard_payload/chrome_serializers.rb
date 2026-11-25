@@ -70,7 +70,7 @@ module App
 
         volatile, cacheable = folders.partition { |folder| volatile_smart_folder_count?(folder) }
         cacheable = cacheable.select { |folder| smart_folder_count_needed?(folder) }
-        cached_counts = cacheable.empty? ? {} : Rails.cache.fetch(smart_folder_counts_cache_key(cacheable), expires_in: 2.minutes) do
+        cached_counts = cacheable.empty? ? {} : Rails.cache.fetch(smart_folder_counts_cache_key(cacheable)) do
           PerformanceLogging.phase("dashboard_smart_folders.counts", subject: subject, count: cacheable.size) do
             cacheable.to_h do |folder|
               count = PerformanceLogging.phase("dashboard_smart_folders.count", subject: subject, folder_id: folder.id, builtin_key: folder.builtin_key) do
@@ -111,6 +111,7 @@ module App
           ownership_scope,
           selected_owner_user&.id,
           active_repo_ids,
+          App::DashboardChromeCache.count_revision_for(user: user, repository_ids: active_repo_ids, subject: subject),
           folders.map(&:id),
           folders.map { |folder| folder.updated_at.to_i }.max
         ]
