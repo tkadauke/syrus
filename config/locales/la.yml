@@ -7,6 +7,7 @@ la:
       questions_malformed: "series unius ad quattuor quaestionum rite formatarum esse debet"
       defaults_malformed: "pro unaquaque quaestione responsum praedefinitum non vacuum praebere debet"
       answers_malformed: "Responsa omnibus quaestionibus congruere debent."
+      inactive: "Quaestio iam activa non est."
   unlanding:
     disabled: "Unlanding in hac instantia non activatum est."
   notifications:

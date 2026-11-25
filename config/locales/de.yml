@@ -7,6 +7,7 @@ de:
       questions_malformed: "muss eine Liste aus 1 bis 4 korrekt aufgebauten Fragen sein"
       defaults_malformed: "muss für jede Frage eine nicht leere Standardantwort enthalten"
       answers_malformed: "Die Antworten müssen zu allen Fragen passen."
+      inactive: "Die Frage ist nicht mehr aktiv."
   unlanding:
     disabled: "Unlanding ist für diese Instanz nicht aktiviert."
   notifications:

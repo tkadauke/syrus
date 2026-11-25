@@ -36,6 +36,7 @@ en:
       questions_malformed: "must be an array of 1 to 4 well-formed questions"
       defaults_malformed: "must provide one non-blank default per question"
       answers_malformed: "Answers must match every question."
+      inactive: "The question is no longer active."
   unlanding:
     disabled: "Unlanding is not enabled for this instance."
   notifications:
