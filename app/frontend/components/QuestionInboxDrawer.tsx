@@ -14,6 +14,7 @@ export const openQuestionsQueryKey = ["agent-questions", "open"] as const
 const CONTROL_CLASS = "relative inline-flex h-9 w-9 items-center justify-center rounded text-text-secondary hover:bg-surface-subtle hover:text-brand-emphasis"
 const DRAWER_CLASS = "fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-border bg-surface p-4 shadow-xl"
 const BADGE_CLASS = "absolute -right-1 -top-1 min-w-5 rounded-full bg-warning px-1.5 py-0.5 text-center text-2xs font-semibold leading-none text-surface"
+const ARRIVAL_BANNER_CLASS = "fixed right-4 top-4 z-50 max-w-sm rounded border border-warning-border bg-surface px-4 py-3 text-sm font-medium text-text-primary shadow-xl"
 const ARRIVAL_NOTICE_MS = 5_000
 
 export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: string; onNavigate?: () => void }) {
@@ -70,10 +71,7 @@ export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: stri
         {announcement}
       </span>
       {announcement && !showInActivity ? (
-        <div
-          className="fixed right-4 top-4 z-50 max-w-sm rounded border border-warning-border bg-surface px-4 py-3 text-sm font-medium text-text-primary shadow-xl"
-          role="status"
-        >
+        <div className={ARRIVAL_BANNER_CLASS} role="status">
           {announcement}
         </div>
       ) : null}

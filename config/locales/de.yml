@@ -910,6 +910,7 @@ de:
       prompt_blank: "Prompt darf nicht leer sein."
       agent_not_configured: "Dieser Agent ist für den Repository-Eigentümer nicht konfiguriert."
       invalid_priority: "Priorität muss eine der folgenden sein: %{priorities}."
+      invalid_question_eagerness: "Die Fragebereitschaft ist ungültig."
       epic_not_found: "Epic nicht in diesem Repository gefunden."
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
       created: "Direkter Job erstellt."
