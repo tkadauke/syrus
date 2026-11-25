@@ -103,10 +103,10 @@ module SyrusBrowser
         return nil unless requires_input_lease?
 
         runtime_session = context.owner
-        return nil unless runtime_session.is_a?(RuntimeSession)
+        return nil unless runtime_session.is_a?(Syrus::Host::RuntimeSessionRecord)
         return nil if runtime_session.active_agent_input_lease
 
-        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: { tool: tool_name })
+        Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: { tool: tool_name })
         error(
           "lease_required: the agent must hold an active runtime_acquire_control(mode: \"input\") " \
           "lease on this Runtime Session before calling #{tool_name}."

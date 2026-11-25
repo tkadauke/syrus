@@ -2,7 +2,7 @@ require "json"
 
 module ChatProviders
   class Muse < Syrus::Host::ChatProviderBase
-    include Syrus::Plugin::ChatProvider
+    include Syrus::Host::ChatProvider
 
     HELD_SESSION_WAIT_SECONDS = 10
     HELD_SESSION_POLL_SECONDS = 0.25
@@ -25,7 +25,7 @@ module ChatProviders
         session_id: session_id,
         max_model_steps: max_turns,
         transcript_policy: :exec_jsonl,
-        muse_home: ChatWorkspace.agent_home_for(chat_session, "muse"),
+        muse_home: Syrus::Host::ChatWorkspace.agent_home_for(chat_session, "muse"),
         mcp_server: mcp_server_for(mcp_config)
       ).run
     end
@@ -134,7 +134,7 @@ module ChatProviders
         model: chat.chat_model.presence,
         reasoning_effort: chat.chat_effort,
         transcript_policy: :exec_jsonl,
-        muse_home: ChatWorkspace.agent_home_for(chat, provider),
+        muse_home: Syrus::Host::ChatWorkspace.agent_home_for(chat, provider),
         mcp_server: self.class.mcp_server_for(mcp_config),
         stop_requested: stop_requested,
         process_started: process_started,

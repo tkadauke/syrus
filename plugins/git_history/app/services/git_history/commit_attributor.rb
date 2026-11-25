@@ -199,7 +199,7 @@ module GitHistory
     end
 
     def chat_attachment_for(job)
-      ChatAttachment
+      Syrus::Host::ChatAttachmentRecord
         .where(attachable_type: "Job", attachable_id: job.id)
         .order(:attached_at, :id)
         .first

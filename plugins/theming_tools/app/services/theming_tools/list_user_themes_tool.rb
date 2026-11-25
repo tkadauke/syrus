@@ -17,7 +17,7 @@ module ThemingTools
     class << self
       def call(server_context:)
         user = server_context.fetch(:chat_session).user
-        themes = Theme.where(owner_user: user, built_in: false).order(:name)
+        themes = Syrus::Host::ThemeRecord.where(owner_user: user, built_in: false).order(:name)
 
         Syrus::Host::McpTools.success(themes: themes.map(&:public_payload))
       end
