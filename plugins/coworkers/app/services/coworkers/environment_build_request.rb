@@ -28,37 +28,33 @@ class Coworkers::EnvironmentBuildRequest
     ensure_enabled!
     snapshot = Coworkers::EnvironmentSource.new(@coworker, @workspace).snapshot!(created_by: created_by)
     revision = snapshot.revision
-    return Result.new(revision:, build_request: revision.build_request) if revision.build_request
-
-    manifest = revision.source_manifest.fetch("files")
     environment = revision.environment
-    base = Syrus::Host::RuntimeImages.active_base(platform: @platform)
-    raise BaseUnavailable, "no compatible active coworker base is available" unless base
-
-    request = Syrus::Host::RuntimeImages.request_build(
-      owner_kind: "coworker_environment", owner_ref: @coworker.id,
-      source_kind: "coworker_environment", source_ref: "coworker-#{@coworker.id}/revision-#{revision.number}",
-      files: manifest.to_h { |path, entry| [ path.delete_prefix("environment/"), entry.fetch("content") ] },
-      recipe: { "dockerfile" => "Dockerfile", "context" => ".",
-                "build_args" => { Coworkers::EnvironmentSource::BASE_ARG => base.digest } },
-      requester_kind: "coworker", requester_ref: @coworker.id, platform: @platform,
-      policy_context: policy_context(manifest, base, created_by, reason)
-    )
 
     environment.with_lock do
       revision.reload
-      if revision.runtime_image_build_request_id && revision.runtime_image_build_request_id != request.id
-        raise ActiveRecord::RecordNotUnique, "environment revision already has a different build request"
-      end
-      if revision.draft?
-        revision.bind_build_inputs!(base_release_id: base.id, runtime_abi: base.runtime_abi,
-                                    compat_min: base.compat_min, compat_max: base.compat_max,
-                                    recipe_digest: request.recipe_digest)
-        revision.transition_to!(:building, runtime_image_build_request_id: request.id)
-      end
+      return Result.new(revision:, build_request: revision.build_request) if revision.build_request
+
+      manifest = revision.source_manifest.fetch("files")
+      base = Syrus::Host::RuntimeImages.active_base(platform: @platform)
+      raise BaseUnavailable, "no compatible active coworker base is available" unless base
+
+      request = Syrus::Host::RuntimeImages.request_build(
+        owner_kind: "coworker_environment", owner_ref: @coworker.id,
+        source_kind: "coworker_environment", source_ref: "coworker-#{@coworker.id}/revision-#{revision.number}",
+        files: manifest.to_h { |path, entry| [ path.delete_prefix("environment/"), entry.fetch("content") ] },
+        recipe: { "dockerfile" => "Dockerfile", "context" => ".",
+                  "build_args" => { Coworkers::EnvironmentSource::BASE_ARG => base.digest } },
+        requester_kind: "coworker", requester_ref: @coworker.id, platform: @platform,
+        policy_context: policy_context(manifest, base, created_by, reason)
+      )
+
+      revision.bind_build_inputs!(base_release_id: base.id, runtime_abi: base.runtime_abi,
+                                  compat_min: base.compat_min, compat_max: base.compat_max,
+                                  recipe_digest: request.recipe_digest)
+      revision.transition_to!(:building, runtime_image_build_request_id: request.id)
       environment.transition_to!(:building) unless environment.building?
+      Result.new(revision:, build_request: request)
     end
-    Result.new(revision:, build_request: request)
   end
 
   private

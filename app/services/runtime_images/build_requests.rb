@@ -9,6 +9,26 @@ module RuntimeImages
   class BuildRequests
     Base = Data.define(:id, :digest, :runtime_abi, :compat_min, :compat_max)
 
+    # TarWriter normally uses RubyGems' process-level source date epoch. Keep
+    # the build-request identity independent of that ambient configuration so
+    # identical file maps remain byte-for-byte identical across workers.
+    class ArchiveWriter < Gem::Package::TarWriter
+      MTIME = Time.at(0).utc.freeze
+
+      def add_file_simple(name, mode, size)
+        check_closed
+        name, prefix = split_name(name)
+        header = Gem::Package::TarHeader.new(name: name, mode: mode, size: size, prefix: prefix, mtime: MTIME).to_s
+        @io.write(header)
+        output = Gem::Package::TarWriter::BoundedStream.new(@io, size)
+        yield output if block_given?
+        @io.write("\0" * (size - output.written))
+        @io.write("\0" * ((512 - (size % 512)) % 512))
+        self
+      end
+    end
+    private_constant :ArchiveWriter
+
     def active_base(platform: BuiltImages::DEFAULT_PLATFORM)
       state = BaseReleases.new.launch_state(platform: platform)
       return unless state.ready?
@@ -48,7 +68,7 @@ module RuntimeImages
 
     def source_archive(files)
       io = StringIO.new("".b)
-      Gem::Package::TarWriter.new(io) do |tar|
+      ArchiveWriter.new(io) do |tar|
         files.sort_by { |path, _| path.to_s }.each do |path, content|
           bytes = content.to_s.b
           mode = path.to_s.end_with?("smoke-test") ? 0o755 : 0o644
