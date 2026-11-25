@@ -185,7 +185,7 @@ module Syrus
           location = caller_locations.reverse.find do |candidate|
             candidate.path.match?(%r{/(?:plugins/[^/]+/)?app/}) && !candidate.path.include?("/vendor/")
           end
-          return "unknown" unless location
+          return fallback_site(:label) unless location
 
           "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?app/)}, '\1')}:#{location.label}"
         end
@@ -196,9 +196,22 @@ module Syrus
             candidate.path.match?(%r{/(?:plugins/[^/]+/)?app/}) && !candidate.path.include?("/vendor/") &&
               !candidate.label.to_s.match?(/\b(?:reload|lock!|with_lock)\z/)
           end
-          return "unknown" unless location
+          return fallback_site(:lineno) unless location
 
           "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?app/)}, '\1')}:#{location.lineno}"
+        end
+
+        # No application frame: the locks came from spec or library code (a
+        # spec's own setup, a factory). Name its first frame so the record
+        # says where to look.
+        def fallback_site(detail)
+          location = caller_locations.find do |candidate|
+            candidate.path.match?(%r{/(?:plugins/[^/]+/)?(?:spec|lib)/}) && !candidate.path.include?("/vendor/") &&
+              !candidate.path.end_with?("lib/syrus/lock_order.rb")
+          end
+          return "unknown" unless location
+
+          "#{location.path.sub(%r{\A.*?/((?:plugins/[^/]+/)?(?:spec|lib)/)}, '\1')}:#{location.public_send(detail)}"
         end
       end
 

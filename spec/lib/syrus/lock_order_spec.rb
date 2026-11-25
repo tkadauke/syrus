@@ -30,6 +30,15 @@ RSpec.describe Syrus::LockOrder::Checker do
     }.to raise_error(Syrus::LockOrder::Error, /took Job at .* while holding Workflow/)
   end
 
+  it "names the spec frame when no application frame took the locks" do
+    expect {
+      ActiveRecord::Base.transaction do
+        workflow.lock!
+        job.lock!
+      end
+    }.to raise_error(Syrus::LockOrder::Error, %r{took Job at spec/lib/syrus/lock_order_spec\.rb:\d+ while holding Workflow from spec/lib/syrus/lock_order_spec\.rb:\d+})
+  end
+
   it "checks locking relation queries as well as lock!" do
     expect {
       ActiveRecord::Base.transaction do

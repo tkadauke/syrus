@@ -4806,8 +4806,14 @@ a Run: `cancel_and_skip_to_next!`, `enqueue_try_failure_branch!`,
 `enqueue_next_loop_iteration!` and grader fan-out admission. Examples tagged
 `hierarchical_locks: true` now raise on the hierarchical order. The five
 existing examples that reach these paths are tagged, and each failed before
-the conversion. Remaining: Run-before-Step writes in a Run's own cancellation,
-and whatever the next full survey finds.
+the conversion. A full survey after part 5 passed all 26,477 examples and
+recorded 481 violations at 50 sites, down from about 1,100. Of those, 355 had
+no application frame on the stack: spec setup code, not production paths. The
+checker now names the first spec or lib frame for those, so they can be fixed
+before the order is enforced. The largest production sites left are
+`PlannedExecutionOverrides::Operation`, `RunJob`'s step recording, the
+`RepairQueueAffinity` requeue, `RetryFailedStepEnqueuer`, `WorkflowPatch` and
+the Epic refresh under a held Job.
 
 **Specs.** `spec/services/lineage_spec.rb`, in the hierarchical target with
 writes tracked and raising: a Run's rollup to its Step, Workflow, WorkUnit and
