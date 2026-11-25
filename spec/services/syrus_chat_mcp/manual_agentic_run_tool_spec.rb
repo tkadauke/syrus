@@ -98,6 +98,12 @@ RSpec.describe Mcp::Tools::ManualAgenticRunTool do
     expect(chat_session.pending_actions.where(action: "manual_agentic_run")).to be_empty
   end
 
+  it "limits the advertised break-glass interface to gh api and Git transport" do
+    description = described_class.input_schema_value.to_h.dig(:properties, :github_access, :description)
+
+    expect(description).to include("gh api", "Git transport", "GraphQL-backed gh commands are unavailable")
+  end
+
   it "rejects destructive authority without credential authority" do
     response = described_class.call(
       job_id: job.id, base: "current_pr_branch", instructions: "Close the PR.",
@@ -121,7 +127,7 @@ RSpec.describe Mcp::Tools::ManualAgenticRunTool do
     parsed = JSON.parse(response_text(response))
     action = ChatPendingAction.find(parsed.fetch("pending_action_id"))
 
-    expect(parsed.fetch("message")).to include("BREAK-GLASS", repository.slug, installation.account_login, "external write")
+    expect(parsed.fetch("message")).to include("BREAK-GLASS", repository.slug, installation.account_login, "external write", "gh api", "Git transport")
     expect(action.payload).to include(
       "github_access" => true,
       "destructive_github_operations" => false,

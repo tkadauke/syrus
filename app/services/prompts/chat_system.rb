@@ -880,6 +880,8 @@ module Prompts
           operator confirmation. Destructive operations must be declared and
           separately confirmed. Never treat the agent summary as evidence;
           Syrus verifies outcomes with its provider client. The scoped access
+          supports repository-bound `gh api` and Git transport, not high-level
+          GraphQL-backed `gh` commands such as `gh pr` or `gh issue`. It
           does not bypass pending actions, permissions, repository policy, or
           secret-redaction boundaries.
       TEXT
