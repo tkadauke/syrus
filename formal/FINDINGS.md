@@ -8068,7 +8068,24 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   feature-flag values in operational log context. No engine invariant; ZIP
   attachments only widen the accepted types, nothing extracts them server-side.
 
-Checked through main `bc5951dad7`. Each loop iteration continues from there:
+- Main through `50d35be290`: a retry now retires an agent-blocked Workflow's
+  unit, and a Run killed by its Workflow's cancellation is recorded as
+  cancelled. Retiring the unit is safe because `blocked` only leaves to
+  `cancelled` (the blocked Workflow can never resume without its locks), the
+  reconciler's agent-blocked retry only fires for the Job's latest Workflow
+  (so it stops once the retry exists), and the Job row lock serializes two
+  retries, the second seeing the first as queued. The cancelled Run's commit
+  cascade (`Runs::LifecyclePropagation.cancelled!`) would cancel a live
+  Workflow if its Step alone had been cancelled while the Run was still
+  running; the one path that cancels a Step without its Workflow and leaves an
+  active Run (`ImmutableReviewHeadBarrier.invalidate_stale_evidence!`) runs
+  right after a serial repair finishes. By the serial barrier (`ReadySet`,
+  now with insertion) nothing after that repair is running then, and the
+  path closes the Run itself. Holds. The other commits (Solid Cable reconnect,
+  MySQL inspector, Test Insights reads, sidebar badges) carry no engine
+  invariant.
+
+Checked through main `50d35be290`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
