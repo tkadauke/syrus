@@ -9,16 +9,16 @@ module Coworkers
                  required: %w[critique verdict key_learning])
     class << self
       def call(critique:, verdict:, server_context:, key_learning: nil)
-        run = ::Mcp::Tools.run_from_context(server_context)
+        run = Syrus::Host::McpTools.run_from_context(server_context)
         context = Syrus::Host::ToolContext.from_run(run)
-        return ::Mcp::Tools.not_authorized unless Coworkers::ReviewToolSet::SUBMIT_ROLES.include?(context.role)
-        critique = ::Mcp::Tools.utf8(critique).strip
-        verdict = ::Mcp::Tools.utf8(verdict).strip
-        key_learning = ::Mcp::Tools.utf8(key_learning).strip
-        return ::Mcp::Tools.invalid("critique is required") if critique.empty?
-        return ::Mcp::Tools.invalid("invalid verdict") unless VERDICTS.include?(verdict)
+        return Syrus::Host::McpTools.not_authorized unless Coworkers::ReviewToolSet::SUBMIT_ROLES.include?(context.role)
+        critique = Syrus::Host::McpTools.utf8(critique).strip
+        verdict = Syrus::Host::McpTools.utf8(verdict).strip
+        key_learning = Syrus::Host::McpTools.utf8(key_learning).strip
+        return Syrus::Host::McpTools.invalid("critique is required") if critique.empty?
+        return Syrus::Host::McpTools.invalid("invalid verdict") unless VERDICTS.include?(verdict)
         reviewer = run.review_evidence&.then { |evidence| Coworkers::ReviewEvidenceTarget.resolve(evidence, run:) }
-        return ::Mcp::Tools.invalid("key_learning is required") if reviewer&.respond_to?(:finalize_review_memory!) && key_learning.empty?
+        return Syrus::Host::McpTools.invalid("key_learning is required") if reviewer&.respond_to?(:finalize_review_memory!) && key_learning.empty?
         Syrus::Host::ReviewVerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
           verdict: verdict, critique: critique, key_learning: key_learning)
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])

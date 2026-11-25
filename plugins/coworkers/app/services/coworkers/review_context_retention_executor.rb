@@ -1,13 +1,13 @@
-class Coworkers::ReviewContextRetentionExecutor < RetentionPolicyExecutors::Default
-  def call(batch_size: RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: RetentionPruner::DEFAULT_MAX_BATCHES)
+class Coworkers::ReviewContextRetentionExecutor < Syrus::Host::RetentionPolicyExecutors::Default
+  def call(batch_size: Syrus::Host::RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: Syrus::Host::RetentionPruner::DEFAULT_MAX_BATCHES)
     window = @definition.retention_window
-    return RetentionPolicyExecutors::Result.new(deleted_count: 0, backlog: false) unless window
+    return Syrus::Host::RetentionPolicyExecutors::Result.new(deleted_count: 0, backlog: false) unless window
 
     scope = @definition.model_class.public_send(@definition.scope_name).where(created_at: ...Time.current - window)
     records = scope.order(:id).limit(batch_size * max_batches).to_a
     records.each do |context|
       Coworkers::ReviewContextContributor.tombstone(context, reason: "retention")
     end
-    RetentionPolicyExecutors::Result.new(deleted_count: records.size, backlog: scope.exists?)
+    Syrus::Host::RetentionPolicyExecutors::Result.new(deleted_count: records.size, backlog: scope.exists?)
   end
 end

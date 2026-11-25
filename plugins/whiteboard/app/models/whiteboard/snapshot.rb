@@ -29,7 +29,7 @@ module Whiteboard
     end
 
     def broadcast_created
-      AppEvents.broadcast(
+      Syrus::Host::AppEvents.broadcast(
         user: chat_session.user,
         type: "updated",
         resource: "chat",

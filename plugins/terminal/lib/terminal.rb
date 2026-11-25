@@ -1,6 +1,6 @@
 
 module Terminal
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "terminal" do
     experimental true

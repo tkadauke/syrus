@@ -1,5 +1,5 @@
 module AlertmanagerInvestigations
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "alertmanager_investigations" do
     display_name "Alertmanager Investigations"

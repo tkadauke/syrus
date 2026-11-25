@@ -23,7 +23,7 @@ require "tempfile"
 # Failure contract: NOTHING may strand a walkthrough in "analyzing" — every
 # exit path either marks it analyzed or failed (the retry endpoint only
 # accepts failed rows, and the chat chip spins until a terminal broadcast).
-class VideoWalkthroughs::AnalysisJob < PluginJob
+class VideoWalkthroughs::AnalysisJob < Syrus::Host::PluginJob
   plugin :video_walkthroughs
   queue_as :videos
 
@@ -293,7 +293,7 @@ class VideoWalkthroughs::AnalysisJob < PluginJob
   end
 
   def broadcast(walkthrough)
-    AppEvents.broadcast(
+    Syrus::Host::AppEvents.broadcast(
       user: walkthrough.user,
       type: "video_walkthrough.#{walkthrough.state}",
       resource: "video_walkthrough",

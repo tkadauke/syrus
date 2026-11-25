@@ -1,5 +1,5 @@
 module S3BackupDestination
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "s3_backup_destination" do
     display_name "S3 Backup Destination"

@@ -14,7 +14,7 @@ module Coworkers
       conflicts = []
       parity_errors = []
       errors = []
-      migrated_ids = PermissionRule.where(source: "coworker_grant_migration").pluck(:provenance).filter_map do |provenance|
+      migrated_ids = Syrus::Host::PermissionRule.where(source: "coworker_grant_migration").pluck(:provenance).filter_map do |provenance|
         Integer(provenance["legacy_coworker_grant_id"], exception: false)
       end.to_set
       active_rules = active_rules_by_coworker_and_capability
@@ -62,7 +62,7 @@ module Coworkers
       coworker_ids = @scope.reorder(nil).distinct.pluck(:coworker_id)
       return {} if coworker_ids.empty?
 
-      PermissionRule.active.where(subject_selector_type: "agent", subject_selector_id: coworker_ids.map(&:to_s)).to_a
+      Syrus::Host::PermissionRule.active.where(subject_selector_type: "agent", subject_selector_id: coworker_ids.map(&:to_s)).to_a
         .group_by { |rule| [ rule.subject_selector_id.to_i, unversioned(rule.capability) ] }
     end
 

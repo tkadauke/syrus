@@ -7,7 +7,7 @@ module AlertmanagerInvestigations
 
     def self.current = new
 
-    def initialize(record: PluginRecord.find_by(name: "alertmanager_investigations"))
+    def initialize(record: Syrus::Host::PluginRecord.find_by(name: "alertmanager_investigations"))
       @settings = record&.config.to_h.dig("settings").to_h
     end
 

@@ -9,6 +9,8 @@ require "rails/all"
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
 require "syrus/host"
+# Plugin lib files extend this before the host facades install in an initializer.
+Syrus::Host.const_set(:PluginApi, Syrus::PluginApi) unless Syrus::Host.const_defined?(:PluginApi, false)
 require "syrus/plugin_roots"
 require "syrus/events"
 require "syrus/plugin/manifest"

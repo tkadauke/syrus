@@ -1,4 +1,4 @@
-class IndexJobSearchJob < PluginJob
+class IndexJobSearchJob < Syrus::Host::PluginJob
   plugin :global_search
 
   def perform(job_id)

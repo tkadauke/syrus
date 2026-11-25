@@ -82,7 +82,7 @@ module ConnectedAccounts
 
     def validate_invocation!
       raise Denied, "authorized invocation reference is required" if context.permission_authorization.blank?
-      if coworker_context? && !Feature.coworker_connected_accounts_enabled?
+      if coworker_context? && !Syrus::Host::Feature.coworker_connected_accounts_enabled?
         raise Denied, "coworker connected account access is disabled"
       end
     end

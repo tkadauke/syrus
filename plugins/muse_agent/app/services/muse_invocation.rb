@@ -200,7 +200,7 @@ class MuseInvocation
   def muse_env(workspace_path, muse_home: nil)
     env = Syrus::Host::ProcessRunner.forwarded_env(
       Syrus::Host::AgentRuntime.forwarded_env_keys,
-      extra: LAUNCHER_ENV.merge(WorkspaceDependencyEnv.for(workspace_path))
+      extra: LAUNCHER_ENV.merge(Syrus::Host::WorkspaceDependencyEnv.for(workspace_path))
     )
     if muse_home.present?
       env["HOME"] = muse_home

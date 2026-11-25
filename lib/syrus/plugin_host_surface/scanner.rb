@@ -81,7 +81,9 @@ module Syrus
       end
 
       def public_names(api)
-        target_name = api.name.safe_constantize&.name
+        target = api.name.safe_constantize
+        # A facade may alias a plain value such as a frozen Hash, which has no name.
+        target_name = target.name if target.is_a?(Module)
         [ api.name, target_name ].compact.uniq
       end
 

@@ -119,7 +119,7 @@ module MysqlDbBrowser
     end
 
     def credential_context
-      context || Syrus::Host::ToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user)
+      context || Syrus::Host::ToolContext.new(surface: Syrus::Host::MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user)
     end
 
     def query(client, sql)

@@ -8,7 +8,7 @@ module Mcp
 
     class << self
       def resolve(tool_or_name, chat_session: nil)
-        name = tool_or_name.is_a?(String) || tool_or_name.is_a?(Symbol) ? tool_or_name.to_s : McpToolRegistry.tool_name_for(tool_or_name)
+        name = tool_or_name.is_a?(String) || tool_or_name.is_a?(Symbol) ? tool_or_name.to_s : Syrus::Host::McpToolRegistry.tool_name_for(tool_or_name)
         core_descriptors.find { |descriptor| descriptor.tool == tool_or_name || descriptor.tool_name == name } ||
           plugin_descriptors(chat_session: chat_session).find { |descriptor| descriptor.tool_name == name }
       end
@@ -18,7 +18,7 @@ module Mcp
       private
 
       def core_descriptors
-        McpToolRegistry.entries(surface: :coworker).map do |entry|
+        Syrus::Host::McpToolRegistry.entries(surface: :coworker).map do |entry|
           Descriptor.new(tool_name: entry.tool_name, capability: entry.capability&.to_s, ungated: entry.ungated,
             approval_effect: entry.approval_effect,
             tier: entry.tier, tool: entry.tool, provider: nil, description: entry.tool.description_value)
@@ -62,7 +62,7 @@ module Mcp
           unclassified_defaults = unclassified_descriptors.values.group_by(&:capability).transform_values do |descriptors|
             descriptors.all? do |descriptor|
               descriptor.defaults.fetch(Syrus::Host::AgentRole::CHAT_PLANNER, :ask) == :allow &&
-                Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
+                Syrus::Host::CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
             end ? :allow : :ask
           end
           shared = unclassified.map do |definition|
@@ -111,7 +111,7 @@ module Mcp
             :available
           end
           providers = Syrus::Host::Toolkit.chat_tool_set_for(manifest)
-          Array(providers).select { |provider| Mcp::CoworkerToolExposure.plugin_provider?(provider) }
+          Array(providers).select { |provider| Syrus::Host::CoworkerToolExposure.plugin_provider?(provider) }
             .map { |provider| [ provider, state ] }
         end
       end
@@ -138,7 +138,7 @@ module Mcp
         else
           Array(provider.tool_definitions(tier: nil))
         end
-        definitions = definitions.select { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) }
+        definitions = definitions.select { |definition| Syrus::Host::CoworkerToolExposure.plugin_definition?(definition) }
         tiers_by_name = tiers.each_with_object({}) do |(tier, tier_definitions), result|
           tier_definitions.each { |definition| result[value(definition, :name).to_s] ||= tier }
         end

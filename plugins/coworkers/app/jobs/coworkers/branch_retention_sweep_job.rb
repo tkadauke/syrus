@@ -1,4 +1,4 @@
-class Coworkers::BranchRetentionSweepJob < PluginJob
+class Coworkers::BranchRetentionSweepJob < Syrus::Host::PluginJob
   plugin :coworkers
 
   def perform

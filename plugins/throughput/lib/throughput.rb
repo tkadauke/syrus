@@ -1,6 +1,6 @@
 
 module Throughput
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "throughput" do
     display_name "Throughput"

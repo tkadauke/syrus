@@ -13,7 +13,7 @@ module Coworkers
   # Reasons are audit data, not end-user copy.
   class ToolDefaultPolicyReport
     GRANT_POLICIES = { "auto" => :allow, "confirm" => :ask, "queue" => :ask, "off" => :deny }.freeze
-    ROLES = Permissions::CoworkerDefaultPolicy::ROLES
+    ROLES = Syrus::Host::CoworkerDefaultPolicy::ROLES
 
     Row = Data.define(:tool, :source, :tier, :grant, :grant_default, :capability, :operation, :effects, :risk,
       :resource_scope, :maximum_autonomy, :ungated, :availability, :default, :reason) do
@@ -32,7 +32,7 @@ module Coworkers
 
     # { allow: [rows], ask: [rows], deny: [rows] }
     def grouped
-      Permissions::CapabilityDescriptor::POLICIES.reverse.index_with { |policy| rows.select { |row| row.default == policy } }
+      Syrus::Host::PermissionCapabilityDescriptor::POLICIES.reverse.index_with { |policy| rows.select { |row| row.default == policy } }
     end
 
     def findings
@@ -70,7 +70,7 @@ module Coworkers
 
     def descriptor_for(entry)
       if entry.tool
-        McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == entry.tool }&.descriptor
+        Syrus::Host::McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == entry.tool }&.descriptor
       elsif entry.definition
         Syrus::Host::CapabilityDescriptor.for_plugin_definition(entry.definition)
       end
@@ -80,7 +80,7 @@ module Coworkers
       descriptor = descriptor_for(entry)
       return unless descriptor
 
-      verdict = Permissions::CoworkerDefaultPolicy.verdict(descriptor)
+      verdict = Syrus::Host::CoworkerDefaultPolicy.verdict(descriptor)
       grant = grants.find { |candidate| candidate.tools.include?(entry.tool_name) }
       Row.new(tool: entry.tool_name, source: entry.provider&.name || "core", tier: entry.tier,
         grant: grant&.name || entry.capability, grant_default: grant&.default_policy,
@@ -90,12 +90,12 @@ module Coworkers
     end
 
     def descriptor_findings
-      descriptors.flat_map { |entry, descriptor| Permissions::CoworkerDefaultPolicy.violations(descriptor).map { |message| "#{entry.tool_name}: #{message}" } }
+      descriptors.flat_map { |entry, descriptor| Syrus::Host::CoworkerDefaultPolicy.violations(descriptor).map { |message| "#{entry.tool_name}: #{message}" } }
     end
 
     def role_findings
       descriptors.filter_map do |entry, descriptor|
-        policies = ROLES.filter_map { |role| descriptor.defaults[role] if descriptor.requestable_roles.include?(role) }
+        policies = Syrus::Host::CoworkerDefaultPolicy::ROLES.filter_map { |role| descriptor.defaults[role] if descriptor.requestable_roles.include?(role) }
         next if policies.uniq.length <= 1
 
         "#{entry.tool_name}: coworker roles disagree on the default policy (#{policies.uniq.join(', ')})"
@@ -108,9 +108,9 @@ module Coworkers
         advertised = GRANT_POLICIES[grant.default_policy.to_s]
         grant.tools.filter_map do |tool_name|
           entry, descriptor = by_name[tool_name]
-          next unless descriptor && !entry.ungated && Permissions::CoworkerDefaultPolicy.requestable?(descriptor)
+          next unless descriptor && !entry.ungated && Syrus::Host::CoworkerDefaultPolicy.requestable?(descriptor)
 
-          effective = Permissions::CoworkerDefaultPolicy.verdict(descriptor).policy
+          effective = Syrus::Host::CoworkerDefaultPolicy.verdict(descriptor).policy
           next if effective == advertised
 
           "#{tool_name}: grant #{grant.name} advertises #{grant.default_policy} (#{advertised.inspect}) but the descriptor's effective default is #{effective}"

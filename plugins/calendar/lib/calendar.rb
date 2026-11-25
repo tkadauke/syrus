@@ -1,5 +1,5 @@
 module Calendar
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "calendar" do
     display_name "Calendar"

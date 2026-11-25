@@ -1,5 +1,5 @@
 module ContainerExecution
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "container_execution" do
     experimental true

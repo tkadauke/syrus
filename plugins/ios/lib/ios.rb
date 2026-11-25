@@ -4,7 +4,7 @@ require "ios/xcodebuild_grader_type"
 require "ios/ecosystem"
 
 module Ios
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "ios" do
     description "iOS/Xcode grader support: typed xcodebuild and SwiftPM patterns with macOS capability requirements and isolated artifacts"

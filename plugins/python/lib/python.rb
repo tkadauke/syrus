@@ -8,7 +8,7 @@ require "python/review_criteria_provider"
 require "python/ecosystem"
 
 module Python
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "python" do
     description "Python-generic intelligence: uv/poetry/pip prepare detection, " \

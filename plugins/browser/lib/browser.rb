@@ -1,5 +1,5 @@
 module SyrusBrowser
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "browser" do
     display_name "Browser (Playwright)"

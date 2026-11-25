@@ -1,7 +1,7 @@
 require "design_docs/data_cleanup"
 
 module DesignDocs
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "design_docs" do
     display_name "Design Docs"

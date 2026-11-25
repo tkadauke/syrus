@@ -21,7 +21,7 @@ RSpec.describe "Plugin registration survives code reloading" do
     it "declares itself through Syrus::PluginApi (#{relative})" do
       source = file.read
 
-      expect(source).to include("extend Syrus::PluginApi"),
+      expect(source).to match(/extend Syrus::(Host::)?PluginApi/),
         "#{relative} does not use the plugin API, so nothing guarantees when it registers."
       expect(source).to match(/^  syrus_plugin "/),
         "#{relative} extends the API but never calls syrus_plugin."
