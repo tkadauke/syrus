@@ -163,6 +163,25 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
       expect(payload[:workflow][:steps].last[:runs].first[:agent_summary].length).to eq(500)
     end
 
+    it "returns bounded repair-loop and stop summaries" do
+      job = Factories.job_record(user:, repository:, state: "failed")
+      workflow = Workflow.create!(job:, trigger_kind: "initial", state: "failed")
+      workflow.set_artifact!(GraderLoopProgress::ARTIFACT_KEY, [
+        { "loop_id" => "grade-loop", "iteration" => 2, "source_revision" => "source-sha",
+          "repaired_revision" => "repair-sha", "failing_set" => [ "frontend assertion" ] }
+      ])
+      workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
+        "reason" => GraderLoopProgress::NO_PROGRESS_REASON, "explanation" => "Failure set did not improve.",
+        "failing_set" => [ "frontend assertion" ]
+      })
+
+      recovery = response_payload(call_tool("read_workflow", workflow_id: workflow.id)).dig(:workflow, :recovery)
+
+      expect(recovery[:decision]).to include(outcome: "measured_failure", stop_reason: GraderLoopProgress::NO_PROGRESS_REASON)
+      expect(recovery.dig(:repair_loops, :items)).to contain_exactly(include(loop_id: "grade-loop", repaired_revision: "repair-sha"))
+      expect(recovery.dig(:repair_loops, :stop)).to include(reason: GraderLoopProgress::NO_PROGRESS_REASON)
+    end
+
     it "returns step details only for the requested step or with include_details" do
       job = Factories.job(repository: repository)
       workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running", started_at: 1.minute.ago)
