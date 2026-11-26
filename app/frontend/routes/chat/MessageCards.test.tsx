@@ -1193,7 +1193,7 @@ describe("tool result rendering", () => {
     const expectedPreview = resultBody ? "summary 1" : ""
     expect(preview).toHaveTextContent(expectedPreview.replace(/\s+/g, " ").trim())
     if (detail) expect(header).not.toHaveTextContent(detail)
-    expect(pills).toHaveLength(count > 1 ? 2 : 1)
+    expect(pills).toHaveLength(1)
     expect(titleElement.compareDocumentPosition(pills[0])).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(pills[pills.length - 1].compareDocumentPosition(preview)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
@@ -1375,14 +1375,13 @@ describe("tool result rendering", () => {
     const summary = container.querySelector("summary")
     const label = screen.getByText("Unpublish memory (3)")
     const detail = screen.getByText(/Unpublished memory #21/)
-    const count = screen.getByText("3")
 
     expect(summary).toHaveClass("flex", "overflow-hidden", "whitespace-nowrap")
     expect(label).toHaveClass("min-w-0", "truncate")
     expect(label).toHaveAttribute("title", "Unpublish memory (3)")
     expect(detail).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(count.parentElement).toHaveClass("shrink-0")
-    expect(count.parentElement?.nextElementSibling).toBe(detail)
+    expect(within(summary!).queryByText("3", { exact: true })).not.toBeInTheDocument()
+    expect(summary?.querySelectorAll("span.inline-flex")).toHaveLength(1)
   })
 
   it("passes persisted search inputs into the expanded search Jobs card", () => {
@@ -1528,11 +1527,12 @@ describe("tool result rendering", () => {
 
     const metadata = screen.getByText(Array(18).fill("A long result summary").join(", "))
     expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
-    expect(metadata.closest("summary")).toHaveClass("flex", "overflow-hidden", "whitespace-nowrap")
+    const header = metadata.closest("summary")
+    expect(header).toHaveClass("flex", "overflow-hidden", "whitespace-nowrap")
     expect(screen.getByText("Inspected 18 sources")).toBeVisible()
     expect(screen.getByText("Done")).toBeVisible()
-    const count = screen.getByText("18")
-    expect(count.parentElement).toHaveClass("shrink-0")
+    expect(within(header!).queryByText("18", { exact: true })).not.toBeInTheDocument()
+    expect(header?.querySelectorAll("span.inline-flex")).toHaveLength(1)
 
     expandToolGroup("Inspected 18 sources")
     expect(screen.getByText("complete result 18")).toBeInTheDocument()
