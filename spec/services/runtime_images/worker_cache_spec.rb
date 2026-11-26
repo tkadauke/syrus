@@ -142,6 +142,21 @@ RSpec.describe RuntimeImages::WorkerCache do
     expect(outcomes).to eq(%w[revoked])
   end
 
+  it "acquires an unverified image only through the verification boundary" do
+    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "unverified", platform: "linux/amd64",
+                            payload: "unverified", verification_state: "unverified")
+
+    expect { cache.acquire(image) }.to raise_error(RuntimeImages::NotPullable)
+    expect(cache.acquire_for_verification(image) { |reference| reference }).to eq(image.locator)
+    expect(engine.digests(image.locator)).to contain_exactly(image.digest)
+
+    image.update!(verification_state: "candidate")
+    expect { cache.acquire_for_verification(image) }.to raise_error(RuntimeImages::NotPullable)
+
+    service.revoke(image, reason: "unsafe")
+    expect { cache.acquire_for_verification(image) }.to raise_error(RuntimeImages::NotPullable)
+  end
+
   it "bounds concurrent pulls" do
     bounded = described_class.new(engine: engine, service: service, hostname: "w1", max_concurrent_pulls: 1, acquire_timeout: 0.05)
     a = publish("a")
