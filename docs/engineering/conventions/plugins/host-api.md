@@ -1267,17 +1267,6 @@ Supported members:
 - `verdict`
 - `violations`
 
-### `Syrus::Host::CoworkerToolExposure`
-
-Since: `0.1.16`
-
-Answers whether a plugin tool definition or provider is exposed to coworkers (plugin_definition?, plugin_provider?); exposure rules are not promised.
-
-Supported members:
-
-- `plugin_definition?`
-- `plugin_provider?`
-
 ### `Syrus::Host::CredentialProbe`
 
 Since: `0.1.16`

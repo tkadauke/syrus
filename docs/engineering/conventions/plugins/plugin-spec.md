@@ -48,6 +48,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `problem_provider` — Data declaration of a problem namespace and its stable problem kinds.
 - `provides` — Extension-point classes, or one family provider with implements/provisional capabilities and an optional key.
 - `repository_configuration` — Data declaration of a namespaced `.syrus.yml` key, schema version and legacy keys, with a parser constant name.
+- `requires_syrus` — Compatibility requirement, or nil when intentionally unbounded.
 - `review_contributions` — Review-family gates, reviewer targets, review context and presentation, post-implementation review, diff annotation, and adjudicator contributions.
 - `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
@@ -65,6 +66,8 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `worker_capability_probe` — Data declaration of the worker capability dimension and token a probe may report, with a probe constant name.
 - `workflow_kinds` — Data declaration of plugin-owned Job, Workflow trigger, Step kinds and WorkDefinition constant names; no provider class.
 
+Every manifest must explicitly declare `default_enabled`, `disableable`, `experimental`, and `requires_syrus`. Use literal booleans for the first three and `requires_syrus nil` only when the plugin is intentionally unbounded. There are no compatibility defaults for older plugin manifests; omitting any release-posture field is an error.
+
 `frontend` declares the prebuilt browser entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
 
 ## Extension points
@@ -75,6 +78,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `artifact_renderer` — Turns a supported workflow artifact into a bounded human-readable representation. Implement `Syrus::Plugin::ArtifactRenderer`; interface contract: `lib/syrus/plugin/artifact_renderer.rb`.
 - `backup_artifact_source` — Provides sealed backup artifacts for validation, pinning, streaming, and replication tracking. Implement `Syrus::Plugin::BackupArtifactSource`; interface contract: `lib/syrus/plugin/backup_artifact_source.rb`.
 - `backup_destination` — Replicates sealed backup artifacts to a plugin-owned offsite destination and reports their remote state. Implement `Syrus::Plugin::BackupDestination`; interface contract: `lib/syrus/plugin/backup_destination.rb`.
+- `base_branch_health` — Tracks base-branch health and repair for core's dispatcher, landing, polling and CI-repair code, which otherwise assume nothing is known. Implement `Syrus::Plugin::BaseBranchHealth`; interface contract: `lib/syrus/plugin/base_branch_health.rb`.
 - `callbacks` — Receives documented plugin lifecycle callbacks for boot, shutdown, enablement, ticks, metrics, and reversible effects. Implement `Syrus::Plugin::Callbacks`; interface contract: `lib/syrus/plugin/callbacks.rb`.
 - `chat_identity_provider` — Supplies plugin-owned participant identities and presentation metadata for chat. Implement `Syrus::Plugin::ChatIdentityProvider`; interface contract: `lib/syrus/plugin/chat_identity_provider.rb`.
 - `chat_job_status_extension` — Adds plugin-owned status details and actions to Job representations shown in chat. Implement `Syrus::Plugin::ChatJobStatusExtension`; interface contract: `lib/syrus/plugin/chat_job_status_extension.rb`.
@@ -93,6 +97,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `grader_input_materializer` — Materializes additional immutable inputs required by distributed grader execution. Implement `Syrus::Plugin::GraderInputMaterializer`; interface contract: `lib/syrus/plugin/grader_input_materializer.rb`.
 - `input_source` — Polls an external system for new work and converts stable source records into Syrus inputs. Implement `Syrus::Plugin::InputSource`; interface contract: `lib/syrus/plugin/input_source.rb`.
 - `job_origin` — Describes and renders a plugin-owned source from which Jobs may originate. Implement `Syrus::Plugin::JobOrigin`; interface contract: `lib/syrus/plugin/job_origin.rb`.
+- `line_coverage_provider` — Supplies per-line coverage evidence for reviewed diffs, the latest default-branch file coverage, and agent-prompt context. Implement `Syrus::Plugin::LineCoverageProvider`; interface contract: `lib/syrus/plugin/line_coverage_provider.rb`.
 - `mcp_run_context_contributor` — Adds bounded plugin-owned context to the MCP sidecar environment for a workflow run. Implement `Syrus::Plugin::McpRunContextContributor`; interface contract: `lib/syrus/plugin/mcp_run_context_contributor.rb`.
 - `mcp_tool_set` — Adds MCP tools available to workflow agents, subject to the host's run context and authorization checks. Implement `Syrus::Plugin::McpToolSet`; interface contract: `lib/syrus/plugin/mcp_tool_set.rb`.
 - `memory_store` — Stores and retrieves durable agent memory through a plugin-owned backend. Implement `Syrus::Plugin::MemoryStore`; interface contract: `lib/syrus/plugin/memory_store.rb`.
@@ -104,6 +109,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `preview_provider` — Starts, inspects, and stops a repository preview using the provider's supported runtime. Implement `Syrus::Plugin::PreviewProvider`; interface contract: `lib/syrus/plugin/preview_provider.rb`.
 - `problem_provider` — Detects and describes a plugin-owned class of actionable repository or workflow problems. Implement `Syrus::Plugin::ProblemProvider`; interface contract: `lib/syrus/plugin/problem_provider.rb`.
 - `purge_contributor` — Enumerates and removes plugin-owned resources during repository or account purges. Implement `Syrus::Plugin::PurgeContributor`; interface contract: `lib/syrus/plugin/purge_contributor.rb`.
+- `repair_classifier` — Classifies failed Run or Workflow evidence for generic repair machinery. Implement `Syrus::Plugin::RepairClassifier`; interface contract: `lib/syrus/plugin/repair_classifier.rb`.
 - `repo_page_tab` — Registers a plugin-owned tab on repository detail pages, scoped to the current repository and user. Implement `Syrus::Plugin::RepoPageTab`; interface contract: `lib/syrus/plugin/repo_page_tab.rb`.
 - `repository_configuration` — Declares and validates plugin-owned repository configuration read from the supported configuration file. Implement `Syrus::Plugin::RepositoryConfiguration`; interface contract: `lib/syrus/plugin/repository_configuration.rb`.
 - `repository_content_provider` — Resolves immutable repository revisions and reads trees, files, changes, refs, and history from one backend. Implement `Syrus::Plugin::RepositoryContentProvider`; interface contract: `lib/syrus/plugin/repository_content_provider.rb`.
@@ -111,6 +117,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `retention_policy` — Contributes expiry and cleanup policy for a plugin-owned or extensible host record type. Implement `Syrus::Plugin::RetentionPolicy`; interface contract: `lib/syrus/plugin/retention_policy.rb`.
 - `runtime_session_provider` — Creates and manages a long-lived plugin-owned runtime session used by agent work. Implement `Syrus::Plugin::RuntimeSessionProvider`; interface contract: `lib/syrus/plugin/runtime_session_provider.rb`.
 - `sidebar_page` — Registers a plugin-owned application page and its sidebar navigation entry. Implement `Syrus::Plugin::SidebarPage`; interface contract: `lib/syrus/plugin/sidebar_page.rb`.
+- `skill` — Contributes built-in skills, each a named instruction set resolved like the host's own built-in skills. Implement `Syrus::Plugin::Skill`; interface contract: `lib/syrus/plugin/skill.rb`.
 - `slug_type` — Defines parsing, lookup, and presentation for a plugin-owned canonical identifier type. Implement `Syrus::Plugin::SlugType`; interface contract: `lib/syrus/plugin/slug_type.rb`.
 - `source_control_provider` — Implements repository-host operations such as issues, pull requests, reviews, and credentials for one source-control service. Implement `Syrus::Plugin::SourceControlProvider`; interface contract: `lib/syrus/plugin/source_control_provider.rb`.
 - `speech_to_text_provider` — Transcribes supported audio input and returns normalized text and metadata. Implement `Syrus::Plugin::SpeechToTextProvider`; interface contract: `lib/syrus/plugin/speech_to_text_provider.rb`.
@@ -118,6 +125,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `system_alert_provider` — Contributes redacted operational alerts for administrators and configured outbound delivery. Implement `Syrus::Plugin::SystemAlertProvider`; interface contract: `lib/syrus/plugin/system_alert_provider.rb`.
 - `test_evidence` — Extracts normalized test results and evidence from a supported test runner or artifact. Implement `Syrus::Plugin::TestEvidence`; interface contract: `lib/syrus/plugin/test_evidence.rb`.
 - `ui_slot` — Registers a plugin-owned component for one of the host's named UI insertion slots. Implement `Syrus::Plugin::UiSlot`; interface contract: `lib/syrus/plugin/ui_slot.rb`.
+- `work_gate` — May veto workflow or WorkUnit starts, and declares whether that veto also applies to landing. Implement `Syrus::Plugin::WorkGate`; interface contract: `lib/syrus/plugin/work_gate.rb`.
 - `worker_capability_probe` — Detects a worker capability and reports normalized values used for placement decisions. Implement `Syrus::Plugin::WorkerCapabilityProbe`; interface contract: `lib/syrus/plugin/worker_capability_probe.rb`.
 - `workflow_artifact_contributor` — Collects additional plugin-owned artifacts from a completed workflow run. Implement `Syrus::Plugin::WorkflowArtifactContributor`; interface contract: `lib/syrus/plugin/workflow_artifact_contributor.rb`.
 - `workflow_kinds` — Registers plugin-owned Job, Workflow trigger, Step, and WorkDefinition kinds with their handlers. Implement `Syrus::Plugin::WorkflowKinds`; interface contract: `lib/syrus/plugin/workflow_kinds.rb`.
@@ -134,6 +142,8 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `ecosystem` (facet; required core: `key`, `display_name`) — `affected_tests` (provisional, collect, Array or NilClass), `analyze_coverage` (stable, first_claim, Object), `autofix` (stable, collect, String or NilClass), `dependency_audit` (stable, collect, Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass), `detect_prepare` (stable, collect, Array<PreparePlan>), `focused_tests` (stable, first_claim, String or NilClass), `grade_candidates` (stable, collect, Array), `grader_diagnostics` (stable, collect, Array or NilClass), `grader_types` (stable, keyed, Array), `parse_ci_log` (provisional, first_claim, Hash with parser, error_summary, and error_block, or nil), `prompt_context` (stable, collect, String or NilClass), `review_criteria` (stable, collect, Array), `review_file_patterns` (provisional, collect, Array<String or Hash>), `target_graph` (provisional, keyed, Object)
 - `execution_backend` (service; required core: `key`, `display_name`, `available_for?`) — `execution_backend` (provisional, collect, Service class or instance, Array of them, or nil)
 - `lifecycle` (facet; required core: `key`, `display_name`) — `callback_providers` (provisional, collect, Module, Array<Module>, or nil), `domain_subscribers` (provisional, collect, Module, Array<Module>, or nil)
+- `mail` (service; required core: `key`, `display_name`, `available_for?`) — `read_message` (provisional, keyed, Hash), `search` (provisional, keyed, Hash)
+- `personal_calendar` (service; required core: `key`, `display_name`, `available_for?`) — `get_event` (provisional, keyed, Hash), `list_events` (provisional, keyed, Hash)
 - `policy` (facet; required core: `key`, `display_name`) — `job_visibility_restrictions` (provisional, collect, Module, Array<Module>, or nil), `repository_filters` (provisional, collect, Module, Array<Module>, or nil)
 - `review` (facet; required core: `key`, `display_name`) — `adjudicators` (provisional, collect, Module, Array<Module>, or nil), `diff_review_annotation_providers` (provisional, collect, Module, Array<Module>, or nil), `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer), `post_implementation_review_providers` (provisional, collect, Module, Array<Module>, or nil), `review_context_contributors` (provisional, collect, Module, Array<Module>, or nil), `review_gates` (provisional, collect, Module, Array<Module>, or nil), `review_presentation_contributors` (provisional, collect, Module, Array<Module>, or nil), `reviewer_target_providers` (provisional, collect, Module, Array<Module>, or nil)
 - `runtime_session` (service; required core: `key`, `display_name`, `available_for?`) — `runtime_session_provider` (stable, collect, Service class or instance, Array of them, or nil)
@@ -141,6 +151,11 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `speech_to_text` (service; required core: `key`, `display_name`, `available_for?`) — `speech_to_text_provider` (provisional, collect, Service class or instance, Array of them, or nil)
 - `surface` (facet; required core: `key`, `display_name`) — `admin_pages` (stable, collect, Module, Array<Module>, or nil), `artifact_renderers` (stable, collect, Module, Array<Module>, or nil), `filter_chips` (stable, collect, Array<FilterChips>), `filter_subjects` (stable, collect, Array<FilterSubject>), `preview_panel_viewers` (provisional, collect, Module, Array<Module>, or nil), `repo_page_tabs` (stable, collect, Module, Array<Module>, or nil), `sidebar_pages` (stable, collect, Module, Array<Module>, or nil), `ui_slots` (stable, collect, Module, Array<Module>, or nil), `workspace_tabs` (stable, collect, Module, Array<Module>, or nil)
 - `toolkit` (facet; required core: `key`, `display_name`) — `chat_tools` (stable, collect, Module or nil), `credential_probes` (stable, collect, Array<ProbeRegistration>), `permissions` (stable, collect, Module or nil), `run_context` (provisional, collect, Hash), `secret_extractors` (stable, collect, Array<secret extractor>), `workflow_tools` (stable, collect, Module or nil)
+- `work_policy` (facet; required core: `key`, `display_name`) — `repair_classifier` (provisional, first_claim, Object), `system_alerts` (provisional, collect, Array), `work_gate` (provisional, collect, Array<Veto> or nil)
+
+## Workflow composition anchors
+
+The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and `workflow:post_pr`. A contributing plugin also registers every contributed step through `workflow_kinds`. A judge provider exposes `.judges` entries with `step_kind`, `order`, `trigger_kinds`, and callable `rounds_for(job)`; core builds the review-first agent/judge loop. Post-implementation and post-PR providers expose methods matching their anchor name, with `step_kind`, `order`, and callable `enabled_for(job)`. Post-PR entries also declare `fail_policy`, which must match the registered step kind; use `:advance` for advisory work that may fail without failing the workflow. Contributions persist through the ordinary `chain_template`, and a plugin cannot be disabled while a non-terminal workflow contains one of its steps.
 
 ## Public host surface
 
@@ -252,7 +267,6 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::ContentUnsupported` (since 0.1.16) — The provider does not support the requested operation; callers fall through to the next provider. Only the listed members are supported. Supported members: `message`, `new`.
 - `Syrus::Host::CoverageParseResult` (since 0.1.16) — Carries a parsed coverage report (raw data and line percentage) returned by a coverage analyzer; the report parsers are not promised. Only the listed members are supported. Supported members: `lines_pct`, `new`, `raw`.
 - `Syrus::Host::CoworkerDefaultPolicy` (since 0.1.16) — Evaluates the default coworker tool policy (ROLES, validate!, verdict, violations, grant_policy_for, requestable?, descriptor_auto_allowable?); the policy table itself may change. Supported members: `ROLES`, `descriptor_auto_allowable?`, `grant_policy_for`, `requestable?`, `validate!`, `verdict`, `violations`.
-- `Syrus::Host::CoworkerToolExposure` (since 0.1.16) — Answers whether a plugin tool definition or provider is exposed to coworkers (plugin_definition?, plugin_provider?); exposure rules are not promised. Supported members: `plugin_definition?`, `plugin_provider?`.
 - `Syrus::Host::CredentialProbe` (since 0.1.16) — Carries the outcome of validating a saved credential (Result) and the probe timeout (TIMEOUT_SECONDS) that agent-provider credential probes share, and validates a saved credential through call; the individual probes are not promised. Only the listed members are supported. Supported members: `Result`, `TIMEOUT_SECONDS`, `call`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::DataCleanup` (since 0.1.16) — Registers a plugin's data-cleanup contribution (register); cleanup scheduling and ordering are not promised. Supported members: `register`.
@@ -525,4 +539,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 116915 bytes (UTF-8, including this line).
+Size: 119622 bytes (UTF-8, including this line).
