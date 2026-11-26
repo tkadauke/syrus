@@ -497,8 +497,12 @@
   },
   "provider_warning": {
     "automatic_failover": "{{original}} unavailable; running this workflow with {{selected}}.",
+    "automatic_failover_pill": "Failover: {{selected}}",
     "policy_routing": "Routing policy selected {{selected}} instead of {{original}}.",
+    "policy_routing_pill": "Policy: {{selected}}",
     "operator_failover": "Operator selected {{selected}} for this workflow instead of {{original}}.",
+    "operator_pill": "Operator: {{selected}}",
+    "show_details": "Show provider routing details for {{label}}",
     "details": "Details",
     "routing_rule": "Routing rule {{id}} matched",
     "routing_conditions_matched": "Routing conditions matched",
