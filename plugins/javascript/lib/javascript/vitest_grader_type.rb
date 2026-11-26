@@ -222,17 +222,18 @@ module JavaScript
       raw || "${VITEST_MAX_WORKERS:-${SYRUS_PROCESS_PARALLELISM:-2}}"
     end
 
-    # A whole-suite run scales with its workers, so it asks for every core and
+    # Vitest scales with its workers, so every mode asks for every core and
     # lets GraderResourceGrant decide. Undeclared, it claimed one core while
     # running two workers plus `tsc`, so rspec shards claiming `cpu: all` on
     # the same host took the cores it was actually using: the CI suite, which
     # normally needs ~22 of its 30 minutes, timed out on a busy host and turned
-    # main red. A focused run touches a handful of files and stays serial. An
+    # main red. A focused run is not small either: `vitest related` over a
+    # shared component pulls in most of the suite, and a serial focused run
+    # timed out at 20 minutes on every iteration of a production Job. An
     # explicit `resources:` in `.syrus.yml` wins either way.
-    def resource_request_for(mode)
+    def resource_request_for(_mode)
       explicit = GraderResourceRequest.parse(config["resources"])
       return explicit if explicit
-      return nil if mode == "focused"
 
       GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2)
     end

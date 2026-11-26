@@ -934,9 +934,8 @@ whole node.
 
 Plugin-defined grader types supply their own default — `type: rspec` asks for
 `cpu: all` in modes where `parallel_rspec` is enabled and claims nothing in
-serial modes; `type: vitest` asks for `cpu: all` (with `cpu_min: 2`) for its
-full and CI runs, sizes `--maxWorkers` from the grant, and claims nothing for
-its focused run. An explicit `resources` block (or, for Vitest, `max_workers`
+serial modes; `type: vitest` asks for `cpu: all` (with `cpu_min: 2`) in every
+mode and sizes `--maxWorkers` from the grant. An explicit `resources` block (or, for Vitest, `max_workers`
 or `VITEST_MAX_WORKERS`) overrides that.
 
 A resource request deliberately does **not** participate in the grader

@@ -74,7 +74,7 @@ restarts.
 
 ## Workflow-step resource profiles and PSI
 
-Host admission no longer uses these profiles; it is measured (memory PSI,
+Host admission no longer uses `WorkflowStepResourceProfile`; it is measured (memory PSI,
 memory headroom and a per-worker concurrency controller) -- see the
 multi-worker architecture reference. The profiles remain for diagnostics and
 the opt-in per-spawn cgroup budget.

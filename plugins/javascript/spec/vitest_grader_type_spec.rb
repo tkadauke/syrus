@@ -61,12 +61,12 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
   end
 
-  it "asks for every core on whole-suite runs and stays serial when focused" do
-    full, focused, ci = described_class.grade_steps(config: {}, default_failures: "strict")
+  # Regression: a serial focused run over a shared component timed out at 20
+  # minutes on every iteration, and each timeout cost the Job a repair round.
+  it "asks for every core in every mode, focused included" do
+    steps = described_class.grade_steps(config: {}, default_failures: "strict")
 
-    expect(full.resources).to eq(GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2))
-    expect(ci.resources).to eq(GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2))
-    expect(focused.resources).to be_nil
+    expect(steps.map(&:resources)).to all(eq(GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2)))
   end
 
   it "lets an explicit resources declaration win" do
