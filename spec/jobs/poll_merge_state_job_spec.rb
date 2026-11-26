@@ -60,6 +60,32 @@ RSpec.describe PollMergeStateJob, :ci_only do
     expect(job.approved_at).to be_present
   end
 
+  # Regression: GitHub's ETag does not change when it finishes computing
+  # mergeability, so the response cache kept serving an "unknown" PR as 304
+  # Not Modified. The landing queue waited on GitHub indefinitely instead of
+  # rebasing a PR that had become conflicted.
+  it "re-reads a cached unknown mergeability live and rebases the conflicted PR" do
+    job.approve!(via: "github_review")
+    allow_any_instance_of(GithubClient).to receive(:pull_request)
+      .with("acme/widgets", 7, bypass_cache: false)
+      .and_return(pr(mergeable_state: "unknown", mergeable: nil))
+    allow_any_instance_of(GithubClient).to receive(:pull_request)
+      .with("acme/widgets", 7, bypass_cache: true)
+      .and_return(pr(mergeable_state: "dirty", mergeable: false))
+
+    described_class.perform_now(job.id)
+
+    expect(job.reload.github_mergeable_state).to eq("dirty")
+    expect(job.workflows.where(trigger_kind: "rebase").count).to eq(1)
+  end
+
+  it "does not bypass the cache when the cached answer is definite" do
+    expect_any_instance_of(GithubClient).to receive(:pull_request)
+      .with("acme/widgets", 7, bypass_cache: false).once.and_return(pr(mergeable_state: "clean"))
+
+    described_class.perform_now(job.id)
+  end
+
   it "retries only mergeability persistence after lock contention" do
     attempts = 0
     allow(PollingPersistenceRetry).to receive(:sleep)

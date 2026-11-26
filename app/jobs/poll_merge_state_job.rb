@@ -78,6 +78,7 @@ class PollMergeStateJob < ApplicationJob
     with_github_polling_rate_limit_backoff(pr_repo, user: @job.user, retry_args: [ job_id ]) do
       @client = GithubClient.for(repository: pr_repo, user: @job.user)
       @pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: false)
+      @pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: true) if mergeability_undetermined?(@pr)
       @client.clear_api_blocked!
 
       # A preempted Job tracks an external PR only to keep it rebased while
@@ -125,6 +126,19 @@ class PollMergeStateJob < ApplicationJob
     end
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
     Rails.logger.warn("[PollMergeStateJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
+  end
+
+  # GitHub computes mergeability lazily and answers "unknown" until it has.
+  # Its ETag does not change when that computation finishes -- nor when the
+  # base branch moves and the answer becomes "dirty" -- so a cached
+  # "unknown" revalidates as 304 Not Modified indefinitely, and the landing
+  # queue waited for a mergeability answer it was never shown instead of
+  # rebasing a conflicted PR. An undetermined answer is always re-read live.
+  def mergeability_undetermined?(pr)
+    return false unless pr.respond_to?(:mergeable_state)
+    return false if pr.respond_to?(:state) && pr.state == "closed"
+
+    pr.mergeable_state.blank? || pr.mergeable_state == "unknown"
   end
 
   def persist_mergeability(pr)
