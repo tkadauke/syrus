@@ -781,6 +781,28 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(body[:recovery]).to include(kind: "restart_from_base", recommended_action: "restart")
   end
 
+  it "bounds a no-progress decision when the selected source workflow is missing" do
+    job = make_retryable_job(state: "failed")
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    workflow.steps.find_by!(kind: "implement").update!(state: "failed")
+    oversized = "x" * 5_000
+    rounds = Array.new(50) do |iteration|
+      { "loop_id" => oversized, "iteration" => iteration, "failing_set" => [ oversized ],
+        "source_revision" => oversized, "repaired_revision" => oversized }
+    end
+    workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
+      "reason" => GraderLoopProgress::NO_PROGRESS_REASON, "explanation" => oversized,
+      "failing_set" => [ oversized ], "rounds" => rounds
+    })
+
+    body = payload(call_tool("retry_job", job_id: job.id, source_workflow_id: 999_999))
+
+    expect(body).to include(status: "guidance_required", pending_action_created: false)
+    expect(body.dig(:recoveries, 0, :evidence)).not_to have_key(:rounds)
+    expect(body.dig(:recoveries, 0, :compared_repair_iterations).size).to eq(RecoveryContract::ROUND_LIMIT)
+    expect(body.to_json.bytesize).to be < 40.kilobytes
+  end
+
   it "creates an unchanged failed-step rerun for an infrastructure-only no-verdict outcome" do
     job = make_retryable_job(state: "failed")
     workflow = job.workflows.find_by!(trigger_kind: "initial")
