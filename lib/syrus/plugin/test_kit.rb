@@ -51,14 +51,14 @@ module Syrus
         def syrus_plugin(root, name: nil) = PluginUnderTest.new(root, name:)
 
         # A definition lives on a module extended with Syrus::PluginApi, never
-        # on a singleton class. Every other module in ObjectSpace is probed
-        # too, and any of them may answer respond_to? by raising, so a probe
-        # that raises means "not a plugin namespace" rather than a crash that
-        # depends on which classes earlier examples left loaded.
+        # on a singleton class. Filter on that marker before sending messages:
+        # ObjectSpace can contain expired RSpec class doubles whose proxy raises
+        # when any mocked method is invoked by a later example.
         def plugin_definition_of(namespace)
           return if namespace.singleton_class?
+          return unless namespace.singleton_class.ancestors.include?(Syrus::PluginApi)
 
-          namespace.syrus_plugin_definition if namespace.respond_to?(:syrus_plugin_definition)
+          namespace.syrus_plugin_definition
         rescue StandardError
           nil
         end
