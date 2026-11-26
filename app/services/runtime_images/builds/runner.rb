@@ -25,8 +25,10 @@ module RuntimeImages
         end
       end
 
-      def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new, base_verifier: ConformanceProbe.method(:verify_published!))
+      def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new,
+                     base_verifier: ConformanceProbe.method(:verify_published!), candidate_probe: Verifications::CandidateProbe.new)
         @base_verifier = base_verifier
+        @candidate_probe = candidate_probe
         @orchestrator = orchestrator
         @service = service
         @builder = builder
@@ -128,6 +130,14 @@ module RuntimeImages
           registry.register("base_conformance", Verifications::CallableVerifier.new(@base_verifier, evidence_kind: "confined_conformance_probe"))
           policy["checks"] << { "key" => "base_conformance", "required" => true }
         end
+        verification = Hash(request.recipe.dig("input_policy"))
+        if verification["base_digest"].present? && verification["smoke_test"].present?
+          suite = Verifications::CandidateSuite.new(@candidate_probe)
+          Verifications::CandidateSuite.check_keys.each do |key|
+            registry.register(key, Verifications::CandidateVerifier.new(suite, key))
+            policy["checks"] << { "key" => key, "required" => true }
+          end
+        end
         Verifications::Orchestrator.new(registry: registry, service: @service).verify(image, policy: policy, context: { build_request_id: request.id })
       end
 
@@ -150,7 +160,8 @@ module RuntimeImages
         ).compact
         # Syrus (never the isolated builder, which holds no key) signs the
         # runtime ABI contract the standard base was built against.
-        if request.source_kind == CoworkerBase::SOURCE_KIND
+        input_policy = Hash(request.recipe.dig("input_policy"))
+        if request.source_kind == CoworkerBase::SOURCE_KIND || input_policy["runtime_abi"].present?
           provenance[RuntimeAbi::ATTESTATION_KEY] = RuntimeAbi.attest(
             source_digest: request.source_digest, recipe_digest: request.recipe_digest, build_request_id: request.id
           )

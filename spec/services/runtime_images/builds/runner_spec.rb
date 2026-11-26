@@ -17,10 +17,12 @@ RSpec.describe RuntimeImages::Builds::Runner do
   after { RuntimeImages::Builds.builder = nil }
 
   let(:base_verifier) { ->(_image) { true } }
+  let(:candidate_probe) { RuntimeImages::Verifications::CandidateProbe.new }
 
   def run
     claimed_request, attempt = orchestrator.claim_next
-    described_class.new(orchestrator: orchestrator, service: service, base_verifier: base_verifier).call(claimed_request, attempt)
+    described_class.new(orchestrator: orchestrator, service: service, base_verifier: base_verifier,
+                        candidate_probe: candidate_probe).call(claimed_request, attempt)
     [ claimed_request.reload, attempt.reload ]
   end
 
@@ -40,7 +42,29 @@ RSpec.describe RuntimeImages::Builds::Runner do
     expect(image.source_digest).to eq(source.digest)
   end
 
-  it "signs the runtime ABI into provenance only for the standard base" do
+  it "runs every candidate contract check selected by immutable build policy" do
+    source = RuntimeImages::Builds::SourceCapture.capture(kind: "extension", ref: "revision-1", revision: "sha256:#{"e" * 64}")
+    recipe = { "input_policy" => { "base_digest" => "sha256:#{"b" * 64}", "runtime_abi" => RuntimeImages::RuntimeAbi.version,
+                                    "smoke_test" => "./smoke-test" } }
+    orchestrator.submit(namespace: namespace, source: source, recipe: recipe, platform: "linux/amd64",
+                        requester_kind: "test", requester_ref: "candidate")
+    allow(builder).to receive(:build).and_return(output.tap { |value| value.source_digest = source.digest })
+    results = RuntimeImages::Verifications::CandidateSuite.check_keys.to_h do |key|
+      [ key, RuntimeImages::Verifications::Result.pass(evidence_references: [ { "kind" => key, "digest" => "evidence" } ]) ]
+    end
+    allow(candidate_probe).to receive(:call).and_return(results)
+
+    claimed, = run
+
+    expect(claimed).to be_succeeded
+    image = claimed.result.runtime_image
+    checks = image.runtime_image_verification_attempts.last.checks
+    expect(checks.pluck(:verifier_key)).to eq([ "manifest", *RuntimeImages::Verifications::CandidateSuite.check_keys ])
+    expect(candidate_probe).to have_received(:call).once
+    expect(image.provenance).to have_key(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
+  end
+
+  it "signs the runtime ABI for the standard base but not unrelated images" do
     request
     allow(builder).to receive(:build).and_return(output)
     expect(run.first.result.runtime_image.provenance).not_to have_key(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
