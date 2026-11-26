@@ -20,6 +20,11 @@ require "tmpdir"
 class HostConcurrencyTarget
   ADJUST_INTERVAL = 30.seconds
   MIN_TARGET = 1
+  # A halving lasts only while the trouble does: this long without pressure and
+  # a target below the CPU count returns to it, full or not. Growth alone needs
+  # the worker to be full, so a worker halved before a quiet spell otherwise
+  # met the next burst with a fraction of its capacity.
+  RECOVERY_AFTER = 5.minutes
   # A ceiling for runaway growth only; pressure is what actually stops it.
   MAX_TARGET_PER_CPU = 3
 
@@ -42,9 +47,13 @@ class HostConcurrencyTarget
   def observe!(active:, pressured:, saturated: false)
     with_state do |state|
       target = state.fetch("target", initial_target).to_i.clamp(MIN_TARGET, max_target)
+      state["pressured_at"] = now.iso8601 if pressured
       if due?(state)
         if pressured
           target = [ target / 2, MIN_TARGET ].max
+          state["adjusted_at"] = now.iso8601
+        elsif target < initial_target && recovered?(state)
+          target = initial_target
           state["adjusted_at"] = now.iso8601
         elsif active >= target && !saturated
           target = [ target + 1, max_target ].min
@@ -63,6 +72,13 @@ class HostConcurrencyTarget
   private
 
   attr_reader :cpus, :now, :path
+
+  def recovered?(state)
+    pressured_at = state["pressured_at"].presence && Time.iso8601(state["pressured_at"])
+    pressured_at.nil? || pressured_at <= now - RECOVERY_AFTER
+  rescue ArgumentError
+    true
+  end
 
   def due?(state)
     adjusted_at = state["adjusted_at"].presence && Time.iso8601(state["adjusted_at"])

@@ -171,7 +171,9 @@ per-step cost estimates, capacity units or reserves.
   worker's CPU count, grows by one every 30 seconds while the worker is full
   and its CPU is below 90% used, holds while CPU is at or above that, and
   halves only on memory trouble: memory pressure at half its ceiling or the
-  memory health dimension at warning. Busy CPU and IO never shrink it.
+  memory health dimension at warning. Busy CPU and IO never shrink it, and a
+  halved target returns to the CPU count after 5 minutes without memory
+  pressure, whether or not the worker is busy.
   The target lives on the worker and restarts from the CPU count.
 - Graders still receive `SYRUS_PROCESS_PARALLELISM`, their share of the CPU
   from the resource grant, so a tool such as `parallel_rspec` sizes itself

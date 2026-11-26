@@ -37,6 +37,19 @@ RSpec.describe HostConcurrencyTarget do
     expect(target(t0 + 2.minutes).observe!(active: 1, pressured: true)).to eq(1)
   end
 
+  it "returns to the CPU count once pressure has been gone a while, even on an idle worker" do
+    expect(target(t0).observe!(active: 4, pressured: true)).to eq(2)
+    expect(target(t0 + 2.minutes).observe!(active: 0, pressured: false)).to eq(2)
+    expect(target(t0 + described_class::RECOVERY_AFTER).observe!(active: 0, pressured: false)).to eq(4)
+  end
+
+  it "stays halved while pressure keeps recurring" do
+    target(t0).observe!(active: 4, pressured: true)
+    target(t0 + 4.minutes).observe!(active: 2, pressured: true)
+
+    expect(target(t0 + 6.minutes).observe!(active: 0, pressured: false)).to eq(1)
+  end
+
   it "caps runaway growth" do
     now = t0
     20.times do
