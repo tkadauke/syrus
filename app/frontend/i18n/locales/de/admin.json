@@ -386,6 +386,10 @@
         "name": "Terminal",
         "description": "Aktiviert die interaktive Terminal-Erfahrung."
       },
+      "landing_lanes": {
+        "name": "Landing-Lanes",
+        "description": "Zeigt den Landing-Lanes-Streifen im Dashboard, die vollständige Beobachtungsansicht und die zugehörigen API-Daten. Das Landing-Verhalten und die bestehende Landing-Warteschlange bleiben bei deaktivierter Funktion unverändert."
+      },
       "video_walkthroughs": {
         "name": "Walkthrough-Videos",
         "description": "Nimm eine kommentierte Bildschirmaufnahme auf oder ziehe sie in einen Chat; Gemini analysiert sie und der Chat-Agent arbeitet sie zu einem Epic aus. Erfordert einen Gemini-API-Schlüssel."

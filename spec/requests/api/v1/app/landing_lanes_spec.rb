@@ -5,7 +5,22 @@ RSpec.describe "Landing lanes API", type: :request do
   let(:user) { Factories.user }
   let!(:repository) { Factories.repository(user:, landing_concurrency: 2) }
 
-  before { sign_in_as(user) }
+  before do
+    sign_in_as(user)
+    Feature.create!(slug: "landing_lanes", category: "Labs", name: "Landing lanes", enabled: true, experimental: false)
+  end
+
+  it "returns the feature-disabled not-found response without exposing lane data when disabled" do
+    Feature.find_by!(slug: "landing_lanes").update!(enabled: false)
+
+    get "/api/v1/app/landing_lanes"
+
+    expect(response).to have_http_status(:not_found)
+    expect(JSON.parse(response.body)).to include(
+      "error" => { "code" => "feature_disabled", "message" => "Landing lanes are not enabled on this instance." }
+    )
+    expect(response.body).not_to include("repositories", repository.slug)
+  end
 
   it "returns every visible repository with all configured slots" do
     get "/api/v1/app/landing_lanes"

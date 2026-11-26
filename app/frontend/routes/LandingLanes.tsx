@@ -1,13 +1,19 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { fetchLandingLanes, type LandingLane, type LandingLanesPayload, type LandingLanesRepository } from "../api/landingLanes"
+import { readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { PageHeading } from "../components/Heading"
-import { Notice, Page, Section, Surface } from "../components/ui"
+import { Notice, Page, PageHeading as UiPageHeading, Section, Surface, Text } from "../components/ui"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { withRoutePrefix } from "../lib/routing"
 
 export function LandingLanesRoute() {
+  if (!useLandingLanesEnabled()) return <LandingLanesUnavailable />
+  return <EnabledLandingLanesRoute />
+}
+
+function EnabledLandingLanesRoute() {
   const { t } = useT("dashboard")
   usePageTitle(t("landing_lanes.title"))
   const query = useQuery({ queryKey: ["landing_lanes"], queryFn: ({ signal }) => fetchLandingLanes({ signal }) })
@@ -18,6 +24,18 @@ export function LandingLanesRoute() {
       {query.isError ? <Notice tone="danger">{t("landing_lanes.load_error")}</Notice> : null}
       {query.isLoading ? <div className="text-sm text-muted">{t("loading")}</div> : null}
       {query.data ? <LandingLanesPage payload={query.data} /> : null}
+    </Page.Root>
+  )
+}
+
+function LandingLanesUnavailable() {
+  const { t } = useT("nav")
+  return (
+    <Page.Root size="narrow">
+      <Page.Header>
+        <UiPageHeading>{t("sidebar_pages.unavailable_heading")}</UiPageHeading>
+        <Text>{t("sidebar_pages.unavailable_body")}</Text>
+      </Page.Header>
     </Page.Root>
   )
 }
@@ -218,6 +236,11 @@ function phaseLabel(lane: LandingLane, t: (key: string, options?: Record<string,
 }
 
 export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
+  if (!useLandingLanesEnabled()) return null
+  return <EnabledLandingLanesStrip prefix={prefix} />
+}
+
+function EnabledLandingLanesStrip({ prefix = "" }: { prefix?: string }) {
   const { t } = useT("dashboard")
   const query = useQuery({ queryKey: ["landing_lanes"], queryFn: ({ signal }) => fetchLandingLanes({ signal }) })
   if (!query.data) return null
@@ -248,4 +271,10 @@ export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
       </div>
     </Surface>
   )
+}
+
+function useLandingLanesEnabled() {
+  const queryClient = useQueryClient()
+  const bootstrap = queryClient.getQueryData<BootstrapPayload>(["bootstrap"]) ?? readInitialBootstrap()
+  return bootstrap?.feature_flags?.landing_lanes === true
 }

@@ -193,6 +193,20 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".landing_lanes_enabled?" do
+    it "defaults off and follows the configured flag" do
+      expect(Feature.landing_lanes_enabled?).to be false
+
+      Feature.create!(slug: "landing_lanes", category: "Labs", name: "Landing lanes", enabled: true, experimental: false)
+      expect(Feature.landing_lanes_enabled?).to be true
+    end
+
+    it "declares the landing lanes flag experimental and default-off" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "landing_lanes" }
+      expect(declaration).to have_attributes(category: "Labs", experimental: true, default_enabled: false, type: :boolean)
+    end
+  end
+
   describe ".execution_request_assertions_enabled?" do
     it "returns the flag value" do
       Feature.create!(

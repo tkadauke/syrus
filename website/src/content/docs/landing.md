@@ -163,7 +163,7 @@ one landing lane; a unit that fails its graders holds only its own lane while
 the others keep landing. With the default of 1, landing works exactly as it
 always has.
 
-Syrus exposes these lanes to authenticated clients through
+With the instance-wide `landing_lanes` Labs feature enabled, Syrus exposes these lanes to authenticated clients through
 `GET /api/v1/app/landing_lanes`. The response includes configured and busy
 lane counts, the ordered approved backlog, empty slots, and each visible
 landing unit's Jobs, workflow phase, graders, progress, and best-case time
@@ -172,6 +172,8 @@ and assumes all remaining work passes on its current attempt, so it is always
 identified as `best_case`. Clients receive `landing_lanes.updated` app events
 when landing workflow or grader state changes and can refetch the payload
 without polling.
+
+The feature is off by default during rollout and gates only the dashboard strip, full landing-lanes page, and API payload. Turning it off does not change the existing landing queue summary, configured concurrency, or landing behavior.
 
 ## Reusing Green Results
 
