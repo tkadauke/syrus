@@ -94,6 +94,17 @@ and stop after `RUNTIME_IMAGE_BUILD_MAX_ATTEMPTS` (default 3). Nothing is
 claimed until an executor is registered via `RuntimeImages::Builds.builder=`,
 so the plane is inert by default.
 
+Publishing bytes creates an `unverified` image, not a launch candidate. The
+build runner snapshots the verification policy and executes its required
+verifiers in order against the immutable digest. Each re-verification creates
+a new `RuntimeImageVerificationAttempt`; its ordered check rows retain safe
+evidence references and a failure class without replacing prior attempts. An
+image becomes `candidate` only when every required check has durable evidence
+and passes. Policy or integrity findings reject it, while an unavailable
+verifier, registry, or evidence store blocks it. Both outcomes are fail-closed:
+the image is not pullable. A newer attempt owns candidate eligibility, so a
+slower older attempt cannot overwrite a later decision.
+
 ### Isolated builder
 
 `RuntimeImages::Builds::IsolatedBuilder` is the executor registered through

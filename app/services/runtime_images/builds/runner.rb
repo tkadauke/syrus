@@ -107,27 +107,28 @@ module RuntimeImages
         image = publisher.publish(
           source_kind: request.source_kind, source_ref: request.source_ref,
           source_digest: request.source_digest, platform: request.platform,
-          provenance: provenance_for(request, output, evidence), payload: output.payload
+          provenance: provenance_for(request, output, evidence), payload: output.payload, verification_state: "unverified"
         )
         evidence.image_digest = image.digest
-        inspection = publisher.inspect_image(image)
-        raise BuildFailed.new("published image #{image.digest} could not be verified", code: "verification_failed", retryable: true) unless inspection.present
-
-        verify_conformance!(request, image)
+        verification = verify_candidate(request, image)
+        unless verification.accepted?
+          retryable = verification.state == "blocked"
+          raise BuildFailed.new(verification.message || "image verification #{verification.state}",
+                                code: verification.failure_code || "verification_failed", retryable: retryable)
+        end
         register_base_release(request, image)
         image
       end
 
-      # The standard coworker base must pass the full confined provider and
-      # confinement probe before it can be used. A non-conformant image is
-      # revoked so lookup never returns it, and the build fails permanently.
-      def verify_conformance!(request, image)
-        return unless request.source_kind == CoworkerBase::SOURCE_KIND
-
-        @base_verifier.call(image)
-      rescue ConformanceProbe::NonConformant, RuntimeAbi::Incompatible => e
-        @service.revoke(image, reason: "conformance probe failed: #{e.message}".truncate(500))
-        raise BuildFailed.new("coworker base failed conformance: #{e.message}".truncate(1000), code: "conformance_failed", retryable: false)
+      def verify_candidate(request, image)
+        registry = Verifications::Registry.new
+        registry.register("manifest", Verifications::ManifestVerifier.new(service: @service))
+        policy = Verifications::Orchestrator::DEFAULT_POLICY.deep_dup
+        if request.source_kind == CoworkerBase::SOURCE_KIND
+          registry.register("base_conformance", Verifications::CallableVerifier.new(@base_verifier, evidence_kind: "confined_conformance_probe"))
+          policy["checks"] << { "key" => "base_conformance", "required" => true }
+        end
+        Verifications::Orchestrator.new(registry: registry, service: @service).verify(image, policy: policy, context: { build_request_id: request.id })
       end
 
       # A verified standard base becomes a promotion candidate. It is never
