@@ -45,7 +45,7 @@ module Telegram
       account = connected_account
       return Rails.cache.fetch("telegram:bot_handle:#{account.credential_store_credential_id}", expires_in: HANDLE_CACHE_TTL) { resolve_handle } if account
 
-      legacy_pending? ? AppSetting.telegram_bot_handle : nil
+      legacy_pending? ? Syrus::Host::AppSetting.telegram_bot_handle : nil
     end
 
     def connected_account

@@ -1,5 +1,5 @@
 module Api::V1::App::ConnectedAccounts
-  class InstanceAccountsController < Api::V1::App::Admin::BaseController
+  class InstanceAccountsController < Syrus::Host::AppAdminController
     def index
       declarations = ::ConnectedAccounts::ProviderRegistry.all.select(&:token_authorization?)
       render json: {
@@ -10,7 +10,7 @@ module Api::V1::App::ConnectedAccounts
 
     def create
       account = ::ConnectedAccounts::TokenBroker.connect!(provider: account_params.fetch(:provider),
-        token: account_params.fetch(:token), label: account_params[:display_label], admin: Current.user)
+        token: account_params.fetch(:token), label: account_params[:display_label], admin: Syrus::Host::Current.user)
       render json: { account: serialized(account) }, status: :created
     rescue ::ConnectedAccounts::TokenBroker::Error => error
       render_error("validation_failed", error.message, status: :unprocessable_content)
@@ -18,7 +18,7 @@ module Api::V1::App::ConnectedAccounts
 
     def destroy
       account = ::ConnectedAccounts::Account.find_by!(id: params[:id], owner_kind: "instance")
-      ::ConnectedAccounts::Disconnector.call(account:, user: Current.user)
+      ::ConnectedAccounts::Disconnector.call(account:, user: Syrus::Host::Current.user)
       render json: { account: serialized(account) }
     end
 

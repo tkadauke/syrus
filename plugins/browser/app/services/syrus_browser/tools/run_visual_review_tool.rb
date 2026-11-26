@@ -2,8 +2,8 @@ require "mcp"
 
 module SyrusBrowser::Tools
   class RunVisualReviewTool < MCP::Tool
-    extend ::Mcp::Tools::ProposalToolSupport
-    extend ::Mcp::Tools::PendingActionToolSupport
+    extend ::Syrus::Host::ProposalToolSupport
+    extend ::Syrus::Host::PendingActionToolSupport
 
     tool_name "run_visual_review"
     MAX_PROMPT_LENGTH = 4_000
@@ -35,8 +35,8 @@ module SyrusBrowser::Tools
         return error if error
 
         prompt = prompt.to_s.strip if prompt
-        return Mcp::Tools.invalid("prompt cannot be blank") if prompt && prompt.blank?
-        return Mcp::Tools.invalid("prompt must be #{MAX_PROMPT_LENGTH} characters or fewer") if prompt&.length.to_i > MAX_PROMPT_LENGTH
+        return Syrus::Host::McpTools.invalid("prompt cannot be blank") if prompt && prompt.blank?
+        return Syrus::Host::McpTools.invalid("prompt must be #{MAX_PROMPT_LENGTH} characters or fewer") if prompt&.length.to_i > MAX_PROMPT_LENGTH
 
         create_pending_action!(
           server_context,

@@ -4,7 +4,7 @@ module Achievements
   # (a subscriber never fails the publisher), so the plugin owns its retry: this
   # job raises, and PluginJob's retry_on re-enqueues it with backoff. Evaluation
   # is idempotent, so re-running it is always safe.
-  class EvaluationRetryJob < PluginJob
+  class EvaluationRetryJob < Syrus::Host::PluginJob
     plugin :achievements
 
     def perform(event_name, payload, occurred_at)

@@ -11,7 +11,7 @@ module Discord
   # fresh connection after a backoff, giving reconnection across worker
   # restarts/deploys the same way Telegram's long-poll loop does.
   class GatewayConnectionJob < Syrus::Host::PlatformPollingJob
-    PluginJob.configure(self, :discord)
+    Syrus::Host::PluginJob.configure(self, :discord)
     RECONNECT_BACKOFF_SECONDS = 5
     MAX_RECONNECT_BACKOFF_SECONDS = 5.minutes
     RECONNECT_ATTEMPT_CACHE_KEY = "discord:gateway_connection_job:reconnect_attempts"

@@ -9,7 +9,7 @@ module SyrusCoverage
   #
   # Structure: { "app/models/user.rb" => { "1" => 3, "2" => 0, "5" => 1 } }
   # (line number string => hit count; an absent line is not executable)
-  class HitMap < ApplicationRecord
+  class HitMap < Syrus::Host::Record
     self.table_name = "syrus_coverage_hit_maps"
 
     belongs_to :workflow, class_name: "::Workflow"

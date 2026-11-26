@@ -2,7 +2,7 @@ module SyrusCoverage
   # Contributes the coverage card to the Job page and the trend sparkline to the
   # repository page, so core renders neither by name.
   class UiSlots
-    include Syrus::Plugin::UiSlot
+    include Syrus::Host::UiSlot
 
     ARTIFACT_KEYS = %w[
       coverage_unavailable files hit_map_attached pr_delta projects sources_status

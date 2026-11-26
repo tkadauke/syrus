@@ -278,7 +278,7 @@ class MainBranchFailureClassifier
   end
 
   def test_evidence_providers
-    Syrus::PluginRegistry.providers_for(:test_evidence)
+    Syrus::Host::PluginRegistry.providers_for(:test_evidence)
   rescue StandardError
     []
   end
@@ -300,7 +300,7 @@ class MainBranchFailureClassifier
     workflow_id = evidence["workflow_id"]
     return nil if workflow_id.blank?
 
-    workflow = Workflow.includes(steps: :runs).find_by(id: workflow_id)
+    workflow = Syrus::Host::WorkflowRecord.includes(steps: :runs).find_by(id: workflow_id)
     failed_steps = workflow&.steps&.select { |candidate| candidate.kind == "grader" && candidate.state == "failed" } || []
     base_step = failed_steps.find { |candidate| candidate.details.to_h["name"].to_s == grader_name }
     base_step&.runs&.max_by(&:created_at)

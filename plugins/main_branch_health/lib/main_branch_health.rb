@@ -2,12 +2,12 @@ require_relative "../app/models/main_branch_health/repository_accessors"
 require_relative "../app/models/main_branch_health/app_setting_accessors"
 
 ActiveSupport::Reloader.to_prepare do
-  Repository.include(MainBranchHealth::RepositoryAccessors) unless Repository < MainBranchHealth::RepositoryAccessors
-  AppSetting.include(MainBranchHealth::AppSettingAccessors) unless AppSetting < MainBranchHealth::AppSettingAccessors
+  Syrus::Host::RepositoryRecord.include(MainBranchHealth::RepositoryAccessors) unless Syrus::Host::RepositoryRecord < MainBranchHealth::RepositoryAccessors
+  Syrus::Host::AppSetting.include(MainBranchHealth::AppSettingAccessors) unless Syrus::Host::AppSetting < MainBranchHealth::AppSettingAccessors
 end
 
 module MainBranchHealth
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "main_branch_health" do
     version "0.1.0"

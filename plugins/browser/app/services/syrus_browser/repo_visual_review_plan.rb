@@ -17,7 +17,7 @@ class SyrusBrowser::RepoVisualReviewPlan
     end
   end
 
-  def self.for_job(job, loaded: RepoDefaultBranchSyrusYml.for_job(job))
+  def self.for_job(job, loaded: Syrus::Host::RepoDefaultBranchSyrusYml.for_job(job))
     root_plan = from_syrus_yml(loaded)
     project_plan = from_default_branch_projects(job)
     return root_plan unless project_plan
@@ -52,11 +52,11 @@ class SyrusBrowser::RepoVisualReviewPlan
     return nil unless job.respond_to?(:repository)
 
     repository = job.repository
-    bare_clone_path = RepositoryBareClone.path_for(repository)
+    bare_clone_path = Syrus::Host::RepositoryBareClone.path_for(repository)
     return nil unless bare_clone_path.directory?
 
     Dir.mktmpdir("syrus-visual-review-plan") do |dir|
-      GitRunner.new.run(
+      Syrus::Host::GitRunner.new.run(
         "--git-dir", bare_clone_path.to_s,
         "--work-tree", dir,
         "checkout", "-f", repository.default_branch, "--", ".",

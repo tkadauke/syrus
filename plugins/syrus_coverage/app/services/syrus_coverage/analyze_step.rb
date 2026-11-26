@@ -4,7 +4,7 @@ module SyrusCoverage
   # computes diff annotations against the PR, stores the coverage artifact on
   # the Workflow, uploads a temporary hit map blob, creates a SyrusCoverage::Snapshot,
   # and evaluates the configured threshold.
-  class AnalyzeStep < Steps::Base
+  class AnalyzeStep < Syrus::Host::StepHandlerBase
     def call
       workspace.setup
       @retained_outputs = Syrus::Host::RetainedGraderCoverageOutputs.for(workflow)
@@ -128,11 +128,11 @@ module SyrusCoverage
     end
 
     def diff_text_for_coverage
-      GitRunner.new.run(
+      Syrus::Host::GitRunner.new.run(
         "diff", "#{default_branch_ref}...HEAD", "--unified=0",
         chdir: workspace.path.to_s
       )
-    rescue GitRunner::GitError => e
+    rescue Syrus::Host::GitRunner::GitError => e
       log("[coverage_analyze] git diff failed: #{e.message} — skipping diff annotations")
       ""
     end
@@ -292,7 +292,7 @@ module SyrusCoverage
 
       threshold_branches = plan.threshold.branches
 
-      WorkflowWarnings.record!(
+      Syrus::Host::WorkflowWarnings.record!(
         workflow: workflow,
         step: step,
         kind: "coverage_branches_threshold_miss",

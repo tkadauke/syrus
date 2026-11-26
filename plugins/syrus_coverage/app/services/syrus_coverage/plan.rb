@@ -12,10 +12,10 @@ class SyrusCoverage::Plan
 
   def self.for(workspace_path)
     path = Pathname.new(workspace_path)
-    return nil unless path.join(SyrusYml::CONFIG_FILE).exist?
+    return nil unless path.join(Syrus::Host::SyrusYmlConfig::CONFIG_FILE).exist?
 
-    SyrusYml.load_repo(path).plugin_configurations[SyrusCoverage::RepositoryConfiguration::KEY]
-  rescue SyrusYml::ParseError => e
+    Syrus::Host::SyrusYmlConfig.load_repo(path).plugin_configurations[SyrusCoverage::RepositoryConfiguration::KEY]
+  rescue Syrus::Host::SyrusYmlParseError => e
     Rails.logger.warn("[SyrusCoverage::Plan] .syrus.yml parse error: #{e.message}")
     nil
   end
@@ -23,7 +23,7 @@ class SyrusCoverage::Plan
   # Validates the `threshold:` mapping (lines/branches/pr_lines, each 0..100).
   def self.parse_threshold(raw, label_prefix:)
     return nil if raw.nil?
-    raise SyrusYml::ParseError, "#{label_prefix}: must be a mapping" unless raw.is_a?(Hash)
+    raise Syrus::Host::SyrusYmlParseError, "#{label_prefix}: must be a mapping" unless raw.is_a?(Hash)
 
     fields = {}
     %w[lines branches pr_lines].each do |field|
@@ -32,11 +32,11 @@ class SyrusCoverage::Plan
       begin
         value = Float(raw[field])
       rescue ArgumentError, TypeError
-        raise SyrusYml::ParseError, "#{label_prefix}.#{field}: must be a number"
+        raise Syrus::Host::SyrusYmlParseError, "#{label_prefix}.#{field}: must be a number"
       end
 
       if value < 0 || value > 100
-        raise SyrusYml::ParseError, "#{label_prefix}.#{field}: must be between 0 and 100"
+        raise Syrus::Host::SyrusYmlParseError, "#{label_prefix}.#{field}: must be between 0 and 100"
       end
 
       fields[field.to_sym] = value
@@ -47,7 +47,7 @@ class SyrusCoverage::Plan
 
   def initialize(sources:, threshold:, on_miss:, hitmap_ttl_days:, pr_comment:, schedule_prompt:,
     project_id: SyrusCoverage.root_project_id, project_label: "Repository", project_path: "",
-    owner_config_path: SyrusYml::CONFIG_FILE, coverage_base_path: nil, target_label: nil)
+    owner_config_path: Syrus::Host::SyrusYmlConfig::CONFIG_FILE, coverage_base_path: nil, target_label: nil)
     @sources        = sources
     @threshold      = threshold
     @on_miss        = on_miss
@@ -108,7 +108,7 @@ class SyrusCoverage::Plan
 
   def coverage_base_path_for(owner_config_path)
     path = owner_config_path.to_s
-    return "" if path.blank? || path == SyrusYml::CONFIG_FILE
+    return "" if path.blank? || path == Syrus::Host::SyrusYmlConfig::CONFIG_FILE
 
     File.dirname(path)
   end

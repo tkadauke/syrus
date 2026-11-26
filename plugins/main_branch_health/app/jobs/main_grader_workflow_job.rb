@@ -11,7 +11,7 @@ class MainGraderWorkflowJob < Syrus::Host::BackgroundJob
   # re-trigger for the latest SHA once the active one finishes. The repository's
   # last_graded_sha advances only after the workflow records a settled result.
   def perform(repository_id, sha, previous_main_sha: nil, base_branch: nil)
-    repository = Repository.find_by(id: repository_id)
+    repository = Syrus::Host::RepositoryRecord.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
     health_branch = base_branch.presence || repository.default_branch
@@ -21,8 +21,8 @@ class MainGraderWorkflowJob < Syrus::Host::BackgroundJob
     user = repository.user
     return unless user
 
-    Job.transaction do
-      job = Job.create!(
+    Syrus::Host::JobRecord.transaction do
+      job = Syrus::Host::JobRecord.create!(
         user: user,
         repository: repository,
         kind: "main_grader",
@@ -34,27 +34,27 @@ class MainGraderWorkflowJob < Syrus::Host::BackgroundJob
       artifacts["previous_main_sha"] = previous_main_sha if previous_main_sha.present?
       artifacts = Syrus::Host::RebaseTarget.artifacts(artifacts: artifacts, base_branch: base_branch)
 
-      workflow = WorkUnits::Launcher.instantiate(
+      workflow = Syrus::Host::WorkLauncher.instantiate(
         kind: "main_grader",
         job: job,
         artifacts: artifacts
       )
 
-      WorkUnits::Launcher.start!(workflow)
+      Syrus::Host::WorkLauncher.start!(workflow)
     end
   end
 
   private
 
   def active_grading_workflow?(repository)
-    Job.where(
+    Syrus::Host::JobRecord.where(
       repository: repository,
       kind: "main_grader"
     ).where.not(state: "closed").exists?
   end
 
   def active_main_branch_repair_workflow?(repository, sha)
-    Job.where(
+    Syrus::Host::JobRecord.where(
       repository: repository,
       system_kind: Syrus::Host::JobSystemKindMainBranchRepair
     ).where.not(state: "closed").any? do |job|

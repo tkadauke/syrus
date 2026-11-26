@@ -42,8 +42,8 @@ class MainHealthChangedService
       prompt = fix_job_prompt
       if job.issue_body != prompt && job.definition_editable?
         begin
-          JobDefinitionUpdater.new(job).update!(description: prompt, preserve_updated_at: true)
-        rescue JobDefinitionUpdater::Immutable
+          Syrus::Host::JobDefinitionUpdater.new(job).update!(description: prompt, preserve_updated_at: true)
+        rescue Syrus::Host::JobDefinitionUpdater::Immutable
           # The Job started after the preliminary check; its definition is now frozen.
         end
       end

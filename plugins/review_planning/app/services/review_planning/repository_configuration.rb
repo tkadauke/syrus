@@ -2,7 +2,7 @@ module ReviewPlanning
   # Owns the legacy bare-boolean `review_plan:` key. It is accepted so older
   # repositories stay valid, but it no longer changes any workflow.
   class RepositoryConfiguration
-    include Syrus::Plugin::RepositoryConfiguration
+    include Syrus::Host::RepositoryConfiguration
 
     KEY = "review_planning.config".freeze
 

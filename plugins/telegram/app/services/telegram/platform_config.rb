@@ -3,7 +3,7 @@ module Telegram
   # via Telegram::PlatformAdapter.platform_config_class, which
   # PlatformIdentity::PlatformConfig::Base.for consults for platforms
   # registered through the :platform_delivery extension point.
-  class PlatformConfig < PlatformIdentity::PlatformConfig::Base
+  class PlatformConfig < Syrus::Host::PlatformConfigBase
     def configured?
       Telegram::BotAccess.configured?
     end

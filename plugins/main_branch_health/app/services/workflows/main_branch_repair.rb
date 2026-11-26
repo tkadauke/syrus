@@ -19,7 +19,7 @@ module Workflows
   # implement → grade loop → summarize → test_plan → pr_open. The agent
   # implements a fix, opens a PR, and PollPullRequestJob calls
   # MainHealthChangedService.repair_landed! when the PR merges.
-  class MainBranchRepair < Base
+  class MainBranchRepair < Syrus::Host::WorkflowBase
     def self.trigger_kind = "main_branch_repair"
 
     def self.steps_for(job)
@@ -101,7 +101,7 @@ module Workflows
     end
 
     private_class_method def self.close_anchor_job!(workflow, reason: "preflight_passed")
-      StateTransition.with_source("system") do
+      Syrus::Host::StateTransition.with_source("system") do
         job = workflow.job.reload
         job.close_with_reason!(reason) if job.may_close?
       end

@@ -3,7 +3,7 @@ module Achievements
   # (definition, owner): an instance unlock is owned by the installation, a user
   # unlock by the attributed user. The unique index makes repeated delivery of
   # the same domain event idempotent; `record!` is the only intended writer.
-  class Unlock < ApplicationRecord
+  class Unlock < Syrus::Host::Record
     self.table_name = "achievements_unlocks"
 
     EVIDENCE_MAX_BYTES = 4096

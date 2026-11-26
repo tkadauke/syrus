@@ -3,7 +3,7 @@ module Telegram
   # chat replies to a linked user's Telegram chat. See Telegram::PollUpdatesJob
   # for the inbound half (account linking + message routing).
   class PlatformAdapter
-    include Syrus::Plugin::PlatformDelivery
+    include Syrus::Host::PlatformDelivery
 
     TELEGRAM_MAX_CHARS = 4096
 

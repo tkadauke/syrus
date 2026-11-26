@@ -232,10 +232,10 @@ module JavaScript
     # timed out at 20 minutes on every iteration of a production Job. An
     # explicit `resources:` in `.syrus.yml` wins either way.
     def resource_request_for(_mode)
-      explicit = GraderResourceRequest.parse(config["resources"])
+      explicit = Syrus::Host::GraderResourceRequest.parse(config["resources"])
       return explicit if explicit
 
-      GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2)
+      Syrus::Host::GraderResourceRequest.new(cpu: Syrus::Host::GraderResourceRequest::ALL, cpu_min: 2)
     end
 
     def junit_output(name)

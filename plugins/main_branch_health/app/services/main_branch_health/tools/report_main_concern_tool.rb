@@ -32,17 +32,17 @@ module MainBranchHealth
 
       class << self
         def call(reason:, failing_tests: nil, server_context:)
-          run = ::Mcp::Tools.run_from_context(server_context)
+          run = ::Syrus::Host::McpTools.run_from_context(server_context)
 
-          normalized_reason = ::Mcp::Tools.utf8(reason).strip
-          return ::Mcp::Tools.invalid("reason is required") if normalized_reason.empty?
+          normalized_reason = ::Syrus::Host::McpTools.utf8(reason).strip
+          return ::Syrus::Host::McpTools.invalid("reason is required") if normalized_reason.empty?
 
-          normalized_tests = Array(failing_tests).map { |t| ::Mcp::Tools.utf8(t).strip }.reject(&:empty?)
+          normalized_tests = Array(failing_tests).map { |t| ::Syrus::Host::McpTools.utf8(t).strip }.reject(&:empty?)
 
           repository = run.job.repository
 
           if timeout_only_failure?(repository, run)
-            return ::Mcp::Tools.invalid(
+            return ::Syrus::Host::McpTools.invalid(
               "latest grader failures are timeout-only and inconclusive; do not report main broken solely from timeout output"
             )
           end
@@ -57,7 +57,7 @@ module MainBranchHealth
             failing_tests: normalized_tests.presence
           )
 
-          ::Mcp::Tools.write_log(run, "[mcp] report_main_concern: #{normalized_reason.truncate(120)}")
+          ::Syrus::Host::McpTools.write_log(run, "[mcp] report_main_concern: #{normalized_reason.truncate(120)}")
 
           MainConcernAggregator.check!(repository)
 

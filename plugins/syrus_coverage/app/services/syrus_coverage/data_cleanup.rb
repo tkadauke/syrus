@@ -5,13 +5,13 @@ module SyrusCoverage
   module DataCleanup
     def self.install_into(scope)
       scope.effect("workflow coverage hit maps") do
-        Syrus::DataCleanup.register("Workflow", "syrus_coverage.hit_maps") do |workflow|
+        Syrus::Host::DataCleanup.register("Workflow", "syrus_coverage.hit_maps") do |workflow|
           SyrusCoverage::HitMap.purge_for!(workflow)
         end
       end
 
       scope.effect("repository coverage snapshots") do
-        Syrus::DataCleanup.register("Repository", "syrus_coverage.snapshots") do |repository|
+        Syrus::Host::DataCleanup.register("Repository", "syrus_coverage.snapshots") do |repository|
           SyrusCoverage::Snapshot.where(repository_id: repository.id).delete_all
         end
       end

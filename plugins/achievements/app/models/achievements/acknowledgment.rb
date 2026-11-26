@@ -1,7 +1,7 @@
 module Achievements
   # One user's acknowledgment of one unlock ("I have seen this"). Per-user even
   # for instance unlocks, so acknowledging never changes canonical unlock state.
-  class Acknowledgment < ApplicationRecord
+  class Acknowledgment < Syrus::Host::Record
     self.table_name = "achievements_acknowledgments"
 
     belongs_to :unlock, class_name: "Achievements::Unlock", inverse_of: :acknowledgments

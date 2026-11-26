@@ -24,7 +24,7 @@ module Telegram
 
     module_function
 
-    def legacy_token = AppSetting.telegram_bot_token
+    def legacy_token = Syrus::Host::AppSetting.telegram_bot_token
 
     def call_if_due
       return unless legacy_token.present?
@@ -45,7 +45,7 @@ module Telegram
       return fail_with("account is not connected") unless account.connected?
       return rollback(account, created) unless verified?(account)
 
-      AppSetting.current.update!(telegram_bot_token: nil)
+      Syrus::Host::AppSetting.current.update!(telegram_bot_token: nil)
       :migrated
     rescue StandardError => error
       fail_with(error.message, secret: legacy)
@@ -59,7 +59,7 @@ module Telegram
       return if @retired
 
       @retired = true
-      AppSetting.where.not(telegram_bot_token: nil).update_all(telegram_bot_token: nil)
+      Syrus::Host::AppSetting.where.not(telegram_bot_token: nil).update_all(telegram_bot_token: nil)
     end
 
     def reset!
@@ -76,7 +76,7 @@ module Telegram
     end
 
     def connect(legacy)
-      admin = User.where(global_role: "admin").order(:id).first
+      admin = Syrus::Host::UserRecord.where(global_role: "admin").order(:id).first
       return unless admin
 
       ConnectedAccounts::TokenBroker.connect!(provider: PROVIDER, token: legacy, label: nil, admin: admin)

@@ -2,7 +2,7 @@
 # `lib/` directory is put on $LOAD_PATH, and `lib/coverage.rb` would shadow
 # Ruby's own `coverage` library (which SimpleCov and the test runner require).
 module SyrusCoverage
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   # The id the target graph gives the implicit repository-root project. It is
   # stored on snapshots and compared in artifacts, so it is a literal here and a

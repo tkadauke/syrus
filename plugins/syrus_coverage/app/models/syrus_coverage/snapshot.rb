@@ -1,4 +1,4 @@
-class SyrusCoverage::Snapshot < ApplicationRecord
+class SyrusCoverage::Snapshot < Syrus::Host::Record
   self.table_name = "syrus_coverage_snapshots"
 
   belongs_to :repository, class_name: "::Repository"

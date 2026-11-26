@@ -1,5 +1,5 @@
 module GoogleWorkspace
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   CALENDAR_SCOPE = "calendar.read".freeze
   MAIL_SCOPE = "mail.read".freeze

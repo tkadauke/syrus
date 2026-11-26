@@ -1,6 +1,6 @@
 module ReviewPlanning
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
     ROLES = [ "workflow:summary_test_plan" ].freeze
     CAPABILITY = "review_planning.submit@v1"
@@ -13,7 +13,7 @@ module ReviewPlanning
 
     OPERATIONS.each_value do |operation|
       register_capability(
-        capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        capability: CAPABILITY, operation:, presentation: Syrus::Host::PermissionCapabilityPresentation.for(capability: CAPABILITY, operation:),
         # The agent records its own self-review on its own workflow; the only
         # outward effect is the step's PR comment, posted by the harness.
         essential: true,

@@ -9,7 +9,7 @@ module SyrusCoverage
   #   - coverage was not configured or artifacts are unavailable
   #   - pr_comment: false in the coverage plan
   #   - the Job has no PR yet (shouldn't happen here, but safe to guard)
-  class PrCommentStep < Steps::Base
+  class PrCommentStep < Syrus::Host::StepHandlerBase
     def call
       pr_comment_body = workflow.artifact("coverage")&.[]("pr_comment_body")
 
@@ -25,7 +25,7 @@ module SyrusCoverage
       end
 
       pr_repo   = job.effective_pr_repository
-      client    = GithubClient.for_authorship(repository: pr_repo, job: job)
+      client    = Syrus::Host::GithubClient.for_authorship(repository: pr_repo, job: job)
       repo_slug = pr_repo.slug
 
       upsert_coverage_comment(client, repo_slug, pr_number, pr_comment_body)

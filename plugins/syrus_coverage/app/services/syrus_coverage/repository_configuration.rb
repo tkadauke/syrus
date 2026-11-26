@@ -7,7 +7,7 @@ module SyrusCoverage
   # The parsed value is a SyrusCoverage::Plan (the repository-wide plan; the
   # per-project copy is made by Plan#with_project).
   class RepositoryConfiguration
-    include Syrus::Plugin::RepositoryConfiguration
+    include Syrus::Host::RepositoryConfiguration
 
     KEY = "syrus_coverage.config".freeze
 
@@ -41,15 +41,15 @@ module SyrusCoverage
 
     def self.parse_plan(raw)
       return nil if raw.nil?
-      raise SyrusYml::ParseError, "coverage: must be a mapping" unless raw.is_a?(Hash)
+      raise Syrus::Host::SyrusYmlParseError, "coverage: must be a mapping" unless raw.is_a?(Hash)
 
       on_miss = (raw["on_miss"] || SyrusCoverage::Plan::DEFAULT_ON_MISS).to_s.strip
       unless SyrusCoverage::Plan::VALID_ON_MISS.include?(on_miss)
-        raise SyrusYml::ParseError, "coverage.on_miss: must be one of #{SyrusCoverage::Plan::VALID_ON_MISS.join(', ')}"
+        raise Syrus::Host::SyrusYmlParseError, "coverage.on_miss: must be one of #{SyrusCoverage::Plan::VALID_ON_MISS.join(', ')}"
       end
 
       hitmap_ttl_days = raw.key?("hitmap_ttl_days") ? Integer(raw["hitmap_ttl_days"]) : SyrusCoverage::Plan::DEFAULT_HITMAP_TTL_DAYS
-      raise SyrusYml::ParseError, "coverage.hitmap_ttl_days: must be positive" unless hitmap_ttl_days > 0
+      raise Syrus::Host::SyrusYmlParseError, "coverage.hitmap_ttl_days: must be positive" unless hitmap_ttl_days > 0
 
       SyrusCoverage::Plan.new(
         sources: parse_sources(raw["sources"]),
@@ -60,23 +60,23 @@ module SyrusCoverage
         schedule_prompt: raw["schedule_prompt"].to_s.strip.presence
       )
     rescue ArgumentError, TypeError
-      raise SyrusYml::ParseError, "coverage.hitmap_ttl_days: must be an integer"
+      raise Syrus::Host::SyrusYmlParseError, "coverage.hitmap_ttl_days: must be an integer"
     end
 
     def self.parse_sources(raw)
-      raise SyrusYml::ParseError, "coverage.sources: must be an array" unless raw.is_a?(Array)
-      raise SyrusYml::ParseError, "coverage.sources: must not be empty" if raw.empty?
+      raise Syrus::Host::SyrusYmlParseError, "coverage.sources: must be an array" unless raw.is_a?(Array)
+      raise Syrus::Host::SyrusYmlParseError, "coverage.sources: must not be empty" if raw.empty?
 
       raw.each_with_index.map do |item, index|
         label = "coverage.sources[#{index}]"
-        raise SyrusYml::ParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
+        raise Syrus::Host::SyrusYmlParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
 
         artifact = item["artifact"].to_s.strip
-        raise SyrusYml::ParseError, "#{label}.artifact: is required" if artifact.empty?
+        raise Syrus::Host::SyrusYmlParseError, "#{label}.artifact: is required" if artifact.empty?
 
         format = item["format"].to_s.strip.downcase
         unless SyrusCoverage::Plan::VALID_FORMATS.include?(format)
-          raise SyrusYml::ParseError, "#{label}.format: must be one of #{SyrusCoverage::Plan::VALID_FORMATS.join(', ')}"
+          raise Syrus::Host::SyrusYmlParseError, "#{label}.format: must be one of #{SyrusCoverage::Plan::VALID_FORMATS.join(', ')}"
         end
 
         SyrusCoverage::Plan::Source.new(artifact: artifact, format: format)

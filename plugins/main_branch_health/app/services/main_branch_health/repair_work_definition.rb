@@ -1,5 +1,5 @@
 module MainBranchHealth
-  class RepairWorkDefinition < ::WorkDefinitions::Base
+  class RepairWorkDefinition < ::Syrus::Host::WorkDefinitionBase
     include Syrus::Host::WorkDefinitionsAgentConcurrencyExempt
     include Syrus::Host::WorkDefinitionsOpensReviewPullRequest
     include Syrus::Host::WorkDefinitionsManagesOwnJobLifecycle

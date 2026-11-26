@@ -1,7 +1,7 @@
 module SyrusMail
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT, AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].freeze
+    include Syrus::Host::PermissionProvider
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT, Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ].freeze
     OPERATIONS = { "mail_search" => "mail/search@v1", "mail_read_message" => "mail.message/read@v1" }.freeze
 
     class << self
@@ -17,7 +17,7 @@ module SyrusMail
 
     OPERATIONS.each_value do |operation|
       register_capability capability: "mail.read@v1", operation:,
-        presentation: Permissions::CapabilityPresentation.for(capability: "mail.read@v1", operation:),
+        presentation: Syrus::Host::PermissionCapabilityPresentation.for(capability: "mail.read@v1", operation:),
         effects: %i[network_read confidential_read credential_use], risk: :medium,
         requestable_roles: ROLES, defaults: ROLES.index_with { :ask }, maximum_autonomy: :permanent,
         authority_durations: %i[invocation chat_session job permanent], resource_scope: :connected_account,

@@ -17,7 +17,7 @@ module Workflows
   # MainHealthChangedService when the health signal transitions.
   # The anchor Job is closed by the hook in both cases; it is excluded from
   # the operator UI (main_grader kind is filtered out of dashboard queries).
-  class MainGrader < Base
+  class MainGrader < Syrus::Host::WorkflowBase
     SOLID_QUEUE_PRIORITY = Syrus::Host::JobPriorityToSq.fetch("urgent") - 10
 
     steps :prepare, :builder_fanout, :grader_fanout, :grader_collect
@@ -256,7 +256,7 @@ module Workflows
     end
 
     private_class_method def self.close_anchor_job!(workflow)
-      StateTransition.with_source("system") do
+      Syrus::Host::StateTransition.with_source("system") do
         job = workflow.job
         job.close_with_reason!(Syrus::Host::JobMainGraderClosureReason) if job.may_close?
       end

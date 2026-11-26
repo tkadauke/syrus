@@ -409,7 +409,7 @@ class MainHealthChangedService
     retried = 0
     attempted_job_ids = {}
 
-    recent_failed_ids = Workflow
+    recent_failed_ids = Syrus::Host::WorkflowRecord
       .joins(:job)
       .where(jobs: { repository_id: @repository.id })
       .where.not(jobs: { state: "closed" })
@@ -420,7 +420,7 @@ class MainHealthChangedService
 
     return retried if recent_failed_ids.empty?
 
-    candidates = Workflow
+    candidates = Syrus::Host::WorkflowRecord
       .where(id: recent_failed_ids)
       .joins(:workflow_artifact_values)
       .where(workflow_artifact_values: { key: "main_broken", value: true })
@@ -428,12 +428,12 @@ class MainHealthChangedService
     candidate_ids_and_job_ids = candidates.pluck(:id, :job_id)
     return retried if candidate_ids_and_job_ids.empty?
 
-    latest_workflow_ids = Workflow
+    latest_workflow_ids = Syrus::Host::WorkflowRecord
       .where(job_id: candidate_ids_and_job_ids.map(&:last).uniq)
       .group(:job_id)
       .maximum(:id)
 
-    Workflow
+    Syrus::Host::WorkflowRecord
       .where(id: candidate_ids_and_job_ids.map(&:first))
       .includes(:job)
       .find_each(order: :desc) do |workflow|
@@ -515,7 +515,7 @@ class MainHealthChangedService
   end
 
   def permanently_blocked_from_rebase?(job)
-    return false unless RebaseAttemptGuard.permanently_blocked?(job)
+    return false unless Syrus::Host::RebaseAttemptGuard.permanently_blocked?(job)
 
     Rails.logger.info(
       "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
@@ -528,7 +528,7 @@ class MainHealthChangedService
     user = @repository.user
     return unless user
 
-    Job.transaction do
+    Syrus::Host::JobRecord.transaction do
       job = create_fix_job(user)
       next blocking_fix_job unless job
 
@@ -601,7 +601,7 @@ class MainHealthChangedService
     return if sha == "unknown"
 
     open_failed_fix_jobs
-      .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+      .where("jobs.issue_body LIKE ?", "%Commit: #{Syrus::Host::JobRecord.sanitize_sql_like(sha)}%")
       .order(updated_at: :desc, id: :desc)
       .first
   end
@@ -612,7 +612,7 @@ class MainHealthChangedService
 
     repair_jobs
       .where(needs_attention_reason: Syrus::Host::GraderLoopProgressNoProgressReason)
-      .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+      .where("jobs.issue_body LIKE ?", "%Commit: #{Syrus::Host::JobRecord.sanitize_sql_like(sha)}%")
       .order(updated_at: :desc, id: :desc)
       .first
   end
@@ -623,7 +623,7 @@ class MainHealthChangedService
 
     candidates = repair_jobs
       .where(state: "closed", closure_reason: "preflight_passed")
-      .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+      .where("jobs.issue_body LIKE ?", "%Commit: #{Syrus::Host::JobRecord.sanitize_sql_like(sha)}%")
 
     if @repository.ci_health_broken?
       fingerprint = repair_evidence_fingerprint(sha, signal: :ci)
@@ -784,7 +784,7 @@ class MainHealthChangedService
     return @latest_default_branch_sha if defined?(@latest_default_branch_sha)
 
     @latest_default_branch_sha = if @repository.user
-      GithubClient
+      Syrus::Host::GithubClient
         .for(repository: @repository, user: @repository.user)
         .branch_head_sha(@repository.slug, @repository.default_branch)
         .to_s
