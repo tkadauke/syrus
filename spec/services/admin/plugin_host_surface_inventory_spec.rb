@@ -36,6 +36,7 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
       RUBY
       write(root, "plugins/beta/lib/beta.rb", "module OtherPlugin; end\nclass SharedName; end\n")
       surface = instance_double(Syrus::PluginHostSurface)
+      allow(surface).to receive(:public?).and_return(false)
       allow(surface).to receive(:allowed_internal?) { |name| name == "CoreThing" }
 
       results = described_class.new(root:, surface:).results

@@ -151,7 +151,7 @@ module Admin
     def results
       references.group_by(&:constant).map do |constant, refs|
         counts = refs.group_by(&:plugin).transform_values(&:count).sort.to_h
-        tier = if Syrus::Host.public?(constant)
+        tier = if @surface.public?(constant)
           "public"
         elsif @surface.allowed_internal?(constant)
           "allowlisted"

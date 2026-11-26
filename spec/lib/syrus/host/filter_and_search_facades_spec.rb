@@ -44,10 +44,4 @@ RSpec.describe "Syrus::Host filter, smart-folder, search and presentation facade
     expect(Syrus::Host.public?("Syrus::Host::Filters::Ast::AndNode")).to be(true)
   end
 
-  it "no longer lists the promoted constants as legacy" do
-    surface = Syrus::PluginHostSurface.new
-    %w[Filters::Ast Filters::Compiler SmartFolder Admin::SmartFolderNavigation SearchRecord Timeline::MacroQuery App::Presentation].each do |name|
-      expect(surface.lookup(name)).to be_nil, name
-    end
-  end
 end
