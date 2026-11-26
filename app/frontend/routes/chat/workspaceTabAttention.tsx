@@ -8,14 +8,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { ChatPayload } from "../../api/chats"
 import { previewTabId, pluginTabId, type WorkspaceTab } from "./workspaceTabs"
+import { AttentionBadge } from "../../components/AttentionBadge"
 
 export type TabAttention = { count: number; dot: boolean }
 export type TabAttentionMap = Partial<Record<WorkspaceTab, TabAttention>>
 export type TabAttentionEvent = { tab: WorkspaceTab; count?: number }
 
 const MAX_BADGE_COUNT = 9
-const COUNT_BADGE_CLASS = "ml-1.5 inline-flex min-w-4 shrink-0 items-center justify-center rounded-full bg-danger px-1"
-const COUNT_TEXT_CLASS = "text-2xs font-semibold leading-4 text-surface"
+const COUNT_BADGE_CLASS = "ml-1.5 inline-flex min-w-4 shrink-0 items-center justify-center rounded-full px-1"
+const COUNT_TEXT_CLASS = "text-2xs font-semibold leading-4"
 
 // Plugin tabs signal change through their own `data`; the whiteboard's scene
 // lives outside tab data (payload.whiteboard), so a component may register an
@@ -119,12 +120,12 @@ export function workspaceTabBadge(entry: TabAttention | undefined, t: Translate)
   if (entry.count > 0) {
     const text = entry.count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(entry.count)
     return (
-      <span className={COUNT_BADGE_CLASS} data-testid="workspace-tab-badge">
+      <AttentionBadge className={COUNT_BADGE_CLASS} data-testid="workspace-tab-badge">
         <span aria-hidden="true" className={COUNT_TEXT_CLASS}>
           {text}
         </span>
         <span className="sr-only">{t("tab_attention_new_items", { count: entry.count })}</span>
-      </span>
+      </AttentionBadge>
     )
   }
 

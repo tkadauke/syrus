@@ -33,7 +33,7 @@ describe("RepositoryTabs", () => {
 
     const badge = screen.getByText("!")
     expect(badge).toBeInTheDocument()
-    expect(badge).toHaveClass("bg-red-500")
+    expect(badge).toHaveClass("bg-danger", "text-surface")
   })
 
   it("renders no badge on the Health tab when the main branch is healthy", () => {

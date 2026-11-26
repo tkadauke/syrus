@@ -2176,7 +2176,7 @@ describe("AppChromeV2 primary nav reordering", () => {
         return Promise.resolve(jsonResponse({ pages: [badgedPage] }))
       }
       if (path === "/api/v1/app/badged/count") {
-        return Promise.resolve(jsonResponse({ count: 0 }))
+        return Promise.resolve(jsonResponse({ count: 2 }))
       }
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
     })
@@ -2194,6 +2194,9 @@ describe("AppChromeV2 primary nav reordering", () => {
     await waitFor(() => {
       expect(queryClient.getQueryState(["sidebar_badge", "badged.page"])?.status).toBe("success")
     })
+    const badge = within(primaryNav).getByText("2")
+    expect(badge).toHaveClass("bg-danger", "text-surface")
+    expect(badge).not.toHaveClass("bg-red-500", "text-white")
 
     const scheduleRow = within(primaryNav).getByRole("link", { name: "Repositories" }).parentElement!
     const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
