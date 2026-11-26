@@ -17,12 +17,14 @@ module Deploy
       deployment/syrus-web
       deployment/syrus-worker-home
       daemonset/syrus-worker-compute
+      daemonset/syrus-worker-compute-large
       deployment/syrus-preview
     ].freeze
 
     DEFAULT_WORKER_WORKLOADS = %w[
       deployment/syrus-worker-home
       daemonset/syrus-worker-compute
+      daemonset/syrus-worker-compute-large
     ].freeze
 
     Cluster = Struct.new(:label, :kubeconfig, :namespace, keyword_init: true)
