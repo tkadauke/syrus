@@ -9,11 +9,13 @@ module RuntimeImages
   class BuiltImages
     DEFAULT_PLATFORM = "linux/amd64".freeze
 
-    def initialize(service: Service.new, engine: WorkerCache::CliEngine.new, cache: nil, provider_key: OciRegistry::Provider::KEY)
+    def initialize(service: Service.new, engine: WorkerCache::CliEngine.new, cache: nil, provider_key: OciRegistry::Provider::KEY,
+                   supply_chain_scanner: nil)
       @service = service
       @engine = engine
       @cache = cache
       @provider_key = provider_key
+      @supply_chain_scanner = supply_chain_scanner
     end
 
     # True when the provider can store images. Callers that can run without
@@ -36,7 +38,8 @@ module RuntimeImages
         namespace: namespace_for(owner_kind, owner_ref), source_kind: source_kind.to_s, source_ref: source_ref.to_s,
         source_digest: source_digest, platform: platform, provenance: provenance, payload: payload
       )
-      attempt = Verifications::Orchestrator.new(service: @service).verify(image)
+      scanner = @supply_chain_scanner || Verifications::SupplyChainScanner.new(built_images: self)
+      attempt = Verifications::Orchestrator.new(service: @service, supply_chain_scanner: scanner).verify(image)
       raise Error, "published runtime image #{image.digest} failed verification: #{attempt.failure_code}" unless attempt.accepted?
 
       image
