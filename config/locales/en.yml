@@ -81,6 +81,8 @@ en:
         session_mismatch: "must belong to the resumable user and match the session provider"
         run_mismatch: "must belong to the Run user and provider"
         workflow_mismatch: "must belong to the Workflow user and provider"
+      recovery_intervention:
+        failure_evidence_must_be_object: "must be an object"
       plugin_installation:
         release_name_mismatch: "must match the release name"
         invalid_roles_shape: "must be an array of non-empty names"

@@ -15,6 +15,6 @@ class RecoveryIntervention < ApplicationRecord
   private
 
   def failure_evidence_is_object
-    errors.add(:failure_evidence, "must be an object") unless failure_evidence.is_a?(Hash)
+    errors.add(:failure_evidence, I18n.t("server.errors.recovery_intervention.failure_evidence_must_be_object")) unless failure_evidence.is_a?(Hash)
   end
 end

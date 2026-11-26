@@ -48,6 +48,8 @@ de:
         session_mismatch: "muss zum Benutzer des fortsetzbaren Vorgangs und zum Sitzungsanbieter gehören"
         run_mismatch: "muss zum Benutzer und Anbieter des Laufs gehören"
         workflow_mismatch: "muss zum Benutzer und Anbieter des Workflows gehören"
+      recovery_intervention:
+        failure_evidence_must_be_object: "muss ein Objekt sein"
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
       plugin_installation:
