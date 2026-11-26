@@ -46,6 +46,8 @@ la:
         session_mismatch: "ad usorem rei resumendae et provisorem sessionis pertinere debet"
         run_mismatch: "ad usorem et provisorem cursus pertinere debet"
         workflow_mismatch: "ad usorem et provisorem cursus operis pertinere debet"
+      recovery_intervention:
+        failure_evidence_must_be_object: "obiectum esse debet"
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
       plugin_installation:
