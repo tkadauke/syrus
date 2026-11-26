@@ -1651,7 +1651,7 @@ function StepCard({
   const cancellationNotice = stepCancellationNotice(step)
   const agentic = stepAgentic(step)
   const diagnosticRelevant = Boolean(activeRun) || isDiagnosticRelevantStep(step)
-  const stepDisplayName = collectorDecisionLabel(step, payload, t) || displayName || step.display_name
+  const stepDisplayName = collectorDecisionLabel(step, workflowId, payload, t) || displayName || step.display_name
 
   const artifacts = workflowArtifacts ?? {}
   const summaryArtifact =
@@ -1758,9 +1758,10 @@ function StepCard({
   )
 }
 
-function collectorDecisionLabel(step: JobStep, payload: JobDetailPayload, t: (key: string) => string) {
+function collectorDecisionLabel(step: JobStep, workflowId: number, payload: JobDetailPayload, t: (key: string) => string) {
   if (step.kind !== "grader_collect" && step.kind !== "preflight_grader_collect") return null
   if (step.state !== "failed" || !payload.actions.recovery_decision) return null
+  if (payload.actions.recovery_decision.evidence.source_workflow_id !== workflowId) return null
   if (payload.actions.recovery_decision.kind === "grader_loop_no_progress") return t("grader_loop_decision_stopped")
   return t("grader_loop_decision_continued")
 }
