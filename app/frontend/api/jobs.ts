@@ -1105,6 +1105,8 @@ export type RunFailureClassification = {
 
 export type JobActions = {
   can_write: boolean
+  recovery_decision?: JobRecoveryDecision | null
+  recovery_timeline?: JobRecoveryIntervention[]
   can_override_planned_execution?: boolean
   planned_execution_override_blocked_reason?: string | null
   can_submit_feedback?: boolean
@@ -1155,6 +1157,20 @@ export type JobActions = {
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]
+}
+
+export type JobRecoveryDecision = {
+  kind: string
+  recommended_action: "rerun_unchanged" | "resume" | "repair_with_guidance" | "fresh_implementation" | "restart"
+  mode: string
+  explanation: string
+  guidance?: string | null
+  evidence: { source_workflow_id?: number; source_revision?: string; failure_classification?: string; measured_failure_identities?: string[]; compared_iterations?: Record<string, number>; rounds?: Array<Record<string, unknown>> }
+}
+
+export type JobRecoveryIntervention = {
+  id: number; action: string; actor: string; actor_type: string; origin: string
+  reason?: string | null; guidance?: string | null; source_revision?: string | null; resulting_revision?: string | null; performed_at?: string | null
 }
 
 export type JobResetAction = {

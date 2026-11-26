@@ -102,6 +102,7 @@ import {
 } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
+import { RecoveryCard } from "./jobDetail/RecoveryCard"
 import { AgentConversationTab } from "./jobDetail/AgentConversation"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
@@ -995,6 +996,7 @@ function SummaryTab({
   const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
+      <RecoveryCard command={command} payload={payload} />
       <NeedsAttentionBanner command={command} job={payload.job} />
       <TriageDecisionBanner job={payload.job} />
       <JobSummaryNotices command={command} payload={payload} prefix={prefix} showUnsatisfiedDependencies={showUnsatisfiedDependencies} />

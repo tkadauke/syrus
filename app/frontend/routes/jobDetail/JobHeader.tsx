@@ -884,21 +884,27 @@ function HeaderActionsMenu({
   )
 }
 
-function RetryFeedbackDialog({
+export function RetryFeedbackDialog({
   command,
+  initialFeedback = "",
   input,
   onClose,
-  payload
+  payload,
+  required = false,
+  submitLabel
 }: {
   command: ReturnType<typeof useJobCommand>
+  initialFeedback?: string
   input: RetryPostInput
   onClose: () => void
   payload: JobDetailPayload
+  required?: boolean
+  submitLabel?: string
 }) {
   const { t } = useT("jobs")
   const defaultProvider = payload.job.agent_provider || ""
   const [provider, setProvider] = useState(defaultProvider)
-  const [feedback, setFeedback] = useState("")
+  const [feedback, setFeedback] = useState(initialFeedback)
   const trimmedFeedback = feedback.trim()
   const providerOptions = retryProviderOptions(payload)
 
@@ -956,14 +962,15 @@ function RetryFeedbackDialog({
             id="retry-feedback-text"
             onChange={(event) => setFeedback(event.target.value)}
             placeholder={t("retry_feedback_placeholder")}
+            required={required}
             value={feedback}
           />
           <div className="flex flex-wrap justify-end gap-2">
             <Button disabled={command.isPending} onClick={onClose} variant="secondary">
               {t("cancel")}
             </Button>
-            <Button disabled={command.isPending} type="submit" variant="primary">
-              {command.isPending ? t("retrying") : t("retry")}
+            <Button disabled={command.isPending || (required && !trimmedFeedback)} type="submit" variant="primary">
+              {command.isPending ? t("retrying") : submitLabel || t("retry")}
             </Button>
           </div>
         </form>
