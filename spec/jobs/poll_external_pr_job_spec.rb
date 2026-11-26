@@ -741,6 +741,26 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(landing.reload).to be_cancelled
     end
 
+    it "retains accepted feedback behind unrelated active work" do
+      active_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: external_pr_job)
+      external_pr_job.approve!(via: "operator")
+      stub_actionable_owner_comment(body: "Fix this after the visual review")
+
+      expect {
+        described_class.perform_now(external_pr_job.id)
+      }.to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }.by(1)
+
+      feedback = external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").last
+      expect(external_pr_job.reload).to be_implemented
+      expect(external_pr_job.approved_at).to be_nil
+      expect(external_pr_job.last_seen_comment_at).to be_present
+      expect(feedback.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ActiveWorkLock::REASON
+      )
+      expect(active_workflow.work_unit.reload).to be_active
+    end
+
     it "does not set needs_attention_reason (unlike the fork waiting-state path)" do
       stub_actionable_owner_comment
 
@@ -780,14 +800,14 @@ RSpec.describe PollExternalPrJob, :ci_only do
       # race and confirm WorkUnits::Launcher itself still refuses to
       # materialize a second Workflow.
       stub_actionable_owner_comment
-      existing = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: external_pr_job)
+      existing = WorkUnits::Launcher.instantiate(kind: "external_pr_feedback", job: external_pr_job)
       allow(WorkUnits::Ownership).to receive(:active_for_job_kind?).and_return(false)
 
       expect {
         described_class.perform_now(external_pr_job.id)
       }.not_to change { Workflow.count }
 
-      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
+      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback")).to contain_exactly(existing)
       expect(existing.work_unit.reload).to be_active
     end
 

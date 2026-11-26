@@ -243,6 +243,36 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(landing.reload).to be_cancelled
     end
 
+    it "retains fresh PR feedback behind unrelated active work" do
+      active_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+      job.approve!(via: "operator")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_pr
+      stub_reviews([])
+      stub_issue_comments([
+        { id: 1, body: "please address this after the visual review",
+          user: { login: "operator" }, created_at: 1.minute.ago.iso8601 }
+      ])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      feedback = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(job.reload).to be_implemented
+      expect(job.approved_at).to be_nil
+      expect(job.last_seen_comment_at).to be_present
+      expect(feedback.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ActiveWorkLock::REASON
+      )
+      expect(active_workflow.work_unit.reload).to be_active
+    end
+
     it "closes with reason=pr_merged after a manually merged approved PR when auto-merge is disabled" do
       repository.update!(auto_merge_enabled: false)
       stub_pr(state: "closed", merged: true)
