@@ -16,8 +16,10 @@ class PollScheduledTasksJob < PluginJob
 
   # Recurring scheduler for ScheduledTask. Runs every minute, scans
   # alive+active tasks, hands the ones whose next scheduled time has
-  # arrived to ScheduledTasks::Fire (which applies the pr_pileup_policy,
-  # spawns the cron Job, and stamps last_fired_at).
+  # arrived to a per-task job. ScheduledTasks::Fire then applies the
+  # pr_pileup_policy, spawns the cron Job, and stamps last_fired_at. Keeping
+  # that work out of this scanner prevents a burst of schedules from holding
+  # one of the small polling pool's threads for the whole burst.
   #
   # The scan is deliberately join-free and sort-free: tasks are read in
   # bounded primary-key-cursor pages, then repository/user eligibility is
@@ -61,26 +63,7 @@ class PollScheduledTasksJob < PluginJob
   def process_task(task, now)
     return unless task.due?(now: now)
 
-    result = ScheduledTasks::Fire.new(task, now: now, require_due: true).call
-    if result.skipped
-      Rails.logger.info("[PollScheduledTasksJob] task ##{task.id} skipped: #{result.reason}")
-    else
-      Rails.logger.info("[PollScheduledTasksJob] task ##{task.id} fired → #{result.job.slug}")
-    end
-  rescue StandardError => e
-    begin
-      task.record_fire_failure!(e, at: now)
-    rescue StandardError => recording_error
-      Rails.logger.error(
-        "[PollScheduledTasksJob] task ##{task.id} failure record failed: " \
-        "#{recording_error.class}: #{recording_error.message}"
-      )
-    end
-    BackendExceptionLogging.ingest_job(
-      { job: self, exception_object: e, exception: [ e.class.name, e.message ] },
-      0
-    )
-    Rails.logger.warn("[PollScheduledTasksJob] task ##{task.id} fire failed: #{e.class}: #{e.message}")
+    ScheduledTasks::FireDueTaskJob.perform_later(task, now)
   end
 
   # Retries a read-only poll phase on transient MySQL capacity/lock errors.
