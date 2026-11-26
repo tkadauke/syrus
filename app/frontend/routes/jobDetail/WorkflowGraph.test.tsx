@@ -1910,24 +1910,25 @@ describe("WorkflowsTab", () => {
   })
 
   it("labels only the recovery decision's source workflow as a loop decision", () => {
-    const failedCollector = (id: number) => ({
-      id,
-      kind: "grader_collect",
-      display_name: "Aggregate graders",
-      display_status: "failed",
-      position: 1,
-      iteration: null,
-      loop_id: null,
-      state: "failed",
-      started_at: "2026-08-25T12:00:00Z",
-      finished_at: "2026-08-25T12:01:00Z",
-      created_at: "2026-08-25T12:00:00Z",
-      updated_at: "2026-08-25T12:01:00Z",
-      details: {},
-      warnings: [],
-      latest: true,
-      runs: []
-    }) as JobDetailPayload["workflows"][number]["steps"][number]
+    const failedCollector = (id: number) =>
+      ({
+        id,
+        kind: "grader_collect",
+        display_name: "Aggregate graders",
+        display_status: "failed",
+        position: 1,
+        iteration: null,
+        loop_id: null,
+        state: "failed",
+        started_at: "2026-08-25T12:00:00Z",
+        finished_at: "2026-08-25T12:01:00Z",
+        created_at: "2026-08-25T12:00:00Z",
+        updated_at: "2026-08-25T12:01:00Z",
+        details: {},
+        warnings: [],
+        latest: true,
+        runs: []
+      }) as JobDetailPayload["workflows"][number]["steps"][number]
     const historicalWorkflow = { ...workflowWithStepDetails(failedCollector(30)), id: 9, slug: "WF-9", state: "failed" as const }
     const sourceWorkflow = { ...workflowWithStepDetails(failedCollector(31)), id: 10, slug: "WF-10", state: "failed" as const }
 
