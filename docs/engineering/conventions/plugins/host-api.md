@@ -354,6 +354,19 @@ Supported members:
 
 - `broadcast`
 
+### `Syrus::Host::AppPresentation`
+
+Since: `0.1.16`
+
+Formats job and epic slugs, external PR URLs and agent provider labels the way the app presents them. Only the listed members are supported.
+
+Supported members:
+
+- `agent_provider_label`
+- `epic_slug`
+- `external_pr_url`
+- `job_slug`
+
 ### `Syrus::Host::AppSetting`
 
 Since: `0.1.16`
@@ -551,6 +564,17 @@ Supported members:
 - `on_shutdown`
 - `on_tick`
 
+### `Syrus::Host::CapabilityDescriptor`
+
+Since: `0.1.16`
+
+Builds the permission capability descriptor for a plugin MCP tool definition; descriptor storage and evaluation are not promised. AUTHORITY_DURATIONS lists the approval durations a capability may allow, from shortest to longest. Only the listed members are supported.
+
+Supported members:
+
+- `AUTHORITY_DURATIONS`
+- `for_plugin_definition`
+
 ### `Syrus::Host::CapabilityDispatch`
 
 Since: `0.1.16`
@@ -571,6 +595,16 @@ Supported members:
 
 - `define`
 - `fetch`
+
+### `Syrus::Host::CapabilityPresentation`
+
+Since: `0.1.16`
+
+Builds the human-facing capability and operation names and descriptions a capability descriptor carries from its capability and operation identifiers; the wording may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `for`
 
 ### `Syrus::Host::CapabilityValidationError`
 
@@ -716,6 +750,18 @@ Supported members:
 - `set_callback`
 - `skip_callback`
 - `where`
+
+### `Syrus::Host::ChatMessageSearchIndex`
+
+Since: `0.1.16`
+
+Searches the chat message index for candidate messages and the chat sessions that match; index storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `matching_chat_session_page`
+- `search_candidates`
+- `top_matches_by_chat_session`
 
 ### `Syrus::Host::ChatMessages`
 
@@ -1348,6 +1394,18 @@ Supported members:
 
 - `for`
 
+### `Syrus::Host::CredentialProbe`
+
+Since: `0.1.16`
+
+Carries the outcome of validating a saved credential (Result) and the probe timeout (TIMEOUT_SECONDS) that agent-provider credential probes share, and validates a saved credential through call; the individual probes are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Result`
+- `TIMEOUT_SECONDS`
+- `call`
+
 ### `Syrus::Host::Current`
 
 Since: `0.1.16`
@@ -1540,6 +1598,16 @@ Supported members:
 
 - `publish`
 
+### `Syrus::Host::EvidenceRedactor`
+
+Since: `0.1.16`
+
+Redacts a nested evidence value (hashes, arrays and strings) before it is surfaced in an MCP tool result. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::ExecutionBackend`
 
 Since: `0.1.16`
@@ -1707,6 +1775,34 @@ Parses the shared filter query parameter; the grammar is not promised. Only the 
 Supported members:
 
 - `decode`
+
+### `Syrus::Host::Filters`
+
+Since: `0.1.16`
+
+The shared filter-bar contract. Ast (parse, serialize, EMPTY and the Chip, AndNode, OrNode, NotNode node types) is the filter tree wire format; QueryParam (decode, encode, PARAM_NAME) reads and writes it as the `q` request parameter; Compiler.call(ast, scope:, user:, subject:) compiles a tree onto a relation for a registered subject; Schema (for, chip_for, humanize_value) describes a subject's chips to the filter bar; Registry (exists?) answers whether a subject has a chip; SmartFolderResolution (call, PRESET_FIELD) resolves the effective filter for a request; UnknownFilterField is raised for an unsupported field; BaseFilter is the mixin for plugin filter classes (capped_count); Chips holds the chip base classes (Base, BooleanColumn, DateColumn, EnumColumn, FkColumn, FullTextStringColumn, NumberColumn, StringColumn, Jobs::JobType) a plugin subclasses to declare chips that it registers through its filter_chips surface. The built-in chip classes, registry storage and compiler internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `Ast`
+- `BaseFilter`
+- `Chips`
+- `Compiler`
+- `QueryParam`
+- `Registry`
+- `Schema`
+- `SmartFolderResolution`
+- `UnknownFilterField`
+
+### `Syrus::Host::FtsQueryParser`
+
+Since: `0.1.16`
+
+Model concern that turns a user query into a full-text search expression for a search record; parsing rules are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `parse_fts_query`
 
 ### `Syrus::Host::GatedToolSet`
 
@@ -2248,6 +2344,16 @@ Supported members:
 - `visible_to`
 - `where`
 
+### `Syrus::Host::JobStateSerializer`
+
+Since: `0.1.16`
+
+Builds the per-record degraded error entry used when one row of a list payload fails to serialize; other serializer methods are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `per_record_error`
+
 ### `Syrus::Host::JobSystemKindMainBranchRepair`
 
 Since: `0.1.16`
@@ -2612,6 +2718,18 @@ Supported members:
 
 - `stats`
 
+### `Syrus::Host::OperationalLogSearch`
+
+Since: `0.1.16`
+
+Searches the operational log index and supplies the matching MCP tool input schema; indexing and retention are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `INPUT_SCHEMA_PROPERTIES`
+- `disabled_response`
+- `search_response`
+
 ### `Syrus::Host::OperationalLogging`
 
 Since: `0.1.16`
@@ -2621,6 +2739,17 @@ Emits structured plugin diagnostic events; subscribers and storage are not promi
 Supported members:
 
 - `ingest`
+
+### `Syrus::Host::OperationalLogsPayload`
+
+Since: `0.1.16`
+
+Builds the operational log browsing payload for an admin request; payload members are not promised beyond as_json. Only the listed members are supported.
+
+Supported members:
+
+- `as_json`
+- `new`
 
 ### `Syrus::Host::Paginatable`
 
@@ -3228,6 +3357,16 @@ Supported members:
 - `OUTCOME`
 - `detect?`
 
+### `Syrus::Host::ProviderAvailability`
+
+Since: `0.1.16`
+
+Clears the cached availability of an agent provider for a user so the next check re-probes it; other availability queries are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `clear_cache!`
+
 ### `Syrus::Host::ProviderAvailabilityEvidence`
 
 Since: `0.1.16`
@@ -3780,6 +3919,16 @@ Supported members:
 - `state`
 - `workflow`
 
+### `Syrus::Host::RunArtifactsPayload`
+
+Since: `0.1.16`
+
+Builds the run artifacts payload shown for a run; payload members are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `build`
+
 ### `Syrus::Host::RunDiff`
 
 Since: `0.1.16`
@@ -3912,6 +4061,49 @@ Supported members:
 - `ConfigurationError`
 - `for`
 
+### `Syrus::Host::SearchDatabaseTasks`
+
+Since: `0.1.16`
+
+Prepares the search database and reports whether an index table exists; migration internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `prepare!`
+- `table_exists?`
+
+### `Syrus::Host::SearchIndexVersion`
+
+Since: `0.1.16`
+
+Reads and writes the content version of a plugin-owned search index so rebuilds know when an index is stale. Only the listed members are supported.
+
+Supported members:
+
+- `current`
+- `write!`
+
+### `Syrus::Host::SearchIndexWriteLimits`
+
+Since: `0.1.16`
+
+Bounds row and batch sizes of search-index writes; the limits may change between releases. Only the listed members are supported.
+
+Supported members:
+
+- `clamp_rows`
+- `row`
+
+### `Syrus::Host::SearchRecord`
+
+Since: `0.1.16`
+
+Abstract base for models stored in the dedicated search database; plugins subclass it for their index tables and may run raw statements through its connection. Schema management is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `connection`
+
 ### `Syrus::Host::Settings`
 
 Since: `0.1.16`
@@ -3958,6 +4150,32 @@ Supported members:
 Since: `0.1.16`
 
 Prevents duplicate queued instances of a plugin job; queue-lock implementation details are not promised. Only the listed members are supported.
+
+### `Syrus::Host::SmartFolder`
+
+Since: `0.1.16`
+
+Registers smart-folder subjects and reads the built-in folders for a subject; persistence and per-user folder management are not promised. COUNT_CAP is the folder-count display cap. Only the listed members are supported.
+
+Supported members:
+
+- `COUNT_CAP`
+- `builtin_definition`
+- `builtins`
+- `ensure_builtins_for_subject!`
+- `register_subject!`
+
+### `Syrus::Host::SmartFolderNavigation`
+
+Since: `0.1.16`
+
+Builds the smart-folder navigation payload for a subject and resolves the explicitly requested folder; payload members beyond the folder list are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `active_folder`
+- `folders`
+- `new`
 
 ### `Syrus::Host::SourceControlProvider`
 
@@ -4096,6 +4314,19 @@ Supported members:
 
 - `where`
 - `with_source`
+
+### `Syrus::Host::Step`
+
+Since: `0.1.16`
+
+Queries workflow steps and reads the step-kind vocabulary (Kind.label_for, AGENTIC_KINDS); dispatch and transitions are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `AGENTIC_KINDS`
+- `Kind`
+- `joins`
+- `where`
 
 ### `Syrus::Host::StepBase`
 
@@ -4362,6 +4593,28 @@ Supported members:
 - `terracotta`
 - `where`
 
+### `Syrus::Host::TimelineMacroQuery`
+
+Since: `0.1.16`
+
+Runs the worker timeline macro query for a time window and filter expression; query internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+- `capped_count`
+- `new`
+
+### `Syrus::Host::TimelineWorkflowWaterfallQuery`
+
+Since: `0.1.16`
+
+Builds the per-workflow waterfall of workflow activity; payload members are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::ToolContext`
 
 Since: `0.1.16`
@@ -4383,6 +4636,18 @@ Supported members:
 - `surface`
 - `user`
 - `workflow`
+
+### `Syrus::Host::ToolPayloadRedactor`
+
+Since: `0.1.16`
+
+Redacts secret-looking keys, values and inline assignments from a tool payload or text before it is returned to an agent; REDACTED is the placeholder it writes. The patterns it recognizes may grow. Only the listed members are supported.
+
+Supported members:
+
+- `REDACTED`
+- `redact`
+- `redact_text`
 
 ### `Syrus::Host::Toolkit`
 
