@@ -201,6 +201,7 @@ de:
       required_for_file_anchor: "muss bei Dateiverankerungen vorhanden sein"
       blank_for_file_anchor: "muss bei Dateiverankerungen leer sein"
       not_a_dns_host_name: "muss ein DNS-Hostname sein, keine IP-Adresse"
+      runtime_image_digest_mismatch: "muss mit dem unveränderlichen Laufzeit-Image übereinstimmen"
       blank_for_repository_anchor: "muss bei Repository-Verankerungen leer sein"
       repository_mismatch: "muss zum selben Repository gehören"
       same_user_required: "muss zum selben Benutzer gehören"

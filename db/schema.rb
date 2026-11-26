@@ -4240,6 +4240,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_190107) do
     t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
   end
 
+  create_table "runtime_image_verification_attempts", force: :cascade do |t|
+    t.integer "runtime_image_id", null: false
+    t.integer "number", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.string "state", limit: 24, default: "running", null: false
+    t.string "decision", limit: 24
+    t.string "failure_class", limit: 64
+    t.string "failure_code", limit: 64
+    t.string "message", limit: 500
+    t.json "policy_snapshot"
+    t.string "policy_digest", limit: 71, null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_id", "number"], name: "idx_ri_verification_attempt_number", unique: true
+    t.index ["state", "started_at"], name: "idx_ri_verification_attempt_state"
+  end
+
+  create_table "runtime_image_verification_checks", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.integer "position", null: false
+    t.string "verifier_key", limit: 100, null: false
+    t.boolean "required", default: true, null: false
+    t.string "state", limit: 24, default: "pending", null: false
+    t.string "failure_class", limit: 64
+    t.string "failure_code", limit: 64
+    t.string "message", limit: 500
+    t.json "evidence_references"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_verification_attempt_id", "position"], name: "idx_ri_verification_check_order", unique: true
+  end
+
   create_table "runtime_images", force: :cascade do |t|
     t.bigint "runtime_image_namespace_id", null: false
     t.string "digest", limit: 191, null: false
