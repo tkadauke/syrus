@@ -59,6 +59,31 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `repository_filter`
 - `system_alert_provider`
 
+## Question delivery channels
+
+Question-channel plugins declare the provisional `question_delivery` family
+capability `question_events`. Core broadcasts an immutable
+`Syrus::Host::QuestionDeliveryContext` for every `asked`, `answered`,
+`withdrawn`, and `timed_out` event. Providers create or update their platform
+copy through an existing `platform_delivery` adapter; the family does not
+duplicate outbound transport. An `answered` event with `active: false` tells
+all other channels to close their copy, as do `withdrawn` and `timed_out`.
+
+Submit inbound answers only through
+`Syrus::Host::QuestionDelivery.answer(question_id:, answers:, answered_by:,
+source:)`. The caller supplies a stable source identifying its channel. The
+method returns false when another channel already answered or the question is
+otherwise closed, preserving first-answer-wins and resuming the workflow once.
+
+```ruby
+provides question_delivery: "Acme::QuestionChannel",
+  provisional: %i[question_events]
+```
+
+The provider implements `key`, `display_name`, and
+`question_events(context)`. There are intentionally no core providers; chat
+platform plugins opt in independently.
+
 ## Workflow composition anchors
 
 The workflow kernel hosts three qualified extension points. A plugin that

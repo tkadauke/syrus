@@ -40,6 +40,7 @@ en:
   unlanding:
     disabled: "Unlanding is not enabled for this instance."
   notifications:
+    agent_question_asked: "%{job} is waiting for your answer."
     approval_request:
       one: "Approval needed: %{purpose}"
       other: "%{count} approval requests need your attention."

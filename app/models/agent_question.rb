@@ -78,8 +78,23 @@ class AgentQuestion < ApplicationRecord
   private
 
   def record_event!(event_type, source:)
-    events.create!(event_type: event_type, source: source.presence || @withdraw_source || "unknown", occurred_at: Time.current,
+    event = events.create!(event_type: event_type, source: source.presence || @withdraw_source || "unknown", occurred_at: Time.current,
       payload: { "run_id" => run_id, "chat_session_id" => chat_session_id, "answered_by_id" => answered_by_id }.compact)
+    notify_owner! if event_type == "asked" && run_id
+    event
+  end
+
+  def notify_owner!
+    job = run.job
+    NotificationService.create_for(
+      user: job.owner_user,
+      kind: "agent_question_asked",
+      job: job,
+      repository: job.repository,
+      body: I18n.t("notifications.agent_question_asked", job: job.slug),
+      target_path: "/jobs/#{job.id}#agent-question-#{id}",
+      dedupe_key: "agent-question:#{id}:asked"
+    )
   end
 
   def exactly_one_owner

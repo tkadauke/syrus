@@ -52,7 +52,8 @@ const KIND_LABEL_KEYS: Record<string, string> = {
   main_recovered: "main_recovered",
   upstream_pr_closed: "upstream_pr_closed",
   external_pr_feedback: "external_pr_feedback",
-  investigation_escalated: "investigation_escalated"
+  investigation_escalated: "investigation_escalated",
+  agent_question_asked: "agent_question_asked"
 }
 
 export function nativeNotificationTitle(kind: string) {

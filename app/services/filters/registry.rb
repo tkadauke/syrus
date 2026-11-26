@@ -109,6 +109,7 @@ module Filters
       "has_unread_feedback"           => "Filters::Chips::Jobs::HasUnreadFeedback",
       "has_landing_failure"           => "Filters::Chips::Jobs::HasLandingFailure",
       "has_active_run"                => "Filters::Chips::Jobs::HasActiveRun",
+      "has_open_agent_question"       => "Filters::Chips::Jobs::HasOpenAgentQuestion",
       "has_blocked_deps"              => "Filters::Chips::Jobs::HasBlockedDeps",
       "has_start_blocked_reason"      => "Filters::Chips::Jobs::HasStartBlockedReason",
       "has_parent_job"                => "Filters::Chips::Jobs::HasParentJob",

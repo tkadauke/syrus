@@ -1050,6 +1050,36 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::QuestionDelivery`
+
+Since: `0.1.16`
+
+Submits an answer through the first-answer-wins workflow question service; question storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `answer`
+
+### `Syrus::Host::QuestionDeliveryContext`
+
+Since: `0.1.16`
+
+Carries an immutable question lifecycle event to delivery-channel providers. Only the listed members are supported.
+
+Supported members:
+
+- `active`
+- `answer_source`
+- `answers`
+- `defaults`
+- `event_type`
+- `job_id`
+- `job_path`
+- `occurred_at`
+- `question_id`
+- `questions`
+- `source`
+
 ### `Syrus::Host::RebaseTarget`
 
 Since: `0.1.16`

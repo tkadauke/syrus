@@ -31,7 +31,8 @@ const KIND_LABELS: Record<string, string> = {
   pull_request_merged: "notification.pr_merged",
   pull_request_opened: "notification.pr_ready",
   pull_request_ready_for_review: "notification.pr_ready",
-  investigation_escalated: "notification.investigation"
+  investigation_escalated: "notification.investigation",
+  agent_question_asked: "notification.agent_question"
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value)

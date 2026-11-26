@@ -181,7 +181,8 @@ class User < ApplicationRecord
     "external_pr_feedback" => true,
     "investigation_escalated" => true,
     "chat_mention" => true,
-    "approval_request" => true
+    "approval_request" => true,
+    "agent_question_asked" => true
   }.freeze
   APPROVAL_DELIVERY_DEFAULTS = {
     "enabled" => true,

@@ -40,6 +40,7 @@ export type NotificationPreferenceKind =
   | "investigation_escalated"
   | "chat_mention"
   | "approval_request"
+  | "agent_question_asked"
 
 export type NotificationPreferences = Record<NotificationPreferenceKind, boolean>
 

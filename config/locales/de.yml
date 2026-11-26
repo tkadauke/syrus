@@ -11,6 +11,7 @@ de:
   unlanding:
     disabled: "Unlanding ist für diese Instanz nicht aktiviert."
   notifications:
+    agent_question_asked: "%{job} wartet auf deine Antwort."
     approval_request:
       one: "Genehmigung erforderlich: %{purpose}"
       other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
