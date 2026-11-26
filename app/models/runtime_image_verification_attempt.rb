@@ -5,6 +5,8 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
   belongs_to :runtime_image
   has_many :checks, -> { order(:position) }, class_name: "RuntimeImageVerificationCheck",
            foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
+  has_one :scan_evidence, class_name: "RuntimeImageScanEvidence",
+          foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
 
   attr_readonly :runtime_image_id, :number, :image_digest, :policy_snapshot, :policy_digest, :started_at
   attribute :policy_snapshot, :json, default: -> { {} }

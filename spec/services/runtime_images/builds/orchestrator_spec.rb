@@ -24,7 +24,9 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
     image = service.publish(
       namespace: namespace, source_kind: "git", source_ref: "r#{request.id}", platform: "linux/amd64", payload: "p#{request.id}"
     )
-    RuntimeImages::Verifications::Orchestrator.new(service: service).verify(image)
+    RuntimeImages::Verifications::Orchestrator.new(service: service).verify(
+      image, policy: { "checks" => [ { "key" => "manifest", "required" => true } ] }
+    )
     image
   end
 
