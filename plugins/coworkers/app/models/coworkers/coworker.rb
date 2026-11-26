@@ -33,6 +33,8 @@ class Coworkers::Coworker < ApplicationRecord
   before_validation :assign_default_color, if: -> { accent_hex.blank? && handle.present? }
   before_update :rename_handle!, if: :will_save_change_to_handle?
   after_create :claim_handle!
+  after_update_commit :reconcile_environment_for_state_change, if: :saved_change_to_state?
+  before_destroy :preserve_environment_audit_history
   after_destroy :release_handle!
 
   def display_name = name
@@ -98,6 +100,20 @@ class Coworkers::Coworker < ApplicationRecord
   def claim_handle! = Syrus::Host::Handles.claim!(handle: handle, owner: self)
   def rename_handle! = Syrus::Host::Handles.rename!(owner: self, handle: handle)
   def release_handle! = Syrus::Host::Handles.release!(owner: self)
+
+  def reconcile_environment_for_state_change
+    return unless environment
+
+    if state == "active"
+      Coworkers::EnvironmentReconcileJob.perform_later
+    else
+      Coworkers::EnvironmentLifecycle.new(environment).disable!(actor: "coworker_state_change")
+    end
+  end
+
+  def preserve_environment_audit_history
+    Coworkers::EnvironmentLifecycle.new(environment).prepare_removal!(actor: "coworker_removal") if environment
+  end
 
   def avatar_is_image
     return unless avatar.attached?

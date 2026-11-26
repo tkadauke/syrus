@@ -244,4 +244,21 @@ RSpec.describe "Coworkers plugin" do
   ensure
     scope&.dispose
   end
+
+  it "anonymizes a removed environment revision contributor without deleting its audit history" do
+    scope = Syrus::EffectScope.new(label: "spec")
+    Coworkers::DataCleanup.install_into(scope)
+    contributor = Factories.user(email_address: "environment-contributor@example.test")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-contributor",
+                                            workspace_repo: "git@example.com:workspaces.git")
+    environment = Coworkers::Environment.create!(coworker: coworker)
+    revision = Coworkers::EnvironmentRevision.create!(environment: environment, number: 1,
+                                                       source_digest: "sha256:#{'a' * 64}", created_by_user: contributor)
+
+    contributor.destroy!
+
+    expect(revision.reload.created_by_user_id).to be_nil
+  ensure
+    scope&.dispose
+  end
 end
