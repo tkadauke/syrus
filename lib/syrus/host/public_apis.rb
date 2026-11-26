@@ -424,7 +424,7 @@ module Syrus
       SERVICE_CONTRACTS = {
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
-        RuntimeImages: [ "Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, and leases images on the calling worker; provider, builder, and cache internals are not promised.", %w[available? find publish_local acquire active_base request_build] ],
+        RuntimeImages: [ "Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised.", %w[available? find publish_local acquire active_base request_build retain revoke delete audit] ],
         SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 

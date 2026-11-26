@@ -1,0 +1,166 @@
+# Owns the Coworkers side of an environment revision's lifecycle. Generic
+# image availability and audit records remain authoritative in the Runtime
+# Image Service; this service only projects them into plugin-owned pointers.
+class Coworkers::EnvironmentLifecycle
+  INCOMPATIBLE = "environment_incompatible".freeze
+
+  def initialize(environment, now: Time.current)
+    @environment = environment
+    @now = now
+  end
+
+  def reconcile_build!(revision)
+    @environment.with_lock do
+      revision.reload
+      request = revision.build_request
+      return unless request
+
+      case request.state
+      when "verifying" then begin_verification!(revision)
+      when "succeeded" then accept_candidate!(revision, request.result)
+      when "rejected" then reject!(revision, code: request.result&.error_code || "build_rejected")
+      when "failed", "canceled" then fail_build!(revision, request.result&.error_code || "build_#{request.state}")
+      end
+    end
+  end
+
+  def publish!(revision = @environment.candidate_revision, actor: "system")
+    raise Coworkers::EnvironmentRevision::InvalidTransition, "no candidate revision is available" unless revision
+    raise Coworkers::EnvironmentBuildRequest::Disabled, "coworker custom environments are not enabled" unless Feature.coworker_custom_environments_enabled?
+
+    @environment.with_lock do
+      revision.reload
+      image = revision.runtime_image
+      unless revision.candidate? && image&.pullable?
+        raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"
+      end
+      mark_incompatible!(revision) unless compatible_now?(revision)
+      raise Coworkers::EnvironmentRevision::InvalidTransition, "candidate is incompatible with the active runtime ABI" unless revision.candidate?
+
+      previous = @environment.active_revision
+      previous.transition_to!(:retired) if previous&.active?
+      revision.transition_to!(:active)
+      event = audit("published", revision, actor: actor)
+      @environment.transition_to!(:active, active_revision: revision, active_runtime_image: image,
+                                  candidate_revision: nil, candidate_runtime_image: nil,
+                                  last_error_code: nil, last_audit_event: event)
+      Syrus::Host::RuntimeImages.retain(image, reason: "active coworker environment", actor: actor)
+      revision
+    end
+  end
+
+  def reject!(revision, code: "verification_rejected", actor: "system")
+    begin_verification!(revision)
+    transition_revision!(revision, :rejected)
+    clear_candidate!(revision, state: :failed, code: code, event: audit("rejected", revision, actor: actor, code: code))
+  end
+
+  def revoke!(revision, reason:, actor: "system")
+    @environment.with_lock do
+      revision.reload
+      image = revision.runtime_image
+      Syrus::Host::RuntimeImages.revoke(image, reason: reason, actor: actor) if image&.available?
+      transition_revision!(revision, :revoked)
+      event = audit("revoked", revision, actor: actor, code: reason)
+      attrs = { last_error_code: reason.to_s, last_audit_event: event }
+      if @environment.active_revision_id == revision.id
+        attrs.merge!(state: "revoked", active_revision: nil, active_runtime_image: nil)
+      end
+      if @environment.candidate_revision_id == revision.id
+        attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil)
+      end
+      @environment.update!(attrs)
+      revision
+    end
+  end
+
+  def disable!(actor: "system")
+    @environment.with_lock do
+      active = @environment.active_revision
+      active.transition_to!(:retired) if active&.active?
+      event = audit("retired", active, actor: actor) if active
+      @environment.update!(state: "revoked", active_revision: nil, active_runtime_image: nil,
+                           candidate_revision: nil, candidate_runtime_image: nil,
+                           last_error_code: "coworker_disabled", last_audit_event: event)
+    end
+  end
+
+  def prepare_removal!(actor: "system")
+    @environment.revisions.includes(:runtime_image).find_each do |revision|
+      image = revision.runtime_image
+      next unless image && !image.deleted?
+
+      begin
+        Syrus::Host::RuntimeImages.retain(image, reason: "coworker environment audit history", actor: actor)
+        audit("owner_removed", revision, actor: actor)
+      rescue StandardError => e
+        Rails.logger.warn("[Coworkers::EnvironmentLifecycle] could not retain revision #{revision.id}: " \
+                          "#{e.class}: #{e.message}")
+      end
+    end
+  end
+
+  private
+
+  def begin_verification!(revision)
+    revision.transition_to!(:verifying) if revision.building?
+  end
+
+  def accept_candidate!(revision, result)
+    image = result&.runtime_image
+    return reject!(revision, code: "missing_image_record") unless image
+    return revoke!(revision, reason: "image_#{image.availability}") if image.revoked? || image.deleted?
+
+    begin_verification!(revision)
+    unless compatible_now?(revision)
+      mark_incompatible!(revision)
+      return
+    end
+
+    revision.transition_to!(:candidate, runtime_image: image) if revision.verifying?
+    event = audit("verified", revision)
+    revision.update!(audit_event: event) if event
+    @environment.transition_to!(:candidate, candidate_revision: revision, candidate_runtime_image: image,
+                                last_error_code: nil, last_audit_event: event) unless @environment.candidate?
+  end
+
+  def fail_build!(revision, code)
+    transition_revision!(revision, revision.verifying? ? :rejected : :build_failed)
+    clear_candidate!(revision, state: :failed, code: code, event: audit("build_failed", revision, code: code))
+  end
+
+  def mark_incompatible!(revision)
+    was_active = @environment.active_revision_id == revision.id
+    transition_revision!(revision, revision.active? ? :retired : :rejected)
+    clear_candidate!(revision, state: :failed, code: INCOMPATIBLE,
+                     event: audit("incompatible", revision, code: INCOMPATIBLE), clear_active: was_active)
+  end
+
+  def compatible_now?(revision)
+    base = Syrus::Host::RuntimeImages.active_base(platform: revision.runtime_image&.platform || "linux/amd64")
+    base && revision.compatible_with?(base.runtime_abi)
+  end
+
+  def transition_revision!(revision, target)
+    revision.transition_to!(target) if Coworkers::EnvironmentRevision::TRANSITIONS.fetch(revision.state, []).include?(target.to_s)
+  end
+
+  def clear_candidate!(revision, state:, code:, event:, clear_active: false)
+    active_remains = @environment.active_revision_id.present? && !clear_active
+    attrs = { state: active_remains ? "active" : state.to_s, last_error_code: code, last_audit_event: event }
+    attrs.merge!(active_revision: nil, active_runtime_image: nil) if clear_active
+    if @environment.candidate_revision_id == revision.id || @environment.candidate_revision_id.nil?
+      attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil)
+    end
+    @environment.update!(attrs)
+  end
+
+  def audit(action, revision, actor: "system", code: nil)
+    image = revision&.runtime_image
+    Syrus::Host::RuntimeImages.audit(
+      "coworker_environment.#{action}", outcome: :ok, image: image, actor: actor,
+      details: { coworker_id: @environment.coworker_id, environment_id: @environment.id,
+                 revision_id: revision&.id, revision_number: revision&.number, code: code }.compact
+    )
+  end
+end
