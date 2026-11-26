@@ -2194,7 +2194,9 @@ describe("AppChromeV2 primary nav reordering", () => {
     await waitFor(() => {
       expect(queryClient.getQueryState(["sidebar_badge", "badged.page"])?.status).toBe("success")
     })
-    expect(within(primaryNav).getByText("2")).toHaveClass("bg-danger", "text-surface")
+    const badge = within(primaryNav).getByText("2")
+    expect(badge).toHaveClass("bg-danger", "text-surface")
+    expect(badge).not.toHaveClass("bg-red-500", "text-white")
 
     const scheduleRow = within(primaryNav).getByRole("link", { name: "Repositories" }).parentElement!
     const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
