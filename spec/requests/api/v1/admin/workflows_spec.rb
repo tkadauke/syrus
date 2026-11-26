@@ -34,6 +34,7 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       expect {
         post "/api/v1/admin/workflows/#{workflow.id}/retry_step", headers: auth
       }.to change { summarize_step.runs.count }.by(1)
+        .and change(RecoveryIntervention, :count).by(1)
 
       expect(response).to be_successful
       body = parse_body
@@ -45,6 +46,11 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       expect(workflow.reload.state).to eq("running")
       expect(job.reload.state).to eq("running")
       expect(summarize_step.reload.state).to eq("queued")
+      expect(RecoveryIntervention.last).to have_attributes(
+        job:, source_workflow: workflow, resulting_workflow: workflow,
+        resulting_step: summarize_step, actor_type: "operator", actor_id: admin.id,
+        origin: "admin_api", action: "repair", recovery_mode: "failed_step"
+      )
     end
 
     it "preserves the workflow agent provider on the retry run" do
