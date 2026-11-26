@@ -4225,6 +4225,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_190107) do
     t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
   end
 
+  create_table "runtime_image_policy_evidences", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.json "safe_summary", null: false
+    t.string "report_digest", limit: 71, null: false
+    t.datetime "scanned_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_verification_attempt_id"], name: "idx_ri_policy_evidence_attempt", unique: true
+  end
+
   create_table "runtime_image_pull_events", force: :cascade do |t|
     t.string "hostname", limit: 191, null: false
     t.bigint "runtime_image_id"
