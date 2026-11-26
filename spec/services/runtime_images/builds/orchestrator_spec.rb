@@ -175,6 +175,24 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
         .to raise_error(RuntimeImages::Builds::BuildFailed) { |error| expect(error.code).to eq("verification_incomplete") }
     end
 
+    it "does not trust a stale candidate after a newer verification attempt fails" do
+      request = submit
+      _, attempt = orchestrator.claim_next
+      orchestrator.begin_verifying(attempt)
+      image = image_for(request)
+      stale_image = RuntimeImage.find(image.id)
+
+      RuntimeImages::Verifications::Orchestrator.new(service: RuntimeImages::Service.new(provider: provider)).verify(
+        RuntimeImage.find(image.id), policy: { "checks" => [ { "key" => "unavailable", "required" => true } ] }
+      )
+
+      expect(stale_image).to be_candidate
+      expect(stale_image.runtime_image_verification_attempts.where(state: "accepted")).to exist
+      expect { orchestrator.succeed(attempt, image: stale_image) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |error| expect(error.code).to eq("verification_incomplete") }
+      expect(request.reload).to be_verifying
+    end
+
     it "gives cancellation precedence when it lands just before success" do
       request = submit
       _, attempt = orchestrator.claim_next
