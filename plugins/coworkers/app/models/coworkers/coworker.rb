@@ -33,8 +33,10 @@ class Coworkers::Coworker < Syrus::Host::Record
   before_validation :assign_default_color, if: -> { accent_hex.blank? && handle.present? }
   before_update :rename_handle!, if: :will_save_change_to_handle?
   after_create :claim_handle!
-  after_update_commit :reconcile_environment_for_state_change, if: :saved_change_to_state?
-  before_destroy :preserve_environment_audit_history
+  after_update_commit :reconcile_environment_after_activation, if: -> { saved_change_to_state? && state == "active" }
+  after_update_commit :suspend_environment_after_pause, if: -> { saved_change_to_state? && state == "paused" }
+  after_update_commit :disable_environment_after_archive, if: -> { saved_change_to_state? && state == "archived" }
+  before_destroy :preserve_environment_audit_history, prepend: true
   after_destroy :release_handle!
 
   def display_name = name
@@ -101,15 +103,9 @@ class Coworkers::Coworker < Syrus::Host::Record
   def rename_handle! = Syrus::Host::Handles.rename!(owner: self, handle: handle)
   def release_handle! = Syrus::Host::Handles.release!(owner: self)
 
-  def reconcile_environment_for_state_change
-    return unless environment
-
-    if state == "active"
-      Coworkers::EnvironmentReconcileJob.perform_later
-    else
-      Coworkers::EnvironmentLifecycle.new(environment).disable!(actor: "coworker_state_change")
-    end
-  end
+  def reconcile_environment_after_activation = (Coworkers::EnvironmentReconcileJob.perform_later if environment)
+  def suspend_environment_after_pause = (Coworkers::EnvironmentLifecycle.new(environment).suspend!(actor: "coworker_pause") if environment)
+  def disable_environment_after_archive = (Coworkers::EnvironmentLifecycle.new(environment).disable!(actor: "coworker_archive") if environment)
 
   def preserve_environment_audit_history
     Coworkers::EnvironmentLifecycle.new(environment).prepare_removal!(actor: "coworker_removal") if environment

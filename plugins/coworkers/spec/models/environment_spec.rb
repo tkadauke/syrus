@@ -54,12 +54,26 @@ RSpec.describe Coworkers::Environment do
     expect { coworker.destroy! }.to change(Coworkers::EnvironmentRevision, :count).by(-1)
   end
 
-  it "retires an active environment when its coworker is paused" do
+  it "preserves an active environment across coworker pause and resume" do
     environment = described_class.create!(coworker: coworker, state: "active")
     revision = revision_for(environment, state: "active")
     environment.update!(active_revision: revision)
 
     coworker.update!(state: "paused")
+
+    expect(revision.reload).to be_active
+    expect(environment.reload).to have_attributes(state: "active", active_revision_id: revision.id)
+
+    expect { coworker.update!(state: "active") }.to have_enqueued_job(Coworkers::EnvironmentReconcileJob)
+    expect(environment.reload.active_revision_id).to eq(revision.id)
+  end
+
+  it "retires an active environment when its coworker is archived" do
+    environment = described_class.create!(coworker: coworker, state: "active")
+    revision = revision_for(environment, state: "active")
+    environment.update!(active_revision: revision)
+
+    coworker.update!(state: "archived")
 
     expect(revision.reload).to be_retired
     expect(environment.reload).to have_attributes(state: "revoked", active_revision_id: nil,
