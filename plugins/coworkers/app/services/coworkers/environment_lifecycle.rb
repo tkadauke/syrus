@@ -57,28 +57,27 @@ class Coworkers::EnvironmentLifecycle
 
   def revoke!(revision, reason:, actor: "system")
     @environment.with_lock do
-      revision.reload
-      image = revision.runtime_image
-      Syrus::Host::RuntimeImages.revoke(image, reason: reason, actor: actor) if image&.available?
-      transition_revision!(revision, :revoked)
-      event = audit("revoked", revision, actor: actor, code: reason)
-      attrs = { last_error_code: reason.to_s, last_audit_event: event }
-      if @environment.active_revision_id == revision.id
-        attrs.merge!(state: "revoked", active_revision: nil, active_runtime_image: nil)
-      end
-      if @environment.candidate_revision_id == revision.id
-        attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil)
-      end
-      @environment.update!(attrs)
-      revision
+      revoke_locked!(revision, reason: reason, actor: actor)
+    end
+  end
+
+  # Pausing a coworker blocks its work at the coworker state boundary. Keep
+  # image pointers intact so resuming does not silently discard a published
+  # environment or a verified candidate.
+  def suspend!(actor: "system")
+    @environment.with_lock do
+      event = audit("suspended", @environment.active_revision || @environment.candidate_revision, actor: actor)
+      @environment.update!(last_audit_event: event) if event
     end
   end
 
   def disable!(actor: "system")
     @environment.with_lock do
       active = @environment.active_revision
+      candidate = @environment.candidate_revision
       active.transition_to!(:retired) if active&.active?
-      event = audit("retired", active, actor: actor) if active
+      candidate.transition_to!(:retired) if candidate&.candidate?
+      event = audit("disabled", active || candidate, actor: actor)
       @environment.update!(state: "revoked", active_revision: nil, active_runtime_image: nil,
                            candidate_revision: nil, candidate_runtime_image: nil,
                            last_error_code: "coworker_disabled", last_audit_event: event)
@@ -109,7 +108,8 @@ class Coworkers::EnvironmentLifecycle
   def accept_candidate!(revision, result)
     image = result&.runtime_image
     return reject!(revision, code: "missing_image_record") unless image
-    return revoke!(revision, reason: "image_#{image.availability}") if image.revoked? || image.deleted?
+    revision.update!(runtime_image: image) unless revision.runtime_image_id == image.id
+    return revoke_locked!(revision, reason: "image_#{image.availability}") if image.revoked? || image.deleted?
 
     begin_verification!(revision)
     unless compatible_now?(revision)
@@ -143,6 +143,23 @@ class Coworkers::EnvironmentLifecycle
 
   def transition_revision!(revision, target)
     revision.transition_to!(target) if Coworkers::EnvironmentRevision::TRANSITIONS.fetch(revision.state, []).include?(target.to_s)
+  end
+
+  def revoke_locked!(revision, reason:, actor: "system")
+    revision.reload
+    projected_current = revision.building? || revision.verifying? ||
+      @environment.active_revision_id == revision.id || @environment.candidate_revision_id == revision.id
+    image = revision.runtime_image
+    Syrus::Host::RuntimeImages.revoke(image, reason: reason, actor: actor) if image&.available?
+    target = revision.building? ? :build_failed : (revision.verifying? ? :rejected : :revoked)
+    transition_revision!(revision, target)
+    event = audit("revoked", revision, actor: actor, code: reason)
+    attrs = { last_error_code: reason.to_s, last_audit_event: event }
+    attrs[:state] = "revoked" if projected_current
+    attrs.merge!(active_revision: nil, active_runtime_image: nil) if @environment.active_revision_id == revision.id
+    attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil) if @environment.candidate_revision_id == revision.id
+    @environment.update!(attrs)
+    revision
   end
 
   def clear_candidate!(revision, state:, code:, event:, clear_active: false)

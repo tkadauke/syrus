@@ -105,4 +105,35 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
                                                    last_error_code: "coworker_disabled")
     expect(image.reload).to be_available
   end
+
+  it "retires a verified candidate on disable instead of orphaning it" do
+    revision.update!(state: "candidate", runtime_image: image)
+    environment.update!(state: "candidate", candidate_revision: revision, candidate_runtime_image: image)
+
+    described_class.new(environment).disable!(actor: "plugin_disable")
+
+    expect(revision.reload).to be_retired
+    expect(environment.reload).to have_attributes(state: "revoked", candidate_revision_id: nil)
+    expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.disabled")).to exist
+  end
+
+  it "rejects a successful build projection when its image was deleted" do
+    image.mark_deleted!
+
+    described_class.new(environment).reconcile_build!(revision)
+
+    expect(revision.reload).to be_rejected
+    expect(environment.reload).to have_attributes(state: "revoked", last_error_code: "image_deleted")
+    expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.revoked", runtime_image_id: image.id)).to exist
+  end
+
+  it "retains image history and audits ownership removal before deleting plugin rows" do
+    revision.update!(state: "candidate", runtime_image: image)
+
+    expect { coworker.destroy! }
+      .to change { RuntimeImageAuditEvent.where(event_type: "coworker_environment.owner_removed").count }.by(1)
+    expect(Syrus::Host::RuntimeImages).to have_received(:retain)
+      .with(image, reason: "coworker environment audit history", actor: "coworker_removal")
+    expect(image.reload).to be_available
+  end
 end
