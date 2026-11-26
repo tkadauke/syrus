@@ -33,7 +33,17 @@ RSpec.describe RuntimeImages::BuiltImages do
   let(:service) { RuntimeImages::Service.new(provider: provider) }
   let(:store_a) { IndependentImageStore.new }
   let(:store_b) { IndependentImageStore.new }
-  let(:worker_a) { described_class.new(service: service, engine: store_a, provider_key: "synthetic-built", cache: cache_for(store_a, "worker-a")) }
+  let(:scan) do
+    RuntimeImages::Verifications::SupplyChainScanner::Scan.new(
+      sbom: { "bomFormat" => "CycloneDX", "components" => [] }, report: { "Results" => [] },
+      scanner_name: "trivy", scanner_version: "0.76.2", database_version: "2026-11-26T12:00:00Z", scanned_at: Time.current
+    )
+  end
+  let(:scanner) { instance_double(RuntimeImages::Verifications::SupplyChainScanner, call: scan) }
+  let(:worker_a) do
+    described_class.new(service: service, engine: store_a, provider_key: "synthetic-built", cache: cache_for(store_a, "worker-a"),
+                        supply_chain_scanner: scanner)
+  end
   let(:worker_b) { described_class.new(service: service, engine: store_b, provider_key: "synthetic-built", cache: cache_for(store_b, "worker-b")) }
   let(:identity) { { owner_kind: "devcontainer", owner_ref: "repo-7", source_kind: "devcontainer", source_ref: "rev-abc-123" } }
 
@@ -58,6 +68,9 @@ RSpec.describe RuntimeImages::BuiltImages do
 
     expect(published).to be_verified_candidate
     expect(published.runtime_image_verification_attempts.last).to be_accepted
+    expect(published.runtime_image_verification_attempts.last.scan_evidence).to have_attributes(
+      scanner_name: "trivy", scanner_version: "0.76.2", image_digest: published.digest
+    )
     found = worker_b.find(**identity)
     expect(found).to eq(published)
     expect(found.provenance).to eq("revision" => "abc")
@@ -103,7 +116,7 @@ RSpec.describe RuntimeImages::BuiltImages do
   it "does not reuse another provider's namespace for the same owner" do
     RuntimeImages::Providers.register(SyntheticRuntimeImageProvider.new(key: "synthetic-other"))
     other_service = RuntimeImages::Service.new(provider: RuntimeImages::Providers.fetch("synthetic-other"))
-    other = described_class.new(service: other_service, engine: store_a, provider_key: "synthetic-other")
+    other = described_class.new(service: other_service, engine: store_a, provider_key: "synthetic-other", supply_chain_scanner: scanner)
     store_a.build!("local-build", { manifest: "{}", blobs: {} })
     worker_a.publish_local(local_reference: "local-build", **identity)
     other.publish_local(local_reference: "local-build", **identity)
