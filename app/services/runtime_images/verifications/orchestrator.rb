@@ -13,8 +13,8 @@ module RuntimeImages
         "block_policy_violations" => true
       }.freeze
 
-      def initialize(registry: nil, service: Service.new)
-        @registry = registry || Registry.new.tap { |r| r.register("manifest", ManifestVerifier.new(service: service)) }
+      def initialize(registry: nil, service: Service.new, supply_chain_scanner: nil)
+        @registry = registry || default_registry(service, supply_chain_scanner)
       end
 
       # Every call is a new durable attempt. This is also the re-verification
@@ -37,6 +37,14 @@ module RuntimeImages
       end
 
       private
+
+      def default_registry(service, supply_chain_scanner)
+        scanner = supply_chain_scanner || SupplyChainScanner.new(built_images: BuiltImages.new(service: service))
+        Registry.new.tap do |registry|
+          registry.register("manifest", ManifestVerifier.new(service: service))
+          registry.register("supply_chain", SupplyChainVerifier.new(scanner: scanner))
+        end
+      end
 
       def create_attempt(image, snapshot, now)
         image.with_lock do
