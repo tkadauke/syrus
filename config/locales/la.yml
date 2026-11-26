@@ -9,6 +9,8 @@ la:
   coworkers:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
+    detach_job:
+      confirmation: "%{job} a Job superiore deducto separare et PR #%{pr_number} super %{destination_base} denuo ordinare?"
     permissions:
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
       policy_evaluated: "Norma permissionum canonica aestimata est"
