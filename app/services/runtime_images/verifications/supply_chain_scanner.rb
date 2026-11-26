@@ -11,7 +11,7 @@ module RuntimeImages
       end
 
       def call(image)
-        @built_images.acquire(image) do |reference|
+        @built_images.acquire_for_verification(image) do |reference|
           identity = json_command([ "trivy", "version", "--format", "json" ])
           sbom = json_command([ "trivy", "image", "--quiet", "--format", "cyclonedx", reference ])
           report = json_command([ "trivy", "image", "--quiet", "--format", "json", "--scanners", "vuln", "--list-all-pkgs", reference ])
