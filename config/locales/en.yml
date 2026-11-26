@@ -1195,6 +1195,11 @@ en:
       owner_assigned: "Job owner assigned."
       choose_owner: "Choose an owner."
       owner_not_found: "Owner user not found."
+  services:
+    runtime_images:
+      verifications:
+        supply_chain_policy:
+          blocked: "Supply-chain policy blocked vulnerability findings: %{vulnerability_count}; prohibited packages: %{package_count}."
   plugin_repository_configuration:
     absent_legacy_owner: "%{key} belongs to absent plugin %{owner}"
     provider_not_installed: "configuration provider %{owner} is not installed"

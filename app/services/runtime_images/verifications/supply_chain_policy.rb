@@ -37,7 +37,8 @@ module RuntimeImages
 
         code = blocked_packages.any? ? "prohibited_package" : "blocked_vulnerability"
         Decision.new(allowed: false, summary: summary, exemptions: active_exemptions, evidence: evidence,
-                     code: code, message: "supply-chain policy blocked #{blocked_vulnerabilities.size} vulnerability finding(s) and #{blocked_packages.size} prohibited package(s)")
+                     code: code, message: I18n.t("services.runtime_images.verifications.supply_chain_policy.blocked",
+                                                vulnerability_count: blocked_vulnerabilities.size, package_count: blocked_packages.size))
       end
 
       private
