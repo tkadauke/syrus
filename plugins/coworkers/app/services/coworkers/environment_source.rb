@@ -24,12 +24,13 @@ class Coworkers::EnvironmentSource
   DEFAULT_DOCKERFILE = <<~DOCKERFILE.freeze
     ARG #{BASE_ARG}
     FROM ${#{BASE_ARG}}
+    COPY --chmod=0755 smoke-test /usr/local/bin/syrus-environment-smoke-test
     # Coworker additions follow.
   DOCKERFILE
   DEFAULT_MANIFEST = <<~YAML.freeze
     schema_version: #{SCHEMA_VERSION}
     network_classes: []
-    smoke_test: ./smoke-test
+    smoke_test: syrus-environment-smoke-test
     reason: ""
   YAML
   DEFAULT_SMOKE_TEST = <<~SH.freeze
