@@ -167,6 +167,7 @@ describe("App shell and navigation", () => {
       expect(within(primaryNav).queryByRole("link", { name: "Jobs" })).toBeNull()
       expect(within(primaryNav).queryByRole("link", { name: "Chat" })).toBeNull()
       expect(within(primaryNav).queryByRole("link", { name: "Admin" })).toBeNull()
+      expect(within(primaryNav).queryByRole("link", { name: "Landing lanes" })).toBeNull()
       expect(within(accountNav).getByRole("button", { name: "Operator" })).toHaveAttribute("aria-expanded", "false")
       expect(within(accountNav).queryByRole("link", { name: "Settings" })).toBeNull()
       expect(within(accountNav).queryByRole("button", { name: "Sign out" })).toBeNull()
@@ -174,6 +175,7 @@ describe("App shell and navigation", () => {
       expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
+      expect(within(accountNav).queryByRole("link", { name: "Landing lanes" })).toBeNull()
       expect(within(accountNav).getByRole("button", { name: "Sign out" })).toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats", expect.objectContaining({ credentials: "same-origin" }))
     } finally {
