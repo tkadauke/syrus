@@ -16,9 +16,14 @@ RSpec.describe ConnectedAccounts::RetentionExecutor do
       action: "revoke", result: "allowed", tool_name: "connected_accounts.broker")
     definition = instance_double(RetentionPolicyRegistry::Definition, retention_window: 30.days)
 
-    result = described_class.new(definition).call
+    statements = []
+    capture = ->(*, payload) { statements << payload[:sql] }
+    result = ActiveSupport::Notifications.subscribed(capture, "sql.active_record") { described_class.new(definition).call }
 
     expect(result).to have_attributes(deleted_count: 3, backlog: false)
+    # Regression: MySQL rejects a LIMIT inside an IN subquery, which failed
+    # every production pass; SQLite accepts it, so assert the SQL shape.
+    expect(statements.grep(/IN\s*\(\s*SELECT.*LIMIT/im)).to be_empty
     expect(ConnectedAccounts::Account.where(id: account.id)).not_to exist
     expect(CredentialStore::CredentialAccessEvent.where(id: audit.id)).not_to exist
     expect(CredentialStore::Credential.where(id: credential.id)).not_to exist
