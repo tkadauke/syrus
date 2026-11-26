@@ -449,15 +449,22 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   it "retries a completed job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
     finish_work_units_for(job)
+    source_workflow = job.latest_workflow
 
     expect {
       post app_job_path(job, "run_again"), params: { retry_context: "Try the marble route." }, as: :json
     }.to change { job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+      .and change(RecoveryIntervention, :count).by(1)
       .and have_enqueued_job(RunJob)
 
     workflow = job.workflows.where(trigger_kind: "retry").last
     expect(response).to have_http_status(:ok)
     expect(workflow.artifacts["replay_context"]).to eq("Try the marble route.")
+    expect(RecoveryIntervention.last).to have_attributes(
+      job:, source_workflow:, resulting_workflow: workflow,
+      actor_type: "operator", actor_id: user.id, origin: "job_page",
+      action: "rerun_check", recovery_mode: "auto", guidance: "Try the marble route."
+    )
     expect(parse_body).to include("message" => "Retry workflow enqueued.")
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(job, tab: "workflows"))
   end
@@ -580,6 +587,10 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(source.reload.artifact("branch_divergence_recovery")).to include(
       "action" => "superseded_by_current_pr_branch",
       "user_id" => user.id
+    )
+    expect(RecoveryIntervention.last).to have_attributes(
+      source_workflow: source, resulting_workflow: retry_workflow,
+      actor_type: "operator", actor_id: user.id, origin: "job_page"
     )
     expect(retry_workflow.reload).to be_queued
     expect(retry_workflow.work_unit.reload).to be_queued

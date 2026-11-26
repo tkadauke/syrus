@@ -52,7 +52,12 @@ module Api
             return
           end
 
-          result = RetryFailedStepEnqueuer.call(workflow: workflow)
+          mode = RetryJobs::Modes::FailedStep.new(job: workflow.job, source_workflow_id: workflow.id)
+          result = RecoveryInterventions::Perform.call(
+            job: workflow.job, source_workflow: workflow, action: mode.recovery_action,
+            mode: "failed_step", actor_type: "operator", actor: current_api_user,
+            origin: "admin_api", reason: params[:reason], guidance: params[:retry_context]
+          ) { mode.execute }
           unless result.success?
             render_error("retry_failed_step_unavailable", result.error, status: :unprocessable_content)
             return

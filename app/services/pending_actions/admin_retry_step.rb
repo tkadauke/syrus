@@ -11,7 +11,12 @@ module PendingActions
       end
 
       progress!("Retrying #{step_slug} in #{workflow.slug}...")
-      result = RetryFailedStepEnqueuer.call(workflow: workflow)
+      mode = RetryJobs::Modes::FailedStep.new(job: workflow.job, source_workflow_id: workflow.id)
+      result = RecoveryInterventions::Perform.call(
+        job: workflow.job, source_workflow: workflow, action: mode.recovery_action, mode: "failed_step",
+        actor_type: action.requested_by.presence || "unknown", actor: user,
+        origin: "mcp_admin_retry_step", reason:
+      ) { mode.execute }
       raise ArgumentError, result.error unless result.success?
 
       result.run
