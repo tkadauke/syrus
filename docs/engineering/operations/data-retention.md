@@ -70,6 +70,7 @@ dependent-row cleanup or another side effect is required.
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | generic | no |
 | `runtime_image_retention_days` | 30 | days | `runtime_images` | Runtime Image garbage collector | no |
 | `runtime_image_pull_event_retention_days` | 30 | days | `runtime_image_pull_events` | generic | no |
+| `runtime_image_verification_evidence_retention_days` | 180 | days | `runtime_image_verification_attempts` | generic | no |
 | `runtime_image_audit_event_retention_days` | 180 | days | `runtime_image_audit_events` | generic | no |
 
 "Archivable" means the entry's `RetentionPolicyRegistry::Definition#archivable`
