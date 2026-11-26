@@ -67,9 +67,7 @@ export function RecoveryCard({ command, payload }: { command: ReturnType<typeof 
         <details className="text-xs text-text-muted">
           <summary className="cursor-pointer">{t("recovery_execution_details")}</summary>
           <div className="mt-2 space-y-1">
-            {decision.evidence.source_workflow_id ? (
-              <p>{t("recovery_workflow", { workflow: decision.evidence.source_workflow_id })}</p>
-            ) : null}
+            {decision.evidence.source_workflow_id ? <p>{t("recovery_workflow", { workflow: decision.evidence.source_workflow_id })}</p> : null}
             {decision.evidence.source_revision ? <p>{t("recovery_revision", { revision: decision.evidence.source_revision })}</p> : null}
             {decision.evidence.failure_classification ? <p>{decision.evidence.failure_classification}</p> : null}
           </div>
