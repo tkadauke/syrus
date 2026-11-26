@@ -944,7 +944,7 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+    expect(screen.getByText("Failover: Codex")).toBeInTheDocument()
   })
 
   it("does not call an available original provider unavailable for policy-routed workflow cards", () => {
@@ -991,9 +991,9 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("Routing policy selected Claude Code instead of Codex.")).toBeInTheDocument()
+    expect(screen.getByText("Policy: Claude Code")).toBeInTheDocument()
     expect(screen.queryByText(/Codex unavailable/)).not.toBeInTheDocument()
-    expect(screen.getByText("Details")).toBeInTheDocument()
+    expect(screen.getByLabelText("Show provider routing details for Policy: Claude Code")).toBeInTheDocument()
   })
 
   it("labels operator-selected workflow providers separately from automatic failover", () => {
@@ -1041,7 +1041,7 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("Operator selected Codex for this workflow instead of Claude Code.")).toBeInTheDocument()
+    expect(screen.getByText("Operator: Codex")).toBeInTheDocument()
   })
 
   it("shows blocked WorkUnit reasons and details without requiring the nested Workflow to be open", () => {
