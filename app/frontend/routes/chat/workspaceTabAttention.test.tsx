@@ -70,6 +70,7 @@ describe("workspaceTabBadge", () => {
   it("renders an accessible numeric badge capped at 9+", () => {
     render(<>{workspaceTabBadge({ count: 12, dot: false }, t)}</>)
     expect(screen.getByText("9+")).toHaveAttribute("aria-hidden", "true")
+    expect(screen.getByText("9+").closest(".bg-danger")).toHaveClass("text-surface")
     expect(screen.getByText("tab_attention_new_items:12")).toHaveClass("sr-only")
   })
 
