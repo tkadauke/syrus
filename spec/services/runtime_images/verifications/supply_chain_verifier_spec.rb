@@ -34,6 +34,7 @@ RSpec.describe RuntimeImages::Verifications::SupplyChainVerifier do
                      "prohibited_packages" => [ "curl" ], "exemptions" => [])
 
     expect(attempt).to have_attributes(state: "rejected", failure_code: "prohibited_package")
+    expect(attempt.message).to eq("Supply-chain policy blocked vulnerability findings: 1; prohibited packages: 1.")
     evidence = attempt.scan_evidence
     expect(evidence).to have_attributes(image_digest: image.digest, scanner_name: "trivy", scanner_version: "0.67.2",
                                         database_version: "2026-11-26T12:00:00Z", sbom_format: "cyclonedx-json")
