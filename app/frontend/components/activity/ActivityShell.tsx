@@ -49,7 +49,7 @@ export function ActivityShell({
   const counts: Record<ActivityTab, number> = {
     notifications: notifications.data?.unread_count ?? 0,
     approvals: pendingCount,
-    questions: questions.data?.questions.length ?? 0
+    questions: questions.data?.questions?.length ?? 0
   }
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose

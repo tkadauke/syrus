@@ -7,6 +7,24 @@ import { QuestionInboxDrawer } from "./QuestionInboxDrawer"
 describe("QuestionInboxDrawer", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("supports callers whose existing API fixture omits question data", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <QuestionInboxDrawer />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const trigger = await screen.findByRole("button", { name: "Open questions: 0" })
+    fireEvent.click(trigger)
+    expect(await screen.findByText("No questions are waiting for an answer.")).toBeInTheDocument()
+  })
+
   it("shows the open count and answers with the shared question component", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
