@@ -1749,7 +1749,8 @@ function StepCard({
 
 function collectorDecisionLabel(step: JobStep, payload: JobDetailPayload, t: (key: string) => string) {
   if (step.kind !== "grader_collect" && step.kind !== "preflight_grader_collect") return null
-  if (payload.actions.recovery_decision?.kind === "grader_loop_no_progress" && step.state === "failed") return t("grader_loop_decision_stopped")
+  if (step.state !== "failed" || !payload.actions.recovery_decision) return null
+  if (payload.actions.recovery_decision.kind === "grader_loop_no_progress") return t("grader_loop_decision_stopped")
   return t("grader_loop_decision_continued")
 }
 
