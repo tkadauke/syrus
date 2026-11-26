@@ -36,11 +36,14 @@ class RecoveryContract
     return unless workflow || job.failed?
 
     rounds = bounded_rounds
-    decision.as_json.merge(
-      measured_failures: bounded(Array(decision.evidence[:measured_failure_identities]), FAILURE_LIMIT),
+    decision.as_json.except(:evidence).merge(
+      explanation: snippet(decision.explanation),
+      guidance: snippet(decision.guidance),
+      evidence: bounded_evidence,
+      measured_failures: bounded_text(Array(decision.evidence[:measured_failure_identities]), FAILURE_LIMIT),
       inconclusive_infrastructure_failures: infrastructure_failures(rounds),
       compared_repair_iterations: rounds.map { |round| round_summary(round) },
-      stop_reason: stop_artifact["reason"],
+      stop_reason: snippet(stop_artifact["reason"]),
       references: canonical_references(decision.evidence)
     ).compact
   end
@@ -75,7 +78,7 @@ class RecoveryContract
     {
       items: rounds.last(ROUND_LIMIT).map { |round| round_summary(round) },
       total:, limit: ROUND_LIMIT, truncated: total > ROUND_LIMIT,
-      stop: stop_artifact.slice("reason", "explanation", "previous_iteration", "current_iteration", "repeated_iteration", "stopped_at")
+      stop: bounded_stop
     }
   end
 
@@ -87,10 +90,10 @@ class RecoveryContract
   def round_summary(round)
     repair = round.to_h["repair"].to_h
     {
-      loop_id: round["loop_id"], iteration: round["iteration"],
-      source_revision: round["source_revision"], repaired_revision: round["repaired_revision"],
+      loop_id: snippet(round["loop_id"]), iteration: round["iteration"],
+      source_revision: snippet(round["source_revision"]), repaired_revision: snippet(round["repaired_revision"]),
       transient_only: round["transient_only"] == true,
-      measured_failures: bounded(Array(round["failing_set"]), FAILURE_LIMIT),
+      measured_failures: bounded_text(Array(round["failing_set"]), FAILURE_LIMIT),
       repair: repair.slice("step_id", "run_id", "kind", "state", "agent_summary", "diff_bytes", "produced_diff")
         .transform_values { |value| value.is_a?(String) ? snippet(value) : value }
     }.compact
@@ -105,13 +108,24 @@ class RecoveryContract
       next unless GraderLoopProgress::UNMEASURED_CLASSIFICATIONS.include?(classification.to_s)
 
       {
-        name: result["name"], step_id: result["step_id"], run_id: result["run_id"],
+        name: snippet(result["name"]), step_id: result["step_id"], run_id: result["run_id"],
         classification:, timed_out: result["timed_out"], affected_decision: decision.kind == "infrastructure_only"
       }.compact
     end, FAILURE_LIMIT)
   end
 
   def stop_artifact = workflow&.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY).to_h
+
+  def bounded_evidence
+    decision.evidence.except(:rounds, :measured_failure_identities).transform_values do |value|
+      value.is_a?(String) ? snippet(value) : value
+    end
+  end
+
+  def bounded_stop
+    stop_artifact.slice("reason", "explanation", "previous_iteration", "current_iteration", "repeated_iteration", "stopped_at")
+      .transform_values { |value| value.is_a?(String) ? snippet(value) : value }
+  end
 
   def canonical_references(evidence)
     values = evidence.to_h.symbolize_keys
@@ -129,4 +143,5 @@ class RecoveryContract
   end
   def snippet(value) = value.to_s.each_char.first(TEXT_LIMIT).join.presence
   def bounded(items, limit) = items.first(limit)
+  def bounded_text(items, limit) = bounded(items, limit).filter_map { |item| snippet(item) }
 end

@@ -143,7 +143,13 @@ RSpec.describe "Mcp::Tools access control", :full_chat_access do
   end
 
   it "cannot read a job belonging to another user" do
-    response = call_tool(Mcp::Tools::ReadJobTool, "read_job", job_id: other_user_job.id)
+    inaccessible_job = other_user_job
+    inaccessible_job.recovery_interventions.create!(
+      actor_type: "agent", actor_display: "Private agent", origin: "mcp_retry_job",
+      action: "repair", recovery_kind: "measured_failure", recovery_mode: "failed_step",
+      guidance: "Private recovery guidance", failure_evidence: {}, performed_at: Time.current
+    )
+    response = call_tool(Mcp::Tools::ReadJobTool, "read_job", job_id: inaccessible_job.id)
 
     expect_not_authorized(response)
   end
@@ -163,7 +169,12 @@ RSpec.describe "Mcp::Tools access control", :full_chat_access do
   end
 
   it "cannot read another user's workflow" do
-    response = call_tool(Mcp::Tools::ReadWorkflowTool, "read_workflow", workflow_id: other_user_job.latest_workflow.id)
+    inaccessible_workflow = other_user_job.latest_workflow
+    inaccessible_workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
+      "reason" => GraderLoopProgress::NO_PROGRESS_REASON,
+      "explanation" => "Private recovery explanation"
+    })
+    response = call_tool(Mcp::Tools::ReadWorkflowTool, "read_workflow", workflow_id: inaccessible_workflow.id)
 
     expect_not_authorized(response)
   end

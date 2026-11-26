@@ -757,6 +757,28 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
   end
 
+  it "requires guidance for a measured failure without a stored classification" do
+    job = make_retryable_job(state: "failed")
+    job.workflows.find_by!(trigger_kind: "initial").steps.find_by!(kind: "implement").update!(state: "failed")
+
+    body = payload(call_tool("retry_job", job_id: job.id))
+
+    expect(body).to include(status: "guidance_required", pending_action_created: false)
+    expect(body[:suggested_guidance]).to be_present
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
+  it "returns a recovery decision when an explicit restart has no source workflow" do
+    job = make_retryable_job(state: "failed")
+
+    response = call_tool("retry_job", job_id: job.id, mode: "implementation", source_workflow_id: 999_999,
+      reason: "Restart from the current base.")
+    body = payload(response)
+
+    expect(response.dig(:result, :isError)).not_to be(true)
+    expect(body[:recovery]).to include(kind: "restart_from_base", recommended_action: "restart")
+  end
+
   it "creates an unchanged failed-step rerun for an infrastructure-only no-verdict outcome" do
     job = make_retryable_job(state: "failed")
     workflow = job.workflows.find_by!(trigger_kind: "initial")

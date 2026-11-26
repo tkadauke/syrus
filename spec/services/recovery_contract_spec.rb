@@ -54,4 +54,26 @@ RSpec.describe RecoveryContract do
     expect(payload.dig(:interventions, :items, 0, :guidance).length).to eq(described_class::TEXT_LIMIT)
     expect(payload.to_json.bytesize).to be < 40.kilobytes
   end
+
+  it "bounds raw repair-loop evidence and failure identity text" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job:, trigger_kind: "initial", state: "failed")
+    oversized = "x" * 5_000
+    rounds = Array.new(50) do |index|
+      { "loop_id" => oversized, "iteration" => index, "failing_set" => [ oversized ],
+        "source_revision" => oversized, "repaired_revision" => oversized }
+    end
+    workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
+      "reason" => GraderLoopProgress::NO_PROGRESS_REASON, "explanation" => oversized,
+      "failing_set" => [ oversized ], "rounds" => rounds
+    })
+
+    payload = described_class.for_workflow(workflow)
+
+    expect(payload.dig(:decision, :evidence)).not_to have_key(:rounds)
+    expect(payload.dig(:decision, :measured_failures, 0).length).to eq(described_class::TEXT_LIMIT)
+    expect(payload.dig(:decision, :compared_repair_iterations).size).to eq(described_class::ROUND_LIMIT)
+    expect(payload.dig(:decision, :explanation).length).to eq(described_class::TEXT_LIMIT)
+    expect(payload.to_json.bytesize).to be < 40.kilobytes
+  end
 end
