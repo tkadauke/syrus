@@ -53,6 +53,8 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
     expect(results.keys).to eq(RuntimeImages::Verifications::CandidateSuite.check_keys)
     expect(results.values).to all(be_passed)
     smoke = commands.last
+    expect(smoke).to include("--read-only")
+    expect(smoke.each_cons(2).to_a).to include([ "--network", "none" ], [ "--cap-drop", "ALL" ])
     expect(smoke.each_cons(2).to_a).to include([ "--pids-limit", "256" ], [ "--entrypoint", "/bin/sh" ])
     expect(smoke.each_cons(3).to_a).to include([ "/bin/sh", image.locator, "-lc" ])
     expect(smoke.each_cons(4).to_a).to include([ "--memory", "1g", "--cpus", "1" ])
@@ -152,8 +154,31 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
     expect(results.values).to all(have_attributes(failure_class: "infrastructure", code: "candidate_probe_unavailable"))
   end
 
+  it "fails closed when the pids limit consumes the image reference as its value" do
+    command = [ "docker", "run", "--entrypoint", "/probe", "--pids-limit", image.locator ]
+    allow(RuntimeImages::CoworkerBase).to receive(:probe_command).and_return(command)
+    allow(built_images).to receive(:acquire).with(image).and_yield(image.locator)
+    allow(runner).to receive(:call).with([ "docker", "image", "inspect", "--format", "{{json .}}", image.locator ])
+      .and_return([ JSON.generate(metadata), 0 ])
+    allow(RuntimeImages::RuntimeAbi).to receive(:validate_for_launch!).and_return(true)
+
+    results = probe.call(image: image, build_request_id: request.id)
+
+    expect(results.values).to all(have_attributes(failure_class: "infrastructure", code: "candidate_probe_unavailable"))
+  end
+
   it "fails closed when the smoke command omits the entrypoint" do
     command = [ "docker", "run", "--pids-limit", "256", image.locator ]
+    allow(RuntimeImages::CoworkerBase).to receive(:probe_command).and_return(command)
+    stub_probe
+
+    results = probe.call(image: image, build_request_id: request.id)
+
+    expect(results.values).to all(have_attributes(failure_class: "infrastructure", code: "candidate_probe_unavailable"))
+  end
+
+  it "fails closed when the entrypoint consumes the image reference as its value" do
+    command = [ "docker", "run", "--pids-limit", "256", "--entrypoint", image.locator ]
     allow(RuntimeImages::CoworkerBase).to receive(:probe_command).and_return(command)
     stub_probe
 
