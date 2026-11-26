@@ -497,8 +497,12 @@
   },
   "provider_warning": {
     "automatic_failover": "{{original}} ist nicht verfügbar; dieser Workflow läuft mit {{selected}}.",
+    "automatic_failover_pill": "Ausweichanbieter: {{selected}}",
     "policy_routing": "Die Routing-Richtlinie hat {{selected}} anstelle von {{original}} ausgewählt.",
+    "policy_routing_pill": "Richtlinie: {{selected}}",
     "operator_failover": "Der Operator hat für diesen Workflow {{selected}} statt {{original}} ausgewählt.",
+    "operator_pill": "Operator: {{selected}}",
+    "show_details": "Details zur Anbieterwahl für {{label}} anzeigen",
     "details": "Details",
     "routing_rule": "Routing-Regel {{id}} wurde angewendet",
     "routing_conditions_matched": "Routing-Bedingungen wurden erfüllt",
