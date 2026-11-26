@@ -10,11 +10,13 @@ module RuntimeImages
         "exemptions" => [],
         "block_secrets" => true,
         "block_prohibited_packages" => true,
-        "block_policy_violations" => true
+        "block_policy_violations" => true,
+        "image" => { "max_bytes" => 2.gigabytes, "max_layers" => 128, "required_user" => "1000",
+                     "required_entrypoint" => [], "required_command" => [ "/bin/bash" ], "forbidden_capabilities" => [ "ALL" ] }
       }.freeze
 
-      def initialize(registry: nil, service: Service.new, supply_chain_scanner: nil)
-        @registry = registry || default_registry(service, supply_chain_scanner)
+      def initialize(registry: nil, service: Service.new, supply_chain_scanner: nil, image_policy_scanner: nil)
+        @registry = registry || default_registry(service, supply_chain_scanner, image_policy_scanner)
       end
 
       # Every call is a new durable attempt. This is also the re-verification
@@ -38,11 +40,12 @@ module RuntimeImages
 
       private
 
-      def default_registry(service, supply_chain_scanner)
+      def default_registry(service, supply_chain_scanner, image_policy_scanner)
         scanner = supply_chain_scanner || SupplyChainScanner.new(built_images: BuiltImages.new(service: service))
         Registry.new.tap do |registry|
           registry.register("manifest", ManifestVerifier.new(service: service))
           registry.register("supply_chain", SupplyChainVerifier.new(scanner: scanner))
+          registry.register("image_policy", ImagePolicyVerifier.new(scanner: image_policy_scanner || ImagePolicyScanner.new(built_images: BuiltImages.new(service: service))))
         end
       end
 

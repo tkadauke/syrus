@@ -2,7 +2,7 @@ module RuntimeImages
   module Verifications
     class Policy
       ENV_KEY = "SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY".freeze
-      CONFIGURABLE_KEYS = %w[vulnerabilities prohibited_packages exemptions].freeze
+      CONFIGURABLE_KEYS = %w[vulnerabilities prohibited_packages exemptions image].freeze
 
       def self.current
         configured = ENV[ENV_KEY].presence
