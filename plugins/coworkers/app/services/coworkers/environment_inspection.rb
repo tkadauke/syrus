@@ -14,8 +14,9 @@ class Coworkers::EnvironmentInspection
     revisions = environment.revisions
       .includes(:runtime_image, build_request: [ :result, { evidences: :attempt } ])
       .reorder(number: :desc).to_a
-    active = environment.active_revision
-    candidate = environment.candidate_revision
+    revisions_by_id = revisions.index_by(&:id)
+    active = revisions_by_id[environment.active_revision_id]
+    candidate = revisions_by_id[environment.candidate_revision_id]
     build_revision = revisions.find { |revision| revision.build_request.present? }
     platform = candidate&.runtime_image&.platform || active&.runtime_image&.platform || "linux/amd64"
 
