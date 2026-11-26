@@ -21,7 +21,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("workflow question not found") unless question
         return Mcp::Tools.not_authorized unless JobPolicy.new(user, question.run.job).write?
 
-        answered = question.answer!(answers: answers, answered_by: user, source: "chat_tool")
+        answered = AgentQuestions::Answer.call(question:, answers:, answered_by: user, source: "chat_tool")
         return Mcp::Tools.invalid("question is closed or answers are invalid") unless answered
 
         Mcp::Tools.success(question_id: question.id, answered: true)

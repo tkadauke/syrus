@@ -11,6 +11,7 @@ la:
   unlanding:
     disabled: "Unlanding in hac instantia non activatum est."
   notifications:
+    agent_question_asked: "Responsum tuum ad %{job} exspectatur"
     approval_request:
       one: "Approbatio necessaria: %{purpose}"
       other: "%{count} petitiones approbationis attentionem tuam postulant."

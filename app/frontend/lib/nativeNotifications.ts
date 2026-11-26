@@ -15,6 +15,7 @@ export type NativeNotificationPayload = {
   body: string
   jobId: number | string | null
   prUrl: string | null
+  targetPath?: string | null
   notificationId: number | null
 }
 
@@ -52,7 +53,8 @@ const KIND_LABEL_KEYS: Record<string, string> = {
   main_recovered: "main_recovered",
   upstream_pr_closed: "upstream_pr_closed",
   external_pr_feedback: "external_pr_feedback",
-  investigation_escalated: "investigation_escalated"
+  investigation_escalated: "investigation_escalated",
+  agent_question_asked: "agent_question_asked"
 }
 
 export function nativeNotificationTitle(kind: string) {
@@ -87,8 +89,11 @@ export function httpNotificationUrl(value: unknown) {
   return ["http:", "https:"].includes(url.protocol) ? url.toString() : null
 }
 
-export function nativeNotificationClickUrl(payload: Pick<NativeNotificationPayload, "jobId" | "prUrl">) {
-  if (payload.prUrl) return payload.prUrl
+export function nativeNotificationClickUrl(payload: Pick<NativeNotificationPayload, "jobId" | "prUrl" | "targetPath">) {
+  if (payload.prUrl) return httpNotificationUrl(payload.prUrl)
+  if (payload.targetPath?.startsWith("/") && !payload.targetPath.startsWith("//")) {
+    return withRoutePrefix(payload.targetPath, routePrefix(window.location.pathname))
+  }
   if (payload.jobId == null) return null
 
   const prefix = routePrefix(window.location.pathname)
