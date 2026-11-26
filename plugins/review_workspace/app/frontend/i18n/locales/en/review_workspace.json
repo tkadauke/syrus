@@ -67,8 +67,6 @@
   "decision_brief": "Decision brief",
   "brief_readiness": "Decision",
   "brief_ready": "Ready to approve",
-  "brief_blocked_checks_failing": "Blocked: checks are failing",
-  "brief_blocked_checks_pending": "Blocked: checks are pending",
   "brief_blocked_dependencies": "Blocked: waiting on dependencies",
   "brief_blocked_generic": "Approval is not currently available",
   "brief_scope": "Changes",
