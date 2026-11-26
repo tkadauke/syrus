@@ -43,6 +43,7 @@ import { ChatSearchRoute } from "./ChatSearch"
 import { ChatRoute, SharedChatRoute } from "./Chat"
 import { CredentialsRoute } from "./Credentials"
 import { DashboardRoute } from "./Dashboard"
+import { LandingLanesRoute } from "./LandingLanes"
 import { DesignSystemRoute } from "./DesignSystem"
 import { DirectJobNewRoute } from "./DirectJobNew"
 import { AdminFeatures } from "./AdminFeatures"
@@ -92,6 +93,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/epics", element: <DashboardRoute /> },
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
+  { path: "/landing_lanes", element: <LandingLanesRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/permissions/inbox", element: <PermissionInboxRoute /> },
   { path: "/connection", element: <ConnectionStatusRoute /> },

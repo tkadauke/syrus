@@ -823,6 +823,7 @@ export function DashboardTable({
         controls={payload.controls}
         landingQueueEntries={payload.landing_queue.entries ?? []}
         landingQueueStatus={payload.landing_queue.status ?? null}
+        landingQueueVisible={payload.landing_queue.visible}
         onReorderColumns={onReorderColumns}
         prefix={prefix}
         reorderPending={updateColumnOrder.isPending}
