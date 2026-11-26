@@ -205,6 +205,16 @@ a failure to record is logged and never changes the build's outcome.
 `ScopedPublisher` is the only registry authority a build has: publish and
 inspect inside the request's namespace, nothing else.
 
+Candidate verification invokes the checksum-pinned Trivy binary in the worker
+image to generate a CycloneDX SBOM and a package-and-layer vulnerability report.
+`SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` accepts a JSON object containing
+`vulnerabilities.blocked_severities`, `prohibited_packages`, and `exemptions`;
+required checks cannot be overridden. Scanner/database identity, full artifacts,
+hashes, effective exemptions, and bounded decision evidence are retained on the
+digest-bound verification attempt. Scanner or database failure is an
+infrastructure block, while a matching vulnerability or package is a policy
+rejection.
+
 
 ## Build recovery and diagnostics
 

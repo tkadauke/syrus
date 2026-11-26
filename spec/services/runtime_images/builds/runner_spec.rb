@@ -18,11 +18,14 @@ RSpec.describe RuntimeImages::Builds::Runner do
 
   let(:base_verifier) { ->(_image) { true } }
   let(:candidate_probe) { RuntimeImages::Verifications::CandidateProbe.new }
+  let(:supply_chain_verifier) do
+    ->(**) { RuntimeImages::Verifications::Result.pass(evidence_references: [ { "kind" => "supply_chain_scan", "digest" => "test" } ]) }
+  end
 
   def run
     claimed_request, attempt = orchestrator.claim_next
     described_class.new(orchestrator: orchestrator, service: service, base_verifier: base_verifier,
-                        candidate_probe: candidate_probe).call(claimed_request, attempt)
+                        candidate_probe: candidate_probe, supply_chain_verifier: supply_chain_verifier).call(claimed_request, attempt)
     [ claimed_request.reload, attempt.reload ]
   end
 
@@ -59,7 +62,7 @@ RSpec.describe RuntimeImages::Builds::Runner do
     expect(claimed).to be_succeeded
     image = claimed.result.runtime_image
     checks = image.runtime_image_verification_attempts.last.checks
-    expect(checks.pluck(:verifier_key)).to eq([ "manifest", *RuntimeImages::Verifications::CandidateSuite.check_keys ])
+    expect(checks.pluck(:verifier_key)).to eq([ "manifest", "supply_chain", *RuntimeImages::Verifications::CandidateSuite.check_keys ])
     expect(candidate_probe).to have_received(:call).once
     expect(image.provenance).to have_key(RuntimeImages::RuntimeAbi::ATTESTATION_KEY)
   end
