@@ -46,11 +46,10 @@ module RuntimeImages
       end
 
       def severe_vulnerability_severity(attempt)
-        return unless attempt.failure_code == "blocked_vulnerability"
-
         summary = attempt.scan_evidence&.finding_summary || {}
-        return "critical" if summary.fetch("critical", 0).to_i.positive?
-        return "high" if summary.fetch("high", 0).to_i.positive?
+        blocked = Hash(summary["blocked_vulnerability_severities"])
+        return "critical" if blocked.fetch("critical", 0).to_i.positive?
+        return "high" if blocked.fetch("high", 0).to_i.positive?
       end
     end
   end

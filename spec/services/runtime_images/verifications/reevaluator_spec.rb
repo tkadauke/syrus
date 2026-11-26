@@ -31,7 +31,9 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
       attempt.create_scan_evidence!(image_digest: image.digest, scanner_name: "scanner", scanner_version: "1",
                                     database_version: "current", sbom_format: "cyclonedx-json",
                                     sbom_digest: "sha256:#{"a" * 64}", report_digest: "sha256:#{"b" * 64}",
-                                    finding_summary: { "high" => 1 }, scanned_at: Time.current)
+                                    finding_summary: { "high" => 1,
+                                                       "blocked_vulnerability_severities" => { "high" => 1 } },
+                                    scanned_at: Time.current)
       RuntimeImages::Verifications::Result.fail(failure_class: :policy, code: :blocked_vulnerability,
         message: "restricted finding", evidence_references: [ { "kind" => "restricted", "digest" => image.digest } ])
     })
@@ -44,6 +46,46 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
     expect(image).not_to be_pullable
     expect(attempt.revocation_candidate).to have_attributes(trigger_kind: "attestation_expired", severity: "high", state: "open")
     expect(attempt.revocation_candidate.reason).not_to include("restricted finding")
+  end
+
+  it "emits a severe vulnerability candidate when a prohibited package controls the aggregate failure code" do
+    registry.register("scan", ->(**) { pass_result })
+    orchestrator.verify(image, policy: policy, now: 2.hours.ago)
+    registry.register("scan", ->(attempt:, **) {
+      attempt.create_scan_evidence!(image_digest: image.digest, scanner_name: "scanner", scanner_version: "1",
+                                    database_version: "current", sbom_format: "cyclonedx-json",
+                                    sbom_digest: "sha256:#{"d" * 64}", report_digest: "sha256:#{"e" * 64}",
+                                    finding_summary: { "critical" => 1, "prohibited_packages" => 1,
+                                                       "blocked_vulnerability_severities" => { "critical" => 1 } },
+                                    scanned_at: Time.current)
+      RuntimeImages::Verifications::Result.fail(failure_class: :policy, code: :prohibited_package,
+        message: "mixed restricted findings", evidence_references: [ { "kind" => "restricted", "digest" => image.digest } ])
+    })
+
+    attempt = described_class.new(orchestrator: orchestrator, policy: policy).call(image)
+
+    expect(attempt).to have_attributes(state: "rejected", failure_code: "prohibited_package")
+    expect(attempt.revocation_candidate).to have_attributes(severity: "critical", state: "open")
+  end
+
+  it "ignores unblocked high findings when a configurable severity causes rejection" do
+    registry.register("scan", ->(**) { pass_result })
+    orchestrator.verify(image, policy: policy, now: 2.hours.ago)
+    registry.register("scan", ->(attempt:, **) {
+      attempt.create_scan_evidence!(image_digest: image.digest, scanner_name: "scanner", scanner_version: "1",
+                                    database_version: "current", sbom_format: "cyclonedx-json",
+                                    sbom_digest: "sha256:#{"f" * 64}", report_digest: "sha256:#{"0" * 64}",
+                                    finding_summary: { "high" => 1, "medium" => 1,
+                                                       "blocked_vulnerability_severities" => { "medium" => 1 } },
+                                    scanned_at: Time.current)
+      RuntimeImages::Verifications::Result.fail(failure_class: :policy, code: :blocked_vulnerability,
+        message: "medium policy finding", evidence_references: [ { "kind" => "restricted", "digest" => image.digest } ])
+    })
+
+    attempt = described_class.new(orchestrator: orchestrator, policy: policy).call(image)
+
+    expect(attempt).to have_attributes(state: "rejected", failure_code: "blocked_vulnerability")
+    expect(attempt.revocation_candidate).to be_nil
   end
 
   it "does not fabricate a vulnerability severity for other policy rejections" do
