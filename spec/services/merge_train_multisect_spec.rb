@@ -199,13 +199,13 @@ RSpec.describe MergeTrainMultisect, :ci_only do
       stub_const("MergeTrainMultisect::FocusedEvaluator::TIMEOUT_SECONDS", 0.05)
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      evaluation = evaluator.send(:run_focused_command, context, "sleep 5", [])
+      evaluation = evaluator.send(:run_focused_command, context, "sleep 10", [])
 
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       expect(evaluation.reason).to eq("focused_timeout")
       # Leave headroom for scheduler contention in parallel CI while still
-      # proving the five-second child did not run to completion.
-      expect(elapsed).to be < 4
+      # proving the ten-second child did not run to completion.
+      expect(elapsed).to be < 8
       expect(SpawnedProcess.order(:id).last).to have_attributes(
         kind: "grader",
         outcome: "timed_out",

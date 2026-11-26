@@ -101,6 +101,9 @@ de:
       long: "%Y-%m-%d %H:%M"
 
   models:
+    mobile_device:
+      errors:
+        token_format: "muss ein hexadezimal codiertes Geräte-Token sein"
     workflow_outcome_override:
       errors:
         invalidated_cannot_be_consumed: "Eine ungültig gemachte Außerkraftsetzung kann nicht verbraucht werden"

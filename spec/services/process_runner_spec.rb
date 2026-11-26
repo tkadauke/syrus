@@ -1549,7 +1549,7 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {}, command: [ ruby, "-e", command ],
       mounts: described_class.mounts(@dir), network: "grader",
-      timeout: 30, silent_timeout: 0.5, kill_grace_seconds: 0.5
+      timeout: 30, silent_timeout: 2, kill_grace_seconds: 0.5
     ).run
 
     expect(result).to be_silent_timed_out

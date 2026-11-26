@@ -101,6 +101,9 @@ la:
       long: "%Y-%m-%d %H:%M"
 
   models:
+    mobile_device:
+      errors:
+        token_format: "signum machinae hexadecimaliter codificatum esse debet"
     workflow_outcome_override:
       errors:
         invalidated_cannot_be_consumed: "exceptio infirmata consumi non potest"

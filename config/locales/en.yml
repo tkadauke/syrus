@@ -131,6 +131,9 @@ en:
       long: "%Y-%m-%d %H:%M"
 
   models:
+    mobile_device:
+      errors:
+        token_format: "must be a hex-encoded device token"
     workflow_outcome_override:
       errors:
         invalidated_cannot_be_consumed: "an invalidated override cannot be consumed"
