@@ -56,6 +56,8 @@ RSpec.describe RuntimeImages::BuiltImages do
     expect(worker_b.find(**identity)).to be_nil
     published = worker_a.publish_local(local_reference: "local-build", provenance: { "revision" => "abc" }, **identity)
 
+    expect(published).to be_verified_candidate
+    expect(published.runtime_image_verification_attempts.last).to be_accepted
     found = worker_b.find(**identity)
     expect(found).to eq(published)
     expect(found.provenance).to eq("revision" => "abc")

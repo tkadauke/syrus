@@ -32,10 +32,14 @@ module RuntimeImages
     # record. The digest is whatever the provider verified, not a local tag.
     def publish_local(local_reference:, owner_kind:, owner_ref:, source_kind:, source_ref:, source_digest: nil, platform: DEFAULT_PLATFORM, provenance: {})
       payload = @engine.export_oci(local_reference, platform: platform)
-      @service.publish(
+      image = @service.publish(
         namespace: namespace_for(owner_kind, owner_ref), source_kind: source_kind.to_s, source_ref: source_ref.to_s,
         source_digest: source_digest, platform: platform, provenance: provenance, payload: payload
       )
+      attempt = Verifications::Orchestrator.new(service: @service).verify(image)
+      raise Error, "published runtime image #{image.digest} failed verification: #{attempt.failure_code}" unless attempt.accepted?
+
+      image
     end
 
     # Makes the image local (pulling by digest when this worker lacks it),

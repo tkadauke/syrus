@@ -1,6 +1,7 @@
 class CreateRuntimeImageVerifications < ActiveRecord::Migration[8.1]
   def up
     add_column :runtime_images, :verification_state, :string, limit: 24, default: "candidate", null: false unless column_exists?(:runtime_images, :verification_state)
+    change_column_default :runtime_images, :verification_state, "unverified"
     add_index :runtime_images, :verification_state unless index_exists?(:runtime_images, :verification_state)
 
     create_table :runtime_image_verification_attempts, if_not_exists: true do |t|
