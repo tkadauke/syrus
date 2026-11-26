@@ -132,6 +132,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `complete_implement_step` | chat | essential | write | no | `chat:coding`, `chat:local` | - | - | - | gated (operational) |
 | `create_coding_job` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | deniable (material control) |
 | `delete_proposal` | chat | essential | write | no | - | - | - | - | essential |
+| `detach_job` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
 | `detach_repository` | chat | essential | write | no | - | - | - | - | essential |
 | `diagnose_run_queue` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
 | `emergency_land` | chat | essential | write | no | `chat:coding` | - | - | `emergency_land` | gated (operational, external_write, destructive, irreversible) |
@@ -313,6 +314,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `clear_provider_circuit` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational) |
 | `close_job_successfully` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `delete_proposal` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | essential |
+| `detach_job` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, external_write) |
 | `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `diagnose_run_queue` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `force_fail_job` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, destructive) |

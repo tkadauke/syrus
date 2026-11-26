@@ -13,7 +13,10 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
       failed_workflow_id: 61270,
       instructions: `**Repair** the partial implementation. ${"Keep the public API stable. ".repeat(30)}`,
       reason: `The failed workflow contains useful work. ${"Review it carefully. ".repeat(30)}`,
-      push: false
+      push: false,
+      github_access: true,
+      destructive_github_operations: false,
+      expected_outcomes: { remote_branch: { name: "repair", sha: "a".repeat(40) } }
     },
     resultBody: "",
     resultError: false,
@@ -35,11 +38,31 @@ describe("manual_agentic_run tool card", () => {
     expect(manualAgenticRunToolCard.toolName).toBe("manual_agentic_run")
     expect(examples.map((example) => example.id)).toEqual([
       "pending_confirmation",
+      "pending_break_glass",
       "missing_reason",
       "fresh_checkout_push_not_supported",
       "missing_pr_branch",
       "missing_pr"
     ])
+  })
+
+  it("renders absent GitHub access as false without break-glass details", () => {
+    const ordinary = examples.find((example) => example.id === "pending_confirmation")
+    render(<>{manualAgenticRunToolCard.renderExpanded(context({ input: ordinary?.input, parsedResult: ordinary?.parsedResult }))}</>)
+
+    expect(screen.getByText("Authenticated GitHub access").parentElement).toHaveTextContent("false")
+    expect(screen.queryByText("Destructive operations")).not.toBeInTheDocument()
+    expect(screen.queryByText(/limited to this repository/i)).not.toBeInTheDocument()
+  })
+
+  it("supplies a catalog fixture that exercises confirmed break-glass details", () => {
+    const breakGlass = examples.find((example) => example.id === "pending_break_glass")
+    render(<>{manualAgenticRunToolCard.renderExpanded(context({ input: breakGlass?.input, parsedResult: breakGlass?.parsedResult }))}</>)
+
+    expect(screen.getByText("Authenticated GitHub access").parentElement).toHaveTextContent("true")
+    expect(screen.getByText("Destructive operations").parentElement).toHaveTextContent("separately confirmed")
+    expect(screen.getByText(/limited to this repository/i)).toBeInTheDocument()
+    expect(screen.getByText("Expected remote outcomes")).toBeInTheDocument()
   })
 
   it.each([
@@ -55,6 +78,9 @@ describe("manual_agentic_run tool card", () => {
     expect(screen.getByRole("link", { name: "WF-61270" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-61270")
     expect(screen.getByText("failed_workflow_workspace")).toBeInTheDocument()
     expect(screen.getByText("false")).toBeInTheDocument()
+    expect(screen.getByText("Authenticated GitHub access")).toBeInTheDocument()
+    expect(screen.getByText("unavailable")).toBeInTheDocument()
+    expect(screen.getByText(/limited to this repository/i)).toBeInTheDocument()
     expect(screen.getByText(/temporary workspace is deleted/i)).toHaveTextContent("get_job_diff")
     expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
   })

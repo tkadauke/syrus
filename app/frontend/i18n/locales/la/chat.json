@@ -1191,6 +1191,13 @@
     "job": "Job",
     "base": "Basis",
     "push": "Propulsio",
+    "github_access": "Accessus GitHub authenticatus",
+    "destructive": "Operationes destructivae",
+    "confirmed": "seorsum confirmatae",
+    "unavailable": "non praesto",
+    "break_glass_hint": "Credentiae extremae et scriptiones externae ad hoc repositorium restringuntur, audiuntur, atque eventibus declaratis comprobantur.",
+    "expected_outcomes": "Eventus remoti exspectati",
+    "full_expected_outcomes": "Eventus remoti exspectati pleni",
     "true": "ita",
     "false": "non",
     "failed_workflow": "Workflow deficiens",
@@ -1202,7 +1209,8 @@
     "failed_summary": "Cursus agenticus manualis defecit: {{message}}",
     "error_details": "Particularia erroris",
     "valid_bases": "Bases validae",
-    "example_pending": "Cursus manualis pendens"
+    "example_pending": "Cursus manualis pendens",
+    "example_break_glass": "Reparatio GitHub extraordinaria pendens"
   },
   "retire_terminal_work_unit": {
     "reason": "Causa",

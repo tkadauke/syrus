@@ -789,6 +789,34 @@ operator can clear it before confirming so the Job materializes without an
 Epic. There is no UI to assign or change the target Epic to a different one
 from the edit modal — only remove it.
 
+## Break-glass GitHub access for manual runs
+
+Use deterministic repair tools whenever they can express the repair. As an
+explicit last resort, `manual_agentic_run` accepts `github_access: true` plus
+provider-verifiable `expected_outcomes`. The confirmation identifies the
+repository, GitHub App identity, permissions, credential use, external-write
+risk, and whether destructive operations were separately requested.
+
+The credential exists only for that manual Run, is scoped to the Job's
+repository, and is removed when the agent invocation ends. Authenticated
+repository-scoped `gh api` and Git transport reject other repositories.
+High-level `gh pr`, `gh issue`, and other GraphQL-backed commands are
+unavailable because their requests cannot be safely repository-bound. Direct
+Git pushes are treated as destructive because the credential boundary cannot
+safely distinguish every force/delete ref update; ordinary committed output
+should use Syrus's normal publication step. Invocations are audited without
+recording the credential, and Syrus checks declared branch/PR state, labels,
+or comments through its own provider client after publication. Agent prose is
+never accepted as proof. A failed check fails the Workflow and records
+publication recovery evidence. Ordinary implementation, grader, reviewer, and
+manual Runs remain credential-free. Permission, pending-action, repository
+policy, and secret-redaction boundaries still apply.
+
+For a branch produced by the manual implementation itself, set the declared
+branch `sha` to `local_head`; verification then requires the provider branch to
+equal the exact implementation HEAD recorded by the Run. Otherwise provide an
+exact 40-character SHA.
+
 ## Cross-chat messaging bridge
 
 Chat agents can ask to create a coordinated batch of new threads with the

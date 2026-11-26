@@ -46,6 +46,41 @@ RSpec.describe Steps::ForcePush do
     )
   end
 
+  it "finalizes and records postconditions after a detach conflict fallback" do
+    workflow.set_artifact!("repair_reason", "Repair accidental parent.")
+    workflow.set_artifact!("detach_job", {
+      "destination_base" => "main", "former_parent_id" => 41, "former_parent_head" => "a" * 40
+    })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+    evidence = { "remote_head" => "rebased-head", "pr_base" => "main" }
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("rebased-head\n")
+    allow(JobDetachRepair).to receive(:finalize!).and_return(evidence)
+
+    handler.send(:finalize_job_detach!)
+
+    expect(JobDetachRepair).to have_received(:finalize!).with(
+      job: job, destination_base: "main", expected_head: "rebased-head",
+      reason: "Repair accidental parent.", former_parent_id: 41
+    )
+    expect(workflow.reload.artifact("detach_job_postconditions")).to eq(evidence)
+  end
+
+  it "records visible failure evidence when detach conflict finalization fails" do
+    workflow.set_artifact!("detach_job", { "destination_base" => "main", "former_parent_id" => 41 })
+    handler = described_class.new(run)
+    allow(handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace")))
+    allow(handler).to receive(:streaming_git).and_return(instance_double(GitRunner, run: "rebased-head\n"))
+    allow(JobDetachRepair).to receive(:finalize!).and_raise(JobDetachPostconditionVerifier::Mismatch, "PR base is stale")
+
+    expect { handler.send(:finalize_job_detach!) }
+      .to raise_error(Steps::Base::StepFailed, /publication was partial/)
+    expect(workflow.reload.artifact("detach_job_failure")).to include("message" => "PR base is stale")
+  end
+
   it "skips pushing when deterministic auto-rebase already proved the branch was unchanged" do
     workflow.set_artifact!("auto_rebase_result", {
       "reason" => "rebased",
@@ -60,6 +95,19 @@ RSpec.describe Steps::ForcePush do
     handler.call
 
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("force_push: skipped")
+  end
+
+  it "finalizes a detach repair when deterministic auto-rebase was unchanged" do
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "rebased", "changed" => false, "post_sha" => "abc", "base_sha" => "base"
+    })
+    workflow.set_artifact!("detach_job", { "destination_base" => "main", "former_parent_id" => 41 })
+    handler = described_class.new(run)
+    allow(handler).to receive(:finalize_job_detach!)
+
+    handler.call
+
+    expect(handler).to have_received(:finalize_job_detach!)
   end
 
   # A Run resumed from a failed step reaches this handler directly, without

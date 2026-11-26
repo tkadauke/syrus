@@ -11,7 +11,7 @@ RSpec.describe Mcp::Tools::RequestWorkflowOutcomeOverrideTool do
       }, consequence: "The evidence remains visible.")
     resolver = instance_double(WorkflowOutcomeOverrides::CandidateResolver, find!: candidate)
     agent = double("Coworker", id: 77)
-    context = instance_double(McpToolContext, role: AgentRole::COWORKER_CHAT, agent_actor: agent)
+    context = instance_double(McpToolContext, role: AgentRole::COWORKER_CHAT, agent_actor: agent, run?: false)
     pending = instance_double(ChatPendingAction, id: 5, state: "pending")
     server_context = { chat_session: instance_double(ChatSession) }
     allow(described_class).to receive(:find_job!).and_return(job)

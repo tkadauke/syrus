@@ -8,11 +8,12 @@ module Prompts
   class Rebase
     SKILL_FILE = Rails.root.join(".claude/skills/rebase/SKILL.md").freeze
 
-    def initialize(repo_slug:, branch_name:, base_branch:, pr_number:)
+    def initialize(repo_slug:, branch_name:, base_branch:, pr_number:, old_base_sha: nil)
       @repo_slug   = repo_slug
       @branch_name = branch_name
       @base_branch = base_branch
       @pr_number   = pr_number
+      @old_base_sha = old_base_sha
     end
 
     def to_s
@@ -25,6 +26,10 @@ module Prompts
         This is a **rebase** run. #{subject} is being rebased onto `#{@base_branch}` and
         has conflicts that the mechanical rebase could not resolve.
       CONTEXT
+      if @old_base_sha.present?
+        context += "\nThis is a detach repair. Replay only commits after owned-patch boundary `#{@old_base_sha}` " \
+          "with `git rebase --onto origin/#{@base_branch} #{@old_base_sha}`; do not replay the former parent's commits."
+      end
       SkillLoader.render(SKILL_FILE, context)
     end
   end

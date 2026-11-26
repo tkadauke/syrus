@@ -12,6 +12,7 @@ module Steps
       workspace.setup
       if workflow.trigger_kind == "manual_agentic_run" && workflow.artifact("manual_agentic_run_push") == false
         log("push: skipped because manual_agentic_run requested push=false")
+        verify_manual_break_glass_outcomes!
         return
       end
 
@@ -30,9 +31,18 @@ module Steps
       persist_pushed_all_changes_version!
       apply_job_metadata_refresh
       update_managed_pr_footers unless refreshed_job_metadata_applied?
+      verify_manual_break_glass_outcomes!
     end
 
     private
+
+    def verify_manual_break_glass_outcomes!
+      return unless workflow.trigger_kind == "manual_agentic_run"
+      return unless workflow.artifact("manual_agentic_run_github_access") == true
+
+      ManualAgenticRun::OutcomeVerifier.new(workflow).verify!
+      log("push: verified declared break-glass GitHub outcomes through the provider client")
+    end
 
     def apply_job_metadata_refresh
       result = JobMetadataRefreshApplier.new(workflow).call

@@ -19,6 +19,7 @@ RSpec.describe "admin pending action confirmation authorization" do
       reason: "provider recovered"
     },
     "force_fail_job" => { payload: { "job_id" => 123 }, reason: "operator repair" },
+    "detach_job" => { payload: { "job_id" => 123, "destination_base" => "main" }, reason: "operator repair" },
     "manual_agentic_run" => {
       payload: { "job_id" => 123, "base" => "current_pr_branch", "instructions" => "Repair the branch.", "push" => false },
       reason: "operator repair"
