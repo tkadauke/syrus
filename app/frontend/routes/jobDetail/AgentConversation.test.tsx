@@ -85,6 +85,7 @@ describe("AgentConversationTab", () => {
             base_ref: null,
             head_ref: null,
             artifact: "transcript",
+            prompt: "Implement the **greeting** helper.\nUse `friendly_name_with_a_very_long_unbroken_suffix_abcdefghijklmnopqrstuvwxyz` safely.",
             logs_count: 101,
             logs_page: Number(page),
             logs_per_page: 100,
@@ -113,11 +114,16 @@ describe("AgentConversationTab", () => {
     expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("min-h-0", "flex-1", "max-h-none")
     expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveClass("max-h-[32rem]")
     expect(screen.getByText("Wrote the greeting helper.")).toBeInTheDocument()
+    const prompt = screen.getByTestId("run-input-prompt")
+    expect(prompt).toHaveTextContent("Input prompt")
+    expect(prompt).toHaveTextContent("Implement the greeting helper.")
+    expect(prompt.firstElementChild?.nextElementSibling).toHaveClass("min-w-0", "overflow-x-hidden", "whitespace-pre-wrap", "break-words", "[overflow-wrap:anywhere]")
     expect(screen.getByTestId("run-transcript-log-assistant")).toBeInTheDocument()
     expect(screen.queryByTestId("run-transcript-log-compact")).not.toBeInTheDocument()
     expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Older" }))
     expect(await screen.findByText("Started the implementation.")).toBeInTheDocument()
+    expect(screen.getByTestId("run-input-prompt")).toHaveTextContent("Implement the greeting helper.")
     expect(screen.getByRole("button", { name: "Newer" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Close transcript" }))

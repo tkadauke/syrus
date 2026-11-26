@@ -8,7 +8,8 @@ RSpec.describe App::RunArtifactsPayload do
         agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n",
         step_agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n",
         base_sha: "base-sha",
-        head_sha: "head-sha"
+        head_sha: "head-sha",
+        prompt: "Implement the greeting helper."
       }
     )
     run = job.runs.last
@@ -24,6 +25,7 @@ RSpec.describe App::RunArtifactsPayload do
       base_ref: "base-sha",
       head_ref: "head-sha",
       artifact: "transcript",
+      prompt: "Implement the greeting helper.",
       logs_count: 2,
       logs_page: 1,
       logs_per_page: 100,
@@ -34,6 +36,12 @@ RSpec.describe App::RunArtifactsPayload do
       { sequence: 0, kind: "stdout", chunk: "first line" },
       { sequence: 1, kind: "stderr", chunk: "second line" }
     ])
+  end
+
+  it "serializes a blank transcript prompt as nil" do
+    job = Factories.job_with_run(run_attrs: { prompt: "  \n" })
+
+    expect(described_class.build(run: job.runs.last, artifact: "transcript")).to include(prompt: nil)
   end
 
   it "paginates newest transcript rows and caps the requested page size" do
