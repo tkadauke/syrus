@@ -1981,6 +1981,45 @@ describe("WorkflowsTab", () => {
 
     expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
     expect(screen.queryByText(/transient_only_required_grader_failure/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Loop decision/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps the Result label while a grader collector is running", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader_collect",
+                display_name: "Aggregate graders",
+                display_status: "running",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "running",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: null,
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {},
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+
+    expect(screen.getByRole("button", { name: /Result/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Loop decision/ })).not.toBeInTheDocument()
   })
 
   it("consolidates grader target id, gating status, description, and command into one metadata panel", () => {
