@@ -27,7 +27,11 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
   it "re-evaluates expired evidence and emits a safe revocation candidate for a published image" do
     registry.register("scan", ->(**) { pass_result })
     previous = orchestrator.verify(image, policy: policy, now: 2.hours.ago)
-    registry.register("scan", ->(**) {
+    registry.register("scan", ->(attempt:, **) {
+      attempt.create_scan_evidence!(image_digest: image.digest, scanner_name: "scanner", scanner_version: "1",
+                                    database_version: "current", sbom_format: "cyclonedx-json",
+                                    sbom_digest: "sha256:#{"a" * 64}", report_digest: "sha256:#{"b" * 64}",
+                                    finding_summary: { "high" => 1 }, scanned_at: Time.current)
       RuntimeImages::Verifications::Result.fail(failure_class: :policy, code: :blocked_vulnerability,
         message: "restricted finding", evidence_references: [ { "kind" => "restricted", "digest" => image.digest } ])
     })
@@ -40,6 +44,24 @@ RSpec.describe RuntimeImages::Verifications::Reevaluator do
     expect(image).not_to be_pullable
     expect(attempt.revocation_candidate).to have_attributes(trigger_kind: "attestation_expired", severity: "high", state: "open")
     expect(attempt.revocation_candidate.reason).not_to include("restricted finding")
+  end
+
+  it "does not fabricate a vulnerability severity for other policy rejections" do
+    registry.register("scan", ->(**) { pass_result })
+    orchestrator.verify(image, policy: policy, now: 2.hours.ago)
+    registry.register("scan", ->(attempt:, **) {
+      attempt.create_policy_evidence!(image_digest: image.digest,
+                                      safe_summary: { "finding_count" => 1, "codes" => { "secret_detected" => 1 } },
+                                      report_digest: "sha256:#{"c" * 64}", scanned_at: Time.current)
+      RuntimeImages::Verifications::Result.fail(failure_class: :policy, code: :secret_detected,
+        message: "restricted finding", evidence_references: [ { "kind" => "restricted", "digest" => image.digest } ])
+    })
+
+    attempt = described_class.new(orchestrator: orchestrator, policy: policy).call(image)
+
+    expect(attempt).to have_attributes(state: "rejected", failure_code: "secret_detected")
+    expect(attempt.revocation_candidate).to be_nil
+    expect(RuntimeImageRevocationCandidate.where(runtime_image: image)).not_to exist
   end
 
   it "re-evaluates when policy changes before expiry" do

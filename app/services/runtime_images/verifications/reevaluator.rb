@@ -35,13 +35,22 @@ module RuntimeImages
       end
 
       def emit_revocation_candidate(image, attempt, trigger)
-        summary = attempt.scan_evidence&.finding_summary || attempt.policy_evidence&.safe_summary || {}
-        severity = summary.fetch("critical", 0).to_i.positive? ? "critical" : "high"
+        severity = severe_vulnerability_severity(attempt)
+        return unless severity
+
         RuntimeImageRevocationCandidate.create!(runtime_image: image, attempt: attempt, trigger_kind: trigger,
                                                 severity: severity, state: "open", detected_at: @now,
-                                                reason: "Re-verification found newly blocking #{severity}-severity policy evidence.")
+                                                reason: "Re-verification found a newly blocking #{severity}-severity vulnerability.")
         Audit.record("verification.revocation_candidate", outcome: :detected, image: image,
                      details: { trigger: trigger, severity: severity, attempt_id: attempt.id })
+      end
+
+      def severe_vulnerability_severity(attempt)
+        return unless attempt.failure_code == "blocked_vulnerability"
+
+        summary = attempt.scan_evidence&.finding_summary || {}
+        return "critical" if summary.fetch("critical", 0).to_i.positive?
+        return "high" if summary.fetch("high", 0).to_i.positive?
       end
     end
   end
