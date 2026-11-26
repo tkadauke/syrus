@@ -48,6 +48,7 @@ RSpec.describe Coworkers::EnvironmentBuildRequest do
     expect(request.recipe.dig("build_args", "SYRUS_COWORKER_BASE")).to eq(base.digest)
     expect(request.recipe.dig("input_policy", "base_digest")).to eq(base.digest)
     expect(request.recipe.dig("input_policy", "network_classes")).to eq([ "rubygems" ])
+    expect(request.recipe.dig("input_policy", "smoke_test")).to eq("./smoke-test")
     expect(request.recipe.dig("input_policy", "build_network_policy_digest")).to match(/\Asha256:/)
     expect(@result.status).to include(build_state: "queued", revision_state: "building", image_digest: nil)
   end
