@@ -497,8 +497,12 @@
   },
   "provider_warning": {
     "automatic_failover": "{{original}} non praesto est; hic Workflow per {{selected}} currit.",
+    "automatic_failover_pill": "Substitutio: {{selected}}",
     "policy_routing": "Regula itineris {{selected}} pro {{original}} elegit.",
+    "policy_routing_pill": "Regula: {{selected}}",
     "operator_failover": "Operator {{selected}} pro hoc Workflow loco {{original}} elegit.",
+    "operator_pill": "Operator: {{selected}}",
+    "show_details": "Singula itineris pro {{label}} monstra",
     "details": "Singula",
     "routing_rule": "Regula itineris {{id}} congruit",
     "routing_conditions_matched": "Condiciones itineris congruerunt",

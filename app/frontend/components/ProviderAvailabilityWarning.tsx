@@ -48,20 +48,22 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
   if (!failover) return null
 
   const copy = providerFailoverCopy(failover, t)
+  const pillCopy = providerFailoverPillCopy(failover, t)
   const details = failoverDetails(failover, t)
 
   return (
-    <div
-      className={`inline-flex max-w-full flex-col items-start rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}
+    <details
+      className={`group inline-block max-w-full rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`}
     >
-      <span>{copy}</span>
-      {details ? (
-        <details className="max-w-full font-normal">
-          <summary className="cursor-pointer underline">{t("provider_warning.details")}</summary>
-          <span className="block whitespace-normal break-words pt-1">{details}</span>
-        </details>
-      ) : null}
-    </div>
+      <summary
+        aria-label={t("provider_warning.show_details", { label: pillCopy })}
+        className="flex cursor-pointer list-none items-center gap-1 whitespace-nowrap font-medium [&::-webkit-details-marker]:hidden"
+      >
+        <span>{pillCopy}</span>
+        <InfoIcon />
+      </summary>
+      <span className="block max-w-md whitespace-normal break-words pt-1 font-normal">{[copy, details].filter(Boolean).join(" ")}</span>
+    </details>
   )
 }
 
@@ -82,6 +84,22 @@ function providerFailoverCopy(failover: NonNullable<ProviderFailover>, t: TFunct
     return t("provider_warning.operator_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
   }
   return t("provider_warning.automatic_failover", { original: failover.original_provider_label, selected: failover.selected_provider_label })
+}
+
+function providerFailoverPillCopy(failover: ProviderFailoverValue, t: TFunction<"common">): string {
+  if (failover.mode === "policy_routing") return t("provider_warning.policy_routing_pill", { selected: failover.selected_provider_label })
+  if (failover.mode === "operator") return t("provider_warning.operator_pill", { selected: failover.selected_provider_label })
+  return t("provider_warning.automatic_failover_pill", { selected: failover.selected_provider_label })
+}
+
+function InfoIcon() {
+  return (
+    <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
 }
 
 // Compact alternative to ProviderFailoverNotice for dense list rows (e.g. the
