@@ -1118,7 +1118,8 @@
   "recovery_action_permission_disabled": "Du hast keine Berechtigung für diese Wiederherstellungsaktion.",
   "recovery_action_unavailable": "Diese Wiederherstellungsaktion ist derzeit nicht verfügbar.",
   "recovery_execution_details": "Ausführungsdetails",
-  "recovery_revision": "Revision {{revision}}",
+  "recovery_workflow": "Workflow {{workflow}}",
+  "recovery_revision": "Version {{revision}}",
   "recovery_guidance_failures": "Zu behebende dauerhafte Fehler: {{failures}}",
   "grader_loop_decision_stopped": "Schleifenentscheidung — ohne Fortschritt gestoppt",
   "grader_loop_decision_continued": "Schleifenentscheidung — Reparatur fortgesetzt"
