@@ -61,17 +61,37 @@ module PendingActions
       end
     end
 
+    def tool_card_review
+      recovery_presentation(action)
+    end
+
     def tool_card_outcome
       members = (action.pending_action_group&.chat_pending_actions || [ action ]).sort_by(&:id)
       workflow_ids = members.filter_map { |member| member.result_id if member.result_type == "Workflow" }
       return if workflow_ids.empty?
 
       job_ids_by_workflow_id = Workflow.where(id: workflow_ids).pluck(:id, :job_id).to_h
-      workflows = workflow_ids.filter_map do |workflow_id|
+      workflows = members.filter_map do |member|
+        next unless member.result_type == "Workflow"
+
+        workflow_id = member.result_id
         job_id = job_ids_by_workflow_id[workflow_id]
-        { workflow_id: workflow_id, job_id: job_id } if job_id
+        { workflow_id:, job_id:, **recovery_presentation(member) } if job_id
       end
       workflows.any? ? { workflows: workflows } : nil
+    end
+
+    private
+
+    def recovery_presentation(member)
+      member_payload = member.payload.to_h
+      {
+        recovery_kind: member_payload["recovery_kind"], recovery_mode: member_payload.fetch("mode", "auto"),
+        recovery_action: member_payload["recovery_action"], source_workflow_id: member_payload["source_workflow_id"],
+        source_failure_classification: member_payload["source_failure_classification"],
+        guidance: member_payload["context"], reason: member_payload["reason"], requested_by: member.requested_by,
+        origin: "mcp_retry_job"
+      }.compact
     end
   end
 end

@@ -7,7 +7,7 @@ module Mcp::Tools
 
     tool_name "read_workflow"
 
-    description "Read Workflow metadata, Steps, and per-Step Run summaries for a Workflow visible to this chat session's user."
+    description "Read Workflow metadata, bounded repair-loop and stop summaries, Steps, and per-Step Run summaries for a Workflow visible to this chat session's user."
 
     input_schema(
       properties: {
@@ -47,6 +47,7 @@ module Mcp::Tools
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
           cancellation: Workflows::CancellationAttribution.payload_for(workflow),
+          recovery: RecoveryContract.for_workflow(workflow),
           steps: workflow.steps.map { |step| step_payload(step, with_details: include_details || step.id == step_id) }
         }.then { |h| without_blank_cancellation(h) }
       end
