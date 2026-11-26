@@ -31,12 +31,16 @@ def approve (j : Job) : Job :=
 
 def RuntimeIndependent (path : Job → Job) : Prop :=
   ∀ j activity feedback checks,
-    (path { j with runtimeActive := activity, feedbackActive := feedback,
-      checksPassing := checks }).state = (path j).state
+    (path {
+      state := j.state
+      runtimeActive := activity
+      feedbackActive := feedback
+      checksPassing := checks
+    }).state = (path j).state
 
 theorem approve_runtime_independent : RuntimeIndependent approve := by
   intro j activity feedback checks
-  simp [approve]
+  by_cases h : j.state = .implemented <;> simp [approve, h]
 
 theorem implemented_approves_regardless_of_runtime
     (activity feedback checks : Bool) :
