@@ -2,15 +2,18 @@ require "rails_helper"
 
 RSpec.describe AgentQuestionEvent do
   it "notifies the Job owner when a workflow question is asked" do
-    run = Factories.job.initial_run
+    creator = Factories.user
+    owner = Factories.user
+    run = Factories.job(user: creator, owner_user: owner).initial_run
 
     question = nil
     expect {
       question = AgentQuestion.create!(run:, questions: [ { "question" => "Path?", "options" => nil, "multiple" => false } ], asked_at: Time.current)
-    }.to change { run.user.notifications.where(kind: "agent_question_asked").count }.by(1)
+    }.to change { owner.notifications.where(kind: "agent_question_asked").count }.by(1)
 
-    notification = run.user.notifications.where(kind: "agent_question_asked").last
+    notification = owner.notifications.where(kind: "agent_question_asked").last
     expect(notification).to have_attributes(job: run.job, target_path: "/jobs/#{run.job.id}#agent-question-#{question.id}")
+    expect(creator.notifications.where(kind: "agent_question_asked")).to be_empty
   end
 
   it "records asked, answered, withdrawn, and timed-out domain events" do

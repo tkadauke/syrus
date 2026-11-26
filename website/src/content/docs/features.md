@@ -210,6 +210,10 @@ Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph
 view for dependency relationships.
+The Jobs list and Dashboard provide a **Waiting for your answer** smart folder
+for Jobs owned by the current operator that have an open workflow-agent
+question. The same condition is available in the shared filter bar and can be
+combined with other Job filters or saved in a custom smart folder.
 The Jobs list supports bulk lifecycle and ownership actions. During a bulk
 operation its selection toolbar becomes a progress indicator with completed
 and total Job counts and a cancel control, preventing another bulk action from
@@ -334,6 +338,10 @@ own independent native-notification dispatch is a fallback for when no app
 window is open (or it hasn't granted permission yet) — it stands down
 whenever the app window is already showing notifications itself, so you get
 exactly one native notification per event either way.
+
+When a workflow agent asks a question, the Job owner receives a dedicated
+notification that opens the waiting question on the Job page. Operators can
+turn this notification kind on or off in notification preferences.
 
 ## Primary Sidebar Navigation
 
