@@ -127,6 +127,26 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.revoked", runtime_image_id: image.id)).to exist
   end
 
+  it "keeps the previous active revision selected when a replacement candidate is revoked" do
+    active_image = RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'f' * 64}",
+                                        platform: "linux/amd64", source_kind: "coworker_environment",
+                                        source_ref: "revision-previous", availability: "available",
+                                        published_at: Time.current)
+    active = Coworkers::EnvironmentRevision.create!(environment: environment, number: 2, state: "active",
+                                                     source_digest: "sha256:#{'f' * 64}", runtime_image: active_image)
+    revision.update!(state: "candidate", runtime_image: image)
+    environment.update!(state: "candidate", active_revision: active, active_runtime_image: active_image,
+                        candidate_revision: revision, candidate_runtime_image: image)
+    image.mark_deleted!
+
+    described_class.new(environment).revoke!(revision, reason: "image_deleted")
+
+    expect(revision.reload).to be_revoked
+    expect(environment.reload).to have_attributes(state: "active", active_revision_id: active.id,
+                                                   active_runtime_image_id: active_image.id,
+                                                   candidate_revision_id: nil, candidate_runtime_image_id: nil)
+  end
+
   it "retains image history and audits ownership removal before deleting plugin rows" do
     revision.update!(state: "candidate", runtime_image: image)
 
