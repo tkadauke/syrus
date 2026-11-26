@@ -17,13 +17,15 @@ RSpec.describe "Approving a job with a blocked auxiliary workflow", type: :reque
     expect(job.job_approvals.where(user: user)).to exist
   end
 
-  it "still rejects approval through the API while an implement workflow is in flight" do
+  it "approves through the API while an implement workflow is in flight" do
     wf = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
     attach_work_unit(wf, kind: "retry", state: "running")
 
     post "/api/v1/app/jobs/#{job.id}/approve"
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(job.job_approvals).to be_empty
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_approved
+    expect(job.job_approvals.where(user: user)).to exist
+    expect(wf.reload).to be_running
   end
 end
