@@ -6,9 +6,9 @@ require "yaml"
 # (Docker Compose on a laptop) without disturbing the MySQL production config
 # used by the k3s deploy.
 RSpec.describe "config/database.yml local SQLite mode" do
-  def render_database_config(env)
+  def render_database_config(env = {})
     original = ENV.to_h
-    %w[SYRUS_SQLITE SYRUS_DATA_ROOT SEARCH_DATABASE_PATH].each { |key| ENV.delete(key) }
+    %w[SYRUS_SQLITE SYRUS_DATA_ROOT SEARCH_DATABASE_PATH DB_POOL JOB_CONCURRENCY SYRUS_WORKER_CPU_LIMIT].each { |key| ENV.delete(key) }
     env.each { |key, value| ENV[key] = value }
     yaml = ERB.new(File.read(Rails.root.join("config/database.yml"))).result
     YAML.safe_load(yaml, aliases: true)
@@ -63,11 +63,22 @@ RSpec.describe "config/database.yml local SQLite mode" do
   end
 
   it "does not multiply the production pool with the generic Rails thread count by default" do
+    allow(Etc).to receive(:nprocessors).and_return(4)
     config = render_database_config("RAILS_MAX_THREADS" => "20")
 
     expect(config.dig("production", "primary", "pool")).to eq(9)
     expect(config.dig("production", "queue", "pool")).to eq(9)
     expect(config.dig("production", "search", "pool")).to eq(9)
+  end
+
+  # Regression: a 16-CPU compute pod claimed 12 Runs at once against a pool
+  # of 9, and every Run thread past the ninth timed out on a connection.
+  it "grows the default production pool with the CPUs a run worker may claim" do
+    allow(Etc).to receive(:nprocessors).and_return(16)
+
+    expect(render_database_config.dig("production", "primary", "pool")).to eq(19)
+    expect(render_database_config("SYRUS_WORKER_CPU_LIMIT" => "24").dig("production", "primary", "pool")).to eq(27)
+    expect(render_database_config("DB_POOL" => "6").dig("production", "primary", "pool")).to eq(6)
   end
 
   it "leaves development and test on SQLite regardless" do

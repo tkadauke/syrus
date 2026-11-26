@@ -20,6 +20,9 @@ class RunJob < ApplicationJob
   }
 
   discard_on ActiveRecord::RecordNotFound
+  # A pool timeout is transient: the Run is still queued, so deliver the job
+  # again rather than strand it until the reconciler notices.
+  retry_on ActiveRecord::ConnectionTimeoutError, wait: 15.seconds, attempts: 20
 
   # Count deferrals instead of wall-clock age because a slow or paused queue
   # should not burn a placement pin while no worker is actively refusing it.
@@ -164,6 +167,11 @@ class RunJob < ApplicationJob
     # intentionally discardable exception with NoMethodError. RecordNotFound
     # raised later by a step still belongs to that Run's normal failure path.
     raise if e.is_a?(ActiveRecord::RecordNotFound) && !@run
+    # Anything else raised before the Run loaded (a pool timeout in the
+    # pause or concurrency checks, say) has no Run to fail or log against.
+    # Raise it as it is: handle_failure would mask it with a NoMethodError
+    # on the nil Run, and retry_on below redelivers the transient ones.
+    raise unless @run
 
     if PostImplementationReviewFailure.optional_step?(@step)
       log("WARNING: optional post-implementation review failed: #{e.class}: #{e.message}", kind: "system")

@@ -92,6 +92,20 @@ RSpec.describe RunJob, :ci_only do
 
       expect { RunJob.perform_now(missing_run_id) }.not_to raise_error
     end
+
+    # Regression: a pool timeout raised before the Run loaded went through
+    # handle_failure, which crashed appending a JobLog for the nil Run and
+    # buried the timeout under a NoMethodError nothing retried.
+    it "re-enqueues a pool timeout raised before the Run loads instead of failing on the nil Run" do
+      run = job.initial_run
+      allow(AppSetting).to receive(:runs_paused?)
+        .and_raise(ActiveRecord::ConnectionTimeoutError, "all pooled connections were in use")
+
+      expect(JobLog).not_to receive(:append!)
+      expect_any_instance_of(RunJob).to receive(:retry_job).with(hash_including(:wait))
+      expect { RunJob.perform_now(run.id) }.not_to raise_error
+      expect(run.reload).to be_queued
+    end
   end
 
   describe "execution acquisition" do
