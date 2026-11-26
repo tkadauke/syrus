@@ -34,6 +34,16 @@ RSpec.describe Coworkers::EnvironmentSource do
     expect(source.validate).to be_empty
   end
 
+  it "seeds a smoke test that the candidate image installs on its executable path" do
+    source.seed!
+
+    dockerfile = root.join("environment/Dockerfile").read
+    manifest = YAML.safe_load(root.join("environment/environment.yml").read)
+
+    expect(dockerfile).to include("COPY --chmod=0755 smoke-test /usr/local/bin/syrus-environment-smoke-test")
+    expect(manifest.fetch("smoke_test")).to eq("syrus-environment-smoke-test")
+  end
+
   it "captures an immutable revision and dedupes unchanged source" do
     source.seed!
     first = source.snapshot!
