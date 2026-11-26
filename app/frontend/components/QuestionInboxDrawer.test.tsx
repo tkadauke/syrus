@@ -8,9 +8,7 @@ describe("QuestionInboxDrawer", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("supports callers whose existing API fixture omits question data", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
