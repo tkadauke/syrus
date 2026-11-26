@@ -79,7 +79,7 @@ class WorkerCapabilities
           "env_key" => ENV_KEY,
           "worker_pool_name" => presence(ENV["SYRUS_WORKER_POOL_NAME"]),
           "admission_capacity" => RunHostAdmissionCapacity.snapshot
-        ).merge(overlayfs_diagnostics)
+        ).merge(overlayfs_diagnostics).merge(cgroup_delegation_diagnostics)
       }
     end
 
@@ -92,6 +92,18 @@ class WorkerCapabilities
       { "overlayfs" => ImmutableSourceCheckoutOverlay.capability.to_h }
     rescue StandardError => e
       debug_log { "[WorkerCapabilities] overlayfs diagnostics failed: #{e.class}: #{e.message}" }
+      {}
+    end
+
+    # Whether this worker can host adaptive per-workload resource limits.
+    # Guarded like the overlayfs probe: a failing probe never takes capability
+    # reporting down.
+    def cgroup_delegation_diagnostics
+      return {} unless defined?(Rails) && defined?(CgroupDelegationProbe)
+
+      { "cgroup_delegation" => CgroupDelegationProbe.capability }
+    rescue StandardError => e
+      debug_log { "[WorkerCapabilities] cgroup delegation diagnostics failed: #{e.class}: #{e.message}" }
       {}
     end
 
