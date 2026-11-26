@@ -9,7 +9,7 @@ module Syrus
       extend SingleForwardable
 
       def_delegators "::Job", :all, :none, :where, :find, :find_by, :create!, :transaction,
-        :visible_to, :open_threads, :approval_blocking_job_ids, :priority_rank
+        :visible_to, :open_threads, :priority_rank
 
       def self.user_facing_kinds = ::Job::Kind.user_facing_values
 

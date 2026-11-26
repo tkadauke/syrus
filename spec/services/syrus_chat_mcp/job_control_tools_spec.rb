@@ -329,10 +329,10 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(job.approved_by_user).to eq(user)
   end
 
-  it "approves an implemented job while non-blocking rebase work is active" do
+  it "approves an implemented job while implementation work is active" do
     job = Factories.job_record(repository: repository, state: "implemented")
-    rebase = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
-    attach_work_unit(rebase, kind: "rebase", state: "running")
+    implementation = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    attach_work_unit(implementation, kind: "initial", state: "running")
 
     response = call_tool("approve_job", job_id: job.id)
 
@@ -372,16 +372,15 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(job.reload).to be_queued
   end
 
-  it "rejects approving an implemented job while approval-blocking runtime work is active" do
+  it "approves an implemented job while runtime work is active" do
     job = Factories.job_record(repository: repository, state: "implemented")
     retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
     attach_work_unit(retry_workflow, kind: "retry", state: "queued")
 
     response = call_tool("approve_job", job_id: job.id)
 
-    expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("job has active approval-blocking runtime work")
-    expect(job.reload).to be_implemented
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(job.reload).to be_approved
   end
 
   it "creates a grouped pending action for approve_job job_ids instead of approving immediately" do
@@ -416,7 +415,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(implemented_job.reload).to be_implemented
   end
 
-  it "rejects approve_job job_ids up front when any target job has approval-blocking runtime work" do
+  it "creates grouped approval actions when a target job has runtime work" do
     ready_job = Factories.job_record(repository: repository, state: "implemented")
     blocked_job = Factories.job_record(repository: repository, issue_number: 43, state: "implemented")
     retry_workflow = Workflow.create!(job: blocked_job, trigger_kind: "retry", state: "queued")
@@ -424,9 +423,8 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
 
     response = call_tool("approve_job", job_ids: [ ready_job.id, blocked_job.id ])
 
-    expect(response.dig(:result, :isError)).to be true
-    expect(response.dig(:result, :content, 0, :text)).to include("job has active approval-blocking runtime work")
-    expect(PendingActionGroup.count).to eq(0)
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(PendingActionGroup.count).to eq(1)
     expect(ready_job.reload).to be_implemented
     expect(blocked_job.reload).to be_implemented
   end

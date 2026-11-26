@@ -5,7 +5,7 @@ RSpec.describe "Auxiliary workflow release on terminal outcomes" do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented") }
 
-  Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES.each do |kind|
+  Workflow::TriggerKind::IMPLEMENTED_STATE_COMPATIBLE_VALUES.each do |kind|
     describe kind do
       let(:workflow) do
         WorkUnits::Launcher.instantiate(kind: kind, job: job).tap do |wf|
@@ -19,7 +19,7 @@ RSpec.describe "Auxiliary workflow release on terminal outcomes" do
 
         expect(workflow.work_unit.reload).to be_terminal
         expect(workflow.work_unit.work_unit_locks.active).to be_empty
-        expect(job.reload.approval_blocking_runtime_work?).to be(false)
+        expect(job.reload).to be_may_approve
       end
 
       it "releases its WorkUnit and locks when failed" do
@@ -64,15 +64,15 @@ RSpec.describe "Auxiliary workflow release on terminal outcomes" do
     wf.update_columns(state: "running")
     wf.work_unit.update_columns(state: "running")
 
-    expect(job.reload.approval_blocking_runtime_work?).to be(false)
+    expect(job.reload).to be_may_approve
     expect(wf.work_unit.reload).to be_active
   end
 
-  it "still blocks approval for an in-flight implement workflow" do
+  it "does not block approval for an in-flight implement workflow" do
     wf = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     wf.update_columns(state: "running")
     wf.work_unit.update_columns(state: "running")
 
-    expect(job.reload.approval_blocking_runtime_work?).to be(true)
+    expect(job.reload).to be_may_approve
   end
 end

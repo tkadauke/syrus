@@ -421,26 +421,6 @@ class Job < ApplicationRecord
     any_active_run? || WorkUnits::Ownership.active_for_job?(self)
   end
 
-  def approval_blocking_runtime_work?
-    WorkUnits::TerminalWorkflowSync.for_job(self)
-
-    approval_blocking_active_run? || approval_blocking_active_work_unit?
-  end
-
-  def self.approval_blocking_job_ids(job_ids)
-    ids = Array(job_ids).map(&:to_i).select(&:positive?)
-    return Set.new if ids.empty?
-
-    run_ids = Run.active
-      .where(job_id: ids)
-      .where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
-      .distinct
-      .pluck(:job_id)
-    unit_ids = WorkUnits::Ownership.snapshot_for_job_ids(ids).approval_blocking_job_ids
-
-    Set.new(run_ids).merge(unit_ids)
-  end
-
   def self.priority_rank(value)
     PRIORITIES.index(value.to_s) || PRIORITIES.length
   end
@@ -1320,34 +1300,11 @@ class Job < ApplicationRecord
     WorkUnits::Ownership.active_for_job_kind?(self, Workflow::TriggerKind.feedback_values)
   end
 
-  def approval_blocking_active_run?
-    runs
-      .active
-      .where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
-      .exists?
-  end
-
-  def approval_blocking_active_work_unit?
-    WorkUnits::Ownership.active_units_for_job(self).any? do |unit|
-      !Workflow::TriggerKind.non_approval_blocking?(unit.workflow&.trigger_kind || unit.kind)
-    end
-  end
-
   def approval_withdrawn?
     approval_withdrawn_at.present?
   end
 
-  # Every approval door refuses while approval-blocking work runs, as the
-  # operator, MCP and pending-action paths do: the running Workflow may still
-  # move HEAD, and taking the Job off :running is its own success
-  # propagation's call. Checked before anything is written -- marking a
-  # running Job implemented first left it implemented under a live Workflow
-  # even when the approval was then declined. The PR poll re-reads the
-  # reviews on every pass, so the approval is recorded once the work ends.
   def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
-    return false if active_feedback_workflow? || approval_blocking_runtime_work?
-
-    mark_implemented! if may_mark_implemented?
     return false unless may_approve?
 
     approver = reviewer_user || user
