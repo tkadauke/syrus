@@ -267,6 +267,7 @@ Rails.application.routes.draw do
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
+        get "landing_lanes", to: "landing_lanes#show"
         get "dashboard/controls", to: "dashboard#controls"
         get "permission_requests", to: "permission_requests#index"
         get "permission_requests/count", to: "permission_requests#count"
