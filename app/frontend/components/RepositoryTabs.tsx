@@ -18,7 +18,9 @@ export function RepositoryTabs({ active, prefix, tabs }: { active: string; prefi
         key: tab.key,
         label: tab.label,
         to: withRoutePrefix(tab.path, prefix),
-        badge: tab.badge ? <AttentionBadge className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs leading-none">{tab.badge}</AttentionBadge> : null
+        badge: tab.badge ? (
+          <AttentionBadge className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs leading-none">{tab.badge}</AttentionBadge>
+        ) : null
       }))}
     />
   )
