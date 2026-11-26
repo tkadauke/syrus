@@ -99,4 +99,27 @@ RSpec.describe App::LandingLanesPayload do
     expect(lane.fetch(:repair_round)).to eq(1)
     expect(lane.fetch(:best_case_remaining_seconds)).to be <= 90
   end
+
+  it "batch-loads lane units and grader runtime history" do
+    first, second = approved_job(2), approved_job(1)
+    LandingQueueProcessor.call
+    [ first, second ].each_with_index do |job, index|
+      workflow = job.workflows.last
+      workflow.steps.update_all(state: "succeeded")
+      Step.create!(
+        workflow:, kind: "grader", state: "running", position: 100,
+        details: { "name" => "grader-#{index}", "timeout_minutes" => 2 }
+      )
+    end
+
+    queries = []
+    subscriber = ->(_name, _started, _finished, _id, event) do
+      queries << event[:sql] unless event[:name] == "SCHEMA" || event[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { payload }
+
+    unit_batch_queries = queries.grep(/FROM ["`]?work_units["`]?.*WHERE ["`]?work_units["`]?\.["`]?id["`]? IN/im)
+    expect(unit_batch_queries.size).to eq(1)
+    expect(queries.grep(/FROM \(SELECT .*grader_conclusions/im).size).to eq(1)
+  end
 end
