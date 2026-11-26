@@ -3570,6 +3570,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.integer "resulting_step_id"
     t.integer "resulting_run_id"
     t.string "source_loop_id"
+    t.string "resulting_loop_id"
     t.string "actor_type", null: false
     t.integer "actor_id"
     t.string "actor_display"

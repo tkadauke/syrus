@@ -24,14 +24,18 @@ module RecoveryInterventions
       workflow = result.workflow
       return result unless workflow.is_a?(Workflow) && workflow.persisted?
 
-      step = result.respond_to?(:step) ? result.step : nil
-      run = result.respond_to?(:run) ? result.run : step&.latest_run
+      result_step = result.respond_to?(:step) ? result.step : nil
+      step = result_step if result_step.is_a?(Step) && result_step.persisted?
+      result_run = result.respond_to?(:run) ? result.run : nil
+      run = result_run if result_run.is_a?(Run) && result_run.persisted?
+      run ||= step&.latest_run
       source_step = decision.evidence[:source_step_id] && Step.find_by(id: decision.evidence[:source_step_id])
       source_run = decision.evidence[:source_run_id] && Run.find_by(id: decision.evidence[:source_run_id])
       RecoveryIntervention.create!(
         job: @job, source_workflow: @source_workflow, source_step:, source_run:,
         resulting_workflow: workflow, resulting_step: step, resulting_run: run,
-        source_loop_id: decision.evidence[:source_loop_id], actor_type: @actor_type,
+        source_loop_id: decision.evidence[:source_loop_id], resulting_loop_id: step&.loop_id,
+        actor_type: @actor_type,
         actor_id: @actor&.id, actor_display: @actor_display.presence || actor_label,
         origin: @origin, action: @action, recovery_kind: decision.kind, recovery_mode: @mode,
         reason: @reason, guidance: @guidance, source_revision: decision.evidence[:source_revision],

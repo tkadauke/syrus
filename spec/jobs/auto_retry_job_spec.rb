@@ -63,10 +63,15 @@ RSpec.describe AutoRetryJob do
     expect {
       described_class.perform_now(attempt.id)
     }.to change { step.runs.count }.by(1)
+      .and change(RecoveryIntervention, :count).by(1)
 
     expect(attempt.reload.performed_at).to be_present
     expect(workflow.reload).to be_running
     expect(step.reload).to be_queued
+    expect(RecoveryIntervention.last).to have_attributes(
+      actor_type: "system", origin: "auto_retry_job", action: "rerun_check",
+      source_workflow: workflow, resulting_workflow: workflow, resulting_step: step
+    )
   end
 
   it "re-places a running worker_died grader retry through queue placement on a fresh host" do
