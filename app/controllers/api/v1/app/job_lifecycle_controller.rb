@@ -205,58 +205,66 @@ module Api
         def restart
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
-          ApplicationRecord.transaction do
-            job.cancel_active_runs_and_close!("replaced") if job.open?
-            skip_prepare = job.sync_skip_prepare_from_source!
+          source_workflow = job.latest_workflow
+          new_job = nil
+          RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "restart", mode: "restart",
+            actor_type: "operator", actor: Current.user, origin: "job_page", reason: params[:reason]
+          ) do
+            ApplicationRecord.transaction do
+              job.cancel_active_runs_and_close!("replaced") if job.open?
+              skip_prepare = job.sync_skip_prepare_from_source!
 
-            attrs = {
-              repository: job.repository,
-              issue_number: job.issue_number,
-              skip_prepare: skip_prepare,
-              kind: job.kind,
-              investigation: job.investigation?,
-              skill_name: job.skill_name,
-              skill_args: job.skill_args,
-              system_kind: job.system_kind,
-              agent_provider: job.workflow_agent_provider,
-              job_provider_setting: job.job_provider_setting,
-              model: job.model,
-              effort_level: job.effort_level,
-              target_branch: job.target_branch,
-              delivery_track: job.delivery_track,
-              epic: job.epic,
-              planned_execution_project_label: job.planned_execution_project_label,
-              planned_execution_target_label: job.planned_execution_target_label,
-              planned_execution_capabilities: job.planned_execution_capabilities,
-              planned_execution_source: job.planned_execution_source
-            }
+              attrs = {
+                repository: job.repository,
+                issue_number: job.issue_number,
+                skip_prepare: skip_prepare,
+                kind: job.kind,
+                investigation: job.investigation?,
+                skill_name: job.skill_name,
+                skill_args: job.skill_args,
+                system_kind: job.system_kind,
+                agent_provider: job.workflow_agent_provider,
+                job_provider_setting: job.job_provider_setting,
+                model: job.model,
+                effort_level: job.effort_level,
+                target_branch: job.target_branch,
+                delivery_track: job.delivery_track,
+                epic: job.epic,
+                planned_execution_project_label: job.planned_execution_project_label,
+                planned_execution_target_label: job.planned_execution_target_label,
+                planned_execution_capabilities: job.planned_execution_capabilities,
+                planned_execution_source: job.planned_execution_source
+              }
 
-            if job.direct?
-              attrs.merge!(
-                issue_title: job.issue_title,
-                issue_body: job.issue_body
-              )
+              if job.direct?
+                attrs.merge!(
+                  issue_title: job.issue_title,
+                  issue_body: job.issue_body
+                )
+              end
+
+              new_job = Current.user.jobs.create!(attrs)
+              new_job.advance_after_triage! if new_job.may_advance_after_triage?
+
+              job.dependent_links.find_each do |dependency|
+                dependency.update!(depends_on_job_id: new_job.id)
+              end
+
+              broadcast_job_change(job.reload, [ "state" ])
+              broadcast_job_change(new_job.reload, [ "created" ])
+
+              RecoveryInterventions::Result.for_workflow(new_job.latest_workflow)
             end
-
-            new_job = Current.user.jobs.create!(attrs)
-            new_job.advance_after_triage! if new_job.may_advance_after_triage?
-
-            job.dependent_links.find_each do |dependency|
-              dependency.update!(depends_on_job_id: new_job.id)
-            end
-
-            broadcast_job_change(job.reload, [ "state" ])
-            broadcast_job_change(new_job.reload, [ "created" ])
-
-            render json: job_payload(
-              new_job,
-              message: lifecycle_t("started_over"),
-              tab: nil
-            ).merge(
-              old_job: job_json(job.reload),
-              redirect_to: job_path(new_job)
-            ), status: :created
           end
+          render json: job_payload(
+            new_job,
+            message: lifecycle_t("started_over"),
+            tab: nil
+          ).merge(
+            old_job: job_json(job.reload),
+            redirect_to: job_path(new_job)
+          ), status: :created
         end
 
         # Keeps the same Job (id, Epic membership, dependency edges, history) and
@@ -276,9 +284,15 @@ module Api
             return
           end
 
-          ResetJobs::Operation.new(
-            job: job, user: Current.user, reason: lifecycle_t("reset_reason", user: Current.user.try(:display_name) || Current.user.id)
-          ).call
+          reason = params[:reason].presence || lifecycle_t("reset_reason", user: Current.user.try(:display_name) || Current.user.id)
+          source_workflow = job.latest_workflow
+          RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "restart", mode: "restart",
+            actor_type: "operator", actor: Current.user, origin: "job_page", reason:
+          ) do
+            ResetJobs::Operation.new(job:, user: Current.user, reason:).call
+            RecoveryInterventions::Result.for_workflow(job.latest_workflow)
+          end
           render_job(job.reload, message: lifecycle_t("reset_done", slug: job.slug), changed: [ "state", "workflows", "runs" ], tab: "workflows")
         end
 

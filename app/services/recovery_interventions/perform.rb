@@ -1,4 +1,13 @@
 module RecoveryInterventions
+  Result = Data.define(:workflow, :step, :run) do
+    def self.for_workflow(workflow)
+      step = workflow&.first_step
+      new(workflow:, step:, run: step&.latest_run)
+    end
+
+    def success? = true
+  end
+
   class Perform
     def self.call(**arguments, &block) = new(**arguments).call(&block)
 
