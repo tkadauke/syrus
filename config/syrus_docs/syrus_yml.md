@@ -926,8 +926,11 @@ A CPU request is a claim about the work, not a reservation. At spawn time Syrus
 resolves it against the worker's capacity and what concurrent graders already
 claim: a grader that declares nothing is assumed serial and charged one core,
 so a `cpu: all` grader receives everything the declared and undeclared peers
-leave behind. Two concurrent `cpu: all` graders split the remainder rather than
-both taking it. The resolved width reaches the command as
+leave behind, but never less than half the worker's capacity (or `cpu_min`):
+the grant is fixed for the grader's whole run, and CPU contention only slows
+processes down, so a grader that starts on a busy worker still runs in
+parallel. Measured free memory (about 750 MB per parallel process) bounds the
+grant. The resolved width reaches the command as
 `SYRUS_PROCESS_PARALLELISM`, and a declared `memory` as
 `SYRUS_MEMORY_LIMIT_BYTES`; a grader command should read those rather than
 calling `nproc` itself, which on a container without a CPU quota reports the

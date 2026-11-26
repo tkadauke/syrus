@@ -11,6 +11,7 @@ RSpec.describe GraderResourceGrant do
     described_class.reset_inflight!
     allow(RunProcessParallelism).to receive(:host_capacity).and_return(8)
     allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(16 * 1024**3)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2 * 1024**3)
   end
 
   after { described_class.reset_inflight! }
@@ -91,8 +92,31 @@ RSpec.describe GraderResourceGrant do
       expect(described_class.for(run: run, hostname: "worker-a").cpu_cores).to eq(7)
     end
 
-    it "never grants less than one core however crowded the host is" do
+    # Regression: a shard spawned beside busy peers was granted one core and
+    # ran serially for over an hour after they finished; the grant is fixed.
+    it "gives an unbounded grader at least half the host however crowded it is" do
       12.times { |i| spawn_for(run_for(grader_step(resources: GraderResourceRequest.new(cpu: 4), position: 60 + i))) }
+      run = run_for(grader_step(resources: unbounded))
+
+      expect(described_class.for(run: run, hostname: "worker-a").cpu_cores).to eq(4)
+    end
+
+    it "gives a late unbounded grader half the host beside two unbounded peers" do
+      2.times { |i| spawn_for(run_for(grader_step(resources: unbounded, position: 90 + i))) }
+      run = run_for(grader_step(resources: unbounded))
+
+      expect(described_class.for(run: run, hostname: "worker-a").cpu_cores).to eq(4)
+    end
+
+    it "bounds the grant by measured free memory, the resource that kills" do
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(14 * 1024**3)
+      run = run_for(grader_step(resources: unbounded))
+
+      expect(described_class.for(run: run, hostname: "worker-a").cpu_cores).to eq(2)
+    end
+
+    it "never grants less than one core even with almost no free memory" do
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(16 * 1024**3 - 100)
       run = run_for(grader_step(resources: unbounded))
 
       expect(described_class.for(run: run, hostname: "worker-a").cpu_cores).to eq(1)
@@ -129,7 +153,9 @@ RSpec.describe GraderResourceGrant do
 
       second = run_for(grader_step(resources: unbounded))
 
-      expect(described_class.for(run: second, hostname: "worker-a").cpu_cores).to eq(1)
+      # Counted: uncounted, the second grader would get all 8; counted, it
+      # gets the half-host floor.
+      expect(described_class.for(run: second, hostname: "worker-a").cpu_cores).to eq(4)
     end
 
     # A Run can still be queued when its grader builds its environment, which
@@ -217,7 +243,7 @@ RSpec.describe GraderResourceGrant do
     end
 
     it "flags a grant that fell below the declared useful minimum" do
-      12.times { |i| spawn_for(run_for(grader_step(resources: GraderResourceRequest.new(cpu: 4), position: 60 + i))) }
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(15 * 1024**3 + 512 * 1024**2)
       run = run_for(grader_step(resources: unbounded))
 
       expect(described_class.for(run: run, hostname: "worker-a").details["below_cpu_min"]).to be(true)

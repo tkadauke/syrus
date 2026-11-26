@@ -341,7 +341,9 @@ graders claim and passes the result to the command as
 `SYRUS_PROCESS_PARALLELISM`, with a declared `memory` as
 `SYRUS_MEMORY_LIMIT_BYTES`. A grader that declares nothing is charged a single
 core, so an `all` grader gets the rest of the worker rather than a fixed
-fraction of it; two concurrent `all` graders split what is left.
+fraction of it. Concurrent `all` graders share what is left but each gets at
+least half the worker, bounded by free memory, so a grader that starts on a busy
+worker never runs serially.
 
 Read those variables instead of calling `nproc`: inside a container without a
 CPU quota, `nproc` reports the whole node and the grader will oversubscribe.
