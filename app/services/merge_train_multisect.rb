@@ -421,6 +421,7 @@ class MergeTrainMultisect
         mounts: ProcessRunner.mounts(workspace_path),
         network: "grader",
         timeout: TIMEOUT_SECONDS,
+        kill_grace_seconds: 0,
         kind: "grader",
         workflow: workflow,
         display_command: command,

@@ -184,6 +184,7 @@ RSpec.describe MergeTrainMultisect, :ci_only do
           command: [ "bash", "-c", "sleep 30" ],
           network: "grader",
           timeout: described_class::TIMEOUT_SECONDS,
+          kill_grace_seconds: 0,
           kind: "grader",
           workflow: workflow
         )
