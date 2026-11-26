@@ -26,9 +26,11 @@ module RuntimeImages
       end
 
       def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new,
-                     base_verifier: ConformanceProbe.method(:verify_published!), candidate_probe: Verifications::CandidateProbe.new)
+                     base_verifier: ConformanceProbe.method(:verify_published!), candidate_probe: Verifications::CandidateProbe.new,
+                     supply_chain_verifier: Verifications::SupplyChainVerifier.new)
         @base_verifier = base_verifier
         @candidate_probe = candidate_probe
+        @supply_chain_verifier = supply_chain_verifier
         @orchestrator = orchestrator
         @service = service
         @builder = builder
@@ -125,7 +127,8 @@ module RuntimeImages
       def verify_candidate(request, image)
         registry = Verifications::Registry.new
         registry.register("manifest", Verifications::ManifestVerifier.new(service: @service))
-        policy = Verifications::Orchestrator::DEFAULT_POLICY.deep_dup
+        registry.register("supply_chain", @supply_chain_verifier)
+        policy = Verifications::Policy.current
         if request.source_kind == CoworkerBase::SOURCE_KIND
           registry.register("base_conformance", Verifications::CallableVerifier.new(@base_verifier, evidence_kind: "confined_conformance_probe"))
           policy["checks"] << { "key" => "base_conformance", "required" => true }

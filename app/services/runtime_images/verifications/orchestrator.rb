@@ -4,8 +4,10 @@ module RuntimeImages
       ATTEMPT_NUMBER_RETRIES = 3
       DEFAULT_POLICY = {
         "version" => 1,
-        "checks" => [ { "key" => "manifest", "required" => true } ],
+        "checks" => [ { "key" => "manifest", "required" => true }, { "key" => "supply_chain", "required" => true } ],
         "vulnerabilities" => { "blocked_severities" => %w[critical high] },
+        "prohibited_packages" => [],
+        "exemptions" => [],
         "block_secrets" => true,
         "block_prohibited_packages" => true,
         "block_policy_violations" => true
@@ -51,7 +53,7 @@ module RuntimeImages
         definition = Hash(definition).stringify_keys
         check = attempt.checks.create!(position: position, verifier_key: definition.fetch("key"), required: definition.fetch("required", true), state: "running", started_at: now)
         verifier = @registry.fetch(check.verifier_key)
-        result = verifier&.call(image: attempt.runtime_image, policy: attempt.policy_snapshot, context: context)
+        result = verifier&.call(image: attempt.runtime_image, policy: attempt.policy_snapshot, context: context, attempt: attempt)
         result ||= Result.fail(failure_class: :infrastructure, code: :verifier_unavailable, message: "required verifier #{check.verifier_key} is unavailable")
         result = Result.fail(failure_class: :evidence, code: :evidence_unavailable, message: "verifier produced no durable evidence") if result.passed? && result.evidence_references.empty?
         check.update!(state: result.passed? ? "passed" : (result.failure_class == "infrastructure" ? "unavailable" : "failed"),
