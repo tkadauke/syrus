@@ -335,9 +335,7 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
               {transcript.data.prompt ? (
                 <section className="min-w-0 shrink-0 border-b border-border px-3 py-3" data-testid="run-input-prompt">
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversation_input_prompt")}</h3>
-                  <div className={promptBodyClassName}>
-                    {renderLightMarkdown(transcript.data.prompt)}
-                  </div>
+                  <div className={promptBodyClassName}>{renderLightMarkdown(transcript.data.prompt)}</div>
                 </section>
               ) : null}
               {transcript.data.logs && transcript.data.logs.length > 0 ? (
