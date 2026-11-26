@@ -13,10 +13,13 @@ module RuntimeImages
       def call(image)
         @built_images.acquire_for_verification(image) do |reference|
           identity = json_command([ "trivy", "version", "--format", "json" ])
+          scanner_version = required_identity(identity, "Version")
+          vulnerability_database_version = database_version(identity)
           sbom = json_command([ "trivy", "image", "--quiet", "--format", "cyclonedx", reference ])
           report = json_command([ "trivy", "image", "--quiet", "--format", "json", "--scanners", "vuln", "--list-all-pkgs", reference ])
+          validate_evidence!(sbom, report)
           Scan.new(sbom: sbom, report: report, scanner_name: "trivy",
-                   scanner_version: identity.fetch("Version"), database_version: database_version(identity),
+                   scanner_version: scanner_version, database_version: vulnerability_database_version,
                    scanned_at: Time.current)
         end
       rescue KeyError => e
@@ -35,7 +38,22 @@ module RuntimeImages
 
       def database_version(identity)
         db = Hash(identity["VulnerabilityDB"] || identity["VulnerabilityDBInfo"])
-        db["UpdatedAt"] || db["DownloadedAt"] || db["Version"] || raise(ProviderError, "scanner database version is unavailable")
+        value = db["UpdatedAt"] || db["DownloadedAt"] || db["Version"]
+        raise ProviderError, "scanner database version is unavailable" if value.blank?
+
+        value
+      end
+
+      def required_identity(identity, key)
+        value = identity.fetch(key)
+        raise ProviderError, "scanner identity is incomplete: #{key}" if value.blank?
+
+        value
+      end
+
+      def validate_evidence!(sbom, report)
+        raise ProviderError, "scanner SBOM is not CycloneDX JSON" unless sbom["bomFormat"] == "CycloneDX"
+        raise ProviderError, "scanner vulnerability report has no results collection" unless report["Results"].is_a?(Array)
       end
 
       def run(argv)

@@ -36,6 +36,28 @@ RSpec.describe RuntimeImages::Verifications::SupplyChainScanner do
     expect { scanner.call(image) }.to raise_error(RuntimeImages::ProviderError, /database version/)
   end
 
+  it "fails closed when syntactically valid scanner output is not usable SBOM evidence" do
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image")
+    allow(runner).to receive(:call).and_return(
+      [ JSON.generate("Version" => "0.76.2", "VulnerabilityDB" => { "UpdatedAt" => "2026-11-26T12:00:00Z" }), 0 ],
+      [ JSON.generate("bomFormat" => "not-cyclonedx"), 0 ],
+      [ JSON.generate("Results" => []), 0 ]
+    )
+
+    expect { scanner.call(image) }.to raise_error(RuntimeImages::ProviderError, /not CycloneDX/)
+  end
+
+  it "does not interpret a malformed vulnerability report as a clean scan" do
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image")
+    allow(runner).to receive(:call).and_return(
+      [ JSON.generate("Version" => "0.76.2", "VulnerabilityDB" => { "UpdatedAt" => "2026-11-26T12:00:00Z" }), 0 ],
+      [ JSON.generate("bomFormat" => "CycloneDX"), 0 ],
+      [ JSON.generate("SchemaVersion" => 2), 0 ]
+    )
+
+    expect { scanner.call(image) }.to raise_error(RuntimeImages::ProviderError, /no results collection/)
+  end
+
   it "scans an unverified image through the digest-validating acquisition boundary" do
     provider = SyntheticRuntimeImageProvider.new(key: "scanner-boundary")
     RuntimeImages::Providers.register(provider)
