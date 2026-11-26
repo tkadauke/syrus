@@ -37,6 +37,7 @@ class RunHostAdmission
   VISUAL_DIFF_STEP_KIND = "visual_diff"
   LIGHTWEIGHT_STEP_KINDS = %w[mergeability_preflight].freeze
   IO_BOUND_DIMENSIONS = %i[io_pressure].freeze
+  CPU_DIMENSIONS = %i[cpu cpu_pressure].freeze
   BACKGROUND_TRIGGER_KINDS = %w[main_grader main_branch_repair agent_insight].freeze
   BUSY_REASON = "host_resource_semaphore_busy".freeze
 
@@ -219,19 +220,29 @@ class RunHostAdmission
   end
 
   # Pressure that should shrink the target: memory stalling at half the
-  # deferral ceiling, or a CPU or memory dimension the health analysis already
-  # calls a warning. IO pressure is left out -- it is what a busy grader
-  # produces, not a sign that another one will fail.
+  # deferral ceiling, or the memory dimension at warning or worse. CPU is
+  # deliberately not here: a worker running graders shows CPU pressure because
+  # it is busy, and halving on it collapsed a freshly restarted worker's target
+  # from 8 to 1 within minutes while it had 13 GB free and no memory stall.
   def pressured?
     return true if memory_pressure_some.present? && memory_pressure_some >= memory_pressure_ceiling / 2
     return false unless local_sample
 
-    (WorkerHealthSampleAnalysis.dimensions_at_least(local_sample, "warning") - IO_BOUND_DIMENSIONS).any?
+    WorkerHealthSampleAnalysis.dimensions_at_least(local_sample, "warning").include?(:memory)
+  end
+
+  # CPU at its target utilization (the health analysis warns at 90% used):
+  # stop growing, but keep what is running. CPU contention slows work down;
+  # it does not kill it.
+  def saturated?
+    return false unless local_sample
+
+    (WorkerHealthSampleAnalysis.dimensions_at_least(local_sample, "warning") & CPU_DIMENSIONS).any?
   end
 
   def concurrency_target
     @concurrency_target ||= HostConcurrencyTarget.new(cpus: host_cpu_count, now: now)
-      .observe!(active: active_compute_run_count, pressured: pressured?)
+      .observe!(active: active_compute_run_count, pressured: pressured?, saturated: saturated?)
   end
 
   def active_compute_run_count

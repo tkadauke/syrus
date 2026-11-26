@@ -169,8 +169,9 @@ per-step cost estimates, capacity units or reserves.
 - **Compute concurrency.** Compute Runs (everything except provider-bound agent
   turns) are bounded by a per-worker concurrency target. It starts at the
   worker's CPU count, grows by one every 30 seconds while the worker is full
-  and healthy, and halves when memory pressure reaches half its ceiling or a
-  CPU or memory health dimension is at warning. IO pressure does not shrink it.
+  and its CPU is below 90% used, holds while CPU is at or above that, and
+  halves only on memory trouble: memory pressure at half its ceiling or the
+  memory health dimension at warning. Busy CPU and IO never shrink it.
   The target lives on the worker and restarts from the CPU count.
 - Graders still receive `SYRUS_PROCESS_PARALLELISM`, their share of the CPU
   from the resource grant, so a tool such as `parallel_rspec` sizes itself

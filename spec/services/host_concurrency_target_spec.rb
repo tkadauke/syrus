@@ -23,6 +23,10 @@ RSpec.describe HostConcurrencyTarget do
     expect(target(t0 + described_class::ADJUST_INTERVAL).observe!(active: 5, pressured: false)).to eq(6)
   end
 
+  it "holds rather than grows while the worker's CPU is saturated" do
+    expect(target(t0).observe!(active: 4, pressured: false, saturated: true)).to eq(4)
+  end
+
   it "does not grow while the worker is below its target" do
     expect(target(t0).observe!(active: 1, pressured: false)).to eq(4)
   end

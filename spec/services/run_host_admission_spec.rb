@@ -106,6 +106,28 @@ RSpec.describe RunHostAdmission do
     expect(decision).to be_admit
   end
 
+  # Regression: halving on CPU warnings collapsed a busy worker's target to 1
+  # while it had plenty of free memory and no memory stall.
+  it "keeps the target on a CPU-busy worker with healthy memory instead of halving it" do
+    worker_sample(cpu_used_percent: 95.0, load_1m: 9.0, cpu_pressure_some: 40.0, cpu_pressure_full: 2.0)
+    2.times { |i| compute_run_on_worker_a(i) }
+    pin_target!(4, adjusted_at: 1.minute.ago)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+    expect(JSON.parse(HostConcurrencyTarget.default_path.read)["target"]).to eq(4)
+  end
+
+  it "halves the target when memory is under warning pressure" do
+    worker_sample(memory_used_percent: 90.0)
+    pin_target!(4, adjusted_at: 1.minute.ago)
+
+    described_class.call(run: run)
+
+    expect(JSON.parse(HostConcurrencyTarget.default_path.read)["target"]).to eq(2)
+  end
+
   it "neither charges nor limits provider-bound agent turns by the compute target" do
     2.times { |i| compute_run_on_worker_a(i) }
     pin_target!(2)

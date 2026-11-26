@@ -37,15 +37,16 @@ class HostConcurrencyTarget
 
   # Moves the target from one observation and returns it. `active` is the
   # compute work running here now; `pressured` is whether the worker is
-  # measurably struggling.
-  def observe!(active:, pressured:)
+  # measurably struggling for memory; `saturated` is whether its CPU is already
+  # at its target utilization, which holds the target rather than shrinking it.
+  def observe!(active:, pressured:, saturated: false)
     with_state do |state|
       target = state.fetch("target", initial_target).to_i.clamp(MIN_TARGET, max_target)
       if due?(state)
         if pressured
           target = [ target / 2, MIN_TARGET ].max
           state["adjusted_at"] = now.iso8601
-        elsif active >= target
+        elsif active >= target && !saturated
           target = [ target + 1, max_target ].min
           state["adjusted_at"] = now.iso8601
         end
