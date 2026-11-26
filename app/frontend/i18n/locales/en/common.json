@@ -613,6 +613,7 @@
     }
   },
   "native_notifications": {
+    "agent_question_asked": "Waiting for your answer",
     "generic": "Syrus notification",
     "ci_failed": "CI failed",
     "job_failed": "Job failed",

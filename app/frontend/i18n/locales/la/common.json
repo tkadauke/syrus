@@ -613,6 +613,7 @@
     }
   },
   "native_notifications": {
+    "agent_question_asked": "Responsum tuum exspectatur",
     "generic": "Nuntiatio Syrus",
     "ci_failed": "CI defecit",
     "job_failed": "Job defecit",

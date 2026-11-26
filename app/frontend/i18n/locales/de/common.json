@@ -613,6 +613,7 @@
     }
   },
   "native_notifications": {
+    "agent_question_asked": "Wartet auf deine Antwort",
     "generic": "Syrus-Benachrichtigung",
     "ci_failed": "CI fehlgeschlagen",
     "job_failed": "Job fehlgeschlagen",
