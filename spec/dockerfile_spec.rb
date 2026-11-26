@@ -121,6 +121,14 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("install -m 0755 /tmp/antigravity /usr/local/bin/agy")
   end
 
+  it "installs the checksum-pinned runtime image scanner on both worker architectures" do
+    expect(dockerfile).to include("ARG TRIVY_VERSION=0.76.2")
+    expect(dockerfile).to include("ARG TRIVY_LINUX_AMD64_SHA256=")
+    expect(dockerfile).to include("ARG TRIVY_LINUX_ARM64_SHA256=")
+    expect(dockerfile).to include('echo "${trivy_sha256}  ${trivy_tarball}" | sha256sum -c -')
+    expect(dockerfile).to include('tar -xzf "${trivy_tarball}" -C /usr/local/bin trivy')
+  end
+
   it "builds and installs the Syrus CLI into app and worker runtime images" do
     cli_stage = stage("cli-build", "base AS app")
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
