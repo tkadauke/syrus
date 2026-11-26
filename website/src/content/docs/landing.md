@@ -163,6 +163,16 @@ one landing lane; a unit that fails its graders holds only its own lane while
 the others keep landing. With the default of 1, landing works exactly as it
 always has.
 
+Syrus exposes these lanes to authenticated clients through
+`GET /api/v1/app/landing_lanes`. The response includes configured and busy
+lane counts, the ordered approved backlog, empty slots, and each visible
+landing unit's Jobs, workflow phase, graders, progress, and best-case time
+remaining. The estimate weights graders by their recent successful runtimes
+and assumes all remaining work passes on its current attempt, so it is always
+identified as `best_case`. Clients receive `landing_lanes.updated` app events
+when landing workflow or grader state changes and can refetch the payload
+without polling.
+
 ## Reusing Green Results
 
 Landing can reuse a previous green validation when the proof still matches the

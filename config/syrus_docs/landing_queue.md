@@ -207,6 +207,19 @@ Each concurrent unit holds one landing lane. Lane 1 uses the lock key `landing:r
 
 With the default of 1, landing behaves exactly as it did before the setting existed. The stuck-Job explainer reports each lane, whether it is occupied, and which unit holds it.
 
+The authenticated app API exposes live lane status at
+`GET /api/v1/app/landing_lanes`. It reports every visible repository's
+configured and busy lane counts, approved backlog, and every configured slot,
+including empty capacity. Occupied lanes link to the visible anchor Job,
+bundle members, and landing Workflow and report their current phase, graders,
+repair or rebase state, progress, and `best_case_remaining_seconds`. Progress
+uses recent successful runtime history for each grader and falls back to part
+of its timeout when no history exists. Remaining graders are assumed to run in
+parallel and pass on their current attempt, so consumers must present the
+estimate as best case. Workflow and grader state changes publish a
+`landing_lanes.updated` app event; clients should invalidate and refetch the
+payload rather than poll it.
+
 ## trust_clean_rebase_grade
 
 When `trust_clean_rebase_grade` is enabled (off by default), a clean `rebase`
