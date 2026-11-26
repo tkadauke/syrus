@@ -90,6 +90,7 @@ import { Input } from "../components/Input"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { BuildBadge } from "../components/BuildBadge"
+import { AttentionBadge } from "../components/AttentionBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
 import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
@@ -1634,7 +1635,7 @@ function SidebarContent({
                     {item.icon}
                     <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
                     {!collapsed && item.badge ? (
-                      <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span>
+                      <AttentionBadge className="ml-auto rounded-full px-1.5 py-0.5 text-xs leading-none">{item.badge}</AttentionBadge>
                     ) : null}
                   </Link>
                   {collapsed ? null : <GripIcon />}
