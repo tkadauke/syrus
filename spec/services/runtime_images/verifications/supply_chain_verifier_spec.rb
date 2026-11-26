@@ -39,7 +39,8 @@ RSpec.describe RuntimeImages::Verifications::SupplyChainVerifier do
     expect(evidence).to have_attributes(image_digest: image.digest, scanner_name: "trivy", scanner_version: "0.67.2",
                                         database_version: "2026-11-26T12:00:00Z", sbom_format: "cyclonedx-json")
     expect(evidence.finding_summary).to include("high" => 1, "packages" => 1, "layers_scanned" => 1,
-                                                "blocked_vulnerabilities" => 1, "prohibited_packages" => 1)
+                                                "blocked_vulnerabilities" => 1, "prohibited_packages" => 1,
+                                                "blocked_vulnerability_severities" => { "high" => 1 })
     expect(evidence.decision_evidence).to eq("blocked_vulnerability_ids" => [ "CVE-1" ], "prohibited_package_names" => [ "curl" ])
     expect(evidence.sbom).to be_attached
     expect(evidence.scan_report).to be_attached
@@ -58,6 +59,20 @@ RSpec.describe RuntimeImages::Verifications::SupplyChainVerifier do
 
     expect(attempt).to be_accepted
     expect(attempt.scan_evidence.exemptions.pluck("id")).to eq(%w[CVE-1 curl])
+  end
+
+  it "separates blocked severity counts from other reported vulnerabilities" do
+    report = scan.report.deep_dup
+    report["Results"].first["Vulnerabilities"] << { "VulnerabilityID" => "CVE-2", "Severity" => "MEDIUM" }
+    allow(scanner).to receive(:call).and_return(scan.with(report: report))
+
+    attempt = verify("vulnerabilities" => { "blocked_severities" => %w[medium] },
+                     "prohibited_packages" => [], "exemptions" => [])
+
+    expect(attempt).to have_attributes(state: "rejected", failure_code: "blocked_vulnerability")
+    expect(attempt.scan_evidence.finding_summary).to include(
+      "high" => 1, "medium" => 1, "blocked_vulnerability_severities" => { "medium" => 1 }
+    )
   end
 
   it "blocks without evidence when the scanner is unavailable" do
