@@ -25,6 +25,7 @@ module RuntimeImages
         end
         summary = severity_counts(vulnerabilities).merge(
           "packages" => packages.size, "blocked_vulnerabilities" => blocked_vulnerabilities.size,
+          "blocked_vulnerability_severities" => severity_counts(blocked_vulnerabilities),
           "prohibited_packages" => blocked_packages.size, "layers_scanned" => layer_count(vulnerabilities, packages)
         )
         evidence = {
