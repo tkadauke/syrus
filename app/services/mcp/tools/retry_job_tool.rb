@@ -90,7 +90,7 @@ module Mcp::Tools
           else
             mode.to_s
           end
-          [ job.id, { source:, decision:, effective_mode: } ]
+          [ job.id, { job:, source:, decision:, effective_mode: } ]
         end
         explicit_restart_required = recoveries.values.select do |recovery|
           mode.to_s == "auto" && recovery[:effective_mode].in?(%w[implementation restart])
@@ -198,8 +198,7 @@ module Mcp::Tools
       end
 
       def recovery_decision_payload(recovery)
-        source = recovery[:source]
-        source ? RecoveryContract.for_workflow(source)[:decision] : recovery[:decision].as_json
+        RecoveryContract.for_job(recovery[:job], workflow: recovery[:source])[:decision]
       end
 
       def bounded_failure_identities(recoveries)
