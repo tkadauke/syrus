@@ -524,13 +524,15 @@ class AutoRetryJob < ApplicationJob
   end
 
   def retry_workflow(attempt)
-    RetryWorkflowEnqueuer.call(
-      job: attempt.job,
-      agent_provider: retry_agent_provider(attempt),
-      artifacts: { "auto_retry_attempt_id" => attempt.id },
-      provider_validation: :none,
-      automatic: true
-    )
+    record_automatic_intervention(attempt, "rerun_check") do
+      RetryWorkflowEnqueuer.call(
+        job: attempt.job,
+        agent_provider: retry_agent_provider(attempt),
+        artifacts: { "auto_retry_attempt_id" => attempt.id },
+        provider_validation: :none,
+        automatic: true
+      )
+    end
   end
 
   # Keeping the failed provider is right for almost every retry -- the work is
@@ -555,6 +557,14 @@ class AutoRetryJob < ApplicationJob
       prompt: Prompts::Resume.new.to_s,
       agent_provider: session.provider.presence || attempt.agent_provider,
       restart_grade_loop: false
+    )
+  end
+
+  def record_automatic_intervention(attempt, action, &block)
+    RecoveryInterventions::Perform.call(
+      job: attempt.job, source_workflow: attempt.workflow, action:, mode: attempt.retry_kind,
+      actor_type: "system", origin: "auto_retry_job", reason: attempt.failure_classification,
+      &block
     )
   end
 

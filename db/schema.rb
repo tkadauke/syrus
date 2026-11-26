@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -3559,6 +3559,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_223740) do
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
     t.index ["session_id"], name: "index_provider_sessions_on_session_id"
+  end
+
+  create_table "recovery_interventions", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "source_workflow_id"
+    t.integer "source_step_id"
+    t.integer "source_run_id"
+    t.integer "resulting_workflow_id"
+    t.integer "resulting_step_id"
+    t.integer "resulting_run_id"
+    t.string "source_loop_id"
+    t.string "actor_type", null: false
+    t.integer "actor_id"
+    t.string "actor_display"
+    t.string "origin", null: false
+    t.string "action", null: false
+    t.string "recovery_kind", null: false
+    t.string "recovery_mode", null: false
+    t.text "reason"
+    t.text "guidance"
+    t.string "source_revision"
+    t.string "resulting_revision"
+    t.string "failure_classification"
+    t.json "failure_evidence"
+    t.datetime "performed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "performed_at"], name: "idx_recovery_interventions_job_time"
+    t.index ["resulting_workflow_id"], name: "index_recovery_interventions_on_resulting_workflow_id"
+    t.index ["source_workflow_id"], name: "index_recovery_interventions_on_source_workflow_id"
   end
 
   create_table "ref_movement_actions", force: :cascade do |t|

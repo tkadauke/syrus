@@ -134,6 +134,8 @@ class GraderLoopProgress
       "failing_set" => failing_set,
       "failing_set_digest" => Digest::SHA256.hexdigest(failing_set.join("\0")),
       "repair" => repair,
+      "source_revision" => source_revision,
+      "repaired_revision" => repaired_revision,
       "transient_only" => transient_only_round? || (failed_graders.any? && measured_graders.empty?),
       "recorded_at" => Time.current.iso8601
     }
@@ -255,5 +257,16 @@ class GraderLoopProgress
       "diff_bytes" => diff.to_s.bytesize,
       "produced_diff" => diff.present?
     }.compact
+  end
+
+  def source_revision
+    previous = workflow.steps.where(loop_id: collect_step.loop_id, iteration: ...collect_step.iteration)
+      .where(kind: Step::AGENTIC_KINDS).order(iteration: :desc, position: :desc, id: :desc).first
+    previous&.latest_run&.head_sha
+  end
+
+  def repaired_revision
+    workflow.steps.where(loop_id: collect_step.loop_id, iteration: collect_step.iteration)
+      .where(kind: Step::AGENTIC_KINDS).order(position: :desc, id: :desc).first&.latest_run&.head_sha
   end
 end
