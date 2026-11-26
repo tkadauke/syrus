@@ -104,6 +104,22 @@ RSpec.describe BroadcastsJobProgress do
     )
   end
 
+  it "does not inspect landing ownership for a non-landing workflow update" do
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    step = Step.create!(workflow:, kind: "implement", position: 0)
+    queries = []
+    subscriber = ->(_name, _started, _finished, _id, event) do
+      queries << event[:sql] unless event[:name] == "SCHEMA" || event[:cached]
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      step.start!
+      step.save!
+    end
+
+    expect(queries.grep(/work_unit_locks/i)).to be_empty
+  end
+
   it "does not broadcast for heartbeat-only Run updates" do
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
     step = Step.create!(workflow: workflow, kind: "implement", position: 0)

@@ -31,22 +31,41 @@ module App
 
     def repository_json(repository)
       statuses = lane_statuses(repository)
+      units = landing_units(statuses)
+      visible_job_ids = visible_job_ids_for(repository, units.values)
+      units.select! { |_id, unit| visible_job_ids.include?(unit.workflow&.job_id) }
+      prime_runtime_history(repository.id, units.values)
+      lanes = statuses.map { |status| lane_json(status, units:, visible_job_ids:) }
       {
         id: repository.id,
         slug: repository.slug,
         landing_concurrency: WorkDefinitions.landing_lane_count(repository),
-        busy_lane_count: statuses.count { |status| status[:occupied] },
+        busy_lane_count: lanes.count { |lane| !lane[:empty] },
         approved_backlog: backlog_json(repository),
-        lanes: statuses.map { |status| lane_json(status) }
+        lanes:
       }
     end
 
     def lane_statuses(repository)
       sample_job = @jobs.where(repository_id: repository.id).where(state: %w[approved landing]).first ||
-        repository.jobs.first
+        @jobs.where(repository_id: repository.id).first
       return empty_lanes(repository) unless sample_job
 
       WorkDefinitions.landing_lane_status_for(sample_job)
+    end
+
+    def landing_units(statuses)
+      ids = statuses.filter_map { |status| status[:work_unit_id] }
+      WorkUnit.where(id: ids)
+        .includes(workflow: [ :job, { steps: :runs } ], work_unit_members: :job)
+        .index_by(&:id)
+    end
+
+    def visible_job_ids_for(repository, units)
+      candidate_ids = units.flat_map do |unit|
+        [ unit.workflow&.job_id, *unit.work_unit_members.map(&:job_id) ]
+      end.compact.uniq
+      @jobs.where(repository_id: repository.id, id: candidate_ids).pluck(:id).to_set
     end
 
     def empty_lanes(repository)
@@ -64,13 +83,15 @@ module App
         end
     end
 
-    def lane_json(status)
-      unit = WorkUnit.includes(:workflow, work_unit_members: :job).find_by(id: status[:work_unit_id])
+    def lane_json(status, units:, visible_job_ids:)
+      unit = units[status[:work_unit_id]]
       return { number: status[:lane], empty: true, draining: status[:draining] } unless unit&.workflow
 
       workflow = unit.workflow
-      members = unit.work_unit_members.sort_by(&:id).map(&:job)
-      anchor = unit.work_unit_members.find { |member| member.role == "primary" }&.job || workflow.job
+      members = unit.work_unit_members.sort_by(&:id).filter_map(&:job)
+        .select { |job| visible_job_ids.include?(job.id) }
+      primary = unit.work_unit_members.find { |member| member.role == "primary" }&.job
+      anchor = visible_job_ids.include?(primary&.id) ? primary : workflow.job
       phase = phase_json(workflow)
 
       {
@@ -100,7 +121,7 @@ module App
     end
 
     def phase_json(workflow)
-      steps = workflow.steps.includes(:runs).order(:position, :id).to_a
+      steps = workflow.steps.to_a.sort_by { |step| [ step.position, step.id ] }
       current = steps.find { |step| %w[running queued].include?(step.state) } || steps.last
       phase = phase_for(current)
       graders = grader_json(workflow, steps)
@@ -174,11 +195,35 @@ module App
     end
 
     def expected_grader_seconds(repository_id, name, timeout_minutes)
-      durations = GraderConclusion.where(repository_id:, grader_name: name, status: "passed")
-        .where.not(duration_s: nil).order(checked_at: :desc).limit(HISTORY_LIMIT).pluck(:duration_s).map(&:to_f).sort
-      return median(durations) if durations.any?
+      durations = @runtime_history&.fetch([ repository_id, name ], nil)
+      return median(durations) if durations&.any?
 
       [ timeout_minutes.to_f.minutes * TIMEOUT_FALLBACK_FRACTION, 1.0 ].max
+    end
+
+    def prime_runtime_history(repository_id, units)
+      names = units.flat_map do |unit|
+        unit.workflow.steps.filter_map do |step|
+          step.details.to_h["name"].to_s if step.kind == "grader"
+        end
+      end.uniq
+      return if names.empty?
+
+      ranked = GraderConclusion.where(repository_id:, grader_name: names, status: "passed")
+        .where.not(duration_s: nil)
+        .select(
+          :grader_name,
+          :duration_s,
+          Arel.sql("ROW_NUMBER() OVER (PARTITION BY grader_name ORDER BY checked_at DESC) AS runtime_rank")
+        )
+      rows = GraderConclusion.from(ranked, :grader_conclusions)
+        .where("runtime_rank <= ?", HISTORY_LIMIT)
+        .pluck(:grader_name, :duration_s)
+
+      @runtime_history ||= {}
+      rows.group_by(&:first).each do |name, grader_rows|
+        @runtime_history[[ repository_id, name ]] = grader_rows.map { |row| row.last.to_f }.sort
+      end
     end
 
     def median(values)
