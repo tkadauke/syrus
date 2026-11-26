@@ -30,7 +30,8 @@ export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: stri
   const isMobile = useMediaQuery(ACTIVITY_MOBILE_QUERY)
   const showInActivity = Boolean(activity && isMobile)
   const questions = useOpenAgentQuestions()
-  const count = questions.data?.questions.length || 0
+  const openQuestions = questions.data?.questions ?? []
+  const count = openQuestions.length
 
   useEffect(() => {
     if (previousCount.current != null && count > previousCount.current) {
@@ -87,7 +88,7 @@ export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: stri
               </header>
               {notice ? <p className="mb-3 text-sm text-success-text">{notice}</p> : null}
               <div className="space-y-4">
-                {questions.data?.questions.map((question) => (
+                {openQuestions.map((question) => (
                   <article className="space-y-2" key={question.id}>
                     <Link
                       className="block text-sm font-semibold text-brand hover:underline"
@@ -121,6 +122,7 @@ export function QuestionsActivityPanel({ navigateTo, prefix }: { navigateTo: (to
   const { t } = useT("nav")
   const client = useQueryClient()
   const questions = useOpenAgentQuestions()
+  const openQuestions = questions.data?.questions ?? []
   const [notice, setNotice] = useState<string | null>(null)
   async function answer(question: WorkflowAgentQuestion, answers: ChatAgentQuestionAnswer[]) {
     const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
@@ -130,7 +132,7 @@ export function QuestionsActivityPanel({ navigateTo, prefix }: { navigateTo: (to
   return (
     <div className="space-y-4 p-4">
       {notice ? <p className="text-sm text-success-text">{notice}</p> : null}
-      {questions.data?.questions.map((question) => (
+      {openQuestions.map((question) => (
         <article className="space-y-2" key={question.id}>
           <Link
             className="block text-sm font-semibold text-brand hover:underline"
@@ -145,7 +147,7 @@ export function QuestionsActivityPanel({ navigateTo, prefix }: { navigateTo: (to
           <AgentQuestions questions={[question]} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={setNotice} />
         </article>
       ))}
-      {questions.isSuccess && !questions.data.questions.length ? <p className="text-sm text-text-muted">{t("question_inbox.empty")}</p> : null}
+      {questions.isSuccess && openQuestions.length === 0 ? <p className="text-sm text-text-muted">{t("question_inbox.empty")}</p> : null}
     </div>
   )
 }

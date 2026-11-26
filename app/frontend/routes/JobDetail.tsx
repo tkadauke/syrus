@@ -275,7 +275,8 @@ export function JobQuestionPanel({
   const client = useQueryClient()
   const queryKey = ["agent-questions", "job", job.id] as const
   const query = useQuery({ queryKey, queryFn: () => fetchOpenAgentQuestions(job.id), refetchInterval: 15_000 })
-  if (!query.data?.questions.length) return null
+  const questions = query.data?.questions ?? []
+  if (questions.length === 0) return null
 
   async function answer(question: WorkflowAgentQuestion, answers: import("../api/chats").ChatAgentQuestionAnswer[]) {
     const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
@@ -290,7 +291,7 @@ export function JobQuestionPanel({
         <p className="text-sm text-text-secondary">{t("question_panel_consequence")}</p>
         <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
       </div>
-      <AgentQuestions questions={query.data.questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
+      <AgentQuestions questions={questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
       <div className="grid gap-2 sm:grid-cols-3">
         <div>
           <Button
