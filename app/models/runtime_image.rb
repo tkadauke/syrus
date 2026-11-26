@@ -52,7 +52,8 @@ class RuntimeImage < ApplicationRecord
   def pullable? = available? && revoked_at.nil? && verification_state == "candidate"
   def candidate? = verification_state == "candidate"
   def verified_candidate?
-    candidate? && runtime_image_verification_attempts.where(state: "accepted", image_digest: digest).exists?
+    latest_attempt = runtime_image_verification_attempts.where(image_digest: digest).order(number: :desc).first
+    candidate? && latest_attempt&.accepted?
   end
   def retained?(now = Time.current) = retention_state == "retained" && (retain_until.nil? || retain_until > now)
 
