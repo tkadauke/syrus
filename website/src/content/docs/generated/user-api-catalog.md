@@ -316,6 +316,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/graph` | `api/v1/app/jobs#graph` |
 | core | GET | `/api/v1/app/jobs/new` | `api/v1/app/direct_jobs#new` |
 | core | GET | `/api/v1/app/jobs/new/prompt_templates/:template_id` | `api/v1/app/direct_jobs#prompt_template` |
+| core | GET | `/api/v1/app/landing_lanes` | `api/v1/app/landing_lanes#show` |
 | core | GET | `/api/v1/app/maintenance_tasks/sidebar` | `api/v1/app/maintenance_tasks#sidebar` |
 | core | GET | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#index` |
 | core | POST | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#create` |
