@@ -102,15 +102,14 @@ module Mcp::Tools
         guidance_needed = recoveries.values.select do |recovery|
           recovery[:decision].recommended_action == "repair_with_guidance" &&
             recovery[:effective_mode] == "failed_step" &&
-            (recovery[:decision].kind == "grader_loop_no_progress" || recovery[:decision].evidence[:failure_classification].present?) &&
             context.blank?
         end
         if guidance_needed.any?
           return Mcp::Tools.success(
             status: "guidance_required",
-            persistent_failures: guidance_needed.flat_map { |recovery| Array(recovery[:decision].evidence[:measured_failure_identities]) }.uniq.first(20),
+            persistent_failures: bounded_failure_identities(guidance_needed),
             suggested_guidance: guidance_needed.first[:decision].guidance,
-            recoveries: guidance_needed.map { |recovery| RecoveryContract.for_workflow(recovery[:source])[:decision] },
+            recoveries: guidance_needed.map { |recovery| recovery_decision_payload(recovery) },
             pending_action_created: false
           )
         end
@@ -143,7 +142,7 @@ module Mcp::Tools
             pending_action_id: pending_action.id,
             state: pending_action.state,
             message: mode.to_s == "auto" ? "Job retry requires operator confirmation." : "#{mode.to_s.humanize} Job retry requires operator confirmation.",
-            recovery: RecoveryContract.for_workflow(recoveries.fetch(job.id)[:source])[:decision],
+            recovery: recovery_decision_payload(recoveries.fetch(job.id)),
             preflight: preflights.fetch(job.id).details
           )
         end
@@ -196,6 +195,17 @@ module Mcp::Tools
       def recovery_source_workflow(job, source_workflow_id)
         scope = job.workflows.where(state: %w[failed blocked cancelled])
         source_workflow_id.present? ? scope.find_by(id: source_workflow_id) : scope.reorder(created_at: :desc, id: :desc).first
+      end
+
+      def recovery_decision_payload(recovery)
+        source = recovery[:source]
+        source ? RecoveryContract.for_workflow(source)[:decision] : recovery[:decision].as_json
+      end
+
+      def bounded_failure_identities(recoveries)
+        recoveries.flat_map { |recovery| Array(recovery[:decision].evidence[:measured_failure_identities]) }
+          .uniq.first(RecoveryContract::FAILURE_LIMIT)
+          .filter_map { |failure| failure.to_s.each_char.first(RecoveryContract::TEXT_LIMIT).join.presence }
       end
     end
   end
