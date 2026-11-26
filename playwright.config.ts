@@ -45,6 +45,10 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`
 
 export default defineConfig({
   timeout: 30_000,
+  // Plugin routes load their frontend bundle and data on first visit. On a
+  // busy grader worker that can legitimately take longer than Playwright's
+  // five-second assertion default even though the request is healthy.
+  expect: { timeout: 15_000 },
   // On GitHub Actions, report each failed test as a check annotation as well.
   // Without it a red e2e check said only "Process completed with exit code 1":
   // which tests failed was visible only in the raw job log, so neither an
