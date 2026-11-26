@@ -219,3 +219,9 @@ Enforcement is server-side and converges on `Unlanding::Eligibility`, which `Unl
 Disabling the flag blocks only new unland operations. An existing rollback Job or unland Workflow stays visible, can be retried, and can finish; historical `unlanded_by` / `rollback_of` presentation is unaffected. The fast `unland` grader policy is unchanged.
 
 Engineering-only rollout and instrumentation flags are documented in the [feature-flag architecture reference](../../docs/engineering/architecture/feature-flags.md).
+
+## landing_lanes
+
+**Category:** Labs · **Off by default**
+
+Enables the landing-lanes observability experience: the compact dashboard strip, the full `/landing_lanes` page, and `GET /api/v1/app/landing_lanes`. When disabled, the strip is not rendered or fetched, direct page navigation shows the standard unavailable page, and the API returns a not-found `feature_disabled` response. The existing landing queue summary, repository landing concurrency, and all landing execution behavior remain available and unchanged.

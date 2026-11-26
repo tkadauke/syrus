@@ -148,6 +148,10 @@ class Feature < ApplicationRecord
     enabled?(:unlanding)
   end
 
+  def self.landing_lanes_enabled?
+    enabled?(:landing_lanes)
+  end
+
   def self.execution_request_assertions_enabled?
     enabled?(:execution_request_assertions)
   end
