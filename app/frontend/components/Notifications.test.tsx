@@ -34,7 +34,7 @@ describe("Notifications", () => {
     )
 
     expect(await screen.findByRole("button", { name: "Notifications, 12 unread" })).toBeInTheDocument()
-    expect(screen.getByText("9+")).toBeInTheDocument()
+    expect(screen.getByText("9+")).toHaveClass("bg-danger", "text-surface")
   })
 
   it("toggles the desktop notifications panel", async () => {
