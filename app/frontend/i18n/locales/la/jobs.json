@@ -1123,6 +1123,7 @@
   "recovery_action_permission_disabled": "Potestas huius actionis restitutionis tibi deest.",
   "recovery_action_unavailable": "Haec actio restitutionis nunc non adest.",
   "recovery_execution_details": "Singula executionis",
+  "recovery_workflow": "Fluxus {{workflow}}",
   "recovery_revision": "Revisio {{revision}}",
   "recovery_guidance_failures": "Defectiones persistentes corrigendae: {{failures}}",
   "grader_loop_decision_stopped": "Consilium circuitus — sine progressu constitit",

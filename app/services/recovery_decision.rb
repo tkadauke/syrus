@@ -8,6 +8,7 @@ class RecoveryDecision
   POLICIES = %w[
     RecoveryDecision::Policies::NoProgress
     RecoveryDecision::Policies::WorkspaceUnavailable
+    RecoveryDecision::Policies::FreshImplementation
     RecoveryDecision::Policies::InfrastructureOnly
     RecoveryDecision::Policies::InterruptedResumable
     RecoveryDecision::Policies::MeasuredFailure
@@ -33,6 +34,7 @@ class RecoveryDecision
     def classification = failed_run&.run_failure_classification&.classification.to_s.presence
     def stop = workflow&.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY).to_h
     def retry_available? = workflow&.retry_available? == true
+    def fresh_workflow_required? = RetryFailedStepEnqueuer.fresh_workflow_required_for?(failed_step)
     def revision = failed_run&.head_sha.presence || workflow&.artifact("head_sha").presence
 
     def evidence
@@ -78,6 +80,14 @@ class RecoveryDecision
       def decision
         result(kind: "workspace_unavailable", action: "fresh_implementation", mode: "implementation",
           explanation: "The failed workflow workspace is unavailable, so work cannot safely resume in place.")
+      end
+    end
+
+    class FreshImplementation < Base
+      def match? = context.fresh_workflow_required?
+      def decision
+        result(kind: "restart_from_base", action: "fresh_implementation", mode: "implementation",
+          explanation: "The failed workflow cannot be repaired safely in place; restart implementation from the effective base.")
       end
     end
 

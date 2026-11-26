@@ -1123,6 +1123,7 @@
   "recovery_action_permission_disabled": "You do not have permission to perform this recovery action.",
   "recovery_action_unavailable": "This recovery action is not currently available.",
   "recovery_execution_details": "Execution details",
+  "recovery_workflow": "Workflow {{workflow}}",
   "recovery_revision": "Revision {{revision}}",
   "recovery_guidance_failures": "Persistent failures to address: {{failures}}",
   "grader_loop_decision_stopped": "Loop decision — stopped for no progress",
