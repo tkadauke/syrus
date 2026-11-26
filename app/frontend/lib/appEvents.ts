@@ -687,6 +687,8 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
             ["repositories", String(event.id), "delivery"],
             ["repositories", String(event.id), "syrus_yml"]
           ]
+    case "landing_lanes":
+      return [["landing_lanes"]]
     case "design_doc":
       return event.id == null ? [["design_docs"]] : [["design_docs"], ["design_docs", "detail", String(event.id)]]
     case "operator_briefing":
