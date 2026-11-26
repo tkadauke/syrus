@@ -1,7 +1,6 @@
 require "base64"
 require "faraday"
 require "fileutils"
-require "open3"
 require "openssl"
 require "socket"
 require "securerandom"
@@ -49,7 +48,8 @@ module ManualAgenticRun
       socket_path = File.join(dir, "broker.sock")
       broker = Broker.new(socket_path:, proxy_dir: dir, token: grant.fetch(:token), expires_at: grant.fetch(:expires_at), repository: @repository.slug,
         destructive: @workflow.artifact("manual_agentic_run_github_destructive") == true,
-        commands: { "gh" => real_command("gh"), "git" => real_command("git") }).start
+        commands: { "gh" => real_command("gh"), "git" => real_command("git") }, run: @run,
+        workspace_path: WorkflowWorkspace.path_for(@workflow)).start
       self.class::REGISTRY_MUTEX.synchronize do
         raise "break-glass GitHub broker already exists for Run #{@run.id}" if self.class::REGISTRY.key?(@run.id)
         self.class::REGISTRY[@run.id] = broker
@@ -92,10 +92,12 @@ module ManualAgenticRun
     end
 
     class Broker
-      def initialize(socket_path:, proxy_dir:, token:, expires_at:, repository:, destructive:, commands:)
+      def initialize(socket_path:, proxy_dir:, token:, expires_at:, repository:, destructive:, commands:, run: nil, workspace_path: nil)
         @socket_path, @token, @expires_at, @repository = socket_path, token, expires_at, repository
         @proxy_dir = proxy_dir
         @destructive, @commands = destructive, commands
+        @run = run
+        @workspace_path = workspace_path
         @audit_entries, @audit_mutex = [], Mutex.new
       end
 
@@ -148,9 +150,15 @@ module ManualAgenticRun
         raise "unsupported command" unless @commands.key?(name)
         validate!(name, args)
         started = Time.now.utc.iso8601
-        stdout, stderr, status = Open3.capture3(command_environment(name), @commands.fetch(name), *args, chdir: request.fetch("cwd"))
+        cwd = authorized_cwd(request.fetch("cwd"))
+        capture = ProcessRunner.new(
+          env: command_environment(name), command: [ @commands.fetch(name), *args ],
+          mounts: ProcessRunner.mounts(cwd), network: "agent", timeout: 30.minutes,
+          kind: "git", run: @run
+        ).capture
+        stdout, stderr, status = capture.stdout, capture.stderr, capture.result
         record(name, args, stdout, status, started)
-        { stdout:, stderr:, exit_status: status.exitstatus }
+        { stdout:, stderr:, exit_status: status.exit_status }
       end
 
       def validate!(name, args)
@@ -171,6 +179,16 @@ module ManualAgenticRun
         raise "this destructive GitHub operation requires separately confirmed destructive authority" if joined.match?(DESTRUCTIVE_GH) && !@destructive
       end
 
+      def authorized_cwd(requested)
+        cwd = Pathname.new(requested).realpath
+        return cwd unless @workspace_path
+
+        root = Pathname.new(@workspace_path).realpath
+        raise "working directory is restricted to the workflow workspace" unless cwd == root || cwd.to_s.start_with?("#{root}/")
+
+        cwd
+      end
+
       def validate_api!(args)
         endpoint = args.drop(1).find { |arg| arg.start_with?("/", "repos/") }.to_s.delete_prefix("/")
         raise "GitHub API access is restricted to repos/#{@repository}" unless endpoint == "repos/#{@repository}" || endpoint.start_with?("repos/#{@repository}/")
@@ -187,7 +205,7 @@ module ManualAgenticRun
       def record(name, args, stdout, status, started)
         entry = { "category" => name == "git" ? (args.first == "push" ? "git_push" : "git_read_or_local") : "gh_#{args.first || 'unknown'}",
           "operation" => name == "gh" ? args.first(2) : args.first(1), "targets" => repo_refs(args), "started_at" => started,
-          "finished_at" => Time.now.utc.iso8601, "result" => status.success? ? "succeeded" : "failed", "exit_status" => status.exitstatus,
+          "finished_at" => Time.now.utc.iso8601, "result" => status.success? ? "succeeded" : "failed", "exit_status" => status.exit_status,
           "provider_object_identifiers" => stdout.scan(%r{https://github\.com/[^\s]+|\b[0-9a-f]{40}\b}).uniq }
         @audit_mutex.synchronize { @audit_entries << entry }
       end

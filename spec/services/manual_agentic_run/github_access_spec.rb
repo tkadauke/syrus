@@ -16,6 +16,7 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     allow_any_instance_of(Installation).to receive(:scoped_token).and_return(token: "ghs_top_secret", expires_at: 30.minutes.from_now)
     allow(access).to receive(:real_command).with("gh").and_return("/bin/true")
     allow(access).to receive(:real_command).with("git").and_return("/bin/true")
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Rails.root)
   end
 
   after { described_class.cleanup(run) }
@@ -94,6 +95,17 @@ RSpec.describe ManualAgenticRun::GithubAccess do
 
     expect(status.exitstatus).to eq(77)
     expect(err).to include("restricted to acme/widgets")
+  end
+
+  it "rejects commands launched outside the workflow workspace" do
+    env = access.environment
+    wrapper = File.join(env.fetch("PATH").split(":").first, "gh")
+    Dir.mktmpdir do |outside|
+      _out, err, status = Open3.capture3(env, wrapper, "api", "/repos/acme/widgets", chdir: outside)
+
+      expect(status.exitstatus).to eq(77)
+      expect(err).to include("restricted to the workflow workspace")
+    end
   end
 
   it "rejects destructive commands without separate authority" do

@@ -38,7 +38,7 @@ module Mcp::Tools
           action: "detach_job",
           payload: { "job_id" => job.id, "destination_base" => destination_base, "plan" => plan },
           reason: reason,
-          message: "Detach #{job.slug} from its inferred parent and restack PR ##{job.pr_number} onto #{destination_base}?",
+          message: I18n.t("server.detach_job.confirmation", job: job.slug, pr_number: job.pr_number, destination_base: destination_base),
           extra: { plan: plan }
         )
       rescue RepositoryContent::Error, Octokit::Error, ArgumentError => e
