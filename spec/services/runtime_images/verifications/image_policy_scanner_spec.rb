@@ -33,4 +33,19 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
     expect(scanned_files).to include("build.log" => "bounded build log", "image-history.jsonl" => "history line")
     expect(JSON.parse(scanned_files.fetch("image-metadata.json"))).to include("Size" => 10)
   end
+
+  it "fails closed when complete image history exceeds the inspection output limit" do
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image@sha256:digest")
+    runner = lambda do |argv|
+      if argv.first(3) == [ "docker", "image", "inspect" ]
+        [ JSON.generate([ { "Size" => 10, "Config" => {} } ]), 0, false ]
+      else
+        [ "retained history prefix", 0, true ]
+      end
+    end
+
+    expect do
+      described_class.new(built_images: built_images, runner: runner).call(image: image, request: request, evidence: evidence)
+    end.to raise_error(RuntimeImages::ProviderError, /policy inspection output exceeded/)
+  end
 end
