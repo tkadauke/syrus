@@ -621,8 +621,12 @@ grade:
       prepare_command: bundle exec rake parallel:prepare
       # The CI suite was the last grader to finish in nearly every grading
       # pass (median an hour, up to two) on one worker while the rest of the
-      # fan-out had finished. Four shards run it on four workers at once.
-      shards: 4
+      # fan-out had finished. Four shards ran it on four workers at once and
+      # were balanced by examples to within about 5%, yet each still took
+      # 15-20 minutes of test time with a full worker -- the critical path of
+      # most landing rounds. Eight shards halve that; each pays a few minutes
+      # of setup, but on separate workers that runs in parallel.
+      shards: 8
       # The serial paths below added about ten minutes to the last shard,
       # which made it the long pole of every grading round. Run them as a
       # grader of their own, beside the shards.
