@@ -10,6 +10,7 @@ module Mcp::Tools
     description <<~DESC
       Read Syrus Job metadata, the latest Workflow summary, and the latest
       Workflow transcript head/tail for a Job in this chat session's repository.
+      Includes the bounded canonical recovery decision and intervention history.
     DESC
 
     input_schema(
@@ -41,6 +42,7 @@ module Mcp::Tools
           workflow_count: workflows_index.size,
           workflows_index: workflows_index,
           latest_workflow: workflow_summary_payload(workflow),
+          recovery: RecoveryContract.for_job(job),
           transcript: transcript_payload(workflow)
         )
       rescue ActiveRecord::StatementInvalid => error

@@ -124,8 +124,9 @@ approvals/unapprovals behind one operator confirmation is exactly the
 higher-risk case this infrastructure exists for.
 
 `retry_job` accepts an explicit retry mode for both single and grouped calls.
-Use `auto` (the default) for the existing smart retry without changing the
-base, `failed_step` to rerun the failed step or grader loop against the same
+Use `auto` (the default) to select the canonical recovery operation without
+changing the base, `failed_step` to resume, rerun, or repair the failed step or
+grader loop against the same
 immutable source snapshot, `implementation` to begin a fresh implementation
 attempt from the Job's current effective base, and `refresh_base` to restore a
 published mutation checkpoint onto the current effective base. Base refresh
@@ -141,6 +142,14 @@ refresh remains waiting until every selected upstream refresh workflow
 succeeds; an upstream failure fails that dependent without launching it.
 Members still report outcomes independently, and a later failure does not
 roll back an earlier successful refresh.
+
+Recovery operations are intentionally distinct. A measured failure or a
+no-progress grader loop requires specific `context`; without it `retry_job`
+returns `guidance_required`, the persistent failures, and editable suggested
+guidance without creating a pending action. An infrastructure-only outcome has
+no trustworthy verdict and may rerun unchanged. Interrupted work resumes the
+selected failed Step. Starting a fresh implementation from the effective base
+requires explicit `mode: implementation`.
 
 Automatic retry selection and Job-page recovery actions still prefer the
 narrowest safe retry. An explicitly requested `implementation` mode is an
@@ -290,6 +299,14 @@ selects the newest Run with a stored diff and prefers its per-Step diff. Pass
 `run_id` to inspect a particular iteration and set `artifact` to
 `step_agent_diff` or `agent_diff` when the caller needs that exact artifact;
 diff text remains paginated and redacted.
+
+`read_job` also returns the canonical bounded recovery decision and durable
+intervention history: outcome, headline, measured and inconclusive failures,
+whether infrastructure affected the verdict, compared repair revisions, stop
+reason, recommended action, canonical references, and actor/origin provenance.
+`read_workflow` returns the same decision plus bounded repair-loop and stop
+summaries; callers do not need to reconstruct recovery state from every Step or
+the transcript.
 
 Mention gating: `ChatSession#should_trigger_agent?` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human

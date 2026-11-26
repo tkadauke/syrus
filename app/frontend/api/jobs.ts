@@ -1161,6 +1161,8 @@ export type JobActions = {
 
 export type JobRecoveryDecision = {
   kind: string
+  outcome?: "measured_failure" | "no_verdict" | "interrupted" | "restart_required"
+  headline?: string
   recommended_action: "rerun_unchanged" | "resume" | "repair_with_guidance" | "fresh_implementation" | "restart"
   mode: string
   explanation: string

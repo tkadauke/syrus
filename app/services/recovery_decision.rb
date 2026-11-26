@@ -1,7 +1,7 @@
 class RecoveryDecision
-  Decision = Data.define(:kind, :recommended_action, :mode, :explanation, :guidance, :evidence) do
+  Decision = Data.define(:kind, :outcome, :headline, :recommended_action, :mode, :explanation, :guidance, :evidence) do
     def as_json(*)
-      { kind:, recommended_action:, mode:, explanation:, guidance:, evidence: }.compact
+      { kind:, outcome:, headline:, recommended_action:, mode:, explanation:, guidance:, evidence: }.compact
     end
   end
 
@@ -57,8 +57,8 @@ class RecoveryDecision
       private
 
       attr_reader :context
-      def result(kind:, action:, mode:, explanation:, guidance: nil, evidence: {})
-        Decision.new(kind:, recommended_action: action, mode:, explanation:, guidance:,
+      def result(kind:, outcome:, headline:, action:, mode:, explanation:, guidance: nil, evidence: {})
+        Decision.new(kind:, outcome:, headline:, recommended_action: action, mode:, explanation:, guidance:,
           evidence: context.evidence.merge(evidence))
       end
     end
@@ -67,7 +67,8 @@ class RecoveryDecision
       def match? = context.stop.present?
       def decision
         stop = context.stop
-        result(kind: "grader_loop_no_progress", action: "repair_with_guidance", mode: "failed_step",
+        result(kind: "grader_loop_no_progress", outcome: "measured_failure", headline: "Repair stopped without progress",
+          action: "repair_with_guidance", mode: "failed_step",
           explanation: stop["explanation"].presence || "The grader loop stopped because measured failures did not improve.",
           guidance: "Diagnose the repeated measured failures and give the repair agent specific corrective guidance.",
           evidence: { compared_iterations: stop.slice("previous_iteration", "current_iteration", "repeated_iteration"),
@@ -78,7 +79,8 @@ class RecoveryDecision
     class WorkspaceUnavailable < Base
       def match? = context.workflow.present? && !context.retry_available?
       def decision
-        result(kind: "workspace_unavailable", action: "fresh_implementation", mode: "implementation",
+        result(kind: "workspace_unavailable", outcome: "restart_required", headline: "Recovery workspace is unavailable",
+          action: "fresh_implementation", mode: "implementation",
           explanation: "The failed workflow workspace is unavailable, so work cannot safely resume in place.")
       end
     end
@@ -86,7 +88,8 @@ class RecoveryDecision
     class FreshImplementation < Base
       def match? = context.fresh_workflow_required?
       def decision
-        result(kind: "restart_from_base", action: "fresh_implementation", mode: "implementation",
+        result(kind: "restart_from_base", outcome: "restart_required", headline: "A fresh implementation is required",
+          action: "fresh_implementation", mode: "implementation",
           explanation: "The failed workflow cannot be repaired safely in place; restart implementation from the effective base.")
       end
     end
@@ -97,7 +100,8 @@ class RecoveryDecision
           Array(context.workflow&.artifact(GraderLoopProgress::ARTIFACT_KEY)).last.to_h["transient_only"] == true
       end
       def decision
-        result(kind: "infrastructure_only", action: "rerun_unchanged", mode: "failed_step",
+        result(kind: "infrastructure_only", outcome: "no_verdict", headline: "Infrastructure produced no verdict",
+          action: "rerun_unchanged", mode: "failed_step",
           explanation: "Execution ended without a trustworthy implementation or test verdict.")
       end
     end
@@ -106,7 +110,8 @@ class RecoveryDecision
       INTERRUPTED_CLASSIFICATIONS = %w[agent_interrupted agent_resume_unavailable].freeze
       def match? = INTERRUPTED_CLASSIFICATIONS.include?(context.classification)
       def decision
-        result(kind: "interrupted_resumable", action: "resume", mode: "failed_step",
+        result(kind: "interrupted_resumable", outcome: "interrupted", headline: "Interrupted work can resume",
+          action: "resume", mode: "failed_step",
           explanation: "The work was interrupted and retains resumable execution state.")
       end
     end
@@ -114,7 +119,8 @@ class RecoveryDecision
     class MeasuredFailure < Base
       def match? = context.failed_step.present? && context.retry_available?
       def decision
-        result(kind: "measured_failure", action: "repair_with_guidance", mode: "failed_step",
+        result(kind: "measured_failure", outcome: "measured_failure", headline: "A measured failure needs repair",
+          action: "repair_with_guidance", mode: "failed_step",
           explanation: "Execution produced a measured implementation or test failure.",
           guidance: "Repair the measured failure; an unchanged rerun is not expected to change the verdict.")
       end
@@ -123,7 +129,8 @@ class RecoveryDecision
     class RestartFromBase < Base
       def match? = true
       def decision
-        result(kind: "restart_from_base", action: "restart", mode: "restart",
+        result(kind: "restart_from_base", outcome: "restart_required", headline: "Restart from the effective base",
+          action: "restart", mode: "restart",
           explanation: "No trustworthy resumable recovery target remains; restart from the effective base.")
       end
     end

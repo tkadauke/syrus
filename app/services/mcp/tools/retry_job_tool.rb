@@ -22,10 +22,15 @@ module Mcp::Tools
       action(s), not Jobs, Workflows, or WorkUnits. On
       confirmation, it creates a retry Workflow/WorkUnit and submits it through
       normal admission control and worker-queue routing.
-      Modes are: auto (compatible smart retry), failed_step (same source
-      snapshot), implementation (fresh implementation attempt from the
+      Modes are: auto (selects the canonical recovery operation), failed_step
+      (resume/rerun/repair on the same source snapshot), implementation (an
+      explicit fresh implementation attempt from the
       effective base), and refresh_base (checkpoint-aware base refresh).
-      An explicitly requested implementation mode is an operator-confirmed
+      Measured failures and no-progress stops require context with specific
+      repair guidance; without it the tool returns guidance_required and does
+      not create a pending action. Infrastructure-only no-verdict outcomes may
+      rerun unchanged, interrupted work resumes, and a fresh implementation
+      restart must be explicitly requested. An explicitly requested implementation mode is an operator-confirmed
       escalation even when failed_step is the initial recommendation; it does
       not relax active-work, duplicate-retry, passing-PR, or landing gates.
     DESC
@@ -66,12 +71,56 @@ module Mcp::Tools
         return Mcp::Tools.invalid(selection.error) unless selection.success?
         jobs = selection.jobs
 
-        mode_class = RetryJobs::Mode.for(mode)
+        if mode.to_s == "auto"
+          legacy_preflights = jobs.to_h { |job| [ job.id, RetryJobs::Modes::Auto.new(job:).preflight ] }
+          legacy_ineligible = jobs.filter_map do |job|
+            result = legacy_preflights.fetch(job.id)
+            "#{job.slug}: #{result.message}" unless result.eligible?
+          end
+          return Mcp::Tools.invalid("Cannot retry #{legacy_ineligible.size} of #{jobs.size} Jobs - #{legacy_ineligible.join('; ')}") if legacy_ineligible.any?
+        end
+
+        recoveries = jobs.to_h do |job|
+          source = recovery_source_workflow(job, source_workflow_id)
+          decision = RecoveryDecision.for(job:, workflow: source)
+          effective_mode = if mode.to_s == "auto" && decision.kind == "restart_from_base" && decision.evidence[:source_step_id].blank?
+            "auto"
+          elsif mode.to_s == "auto"
+            decision.mode
+          else
+            mode.to_s
+          end
+          [ job.id, { source:, decision:, effective_mode: } ]
+        end
+        explicit_restart_required = recoveries.values.select do |recovery|
+          mode.to_s == "auto" && recovery[:effective_mode].in?(%w[implementation restart])
+        end
+        if explicit_restart_required.any?
+          return Mcp::Tools.invalid("Fresh implementation restart must be explicit; inspect recovery and call retry_job with mode: implementation.")
+        end
+
+        guidance_needed = recoveries.values.select do |recovery|
+          recovery[:decision].recommended_action == "repair_with_guidance" &&
+            recovery[:effective_mode] == "failed_step" &&
+            (recovery[:decision].kind == "grader_loop_no_progress" || recovery[:decision].evidence[:failure_classification].present?) &&
+            context.blank?
+        end
+        if guidance_needed.any?
+          return Mcp::Tools.success(
+            status: "guidance_required",
+            persistent_failures: guidance_needed.flat_map { |recovery| Array(recovery[:decision].evidence[:measured_failure_identities]) }.uniq.first(20),
+            suggested_guidance: guidance_needed.first[:decision].guidance,
+            recoveries: guidance_needed.map { |recovery| RecoveryContract.for_workflow(recovery[:source])[:decision] },
+            pending_action_created: false
+          )
+        end
+
         preflights = jobs.to_h do |job|
-          mode_arguments = { job: job, source_workflow_id: source_workflow_id, reason: reason }
-          mode_arguments[:explicit_operator_intent] = true if mode.to_s == "implementation"
-          result = mode_class.new(**mode_arguments).preflight
-          [ job.id, result ]
+          recovery = recoveries.fetch(job.id)
+          mode_class = RetryJobs::Mode.for(recovery[:effective_mode])
+          mode_arguments = { job: job, source_workflow_id: recovery[:source]&.id, reason: reason }
+          mode_arguments[:explicit_operator_intent] = true if recovery[:effective_mode] == "implementation"
+          [ job.id, mode_class.new(**mode_arguments).preflight ]
         end
         selected_job_ids = jobs.map(&:id)
         ineligible = jobs.filter_map do |job|
@@ -86,7 +135,7 @@ module Mcp::Tools
             server_context,
             chat_session,
             action: "retry_job",
-            payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids, context),
+            payload: retry_payload(job, recoveries.fetch(job.id), reason, preflights.fetch(job.id), selected_job_ids, context),
             requested_by: "agent"
           )
 
@@ -94,6 +143,7 @@ module Mcp::Tools
             pending_action_id: pending_action.id,
             state: pending_action.state,
             message: mode.to_s == "auto" ? "Job retry requires operator confirmation." : "#{mode.to_s.humanize} Job retry requires operator confirmation.",
+            recovery: RecoveryContract.for_workflow(recoveries.fetch(job.id)[:source])[:decision],
             preflight: preflights.fetch(job.id).details
           )
         end
@@ -102,7 +152,7 @@ module Mcp::Tools
           server_context: server_context,
           chat_session: chat_session,
           member_attributes: jobs.map do |job|
-            { action: "retry_job", payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids, context), requested_by: "agent" }
+            { action: "retry_job", payload: retry_payload(job, recoveries.fetch(job.id), reason, preflights.fetch(job.id), selected_job_ids, context), requested_by: "agent" }
           end,
           reason: reason.to_s.strip.presence
         )
@@ -117,10 +167,23 @@ module Mcp::Tools
 
       private
 
-      def retry_payload(job, mode, source_workflow_id, reason, preflight, selected_job_ids, context = nil)
-        payload = { "job_id" => job.id }
+      def retry_payload(job, recovery, reason, preflight, selected_job_ids, context = nil)
+        mode = recovery[:effective_mode]
+        decision = recovery[:decision]
+        source_workflow_id = recovery[:source]&.id
+        if mode == "auto" && decision.evidence[:source_step_id].blank?
+          payload = { "job_id" => job.id }
+          payload["context"] = context if context.present?
+          return payload
+        end
+        payload = {
+          "job_id" => job.id,
+          "mode" => mode,
+          "recovery_kind" => decision.kind,
+          "recovery_action" => decision.recommended_action,
+          "source_failure_classification" => decision.evidence[:failure_classification]
+        }.compact
         payload["context"] = context if context.present?
-        payload["mode"] = mode.to_s unless mode.to_s == "auto"
         payload["source_workflow_id"] = preflight.details["source_workflow_id"] || source_workflow_id if source_workflow_id.present? || preflight.details["source_workflow_id"]
         payload["reason"] = reason.to_s.strip if reason.present?
         payload["preflight"] = preflight.details if preflight.details.present?
@@ -128,6 +191,11 @@ module Mcp::Tools
           payload["selected_upstream_job_ids"] = RetryJobs::Selection.selected_upstream_ids(job, selected_job_ids)
         end
         payload
+      end
+
+      def recovery_source_workflow(job, source_workflow_id)
+        scope = job.workflows.where(state: %w[failed blocked cancelled])
+        source_workflow_id.present? ? scope.find_by(id: source_workflow_id) : scope.reorder(created_at: :desc, id: :desc).first
       end
     end
   end
