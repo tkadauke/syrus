@@ -47,7 +47,16 @@ RSpec.describe Coworkers::EnvironmentInspection do
                                                    compat_min: 2, compat_max: 4)
     allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(base)
 
-    payload = Coworkers::EnvironmentInspectionSerializer.new(described_class.new(environment).call).as_json
+    snapshot = described_class.new(environment).call
+    candidate_request = snapshot.candidate_revision.build_request
+
+    expect(snapshot.candidate_revision.association(:runtime_image)).to be_loaded
+    expect(snapshot.candidate_revision.association(:build_request)).to be_loaded
+    expect(candidate_request.association(:result)).to be_loaded
+    expect(candidate_request.association(:evidences)).to be_loaded
+    expect(snapshot.active_revision.association(:runtime_image)).to be_loaded
+
+    payload = Coworkers::EnvironmentInspectionSerializer.new(snapshot).as_json
 
     expect(payload).to include("v" => 1, "active_digest" => active_image.digest)
     expect(payload.dig("current_source_revision", "number")).to eq(3)
@@ -80,7 +89,13 @@ RSpec.describe Coworkers::EnvironmentInspection do
     environment.update!(candidate_revision: candidate, candidate_runtime_image: candidate_image)
     allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(nil)
 
-    payload = Coworkers::EnvironmentInspectionSerializer.new(described_class.new(environment).call).as_json
+    snapshot = described_class.new(environment).call
+    candidate_request = snapshot.candidate_revision.build_request
+
+    expect(candidate_request.association(:evidences)).to be_loaded
+    expect(candidate_request.evidences.last.association(:attempt)).to be_loaded
+
+    payload = Coworkers::EnvironmentInspectionSerializer.new(snapshot).as_json
 
     expect(payload.fetch("candidate_verification_summary")).to include(
       "attempt" => 1, "outcome" => "succeeded", "destination_count" => 2, "log_bytes" => 23
