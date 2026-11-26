@@ -13,7 +13,8 @@ module Api
             request_id: request_record.id, state: request_record.state,
             source_digest: request_record.source_digest, recipe_digest: request_record.recipe_digest,
             platform: request_record.platform, result: serialize_result(request_record.result),
-            attempts: request_record.evidences.includes(:attempt).map { |evidence| serialize(evidence) }
+            attempts: request_record.evidences.includes(:attempt).map { |evidence| serialize(evidence) },
+            verification_policy: serialize_policy_evidence(request_record.result&.runtime_image)
           }
         end
 
@@ -31,6 +32,17 @@ module Api
             "policy_snapshot" => evidence.policy_snapshot, "destinations" => evidence.destinations,
             "base_images" => evidence.base_images, "log" => evidence.log
           )
+        end
+
+        def serialize_policy_evidence(image)
+          evidence = image&.runtime_image_verification_attempts&.order(number: :desc)&.first&.policy_evidence
+          return nil unless evidence
+
+          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge(
+            "report" => evidence.report.attached? ? JSON.parse(evidence.report.download) : nil
+          )
+        rescue JSON::ParserError
+          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge("report" => nil)
         end
       end
     end

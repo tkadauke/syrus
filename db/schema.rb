@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_152853) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -4195,6 +4195,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.datetime "updated_at", null: false
     t.index ["name"], name: "idx_runtime_image_namespaces_name", unique: true
     t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
+  end
+
+  create_table "runtime_image_policy_evidences", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.json "safe_summary", null: false
+    t.string "report_digest", limit: 71, null: false
+    t.datetime "scanned_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_verification_attempt_id"], name: "idx_ri_policy_evidence_attempt", unique: true
   end
 
   create_table "runtime_image_pull_events", force: :cascade do |t|
