@@ -16,9 +16,15 @@ module RuntimeImages
           sbom = json_command([ "trivy", "image", "--quiet", "--format", "cyclonedx", reference ])
           report = json_command([ "trivy", "image", "--quiet", "--format", "json", "--scanners", "vuln", "--list-all-pkgs", reference ])
           Scan.new(sbom: sbom, report: report, scanner_name: "trivy",
-                   scanner_version: identity.fetch("Version"), database_version: database_version(identity),
+                   scanner_version: identity.fetch("Version"), database_version: database_revision(identity),
                    scanned_at: Time.current)
         end
+      rescue KeyError => e
+        raise ProviderError, "scanner identity is incomplete: #{e.key}"
+      end
+
+      def current_database_version
+        database_revision(json_command([ "trivy", "version", "--format", "json" ]))
       rescue KeyError => e
         raise ProviderError, "scanner identity is incomplete: #{e.key}"
       end
@@ -33,7 +39,7 @@ module RuntimeImages
         raise ProviderError, "#{argv.first} scanner returned invalid JSON"
       end
 
-      def database_version(identity)
+      def database_revision(identity)
         db = Hash(identity["VulnerabilityDB"] || identity["VulnerabilityDBInfo"])
         db["UpdatedAt"] || db["DownloadedAt"] || db["Version"] || raise(ProviderError, "scanner database version is unavailable")
       end

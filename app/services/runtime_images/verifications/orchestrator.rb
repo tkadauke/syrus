@@ -11,6 +11,7 @@ module RuntimeImages
         "block_secrets" => true,
         "block_prohibited_packages" => true,
         "block_policy_violations" => true,
+        "evidence_ttl_seconds" => 24.hours.to_i,
         "image" => { "max_bytes" => 2.gigabytes, "max_layers" => 128, "required_user" => "1000",
                      "required_entrypoint" => [], "required_command" => [ "/bin/bash" ], "forbidden_capabilities" => [ "ALL" ] }
       }.freeze
@@ -85,7 +86,12 @@ module RuntimeImages
             attempt.update!(state: state, decision: state, failure_class: failure.failure_class,
                             failure_code: failure.failure_code, message: failure.message, finished_at: now)
           else
-            attempt.update!(state: "accepted", decision: "candidate", finished_at: now)
+            evidence_digest = digest(attempt.checks.flat_map { |check| Array(check.evidence_references) })
+            expires_at = now + attempt.policy_snapshot.fetch("evidence_ttl_seconds", 24.hours.to_i).to_i.seconds
+            attestation_digest = digest("image_digest" => attempt.image_digest, "policy_digest" => attempt.policy_digest,
+                                        "evidence_digest" => evidence_digest, "expires_at" => expires_at.iso8601(6))
+            attempt.update!(state: "accepted", decision: "candidate", evidence_digest: evidence_digest,
+                            attestation_digest: attestation_digest, expires_at: expires_at, finished_at: now)
           end
           # A slower, older re-verification must never overwrite the decision
           # of a newer attempt for the same immutable digest.
@@ -106,6 +112,8 @@ module RuntimeImages
           value
         end
       end
+
+      def digest(value) = "sha256:#{Digest::SHA256.hexdigest(JSON.generate(canonical(value)))}"
     end
   end
 end

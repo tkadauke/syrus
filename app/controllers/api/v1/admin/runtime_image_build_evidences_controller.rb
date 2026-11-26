@@ -14,7 +14,7 @@ module Api
             source_digest: request_record.source_digest, recipe_digest: request_record.recipe_digest,
             platform: request_record.platform, result: serialize_result(request_record.result),
             attempts: request_record.evidences.includes(:attempt).map { |evidence| serialize(evidence) },
-            verification_policy: serialize_policy_evidence(request_record.result&.runtime_image)
+            verification_policy: serialize_verification_evidence(request_record.result&.runtime_image)
           }
         end
 
@@ -34,15 +34,26 @@ module Api
           )
         end
 
-        def serialize_policy_evidence(image)
-          evidence = image&.runtime_image_verification_attempts&.order(number: :desc)&.first&.policy_evidence
-          return nil unless evidence
+        def serialize_verification_evidence(image)
+          attempt = image&.runtime_image_verification_attempts&.order(number: :desc)&.first
+          return nil unless attempt
 
-          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge(
-            "report" => evidence.report.attached? ? JSON.parse(evidence.report.download) : nil
+          policy = attempt.policy_evidence
+          scan = attempt.scan_evidence
+          attempt.slice(*%w[image_digest policy_digest evidence_digest attestation_digest expires_at]).merge(
+            "safe_summary" => { "policy" => policy&.safe_summary, "supply_chain" => scan&.finding_summary }.compact,
+            "policy_report_digest" => policy&.report_digest,
+            "policy_report" => attached_json(policy&.report),
+            "scan_report_digest" => scan&.report_digest,
+            "scan_report" => attached_json(scan&.scan_report)
           )
         rescue JSON::ParserError
-          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge("report" => nil)
+          attempt.slice(*%w[image_digest policy_digest evidence_digest attestation_digest expires_at])
+        end
+
+
+        def attached_json(attachment)
+          attachment&.attached? ? JSON.parse(attachment.download) : nil
         end
       end
     end
