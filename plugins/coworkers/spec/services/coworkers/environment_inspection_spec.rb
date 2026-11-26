@@ -59,4 +59,32 @@ RSpec.describe Coworkers::EnvironmentInspection do
     expect(payload.fetch("compatibility")).to include("status" => "compatible", "current_runtime_abi" => 3)
     expect(payload.to_json).not_to include("restricted", "private.example", "sanitized_log", "destinations")
   end
+
+  it "uses the safe summary when restricted build evidence is available" do
+    candidate_image = image("c")
+    request = RuntimeImageBuildRequest.create!(runtime_image_namespace: namespace, state: "succeeded",
+                                               platform: "linux/amd64", dedup_key: "evidence-dedup",
+                                               source_kind: "coworker_environment", source_ref: "candidate",
+                                               source_digest: "sha256:#{'3' * 64}", recipe_digest: "sha256:#{'4' * 64}",
+                                               requester_kind: "coworker", requester_ref: coworker.id.to_s)
+    attempt = request.attempts.create!(number: 1, state: "succeeded", started_at: 1.minute.ago,
+                                       finished_at: Time.current)
+    RuntimeImageBuildEvidence.create!(request:, attempt:, runtime_image: candidate_image, outcome: "succeeded",
+                                      source_digest: request.source_digest, image_digest: candidate_image.digest,
+                                      destinations: [ { "host" => "private.example", "address" => "10.0.0.1", "count" => 2 } ],
+                                      policy_snapshot: [ { "rule" => "restricted-policy" } ],
+                                      log: "restricted build output", log_bytes: 23, finished_at: Time.current)
+    candidate = Coworkers::EnvironmentRevision.create!(environment:, number: 1, state: "candidate",
+                                                        source_digest: request.source_digest, runtime_image: candidate_image,
+                                                        build_request: request)
+    environment.update!(candidate_revision: candidate, candidate_runtime_image: candidate_image)
+    allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(nil)
+
+    payload = Coworkers::EnvironmentInspectionSerializer.new(described_class.new(environment).call).as_json
+
+    expect(payload.fetch("candidate_verification_summary")).to include(
+      "attempt" => 1, "outcome" => "succeeded", "destination_count" => 2, "log_bytes" => 23
+    )
+    expect(payload.to_json).not_to include("private.example", "10.0.0.1", "restricted-policy", "restricted build output")
+  end
 end

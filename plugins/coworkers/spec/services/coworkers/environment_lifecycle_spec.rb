@@ -107,6 +107,9 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
 
     expect(revision.reload).to be_rejected
     expect(environment.reload.last_error_code).to eq(described_class::INCOMPATIBLE)
+    expect(Syrus::Events).to have_received(:publish).with(
+      "coworker_environment.rejected", hash_including(revision_id: revision.id)
+    )
   end
 
   it "retires pointers on disable without deleting generic image history" do
