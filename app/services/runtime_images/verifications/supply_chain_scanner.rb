@@ -38,7 +38,9 @@ module RuntimeImages
       end
 
       def database_version(identity)
-        db = Hash(identity["VulnerabilityDB"] || identity["VulnerabilityDBInfo"])
+        db = identity["VulnerabilityDB"] || identity["VulnerabilityDBInfo"]
+        raise ProviderError, "scanner database version is unavailable" unless db.is_a?(Hash)
+
         value = db["UpdatedAt"] || db["DownloadedAt"] || db["Version"]
         raise ProviderError, "scanner database version is unavailable" if value.blank?
 
