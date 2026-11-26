@@ -7,6 +7,12 @@ module Coworkers
         end
       end
 
+      scope.effect("coworker environment contributors") do
+        Syrus::DataCleanup.register("User", "coworkers.environment_revision_contributors") do |user|
+          Coworkers::EnvironmentRevision.where(created_by_user_id: user.id).update_all(created_by_user_id: nil)
+        end
+      end
+
       scope.effect("coworker schedules") do
         Syrus::Host::DataCleanup.register("Coworkers::Coworker", "coworkers.schedules") do |coworker|
           ScheduledTasks::Task.where(coworker_id: coworker.id).find_each(&:destroy_as_system!)

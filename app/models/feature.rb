@@ -156,6 +156,10 @@ class Feature < ApplicationRecord
     enabled?(:coworker_connected_accounts)
   end
 
+  def self.coworker_custom_environments_enabled?
+    enabled?(:coworker_custom_environments)
+  end
+
   def effective_enabled?
     enabled? && (AppSetting.beta_mode_enabled? || !experimental?)
   end

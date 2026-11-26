@@ -1,3 +1,5 @@
+require "find"
+
 class Coworkers::Workspace
   class InvalidPath < ArgumentError; end
 
@@ -53,6 +55,41 @@ class Coworkers::Workspace
 
     target.directory? ? Dir.rmdir(target) : File.delete(target)
     relative(target)
+  end
+
+  def exist?(path)
+    target = resolve(path, allow_missing: true)
+    target.exist? || target.symlink?
+  end
+
+  # Regular files under a directory, as { relative_path => content }. Unlike
+  # the single-file tools this refuses to skip anything: a symlink, special
+  # file, or directory-escaping entry anywhere in the tree raises InvalidPath,
+  # as does exceeding the file-count or byte ceilings. A missing directory
+  # yields an empty hash.
+  def read_tree(path, max_files:, max_bytes:)
+    dir = resolve(path, allow_missing: true)
+    return {} unless dir.exist? || dir.symlink?
+
+    raise InvalidPath, "#{path} must be a directory" unless dir.directory?
+
+    files = {}
+    total = 0
+    Find.find(dir.to_s) do |entry|
+      pathname = Pathname.new(entry)
+      next if pathname == dir
+
+      raise InvalidPath, "symbolic links are not accessible: #{relative(pathname)}" if pathname.symlink?
+      next if pathname.directory?
+      raise InvalidPath, "only regular files are allowed: #{relative(pathname)}" unless pathname.file?
+
+      raise InvalidPath, "too many files under #{path}" if files.size >= max_files
+      total += pathname.size
+      raise InvalidPath, "#{path} exceeds #{max_bytes} bytes" if total > max_bytes
+
+      files[relative(pathname)] = File.binread(pathname)
+    end
+    files
   end
 
   private
