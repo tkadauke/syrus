@@ -144,12 +144,20 @@ module Api
           artifacts = ctx.present? ? { "replay_context" => ctx } : nil
           agent_provider = params[:agent_provider].to_s.presence
 
-          result = RetryWorkflowEnqueuer.call(
-            job: job,
-            artifacts: artifacts,
-            agent_provider: agent_provider,
-            provider_validation: :retry_alternate
-          )
+          selected_workflow = job.workflows.find_by(id: params[:branch_divergence_workflow_id])
+          source_workflow = selected_workflow&.artifact("branch_divergence").present? ? selected_workflow : job.latest_workflow
+          result = RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "rerun_check", mode: "auto",
+            actor_type: "operator", actor: Current.user, origin: "job_page",
+            reason: params[:reason], guidance: ctx.presence
+          ) do
+            RetryWorkflowEnqueuer.call(
+              job: job,
+              artifacts: artifacts,
+              agent_provider: agent_provider,
+              provider_validation: :retry_alternate
+            )
+          end
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return
