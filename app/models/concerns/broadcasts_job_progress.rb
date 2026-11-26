@@ -81,6 +81,26 @@ module BroadcastsJobProgress
     )
 
     owner_job.broadcast_app_chat_job_status_updates
+    broadcast_landing_lanes_changed(owner_job) if landing_lane_progress?(owner_job)
+  end
+
+  def landing_lane_progress?(owner_job)
+    workflow = respond_to?(:workflow) ? self.workflow : (self if is_a?(Workflow))
+    unit = workflow&.work_unit
+    return false unless unit&.active?
+
+    unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:%").exists?
+  end
+
+  def broadcast_landing_lanes_changed(owner_job)
+    AppEvents.broadcast(
+      user: owner_job.user,
+      type: "landing_lanes.updated",
+      resource: "landing_lanes",
+      id: owner_job.repository_id,
+      changed: [ "#{self.class.name.underscore}.state" ],
+      payload: { "path" => "/api/v1/app/landing_lanes", "repository_id" => owner_job.repository_id }
+    )
   end
 
   def job_progress_patch_fields

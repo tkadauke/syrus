@@ -74,6 +74,36 @@ RSpec.describe BroadcastsJobProgress do
     )
   end
 
+  it "broadcasts a landing-lanes invalidation when a grader changes state in an occupied lane" do
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    intent = WorkIntent.create!(
+      kind: "auto_merge", state: "requested", repository:, scope_type: "job", scope_id: job.id,
+      actor: user, source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent, workflow:, kind: "auto_merge", state: "running", repository:,
+      scope_type: "job", scope_id: job.id
+    )
+    unit.work_unit_members.create!(job:, role: "primary")
+    unit.work_unit_locks.create!(lock_key: "landing:repository:#{repository.id}")
+    grader = Step.create!(workflow:, kind: "grader", position: 1, details: { "name" => "rspec", "timeout_minutes" => 10 })
+    RSpec::Mocks.space.proxy_for(AppUserChannel).reset
+    allow(AppUserChannel).to receive(:broadcast_to)
+
+    grader.start!
+    grader.save!
+
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "landing_lanes.updated",
+        "resource" => "landing_lanes",
+        "id" => repository.id,
+        "payload" => include("path" => "/api/v1/app/landing_lanes", "repository_id" => repository.id)
+      )
+    )
+  end
+
   it "does not broadcast for heartbeat-only Run updates" do
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
     step = Step.create!(workflow: workflow, kind: "implement", position: 0)
