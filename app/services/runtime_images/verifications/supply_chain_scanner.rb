@@ -52,8 +52,8 @@ module RuntimeImages
       end
 
       def validate_evidence!(sbom, report)
-        raise ProviderError, "scanner SBOM is not CycloneDX JSON" unless sbom["bomFormat"] == "CycloneDX"
-        raise ProviderError, "scanner vulnerability report has no results collection" unless report["Results"].is_a?(Array)
+        raise ProviderError, "scanner SBOM is not CycloneDX JSON" unless sbom.is_a?(Hash) && sbom["bomFormat"] == "CycloneDX"
+        raise ProviderError, "scanner vulnerability report has no results collection" unless report.is_a?(Hash) && report["Results"].is_a?(Array)
       end
 
       def run(argv)
