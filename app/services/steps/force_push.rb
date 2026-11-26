@@ -16,6 +16,7 @@ module Steps
 
       if noop_auto_rebase?
         log("force_push: skipped — deterministic rebase was a no-op")
+        finalize_job_detach!
         return
       end
 

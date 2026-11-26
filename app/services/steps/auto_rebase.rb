@@ -11,7 +11,9 @@ module Steps
       result = auto_rebase.call
       workflow.set_artifact!("auto_rebase_result", result.to_h)
 
-      if result.reason == ::AutoRebase::ALREADY_LANDED_REASON
+      if result.reason == ::AutoRebase::ALREADY_LANDED_REASON && workflow.artifact("detach_job").present?
+        raise StepFailed, "detach_job: the owned patch is already on the destination base, so no detached branch was published"
+      elsif result.reason == ::AutoRebase::ALREADY_LANDED_REASON
         log("auto_rebase: #{result.note}")
         skip_agent_rebase!(reason: "auto_rebase found the work already on the base; nothing to rebase")
         finalize_already_landed!

@@ -42,6 +42,9 @@ class JobDetachRepair
       raise ArgumentError, "Stack parent changed after confirmation; dry-run the detach repair again"
     end
     result = @auto_rebase.call
+    if result.reason == AutoRebase::ALREADY_LANDED_REASON
+      raise ArgumentError, result.note || "Detach publication cannot proceed because the owned patch is already on the destination base"
+    end
     if result.succeeded?
       expected_head = result.post_sha || result.pre_sha
       evidence = self.class.finalize!(job: @job, destination_base: @destination_base, expected_head: expected_head, reason: @reason, former_parent_id: @former_parent_id)
