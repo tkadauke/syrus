@@ -16,9 +16,9 @@ class CreateRuntimeImageScanEvidences < ActiveRecord::Migration[8.1]
       t.timestamps
     end
     add_index :runtime_image_scan_evidences, :runtime_image_verification_attempt_id, unique: true,
-              name: "idx_ri_scan_evidence_attempt" unless index_exists?(:runtime_image_scan_evidences, :runtime_image_verification_attempt_id, name: "idx_ri_scan_evidence_attempt")
+              name: "idx_ri_scan_evidence_attempt", if_not_exists: true
     add_index :runtime_image_scan_evidences, :image_digest,
-              name: "idx_ri_scan_evidence_digest" unless index_exists?(:runtime_image_scan_evidences, :image_digest, name: "idx_ri_scan_evidence_digest")
+              name: "idx_ri_scan_evidence_digest", if_not_exists: true
   end
 
   def down
