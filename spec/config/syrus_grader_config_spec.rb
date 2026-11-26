@@ -38,6 +38,13 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  it "checks the documented worker thread budget instead of the grader worker's concurrency" do
+    plan = RepoGradePlan.for(Rails.root)
+    grader = plan.graders.find { |candidate| candidate.name == "thread-budget" }
+
+    expect(grader.command).to include("JOB_CONCURRENCY=6 bin/check-thread-budget")
+  end
+
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 
