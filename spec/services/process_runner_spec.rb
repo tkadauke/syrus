@@ -1462,11 +1462,20 @@ RSpec.describe ProcessRunner, :ci_only do
       ).run
     end
 
-    sleep 0.2
+    acquired_by_runner = false
+    Timeout.timeout(2) do
+      until acquired_by_runner
+        if lock_path.dirname.exist?
+          File.open(lock_path, File::CREAT | File::RDWR) do |probe|
+            acquired_by_runner = probe.flock(File::LOCK_EX | File::LOCK_NB) == false
+            probe.flock(File::LOCK_UN) unless acquired_by_runner
+          end
+        end
+        sleep 0.01 unless acquired_by_runner
+      end
+    end
 
-    probe = File.open(lock_path, File::CREAT | File::RDWR)
-    expect(probe.flock(File::LOCK_EX | File::LOCK_NB)).to eq(false)
-    probe.close
+    expect(acquired_by_runner).to be(true)
 
     runner_thread.join
   ensure
