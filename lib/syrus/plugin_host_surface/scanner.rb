@@ -54,7 +54,7 @@ module Syrus
 
       def tier_for(constant)
         return "namespace" if constant == "Syrus::Host"
-        return "public" if public_api_for(constant) || documented_plugin_interface?(constant)
+        return "public" if @surface.public?(constant)
         return "public" if @surface.allowed_internal?(constant)
 
         "unlisted"
@@ -80,19 +80,8 @@ module Syrus
       end
 
       def public_names(api)
-        [ api.name ]
-      end
-
-      def documented_plugin_interface?(constant)
-        documented_plugin_interfaces.any? { |name| constant == name || constant.start_with?("#{name}::") }
-      end
-
-      def documented_plugin_interfaces
-        @documented_plugin_interfaces ||= [
-          *Syrus::PluginRegistry::INTERFACE_FOR.values.filter_map { |resolver| resolver.call.name },
-          "Syrus::PluginApi",
-          "Syrus::Plugin::CliCommandHandler"
-        ].uniq
+        target_name = api.name.safe_constantize.then { |target| target.respond_to?(:name) && target.is_a?(Module) ? target.name : nil }
+        [ api.name, target_name ].compact.uniq
       end
     end
   end

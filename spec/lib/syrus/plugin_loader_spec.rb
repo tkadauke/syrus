@@ -207,7 +207,7 @@ RSpec.describe Syrus::PluginLoader do
       external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
       directory = write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture")
       entry_file = directory.join("lib/external_loader_fixture.rb")
-      entry_file.write(entry_file.read.sub("class Provider; end", "class Provider; def self.internal_record = ::ChatMessage; end"))
+      entry_file.write(entry_file.read.sub("class Provider; end", "class Provider; def self.internal_service = ::Admin::PluginHostSurfaceAudit; end"))
       roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
 
       described_class.new(plugin_roots: roots).load!
@@ -216,7 +216,7 @@ RSpec.describe Syrus::PluginLoader do
       expect(defined?(ExternalLoaderFixture)).to eq("constant")
       manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == "external_loader_fixture" }
       scan = manifest.metadata.fetch(:plugin_host_surface_scan)
-      expect(scan.unlisted.map(&:constant)).to include("ChatMessage")
+      expect(scan.unlisted.map(&:constant)).to include("Admin::PluginHostSurfaceAudit")
       expect(Syrus::PluginRegistry.health.status("external_loader_fixture")).to have_attributes(state: :warning)
     ensure
       Syrus::PluginRegistry.restore(snapshot) if snapshot

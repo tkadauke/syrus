@@ -7,6 +7,24 @@ unlisted members are internal.
 
 ## Public APIs
 
+### `Syrus::Host::ActivityRecords`
+
+Since: `0.1.16`
+
+Returns relations over job approvals, state transitions, review comments, chat proposals, engagement samples, job logs, chat spend entries, steps, and agent processes; schema and persistence are not promised.
+
+Supported members:
+
+- `chat_proposals`
+- `chat_spend_entries`
+- `job_approvals`
+- `job_logs`
+- `pr_review_comments`
+- `spawned_processes`
+- `state_transitions`
+- `steps`
+- `ui_engagement_samples`
+
 ### `Syrus::Host::AdminAction`
 
 Since: `0.1.16`
@@ -17,6 +35,17 @@ Supported members:
 
 - `count`
 - `last`
+- `log!`
+- `where`
+
+### `Syrus::Host::AdminActions`
+
+Since: `0.1.16`
+
+Writes audit entries and reads them by action; storage and retention are not promised.
+
+Supported members:
+
 - `log!`
 - `where`
 
@@ -207,6 +236,23 @@ Supported members:
 - `WORKFLOW_MANUAL`
 - `WORKFLOW_ROLES`
 - `WORKFLOW_VISUAL_REVIEWER`
+
+### `Syrus::Host::AgentRoles`
+
+Since: `0.1.16`
+
+Names the agent role identifiers plugins may compare against or declare; role-to-tool exposure is not promised.
+
+Supported members:
+
+- `AGENT_INSIGHT`
+- `CHAT_PLANNER`
+- `COWORKER`
+- `COWORKER_CHAT`
+- `WORKFLOW_COWORKER_REVIEWER`
+- `WORKFLOW_MANUAL`
+- `WORKFLOW_ROLES`
+- `WORKFLOW_SUMMARY_TEST_PLAN`
 
 ### `Syrus::Host::AgentRuntime`
 
@@ -436,6 +482,12 @@ Supported members:
 - `upload`
 - `verify`
 
+### `Syrus::Host::BaseBranchHealth`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
 ### `Syrus::Host::BugReportRouter`
 
 Since: `0.1.16`
@@ -485,6 +537,27 @@ Supported members:
 
 - `AUTHORITY_DURATIONS`
 - `for_plugin_definition`
+
+### `Syrus::Host::CapabilityDispatch`
+
+Since: `0.1.16`
+
+Invokes declared capability providers through their composition and health boundaries. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
+### `Syrus::Host::CapabilityFamily`
+
+Since: `0.1.16`
+
+Defines provider-neutral capability families and their composition contracts; registry internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `define`
+- `fetch`
 
 ### `Syrus::Host::CapabilityPresentation`
 
@@ -539,6 +612,19 @@ Supported members:
 
 - `where`
 
+### `Syrus::Host::ChatBridge`
+
+Since: `0.1.16`
+
+Opens a thread linking an origin chat to a spawned chat, finds it, and replies within it, raising ClosedThreadError; the thread record's persistence is not promised.
+
+Supported members:
+
+- `ClosedThreadError`
+- `find_thread`
+- `open!`
+- `reply!`
+
 ### `Syrus::Host::ChatBridgeThreadRecord`
 
 Since: `0.1.16`
@@ -560,6 +646,17 @@ Supported members:
 
 - `context_messages_for`
 - `enabled_for?`
+
+### `Syrus::Host::ChatDelivery`
+
+Since: `0.1.16`
+
+Delivers the next queued chat message when the chat is idle and names the internal-role metadata key; queue ordering and batching are not promised.
+
+Supported members:
+
+- `deliver_next_if_idle!`
+- `internal_role_key`
 
 ### `Syrus::Host::ChatHistoryTranscriptRenderer`
 
@@ -671,6 +768,22 @@ Supported members:
 - `search_candidates`
 - `top_matches_by_chat_session`
 
+### `Syrus::Host::ChatMessages`
+
+Since: `0.1.16`
+
+Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised.
+
+Supported members:
+
+- `active`
+- `find`
+- `find_by`
+- `install_after_commit_on_create`
+- `none`
+- `remove_after_commit_on_create`
+- `where`
+
 ### `Syrus::Host::ChatPayloadContributor`
 
 Since: `0.1.16`
@@ -694,6 +807,17 @@ Supported members:
 
 - `NONTERMINAL_CHECKPOINT_STATES`
 - `none`
+- `pending`
+- `where`
+
+### `Syrus::Host::ChatPendingActions`
+
+Since: `0.1.16`
+
+Reads chat pending actions; creation, confirmation, and state transitions are not promised.
+
+Supported members:
+
 - `pending`
 - `where`
 
@@ -788,6 +912,17 @@ Supported members:
 
 - `for`
 
+### `Syrus::Host::ChatSearch`
+
+Since: `0.1.16`
+
+Matches chat messages by text; index storage and ranking are not promised.
+
+Supported members:
+
+- `matching_chat_session_page`
+- `top_matches_by_chat_session`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
@@ -855,6 +990,24 @@ Supported members:
 
 - `register`
 
+### `Syrus::Host::ChatSessions`
+
+Since: `0.1.16`
+
+Queries and creates chat sessions, enqueues a first turn, and extends the chat session model; turns, broadcasts, and other associations are not promised.
+
+Supported members:
+
+- `active`
+- `create!`
+- `effort_levels`
+- `enqueue_turn`
+- `extend_model`
+- `fallback_title_for`
+- `find`
+- `find_by`
+- `where`
+
 ### `Syrus::Host::ChatSpendEntryRecord`
 
 Since: `0.1.16`
@@ -921,6 +1074,16 @@ Supported members:
 
 - `chat_turn_orientation`
 
+### `Syrus::Host::ChatTurns`
+
+Since: `0.1.16`
+
+Enqueues an agent turn for a chat message; turn execution is not promised.
+
+Supported members:
+
+- `enqueue`
+
 ### `Syrus::Host::ChatWakeupRecord`
 
 Since: `0.1.16`
@@ -968,6 +1131,19 @@ Supported members:
 - `applies_to?`
 - `finalize!`
 - `prepare!`
+
+### `Syrus::Host::ChatWorkspaces`
+
+Since: `0.1.16`
+
+Resolves a chat's repository checkout path and reports its git state; workspace layout beyond the returned paths is not promised.
+
+Supported members:
+
+- `ensure_root!`
+- `rebase_in_progress?`
+- `repo_path_for`
+- `uncommitted_changes?`
 
 ### `Syrus::Host::CliCommandHandler`
 
@@ -1332,6 +1508,19 @@ Supported members:
 - `best_match_for`
 - `where`
 
+### `Syrus::Host::DiffReviews`
+
+Since: `0.1.16`
+
+Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.
+
+Supported members:
+
+- `best_match_version`
+- `comments`
+- `final_review_version`
+- `versions`
+
 ### `Syrus::Host::DirectJobCreator`
 
 Since: `0.1.16`
@@ -1452,6 +1641,17 @@ Parses epic markers from source text.
 Supported members:
 
 - `parse`
+
+### `Syrus::Host::Epics`
+
+Since: `0.1.16`
+
+Queries epics and names the archived state; Epic transitions and persistence are not promised.
+
+Supported members:
+
+- `archived_state`
+- `where`
 
 ### `Syrus::Host::Events`
 
@@ -1592,6 +1792,16 @@ Supported members:
 - `find_or_create_by!`
 - `public_send`
 - `where`
+
+### `Syrus::Host::FeatureFlags`
+
+Since: `0.1.16`
+
+Reads an instance feature flag by name; flag storage and defaults are not promised.
+
+Supported members:
+
+- `enabled?`
 
 ### `Syrus::Host::Filters`
 
@@ -1885,6 +2095,21 @@ Supported members:
 - `release!`
 - `rename!`
 
+### `Syrus::Host::Handles`
+
+Since: `0.1.16`
+
+Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised.
+
+Supported members:
+
+- `FORMAT`
+- `claim!`
+- `normalize`
+- `release!`
+- `rename!`
+- `taken?`
+
 ### `Syrus::Host::HasConfigurableRetention`
 
 Since: `0.1.16`
@@ -1941,6 +2166,16 @@ Supported members:
 - `queue_names`
 - `worker_live?`
 - `worker_queue_live?`
+
+### `Syrus::Host::InstanceWorkers`
+
+Since: `0.1.16`
+
+Reports the worker processes the instance has recently heard from; version bookkeeping is not promised.
+
+Supported members:
+
+- `fresh`
 
 ### `Syrus::Host::InvestigationJobCreator`
 
@@ -2126,6 +2361,28 @@ Supported members:
 
 - `origin_key`
 - `visible_origin_ids`
+
+### `Syrus::Host::Jobs`
+
+Since: `0.1.16`
+
+Queries Jobs by visibility, state, and ranking and creates them; every method returns a relation or plain value, and Job transitions, persistence, and callbacks are not promised.
+
+Supported members:
+
+- `all`
+- `approval_blocking_job_ids`
+- `create!`
+- `find`
+- `find_by`
+- `none`
+- `open_threads`
+- `priority_rank`
+- `terminal_states`
+- `transaction`
+- `user_facing_kinds`
+- `visible_to`
+- `where`
 
 ### `Syrus::Host::JunitXmlParser`
 
@@ -2591,6 +2848,16 @@ Supported members:
 - `none`
 - `where`
 
+### `Syrus::Host::PermissionLeases`
+
+Since: `0.1.16`
+
+Queries permission leases; issuance and expiry are not promised.
+
+Supported members:
+
+- `where`
+
 ### `Syrus::Host::PermissionManagement`
 
 Since: `0.1.16`
@@ -2601,6 +2868,16 @@ Supported members:
 
 - `PROFILE_SOURCE_PREFIX`
 - `new`
+
+### `Syrus::Host::PermissionPolicies`
+
+Since: `0.1.16`
+
+Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.
+
+Supported members:
+
+- `rank`
 
 ### `Syrus::Host::PermissionPolicyRank`
 
@@ -2646,6 +2923,19 @@ Supported members:
 - `create!`
 - `find_by`
 - `none`
+- `transaction`
+- `where`
+
+### `Syrus::Host::PermissionRules`
+
+Since: `0.1.16`
+
+Queries durable permission rules and groups changes in a transaction; evaluation and audit behavior are not promised.
+
+Supported members:
+
+- `active`
+- `create!`
 - `transaction`
 - `where`
 
@@ -2752,6 +3042,17 @@ Supported members:
 
 - `find_by`
 - `find_or_create_by!`
+
+### `Syrus::Host::PluginRecords`
+
+Since: `0.1.16`
+
+Finds or creates one plugin's persisted settings record by name; columns beyond those the plugin declares are not promised.
+
+Supported members:
+
+- `ensure!`
+- `find_by_name`
 
 ### `Syrus::Host::PluginRegistry`
 
@@ -2928,6 +3229,17 @@ Supported members:
 - `suppressed_by_positive_after?`
 - `where`
 
+### `Syrus::Host::ProviderContentRefusals`
+
+Since: `0.1.16`
+
+Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.
+
+Supported members:
+
+- `detect?`
+- `outcome`
+
 ### `Syrus::Host::ProviderModelUnsupported`
 
 Since: `0.1.16`
@@ -3019,6 +3331,12 @@ Supported members:
 - `sanitize_sql_like`
 - `transaction`
 
+### `Syrus::Host::RepairClassifier`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
+
 ### `Syrus::Host::RepairIneligible`
 
 Since: `0.1.16`
@@ -3061,6 +3379,26 @@ Supported members:
 
 - `repo_page_tabs`
 
+### `Syrus::Host::Repositories`
+
+Since: `0.1.16`
+
+Queries repositories by access and archival state and creates them; credentials, synchronization, and persistence are not promised.
+
+Supported members:
+
+- `accessible_repository_ids_for`
+- `accessible_to`
+- `active`
+- `arel_table`
+- `build`
+- `create!`
+- `find`
+- `find_by`
+- `find_by!`
+- `where`
+- `writable_by`
+
 ### `Syrus::Host::Repository`
 
 Since: `0.1.16`
@@ -3078,6 +3416,16 @@ Supported members:
 - `name`
 - `owner`
 - `writable_by`
+
+### `Syrus::Host::RepositoryAccess`
+
+Since: `0.1.16`
+
+Answers whether a user may write to a repository; policy evaluation details are not promised.
+
+Supported members:
+
+- `write?`
 
 ### `Syrus::Host::RepositoryBareClone`
 
@@ -3200,6 +3548,17 @@ Controller concern that renders the repository detail header payload (repository
 Supported members:
 
 - `repository_detail_json`
+
+### `Syrus::Host::RetentionLimits`
+
+Since: `0.1.16`
+
+Names the default batch limits for retention executors; scheduling is not promised.
+
+Supported members:
+
+- `default_batch_size`
+- `default_max_batches`
 
 ### `Syrus::Host::RetentionPolicy`
 
@@ -3420,6 +3779,18 @@ Supported members:
 - `terminal`
 - `where`
 
+### `Syrus::Host::Runs`
+
+Since: `0.1.16`
+
+Queries runs; dispatch, lifecycle transitions, and persistence are not promised.
+
+Supported members:
+
+- `find`
+- `joins`
+- `where`
+
 ### `Syrus::Host::RuntimeControlLease`
 
 Since: `0.1.16`
@@ -3430,6 +3801,19 @@ Supported members:
 
 - `audit_input_rejected!`
 - `with_agent_input_control`
+
+### `Syrus::Host::RuntimeImages`
+
+Since: `0.1.16`
+
+Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.
+
+Supported members:
+
+- `acquire`
+- `available?`
+- `find`
+- `publish_local`
 
 ### `Syrus::Host::RuntimeSessionProvider`
 
@@ -3517,6 +3901,16 @@ Abstract base for models stored in the dedicated search database; plugins subcla
 Supported members:
 
 - `connection`
+
+### `Syrus::Host::Settings`
+
+Since: `0.1.16`
+
+Reads instance-wide operator settings; setting storage is not promised.
+
+Supported members:
+
+- `ui_engagement_telemetry_enabled?`
 
 ### `Syrus::Host::SidebarPage`
 
@@ -4054,6 +4448,23 @@ Supported members:
 - `order`
 - `where`
 
+### `Syrus::Host::Users`
+
+Since: `0.1.16`
+
+Queries users and reports the supported chat providers; credentials, preferences, and persistence are not promised.
+
+Supported members:
+
+- `chat_providers`
+- `count`
+- `find`
+- `find_by`
+- `limit`
+- `order`
+- `user?`
+- `where`
+
 ### `Syrus::Host::ValidatesAgentProvider`
 
 Since: `0.1.16`
@@ -4069,6 +4480,12 @@ Base class for plugin-contributed work definitions; only subclassing is promised
 Supported members:
 
 - `new`
+
+### `Syrus::Host::WorkGate`
+
+Since: `0.1.16`
+
+Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
 
 ### `Syrus::Host::WorkLaunchConflict`
 
@@ -4267,6 +4684,20 @@ Supported members:
 - `data_root`
 - `new`
 - `path_for`
+
+### `Syrus::Host::Workflows`
+
+Since: `0.1.16`
+
+Queries workflows and names the queue a worker resumes them on; scheduling, transitions, and persistence are not promised.
+
+Supported members:
+
+- `all`
+- `find`
+- `joins`
+- `resume_queue_name`
+- `where`
 
 ### `Syrus::Host::WorkspaceDependencyEnv`
 

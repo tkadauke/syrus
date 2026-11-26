@@ -377,6 +377,11 @@ module Syrus
       }.freeze
 
       ALIAS_CONTRACTS = {
+        CapabilityFamily: [ "Defines provider-neutral capability families and their composition contracts; registry internals are not promised.", %w[define fetch] ],
+        CapabilityDispatch: [ "Invokes declared capability providers through their composition and health boundaries.", %w[call] ],
+        WorkGate: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        BaseBranchHealth: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
+        RepairClassifier: [ "Core constant used by the main-branch health plugin; the value itself is the supported contract.", %w[] ],
         ChatProvider: [ "Marks a class as a chat provider a plugin supplies for the chat agent loop; turn orchestration, queueing and session persistence are not promised.", %w[] ],
         CableChannel: [ "Bases plugin-owned Action Cable channels; connection authentication and stream naming of core channels are not promised.", %w[] ],
         PlatformPollingJob: [ "Bases a platform-delivery polling job (at most one live instance per key); scheduling and deduplication internals are not promised.", %w[] ],
@@ -589,6 +594,7 @@ module Syrus
       SERVICE_CONTRACTS = {
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
         DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
+        RuntimeImages: [ "Publishes a locally built image to the Runtime Image Service, finds a published image by source identity, and leases it on the calling worker while it runs; provider and cache internals are not promised.", %w[available? find publish_local acquire] ],
         AgentRuntime: [ "Reads the shared timeout, turn, event-size, and environment-forwarding defaults agent-provider plugins use when launching an agent CLI; the invocation engine and the values themselves may change between releases.", %w[default_timeout_seconds silent_timeout_seconds default_max_turns max_event_bytes forwarded_env_keys oversized_event_handler chat_workload_policy] ],
         AgentPrompts: [ "Renders shared prompt fragments for plugin agent prompts: memory_context, chat_system, git_safety_text and submit_summary_instructions_text; the fragment wording may change between releases.", %w[memory_context chat_system git_safety_text submit_summary_instructions_text] ],
         SkillCatalog: [ "Resolves, validates and renders named skills (resolve, validate_arguments!, render) and exposes the name_pattern and the resolution_errors and argument_errors they raise; skill discovery and markdown parsing are not promised.", %w[name_pattern resolve validate_arguments! render resolution_errors argument_errors] ],
@@ -751,6 +757,38 @@ module Syrus
         WorkspaceDependencyEnv: [ "Builds the dependency environment for a workspace (for); contents are not promised.", %w[for] ]
       }.freeze
 
+      FACADE_CONTRACTS = {
+        AgentRoles: [ "Names the agent role identifiers plugins may compare against or declare; role-to-tool exposure is not promised.", %w[CHAT_PLANNER COWORKER_CHAT COWORKER AGENT_INSIGHT WORKFLOW_SUMMARY_TEST_PLAN WORKFLOW_COWORKER_REVIEWER WORKFLOW_MANUAL WORKFLOW_ROLES] ],
+        ChatMessages: [ "Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised.", %w[find find_by where active none install_after_commit_on_create remove_after_commit_on_create] ],
+        ChatPendingActions: [ "Reads chat pending actions; creation, confirmation, and state transitions are not promised.", %w[where pending] ],
+        ChatDelivery: [ "Delivers the next queued chat message when the chat is idle and names the internal-role metadata key; queue ordering and batching are not promised.", %w[internal_role_key deliver_next_if_idle!] ],
+        ChatTurns: [ "Enqueues an agent turn for a chat message; turn execution is not promised.", %w[enqueue] ],
+        ChatWorkspaces: [ "Resolves a chat's repository checkout path and reports its git state; workspace layout beyond the returned paths is not promised.", %w[repo_path_for ensure_root! rebase_in_progress? uncommitted_changes?] ],
+        Handles: [ "Normalizes, claims, renames, and releases unique owner handles; handle generation is not promised.", %w[normalize claim! rename! release! taken? FORMAT] ],
+        PermissionRules: [ "Queries durable permission rules and groups changes in a transaction; evaluation and audit behavior are not promised.", %w[where active transaction create!] ],
+        PermissionLeases: [ "Queries permission leases; issuance and expiry are not promised.", %w[where] ],
+        PermissionPolicies: [ "Ranks policy outcomes (deny strictest) as the core evaluator does; evaluation is not promised.", %w[rank] ],
+        DiffReviews: [ "Reads diff-review comments and versions and resolves a run's final review version; creation and feedback submission are not promised.", %w[comments versions best_match_version final_review_version] ],
+        RetentionLimits: [ "Names the default batch limits for retention executors; scheduling is not promised.", %w[default_batch_size default_max_batches] ],
+        ProviderContentRefusals: [ "Recognizes a provider's safety-filter refusal of the content it was given and names the outcome to report for it; how core retries it is not promised.", %w[outcome detect?] ],
+        Jobs: [ "Queries Jobs by visibility, state, and ranking and creates them; every method returns a relation or plain value, and Job transitions, persistence, and callbacks are not promised.", %w[all none where find find_by create! transaction visible_to open_threads approval_blocking_job_ids priority_rank user_facing_kinds terminal_states] ],
+        Repositories: [ "Queries repositories by access and archival state and creates them; credentials, synchronization, and persistence are not promised.", %w[where find find_by find_by! active accessible_to writable_by accessible_repository_ids_for arel_table create! build] ],
+        Users: [ "Queries users and reports the supported chat providers; credentials, preferences, and persistence are not promised.", %w[where find find_by order limit count chat_providers user?] ],
+        Runs: [ "Queries runs; dispatch, lifecycle transitions, and persistence are not promised.", %w[where joins find] ],
+        Epics: [ "Queries epics and names the archived state; Epic transitions and persistence are not promised.", %w[where archived_state] ],
+        Workflows: [ "Queries workflows and names the queue a worker resumes them on; scheduling, transitions, and persistence are not promised.", %w[all where joins find resume_queue_name] ],
+        ChatSessions: [ "Queries and creates chat sessions, enqueues a first turn, and extends the chat session model; turns, broadcasts, and other associations are not promised.", %w[where active find find_by create! fallback_title_for effort_levels enqueue_turn extend_model] ],
+        ChatBridge: [ "Opens a thread linking an origin chat to a spawned chat, finds it, and replies within it, raising ClosedThreadError; the thread record's persistence is not promised.", %w[open! find_thread reply! ClosedThreadError] ],
+        AdminActions: [ "Writes audit entries and reads them by action; storage and retention are not promised.", %w[log! where] ],
+        ActivityRecords: [ "Returns relations over job approvals, state transitions, review comments, chat proposals, engagement samples, job logs, chat spend entries, steps, and agent processes; schema and persistence are not promised.", %w[job_approvals state_transitions pr_review_comments chat_proposals ui_engagement_samples job_logs chat_spend_entries steps spawned_processes] ],
+        FeatureFlags: [ "Reads an instance feature flag by name; flag storage and defaults are not promised.", %w[enabled?] ],
+        PluginRecords: [ "Finds or creates one plugin's persisted settings record by name; columns beyond those the plugin declares are not promised.", %w[find_by_name ensure!] ],
+        ChatSearch: [ "Matches chat messages by text; index storage and ranking are not promised.", %w[matching_chat_session_page top_matches_by_chat_session] ],
+        InstanceWorkers: [ "Reports the worker processes the instance has recently heard from; version bookkeeping is not promised.", %w[fresh] ],
+        Settings: [ "Reads instance-wide operator settings; setting storage is not promised.", %w[ui_engagement_telemetry_enabled?] ],
+        RepositoryAccess: [ "Answers whether a user may write to a repository; policy evaluation details are not promised.", %w[write?] ]
+      }.freeze
+
       STATIC_CONTRACTS = {
         ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ]
       }.freeze
@@ -762,6 +800,7 @@ module Syrus
           register_contracts(ALIAS_CONTRACTS, qualify: true)
           register_contracts(DOMAIN_CONTRACTS)
           register_contracts(SERVICE_CONTRACTS)
+          register_contracts(FACADE_CONTRACTS)
           register_contracts(STATIC_CONTRACTS)
         end
 
@@ -775,7 +814,7 @@ module Syrus
         end
 
         def replace_contracts!
-          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys + STATIC_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
+          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys + FACADE_CONTRACTS.keys + STATIC_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
           Host.apis.reject! { |api| managed_names.include?(api.name) }
         end
 
