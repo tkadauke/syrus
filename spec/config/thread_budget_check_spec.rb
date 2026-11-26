@@ -5,9 +5,8 @@ require "open3"
 RSpec.describe "thread budget check", :ci_only do
   it "evaluates queue and database config ERB outside Rails" do
     stdout, stderr, status = Open3.capture3(
-      { "JOB_CONCURRENCY" => "6" },
-      "ruby",
-      "bin/check-thread-budget"
+      { "JOB_CONCURRENCY" => "6", "DB_POOL" => "9" },
+      "ruby", "bin/check-thread-budget"
     )
 
     expect(status).to be_success, stderr
