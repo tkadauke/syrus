@@ -23,7 +23,7 @@ describe("JobQuestionPanel", () => {
         <MemoryRouter>
           <JobQuestionPanel
             command={{ mutate, isPending: false } as never}
-            job={{ id: 3, question_eagerness: "collaborative", question_eagerness_source: "repository" } as never}
+            job={{ id: 3, has_open_agent_question: true, question_eagerness: "collaborative", question_eagerness_source: "repository" } as never}
             onNotice={() => {}}
             paths={{ app_run_again_path: "/retry", app_cancel_path: "/cancel" } as never}
           />

@@ -221,6 +221,7 @@ export type JobRecord = {
   delivery_target_ref: string
   needs_attention: boolean
   needs_attention_reason: string | null
+  has_open_agent_question?: boolean
   question_eagerness?: import("../components/QuestionEagernessFields").QuestionEagerness | null
   question_eagerness_source?: "job" | "repository" | "user" | "default"
   blocked_workflow_dismissal?: { workflow_id: number; slug: string; reason_text: string | null; app_dismiss_path: string } | null
