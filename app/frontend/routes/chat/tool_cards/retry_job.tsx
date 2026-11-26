@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
 import i18n from "../../../i18n"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
@@ -23,9 +24,30 @@ function retryWorkflows(context: ToolCardContext) {
   })
 }
 
+function recoveryDetails(context: ToolCardContext) {
+  const workflow = retryWorkflows(context)[0]
+  const outcomeRecord =
+    workflow && isPlainObject(context.livePendingAction?.outcome) && Array.isArray(context.livePendingAction.outcome.workflows)
+      ? context.livePendingAction.outcome.workflows.find(isPlainObject)
+      : null
+  const liveReview = isPlainObject(context.livePendingAction?.review) ? context.livePendingAction.review : null
+  const parsed = isPlainObject(context.parsedResult) && isPlainObject(context.parsedResult.recovery) ? context.parsedResult.recovery : null
+  return outcomeRecord || liveReview || parsed || context.input || {}
+}
+
 function RetryJobDetails({ context }: { context: ToolCardContext }) {
   const jobIds = requestedJobIds(context)
   const workflows = retryWorkflows(context)
+  const recovery = recoveryDetails(context)
+  const recoveryRows = [
+    ["recovery_kind", i18n.t("chat:retry_job.recovery_kind")],
+    ["recovery_mode", i18n.t("chat:retry_job.recovery_mode")],
+    ["source_failure_classification", i18n.t("chat:retry_job.source_failure")],
+    ["guidance", i18n.t("chat:retry_job.guidance")],
+    ["reason", i18n.t("chat:retry_job.reason")],
+    ["requested_by", i18n.t("chat:retry_job.requested_by")],
+    ["origin", i18n.t("chat:retry_job.origin")]
+  ] as const
   return (
     <>
       <Row
@@ -52,6 +74,16 @@ function RetryJobDetails({ context }: { context: ToolCardContext }) {
               ))}
             </div>
           }
+        />
+      ) : null}
+      {recoveryRows.map(([key, label]) => {
+        const value = displayValue(recovery[key])
+        return value ? <Row key={key} label={label} value={value} /> : null
+      })}
+      {displayValue(recovery.source_workflow_id) ? (
+        <Row
+          label={i18n.t("chat:retry_job.source_workflow")}
+          value={<EntityReference id={displayValue(recovery.source_workflow_id)!} jobId={jobIds[0]} kind="workflow" />}
         />
       ) : null}
     </>

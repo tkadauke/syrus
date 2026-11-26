@@ -1111,7 +1111,20 @@
     "execution_status": "Ausführungsstatus",
     "execution_message": "Ausführungsmeldung"
   },
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Nicht angegeben", "started_workflows": "Retry-Workflow gestartet" },
+  "retry_job": {
+    "job": "Job",
+    "jobs": "Jobs",
+    "missing_target": "Nicht angegeben",
+    "started_workflows": "Retry-Workflow gestartet",
+    "recovery_kind": "Wiederherstellungsart",
+    "recovery_mode": "Wiederherstellungsmodus",
+    "source_failure": "Ausgangsfehler",
+    "source_workflow": "Ausgangs-Workflow",
+    "guidance": "Anleitung",
+    "reason": "Grund",
+    "requested_by": "Angefordert von",
+    "origin": "Ursprung"
+  },
   "tool_card_examples": {
     "priority_changed": "Priorität geändert",
     "invalid_priority": "Ungültige Priorität",

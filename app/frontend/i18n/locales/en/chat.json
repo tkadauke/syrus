@@ -1398,7 +1398,20 @@
     "execution_status": "Execution status",
     "execution_message": "Execution message"
   },
-  "retry_job": { "job": "Job", "jobs": "Jobs", "missing_target": "Not provided", "started_workflows": "Retry workflow started" },
+  "retry_job": {
+    "job": "Job",
+    "jobs": "Jobs",
+    "missing_target": "Not provided",
+    "started_workflows": "Retry workflow started",
+    "recovery_kind": "Recovery kind",
+    "recovery_mode": "Recovery mode",
+    "source_failure": "Source failure",
+    "source_workflow": "Source workflow",
+    "guidance": "Guidance",
+    "reason": "Reason",
+    "requested_by": "Requested by",
+    "origin": "Origin"
+  },
   "tool_card_examples": {
     "priority_changed": "Priority changed",
     "invalid_priority": "Invalid priority",

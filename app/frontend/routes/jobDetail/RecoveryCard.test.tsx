@@ -9,7 +9,7 @@ function command() {
 }
 
 function payload(actions: Partial<JobDetailPayload["actions"]>, job: Record<string, unknown> = {}) {
-  const base = jobDetailPayload() as JobDetailPayload
+  const base = jobDetailPayload() as unknown as JobDetailPayload
   return { ...base, job: { ...base.job, state: "failed", ...job }, actions: { ...base.actions, can_write: true, retry_agent_options: [], ...actions } }
 }
 
