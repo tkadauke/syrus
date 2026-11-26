@@ -18,13 +18,25 @@ module RetryJobs
         step = RetryFailedStepEnqueuer.failed_step_for(workflow)
         return failure("No failed step or grader loop is available to retry.") unless step
 
+        decision = RecoveryDecision.for(job: job, workflow: workflow)
+        if decision.kind == "grader_loop_no_progress" && @retry_context.blank?
+          return failure("Guidance is required to repair a grader loop that stopped for no measurable progress.")
+        end
+
         success("source_workflow_id" => workflow.id, "failed_step_id" => step.id,
           "failed_step_kind" => step.kind, "source_snapshot_id" => WorkflowSourceSnapshots.current_for(workflow)&.id,
-          "recovery_decision" => RecoveryDecision.for(job: job, workflow: workflow).as_json)
+          "recovery_decision" => decision.as_json)
       end
 
       def execute
         workflow = source_workflow
+        decision = RecoveryDecision.for(job: job, workflow: workflow)
+        if decision.kind == "grader_loop_no_progress" && @retry_context.blank?
+          return RetryFailedStepEnqueuer::Result.new(
+            run: nil, workflow: nil, step: nil,
+            error: "Guidance is required to repair a grader loop that stopped for no measurable progress."
+          )
+        end
         OperatorRetryContext.with_context(workflow, @retry_context) do
           RetryFailedStepEnqueuer.call(workflow: workflow)
         end

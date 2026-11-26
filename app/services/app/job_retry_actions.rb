@@ -1,5 +1,13 @@
 module App
   class JobRetryActions
+    RECOVERY_ACTION_LABELS = {
+      "rerun_unchanged" => "Rerun check",
+      "resume" => "Resume execution",
+      "repair_with_guidance" => "Repair with guidance",
+      "fresh_implementation" => "Restart implementation",
+      "restart" => "Restart implementation"
+    }.freeze
+
     def self.for(job)
       new(job).as_json
     end
@@ -11,6 +19,7 @@ module App
     def as_json
       {
         recovery_decision: recovery_decision.as_json,
+        recovery_timeline: recovery_timeline,
         failed_step: failed_step_action,
         implementation: implementation_action
       }
@@ -26,6 +35,19 @@ module App
 
     def latest_workflow
       @latest_workflow ||= job.latest_workflow
+    end
+
+    def recovery_timeline
+      job.recovery_interventions.map do |intervention|
+        {
+          id: intervention.id, action: intervention.action,
+          actor: intervention.actor_display.presence || intervention.actor_type,
+          actor_type: intervention.actor_type, origin: intervention.origin,
+          reason: intervention.reason, guidance: intervention.guidance,
+          source_revision: intervention.source_revision, resulting_revision: intervention.resulting_revision,
+          performed_at: intervention.performed_at&.iso8601
+        }.compact
+      end
     end
 
     def failed_step
@@ -57,7 +79,7 @@ module App
 
       {
         key: "retry_implementation",
-        label: "Retry implementation",
+        label: recovery_action_label,
         path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       }
     end
@@ -76,10 +98,15 @@ module App
     end
 
     def failed_step_label
+      return recovery_action_label if recovery_decision.recommended_action.present?
       return "Restart grade loop" if failed_step&.kind == "grader_fanout" && failed_step.loop_id.present?
       return "Retry merge train now" if latest_workflow&.trigger_kind == "merge_train"
 
       Workflow::TriggerKind.retry_label_for(latest_workflow.trigger_kind, step_kind: failed_step&.kind)
+    end
+
+    def recovery_action_label
+      RECOVERY_ACTION_LABELS.fetch(recovery_decision.recommended_action, "Retry")
     end
 
     def merge_train_dispatch_blocked?
