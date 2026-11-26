@@ -75,6 +75,8 @@ Every build attempt that finishes records evidence bound to its outcome: the cap
 - The image provenance carries the builder version, network policy digest, base images, and layer digests, never log text.
 - A build can publish only into the namespace its request was made for, and only through the Runtime Image Service; it holds no registry credential and cannot revoke, delete, or read other images.
 
+Before an extension image becomes a candidate, Syrus verifies that its recorded build ancestry contains the approved digest-pinned base, its OCI platform and non-root user match the supported contract, and its signed runtime ABI remains compatible. It then exercises every provider binary and the confinement handshake in a read-only, capability-free container. The source-defined smoke test runs separately with no secrets or publication credentials, no network, bounded CPU, memory, processes, output, and time, and only the standard ephemeral writable paths. Each assertion is retained as digest-bound verification evidence; missing evidence, an unavailable probe, or any failed required assertion prevents candidate status.
+
 ## Build recovery and diagnostics
 
 Runtime image builds recover on their own from the failures a long-running build plane sees:
