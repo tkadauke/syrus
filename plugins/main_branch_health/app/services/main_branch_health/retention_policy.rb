@@ -1,10 +1,10 @@
 module MainBranchHealth
   class RetentionPolicy
-    include Syrus::Plugin::RetentionPolicy
+    include Syrus::Host::RetentionPolicy
 
     def self.retention_definitions
       [
-        RetentionPolicyRegistry::Definition.new(
+        Syrus::Host::RetentionDefinition.new(
           key: :main_branch_health_check,
           model: "MainBranchHealth::HealthCheck",
           table_name: "main_branch_health_health_checks",

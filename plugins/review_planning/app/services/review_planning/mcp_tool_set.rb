@@ -4,7 +4,7 @@ module ReviewPlanning
   # The workflow agent's `submit_review_plan` tool, offered only to the
   # review_plan step.
   class McpToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     TOOL_CLASSES = [ Tools::SubmitReviewPlanTool ].freeze
 
@@ -29,7 +29,7 @@ module ReviewPlanning
 
     def handle(tool_name, params, server_context)
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown review plan tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown review plan tool: #{tool_name.inspect}") unless klass
 
       klass.call(**self.class.symbolize(params), server_context: server_context)
     rescue StandardError => e

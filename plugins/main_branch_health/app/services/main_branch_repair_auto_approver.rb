@@ -55,6 +55,6 @@ class MainBranchRepairAutoApprover
     run = @job.current_run
     return unless run
 
-    JobLog.append!(run: run, chunk: "auto_approval: approved main branch repair via repository setting", kind: "system")
+    Syrus::Host::JobLog.append!(run: run, chunk: "auto_approval: approved main branch repair via repository setting", kind: "system")
   end
 end

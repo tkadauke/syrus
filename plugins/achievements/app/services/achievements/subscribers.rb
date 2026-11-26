@@ -5,7 +5,7 @@ module Achievements
   # delivery is dropped by core while the plugin is disabled, and the guard
   # below covers a delivery already in flight.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       EventAdapters.event_names.index_with { :on_event }

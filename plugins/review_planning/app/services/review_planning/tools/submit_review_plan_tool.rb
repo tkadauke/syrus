@@ -40,19 +40,19 @@ module ReviewPlanning::Tools
 
     class << self
       def call(items:, summary: nil, server_context:)
-        run = Mcp::Tools.run_from_context(server_context)
+        run = Syrus::Host::McpTools.run_from_context(server_context)
         unless run.step&.kind == "review_plan"
-          return Mcp::Tools.invalid("submit_review_plan is only available from the review_plan step")
+          return Syrus::Host::McpTools.invalid("submit_review_plan is only available from the review_plan step")
         end
 
         normalized_items = normalize_items(items)
-        return Mcp::Tools.invalid("items must be an array") if normalized_items.nil?
+        return Syrus::Host::McpTools.invalid("items must be an array") if normalized_items.nil?
 
         run.workflow.set_artifact!("review_plan", {
           items: normalized_items,
-          summary: Mcp::Tools.utf8(summary).strip.presence
+          summary: Syrus::Host::McpTools.utf8(summary).strip.presence
         })
-        Mcp::Tools.write_log(run, "[mcp] submit_review_plan received: #{normalized_items.size} item(s)")
+        Syrus::Host::McpTools.write_log(run, "[mcp] submit_review_plan received: #{normalized_items.size} item(s)")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
       rescue StandardError => e
@@ -68,8 +68,8 @@ module ReviewPlanning::Tools
         items.filter_map do |item|
           next unless item.is_a?(Hash)
 
-          file = Mcp::Tools.utf8(item["file"] || item[:file]).strip
-          note = Mcp::Tools.utf8(item["note"] || item[:note]).strip
+          file = Syrus::Host::McpTools.utf8(item["file"] || item[:file]).strip
+          note = Syrus::Host::McpTools.utf8(item["note"] || item[:note]).strip
           next if file.empty? || note.empty?
 
           line = (item["line"] || item[:line]).presence&.to_i

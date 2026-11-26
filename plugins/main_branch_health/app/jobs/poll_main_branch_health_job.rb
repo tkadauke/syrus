@@ -1,5 +1,5 @@
 class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
-  include SkipIfPending
+  include Syrus::Host::SkipIfPending
   include Syrus::Host::GithubPollingRateLimitGuard
 
   queue_as :polling
@@ -16,7 +16,7 @@ class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
   ].freeze
 
   def perform(repository_id, manual: false)
-    repository = Repository.find_by(id: repository_id)
+    repository = Syrus::Host::RepositoryRecord.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
     return unless repository.main_branch_health_enabled?
@@ -31,7 +31,7 @@ class PollMainBranchHealthJob < Syrus::Host::BackgroundJob
       return
     end
 
-    client = GithubClient.for(repository: repository, user: identity.user)
+    client = Syrus::Host::GithubClient.for(repository: repository, user: identity.user)
 
     with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: manual, retry_args: [ repository_id ]) do
       client.clear_api_blocked!

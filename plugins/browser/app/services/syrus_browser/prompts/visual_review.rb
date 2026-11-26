@@ -86,7 +86,7 @@ module SyrusBrowser::Prompts
     end
 
     def feedback_kind
-      Workflow::TriggerKind.feedback_kind_for(@workflow_kind)
+      Syrus::Host::WorkflowRecord::TriggerKind.feedback_kind_for(@workflow_kind)
     end
 
     def feedback_workflow?

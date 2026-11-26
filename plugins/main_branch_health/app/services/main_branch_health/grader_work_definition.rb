@@ -1,5 +1,5 @@
 module MainBranchHealth
-  class GraderWorkDefinition < ::WorkDefinitions::Base
+  class GraderWorkDefinition < ::Syrus::Host::WorkDefinitionBase
     include Syrus::Host::WorkDefinitionsAgentConcurrencyExempt
     include Syrus::Host::WorkDefinitionsRecordsGraderTargetSelectionInputs
 

@@ -1,7 +1,7 @@
 require "achievements/data_cleanup"
 
 module Achievements
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "achievements" do
     experimental true

@@ -2,7 +2,7 @@ module SyrusCoverage
   # A closed Job has no further review, so its hit maps go immediately rather
   # than waiting for the TTL.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     def self.subscriptions
       { "job.closed" => :on_job_closed }
@@ -12,7 +12,7 @@ module SyrusCoverage
       job_id = event[:job_id]
       return if job_id.blank?
 
-      Workflow.where(job_id: job_id).find_each do |workflow|
+      Syrus::Host::WorkflowRecord.where(job_id: job_id).find_each do |workflow|
         SyrusCoverage::HitMap.purge_for!(workflow)
       rescue StandardError => e
         Rails.logger.warn("SyrusCoverage::Subscribers: failed to purge hit map for workflow #{workflow.id}: #{e.message}")

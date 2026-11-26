@@ -5,7 +5,7 @@ module Api
       # acknowledgment timestamps, plus an evidence link only to a Job or Epic the
       # caller can access. Raw evidence and subject ids are never returned, and
       # another user's unlocks are not visible at all.
-      class AchievementsController < BaseController
+      class AchievementsController < Syrus::Host::AppController
         rescue_from Achievements::Reveals::NotFound do
           render_error("not_found", I18n.t("achievements.api.not_found"), status: :not_found)
         end
@@ -30,7 +30,7 @@ module Api
 
         def acknowledge
           unlock = reveals.acknowledge!(params[:id])
-          render json: { achievement: unlock_json(unlock, unlock.acknowledgments.find_by(user_id: Current.user.id)&.acknowledged_at, reveals.evidence_links([ unlock ])[unlock.id]) }
+          render json: { achievement: unlock_json(unlock, unlock.acknowledgments.find_by(user_id: Syrus::Host::Current.user.id)&.acknowledged_at, reveals.evidence_links([ unlock ])[unlock.id]) }
         end
 
         def replay
@@ -44,7 +44,7 @@ module Api
 
         private
 
-        def reveals = @reveals ||= Achievements::Reveals.new(Current.user)
+        def reveals = @reveals ||= Achievements::Reveals.new(Syrus::Host::Current.user)
 
         # Hidden definitions that are still locked carry only their scope.
         def locked_json(definition)

@@ -15,7 +15,7 @@ module ConnectedAccounts
         deny! unless authorized_registration?(registration, declaration)
         deny! if purpose.to_s.blank?
 
-        context = McpToolContext.new(surface: :api, role: "system_service", user: account.credential_store_credential.created_by,
+        context = Syrus::Host::ToolContext.new(surface: :api, role: "system_service", user: account.credential_store_credential.created_by,
           permission_authorization: { system_service_identity: registration.identity })
         AccountClient.with_access(account:, acting_mode: :as_service, scopes:, purpose:, context:, target:) do |access|
           invocation = Provider::SystemInvocationContext.new(access:, identity: registration.identity, purpose: purpose.to_s,

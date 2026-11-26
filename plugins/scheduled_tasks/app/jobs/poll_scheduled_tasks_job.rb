@@ -1,7 +1,7 @@
-class PollScheduledTasksJob < PluginJob
+class PollScheduledTasksJob < Syrus::Host::PluginJob
   plugin :scheduled_tasks
   queue_as :polling
-  include SkipIfPending
+  include Syrus::Host::SkipIfPending
 
   # Raised when a poll-wide database phase keeps failing after bounded
   # retries. It is re-raised (never swallowed) so the poll is recorded as
@@ -25,7 +25,7 @@ class PollScheduledTasksJob < PluginJob
   # phase is read-only, so it can be retried safely; firing is never retried
   # here and stays idempotent through Fire's own due check.
   def perform
-    return if AppSetting.polling_paused?
+    return if Syrus::Host::AppSetting.polling_paused?
     now = Time.current
 
     cursor = 0
@@ -52,8 +52,8 @@ class PollScheduledTasksJob < PluginJob
 
   def eligible(tasks)
     with_retry(:check_eligibility) do
-      repo_ids = Repository.active.where(id: tasks.map(&:repository_id).uniq).pluck(:id)
-      user_ids = User.where(id: tasks.map(&:user_id).uniq, scheduling_paused: false).pluck(:id)
+      repo_ids = Syrus::Host::RepositoryRecord.active.where(id: tasks.map(&:repository_id).uniq).pluck(:id)
+      user_ids = Syrus::Host::UserRecord.where(id: tasks.map(&:user_id).uniq, scheduling_paused: false).pluck(:id)
       tasks.select { |t| repo_ids.include?(t.repository_id) && user_ids.include?(t.user_id) }
     end
   end
@@ -76,7 +76,7 @@ class PollScheduledTasksJob < PluginJob
         "#{recording_error.class}: #{recording_error.message}"
       )
     end
-    BackendExceptionLogging.ingest_job(
+    Syrus::Host::BackendExceptionLogging.ingest_job(
       { job: self, exception_object: e, exception: [ e.class.name, e.message ] },
       0
     )

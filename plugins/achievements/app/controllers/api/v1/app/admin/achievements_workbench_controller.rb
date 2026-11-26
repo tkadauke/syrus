@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class AchievementsWorkbenchController < BaseController
+        class AchievementsWorkbenchController < Syrus::Host::AppAdminController
           before_action :require_admin
           before_action :require_workbench
 

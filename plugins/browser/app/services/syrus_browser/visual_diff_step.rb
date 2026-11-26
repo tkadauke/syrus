@@ -1,5 +1,5 @@
 module SyrusBrowser
-  class VisualDiffStep < Steps::Base
+  class VisualDiffStep < Syrus::Host::StepHandlerBase
     BASELINE_RENDERER_TYPE = :image_diff
     COMPARISON_RENDERER_TYPE = :before_after_visual_diff
 
@@ -71,7 +71,7 @@ module SyrusBrowser
     end
 
     def record_base_revision!
-      sha = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+      sha = Syrus::Host::GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
       workflow.set_artifact!("visual_diff_base_revision", sha)
     end
 

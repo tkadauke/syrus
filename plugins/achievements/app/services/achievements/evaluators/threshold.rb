@@ -11,7 +11,7 @@ module Achievements
       def earned?(_definition, adapter)
         return false unless adapter.subject.kind == :job
 
-        ::Job.where(closure_reason: EventAdapters::JobClosed::LANDED_REASONS).count >= THRESHOLD
+        ::Syrus::Host::JobRecord.where(closure_reason: EventAdapters::JobClosed::LANDED_REASONS).count >= THRESHOLD
       end
     end
   end

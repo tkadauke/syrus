@@ -3,7 +3,7 @@ module Api
     module App
       # Plugin-owned main-branch health endpoints. Flat naming, like core's
       # repository-scoped controllers, so the module does not shadow ::Repositories.
-      class MainBranchHealthController < BaseController
+      class MainBranchHealthController < Syrus::Host::AppController
         def health_history
           repository = find_repository
 
@@ -77,7 +77,7 @@ module Api
         private
 
         def find_repository
-          Repository.accessible_to(Current.user).find(params[:id])
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:id])
         end
 
         def find_repository_for_admin_mutation
@@ -198,7 +198,7 @@ module Api
           workflow_ids = checks.filter_map(&:workflow_id).uniq
           return {} if workflow_ids.empty?
 
-          workflows_by_id = Workflow
+          workflows_by_id = Syrus::Host::WorkflowRecord
             .where(id: workflow_ids)
             .select(:id, :job_id)
             .index_by(&:id)

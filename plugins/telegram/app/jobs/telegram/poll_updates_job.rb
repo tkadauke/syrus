@@ -4,8 +4,8 @@ module Telegram
   # Telegram::PlatformAdapter.connector_job_class, so
   # PlatformDelivery::Registry.start_connectors! starts/stops it with the
   # plugin's enabled state.
-  class PollUpdatesJob < PlatformPollingJob
-    PluginJob.configure(self, :telegram)
+  class PollUpdatesJob < Syrus::Host::PlatformPollingJob
+    Syrus::Host::PluginJob.configure(self, :telegram)
 
     private
 
@@ -14,7 +14,7 @@ module Telegram
     end
 
     def poll_once
-      offset = AppSetting.telegram_update_offset
+      offset = Syrus::Host::AppSetting.telegram_update_offset
       updates = Telegram::BotAccess.get_updates(offset: offset, timeout: 25)
       updates.each do |update|
         begin
@@ -22,7 +22,7 @@ module Telegram
         rescue => e
           Rails.logger.error("#{self.class}: failed to process Telegram update #{update["update_id"]}: #{e}")
         ensure
-          AppSetting.current.update!(telegram_update_offset: update["update_id"] + 1)
+          Syrus::Host::AppSetting.current.update!(telegram_update_offset: update["update_id"] + 1)
         end
       end
     end
@@ -38,7 +38,7 @@ module Telegram
       if text.start_with?("/start ")
         handle_linking(token: text.delete_prefix("/start ").strip, from: from)
       else
-        result = InboundMessageRouter.new(
+        result = Syrus::Host::InboundMessageRouter.new(
           platform: "telegram",
           external_id: from["id"].to_s,
           external_handle: from["username"],
@@ -58,9 +58,9 @@ module Telegram
 
     def handle_linking(token:, from:)
       payload = Rails.application.message_verifier(:platform_linking).verify(token)
-      user = User.find(payload["user_id"])
+      user = Syrus::Host::UserRecord.find(payload["user_id"])
 
-      identity = PlatformIdentity.find_or_initialize_by(platform: "telegram", external_id: from["id"].to_s)
+      identity = Syrus::Host::PlatformIdentityRecord.find_or_initialize_by(platform: "telegram", external_id: from["id"].to_s)
       identity.assign_attributes(user_id: user.id, external_handle: from["username"], linked_at: Time.current)
       identity.save!
 

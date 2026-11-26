@@ -1,5 +1,5 @@
 module PersonalCalendar
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
   Context = Data.define(:account, :access, :arguments)
   DEFINITION = Syrus::Host::CapabilityFamily.define(:personal_calendar) do
     shape :service

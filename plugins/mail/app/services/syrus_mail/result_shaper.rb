@@ -52,9 +52,9 @@ module SyrusMail
 
     def workspace_root
       @workspace_root ||= if @context.chat_session
-        ChatWorkspace.path_for(@context.chat_session)
+        Syrus::Host::ChatWorkspace.path_for(@context.chat_session)
       elsif @context.workflow
-        WorkflowWorkspace.path_for(@context.workflow)
+        Syrus::Host::WorkflowWorkspace.path_for(@context.workflow)
       else
         Pathname.new(Dir.tmpdir).join("syrus-external-content")
       end.tap { |path| FileUtils.mkdir_p(path) }

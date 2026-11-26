@@ -1,5 +1,5 @@
 module SyrusMail
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   Context = Data.define(:account, :access, :arguments)
 

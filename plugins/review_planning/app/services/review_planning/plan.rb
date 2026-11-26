@@ -8,7 +8,7 @@ module ReviewPlanning
     end
 
     def self.for_job(job)
-      from_syrus_yml(RepoDefaultBranchSyrusYml.for_job(job))
+      from_syrus_yml(Syrus::Host::RepoDefaultBranchSyrusYml.for_job(job))
     end
 
     def self.from_syrus_yml(loaded)

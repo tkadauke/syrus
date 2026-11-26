@@ -1,5 +1,5 @@
 module MainBranchHealth
-  class ConcernReport < ApplicationRecord
+  class ConcernReport < Syrus::Host::Record
     self.table_name = "main_branch_health_concern_reports"
     belongs_to :repository
     belongs_to :job

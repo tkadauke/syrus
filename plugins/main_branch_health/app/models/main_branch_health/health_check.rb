@@ -1,7 +1,7 @@
 module MainBranchHealth
-  class HealthCheck < ApplicationRecord
+  class HealthCheck < Syrus::Host::Record
     self.table_name = "main_branch_health_health_checks"
-    include HasConfigurableRetention
+    include Syrus::Host::HasConfigurableRetention
 
     SOURCES = %w[ ci_poll grader_workflow concern_quorum ].freeze
     CONCLUSIVE_GRADER_HEALTH = %w[ healthy broken ].freeze

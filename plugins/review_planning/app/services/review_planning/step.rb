@@ -7,7 +7,7 @@ module ReviewPlanning
   # Best-effort: this step must never fail the parent Job/Workflow, even if the
   # agent errors, gives up after retries, or the MCP sidecar is unavailable. Any
   # StepFailed raised anywhere in #call is caught, logged, and swallowed.
-  class Step < Steps::Base
+  class Step < Syrus::Host::StepHandlerBase
     # Short prompt, but turns may be spent waiting on the MCP sidecar/tool list.
     REVIEW_PLAN_TURN_BUDGET = 25
 
@@ -64,10 +64,10 @@ module ReviewPlanning
 
     def review_plan_enabled?
       path = workspace.path
-      return false unless path.join(SyrusYml::CONFIG_FILE).exist?
+      return false unless path.join(Syrus::Host::SyrusYmlConfig::CONFIG_FILE).exist?
 
-      SyrusYml.load_repo(path).plugin_configurations[ReviewPlanning::RepositoryConfiguration::KEY] == true
-    rescue SyrusYml::ParseError => e
+      Syrus::Host::SyrusYmlConfig.load_repo(path).plugin_configurations[ReviewPlanning::RepositoryConfiguration::KEY] == true
+    rescue Syrus::Host::SyrusYmlParseError => e
       log("[review_plan] .syrus.yml parse error: #{e.message}")
       false
     end
@@ -106,7 +106,7 @@ module ReviewPlanning
       end
 
       pr_repo = job.effective_pr_repository
-      client = GithubClient.for(repository: pr_repo, user: job.user)
+      client = Syrus::Host::GithubClient.for(repository: pr_repo, user: job.user)
       upsert_review_plan_comment(client, pr_repo.slug, pr_number, body)
     rescue => e
       log("[review_plan] failed to post PR comment: #{e.class}: #{e.message}")

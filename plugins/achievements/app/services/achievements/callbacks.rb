@@ -1,6 +1,6 @@
 module Achievements
   module Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     # A bad definition set must not stop the instance from booting; it is
     # reported loudly instead. Evaluation work refuses unknown keys on its own.

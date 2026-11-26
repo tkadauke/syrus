@@ -1,11 +1,11 @@
 module Api
   module V1
     module App
-      class CoverageController < BaseController
+      class CoverageController < Syrus::Host::AppController
         TREND_MAX_DAYS = 365
 
         def trend
-          repository = Repository.accessible_to(Current.user).find(params[:repository_id])
+          repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
           days = params.fetch(:days, 30).to_i.clamp(1, TREND_MAX_DAYS)
 
           averages = SyrusCoverage::Snapshot.daily_averages(repository: repository, days: days)
@@ -59,12 +59,12 @@ module Api
         private
 
         def find_workflow
-          readable_jobs = if Current.user.admin?
-            Job.visible_to(Current.user, scope: Job.all)
+          readable_jobs = if Syrus::Host::Current.user.admin?
+            Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: Syrus::Host::JobRecord.all)
           else
-            Job.visible_to(Current.user, scope: Job.where(user: Current.user).or(Job.accessible_to(Current.user)))
+            Syrus::Host::JobRecord.visible_to(Syrus::Host::Current.user, scope: Syrus::Host::JobRecord.where(user: Syrus::Host::Current.user).or(Syrus::Host::JobRecord.accessible_to(Syrus::Host::Current.user)))
           end
-          workflow_scope = Workflow.joins(:job).merge(restrict_invocation_relation(readable_jobs))
+          workflow_scope = Syrus::Host::WorkflowRecord.joins(:job).merge(restrict_invocation_relation(readable_jobs))
           restrict_invocation_relation(workflow_scope).find(params[:workflow_id])
         end
       end

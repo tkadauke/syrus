@@ -16,7 +16,7 @@ module Achievements
   module DataCleanup
     def self.install_into(scope)
       scope.effect("user unlocks and acknowledgments") do
-        Syrus::DataCleanup.register("User", "achievements.user_data") do |user|
+        Syrus::Host::DataCleanup.register("User", "achievements.user_data") do |user|
           Achievements::Acknowledgment.where(user_id: user.id).delete_all
           Achievements::Unlock.for_user(user.id).find_each(&:destroy)
         end

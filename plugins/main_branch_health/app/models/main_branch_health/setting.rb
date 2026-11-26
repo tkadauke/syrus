@@ -1,5 +1,5 @@
 module MainBranchHealth
-  class Setting < ApplicationRecord
+  class Setting < Syrus::Host::Record
     self.table_name = "main_branch_health_settings"
 
     def self.current

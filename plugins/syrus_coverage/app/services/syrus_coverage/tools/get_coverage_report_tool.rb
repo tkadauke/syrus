@@ -12,7 +12,7 @@ module SyrusCoverage::Tools
 
     class << self
       def call(server_context:)
-        run = Mcp::Tools.run_from_context(server_context)
+        run = Syrus::Host::McpTools.run_from_context(server_context)
         artifact = find_latest_coverage_artifact(run)
 
         payload = if artifact.nil?

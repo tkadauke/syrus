@@ -6,7 +6,7 @@ module MainBranchHealth
       def alerts = [ *no_progress_repairs, *stuck_repairs ]
 
     def stuck_repairs
-      repositories = Repository.with_broken_main_branch_repair.to_a
+      repositories = Syrus::Host::RepositoryRecord.with_broken_main_branch_repair.to_a
       repositories_by_id = repositories.index_by(&:id)
       blocking_jobs = stuck_repair_candidates(repositories_by_id.keys)
         .each_with_object({}) { |job, memo| memo[job.repository_id] ||= job }
@@ -36,10 +36,10 @@ module MainBranchHealth
     end
 
     def no_progress_repairs
-      Job
+      Syrus::Host::JobRecord
         .includes(:repository, :workflows)
         .where(system_kind: Syrus::Host::JobSystemKindMainBranchRepair, needs_attention_reason: Syrus::Host::GraderLoopProgressNoProgressReason)
-        .where(repository_id: Repository.with_main_branch_repair_enabled.select(:id))
+        .where(repository_id: Syrus::Host::RepositoryRecord.with_main_branch_repair_enabled.select(:id))
         .where(state: %w[failed closed])
         .order(updated_at: :desc, id: :desc)
         .limit(10)
@@ -107,9 +107,9 @@ module MainBranchHealth
     end
 
     def stuck_repair_candidates(repository_ids)
-      return Job.none if repository_ids.blank?
+      return Syrus::Host::JobRecord.none if repository_ids.blank?
 
-      Job
+      Syrus::Host::JobRecord
         .where(repository_id: repository_ids, kind: "direct", state: MainHealthChangedService::BLOCKING_FIX_JOB_STATES)
         .where(
           "jobs.system_kind = :system_kind OR (jobs.system_kind IS NULL AND jobs.issue_title = :title)",

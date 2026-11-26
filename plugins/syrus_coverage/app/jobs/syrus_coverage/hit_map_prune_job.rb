@@ -2,7 +2,7 @@ class SyrusCoverage::HitMapPruneJob < Syrus::Host::BackgroundJob
   queue_as :cleanup
 
   def perform(workflow_id)
-    wf = Workflow.find_by(id: workflow_id)
+    wf = Syrus::Host::WorkflowRecord.find_by(id: workflow_id)
     return unless wf
 
     SyrusCoverage::HitMap.purge_for!(wf)

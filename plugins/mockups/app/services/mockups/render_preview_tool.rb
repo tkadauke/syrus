@@ -45,7 +45,7 @@ module Mockups
         return panel_not_found_response(panel_id) unless panel
 
         scratch = ScratchDirectory.new(chat_session, panel.id)
-        entry = entry_file.presence || PreviewPanel::DEFAULT_ENTRY_FILENAME
+        entry = entry_file.presence || Syrus::Host::PreviewPanelRecord::DEFAULT_ENTRY_FILENAME
         unless scratch.exist?(entry)
           return error_response("entry_file #{entry.inspect} was not found among the scratch files: " \
                                 "#{scratch.files.keys.sort.join(', ').presence || '(none yet -- use write_preview_file first)'}.")

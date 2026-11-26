@@ -1,5 +1,5 @@
 module SyrusBrowser
-  class VisualReviewStep < Steps::Base
+  class VisualReviewStep < Syrus::Host::StepHandlerBase
     include Syrus::Host::ReviewExecutionPolicy
 
     def call
@@ -83,7 +83,7 @@ module SyrusBrowser
         "step_id" => step.id
       }
       workflow.set_artifact!("visual_review_blocked_evidence", evidence)
-      WorkflowWarnings.record!(
+      Syrus::Host::WorkflowWarnings.record!(
         workflow: workflow,
         step: step,
         kind: "visual_review_blocked_evidence",
@@ -160,7 +160,7 @@ module SyrusBrowser
     end
 
     def manual_review_instructions
-      Workflow::TriggerKind.visual_review_instructions_for(workflow)
+      Syrus::Host::WorkflowRecord::TriggerKind.visual_review_instructions_for(workflow)
     end
 
     def test_plan_artifact
@@ -171,8 +171,8 @@ module SyrusBrowser
       return @visual_review_config if defined?(@visual_review_config)
 
       @visual_review_config = begin
-        SyrusYml.load_repo(workspace.path).visual_review
-      rescue SyrusYml::ParseError, Errno::ENOENT
+        Syrus::Host::SyrusYmlConfig.load_repo(workspace.path).visual_review
+      rescue Syrus::Host::SyrusYmlParseError, Errno::ENOENT
         nil
       end
     end
@@ -253,9 +253,9 @@ module SyrusBrowser
       branch_diff = review_eligibility_diff
       return diff_file_paths(branch_diff) if branch_diff.present?
 
-      GitRunner.new.run("diff", "--name-only", "#{default_branch_ref}...HEAD", chdir: workspace.path.to_s)
+      Syrus::Host::GitRunner.new.run("diff", "--name-only", "#{default_branch_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
-    rescue GitRunner::GitError, Errno::ENOENT => e
+    rescue Syrus::Host::GitRunner::GitError, Errno::ENOENT => e
       log("[visual_review] warning: could not determine changed files: #{e.message}")
       []
     end
@@ -340,7 +340,7 @@ module SyrusBrowser
 
       @cumulative_branch_diff = begin
         diff_against_default
-      rescue GitRunner::GitError, Errno::ENOENT => e
+      rescue Syrus::Host::GitRunner::GitError, Errno::ENOENT => e
         log("[visual_review] warning: cumulative diff unavailable, falling back to step diff: #{e.message}")
         nil
       end
@@ -378,7 +378,7 @@ module SyrusBrowser
     end
 
     def feedback_workflow?
-      Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind).present?
+      Syrus::Host::WorkflowRecord::TriggerKind.feedback_kind_for(workflow.trigger_kind).present?
     end
 
     def feedback_context_text
@@ -392,7 +392,7 @@ module SyrusBrowser
     def discard_reviewer_workspace_changes
       return unless File.exist?(workspace.path.join(".git"))
 
-      status = GitRunner.new.run("status", "--porcelain", chdir: workspace.path.to_s)
+      status = Syrus::Host::GitRunner.new.run("status", "--porcelain", chdir: workspace.path.to_s)
       return if status.strip.empty?
 
       log("[visual_review] discarding uncommitted reviewer workspace changes", kind: "system")

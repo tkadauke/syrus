@@ -3,7 +3,7 @@ module Achievements
   # while this user has an unacknowledged reveal about the Job being opened, so
   # a Job with nothing to reveal costs the page nothing.
   class UiSlots
-    include Syrus::Plugin::UiSlot
+    include Syrus::Host::UiSlot
 
     def self.ui_slots(slot:, context:)
       return [] unless slot == "job.detail"

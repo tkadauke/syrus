@@ -31,7 +31,7 @@ module SyrusCoverage::Analysis
     def call
       since = @lookback_days.to_i.days.ago.utc.iso8601
 
-      output = GitRunner.new.run(
+      output = Syrus::Host::GitRunner.new.run(
         "log", "--no-merges", "--since=#{since}", "--name-only", "--pretty=format:",
         chdir: @workspace_path
       )
@@ -40,7 +40,7 @@ module SyrusCoverage::Analysis
         path = line.strip
         counts[path] += 1 unless path.empty?
       end
-    rescue GitRunner::GitError => e
+    rescue Syrus::Host::GitRunner::GitError => e
       Rails.logger.warn("[SyrusCoverage::Analysis::ChangeFrequency] git log failed: #{e.message}")
       {}
     end

@@ -7,8 +7,8 @@ module Achievements
     class NotFound < StandardError; end
 
     EVIDENCE_SUBJECTS = {
-      "job" => ->(user) { ::Job.visible_to(user) },
-      "epic" => ->(user) { ::Epic.accessible_to(user) }
+      "job" => ->(user) { ::Syrus::Host::JobRecord.visible_to(user) },
+      "epic" => ->(user) { ::Syrus::Host::Epic.accessible_to(user) }
     }.freeze
 
     CONFIRM_RESET_ALL = "reset_all_acknowledgments".freeze

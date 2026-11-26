@@ -74,7 +74,7 @@ module Adjudicators
         grader_step: grader_step,
         base_sha: base_sha,
         failed_cases: Syrus::Host::TestEvidenceLookup.failed_test_cases_for(candidate_run, grader_name),
-        log: ->(message) { JobLog.append!(run: candidate_run, chunk: message, kind: "system") if candidate_run }
+        log: ->(message) { Syrus::Host::JobLog.append!(run: candidate_run, chunk: message, kind: "system") if candidate_run }
       )
     rescue StandardError => e
       Rails.logger.warn("[Adjudicators::ReportedMainConcern] base retry failed for grader step ##{grader_step.id}: #{e.class}: #{e.message}")

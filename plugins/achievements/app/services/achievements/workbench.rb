@@ -17,8 +17,8 @@ module Achievements
     end
 
     def self.plugin_effectively_enabled?(name)
-      manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == name }
-      !!(manifest&.enabled? && Syrus::PluginRegistry.health.healthy?(name))
+      manifest = Syrus::Host::PluginRegistry.all_plugins.find { |candidate| candidate.name == name }
+      !!(manifest&.enabled? && Syrus::Host::PluginRegistry.health.healthy?(name))
     end
 
     def self.implementation_status(definition)

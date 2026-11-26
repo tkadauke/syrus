@@ -1,5 +1,5 @@
 module SyrusTelegram
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "telegram" do
     requires_syrus nil

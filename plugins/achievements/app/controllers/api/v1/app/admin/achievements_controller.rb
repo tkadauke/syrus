@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       module Admin
-        class AchievementsController < BaseController
+        class AchievementsController < Syrus::Host::AppAdminController
           before_action :require_admin
 
           # Clears every user's acknowledgments so reveals play again. Needs an

@@ -9,7 +9,7 @@ module Achievements
       # operator started themselves. Scheduled fires, ingested issues, coworker
       # or insight work and infrastructure belong to the installation, not to
       # whichever account happens to own the record.
-      def self.credits_user?(user_id) = user_id.present? && ::User.exists?(id: user_id)
+      def self.credits_user?(user_id) = user_id.present? && ::Syrus::Host::UserRecord.exists?(id: user_id)
 
       def initialize(event) = @event = event
 

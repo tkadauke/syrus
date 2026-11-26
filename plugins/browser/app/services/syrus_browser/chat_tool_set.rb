@@ -31,7 +31,7 @@ module SyrusBrowser
     end
 
     def self.coworker_chat?(chat_session)
-      McpToolContext.from_chat_session(chat_session).role == AgentRole::COWORKER_CHAT
+      Syrus::Host::ToolContext.from_chat_session(chat_session).role == Syrus::Host::AgentRole::COWORKER_CHAT
     end
     private_class_method :coworker_chat?
 
@@ -49,7 +49,7 @@ module SyrusBrowser
           essential: true
         }
         definition.merge(
-          capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition)
+          capability_descriptor: Syrus::Host::CapabilityDescriptor.for_plugin_definition(definition)
         )
       end
     end

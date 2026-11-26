@@ -29,7 +29,7 @@ class MainConcernAggregator
 
     count = reports.count
 
-    return if count < AppSetting.main_concern_report_threshold
+    return if count < Syrus::Host::AppSetting.main_concern_report_threshold
 
     Rails.logger.warn(
       "[MainConcernAggregator] #{@repository.slug} crowd quorum reached " \

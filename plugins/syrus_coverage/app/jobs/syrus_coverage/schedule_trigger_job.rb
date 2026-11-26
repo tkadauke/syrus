@@ -5,13 +5,13 @@ class SyrusCoverage::ScheduleTriggerJob < Syrus::Host::BackgroundJob
   queue_as :low_priority_maintenance
 
   def perform(workflow_id)
-    workflow = Workflow.find_by(id: workflow_id)
+    workflow = Syrus::Host::WorkflowRecord.find_by(id: workflow_id)
     return unless workflow
 
     repo = workflow.job.repository
     user = workflow.job.user
 
-    workspace_path = WorkflowWorkspace.path_for(workflow)
+    workspace_path = Syrus::Host::WorkflowWorkspace.path_for(workflow)
     plan = SyrusCoverage::Plan.for(workspace_path)
 
     return unless plan&.on_miss == "schedule" && plan.schedule_prompt.present?

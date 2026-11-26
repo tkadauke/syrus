@@ -19,7 +19,7 @@ module SyrusCoverage
     return [] unless workspace_path&.directory? && @run
 
     coverage_plan = begin
-      SyrusYml.load_repo(workspace_path).plugin_configurations[SyrusCoverage::RepositoryConfiguration::KEY]
+      Syrus::Host::SyrusYmlConfig.load_repo(workspace_path).plugin_configurations[SyrusCoverage::RepositoryConfiguration::KEY]
     rescue StandardError
       nil
     end
