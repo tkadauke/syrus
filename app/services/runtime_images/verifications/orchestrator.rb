@@ -1,0 +1,92 @@
+module RuntimeImages
+  module Verifications
+    class Orchestrator
+      DEFAULT_POLICY = {
+        "version" => 1,
+        "checks" => [ { "key" => "manifest", "required" => true } ],
+        "vulnerabilities" => { "blocked_severities" => %w[critical high] },
+        "block_secrets" => true,
+        "block_prohibited_packages" => true,
+        "block_policy_violations" => true
+      }.freeze
+
+      def initialize(registry: nil, service: Service.new)
+        @registry = registry || Registry.new.tap { |r| r.register("manifest", ManifestVerifier.new(service: service)) }
+      end
+
+      # Every call is a new durable attempt. This is also the re-verification
+      # path: prior evidence remains immutable and the latest decision alone
+      # controls candidate eligibility.
+      def verify(image, policy: DEFAULT_POLICY, context: {}, now: Time.current)
+        snapshot = canonical(policy)
+        attempt = create_attempt(image, snapshot, now)
+        checks = Array(snapshot.fetch("checks"))
+        checks = [ { "key" => "policy_checks_missing", "required" => true } ] if checks.empty?
+        checks.each_with_index { |definition, position| run_check(attempt, definition, position, context, now) }
+        finish(attempt, now)
+      rescue ActiveRecord::RecordNotUnique
+        retry
+      end
+
+      private
+
+      def create_attempt(image, snapshot, now)
+        image.with_lock do
+          image.update!(verification_state: "unverified")
+          RuntimeImageVerificationAttempt.create!(
+            runtime_image: image, number: image.runtime_image_verification_attempts.maximum(:number).to_i + 1,
+            image_digest: image.digest, state: "running", policy_snapshot: snapshot,
+            policy_digest: "sha256:#{Digest::SHA256.hexdigest(JSON.generate(snapshot))}", started_at: now
+          )
+        end
+      end
+
+      def run_check(attempt, definition, position, context, now)
+        definition = Hash(definition).stringify_keys
+        check = attempt.checks.create!(position: position, verifier_key: definition.fetch("key"), required: definition.fetch("required", true), state: "running", started_at: now)
+        verifier = @registry.fetch(check.verifier_key)
+        result = verifier&.call(image: attempt.runtime_image, policy: attempt.policy_snapshot, context: context)
+        result ||= Result.fail(failure_class: :infrastructure, code: :verifier_unavailable, message: "required verifier #{check.verifier_key} is unavailable")
+        result = Result.fail(failure_class: :evidence, code: :evidence_unavailable, message: "verifier produced no durable evidence") if result.passed? && result.evidence_references.empty?
+        check.update!(state: result.passed? ? "passed" : (result.failure_class == "infrastructure" ? "unavailable" : "failed"),
+                      failure_class: result.failure_class, failure_code: result.code, message: result.message.to_s.truncate(500).presence,
+                      evidence_references: result.evidence_references, finished_at: Time.current)
+      rescue StandardError => e
+        check&.update!(state: "unavailable", failure_class: "verifier", failure_code: "verifier_error",
+                       message: "#{e.class}: #{e.message}".truncate(500), evidence_references: [], finished_at: Time.current)
+      end
+
+      def finish(attempt, now)
+        failure = attempt.checks.where(required: true).where.not(state: "passed").order(:position).first
+        image = attempt.runtime_image
+        image.with_lock do
+          if failure
+            blocked = %w[infrastructure evidence verifier].include?(failure.failure_class)
+            state = blocked ? "blocked" : "rejected"
+            attempt.update!(state: state, decision: state, failure_class: failure.failure_class,
+                            failure_code: failure.failure_code, message: failure.message, finished_at: now)
+          else
+            attempt.update!(state: "accepted", decision: "candidate", finished_at: now)
+          end
+          # A slower, older re-verification must never overwrite the decision
+          # of a newer attempt for the same immutable digest.
+          if image.runtime_image_verification_attempts.maximum(:number) == attempt.number
+            image.update!(verification_state: attempt.accepted? ? "candidate" : attempt.state)
+          end
+        end
+        attempt
+      end
+
+      def canonical(value)
+        case value
+        when Hash
+          value.stringify_keys.sort.to_h { |key, item| [ key, canonical(item) ] }
+        when Array
+          value.map { |item| canonical(item) }
+        else
+          value
+        end
+      end
+    end
+  end
+end
