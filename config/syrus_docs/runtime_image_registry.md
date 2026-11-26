@@ -77,6 +77,10 @@ Every build attempt that finishes records evidence bound to its outcome: the cap
 
 Before an extension image becomes a candidate, Syrus verifies that its recorded build ancestry contains the approved digest-pinned base, its OCI platform and non-root user match the supported contract, and its signed runtime ABI remains compatible. It then exercises every provider binary and the confinement handshake in a read-only, capability-free container. The source-defined smoke test runs separately with no secrets or publication credentials, no network, bounded CPU, memory, processes, output, and time, and only the standard ephemeral writable paths. Each assertion is retained as digest-bound verification evidence; missing evidence, an unavailable probe, or any failed required assertion prevents candidate status.
 
+Every candidate also receives a CycloneDX SBOM and a package-and-layer vulnerability scan. The default policy blocks every Critical or High vulnerability and every package named by the instance's prohibited-package policy. Time-bounded exemptions must identify one vulnerability or package, include a reason and expiry, and are copied into the immutable decision evidence. Syrus retains the exact SBOM and scan report with their hashes, scanner version, vulnerability-database version, finding summary, and effective exemptions. An unavailable scanner, missing database identity, or missing evidence blocks candidate status; a later policy change is evaluated by a new attempt so earlier evidence remains reproducible.
+
+Set `SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` to a JSON object to configure `vulnerabilities.blocked_severities`, `prohibited_packages`, or `exemptions` instance-wide. Other keys are ignored so configuration cannot remove required checks. Each exemption has `kind` (`vulnerability` or `package`), exact `id`, non-empty `reason`, and ISO 8601 `expires_at`; expired or malformed entries have no effect.
+
 ## Build recovery and diagnostics
 
 Runtime image builds recover on their own from the failures a long-running build plane sees:
