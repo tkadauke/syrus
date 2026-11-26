@@ -97,6 +97,19 @@ RSpec.describe Steps::ForcePush do
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("force_push: skipped")
   end
 
+  it "finalizes a detach repair when deterministic auto-rebase was unchanged" do
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "rebased", "changed" => false, "post_sha" => "abc", "base_sha" => "base"
+    })
+    workflow.set_artifact!("detach_job", { "destination_base" => "main", "former_parent_id" => 41 })
+    handler = described_class.new(run)
+    allow(handler).to receive(:finalize_job_detach!)
+
+    handler.call
+
+    expect(handler).to have_received(:finalize_job_detach!)
+  end
+
   # A Run resumed from a failed step reaches this handler directly, without
   # Steps::AutoRebase having just run, so the refusal has to live here too.
   # Pushing a branch the rebase emptied is what wiped the already-landed closed-PR regression's PR to zero

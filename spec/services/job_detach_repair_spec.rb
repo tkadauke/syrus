@@ -78,6 +78,21 @@ RSpec.describe JobDetachRepair do
     expect(client).not_to have_received(:update_pull_request_base)
   end
 
+  it "does not mutate topology when the owned patch is already on the destination base" do
+    landed = instance_double(
+      AutoRebase,
+      call: AutoRebase::Result.new(
+        true, AutoRebase::ALREADY_LANDED_REASON, "no commits left ahead of main",
+        changed: false, pre_sha: head, post_sha: "d" * 40, base_sha: "d" * 40
+      )
+    )
+
+    expect { call_repair(landed) }.to raise_error(ArgumentError, /no commits left ahead/)
+
+    expect(job.reload.parent_job).to eq(parent)
+    expect(client).not_to have_received(:update_pull_request_base)
+  end
+
   it "refuses to act when the confirmed parent relationship changed" do
     job.update!(parent_job: nil)
 
