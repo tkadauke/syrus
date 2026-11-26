@@ -170,6 +170,7 @@ class User < ApplicationRecord
   }.freeze
   DASHBOARD_SORT_DIRECTIONS = %w[asc desc].freeze
   NOTIFICATION_PREFERENCES_DEFAULTS = {
+    "agent_question_asked" => true,
     "job_failed" => true,
     "job_implemented" => true,
     "pr_comment_addressed" => true,

@@ -79,16 +79,25 @@ describe("nativeNotificationTitle", () => {
 
 describe("nativeNotificationClickUrl", () => {
   it("prefers the PR url when present", () => {
-    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1" })).toBe("https://github.com/o/r/pull/1")
+    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1", targetPath: null })).toBe("https://github.com/o/r/pull/1")
+  })
+
+  it("rejects a non-http PR url instead of using it as a click target", () => {
+    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "javascript:alert(1)", targetPath: null })).toBeNull()
+  })
+
+  it("uses a local notification target path before the generic job path", () => {
+    vi.stubGlobal("location", { ...window.location, pathname: "/app-shell/dashboard" })
+    expect(nativeNotificationClickUrl({ jobId: 42, prUrl: null, targetPath: "/jobs/42#agent-question-9" })).toBe("/app-shell/jobs/42#agent-question-9")
   })
 
   it("falls back to a job path scoped to the current route prefix", () => {
     vi.stubGlobal("location", { ...window.location, pathname: "/app-shell/dashboard" })
-    expect(nativeNotificationClickUrl({ jobId: 42, prUrl: null })).toBe("/app-shell/jobs/42")
+    expect(nativeNotificationClickUrl({ jobId: 42, prUrl: null, targetPath: null })).toBe("/app-shell/jobs/42")
   })
 
   it("returns null when neither a PR url nor a job id is present", () => {
-    expect(nativeNotificationClickUrl({ jobId: null, prUrl: null })).toBeNull()
+    expect(nativeNotificationClickUrl({ jobId: null, prUrl: null, targetPath: null })).toBeNull()
   })
 })
 

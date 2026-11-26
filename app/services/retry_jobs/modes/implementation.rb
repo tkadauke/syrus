@@ -87,7 +87,7 @@ module RetryJobs
       def awaiting_answer_workflow
         workflow = latest_workflow
         return unless workflow&.running?
-        return if workflow.landing_workflow? || Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+        return if workflow.landing_workflow? || Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
 
         workflow if workflow.active_agent_questions?
       end

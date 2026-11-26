@@ -2188,7 +2188,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       end
       active_folder_id = first[:active_smart_folder_id]
       volatile_ids = SmartFolder.builtins(:job)
-                                .select { |folder| folder.builtin_key.in?(%w[in_progress paused queued landing_queue]) }
+                                .select { |folder| folder.builtin_key.in?(%w[in_progress waiting_for_answer paused queued landing_queue]) }
                                 .map(&:id)
       stable_counted_ids = SmartFolder.for_subject("job")
                                       .where("user_id IS NULL OR user_id = ?", user.id)

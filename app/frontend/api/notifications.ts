@@ -31,6 +31,7 @@ export type NotificationPayload = {
 }
 
 export type NotificationPreferenceKind =
+  | "agent_question_asked"
   | "job_failed"
   | "job_implemented"
   | "pr_comment_addressed"

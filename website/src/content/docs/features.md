@@ -3163,6 +3163,11 @@ Write-authorized operators can also answer a workflow's existing
 cannot-proceed block as a free-text question, resuming that run and provider
 session. Waiting for an answer does not delay patient automatic rebases.
 
+Syrus notifies the Job owner when a question is asked and links directly to
+the waiting question. Notification preferences can disable that notification.
+The Jobs dashboard also provides a **Waiting for your answer** smart folder and
+boolean filter, which can be combined with other filters and saved.
+
 Repositories, users, and individual Jobs can choose one of five question
 eagerness levels: autonomous, independent, balanced, collaborative, or
 inquisitive. Balanced is the default. An optional answer timeout can apply the
