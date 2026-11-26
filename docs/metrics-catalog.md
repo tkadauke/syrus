@@ -79,4 +79,5 @@ are computed at read time with `rate()`.
 | `syrus_worker_memory_percent` | gauge | `hostname`, `storage_key` | no | Worker host memory utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_workflow_cancellations_total` | counter | `kind` | no | Workflow cancellations recorded with root-cause attribution, by cause kind |
 | `syrus_workflow_cancellations_unattributed_total` | counter | `kind` | no | Workflow cancellations reaching terminal cleanup with no attributed cause (invariant violation) |
+| `syrus_workflow_outcome_overrides_consumed_total` | counter | `kind`, `source` | no | Exact-evidence workflow outcome overrides consumed, by gate kind and request channel |
 | `syrus_workflow_step_duration_seconds` | histogram | `kind` | no | Step wall clock from start to finish, spanning every Run attempt within the Step |
