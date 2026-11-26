@@ -25,6 +25,23 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     end
   end
 
+  # Regression: the rspec shards -- the longest graders, last to finish in most
+  # landing rounds -- were released in position order behind short plugin
+  # graders, putting their queue wait on the critical path.
+  it "releases whole-host graders ahead of the rest when capacity is short" do
+    small = grader_steps(4)
+    shard = workflow.steps.create!(
+      kind: "grader", position: 200, placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      details: { "name" => "rspec-ci-1-of-8", "resources" => { "cpu" => "all", "cpu_min" => 2 } }
+    )
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(2)
+
+    decision = described_class.call(workflow: workflow, steps: small + [ shard ])
+
+    expect(decision.steps.first).to eq(shard)
+    expect(decision.steps.size).to eq(2)
+  end
+
   it "releases only measured headroom from a large ready grader set" do
     steps = grader_steps(12)
     allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(3)
