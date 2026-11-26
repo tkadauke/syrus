@@ -235,6 +235,10 @@ export function dashboardSectionPayload(payload: ReturnType<typeof dashboardPayl
 }
 
 export function dashboardResponse(payload: ReturnType<typeof dashboardPayload>, input: unknown) {
+  if (String(input).includes("/api/v1/app/landing_lanes")) {
+    return jsonResponse({ estimate_kind: "best_case", repositories: [] })
+  }
+
   return jsonResponse(dashboardSectionPayload(payload, input))
 }
 
