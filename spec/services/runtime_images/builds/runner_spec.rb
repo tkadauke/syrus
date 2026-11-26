@@ -136,7 +136,7 @@ RSpec.describe RuntimeImages::Builds::Runner do
     claimed, attempt = run
 
     expect(claimed).to be_queued
-    expect(attempt.error_code).to eq("verification_failed")
+    expect(attempt.error_code).to eq("registry_unavailable")
   end
 
   it "treats an unreachable registry as a retryable failure with its own code" do

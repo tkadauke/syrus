@@ -10,12 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-# Syrus uses this dump for SQLite development and test databases. Production
-# MySQL schema authority is the migration history; do not load this SQLite
-# snapshot into MySQL.
-
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_040000) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_113637) do
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
     t.bigint "user_id", null: false
@@ -4176,6 +4171,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_040000) do
     t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
   end
 
+  create_table "runtime_image_verification_attempts", force: :cascade do |t|
+    t.integer "runtime_image_id", null: false
+    t.integer "number", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.string "state", limit: 24, default: "running", null: false
+    t.string "decision", limit: 24
+    t.string "failure_class", limit: 64
+    t.string "failure_code", limit: 64
+    t.string "message", limit: 500
+    t.json "policy_snapshot"
+    t.string "policy_digest", limit: 71, null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_id", "number"], name: "idx_ri_verification_attempt_number", unique: true
+    t.index ["state", "started_at"], name: "idx_ri_verification_attempt_state"
+  end
+
+  create_table "runtime_image_verification_checks", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.integer "position", null: false
+    t.string "verifier_key", limit: 100, null: false
+    t.boolean "required", default: true, null: false
+    t.string "state", limit: 24, default: "pending", null: false
+    t.string "failure_class", limit: 64
+    t.string "failure_code", limit: 64
+    t.string "message", limit: 500
+    t.json "evidence_references"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_verification_attempt_id", "position"], name: "idx_ri_verification_check_order", unique: true
+  end
+
   create_table "runtime_images", force: :cascade do |t|
     t.bigint "runtime_image_namespace_id", null: false
     t.string "digest", limit: 191, null: false
@@ -4198,9 +4229,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_040000) do
     t.integer "cleanup_failure_count", default: 0, null: false
     t.datetime "cleanup_failed_at"
     t.string "cleanup_last_error", limit: 500
+    t.string "verification_state", limit: 24, default: "candidate", null: false
     t.index ["availability", "retention_state"], name: "idx_runtime_images_state"
     t.index ["runtime_image_namespace_id", "digest", "platform"], name: "idx_runtime_images_identity", unique: true
     t.index ["source_kind", "source_ref"], name: "idx_runtime_images_source"
+    t.index ["verification_state"], name: "index_runtime_images_on_verification_state"
   end
 
   create_table "runtime_sessions", force: :cascade do |t|

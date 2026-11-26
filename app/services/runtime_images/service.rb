@@ -7,14 +7,14 @@ module RuntimeImages
       @provider_override = provider
     end
 
-    def publish(namespace:, source_kind:, source_ref:, platform:, source_digest: nil, provenance: {}, payload: nil)
+    def publish(namespace:, source_kind:, source_ref:, platform:, source_digest: nil, provenance: {}, payload: nil, verification_state: "candidate")
       audited("publish", namespace: namespace) do
         publish_image(namespace: namespace, source_kind: source_kind, source_ref: source_ref, platform: platform,
-                      source_digest: source_digest, provenance: provenance, payload: payload)
+                      source_digest: source_digest, provenance: provenance, payload: payload, verification_state: verification_state)
       end
     end
 
-    def publish_image(namespace:, source_kind:, source_ref:, platform:, source_digest:, provenance:, payload:)
+    def publish_image(namespace:, source_kind:, source_ref:, platform:, source_digest:, provenance:, payload:, verification_state:)
       result = provider_for(namespace).publish(
         PublishRequest.new(namespace: namespace, source_kind: source_kind, source_ref: source_ref,
                            source_digest: source_digest, platform: platform, provenance: provenance, payload: payload)
@@ -22,7 +22,7 @@ module RuntimeImages
       image = RuntimeImage.find_or_initialize_by(runtime_image_namespace: namespace, digest: result.digest, platform: result.platform)
       if image.new_record?
         image.assign_attributes(source_kind: source_kind, source_ref: source_ref, source_digest: source_digest,
-                                provenance: provenance, locator: result.locator)
+                                provenance: provenance, locator: result.locator, verification_state: verification_state)
         image.save!
       end
       if image.revoked? || image.deleted?

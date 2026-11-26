@@ -110,6 +110,7 @@ module RuntimeImages
       def succeed(attempt, image:, now: Time.current)
         locked(attempt) do |request, attempt|
           next request.result unless request.in_flight? && attempt.active?
+          raise BuildFailed.new("image #{image.digest} has no accepted verification attempt", code: "verification_incomplete") unless image.candidate?
 
           if request.cancel_requested?
             attempt.update!(state: "canceled", finished_at: now, lease_expires_at: nil)
