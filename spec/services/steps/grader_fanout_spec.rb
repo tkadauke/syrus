@@ -1730,6 +1730,37 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("skipped rspec")
   end
 
+  # Regression: ordering whole grader Step rows -- each with a large details
+  # JSON -- made MySQL raise "Out of sort memory" in a merge train's
+  # second-round fanout. The lookups must sort ids only.
+  describe "looking up earlier passed graders" do
+    before do
+      step.update!(iteration: 3)
+      [ [ 1, "rspec" ], [ 2, "rspec" ], [ 2, "lint" ] ].each_with_index do |(iteration, name), index|
+        Step.create!(workflow: workflow, kind: "grader", state: "succeeded", position: 10 + index, iteration: iteration,
+                     loop_id: loop_id, details: { "name" => name, "padding" => "x" * 10_000 })
+      end
+    end
+
+    def sorted_selects
+      queries = []
+      callback = ->(*, payload) { queries << payload[:sql] if payload[:sql].match?(/ORDER BY/i) && payload[:sql].include?("steps") }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+      queries
+    end
+
+    %i[prior_passed_steps_by_name reusable_passed_steps_by_name].each do |lookup|
+      it "#{lookup} returns the newest passed Step per grader without sorting whole rows" do
+        result = nil
+        queries = sorted_selects { result = handler.send(lookup) }
+
+        expect(result.keys).to contain_exactly("rspec", "lint")
+        expect(result["rspec"].iteration).to eq(2)
+        expect(queries).to all(match(/SELECT\s+"steps"\."id"\s+FROM/i))
+      end
+    end
+  end
+
   describe "after an agentic rebase during landing" do
     let(:agentic_config) do
       <<~YAML

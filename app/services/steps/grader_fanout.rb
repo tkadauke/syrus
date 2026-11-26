@@ -321,14 +321,14 @@ module Steps
       return {} if step.loop_id.blank?
 
       lower_bound = last_code_changing_repair_iteration.to_i
-      workflow.steps
-              .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
-              .where("iteration >= ? AND iteration < ?", lower_bound, step.iteration)
-              .reorder(iteration: :desc, position: :desc)
-              .each_with_object({}) do |s, memo|
-                name = s.details && s.details["name"]
-                memo[name] ||= s if name
-              end
+      newest_first(
+        workflow.steps
+                .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
+                .where("iteration >= ? AND iteration < ?", lower_bound, step.iteration)
+      ).each_with_object({}) do |s, memo|
+        name = s.details && s.details["name"]
+        memo[name] ||= s if name
+      end
     end
 
     def last_code_changing_repair_iteration
@@ -338,6 +338,7 @@ module Steps
               .where(loop_id: step.loop_id)
               .where("iteration <= ?", step.iteration)
               .where.not(kind: %w[grader grader_fanout grader_collect format generate])
+              .reorder(nil) # only the max is wanted; see newest_first on sorting whole Step rows
               .includes(:runs)
               .select { |repair_step| repair_step.runs.any? { |repair_run| code_changing_repair_run?(repair_run) } }
               .map(&:iteration)
@@ -388,12 +389,23 @@ module Steps
       [ remaining, carried_forward ]
     end
 
+    # Grader Steps, latest iteration and position first. Each Step carries a
+    # large `details` JSON, and ordering whole rows made MySQL filesort rows
+    # wide enough to raise `Out of sort memory` -- which failed a merge train's
+    # second-round fanout and left it unable to start multisect. Sort only the
+    # ids, then load the rows.
+    def newest_first(scope)
+      ids = scope.reorder(iteration: :desc, position: :desc, id: :desc).pluck(:id)
+      rows = Step.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| rows[id] }
+    end
+
     def prior_passed_steps_by_name
-      workflow.steps
-        .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
-        .where("iteration < ?", step.iteration)
-        .reorder(iteration: :desc, position: :desc)
-        .each_with_object({}) do |candidate, memo|
+      newest_first(
+        workflow.steps
+          .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
+          .where("iteration < ?", step.iteration)
+      ).each_with_object({}) do |candidate, memo|
           name = candidate.details.to_h["name"]
           memo[name] ||= candidate if name.present?
         end
