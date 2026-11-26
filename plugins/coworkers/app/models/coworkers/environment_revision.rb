@@ -6,17 +6,19 @@ class Coworkers::EnvironmentRevision < ApplicationRecord
   self.table_name = "coworker_environment_revisions"
 
   DIGEST_FORMAT = /\Asha256:[0-9a-f]{64}\z/
-  STATES = %w[draft building build_failed verifying candidate rejected active retired revoked].freeze
+  STATES = %w[draft building build_failed candidate verified rejected published retired revoked incompatible deleted].freeze
   TRANSITIONS = {
     "draft" => %w[building],
-    "building" => %w[verifying build_failed],
+    "building" => %w[candidate build_failed rejected],
     "build_failed" => [],
-    "verifying" => %w[candidate rejected],
-    "candidate" => %w[active retired rejected revoked],
+    "candidate" => %w[verified rejected revoked incompatible deleted],
+    "verified" => %w[published retired rejected revoked incompatible deleted],
     "rejected" => [],
-    "active" => %w[retired revoked],
-    "retired" => %w[active revoked],
-    "revoked" => []
+    "published" => %w[retired revoked incompatible deleted],
+    "retired" => %w[published revoked incompatible deleted],
+    "revoked" => %w[deleted],
+    "incompatible" => %w[retired revoked deleted],
+    "deleted" => []
   }.freeze
 
   class InvalidTransition < StandardError; end

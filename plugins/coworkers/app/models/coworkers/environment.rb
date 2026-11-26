@@ -6,20 +6,22 @@
 class Coworkers::Environment < ApplicationRecord
   self.table_name = "coworker_environments"
 
-  STATES = %w[unconfigured draft building candidate active failed revoked].freeze
+  STATES = %w[unconfigured draft building candidate active failed revoked incompatible deleted].freeze
   TRANSITIONS = {
     "unconfigured" => %w[draft],
     "draft" => %w[draft building],
     "building" => %w[candidate failed draft],
     "candidate" => %w[active draft building failed revoked],
-    "active" => %w[draft building revoked],
+    "active" => %w[draft building revoked incompatible deleted],
     "failed" => %w[draft building],
-    "revoked" => %w[draft]
+    "revoked" => %w[draft deleted],
+    "incompatible" => %w[draft building revoked deleted],
+    "deleted" => []
   }.freeze
 
   class InvalidTransition < StandardError; end
 
-  belongs_to :coworker, class_name: "Coworkers::Coworker", inverse_of: :environment
+  belongs_to :coworker, class_name: "Coworkers::Coworker", inverse_of: :environment, optional: true
   has_many :revisions, -> { order(:number) }, class_name: "Coworkers::EnvironmentRevision",
            foreign_key: :coworker_environment_id, inverse_of: :environment, dependent: :destroy
   belongs_to :active_revision, class_name: "Coworkers::EnvironmentRevision", optional: true

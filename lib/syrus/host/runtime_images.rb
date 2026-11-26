@@ -14,6 +14,12 @@ module Syrus
       def self.active_base(**) = ::RuntimeImages::BuildRequests.new.active_base(**)
 
       def self.request_build(**) = ::RuntimeImages::BuildRequests.new.submit(**)
+
+      def self.revoke(image, reason:) = ::RuntimeImages::Service.new.revoke(image, reason: reason)
+
+      # Records a bounded, sanitized lifecycle event for a plugin-owned image
+      # without exposing the audit model or telemetry implementation.
+      def self.audit(event_type, **) = ::RuntimeImages::Audit.record(event_type, **)
     end
   end
 end

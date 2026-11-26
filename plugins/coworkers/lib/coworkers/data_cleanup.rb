@@ -13,6 +13,12 @@ module Coworkers
         end
       end
 
+      scope.effect("coworker environment") do
+        Syrus::DataCleanup.register("Coworkers::Coworker", "coworkers.environment") do |coworker|
+          Coworkers::EnvironmentLifecycle.new.remove_coworker!(coworker)
+        end
+      end
+
       scope.effect("coworker workspace branches") do
         Syrus::DataCleanup.register("Coworkers::Coworker", "coworkers.workspace_branches") do |coworker|
           coworker.coworker_chats.includes(:chat_session).find_each { |link| Coworkers::ChatBranchCleanup.call(link) }

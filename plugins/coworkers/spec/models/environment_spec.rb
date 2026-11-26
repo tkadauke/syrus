@@ -48,10 +48,14 @@ RSpec.describe Coworkers::Environment do
     expect(described_class.column_names).not_to include("digest", "locator")
   end
 
-  it "destroys revisions with the coworker" do
+  it "retains revision and image audit history when the coworker is removed" do
     environment = described_class.create!(coworker: coworker)
-    revision_for(environment)
-    expect { coworker.destroy! }.to change(Coworkers::EnvironmentRevision, :count).by(-1)
+    revision = revision_for(environment)
+
+    expect { coworker.destroy! }.not_to change(Coworkers::EnvironmentRevision, :count)
+    expect(environment.reload).to have_attributes(coworker_id: coworker.id, state: "deleted")
+    expect(revision.reload).to be_draft
+    expect(RuntimeImageAuditEvent.where(event_type: "environment.coworker_removed")).to exist
   end
 
   describe Coworkers::EnvironmentRevision do

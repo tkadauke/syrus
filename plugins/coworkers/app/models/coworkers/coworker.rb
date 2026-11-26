@@ -16,7 +16,9 @@ class Coworkers::Coworker < ApplicationRecord
   has_many :chats, through: :coworker_chats, source: :chat_session
   has_many :chat_agents, class_name: "Coworkers::ChatAgent", dependent: :destroy, inverse_of: :coworker
   has_many :review_contexts, class_name: "Coworkers::ReviewContext", dependent: :destroy, inverse_of: :coworker
-  has_one :environment, class_name: "Coworkers::Environment", dependent: :destroy, inverse_of: :coworker
+  # Environment history outlives contributor removal. Its immutable owner id
+  # remains audit evidence; explicit plugin purge removes plugin-owned tables.
+  has_one :environment, class_name: "Coworkers::Environment", inverse_of: :coworker
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 
@@ -33,6 +35,7 @@ class Coworkers::Coworker < ApplicationRecord
   before_validation :assign_default_color, if: -> { accent_hex.blank? && handle.present? }
   before_update :rename_handle!, if: :will_save_change_to_handle?
   after_create :claim_handle!
+  after_update :disable_environment!, if: -> { saved_change_to_state? && state != "active" }
   after_destroy :release_handle!
 
   def display_name = name
@@ -98,6 +101,7 @@ class Coworkers::Coworker < ApplicationRecord
   def claim_handle! = Syrus::Host::Handles.claim!(handle: handle, owner: self)
   def rename_handle! = Syrus::Host::Handles.rename!(owner: self, handle: handle)
   def release_handle! = Syrus::Host::Handles.release!(owner: self)
+  def disable_environment! = Coworkers::EnvironmentLifecycle.new.disable_coworker!(self)
 
   def avatar_is_image
     return unless avatar.attached?
