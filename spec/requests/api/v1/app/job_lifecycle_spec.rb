@@ -637,10 +637,12 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   it "restarts a job with a replacement job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
     original_id = job.id
+    source_workflow = job.latest_workflow
 
     expect {
       post app_job_path(job, "restart"), as: :json
     }.to change(Job, :count).by(1)
+      .and change(RecoveryIntervention, :count).by(1)
       .and have_enqueued_job(RunJob)
 
     new_job = Job.where(repository_id: repo.id, issue_number: 42).order(:created_at).last
@@ -651,6 +653,13 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("job", "id")).to eq(new_job.id)
     expect(parse_body.dig("old_job", "id")).to eq(original_id)
     expect(parse_body["redirect_to"]).to eq(job_path(new_job))
+    expect(RecoveryIntervention.last).to have_attributes(
+      job:, source_workflow:, resulting_workflow: new_job.latest_workflow,
+      resulting_step: new_job.latest_workflow.first_step,
+      resulting_run: new_job.latest_workflow.first_step.latest_run,
+      actor_type: "operator", actor_id: user.id, origin: "job_page",
+      action: "restart", recovery_mode: "restart"
+    )
     # The response names the replacement job, so the frontend must key its
     # cache merge off this id rather than assuming it matches the request.
     expect(parse_body).not_to have_key("actions")
@@ -1403,7 +1412,10 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     end
 
     it "resets a failed Job in place, keeping its id" do
-      post app_job_path(failed_job, "reset"), as: :json
+      source_workflow = failed_job.latest_workflow
+      expect {
+        post app_job_path(failed_job, "reset"), as: :json
+      }.to change(RecoveryIntervention, :count).by(1)
 
       expect(response).to have_http_status(:ok), response.body
       expect(parse_body["job"]["id"]).to eq(failed_job.id)
@@ -1411,6 +1423,13 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(failed_job.pr_number).to be_nil
       expect(client).to have_received(:close_pull_request).with(repo.slug, 5)
       expect(failed_job.workflows.where(trigger_kind: "initial")).to exist
+      expect(RecoveryIntervention.last).to have_attributes(
+        job: failed_job, source_workflow:, resulting_workflow: failed_job.latest_workflow,
+        resulting_step: failed_job.latest_workflow.first_step,
+        resulting_run: failed_job.latest_workflow.first_step.latest_run,
+        actor_type: "operator", actor_id: user.id, origin: "job_page",
+        action: "restart", recovery_mode: "restart"
+      )
     end
 
     it "refuses a Job that is not failed" do
