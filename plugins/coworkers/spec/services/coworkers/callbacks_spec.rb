@@ -5,5 +5,6 @@ RSpec.describe Coworkers::Callbacks do
     allow(Coworkers::ProvisioningReconciler).to receive(:call)
 
     expect { described_class.on_tick }.to have_enqueued_job(Coworkers::BranchRetentionSweepJob).on_queue("plugin_coworkers")
+      .and have_enqueued_job(Coworkers::EnvironmentReconcileJob).on_queue("plugin_coworkers")
   end
 end
