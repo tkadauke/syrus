@@ -15,7 +15,7 @@ module Api
           private
 
           def topic_payload(topic)
-            revisions = topic.revisions.includes(:briefing, :workflow).order(revision_number: :desc, id: :desc)
+            revisions = topic.revisions.includes(:briefing, :workflow).reorder(revision_number: :desc, id: :desc)
             revisions = revisions.where("revision_number < ?", cursor) if cursor
             page = revisions.limit(REVISION_LIMIT + 1).to_a
             next_revision = page.pop if page.length > REVISION_LIMIT
