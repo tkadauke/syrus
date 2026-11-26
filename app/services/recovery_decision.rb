@@ -15,7 +15,7 @@ class RecoveryDecision
   ].freeze
 
   def self.for(job:, workflow: nil)
-    workflow ||= job.workflows.where(state: %w[failed blocked cancelled]).order(created_at: :desc, id: :desc).first
+    workflow ||= job.workflows.where(state: %w[failed blocked cancelled]).reorder(created_at: :desc, id: :desc).first
     context = Context.new(job, workflow)
     POLICIES.lazy.map(&:constantize).map { |policy| policy.new(context) }.find(&:match?).decision
   end
