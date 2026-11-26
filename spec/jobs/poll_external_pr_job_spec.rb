@@ -43,6 +43,16 @@ RSpec.describe PollExternalPrJob, :ci_only do
     )
   end
 
+  def start_landing_workflow!(target)
+    target.approve!(via: "operator")
+    target.start_landing!
+    target.save!
+    workflow = WorkUnits::Launcher.instantiate(kind: "external_pr_merge", job: target)
+    workflow.update_columns(state: "running", started_at: 1.minute.ago)
+    workflow.work_unit.update_columns(state: "running")
+    workflow
+  end
+
   describe "close conditions" do
     it "closes the Job with external_pr_merged when the external PR is merged" do
       stub_external_pr(state: "closed", merged: true)
@@ -615,6 +625,25 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(external_pr_job.reload.state).to eq("implemented")
     end
 
+    it "preempts an active landing workflow when qualifying fork feedback arrives" do
+      user.update!(github_handle: "owner-handle")
+      landing = start_landing_workflow!(external_pr_job)
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "Please fix this before landing",
+          user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload).to be_implemented
+      expect(external_pr_job.approved_at).to be_nil
+      expect(landing.reload).to be_cancelled
+    end
+
     it "does not set needs_attention for a same-repo (non-fork) external PR Job on qualifying feedback (it dispatches a fix-and-push workflow instead)" do
       external_pr_job.update!(external_pr_fork: false)
       user.update!(github_handle: "owner-handle")
@@ -692,6 +721,26 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(external_pr_job.reload.approved?).to be false
     end
 
+    it "preempts landing and instantiates same-repo feedback while holding the Job transaction" do
+      landing = start_landing_workflow!(external_pr_job)
+      stub_actionable_owner_comment(body: "Fix this before landing")
+      allow(WorkUnits::Launcher).to receive(:instantiate).and_wrap_original do |method, **args|
+        if args[:kind] == "external_pr_feedback"
+          expect(ActiveRecord::Base.connection.transaction_open?).to be(true)
+          expect(args.fetch(:job).reload).to be_implemented
+        end
+        method.call(**args)
+      end
+
+      expect {
+        described_class.perform_now(external_pr_job.id)
+      }.to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }.by(1)
+
+      expect(external_pr_job.reload).to be_implemented
+      expect(external_pr_job.approved_at).to be_nil
+      expect(landing.reload).to be_cancelled
+    end
+
     it "does not set needs_attention_reason (unlike the fork waiting-state path)" do
       stub_actionable_owner_comment
 
@@ -726,13 +775,13 @@ RSpec.describe PollExternalPrJob, :ci_only do
     end
 
     it "does not dispatch a duplicate workflow when a conflicting WorkUnit slips past the active-unit precheck" do
-      # `pending_external_pr_feedback?`'s active-unit check is a
+      # `pending_external_pr_feedback?`'s active-feedback check is a
       # plain unlocked SELECT with a TOCTOU gap. Simulate it losing the
       # race and confirm WorkUnits::Launcher itself still refuses to
       # materialize a second Workflow.
       stub_actionable_owner_comment
       existing = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: external_pr_job)
-      allow(WorkUnits::Ownership).to receive(:active_for_job?).and_return(false)
+      allow(WorkUnits::Ownership).to receive(:active_for_job_kind?).and_return(false)
 
       expect {
         described_class.perform_now(external_pr_job.id)

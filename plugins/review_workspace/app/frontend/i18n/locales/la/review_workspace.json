@@ -67,8 +67,6 @@
   "decision_brief": "Summa decisionis",
   "brief_readiness": "Decisio",
   "brief_ready": "Parata ad approbandum",
-  "brief_blocked_checks_failing": "Impedita: probationes deficiunt",
-  "brief_blocked_checks_pending": "Impedita: probationes pendent",
   "brief_blocked_dependencies": "Impedita: dependentias exspectat",
   "brief_blocked_generic": "Approbatio nunc non praesto est",
   "brief_scope": "Mutationes",

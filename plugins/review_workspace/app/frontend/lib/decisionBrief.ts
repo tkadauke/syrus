@@ -129,7 +129,7 @@ export function buildDecisionBrief({
       values: { number: payload.epic.display_number, title: payload.epic.title }
     })
   const unsatisfied = payload.unsatisfied_dependencies?.length ?? 0
-  if (unsatisfied > 0 && !rows.some((row) => row.valueKey === "brief_blocked_dependencies"))
+  if (unsatisfied > 0)
     rows.push({ id: "dependencies", tone: "warning", labelKey: "brief_dependencies", valueKey: "brief_dependencies_value", values: { count: unsatisfied } })
   return rows
 }

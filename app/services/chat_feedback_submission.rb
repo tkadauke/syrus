@@ -9,8 +9,6 @@ class ChatFeedbackSubmission
     feedback = feedback.to_s.strip
     return Result.new(workflow: nil, error: "Feedback body can't be blank.") if feedback.blank?
 
-    attach_media!(job: job, chat_session: chat_session, media: media)
-
     workflow = nil
     job.with_lock do
       job.reload
@@ -23,6 +21,8 @@ class ChatFeedbackSubmission
       if WorkUnits::Ownership.active_for_job_kind?(job, "chat_feedback")
         return Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
       end
+
+      attach_media!(job: job, chat_session: chat_session, media: media)
 
       # Feedback and landing make opposite decisions about the same approved
       # revision. Serialize them on the Job row; if landing already won the
