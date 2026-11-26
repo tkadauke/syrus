@@ -276,7 +276,12 @@ export function JobQuestionPanel({
   const { t } = useT("jobs")
   const client = useQueryClient()
   const queryKey = ["agent-questions", "job", job.id] as const
-  const query = useQuery({ queryKey, queryFn: () => fetchOpenAgentQuestions(job.id), refetchInterval: 15_000 })
+  const query = useQuery({
+    queryKey,
+    queryFn: () => fetchOpenAgentQuestions(job.id),
+    enabled: job.has_open_agent_question === true,
+    refetchInterval: 15_000
+  })
   const questions = query.data?.questions ?? []
   if (questions.length === 0) return null
 

@@ -478,6 +478,7 @@ module App
         delivery_target_ref: delivery_policy.job_landing_branch(@job),
         needs_attention: @job.needs_attention?,
         needs_attention_reason: @job.needs_attention_reason,
+        has_open_agent_question: AgentQuestion.active.joins(:run).where(runs: { job_id: @job.id }).exists?,
         question_eagerness: question_policy.eagerness,
         question_eagerness_source: question_policy.eagerness_source,
         blocked_workflow_dismissal: blocked_workflow_dismissal_json,
