@@ -126,6 +126,32 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   describe "#job_json" do
+    it "identifies Jobs with an open workflow question" do
+      job = Factories.job(user: user, repository: repo)
+      AgentQuestion.create!(
+        run: job.initial_run,
+        questions: [ { "question" => "Which path?", "options" => nil, "multiple" => false } ],
+        asked_at: Time.current
+      )
+
+      expect(payload_for(job).dig(:job, :has_open_agent_question)).to eq(true)
+    end
+
+    it "does not identify answered workflow questions as open" do
+      job = Factories.job(user: user, repository: repo)
+      AgentQuestion.create!(
+        run: job.initial_run,
+        questions: [ { "question" => "Which path?", "options" => nil, "multiple" => false } ],
+        answers: [ "Safe" ],
+        asked_at: 1.minute.ago,
+        answered_at: Time.current,
+        answered_by: user,
+        answer_source: "web"
+      )
+
+      expect(payload_for(job).dig(:job, :has_open_agent_question)).to eq(false)
+    end
+
     it "serializes default planned execution for repaired rows" do
       job = Factories.job_record(user: user, repository: repo)
       job.update_columns(planned_execution_capabilities: nil, planned_execution_source: nil)
