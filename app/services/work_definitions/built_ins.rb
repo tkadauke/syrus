@@ -141,6 +141,8 @@ module WorkDefinitions
     self.workflow_trigger_kind = "pr_comment"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def materialize_behind_active_lock? = true
   end
 
   class ChatFeedback < Base
@@ -633,6 +635,8 @@ module WorkDefinitions
     self.workflow_trigger_kind = "external_pr_feedback"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def materialize_behind_active_lock? = true
   end
 
   class Skill < Base
