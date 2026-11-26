@@ -93,6 +93,15 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
+  # Shared frontend modules can make Vitest's related-test graph select nearly
+  # the full SPA suite while also collecting focused coverage.
+  it "gives focused React tests enough time for broad dependency graphs" do
+    config = YAML.safe_load_file(Rails.root.join(".syrus.yml"))
+    grader = config.fetch("grade").find { |entry| entry["name"] == "react-tests" }
+
+    expect(grader.fetch("focused_timeout_minutes")).to eq(30)
+  end
+
   it "allows every e2e shard to dismiss failures inherited from the base revision" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
     shards = config.grade.steps.select { |step| step.name.start_with?("e2e-") }
