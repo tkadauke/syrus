@@ -191,8 +191,14 @@ export function credentialsPayload(
 export function notificationPreferencesPayload(
   overrides: Partial<
     Record<
-      "job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "main_inconclusive" | "investigation_escalated" |
-        "agent_question_asked",
+      | "job_failed"
+      | "job_implemented"
+      | "pr_comment_addressed"
+      | "pr_merged"
+      | "epic_completed"
+      | "main_inconclusive"
+      | "investigation_escalated"
+      | "agent_question_asked",
       boolean
     >
   > & { message?: string } = {}
