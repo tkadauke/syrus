@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe PollScheduledTasksJob do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
@@ -14,6 +16,12 @@ RSpec.describe PollScheduledTasksJob do
     }.merge(overrides))
   end
 
+  def perform_poll
+    perform_enqueued_jobs(only: ScheduledTasks::FireDueTaskJob) do
+      described_class.perform_now
+    end
+  end
+
   it "fires due tasks via ScheduledTasks::Fire" do
     freeze_time Time.current.change(min: 2, sec: 0, usec: 0) do
       task = cron_task
@@ -22,7 +30,7 @@ RSpec.describe PollScheduledTasksJob do
       expect_any_instance_of(ScheduledTasks::Fire).to receive(:call)
         .and_return(ScheduledTasks::Fire::Result.new(job: nil, skipped: false, reason: nil))
 
-      described_class.perform_now
+      perform_poll
     end
   end
 
@@ -33,7 +41,7 @@ RSpec.describe PollScheduledTasksJob do
       task.update_columns(cron_expression: "#{now.min + 1} * * * *", last_fired_at: 1.minute.ago)
 
       expect_any_instance_of(ScheduledTasks::Fire).not_to receive(:call)
-      described_class.perform_now
+      perform_poll
     end
   end
 
@@ -43,7 +51,7 @@ RSpec.describe PollScheduledTasksJob do
     task.pause!
 
     expect_any_instance_of(ScheduledTasks::Fire).not_to receive(:call)
-    described_class.perform_now
+    perform_poll
   end
 
   it "skips archived tasks" do
@@ -52,7 +60,7 @@ RSpec.describe PollScheduledTasksJob do
     task.soft_delete!
 
     expect_any_instance_of(ScheduledTasks::Fire).not_to receive(:call)
-    described_class.perform_now
+    perform_poll
   end
 
   it "skips tasks for archived repositories" do
@@ -61,7 +69,7 @@ RSpec.describe PollScheduledTasksJob do
     repository.archive!
 
     expect_any_instance_of(ScheduledTasks::Fire).not_to receive(:call)
-    described_class.perform_now
+    perform_poll
   end
 
   it "skips tasks belonging to a user with scheduling paused" do
@@ -70,7 +78,7 @@ RSpec.describe PollScheduledTasksJob do
     user.update!(scheduling_paused: true)
 
     expect_any_instance_of(ScheduledTasks::Fire).not_to receive(:call)
-    described_class.perform_now
+    perform_poll
   end
 
   it "still fires tasks for other users when one user has scheduling paused" do
@@ -95,7 +103,7 @@ RSpec.describe PollScheduledTasksJob do
         ScheduledTasks::Fire::Result.new(job: nil, skipped: false, reason: nil)
       end
 
-      described_class.perform_now
+      perform_poll
 
       expect(fired_tasks).to contain_exactly(active_task)
     end
@@ -115,7 +123,7 @@ RSpec.describe PollScheduledTasksJob do
         ScheduledTasks::Fire::Result.new(job: nil, skipped: false, reason: nil)
       end
 
-      expect { described_class.perform_now }.not_to raise_error
+      expect { perform_poll }.not_to raise_error
       expect(call_count).to eq(2)  # both tasks attempted
     end
   end
@@ -126,14 +134,33 @@ RSpec.describe PollScheduledTasksJob do
       task.update_columns(last_fired_at: 2.hours.ago)
       allow_any_instance_of(ScheduledTasks::Fire).to receive(:call).and_raise(ArgumentError, "broken handler")
 
-      expect { described_class.perform_now }.to change(BackendExceptionEvent, :count).by(1)
+      expect { perform_poll }.to change(BackendExceptionEvent, :count).by(1)
 
       expect(task.reload.consecutive_failure_count).to eq(1)
       expect(BackendExceptionEvent.last).to have_attributes(
-        source: "active_job", job_class: described_class.name,
+        source: "active_job", job_class: ScheduledTasks::FireDueTaskJob.name,
         exception_class: "ArgumentError", message: "broken handler"
       )
     end
+  end
+
+  it "fans due tasks out without firing them inline" do
+    now = Time.current.change(min: 2, sec: 0, usec: 0)
+    tasks = Array.new(3) { |i| cron_task(name: "due #{i}").tap { |task| task.update_columns(last_fired_at: 2.hours.ago) } }
+
+    freeze_time now do
+      expect(ScheduledTasks::Fire).not_to receive(:new)
+
+      expect { described_class.perform_now }
+        .to have_enqueued_job(ScheduledTasks::FireDueTaskJob).exactly(3).times
+    end
+
+    enqueued_ids = enqueued_jobs.filter_map do |job|
+      next unless job.fetch(:job) == ScheduledTasks::FireDueTaskJob
+
+      ActiveJob::Arguments.deserialize(job.fetch(:args)).first.id
+    end
+    expect(enqueued_ids).to match_array(tasks.map(&:id))
   end
 
   describe "poll-wide database failures" do
@@ -159,7 +186,7 @@ RSpec.describe PollScheduledTasksJob do
         sqls = []
         sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, p| sqls << p[:sql] }
         allow_any_instance_of(ScheduledTasks::Fire).to receive(:call).and_return(fire_result)
-        described_class.perform_now
+        perform_poll
         ActiveSupport::Notifications.unsubscribe(sub)
         scan = sqls.select { |q| q =~ /FROM "scheduled_tasks"/ }
         expect(scan).not_to be_empty
@@ -213,7 +240,7 @@ RSpec.describe PollScheduledTasksJob do
           fires = 0
           allow_any_instance_of(ScheduledTasks::Fire).to receive(:call) { fires += 1; fire_result }
 
-          expect { described_class.perform_now }.not_to raise_error
+          expect { perform_poll }.not_to raise_error
           expect(fires).to eq(1)
         end
       end
@@ -261,8 +288,8 @@ RSpec.describe PollScheduledTasksJob do
         expect(task.reload.last_fired_at).to be < 1.hour.ago
 
         RSpec::Mocks.space.proxy_for(ScheduledTasks::Task).reset
-        described_class.perform_now
-        described_class.perform_now
+        perform_poll
+        perform_poll
         expect(Job.where(kind: "cron").count).to eq(1)
       end
     end
