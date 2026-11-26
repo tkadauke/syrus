@@ -23,6 +23,31 @@ module Syrus
   module Host
     module PublicApis
       ALIASES = {
+        LocalExecution: "Execution::Local",
+        SyrusYmlParseError: "SyrusYml::ParseError",
+        AdversarialReviewPrompt: "Prompts::AdversarialReview",
+        ReviewerTargetResolver: "ReviewerTargets",
+        ReviewerTargetRequired: "ReviewerTargets::TargetRequired",
+        ReviewerTargetUnavailable: "ReviewerTargets::TargetUnavailable",
+        GateResult: "WorkUnits::GateResult",
+        HandleRegistry: "HandleRegistry",
+        WorkLaunchConflict: "WorkUnits::Launcher::LockConflict",
+        UiEngagementSampleRecord: "UiEngagementSample",
+        ChatProposalRecord: "ChatProposal",
+        ChatBridgeThreadRecord: "ChatBridgeThread",
+        ChatQueuedMessageRecord: "ChatQueuedMessage",
+        ChatSessionCreator: "ChatSessions::Creator",
+        MentionableResolver: "Mentionables::Resolver",
+        Handle: "Handle",
+        DiffReviewComment: "DiffReviewComment",
+        DiffReviewVersion: "DiffReviewVersion",
+        FinalReviewVersion: "DiffReviewVersions::FinalReviewVersion",
+        ReviewVerdictSubmission: "ReviewEvidence::VerdictSubmission",
+        PermissionPolicyRank: "Permissions::PolicyEvaluator::POLICY_RANK",
+        AuthorizationDecision: "Permissions::AuthorizationDecision",
+        AuthorizationRequest: "Permissions::AuthorizationRequest",
+        CapabilityRegistryValidator: "Permissions::CapabilityRegistryValidator",
+        CoworkerDefaultPolicy: "Permissions::CoworkerDefaultPolicy",
         GraderStep: "SyrusYml::GradeStep",
         GraderBaseRetry: "SyrusYml::BaseRetry",
         GraderResourceRequest: "GraderResourceRequest",
@@ -451,6 +476,26 @@ module Syrus
       }.freeze
 
       ALIAS_CONTRACTS = {
+        UiEngagementSampleRecord: [ "Queries recorded UI engagement samples by user and time; columns beyond those filters are not promised.", %w[where] ],
+        ChatProposalRecord: [ "Queries chat proposals joined to their chat session; columns beyond the join and filters are not promised. Chat is planned to become a plugin, so this contract may move with it.", %w[joins where] ],
+        ChatBridgeThreadRecord: [ "Persists a bridge between chat threads; only basic lookup and creation are public.", %w[find_by create!] ],
+        ChatQueuedMessageRecord: [ "Exposes the internal-role metadata key used when a plugin queues a host-delivered chat message.", %w[INTERNAL_ROLE_KEY] ],
+        ChatSessionCreator: [ "Creates chat sessions through the host lifecycle and safely enqueues their first turn.", %w[new enqueue_turn] ],
+        MentionableResolver: [ "Resolves mention syntax and mention identities through host and plugin providers.", %w[resolve find] ],
+        LocalExecution: [ "The default local execution backend an alternate backend may delegate to.", %w[new run] ],
+        SyrusYmlParseError: [ "Raised by a plugin's repository-configuration parser when its .syrus.yml contribution is invalid.", %w[new message] ],
+        AdversarialReviewPrompt: [ "Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change.", %w[new] ],
+        ReviewerTargetResolver: [ "Resolves a reviewer-target reference through the enabled providers; provider selection and failure containment are not promised.", %w[resolve] ],
+        ReviewerTargetRequired: [ "Raised when a review requires a reviewer target and none was pinned.", %w[new message] ],
+        ReviewerTargetUnavailable: [ "Raised when a pinned reviewer target cannot currently be resolved.", %w[new message] ],
+        GateResult: [ "Value a plugin gate returns to let a start proceed or to hold it, with an optional reason, retry time and details; the scheduling that consumes it is not promised.", %w[pass block blocked? pass? reason retry_at details] ],
+        HandleRegistry: [ "Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised.", %w[normalize claim! rename! release!] ],
+        WorkLaunchConflict: [ "Raised when a launch collides with work that already holds the same lock, so callers may retry later.", %w[new message] ],
+        Handle: [ "Reserves and checks the unique @handle namespace shared by users, teams and coworkers; FORMAT is the validation pattern.", %w[FORMAT exists? find_or_create_by! create!] ],
+        DiffReviewComment: [ "Queries diff review comments by job, version, anchor and state; columns beyond those filters are not promised.", %w[where none] ],
+        DiffReviewVersion: [ "Queries diff review versions and resolves the best match for a run; columns beyond the filters are not promised.", %w[where best_match_for] ],
+        FinalReviewVersion: [ "Resolves the diff review version a final review applies to for a job, workflow and run.", %w[resolve] ],
+        ReviewVerdictSubmission: [ "Records a reviewer's verdict for a review artifact.", %w[call!] ],
         CableChannel: [ "Bases plugin-owned Action Cable channels; connection authentication and stream naming of core channels are not promised.", %w[] ],
         PlatformPollingJob: [ "Bases a platform-delivery polling job (at most one live instance per key); scheduling and deduplication internals are not promised.", %w[] ],
         InboundMessageRouter: [ "Routes an inbound platform message to the chat or job it belongs to; routing rules and the returned result members are not promised beyond new.", %w[new] ],
@@ -802,7 +847,7 @@ module Syrus
         MentionablesResolver: [ "Finds a mentionable by kind and id and resolves the mentions in a message; resolution order is not promised.", %w[find resolve] ],
         ColorPalette: [ "Validates accent colors and picks the next unused default agent color; the palette itself is not promised.", %w[HEX_PATTERN next_default_color default_agent_order] ],
         CommandRedactor: [ "Redacts secrets from command output and structured values; redaction rules are not promised.", %w[redact redact_value] ],
-        Paginatable: [ "Adds page-parameter handling to plugin API controllers; page sizing is not promised.", %w[] ],
+        Paginatable: [ "Controller concern that adds the shared page and per_page parameter handling; the including controller defines PER_PAGE as the default page size. Only the listed helpers are promised.", %w[page_param per_page_param] ],
         CredentialProbe: [ "Carries the outcome of validating a saved credential (Result) and the probe timeout (TIMEOUT_SECONDS) that agent-provider credential probes share, and validates a saved credential through call; the individual probes are not promised.", %w[call Result TIMEOUT_SECONDS] ],
         ToolPayloadRedactor: [ "Redacts secret-looking keys, values and inline assignments from a tool payload or text before it is returned to an agent; REDACTED is the placeholder it writes. The patterns it recognizes may grow.", %w[redact redact_text REDACTED] ],
         ChatLockErrors: [ "Adds chat-lock error rendering to plugin API controllers; error payloads are not promised.", %w[] ],
@@ -887,7 +932,7 @@ module Syrus
         User: [ "Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised.", %w[find id handle display_name admin? repositories jobs] ],
         Run: [ "Reads a run's identity, state, workflow, and job through find; dispatch, lifecycle transitions, persistence, and other associations are not promised.", %w[find id state workflow job] ],
         Workflow: [ "Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised.", %w[find id state job runs] ],
-        ChatSession: [ "Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.", %w[find id title user repository] ]
+        ChatSession: [ "Reads a chat session's identity, title, owner, and repository through find; MODES lists the chat modes; turns, broadcasts, artifacts, persistence, and other associations are not promised.", %w[find id title user repository MODES] ]
       }.freeze
 
       SERVICE_CONTRACTS = {
