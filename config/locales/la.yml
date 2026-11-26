@@ -156,6 +156,7 @@ la:
       required_for_file_anchor: "ancoris fasciculi adesse debet"
       blank_for_file_anchor: "ancoris fasciculi vacuum esse debet"
       not_a_dns_host_name: "nomen hospitis DNS esse debet, non inscriptio IP"
+      runtime_image_digest_mismatch: "imagini immutabili temporis executionis congruere debet"
       blank_for_repository_anchor: "ancoris Repository vacuum esse debet"
       repository_mismatch: "ad idem Repository pertinere debet"
       same_user_required: "ad eundem usorem pertinere debet"
