@@ -36,6 +36,15 @@ RSpec.describe RuntimeImages::Verifications::SupplyChainScanner do
     expect { scanner.call(image) }.to raise_error(RuntimeImages::ProviderError, /database version/)
   end
 
+  it "reports non-object database metadata as unavailable" do
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image")
+    allow(runner).to receive(:call).and_return(
+      [ JSON.generate("Version" => "0.76.2", "VulnerabilityDB" => "bad"), 0 ]
+    )
+
+    expect { scanner.call(image) }.to raise_error(RuntimeImages::ProviderError, /database version/)
+  end
+
   it "reports a non-object scanner identity as unavailable" do
     allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image")
     allow(runner).to receive(:call).and_return([ JSON.generate(nil), 0 ])
