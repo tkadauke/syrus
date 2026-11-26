@@ -265,7 +265,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::ReviewFindingEvents` (since 0.1.16) — Records structured review findings. Only the listed members are supported. Supported members: `record`.
 - `Syrus::Host::ReviewerTargets` (since 0.1.16) — Resolves a pinned reviewer target payload to its record and raises TargetRequired or TargetUnavailable; provider routing and snapshot storage are not promised. Only the listed members are supported. Supported members: `TargetRequired`, `TargetUnavailable`, `resolve`.
 - `Syrus::Host::Run` (since 0.1.16) — Reads a run's identity, state, workflow, and job through find; dispatch, lifecycle transitions, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `state`, `workflow`.
-- `Syrus::Host::RuntimeImages` (since 0.1.16) — Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, and leases images on the calling worker; provider, builder, and cache internals are not promised. Supported members: `acquire`, `active_base`, `available?`, `find`, `publish_local`, `request_build`.
+- `Syrus::Host::RuntimeImages` (since 0.1.16) — Publishes and builds immutable images through the Runtime Image Service, resolves the active standard base, manages image lifecycle and audit events, and leases images on the calling worker; provider, builder, and cache internals are not promised. Supported members: `acquire`, `active_base`, `audit`, `available?`, `delete`, `find`, `publish_local`, `request_build`, `retain`, `revoke`.
 - `Syrus::Host::SkillBase` (since 0.1.16) — Bases plugin-contributed built-in skills; instruction rendering is not promised. Only the listed members are supported. Supported members: `definition`.
 - `Syrus::Host::StepDispatcher` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `MAIN_HEALTH_BLOCK_REASON`, `MAIN_HEALTH_EXEMPT_TRIGGERS`, `START_BLOCKED_BACKOFF`, `main_health_blocking?`.
 - `Syrus::Host::StepFailed` (since 0.1.16) — Signals a deliberate, retry-classified step failure from a plugin-owned step. Only the listed members are supported. Supported members: `message`, `new`.
@@ -320,4 +320,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 64759 bytes (UTF-8, including this line).
+Size: 64840 bytes (UTF-8, including this line).
