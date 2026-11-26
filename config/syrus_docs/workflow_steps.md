@@ -1212,7 +1212,7 @@ Non-agentic. Posts or updates the formatted dependency-audit comment on an exist
 
 ### preflight_grader_fanout
 
-Non-agentic. Materializes one `preflight_grader` Step per configured grader at the start of a `main_branch_repair` workflow. Unlike `grader_fanout`, this step:
+Non-agentic. Materializes one `preflight_grader` Step per configured grader at the start of a `main_branch_repair` workflow. When the repair was opened for specific failing graders (main branch health records them from main's grader run), only those are materialized, so preflight rechecks just what is broken on main in minutes; with no recorded failing graders, or none of them in the plan, it runs the full set. While main stays broken, a repair still in preflight carries over when main moves instead of being superseded; it is closed only once main reads healthy. Unlike `grader_fanout`, this step:
 
 - Runs **all** configured graders regardless of `when_files_changed` (no PR diff exists before the implement step)
 - Does **not** check the `GraderConclusionCache` for reuse (always runs fresh)

@@ -22,10 +22,14 @@ module Steps
       ActiveRecord::LockWaitTimeout
     ].freeze
     MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
+    # Grader names the repair was opened for, written onto the Workflow by
+    # whatever opened it (the main-branch-health plugin, from main's latest
+    # grader verdict).
+    TARGET_GRADERS_ARTIFACT_KEY = "preflight_target_grader_names".freeze
 
     def call
       workspace.setup
-      plan = effective_plan(graph_grade_plan)
+      plan = narrow_to_target_graders(effective_plan(graph_grade_plan))
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
 
       workflow.set_artifact!("preflight_grade_plan_source", plan.source)
@@ -50,6 +54,25 @@ module Steps
     end
 
     private
+
+    # Preflight only has to show whether the failures this repair was opened
+    # for are still there. Re-running the whole CI set -- about 146 graders --
+    # queued behind landing work for hours, main moved, and every repair was
+    # superseded before its agent ever started. Run just the failing graders;
+    # with no named targets, or none present in the plan, run the full set.
+    def narrow_to_target_graders(plan)
+      names = Array(workflow.artifact(TARGET_GRADERS_ARTIFACT_KEY)).map(&:to_s).reject(&:blank?).uniq
+      return plan if names.empty?
+
+      targeted = plan.graders.select { |grader| names.include?(grader.name) }
+      if targeted.empty?
+        log("[preflight_grader_fanout] none of the target graders (#{names.join(', ')}) are in the plan; running the full set")
+        return plan
+      end
+
+      log("[preflight_grader_fanout] narrowed to the #{targeted.size} grader(s) failing on main: #{targeted.map(&:name).join(', ')}")
+      plan.with(graders: targeted)
+    end
 
     def effective_plan(plan)
       LandingGraderPlan.effective(
