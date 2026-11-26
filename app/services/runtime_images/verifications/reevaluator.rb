@@ -49,7 +49,7 @@ module RuntimeImages
         summary = attempt.scan_evidence&.finding_summary || {}
         blocked = Hash(summary["blocked_vulnerability_severities"])
         return "critical" if blocked.fetch("critical", 0).to_i.positive?
-        return "high" if blocked.fetch("high", 0).to_i.positive?
+        "high" if blocked.fetch("high", 0).to_i.positive?
       end
     end
   end
