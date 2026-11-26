@@ -2186,7 +2186,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       second = call(subject: "job", section: "chrome")
       active_folder_id = first[:active_smart_folder_id]
       volatile_ids = SmartFolder.builtins(:job)
-                                .select { |folder| folder.builtin_key.in?(%w[in_progress paused queued landing_queue]) }
+                                .select { |folder| folder.builtin_key.in?(%w[in_progress waiting_for_answer paused queued landing_queue]) }
                                 .map(&:id)
       stable_counted_ids = SmartFolder.for_subject("job")
                                       .where("user_id IS NULL OR user_id = ?", user.id)
@@ -2207,6 +2207,28 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(computed_folder_ids.tally).to include(stable_counted_ids.index_with(1))
       expect(computed_folder_ids.tally).to include(volatile_ids.index_with(2))
       expect(computed_folder_ids & stable_uncounted_ids).to be_empty
+    end
+
+    it "shows and hides the waiting-for-answer folder without waiting for cached counts to expire" do
+      cache_store = ActiveSupport::Cache::MemoryStore.new
+      allow(Rails).to receive(:cache).and_return(cache_store)
+      job = Factories.job(user: user, repository: repo)
+
+      before_question = call(subject: "job", section: "chrome")
+      expect(before_question[:smart_folders].map { |folder| folder[:key] }).not_to include("waiting_for_answer")
+
+      question = AgentQuestion.create!(run: job.initial_run, asked_at: Time.current,
+        questions: [ { "question" => "Which path?", "options" => nil, "multiple" => false } ])
+      while_waiting = call(subject: "job", section: "chrome")
+
+      expect(while_waiting[:smart_folders].find { |folder| folder[:key] == "waiting_for_answer" }).to include(
+        count: 1,
+        count_capped: false
+      )
+
+      question.withdraw!(source: "operator")
+      after_withdrawal = call(subject: "job", section: "chrome")
+      expect(after_withdrawal[:smart_folders].map { |folder| folder[:key] }).not_to include("waiting_for_answer")
     end
   end
 

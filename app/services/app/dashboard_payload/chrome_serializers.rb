@@ -92,7 +92,7 @@ module App
       def volatile_smart_folder_count?(folder)
         return false unless subject == "job" && folder.builtin?
 
-        folder.builtin_key.in?(%w[in_progress paused queued landing_queue])
+        folder.builtin_key.in?(%w[in_progress waiting_for_answer paused queued landing_queue])
       end
 
       def smart_folder_count_needed?(folder)
