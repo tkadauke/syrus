@@ -107,7 +107,7 @@ function AgentQuestionCard({
 
   if (phase === "summary") {
     return (
-      <div className="space-y-3 rounded border border-info/30 bg-white p-3 text-sm dark:bg-gray-950">
+      <div className="space-y-3 rounded border border-info/30 bg-white p-3 text-sm dark:bg-gray-950" id={`agent-question-${question.id}`}>
         {errorBanner}
         <h3 className="font-medium text-gray-900 dark:text-gray-100">{t("review_your_answers")}</h3>
         <ol className="space-y-2">
@@ -131,7 +131,7 @@ function AgentQuestionCard({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" id={`agent-question-${question.id}`}>
       {errorBanner}
       {!single ? (
         <Stepper

@@ -529,6 +529,7 @@
     "description": "Elige quae eventus Syri notificationes pro tuo computatro creent.",
     "loading": "Praeferentias notificationum onerans...",
     "section_label": "Notificationes",
+    "pref_agent_question_asked": "Me certiorem fac cum agens responsum meum exspectat",
     "pref_chat_mention": "Me certiorem fac cum aliquis me in colloquio nominat",
     "pref_job_failed": "Me certiorem fac cum officium deficit",
     "pref_job_implemented": "Me certiorem fac cum PR ad recognitionem paratus est",
