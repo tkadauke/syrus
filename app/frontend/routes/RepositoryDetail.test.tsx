@@ -424,7 +424,15 @@ describe("RepositoryDetailRoute jobs", () => {
     })
 
     expect(await screen.findByText("Inspect preview dashboard states")).toBeInTheDocument()
-    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+    const disclosure = screen.getByRole("group").querySelector("summary")!
+    expect(disclosure).toHaveAccessibleName("Show provider routing details for Failover: Codex")
+    expect(screen.getByText("Failover: Codex")).toBeInTheDocument()
+    expect(screen.queryByText("Claude Code unavailable; running this workflow with Codex.")).not.toBeInTheDocument()
+
+    fireEvent.click(disclosure)
+
+    expect(screen.getByText(/Claude Code unavailable; running this workflow with Codex\./)).toBeVisible()
+    expect(screen.getByText(/Reason: usage_limit/)).not.toHaveTextContent("{")
   })
 })
 
