@@ -50,8 +50,9 @@ module RuntimeImages
       def json(argv) = JSON.parse(text(argv))
 
       def text(argv)
-        output, status = @runner.call(argv)
+        output, status, truncated = @runner.call(argv)
         raise ProviderError, "#{argv.first} policy inspection failed" unless status.to_i.zero?
+        raise ProviderError, "#{argv.first} policy inspection output exceeded #{OUTPUT_LIMIT} bytes" if truncated
         output.to_s
       rescue JSON::ParserError
         raise ProviderError, "#{argv.first} policy inspection returned invalid JSON"
@@ -62,7 +63,7 @@ module RuntimeImages
                                     command: argv, mounts: ProcessRunner.probe_mounts, network: "prepare",
                                     timeout: TIMEOUT, unsetenv_others: true).capture(limit: OUTPUT_LIMIT)
         result = capture.result
-        [ capture.stdout.to_s, result.timed_out? ? 124 : (result.success? ? 0 : 1) ]
+        [ capture.stdout.to_s, result.timed_out? ? 124 : (result.success? ? 0 : 1), capture.stdout_truncated ]
       end
     end
   end
