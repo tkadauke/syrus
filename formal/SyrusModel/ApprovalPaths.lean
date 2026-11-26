@@ -31,8 +31,8 @@ def approve (j : Job) : Job :=
 
 def RuntimeIndependent (path : Job → Job) : Prop :=
   ∀ j activity feedback checks,
-    (path { j with runtimeActive := activity, feedbackActive := feedback,
-      checksPassing := checks }).state = (path j).state
+    (path { { { j with runtimeActive := activity } with feedbackActive := feedback }
+      with checksPassing := checks }).state = (path j).state
 
 theorem approve_runtime_independent : RuntimeIndependent approve := by
   intro j activity feedback checks
