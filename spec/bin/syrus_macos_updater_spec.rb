@@ -494,6 +494,37 @@ RSpec.describe "native macOS worker updater" do
     end
   end
 
+  # Regression: Syrus sends a drain directive with every response, "none"
+  # when no drain is in progress -- as for every release a deploy activates
+  # -- and the updater read any state but "updating" as "hold off", so it
+  # never installed a deploy's release.
+  it "installs an enabled release when the drain directive says no drain is in progress" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      install_root = File.join(dir, "install")
+      current_release = File.join(install_root, "releases", "aaa1111")
+      current_link = File.join(install_root, "current")
+      FileUtils.mkdir_p(current_release)
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "abc1234")
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "abc1234", drain: { state: "none" })
+      write_env(env_file, metadata: metadata)
+
+      stdout, stderr, status = Open3.capture3(
+        { "SYRUS_MACOS_INSTALL_ROOT" => install_root, "SYRUS_MACOS_CURRENT_LINK" => current_link },
+        "bash", script, "--env-file", env_file, "--once", "--dry-run"
+      )
+
+      expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("would install abc1234")
+      expect(stdout).not_to include("no desired macOS worker release configured")
+    end
+  end
+
   it "reports a failed checksum without flipping the current symlink" do
     Dir.mktmpdir do |raw_dir|
       # macOS symlinks /var to /private/var, so mktmpdir hands back an

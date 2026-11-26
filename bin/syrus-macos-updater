@@ -193,7 +193,11 @@ extract_metadata() {
     desired = payload["desired"].is_a?(Hash) ? payload["desired"] : payload
     enabled = payload.key?("enabled") ? payload["enabled"] : true
     drain = payload["drain"].is_a?(Hash) ? payload["drain"] : nil
-    if drain && drain["state"] != "updating" && drain["force_terminate"] != true
+    # Hold back only while an operator drain is in progress and has not yet
+    # reached this host. Syrus always sends a drain directive, and "none" --
+    # no drain at all, as for every release a deploy activates -- must not
+    # disable an update the server enabled.
+    if drain && !%w[none updating].include?(drain["state"].to_s) && drain["force_terminate"] != true
       enabled = false
     end
     values = {
