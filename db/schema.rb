@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_152853) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_164523) do
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
     t.bigint "user_id", null: false
@@ -4186,6 +4186,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_152853) do
     t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
   end
 
+  create_table "runtime_image_revocation_candidates", force: :cascade do |t|
+    t.integer "runtime_image_id", null: false
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.string "trigger_kind", limit: 32, null: false
+    t.string "severity", limit: 16, null: false
+    t.string "state", limit: 24, default: "open", null: false
+    t.string "reason", limit: 500, null: false
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_id", "state"], name: "idx_ri_revocation_candidate_state"
+    t.index ["runtime_image_verification_attempt_id"], name: "idx_ri_revocation_candidate_attempt", unique: true
+  end
+
   create_table "runtime_image_scan_evidences", force: :cascade do |t|
     t.integer "runtime_image_verification_attempt_id", null: false
     t.string "image_digest", limit: 71, null: false
@@ -4220,6 +4235,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_152853) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "evidence_digest", limit: 71
+    t.string "attestation_digest", limit: 71
+    t.datetime "expires_at"
+    t.index ["expires_at"], name: "idx_ri_verification_expiry"
     t.index ["runtime_image_id", "number"], name: "idx_ri_verification_attempt_number", unique: true
     t.index ["state", "started_at"], name: "idx_ri_verification_attempt_state"
   end

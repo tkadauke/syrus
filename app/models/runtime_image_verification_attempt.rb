@@ -9,6 +9,8 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
           foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
   has_one :policy_evidence, class_name: "RuntimeImagePolicyEvidence",
           foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
+  has_one :revocation_candidate, class_name: "RuntimeImageRevocationCandidate",
+          foreign_key: :runtime_image_verification_attempt_id, inverse_of: :attempt, dependent: :destroy
 
   attr_readonly :runtime_image_id, :number, :image_digest, :policy_snapshot, :policy_digest, :started_at
   attribute :policy_snapshot, :json, default: -> { {} }
@@ -17,10 +19,16 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
   validates :decision, inclusion: { in: %w[candidate rejected blocked] }, allow_nil: true
   validates :number, numericality: { only_integer: true, greater_than: 0 }, uniqueness: { scope: :runtime_image_id }
   validates :image_digest, :policy_digest, format: { with: RuntimeImage::DIGEST_FORMAT }
+  validates :evidence_digest, :attestation_digest, format: { with: RuntimeImage::DIGEST_FORMAT }, allow_nil: true
   validate :digest_matches_image
 
   def terminal? = TERMINAL_STATES.include?(state)
   def accepted? = state == "accepted"
+
+  scope :prunable, lambda {
+    latest_ids = select("MAX(runtime_image_verification_attempts.id)").group(:runtime_image_id)
+    where.not(id: latest_ids)
+  }
 
   private
 
