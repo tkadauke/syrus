@@ -46,6 +46,15 @@ RSpec.describe RecoveryDecision do
     )
   end
 
+  it "recommends a fresh implementation when the failed workspace cannot be retried safely" do
+    job, workflow = failed_workflow
+    add_failed_step(workflow, classification: "git_state_corrupt")
+
+    expect(described_class.for(job:, workflow:)).to have_attributes(
+      kind: "restart_from_base", recommended_action: "fresh_implementation", mode: "implementation"
+    )
+  end
+
   it "allows an unchanged rerun only for inconclusive infrastructure execution" do
     job, workflow = failed_workflow
     workflow.set_artifact!(GraderLoopProgress::ARTIFACT_KEY, [

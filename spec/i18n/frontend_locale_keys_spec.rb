@@ -249,7 +249,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
         jobs.approval_status jobs.workflow_divergence_branch jobs.grader_status_label jobs.run_diff
         jobs.prepare_failure_status_label jobs.source_diff jobs.review_version_label
         jobs.transcript_kind_system jobs.skill_job_section_pick
-        jobs.delivery.status_label
+        jobs.delivery.status_label jobs.recovery_workflow
       ],
       "token, abbreviation, placeholder, or interpolated identifier" => %w[
         jobs.navigation_jump_option jobs.conversation_iteration jobs.classification_duration
