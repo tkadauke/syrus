@@ -13,6 +13,7 @@ module RuntimeImages
       def call(image)
         @built_images.acquire_for_verification(image) do |reference|
           identity = json_command([ "trivy", "version", "--format", "json" ])
+          validate_identity!(identity)
           scanner_version = required_identity(identity, "Version")
           vulnerability_database_version = database_version(identity)
           sbom = json_command([ "trivy", "image", "--quiet", "--format", "cyclonedx", reference ])
@@ -49,6 +50,10 @@ module RuntimeImages
         raise ProviderError, "scanner identity is incomplete: #{key}" if value.blank?
 
         value
+      end
+
+      def validate_identity!(identity)
+        raise ProviderError, "scanner identity is not a JSON object" unless identity.is_a?(Hash)
       end
 
       def validate_evidence!(sbom, report)
