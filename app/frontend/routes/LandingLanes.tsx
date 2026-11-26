@@ -48,7 +48,7 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
       </div>
       <div className="space-y-3">
         {repository.lanes.map((lane) => (
-          <LaneCard key={lane.number} lane={lane} />
+          <LaneCard key={lane.number} lane={lane} repositorySlug={repository.slug} />
         ))}
       </div>
       <div className="mt-4">
@@ -71,7 +71,7 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
   )
 }
 
-function LaneCard({ lane }: { lane: LandingLane }) {
+function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug: string }) {
   const { t } = useT("dashboard")
   if (lane.empty) {
     return (
@@ -112,14 +112,18 @@ function LaneCard({ lane }: { lane: LandingLane }) {
       </div>
       {lane.multisect?.sub_lanes.length ? (
         <div className="mt-3 space-y-2">
-          {lane.multisect.sub_lanes.map((subLane) => (
-            <div className="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-3" key={subLane.step_id}>
-              <span className="text-xs text-muted">{t("landing_lanes.multisect_rung", { role: subLane.role, round: subLane.round })}</span>
-              <ProgressBar progress={subLane.state === "succeeded" ? 1 : 0.35} />
-            </div>
-          ))}
+          {lane.multisect.sub_lanes.map((subLane) => {
+            const rungLabel = t("landing_lanes.multisect_rung", { role: subLane.role, round: subLane.round })
+            const progressContext = `${repositorySlug} ${t("landing_lanes.lane", { number: lane.number })} ${rungLabel}`
+            return (
+              <div className="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-3" key={subLane.step_id}>
+                <span className="text-xs text-muted">{rungLabel}</span>
+                <ProgressBar label={t("landing_lanes.progress", { context: progressContext })} progress={subLaneProgress(subLane.state)} />
+              </div>
+            )
+          })}
         </div>
-      ) : <div className="mt-3"><LaneProgress lane={lane} /></div>}
+      ) : <div className="mt-3"><LaneProgress lane={lane} repositorySlug={repositorySlug} /></div>}
       {lane.repair_round ? (
         <div className="mt-3 text-xs text-muted">
           <span className="font-semibold text-default">{t("landing_lanes.repair_round", { round: lane.repair_round })}</span>
@@ -138,22 +142,49 @@ function JobLink({ job }: { job: { id: number; slug: string; app_path: string } 
   return <Link className="font-medium text-link hover:underline" to={job.app_path}>{job.slug}</Link>
 }
 
-function ProgressBar({ progress }: { progress: number }) {
-  const { t } = useT("dashboard")
-  const width = `${Math.max(0, Math.min(progress, 1)) * 100}%`
-  return <div aria-label={t("landing_lanes.progress")} className="h-1.5 overflow-hidden rounded-full bg-subtle"><div className="h-full rounded-full bg-brand" style={{ width }} /></div>
+const SUB_LANE_PROGRESS: Record<string, number> = { queued: 0, running: 0.35, succeeded: 1 }
+
+function subLaneProgress(state: string) {
+  return SUB_LANE_PROGRESS[state] ?? 0
+}
+
+function ProgressBar({ label, progress }: { label: string; progress: number }) {
+  const boundedProgress = Math.max(0, Math.min(progress, 1))
+  const width = `${boundedProgress * 100}%`
+  return (
+    <div
+      aria-label={label}
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={boundedProgress * 100}
+      className="h-1.5 overflow-hidden rounded-full bg-subtle"
+      role="progressbar"
+    >
+      <div className="h-full rounded-full bg-brand" style={{ width }} />
+    </div>
+  )
 }
 
 const PHASES = ["assemble", "build", "prepare", "reconcile", "grade", "collect", "land"]
 
-function LaneProgress({ lane }: { lane: LandingLane }) {
+function LaneProgress({ lane, repositorySlug }: { lane: LandingLane; repositorySlug: string }) {
   const { t } = useT("dashboard")
   const currentIndex = Math.max(0, PHASES.indexOf(lane.phase ?? "assemble"))
-  const gradeWeight = Math.max(2, (lane.graders ?? []).reduce((sum, grader) => sum + grader.expected_seconds, 0) / 30)
+  const activeGraders = (lane.graders ?? []).filter((grader) => !grader.carried)
+  const gradeWeight = Math.max(2, activeGraders.reduce((sum, grader) => sum + grader.expected_seconds, 0) / 30)
   const gradeProgress = weightedGraderProgress(lane)
+  const progress = Math.max(0, Math.min(lane.progress ?? 0, 1))
+  const progressContext = `${repositorySlug} ${t("landing_lanes.lane", { number: lane.number })}`
 
   return (
-    <div aria-label={t("landing_lanes.progress")} className="flex h-1.5 gap-0.5 overflow-hidden rounded-full">
+    <div
+      aria-label={t("landing_lanes.progress", { context: progressContext })}
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={progress * 100}
+      className="flex h-1.5 gap-0.5 overflow-hidden rounded-full"
+      role="progressbar"
+    >
       {lane.rebasing ? <ProgressSegment progress={lane.phase === "reconcile" ? 0.5 : 1} weight={0.6} /> : null}
       {PHASES.map((phase, index) => (
         <ProgressSegment
@@ -207,7 +238,7 @@ export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
                   <span>{t("landing_lanes.lane", { number: lane.number })}</span>
                   <span className="truncate font-medium">{lane.empty ? t("landing_lanes.empty") : lane.anchor_job?.slug}</span>
                   <span className="truncate text-muted">{lane.empty ? "" : phaseLabel(lane, t)}</span>
-                  <LaneProgress lane={lane} />
+                  <LaneProgress lane={lane} repositorySlug={repository.slug} />
                   <span className="whitespace-nowrap text-muted">{lane.empty ? "" : t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}</span>
                 </div>
               ))}
