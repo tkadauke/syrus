@@ -329,7 +329,7 @@ module Api
           return unless authorize_job_mutation!(job)
           return if reject_stale_job_revision?(job)
 
-          job.with_lock do
+          approved = job.with_lock do
             job.reload
             unless job.auto_merge_enabled?
               render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
@@ -354,15 +354,22 @@ module Api
 
             if job.approval_satisfied? && job.may_approve?
               job.approve!(via: "operator", by_user: Current.user)
-              github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
-              landing_workflow = LandingQueueProcessor.try_land!(job)
-              landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
-              changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
-              render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
+              true
             else
-              render_job(job.reload, message: lifecycle_t("approval_recorded"), changed: [ "approval" ])
+              false
             end
           end
+
+          unless approved
+            render_job(job.reload, message: lifecycle_t("approval_recorded"), changed: [ "approval" ])
+            return
+          end
+
+          github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
+          landing_workflow = LandingQueueProcessor.try_land!(job)
+          landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
+          changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
+          render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
         end
 
         def unapprove
