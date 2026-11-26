@@ -89,7 +89,7 @@ export function httpNotificationUrl(value: unknown) {
 }
 
 export function nativeNotificationClickUrl(payload: Pick<NativeNotificationPayload, "jobId" | "prUrl">) {
-  if (payload.prUrl) return payload.prUrl
+  if (payload.prUrl) return httpNotificationUrl(payload.prUrl)
   if (payload.jobId == null) return null
 
   const prefix = routePrefix(window.location.pathname)

@@ -82,6 +82,10 @@ describe("nativeNotificationClickUrl", () => {
     expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1" })).toBe("https://github.com/o/r/pull/1")
   })
 
+  it("rejects a non-http PR url instead of using it as a click target", () => {
+    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "javascript:alert(1)" })).toBeNull()
+  })
+
   it("falls back to a job path scoped to the current route prefix", () => {
     vi.stubGlobal("location", { ...window.location, pathname: "/app-shell/dashboard" })
     expect(nativeNotificationClickUrl({ jobId: 42, prUrl: null })).toBe("/app-shell/jobs/42")

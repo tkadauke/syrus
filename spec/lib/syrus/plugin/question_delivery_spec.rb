@@ -5,7 +5,7 @@ RSpec.describe "question delivery capability", :reset_plugin_registry do
 
   it "lets a plugin answer through the shared service and broadcasts the winning closure" do
     user = Factories.user
-    job = Factories.job(user:)
+    job = Factories.job(user:, repository: Factories.repository(user:))
     run = job.initial_run
     workflow = run.workflow
     workflow.update_columns(state: "running", started_at: 1.minute.ago)
@@ -18,7 +18,7 @@ RSpec.describe "question delivery capability", :reset_plugin_registry do
       define_singleton_method(:question_events) do |context|
         events << context
         if context.event_type == "asked"
-          Syrus::Host::QuestionDelivery.answer(question_id: context.question_id, answers: [ "Safe" ],
+          Syrus::Host::QuestionDelivery.answer(question_id: context.question_id, job_id: context.job_id, answers: [ "Safe" ],
             answered_by: user, source: "fake_channel")
         end
         nil
@@ -38,8 +38,21 @@ RSpec.describe "question delivery capability", :reset_plugin_registry do
     expect(question.reload).to have_attributes(answers: [ "Safe" ], answer_source: "fake_channel")
     expect(run.reload).to be_queued
     expect(events.map(&:event_type)).to eq(%w[asked answered])
-    expect(Syrus::Host::QuestionDelivery.answer(question_id: question.id, answers: [ "Fast" ],
+    expect(Syrus::Host::QuestionDelivery.answer(question_id: question.id, job_id: job.id, answers: [ "Fast" ],
       answered_by: user, source: "other_channel")).to eq(false)
     expect(events.last).to have_attributes(event_type: "answered", active: false, answer_source: "fake_channel")
+  end
+
+  it "rejects an answer from a user without write access to the question's Job" do
+    owner = Factories.user
+    attacker = Factories.user
+    job = Factories.job(user: owner, repository: Factories.repository(user: owner))
+    question = AgentQuestion.create!(run: job.initial_run, asked_at: Time.current,
+      questions: [ { "question" => "Which path?", "options" => nil, "multiple" => false } ])
+
+    expect(Syrus::Host::QuestionDelivery.answer(question_id: question.id, job_id: job.id,
+      answers: [ "Unsafe" ], answered_by: attacker, source: "fake_channel")).to eq(false)
+    expect(question.reload).to be_active
+    expect(question).to have_attributes(answers: nil, answered_by: nil, answer_source: nil)
   end
 end

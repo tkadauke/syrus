@@ -22,8 +22,16 @@ module AgentQuestions
       Syrus::Plugin::Dispatch.call(:question_delivery, :question_events, context)
     end
 
-    def answer(question_id:, answers:, answered_by:, source:)
-      question = AgentQuestion.find(question_id)
+    def answer(question_id:, job_id:, answers:, answered_by:, source:)
+      return false unless answered_by
+
+      question = AgentQuestion.active.where.not(run_id: nil)
+        .joins(run: :job)
+        .merge(Job.visible_to(answered_by))
+        .find_by(id: question_id, runs: { job_id: job_id })
+      return false unless question
+      return false unless JobPolicy.new(answered_by, question.run.job).write?
+
       AgentQuestions::Answer.call(question:, answers:, answered_by:, source:)
     end
   end

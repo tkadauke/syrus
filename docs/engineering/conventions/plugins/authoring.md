@@ -70,10 +70,15 @@ duplicate outbound transport. An `answered` event with `active: false` tells
 all other channels to close their copy, as do `withdrawn` and `timed_out`.
 
 Submit inbound answers only through
-`Syrus::Host::QuestionDelivery.answer(question_id:, answers:, answered_by:,
-source:)`. The caller supplies a stable source identifying its channel. The
-method returns false when another channel already answered or the question is
-otherwise closed, preserving first-answer-wins and resuming the workflow once.
+`Syrus::Host::QuestionDelivery.answer(question_id:, job_id:, answers:,
+answered_by:, source:)`. Pass the question and Job identifiers from the
+delivered event and the authenticated Syrus user mapped from the platform
+sender. Core verifies that user can see and write the Job; providers must not
+accept a claimed Syrus user identity from inbound message content. The caller
+also supplies a stable source identifying its channel. The method returns false
+when authorization fails, the identifiers do not match, another channel already
+answered, or the question is otherwise closed, preserving first-answer-wins
+and resuming the workflow once.
 
 ```ruby
 provides question_delivery: "Acme::QuestionChannel",

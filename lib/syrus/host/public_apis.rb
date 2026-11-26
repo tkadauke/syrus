@@ -205,7 +205,7 @@ module Syrus
         CapabilityFamily: [ "Defines provider-neutral capability families and their composition contracts; registry internals are not promised.", %w[define fetch] ],
         CapabilityDispatch: [ "Invokes declared capability providers through their composition and health boundaries.", %w[call] ],
         CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ],
-        QuestionDelivery: [ "Submits an answer through the first-answer-wins workflow question service; question storage is not promised.", %w[answer] ],
+        QuestionDelivery: [ "Submits an authorized answer for the event's Job through the first-answer-wins workflow question service; question storage is not promised.", %w[answer] ],
         QuestionDeliveryContext: [ "Carries an immutable question lifecycle event to delivery-channel providers.", %w[question_id event_type source occurred_at questions defaults answers answer_source job_id job_path active] ],
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
