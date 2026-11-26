@@ -91,6 +91,12 @@ RSpec.describe LandingGraderPlan do
       # suite kept running twice -- nested graders are renamed with their
       # package prefix and `supersedes` was not.
       it "runs each suite once in this repository's merge-train landing" do
+        # This assertion exercises the RSpec grader type contributed by the
+        # bundled Ruby plugin. Keep that prerequisite local: other examples in
+        # a CI shard may legitimately exercise disabling plugin records.
+        PluginRecord.find_or_create_by!(name: "ruby").update!(enabled: true)
+        Syrus::PluginRegistry.clear_plugin_record_cache!
+
         full_plan = TargetGraph::GradePlan.for(workspace_path: Rails.root, graph: TargetGraph::Compiler.compile(Rails.root))
         names = described_class.effective(full_plan, trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)
 
