@@ -19,13 +19,15 @@ module MaintenanceTasks
                       :definition_category, :definition_recurrence,
                       :definition_required_role, :definition_concurrency_key,
                       :definition_batch_size, :definition_max_parallelism,
-                      :definition_steps, :definition_documentation_path
+                      :definition_steps, :definition_documentation_path,
+                      :definition_pause_between_batches
 
       self.definition_category = "backfill"
       self.definition_recurrence = "one_off"
       self.definition_required_role = "admin"
       self.definition_batch_size = 250
       self.definition_max_parallelism = 1
+      self.definition_pause_between_batches = 0
       self.definition_steps = []
 
       class << self
@@ -37,6 +39,9 @@ module MaintenanceTasks
         def required_role(value) = self.definition_required_role = value.to_s
         def concurrency_key(value) = self.definition_concurrency_key = value.to_s
         def batch_size(value) = self.definition_batch_size = value.to_i
+        # Seconds to wait before the next batch. A task that writes a large
+        # table back-to-back keeps the database busy indefinitely.
+        def pause_between_batches(value) = self.definition_pause_between_batches = value.to_f
         def max_parallelism(value) = self.definition_max_parallelism = value.to_i
         def documentation_path(value) = self.definition_documentation_path = value.to_s
 
