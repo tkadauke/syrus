@@ -140,6 +140,7 @@
   "conversation_view_source": "Quelle anzeigen",
   "conversation_transcript_panel_label": "Transkript: {{label}}",
   "conversation_transcript_close": "Transkript schließen",
+  "conversation_input_prompt": "Eingabeaufforderung",
   "tab_timeline": "Zeitachse",
   "timeline_select_workflow": "Workflow",
   "timeline_waterfall_loading": "Zeitachse wird geladen...",

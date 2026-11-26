@@ -324,11 +324,21 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
             <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p>
           ) : null}
           {transcript.data ? (
-            transcript.data.logs && transcript.data.logs.length > 0 ? (
-              <RunTranscriptLogs agentic fillHeight logs={transcript.data.logs} />
-            ) : (
-              <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
-            )
+            <div className="min-h-0 flex flex-1 flex-col overflow-hidden">
+              {transcript.data.prompt ? (
+                <section className="min-w-0 shrink-0 border-b border-border px-3 py-3" data-testid="run-input-prompt">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversation_input_prompt")}</h3>
+                  <div className="min-w-0 max-h-48 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words text-sm text-text-primary [overflow-wrap:anywhere]">
+                    {renderLightMarkdown(transcript.data.prompt)}
+                  </div>
+                </section>
+              ) : null}
+              {transcript.data.logs && transcript.data.logs.length > 0 ? (
+                <RunTranscriptLogs agentic fillHeight logs={transcript.data.logs} />
+              ) : (
+                <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
+              )}
+            </div>
           ) : null}
           {transcript.data ? (
             <TranscriptPagination
