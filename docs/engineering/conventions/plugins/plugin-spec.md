@@ -253,7 +253,7 @@ The workflow kernel hosts `workflow:judge`, `workflow:post_implementation`, and 
 - `Syrus::Host::JobPriorityToSq` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `fetch`.
 - `Syrus::Host::JobSystemKindMainBranchRepair` (since 0.1.16) — Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
 - `Syrus::Host::JobVisibilityRestriction` (since 0.1.16) — Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
-- `Syrus::Host::Jobs` (since 0.1.16) — Queries Jobs by visibility, state, and ranking and creates them; every method returns a relation or plain value, and Job transitions, persistence, and callbacks are not promised. Supported members: `all`, `approval_blocking_job_ids`, `create!`, `find`, `find_by`, `none`, `open_threads`, `priority_rank`, `terminal_states`, `transaction`, `user_facing_kinds`, `visible_to`, `where`.
+- `Syrus::Host::Jobs` (since 0.1.16) — Queries Jobs by visibility, state, and ranking and creates them; every method returns a relation or plain value, and Job transitions, persistence, and callbacks are not promised. Supported members: `all`, `create!`, `find`, `find_by`, `none`, `open_threads`, `priority_rank`, `terminal_states`, `transaction`, `user_facing_kinds`, `visible_to`, `where`.
 - `Syrus::Host::LandingQueueProcessor` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `try_land!`.
 - `Syrus::Host::LandingValidationManifest` (since 0.1.16) — Main-branch health plugin access to a core workflow/landing internal; only the listed members are supported and everything else on it is internal. Only the listed members are supported. Supported members: `manifest_for_landed_sha`, `record_main_parity!`.
 - `Syrus::Host::McpAuthorizationSupport` (since 0.1.16) — Raises AuthorizationError and creates pending coworker approvals for plugin tool calls; permission evaluation is not promised. Only the listed members are supported. Supported members: `AuthorizationError`, `pending_coworker_approval`, `pending_coworker_plugin_approval`, `with_server_context`.
@@ -406,4 +406,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 84908 bytes (UTF-8, including this line).
+Size: 84879 bytes (UTF-8, including this line).

@@ -1286,7 +1286,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
     def dismiss_path(job_record, workflow) = "/api/v1/app/jobs/#{job_record.id}/workflows/#{workflow.id}/dismiss"
 
-    Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES.each do |kind|
+    Workflow::TriggerKind::IMPLEMENTED_STATE_COMPATIBLE_VALUES.each do |kind|
       it "retires a blocked #{kind} workflow with its work unit and clears needs-attention" do
         job.update!(state: "implemented")
         workflow = Workflow.create!(job: job, trigger_kind: kind, state: "blocked", artifacts: { "cannot_proceed" => { "reason" => "missing binary" } })

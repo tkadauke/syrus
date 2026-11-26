@@ -696,36 +696,26 @@ RSpec.describe Job, :ci_only do
     end
   end
 
-  describe "#approval_blocking_runtime_work?" do
-    it "is false for active non-approval-blocking maintenance and QA runs" do
-      %w[rebase stack_rebase manual_visual_review visual_diff].each do |trigger_kind|
+  describe "approval eligibility with runtime work" do
+    it "keeps an implemented Job approvable for every registered active workflow kind" do
+      Workflow::TriggerKind.values.each do |trigger_kind|
         job = Factories.job_record(state: "implemented")
         Run.create!(job: job, trigger_kind: trigger_kind, state: "running", agent_provider: job.agent_provider)
 
-        expect(job.reload.approval_blocking_runtime_work?).to be(false), "expected #{trigger_kind} Run not to block approval"
+        expect(job.reload).to be_may_approve, "expected #{trigger_kind} Run not to block approval"
+        expect(job.can_add_job_approval?(job.user)).to be(true), "expected #{trigger_kind} Run not to block an approval vote"
       end
     end
 
-    it "is false for active non-approval-blocking maintenance and QA work units" do
-      %w[rebase stack_rebase manual_visual_review visual_diff].each do |trigger_kind|
+    it "keeps an implemented Job approvable with queued and running WorkUnits" do
+      %w[queued running].each do |state|
         job = Factories.job_record(state: "implemented")
-        workflow = Workflow.create!(job: job, trigger_kind: trigger_kind, state: "running")
-        attach_work_unit(workflow, kind: trigger_kind, state: "running")
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: state)
+        attach_work_unit(workflow, kind: "initial", state: state)
 
-        expect(job.reload.approval_blocking_runtime_work?).to be(false), "expected #{trigger_kind} WorkUnit not to block approval"
+        expect(job.reload).to be_may_approve
+        expect(job.can_add_job_approval?(job.user)).to be(true)
       end
-    end
-
-    it "is true for active approval-blocking runs and work units" do
-      run_owned = Factories.job_record(state: "implemented")
-      Run.create!(job: run_owned, trigger_kind: "retry", state: "queued", agent_provider: run_owned.agent_provider)
-
-      unit_owned = Factories.job_record(state: "implemented")
-      workflow = Workflow.create!(job: unit_owned, trigger_kind: "initial", state: "running")
-      attach_work_unit(workflow, kind: "initial", state: "running")
-
-      expect(run_owned.reload.approval_blocking_runtime_work?).to be(true)
-      expect(unit_owned.reload.approval_blocking_runtime_work?).to be(true)
     end
   end
 
@@ -1408,7 +1398,7 @@ RSpec.describe Job, :ci_only do
         }.not_to change { job.job_approvals.count }
       end
 
-      it "does not re-approve while a chat_feedback workflow is queued or running" do
+      it "approves an implemented Job while a chat_feedback workflow is active" do
         job = Factories.job_record(state: "implemented")
         attach_work_unit(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running"))
 
@@ -1418,11 +1408,11 @@ RSpec.describe Job, :ci_only do
           reviewer_user: job.user
         )
 
-        expect(result).to be false
-        expect(job.reload.state).to eq("implemented")
+        expect(result).not_to be false
+        expect(job.reload.state).to eq("approved")
       end
 
-      it "does not re-approve while a pr_comment workflow is queued" do
+      it "approves an implemented Job while a pr_comment workflow is queued" do
         job = Factories.job_record(state: "implemented")
         attach_work_unit(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued"))
 
@@ -1432,14 +1422,11 @@ RSpec.describe Job, :ci_only do
           reviewer_user: job.user
         )
 
-        expect(result).to be false
-        expect(job.reload.state).to eq("implemented")
+        expect(result).not_to be false
+        expect(job.reload.state).to eq("approved")
       end
 
-      # The operator, MCP and pending-action approval paths all refuse while
-      # approval-blocking work runs; a polled GitHub review used to check only
-      # for feedback Workflows, and moved a running Job to implemented first.
-      it "neither approves nor leaves running while a non-feedback approval-blocking workflow runs" do
+      it "does not approve a Job whose lifecycle state is still running" do
         job = Factories.job_record(state: "running")
         attach_work_unit(Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running"))
 

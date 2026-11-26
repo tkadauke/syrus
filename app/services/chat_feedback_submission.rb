@@ -9,30 +9,40 @@ class ChatFeedbackSubmission
     feedback = feedback.to_s.strip
     return Result.new(workflow: nil, error: "Feedback body can't be blank.") if feedback.blank?
 
-    unless allowed_states.include?(job.state)
-      states = allowed_states.map { |state| state.tr("_", " ") }.to_sentence
-      return Result.new(workflow: nil, error: "#{job.state} jobs are not actionable for chat feedback; the job must be #{states}.")
-    end
-
-    if WorkUnits::Ownership.active_for_job_kind?(job, "chat_feedback")
-      return Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
-    end
-
     attach_media!(job: job, chat_session: chat_session, media: media)
 
-    iteration = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
-    base_artifacts = {
-      "chat_feedback" => feedback,
-      "pr_feedback_iteration" => iteration,
-      "pr_feedback_auto" => false
-    }
-    artifacts = base_artifacts.merge(extra_artifacts)
-    workflow = WorkUnits::Launcher.instantiate(
-      kind: "chat_feedback",
-      job: job,
-      artifacts: artifacts
-    )
-    Job::ApprovalUnapprover.call(job: job.reload, user: job.user) if job.may_unapprove?
+    workflow = nil
+    job.with_lock do
+      job.reload
+      acceptable_states = allowed_states | [ "landing" ]
+      unless acceptable_states.include?(job.state)
+        states = allowed_states.map { |state| state.tr("_", " ") }.to_sentence
+        return Result.new(workflow: nil, error: "#{job.state} jobs are not actionable for chat feedback; the job must be #{states}.")
+      end
+
+      if WorkUnits::Ownership.active_for_job_kind?(job, "chat_feedback")
+        return Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
+      end
+
+      # Feedback and landing make opposite decisions about the same approved
+      # revision. Serialize them on the Job row; if landing already won the
+      # race, preempt its active workflow before recording the feedback work.
+      job.stop_landing! if job.landing?
+      job.reload
+      Job::ApprovalUnapprover.call(job: job, user: job.user) if job.may_unapprove?
+
+      iteration = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
+      artifacts = {
+        "chat_feedback" => feedback,
+        "pr_feedback_iteration" => iteration,
+        "pr_feedback_auto" => false
+      }.merge(extra_artifacts)
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "chat_feedback",
+        job: job,
+        artifacts: artifacts
+      )
+    end
     WorkUnits::Launcher.start!(workflow)
 
     Result.new(workflow: workflow, error: nil)

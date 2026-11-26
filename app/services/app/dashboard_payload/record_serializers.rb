@@ -126,17 +126,8 @@ module App
         job.active_runtime_work?
       end
 
-      def dashboard_job_approval_blocking_runtime_work?(job)
-        if defined?(@job_runtime_approval_blocking_job_ids)
-          return @job_runtime_approval_blocking_job_ids.key?(job.id)
-        end
-
-        job.approval_blocking_runtime_work?
-      end
-
       def dashboard_job_can_approve?(job)
-        job.can_add_job_approval?(user) &&
-          !dashboard_job_approval_blocking_runtime_work?(job)
+        job.can_add_job_approval?(user)
       end
 
       def dashboard_job_can_release_from_backlog?(job)

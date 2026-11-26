@@ -36,12 +36,11 @@ RSpec.describe ReviewWorkspacePlugin::EligibleJobs do
     expect(described_class.call(user:)).to eq([ eligible ])
   end
 
-  it "excludes approval-blocking work while permitting non-blocking review work" do
-    blocked = Factories.job_with_run(user:, repository:, state: "implemented", run_attrs: { state: "running", trigger_kind: "initial" })
+  it "includes implemented Jobs regardless of active runtime work" do
+    implementation_running = Factories.job_with_run(user:, repository:, state: "implemented", run_attrs: { state: "running", trigger_kind: "initial" })
     review_running = Factories.job_with_run(user:, repository:, state: "implemented", run_attrs: { state: "running", trigger_kind: "manual_visual_review" })
 
-    expect(described_class.call(user:)).to contain_exactly(review_running)
-    expect(described_class.call(user:)).not_to include(blocked)
+    expect(described_class.call(user:)).to contain_exactly(implementation_running, review_running)
   end
 
   it "orders unblocked dependencies first, then priority, ready age, and id" do

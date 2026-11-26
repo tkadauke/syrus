@@ -1048,7 +1048,6 @@ Queries Jobs by visibility, state, and ranking and creates them; every method re
 Supported members:
 
 - `all`
-- `approval_blocking_job_ids`
 - `create!`
 - `find`
 - `find_by`

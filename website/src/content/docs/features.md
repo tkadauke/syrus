@@ -127,8 +127,8 @@ workflow agents cannot create or revoke delegations.
 
 The bundled Review Workspace plugin adds a top-level **Review** destination
 with a live badge. It shows only implemented, non-investigation Jobs that the
-signed-in operator can see, modify, and approve now, excluding Jobs with
-approval-blocking runtime work. The list puts dependency-ready Jobs first,
+signed-in operator can see, modify, and approve now. Runtime work and PR-check
+status remain visible but do not remove an implemented Job. The list puts dependency-ready Jobs first,
 then applies explicit priority, ready age, and Job ID for stable ordering.
 When the Jobs dashboard is available, an optional notice shows the same
 actionable count and links into Review. The Review route remains available

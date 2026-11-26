@@ -42,13 +42,8 @@ function latestIteration(workflows: JobWorkflow[], artifact: string, currentHead
   return { current: best?.iteration ?? null, recorded }
 }
 
-function readinessRow(payload: JobDetailPayload, canApprove: boolean, dependencyBlocked: boolean): BriefRow {
+function readinessRow(canApprove: boolean): BriefRow {
   if (canApprove) return { id: "readiness", tone: "success", labelKey: "brief_readiness", valueKey: "brief_ready" }
-  const state = payload.job.pr_checks?.state
-  if (state === "failing") return { id: "readiness", tone: "danger", labelKey: "brief_readiness", valueKey: "brief_blocked_checks_failing" }
-  if (state === "pending") return { id: "readiness", tone: "warning", labelKey: "brief_readiness", valueKey: "brief_blocked_checks_pending" }
-  if (dependencyBlocked || (payload.unsatisfied_dependencies?.length ?? 0) > 0)
-    return { id: "readiness", tone: "warning", labelKey: "brief_readiness", valueKey: "brief_blocked_dependencies" }
   return { id: "readiness", tone: "warning", labelKey: "brief_readiness", valueKey: "brief_blocked_generic" }
 }
 
@@ -100,18 +95,16 @@ export function buildDecisionBrief({
   canApprove,
   changeScope,
   currentHeadSha,
-  dependencyBlocked,
   payload,
   screenshotCount
 }: {
   canApprove: boolean
   changeScope: ChangeScope | null | undefined
   currentHeadSha: string | null | undefined
-  dependencyBlocked: boolean
   payload: JobDetailPayload
   screenshotCount: number
 }): BriefRow[] {
-  const rows: BriefRow[] = [readinessRow(payload, canApprove, dependencyBlocked)]
+  const rows: BriefRow[] = [readinessRow(canApprove)]
   if (changeScope)
     rows.push({
       id: "scope",
