@@ -189,7 +189,7 @@ function LaneProgress({ lane, repositorySlug }: { lane: LandingLane; repositoryS
       {PHASES.map((phase, index) => (
         <ProgressSegment
           key={phase}
-          progress={index < currentIndex ? 1 : index > currentIndex ? 0 : phase === "grade" ? gradeProgress : 0.5}
+          progress={lane.empty ? 0 : index < currentIndex ? 1 : index > currentIndex ? 0 : phase === "grade" ? gradeProgress : 0.5}
           weight={phase === "grade" ? gradeWeight : 1}
         />
       ))}
