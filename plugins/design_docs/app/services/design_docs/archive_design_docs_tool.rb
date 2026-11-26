@@ -3,9 +3,9 @@ require "mcp"
 module DesignDocs
   class ArchiveDesignDocsTool < MCP::Tool
     extend ToolSupport
-    extend Syrus::Host::BulkPendingActionToolSupport
+    extend ::Mcp::Tools::BulkPendingActionToolSupport
 
-    MAX_DOCS = Syrus::Host::BulkPendingActionToolSupport::MAX_BATCH_SIZE
+    MAX_DOCS = ::Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE
 
     tool_name "archive_design_docs"
 

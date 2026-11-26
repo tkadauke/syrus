@@ -26,7 +26,7 @@ module SyrusDev
       def call(server_context:, since: nil, until_time: nil)
         context = Syrus::Host::ToolContext.from_server_context(server_context)
         return Syrus::Host::McpTools.not_authorized unless context.role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT
-        return Syrus::Host::McpTools.invalid("workspace reuse outcomes are only available for Syrus repositories") unless Syrus::Host::McpToolPolicy.syrus_repository?(context.repository)
+        return Syrus::Host::McpTools.invalid("workspace reuse outcomes are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
 
         window_end = parse_time(until_time) || Time.current
         window_start = parse_time(since) || 30.days.ago
@@ -36,7 +36,7 @@ module SyrusDev
           repository_id: context.repository.id,
           since: window_start.iso8601,
           until_time: window_end.iso8601,
-          groups: Syrus::Host::WorkspaceReuseSummary.call(
+          groups: WorkspaceReuseOutcomes::Summary.call(
             since: window_start,
             until_time: window_end,
             repository: context.repository

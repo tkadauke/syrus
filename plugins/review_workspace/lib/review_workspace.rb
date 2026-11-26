@@ -1,5 +1,5 @@
 module ReviewWorkspacePlugin
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "review_workspace" do
     experimental false

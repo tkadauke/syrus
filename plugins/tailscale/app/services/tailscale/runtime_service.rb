@@ -24,13 +24,13 @@ module Tailscale
     # for this service. There is deliberately no way to pass an arbitrary
     # extra `tailscale up` flag through here -- the manager would refuse it.
     def self.privileged_env
-      auth_key = Syrus::Host::PluginSettings.get("tailscale", "auth_key").presence
+      auth_key = Syrus::PluginSettings.get("tailscale", "auth_key").presence
       raise "TS_AUTHKEY is not configured" unless auth_key
 
       env = { "TS_AUTHKEY" => auth_key }
-      hostname = Syrus::Host::PluginSettings.get("tailscale", "hostname").presence
+      hostname = Syrus::PluginSettings.get("tailscale", "hostname").presence
       env["TS_HOSTNAME"] = hostname if hostname
-      env["TS_EXIT_NODE"] = "true" if ActiveModel::Type::Boolean.new.cast(Syrus::Host::PluginSettings.get("tailscale", "exit_node"))
+      env["TS_EXIT_NODE"] = "true" if ActiveModel::Type::Boolean.new.cast(Syrus::PluginSettings.get("tailscale", "exit_node"))
       env
     end
   end

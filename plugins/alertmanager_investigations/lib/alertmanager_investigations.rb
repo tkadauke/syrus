@@ -1,5 +1,5 @@
 module AlertmanagerInvestigations
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "alertmanager_investigations" do
     requires_syrus nil

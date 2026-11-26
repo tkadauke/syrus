@@ -38,7 +38,7 @@ module RuntimeTerminal
           raise Error, "visual-review environment input run_api_credential is unavailable for an inactive Run"
         end
 
-        Syrus::Host::McpInvocationContext.issue_for_app_run(run, expires_in: 30.minutes)
+        McpInvocationContext.issue_for_app_run(run, expires_in: 30.minutes)
       end
     end
 

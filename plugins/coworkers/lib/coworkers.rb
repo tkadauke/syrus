@@ -3,7 +3,7 @@ require "coworkers/chat_extension"
 require "coworkers/schedule_extension"
 
 module Coworkers
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "coworkers" do
     requires_syrus nil

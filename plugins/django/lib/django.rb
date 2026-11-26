@@ -1,7 +1,7 @@
 require "django/preview_provider"
 
 module Django
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "django" do
     disableable true

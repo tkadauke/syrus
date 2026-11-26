@@ -1,5 +1,5 @@
 module LocalBackups
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "local_backups" do
     experimental false

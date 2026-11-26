@@ -1,7 +1,7 @@
 require "build_cache/data_cleanup"
 
 module BuildCache
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "build_cache" do
     experimental false

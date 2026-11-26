@@ -1,7 +1,7 @@
 require "agent_memory/data_cleanup"
 
 module AgentMemory
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   FILTER_CHIPS = {
     "content"       => "Filters::Chips::AgentMemory::Content",

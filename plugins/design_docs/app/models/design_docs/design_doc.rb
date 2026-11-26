@@ -174,11 +174,11 @@ module DesignDocs
     end
 
     def publish_search_upsert
-      Syrus::Host::Events.publish("design_doc.upserted", design_doc_id: id)
+      Syrus::Events.publish("design_doc.upserted", design_doc_id: id)
     end
 
     def publish_search_delete
-      Syrus::Host::Events.publish("design_doc.deleted", design_doc_id: id)
+      Syrus::Events.publish("design_doc.deleted", design_doc_id: id)
     end
   end
 end

@@ -1,5 +1,5 @@
 module SyrusBrowser
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "browser" do
     experimental false

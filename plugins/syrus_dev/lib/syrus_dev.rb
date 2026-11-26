@@ -1,5 +1,5 @@
 module SyrusDev
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "syrus_dev" do
     requires_syrus nil

@@ -13,7 +13,7 @@ module SyrusBrowser
   #      with no current Run; resolved to that chat's active browser
   #      RuntimeSession.
   #   3. otherwise -- the existing workflow Run path (visual_review and any
-  #      other agentic step), resolved via Syrus::Host::McpTools.run_from_context.
+  #      other agentic step), resolved via Mcp::Tools.run_from_context.
   #
   # Local Mode routing (a third, materially different daemon-backed browser)
   # is intentionally not a branch here yet -- DOC-16's own broker work adds

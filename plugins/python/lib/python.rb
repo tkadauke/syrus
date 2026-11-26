@@ -8,7 +8,7 @@ require "python/review_criteria_provider"
 require "python/ecosystem"
 
 module Python
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "python" do
     default_enabled true

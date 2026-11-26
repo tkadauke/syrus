@@ -1,4 +1,4 @@
-class Throughput::RefreshRepositorySnapshotJob < Syrus::Host::PluginJob
+class Throughput::RefreshRepositorySnapshotJob < PluginJob
   plugin :throughput, concurrency: 1
 
   def perform(repository_id)

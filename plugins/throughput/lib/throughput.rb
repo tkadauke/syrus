@@ -1,6 +1,6 @@
 
 module Throughput
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "throughput" do
     default_enabled true

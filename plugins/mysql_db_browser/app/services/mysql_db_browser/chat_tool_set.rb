@@ -10,7 +10,7 @@ module MysqlDbBrowser
   class ChatToolSet
     include Syrus::Host::GatedToolSet
 
-    gated_by plugin: MysqlDbBrowser, model: Syrus::Host::MysqlConnection, label: "MySQL DB Browser"
+    gated_by plugin: MysqlDbBrowser, model: MysqlConnection, label: "MySQL DB Browser"
 
     TOOL_CLASSES = [
       ListConnectionsTool,
@@ -35,7 +35,7 @@ module MysqlDbBrowser
           context = Syrus::Host::ToolContext.new(surface: :chat, role: Syrus::Host::AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_connection_metadata(context: context).pluck(:id)
         },
-        label: ->(id) { Syrus::Host::MysqlConnection.find_by(id: id)&.label || "MySQL connection #{id}" },
+        label: ->(id) { MysqlConnection.find_by(id: id)&.label || "MySQL connection #{id}" },
         valid: lambda { |id, user:|
           context = Syrus::Host::ToolContext.new(surface: :chat, role: Syrus::Host::AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_connection_metadata(context: context).any? { |connection| connection.fetch(:id).to_s == id.to_s }

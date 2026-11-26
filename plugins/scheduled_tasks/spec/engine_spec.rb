@@ -22,38 +22,38 @@ RSpec.describe ScheduledTasks::Engine do
     scheduled_tasks = PluginRecord.find_or_initialize_by(name: "scheduled_tasks")
     calendar.update!(enabled: true)
     scheduled_tasks.update!(enabled: true)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
       .to include(ScheduledTasks::CalendarEventSource)
 
     calendar.update!(enabled: false)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
       .not_to include(ScheduledTasks::CalendarEventSource)
     expect(scheduled_tasks.reload.enabled?).to be(true)
   end
 
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no
-  # series at all. The declaration is a Syrus::Host::Installer while_enabled effect,
+  # series at all. The declaration is a Syrus::Installer while_enabled effect,
   # which is sync-on-read (see MetricsController#sync_plugin_declarations)
   # rather than reapplied on a timer, so the test drives that sync explicitly.
   it "declares its autopaused gauge only while enabled" do
     record = PluginRecord.find_or_initialize_by(name: "scheduled_tasks")
     record.update!(enabled: true)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_scheduled_tasks_autopaused_total)).to be(true)
 
     record.update!(enabled: false)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_scheduled_tasks_autopaused_total)).to be(false)
 
     record.update!(enabled: true)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_scheduled_tasks_autopaused_total)).to be(true)
   end
 
   # The autopaused gauge is the declarative sample-block form (see
-  # Syrus::Host::PluginApi::Definition#metrics), not a hand-written sampler class --
+  # Syrus::PluginApi::Definition#metrics), not a hand-written sampler class --
   # it registers/unregisters into Syrus::Metrics's sampler registry alongside
   # the metric declaration, and samples on the shared control-plane tick
   # (SampleGlobalMetricsJob) rather than Callbacks#on_tick's own poll cadence.
@@ -74,7 +74,7 @@ RSpec.describe ScheduledTasks::Engine do
       allow(Rails).to receive(:cache).and_return(cache)
       record = PluginRecord.find_or_initialize_by(name: "scheduled_tasks")
       record.update!(enabled: true)
-      Syrus::Host::Installer.sync!
+      Syrus::Installer.sync!
     end
 
     it "registers its sampler only while enabled" do
@@ -82,7 +82,7 @@ RSpec.describe ScheduledTasks::Engine do
       expect(sampler).to be_present
 
       PluginRecord.find_by!(name: "scheduled_tasks").update!(enabled: false)
-      Syrus::Host::Installer.sync!
+      Syrus::Installer.sync!
       expect(Syrus::Metrics.samplers).not_to include(sampler)
     end
 

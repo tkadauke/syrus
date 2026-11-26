@@ -17,7 +17,7 @@ RSpec.describe Kotlin::Engine do
     end
 
     it "registers with the correct metadata and Java dependency" do
-      expect(registration.version).to eq(Syrus::Host::PluginApi.default_version)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(46)
       expect(registration.category).to eq("language")
       expect(registration.depends_on).to eq([ "java" ])

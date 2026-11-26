@@ -32,7 +32,7 @@ module DesignDocs
     attr_reader :design_doc, :user, :audit_reason, :pending_action
 
     def audit!(previous_state:, new_state:)
-      Syrus::Host::AdminAction.log!(
+      AdminAction.log!(
         user: user,
         action: "archive_design_doc",
         params: {

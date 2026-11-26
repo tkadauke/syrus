@@ -6,7 +6,7 @@ require "java/maven_grader_type"
 require "java/ecosystem"
 
 module Java
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "java" do
     disableable true

@@ -39,7 +39,7 @@ module TestInsights
       task.checkpoint["last_test_identity_id"] = records.last.id if records.any?
       task.checkpoint["test_cases_done"] = true if done
       finish_content_version! if done
-      Syrus::Host::MaintenanceTaskResult.new(done: false, processed: records.size.nonzero? || (done ? 1 : 0), failed: 0, message: "Indexed #{records.size} test cases.", level: "progress")
+      MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: records.size.nonzero? || (done ? 1 : 0), failed: 0, message: "Indexed #{records.size} test cases.", level: "progress")
     end
     def self.backfill_search_table(_name) = SearchIndex.rebuild!
     def self.rebuild_search_table(name) = backfill_search_table(name)

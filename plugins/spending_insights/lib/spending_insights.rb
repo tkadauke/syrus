@@ -1,5 +1,5 @@
 module SpendingInsights
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "spending_insights" do
     experimental false

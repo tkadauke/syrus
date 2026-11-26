@@ -2,7 +2,7 @@ module TestInsights
   class TestCase < ApplicationRecord
     self.table_name = "test_insight_cases"
 
-    include Syrus::Host::HasConfigurableRetention
+    include HasConfigurableRetention
 
     configurable_retention setting_key: :test_insight_case_retention_days, unit: :days
 

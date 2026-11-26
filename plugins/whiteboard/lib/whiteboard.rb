@@ -1,5 +1,5 @@
 module Whiteboard
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "whiteboard" do
     experimental false

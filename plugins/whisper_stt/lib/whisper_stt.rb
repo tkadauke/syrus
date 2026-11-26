@@ -1,5 +1,5 @@
 module WhisperStt
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "whisper_stt" do
     requires_syrus nil

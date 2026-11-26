@@ -2,7 +2,7 @@ module Terminal
   class Session < Syrus::Host::Record
     self.table_name = "terminal_sessions"
 
-    include Syrus::Host::TracksFinishedAt
+    include TracksFinishedAt
 
     OUTCOMES = %w[ exited killed orphaned ].freeze
 

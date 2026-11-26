@@ -1,7 +1,7 @@
 module SyrusBrowser
   # DOC-17's first concrete RuntimeSessionProvider: a headless-Chromium
   # session driving the repo's own dev server, via the same
-  # PreviewProcessLauncher / Syrus::Host::AgentPreviewRegistry the workflow
+  # PreviewProcessLauncher / Mcp::Tools::AgentPreviewRegistry the workflow
   # start_preview MCP tool uses -- one dev-server-start-and-health-check
   # implementation shared across both call sites, not two.
   #
@@ -55,7 +55,7 @@ module SyrusBrowser
 
     def build_or_reload(session_id, options)
       runtime_session = find_runtime_session(session_id)
-      Syrus::Host::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
+      Mcp::Tools::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
       start_session(runtime_session.workspace_ref, options)
     end
 
@@ -129,7 +129,7 @@ module SyrusBrowser
     def stop_session(session_id)
       runtime_session = find_runtime_session(session_id)
       SessionRegistry.kill(SessionContext.for_runtime_session(runtime_session).session_key)
-      Syrus::Host::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
+      Mcp::Tools::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
       true
     end
 
@@ -142,7 +142,7 @@ module SyrusBrowser
     end
 
     def running_preview_for!(runtime_session)
-      Syrus::Host::AgentPreviewRegistry.get(runtime_session.workspace_ref) ||
+      Mcp::Tools::AgentPreviewRegistry.get(runtime_session.workspace_ref) ||
         raise(SessionNotFoundError, "no running dev server for session #{runtime_session.id} — call start_session first")
     end
 

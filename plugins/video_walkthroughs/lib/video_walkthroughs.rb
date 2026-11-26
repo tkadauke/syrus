@@ -1,5 +1,5 @@
 module VideoWalkthroughs
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "video_walkthroughs" do
     requires_syrus nil
@@ -47,7 +47,7 @@ module VideoWalkthroughs
     end
 
     # A plain aggregate value on a timer -- the declarative sample-block form
-    # (see Syrus::Host::PluginApi::Definition#metrics) samples this on the shared
+    # (see Syrus::PluginApi::Definition#metrics) samples this on the shared
     # control-plane tick, independent of Callbacks#on_tick's own daily
     # retention cadence.
     metrics do

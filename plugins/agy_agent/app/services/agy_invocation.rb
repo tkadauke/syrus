@@ -211,7 +211,7 @@ class AgyInvocation
   def agy_env(workspace_path:, agy_home:, api_key:, model:, effort_level:)
     Syrus::Host::ProcessRunner.forwarded_env(
       Syrus::Host::AgentRuntime.forwarded_env_keys,
-      extra: Syrus::Host::WorkspaceDependencyEnv.for(workspace_path).merge(
+      extra: WorkspaceDependencyEnv.for(workspace_path).merge(
         "HOME" => agy_home,
         "AGY_HOME" => agy_home,
         "ANTIGRAVITY_HOME" => agy_home,

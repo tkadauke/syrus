@@ -15,7 +15,7 @@ RSpec.describe SpendingInsights::MetricsDashboardTabs do
   # /metrics exposes.
   it "only charts metrics its own `metrics do ... end` block declares" do
     PluginRecord.find_or_create_by!(name: "spending_insights") { |record| record.enabled = true }
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
 
     described_class.metrics_dashboard_tabs.each do |tab|
       tab[:panels].each do |panel|

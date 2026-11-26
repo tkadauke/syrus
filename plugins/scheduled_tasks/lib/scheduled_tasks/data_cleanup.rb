@@ -8,13 +8,13 @@ module ScheduledTasks
   module DataCleanup
     def self.install_into(scope)
       scope.effect("repository schedules") do
-        Syrus::Host::DataCleanup.register("Repository", "scheduled_tasks.tasks") do |repository|
+        Syrus::DataCleanup.register("Repository", "scheduled_tasks.tasks") do |repository|
           ScheduledTasks::Task.where(repository_id: repository.id).find_each(&:destroy_as_system!)
         end
       end
 
       scope.effect("user cron templates") do
-        Syrus::Host::DataCleanup.register("User", "scheduled_tasks.cron_templates") do |user|
+        Syrus::DataCleanup.register("User", "scheduled_tasks.cron_templates") do |user|
           ScheduledTasks::CronTemplate.where(user_id: user.id).find_each(&:destroy)
         end
       end

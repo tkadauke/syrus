@@ -1,5 +1,5 @@
 module S3BackupDestination
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "s3_backup_destination" do
     experimental false

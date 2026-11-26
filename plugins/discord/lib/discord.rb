@@ -1,5 +1,5 @@
 module SyrusDiscord
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "discord" do
     requires_syrus nil

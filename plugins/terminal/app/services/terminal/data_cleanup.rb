@@ -8,7 +8,7 @@ module Terminal
   module DataCleanup
     def self.install_into(scope)
       scope.effect("user terminal sessions") do
-        Syrus::Host::DataCleanup.register("User", "terminal.sessions") do |user|
+        Syrus::DataCleanup.register("User", "terminal.sessions") do |user|
           Terminal::Session.where(user_id: user.id).find_each(&:destroy)
         end
       end

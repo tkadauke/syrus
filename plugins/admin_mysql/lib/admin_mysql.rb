@@ -1,5 +1,5 @@
 module AdminMysql
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   def self.mysql?
     Inspector.mysql?

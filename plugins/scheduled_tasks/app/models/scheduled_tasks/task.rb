@@ -6,7 +6,7 @@ module ScheduledTasks
   class Task < Syrus::Host::Record
     self.table_name = "scheduled_tasks"
     include Syrus::Host::AutoApproveModes
-    include Syrus::Host::AuthorizationCheckpointOrigin
+    include AuthorizationCheckpointOrigin
 
     attribute :schedule_timezone, :string, default: -> { Schedules::RecurringSchedule.server_timezone }
 
@@ -241,7 +241,7 @@ module ScheduledTasks
     def record_failure!
       increment!(:consecutive_failure_count)
       return if archived? || system_schedule?
-      if consecutive_failure_count >= Syrus::Host::AppSetting.max_job_failures
+      if consecutive_failure_count >= AppSetting.max_job_failures
         pause!(reason: "auto")
       end
     end

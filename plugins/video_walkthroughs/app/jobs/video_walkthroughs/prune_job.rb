@@ -15,7 +15,7 @@
 # the issue screenshots (attached to the chat turn) persist — they're the
 # durable value. "Archive" here means the record survives, the media doesn't.
 # Runs daily on the plugin queue.
-class VideoWalkthroughs::PruneJob < Syrus::Host::PluginJob
+class VideoWalkthroughs::PruneJob < PluginJob
   plugin :video_walkthroughs
 
   # Only videos from SETTLED walkthroughs are candidates — never purge one
@@ -38,7 +38,7 @@ class VideoWalkthroughs::PruneJob < Syrus::Host::PluginJob
 
 
   def time_sweep
-    days = Syrus::Host::AppSetting.video_retention_days.to_i
+    days = AppSetting.video_retention_days.to_i
     # Defense in depth against the destructive-cutoff footgun: AppSetting
     # validates days >= 1, but a direct DB edit (or a future bypass) with 0 or
     # negative would make `days.days.ago` land at/after now and purge every
@@ -67,7 +67,7 @@ class VideoWalkthroughs::PruneJob < Syrus::Host::PluginJob
       .pluck("#{table}.id", "#{table}.byte_size")
     total = candidates.sum { |(_id, bytes)| bytes.to_i }
 
-    budget = Syrus::Host::AppSetting.video_storage_budget_bytes
+    budget = AppSetting.video_storage_budget_bytes
     return if budget.zero?
     return if total <= budget
 

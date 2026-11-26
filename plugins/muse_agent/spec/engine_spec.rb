@@ -9,7 +9,7 @@ RSpec.describe SyrusMuseAgent::Engine do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "muse_agent" }
 
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(Syrus::Host::PluginApi.default_version)
+    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
     expect(manifest.default_enabled?).to be false
     expect(manifest.disableable?).to be true
   end

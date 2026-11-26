@@ -1,7 +1,7 @@
 require "runtime_terminal/data_cleanup"
 
 module RuntimeTerminal
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "runtime_terminal" do
     requires_syrus nil

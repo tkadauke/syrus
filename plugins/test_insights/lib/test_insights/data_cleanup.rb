@@ -3,25 +3,25 @@ module TestInsights
   # `Repository has_many :test_identities, dependent: :destroy`, injected onto
   # core models at boot.
   #
-  # Registered through Syrus::Host::Installer *without* a `plugin:` scope on purpose:
+  # Registered through Syrus::Installer *without* a `plugin:` scope on purpose:
   # disabling this plugin hides the Tests UI, it does not delete the rows, and
   # those rows must still go when their run or repository does.
   module DataCleanup
     def self.install_into(scope)
       scope.effect("run test results") do
-        Syrus::Host::DataCleanup.register("Run", "test_insights.test_runs") do |run|
+        Syrus::DataCleanup.register("Run", "test_insights.test_runs") do |run|
           TestInsights::TestRun.for_run(run).find_each(&:destroy)
         end
       end
 
       scope.effect("repository test identities") do
-        Syrus::Host::DataCleanup.register("Repository", "test_insights.test_identities") do |repository|
+        Syrus::DataCleanup.register("Repository", "test_insights.test_identities") do |repository|
           TestInsights::TestIdentity.for_repository(repository).find_each(&:destroy)
         end
       end
 
       scope.effect("repository isolated repro attempts") do
-        Syrus::Host::DataCleanup.register("Repository", "test_insights.isolated_repro_attempts") do |repository|
+        Syrus::DataCleanup.register("Repository", "test_insights.isolated_repro_attempts") do |repository|
           TestInsights::IsolatedReproAttempt.where(repository_id: repository.id).find_each(&:destroy)
         end
       end

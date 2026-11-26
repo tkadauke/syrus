@@ -1,5 +1,5 @@
 module ContainerExecution
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "container_execution" do
     requires_syrus nil

@@ -137,7 +137,7 @@ module GitMirror
     end
 
     def plugin_record
-      @plugin_record ||= Syrus::Host::PluginRecord.find_or_create_by!(name: "git_mirror")
+      @plugin_record ||= PluginRecord.find_or_create_by!(name: "git_mirror")
     end
   end
 end

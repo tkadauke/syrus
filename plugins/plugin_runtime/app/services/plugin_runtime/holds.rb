@@ -47,7 +47,7 @@ module PluginRuntime
     end
 
     def record
-      Syrus::Host::PluginRecord.find_by(name: "plugin_runtime")
+      PluginRecord.find_by(name: "plugin_runtime")
     end
   end
 end

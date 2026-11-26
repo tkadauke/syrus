@@ -9,7 +9,7 @@ module MysqlDbBrowser
     def self.start!(connection:, user:, actor: nil, statement:, read_only: true)
       raise ArgumentError, "An acting user is required to audit MySQL access" unless user
 
-      Syrus::Host::MysqlQueryAudit.create!(
+      MysqlQueryAudit.create!(
         mysql_connection: connection,
         user: user,
         agent_actor_type: actor&.class&.polymorphic_name,

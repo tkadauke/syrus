@@ -3,8 +3,8 @@ require "mcp"
 module ScheduledTasks
   module McpTools
     class FireScheduledTaskNowTool < MCP::Tool
-      extend Syrus::Host::ProposalToolSupport
-      extend Syrus::Host::PendingActionToolSupport
+      extend ::Mcp::Tools::ProposalToolSupport
+      extend ::Mcp::Tools::PendingActionToolSupport
       extend ScheduledTaskToolSupport
 
       tool_name "fire_scheduled_task_now"

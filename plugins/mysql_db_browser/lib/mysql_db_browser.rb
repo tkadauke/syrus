@@ -1,5 +1,5 @@
 module MysqlDbBrowser
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   def self.user_from_server_context(server_context)
     if server_context[:chat_session]

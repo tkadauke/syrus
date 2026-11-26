@@ -9,13 +9,13 @@ module AgentInsights
   module DataCleanup
     def self.install_into(scope)
       scope.effect("repository suggestions") do
-        Syrus::Host::DataCleanup.register("Repository", "agent_insights.suggestions") do |repository|
+        Syrus::DataCleanup.register("Repository", "agent_insights.suggestions") do |repository|
           AgentInsights::Suggestion.for_repository(repository).find_each(&:destroy)
         end
       end
 
       scope.effect("repository schedule config") do
-        Syrus::Host::DataCleanup.register("Repository", "agent_insights.schedule_config") do |repository|
+        Syrus::DataCleanup.register("Repository", "agent_insights.schedule_config") do |repository|
           AgentInsights::ScheduleConfig.for_repository(repository)&.destroy
         end
       end

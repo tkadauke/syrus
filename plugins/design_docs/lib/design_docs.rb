@@ -1,7 +1,7 @@
 require "design_docs/data_cleanup"
 
 module DesignDocs
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "design_docs" do
     experimental false

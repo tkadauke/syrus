@@ -1,4 +1,4 @@
-class IndexEpicSearchJob < Syrus::Host::PluginJob
+class IndexEpicSearchJob < PluginJob
   plugin :global_search
 
   def perform(epic_id)

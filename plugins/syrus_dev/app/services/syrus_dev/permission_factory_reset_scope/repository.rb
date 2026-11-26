@@ -8,8 +8,8 @@ module SyrusDev
         .or(Syrus::Host::UserRecord.where(id: requests.select(:user_id)))
     end
 
-    def rules = Syrus::Host::PermissionRule.where(subject_repository_id: repository.id)
-    def leases = Syrus::Host::PermissionLease.where(subject_repository_id: repository.id)
+    def rules = PermissionRule.where(subject_repository_id: repository.id)
+    def leases = PermissionLease.where(subject_repository_id: repository.id)
     def requests = ChatPendingAction.where(request_kind: "authorization_request", repository_id: repository.id)
   end
 end

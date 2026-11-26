@@ -1,5 +1,5 @@
 module AgentMemory
-  # Renders the memory section core prompts ask for through `Syrus::Host::Memory`.
+  # Renders the memory section core prompts ask for through `Syrus::Memory`.
   class PromptContext
     FULL_CONTENT_KINDS = %w[feedback user_pref].freeze
     COMPACT_INDEX_KINDS = %w[project_fact decision reference].freeze

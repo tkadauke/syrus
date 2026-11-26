@@ -299,7 +299,7 @@ module TestInsights
       end
 
       def worker_health_payload
-        Syrus::Host::WorkerHealthRunCorrelation.for_run(@run, sample_limit: 0).slice(:run_id, :primary_hostname, :range, :pressure, :command_spans)
+        WorkerHealthRunCorrelation.for_run(@run, sample_limit: 0).slice(:run_id, :primary_hostname, :range, :pressure, :command_spans)
       end
     end
 

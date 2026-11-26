@@ -16,26 +16,26 @@ RSpec.describe VideoWalkthroughs::Engine do
   end
 
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no
-  # series at all. The declaration is a Syrus::Host::Installer while_enabled effect,
+  # series at all. The declaration is a Syrus::Installer while_enabled effect,
   # which is sync-on-read (see MetricsController#sync_plugin_declarations)
   # rather than reapplied on a timer, so the test drives that sync explicitly.
   it "declares its storage bytes gauge only while enabled" do
     record = PluginRecord.find_or_initialize_by(name: "video_walkthroughs")
     record.update!(enabled: true)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_video_walkthroughs_storage_bytes)).to be(true)
 
     PluginRecord.find_by!(name: "video_walkthroughs").update!(enabled: false)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_video_walkthroughs_storage_bytes)).to be(false)
 
     PluginRecord.find_by!(name: "video_walkthroughs").update!(enabled: true)
-    Syrus::Host::Installer.sync!
+    Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_video_walkthroughs_storage_bytes)).to be(true)
   end
 
   # The storage_bytes gauge is the declarative sample-block form (see
-  # Syrus::Host::PluginApi::Definition#metrics), not a hand-written sampler class --
+  # Syrus::PluginApi::Definition#metrics), not a hand-written sampler class --
   # it registers/unregisters into Syrus::Metrics's sampler registry alongside
   # the metric declaration, and samples on the shared control-plane tick
   # (SampleGlobalMetricsJob) rather than Callbacks#on_tick's own daily
@@ -49,7 +49,7 @@ RSpec.describe VideoWalkthroughs::Engine do
       AppSetting.current.update!(beta_mode_enabled: true)
       record = PluginRecord.find_or_initialize_by(name: "video_walkthroughs")
       record.update!(enabled: true)
-      Syrus::Host::Installer.sync!
+      Syrus::Installer.sync!
     end
 
     def find_sampler
@@ -61,7 +61,7 @@ RSpec.describe VideoWalkthroughs::Engine do
       expect(sampler).to be_present
 
       PluginRecord.find_by!(name: "video_walkthroughs").update!(enabled: false)
-      Syrus::Host::Installer.sync!
+      Syrus::Installer.sync!
       expect(Syrus::Metrics.samplers).not_to include(sampler)
     end
 

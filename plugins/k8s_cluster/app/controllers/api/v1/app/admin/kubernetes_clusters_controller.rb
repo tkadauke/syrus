@@ -6,7 +6,7 @@ module Api
           before_action :require_k8s_cluster_enabled
 
           def index
-            clusters = Syrus::Host::KubernetesCluster.order(:label).to_a
+            clusters = KubernetesCluster.order(:label).to_a
             credentials = K8sCluster::ClusterCredential.credentials_by_id_for(clusters)
             render json: {
               kubernetes_clusters: clusters.map { |cluster| cluster_json(cluster, credential: credentials[cluster.credential_store_credential_id]) },
@@ -15,7 +15,7 @@ module Api
           end
 
           def create
-            cluster = Syrus::Host::KubernetesCluster.new(cluster_params)
+            cluster = KubernetesCluster.new(cluster_params)
 
             ActiveRecord::Base.transaction do
               apply_kubeconfig!(cluster, require_kubeconfig: true)
@@ -130,7 +130,7 @@ module Api
           def pending_kubeconfig = @pending_kubeconfig
 
           def find_cluster
-            Syrus::Host::KubernetesCluster.find(params[:id])
+            KubernetesCluster.find(params[:id])
           end
 
           def cluster_params

@@ -6,8 +6,8 @@ RSpec.describe Tailscale::StatusPayload do
   end
 
   def stub_auth_key_present(present)
-    settings = instance_double(Syrus::Host::PluginSettings, present?: present)
-    allow(Syrus::Host::PluginSettings).to receive(:for).with("tailscale").and_return(settings)
+    settings = instance_double(Syrus::PluginSettings, present?: present)
+    allow(Syrus::PluginSettings).to receive(:for).with("tailscale").and_return(settings)
   end
 
   describe "#call" do

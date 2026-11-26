@@ -1,5 +1,5 @@
 module ThemingTools
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "theming_tools" do
     requires_syrus nil

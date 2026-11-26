@@ -5,7 +5,7 @@ require "kotlin/review_criteria_provider"
 require "kotlin/ecosystem"
 
 module Kotlin
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "kotlin" do
     disableable true

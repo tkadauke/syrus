@@ -11,7 +11,7 @@ module DesignDocs
 
     def call
       recipients.find_each do |recipient|
-        Syrus::Host::AppEvents.broadcast(
+        AppEvents.broadcast(
           user: recipient,
           type: "design_doc.updated",
           resource: "design_doc",

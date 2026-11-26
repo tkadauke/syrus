@@ -1,5 +1,5 @@
 module PendingActions
-  class DeleteDesignDoc < Syrus::Host::PendingActionBase
+  class DeleteDesignDoc < Base
     action_key "delete_design_doc"
 
     def execute

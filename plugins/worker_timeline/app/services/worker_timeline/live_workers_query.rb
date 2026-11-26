@@ -232,7 +232,7 @@ module WorkerTimeline
     def critical_dimensions_for(sample)
       return [] unless sample
 
-      Syrus::Host::WorkerHealthSampleAnalysis.critical_dimensions_for(sample).map(&:to_s)
+      WorkerHealthSampleAnalysis.critical_dimensions_for(sample).map(&:to_s)
     end
 
     # Two unrelated conditions share this status: a host over its thread
@@ -412,7 +412,7 @@ module WorkerTimeline
     def worker_processes
       @worker_processes ||= SolidQueue::Process
         .where(kind: "Worker")
-        .where("last_heartbeat_at > ?", Syrus::Host::InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
+        .where("last_heartbeat_at > ?", InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
         .then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }
         .order(:hostname, :pid)
         .to_a
@@ -421,7 +421,7 @@ module WorkerTimeline
     end
 
     def instance_versions
-      @instance_versions ||= Syrus::Host::InstanceVersion.fresh.where(role: "worker").then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(:hostname).to_a
+      @instance_versions ||= InstanceVersion.fresh.where(role: "worker").then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(:hostname).to_a
     end
 
     def latest_samples_by_key
@@ -481,13 +481,13 @@ module WorkerTimeline
     end
 
     def samples
-      @samples ||= Syrus::Host::WorkerHostHealthSample.worker_role.where(observed_at: from..to).then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(observed_at: :desc).to_a
+      @samples ||= WorkerHostHealthSample.worker_role.where(observed_at: from..to).then { |scope| hostname_filter ? scope.where(hostname: hostname_filter) : scope }.order(observed_at: :desc).to_a
     end
 
     def health_payload(sample)
       return { level: "unknown", reasons: [ "no recent host health sample" ], observed_at: nil } unless sample
 
-      analysis = Syrus::Host::WorkerHealthSampleAnalysis.health_for(sample)
+      analysis = WorkerHealthSampleAnalysis.health_for(sample)
       {
         level: analysis.fetch(:level),
         reasons: analysis.fetch(:reasons),
@@ -532,7 +532,7 @@ module WorkerTimeline
     end
 
     def queue_names(raw)
-      Syrus::Host::InstanceVersion.queue_names(raw)
+      InstanceVersion.queue_names(raw)
     end
 
     def command_excerpt(command)

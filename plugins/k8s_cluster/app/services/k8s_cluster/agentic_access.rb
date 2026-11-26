@@ -9,7 +9,7 @@ module K8sCluster
   # manifest-build time (ChatToolSet/WorkflowToolSet#available_for? only ever
   # sees the surface, never an individual call's params) - so each tool calls
   # this from inside its own #call, mirroring
-  # Syrus::Host::McpAuthorizationSupport's find_*! pattern for first-party tools.
+  # Mcp::Tools::AuthorizationSupport's find_*! pattern for first-party tools.
   class AgenticAccess
     extend Syrus::Host::AgenticConnection
 
@@ -30,7 +30,7 @@ module K8sCluster
     ].freeze
 
     def self.safe_cluster_metadata(context:)
-      clusters = Syrus::Host::KubernetesCluster.where(agentic_access_enabled: true).order(:label, :id).to_a
+      clusters = KubernetesCluster.where(agentic_access_enabled: true).order(:label, :id).to_a
       clusters.select! { |cluster| coworker_cluster_in_scope?(cluster, context) }
       credentials = ClusterCredential.credentials_by_id_for(clusters)
       clusters.filter_map do |cluster|
@@ -48,7 +48,7 @@ module K8sCluster
     end
 
     def self.cluster!(id, context: Thread.current[:k8s_cluster_mcp_context])
-      cluster = Syrus::Host::KubernetesCluster.find_by(id: id)
+      cluster = KubernetesCluster.find_by(id: id)
       unless cluster && usable_by?(cluster, context, credential: ClusterCredential.credential_for(cluster))
         raise ClusterNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
       end
@@ -57,7 +57,7 @@ module K8sCluster
       end
 
       find_agentic!(
-        Syrus::Host::KubernetesCluster, id,
+        KubernetesCluster, id,
         resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
         not_found_error: ClusterNotFound, access_disabled_error: AccessDisabled
       )

@@ -15,7 +15,7 @@ module K8sCluster
   class ChatToolSet
     include Syrus::Host::GatedToolSet
 
-    gated_by plugin: K8sCluster, model: Syrus::Host::KubernetesCluster, label: "K8s Cluster"
+    gated_by plugin: K8sCluster, model: KubernetesCluster, label: "K8s Cluster"
 
     TOOL_CLASSES = [
       ListClustersTool,
@@ -74,7 +74,7 @@ module K8sCluster
           context = Syrus::Host::ToolContext.new(surface: :chat, role: Syrus::Host::AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_cluster_metadata(context: context).pluck(:id)
         },
-        label: ->(id) { Syrus::Host::KubernetesCluster.find_by(id: id)&.label || "Kubernetes cluster #{id}" },
+        label: ->(id) { KubernetesCluster.find_by(id: id)&.label || "Kubernetes cluster #{id}" },
         valid: lambda { |id, user:|
           context = Syrus::Host::ToolContext.new(surface: :chat, role: Syrus::Host::AgentRole::CHAT_PLANNER, user: user)
           AgenticAccess.safe_cluster_metadata(context: context).any? { |cluster| cluster.fetch(:id).to_s == id.to_s }

@@ -7,7 +7,7 @@
 # deployment it either wrote to the wrong node's database or failed and got
 # swallowed as an enrichment warning. Routing it through the plugin queue keeps
 # it off compute workers, which do not consume plugin queues.
-class IndexTestIdentitiesJob < Syrus::Host::PluginJob
+class IndexTestIdentitiesJob < PluginJob
   plugin :test_insights
 
   def perform(test_identity_ids)

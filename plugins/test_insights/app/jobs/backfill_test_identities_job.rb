@@ -1,4 +1,4 @@
-class BackfillTestIdentitiesJob < Syrus::Host::PluginJob
+class BackfillTestIdentitiesJob < PluginJob
   plugin :test_insights
 
   def perform(repository_id)

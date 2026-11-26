@@ -10,9 +10,9 @@ module K8sCluster
       end
 
       def cluster_for(value)
-        return Syrus::Host::KubernetesCluster.find(value) if value.present?
+        return KubernetesCluster.find(value) if value.present?
 
-        clusters = Syrus::Host::KubernetesCluster.order(:label).to_a
+        clusters = KubernetesCluster.order(:label).to_a
         raise ArgumentError, "no Kubernetes clusters are registered" if clusters.empty?
         raise ArgumentError, "multiple clusters are registered; pass --cluster ID (see `syrus k8s clusters`)" if clusters.many?
 

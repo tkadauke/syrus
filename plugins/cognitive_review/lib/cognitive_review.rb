@@ -1,5 +1,5 @@
 module CognitiveReview
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "cognitive_review" do
     requires_syrus nil

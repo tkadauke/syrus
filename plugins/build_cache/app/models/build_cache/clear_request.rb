@@ -52,7 +52,7 @@ module BuildCache
         }
       )
 
-      Syrus::Host::AdminAction.log!(
+      AdminAction.log!(
         user: user,
         action: :build_cache_clear,
         params: {

@@ -61,7 +61,7 @@ module Api
             tempfile = archive.open(backup)
             total = tempfile.size
             offset, length, status = download_range(total)
-            Syrus::Host::AdminAction.log!(user: current_user, action: "local_backup_downloaded", params: {
+            AdminAction.log!(user: current_user, action: "local_backup_downloaded", params: {
               backup_uuid: backup.uuid, range_start: offset, range_length: length, archive_bytes: total
             })
             response.headers["Accept-Ranges"] = "bytes"

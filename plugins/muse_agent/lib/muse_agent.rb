@@ -1,7 +1,7 @@
 require "syrus/installer"
 
 module SyrusMuseAgent
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "muse_agent" do
     requires_syrus nil

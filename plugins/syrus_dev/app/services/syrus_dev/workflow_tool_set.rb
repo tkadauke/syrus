@@ -9,11 +9,11 @@ module SyrusDev
     }.freeze
 
     def self.available_for?(repository)
-      Syrus::Host::McpToolPolicy.syrus_repository?(repository)
+      McpToolPolicy.syrus_repository?(repository)
     end
 
     def self.available_for_context?(context)
-      Syrus::Host::McpToolPolicy.syrus_repository?(context.repository) && tool_classes_for(context.role).any?
+      McpToolPolicy.syrus_repository?(context.repository) && tool_classes_for(context.role).any?
     end
 
     def self.tool_definitions(context: nil)

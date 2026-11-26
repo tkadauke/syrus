@@ -6,7 +6,7 @@ module Api
           before_action :require_mysql_db_browser_enabled
 
           def index
-            connections = Syrus::Host::MysqlConnection.order(:label).to_a
+            connections = MysqlConnection.order(:label).to_a
             credentials_by_id = ::MysqlDbBrowser::CredentialMaterial.credentials_by_id_for(connections)
             render json: {
               mysql_connections: connections.map do |connection|
@@ -20,12 +20,12 @@ module Api
           end
 
           def create
-            connection = Syrus::Host::MysqlConnection.new(connection_params)
+            connection = MysqlConnection.new(connection_params)
             password = params.dig(:mysql_connection, :password).presence
 
             if connection.valid?
               scope = requested_scope(default_type: "user", default_id: Syrus::Host::Current.user.id)
-              Syrus::Host::MysqlConnection.transaction do
+              MysqlConnection.transaction do
                 connection.save!
                 ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Syrus::Host::Current.user, **scope) if password
               end
@@ -50,7 +50,7 @@ module Api
                 default_type: credential&.scope_type || "user",
                 default_id: credential&.scope_id || Syrus::Host::Current.user.id
               )
-              Syrus::Host::MysqlConnection.transaction do
+              MysqlConnection.transaction do
                 connection.save!
                 if password
                   ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Syrus::Host::Current.user, **scope)
@@ -125,13 +125,13 @@ module Api
 
           def admin_credential_context
             Syrus::Host::ToolContext.new(
-              surface: Syrus::Host::MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
+              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Syrus::Host::Current.user,
               allowed_repository_ids: Syrus::Host::RepositoryRecord.ids
             )
           end
 
           def find_connection
-            Syrus::Host::MysqlConnection.find(params[:id])
+            MysqlConnection.find(params[:id])
           end
 
           def connection_params

@@ -2,7 +2,7 @@ require "plugin_runtime/service"
 require "plugin_runtime/privileged_service"
 
 module PluginRuntime
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "plugin_runtime" do
     requires_syrus nil

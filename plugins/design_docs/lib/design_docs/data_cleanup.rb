@@ -12,14 +12,14 @@ module DesignDocs
   module DataCleanup
     def self.install_into(scope)
       scope.effect("user documents") do
-        Syrus::Host::DataCleanup.register("User", "design_docs.owned_documents") do |user|
+        Syrus::DataCleanup.register("User", "design_docs.owned_documents") do |user|
           DesignDocs::DesignDoc.where(owner_user_id: user.id).find_each(&:destroy)
           DesignDocs::DesignDocCollaborator.where(user_id: user.id).find_each(&:destroy)
         end
       end
 
       scope.effect("repository links") do
-        Syrus::Host::DataCleanup.register("Repository", "design_docs.repository_links") do |repository|
+        Syrus::DataCleanup.register("Repository", "design_docs.repository_links") do |repository|
           DesignDocs::DesignDocRepository.where(repository_id: repository.id).find_each(&:destroy)
         end
       end
@@ -28,7 +28,7 @@ module DesignDocs
       # chat outlives that chat. This mirrors the `dependent: :nullify` the
       # injected association carried.
       scope.effect("origin chat back-references") do
-        Syrus::Host::DataCleanup.register("ChatSession", "design_docs.origin_chat") do |chat_session|
+        Syrus::DataCleanup.register("ChatSession", "design_docs.origin_chat") do |chat_session|
           DesignDocs::DesignDoc.where(origin_chat_session_id: chat_session.id)
                                .update_all(origin_chat_session_id: nil)
         end

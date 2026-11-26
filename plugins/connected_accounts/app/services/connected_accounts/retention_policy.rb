@@ -4,7 +4,7 @@ module ConnectedAccounts
 
     def self.retention_definitions
       [
-        Syrus::Host::RetentionPolicyRegistry::Definition.new(
+        RetentionPolicyRegistry::Definition.new(
           key: :connected_account,
           model: "ConnectedAccounts::Account",
           table_name: "connected_accounts_accounts",

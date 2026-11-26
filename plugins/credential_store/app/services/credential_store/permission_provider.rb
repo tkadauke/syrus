@@ -166,7 +166,7 @@ module CredentialStore
       def safe_review_command(command)
         reviewed = Syrus::Host::ToolPayloadRedactor.redact_text(command.to_s)
         if reviewed.blank? || reviewed == Syrus::Host::ToolPayloadRedactor::REDACTED
-          raise Syrus::Host::McpAuthorizationSupport::AuthorizationError, "SSH command cannot be represented safely for review"
+          raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "SSH command cannot be represented safely for review"
         end
         reviewed
       end

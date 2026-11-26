@@ -2,8 +2,8 @@ module SyrusDev
   class PermissionFactoryResetScope::Instance < PermissionFactoryResetScope
     def users = Syrus::Host::UserRecord.all
     def profile_users = users
-    def rules = Syrus::Host::PermissionRule.all
-    def leases = Syrus::Host::PermissionLease.all
+    def rules = PermissionRule.all
+    def leases = PermissionLease.all
     def requests = ChatPendingAction.where(request_kind: "authorization_request")
 
     private

@@ -255,7 +255,7 @@ class ClaudeInvocation
   def agent_env(oauth_token:, workspace_path:)
     forwarded = Syrus::Host::ProcessRunner.forwarded_env(
       Syrus::Host::AgentRuntime.forwarded_env_keys,
-      extra: Syrus::Host::WorkspaceDependencyEnv.for(workspace_path).merge("CLAUDE_CODE_OAUTH_TOKEN" => oauth_token)
+      extra: WorkspaceDependencyEnv.for(workspace_path).merge("CLAUDE_CODE_OAUTH_TOKEN" => oauth_token)
     )
     # If the worktree itself is a Bundler project (its own Gemfile),
     # point BUNDLE_GEMFILE at it explicitly. Saves the agent from

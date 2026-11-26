@@ -27,7 +27,7 @@ module SdlcPipeline
         at, range_start, range_end = [ at, range_start, range_end ].map { |value| validated_time(value) }
         path = pipeline_path(repository.id, validated, at:, range_start:, range_end:)
 
-        Syrus::Host::AppEvents.broadcast_chat_resource(
+        AppEvents.broadcast_chat_resource(
           chat_session_id: chat_session.id, type: "updated", resource: "chat", id: chat_session.id,
           payload: { action: "open_tool_presentation", presentation: "sdlc_pipeline", title_i18n_key: "sdlc_pipeline:title", path: path }
         )

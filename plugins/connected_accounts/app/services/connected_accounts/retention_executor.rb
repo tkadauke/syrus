@@ -6,7 +6,7 @@ module ConnectedAccounts
       @definition = definition
     end
 
-    def call(batch_size: Syrus::Host::RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: Syrus::Host::RetentionPruner::DEFAULT_MAX_BATCHES)
+    def call(batch_size: RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: RetentionPruner::DEFAULT_MAX_BATCHES)
       window = @definition.retention_window
       return Result.new(deleted_count: 0, backlog: false) unless window
 

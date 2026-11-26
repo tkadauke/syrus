@@ -7,7 +7,7 @@ module MetricsDashboard
   class Sample < Syrus::Host::Record
     self.table_name = "metrics_dashboard_samples"
 
-    include Syrus::Host::HasConfigurableRetention
+    include HasConfigurableRetention
 
     configurable_retention setting_key: :metrics_dashboard_sample_retention_days, unit: :days
 

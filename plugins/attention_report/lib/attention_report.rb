@@ -1,5 +1,5 @@
 module AttentionReport
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "attention_report" do
     experimental false

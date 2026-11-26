@@ -1,5 +1,5 @@
 module Tailscale
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "tailscale" do
     requires_syrus nil

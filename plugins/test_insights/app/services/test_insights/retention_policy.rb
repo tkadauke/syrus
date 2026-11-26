@@ -4,7 +4,7 @@ module TestInsights
 
     def self.retention_definitions
       [
-        Syrus::Host::RetentionPolicyRegistry::Definition.new(
+        RetentionPolicyRegistry::Definition.new(
           key: :test_insight_case,
           model: "TestInsights::TestCase",
           table_name: "test_insight_cases",

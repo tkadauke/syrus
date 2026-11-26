@@ -1,4 +1,4 @@
-class TerminalSessionJob < Syrus::Host::PluginJob
+class TerminalSessionJob < PluginJob
   plugin :terminal
 
   def perform(terminal_session_id, runtime_session_id: nil, provider_key: nil)

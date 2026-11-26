@@ -7,7 +7,7 @@ require "go/coverage_analyzer"
 require "go/ecosystem"
 
 module Go
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "go" do
     default_enabled true

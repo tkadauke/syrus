@@ -16,7 +16,7 @@ RSpec.describe Python::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(Syrus::Host::PluginApi.default_version)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(30)
       expect(registration.category).to eq("language")
     end

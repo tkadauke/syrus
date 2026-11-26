@@ -1,5 +1,5 @@
 module WorkerTimeline
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   FILTER_CHIPS = {
     "repository_id" => "Filters::Chips::WorkerTimeline::RepositoryId",

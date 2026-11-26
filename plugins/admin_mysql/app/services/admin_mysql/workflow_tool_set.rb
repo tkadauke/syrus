@@ -7,7 +7,7 @@ module AdminMysql
     ].freeze
 
     def self.available_for?(repository)
-      AdminMysql.mysql? && Syrus::Host::McpToolPolicy.syrus_repository?(repository)
+      AdminMysql.mysql? && McpToolPolicy.syrus_repository?(repository)
     end
 
     def self.available_for_context?(context)

@@ -1,5 +1,5 @@
 module SyrusLinearSource
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "linear_source" do
     requires_syrus nil

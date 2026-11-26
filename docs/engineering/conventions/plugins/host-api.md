@@ -7,19 +7,6 @@ unlisted members are internal.
 
 ## Public APIs
 
-### `Syrus::Host::AdminAction`
-
-Since: `0.1.16`
-
-Records and queries admin audit actions (log!, where, last, count); the audit schema beyond those is not promised.
-
-Supported members:
-
-- `count`
-- `last`
-- `log!`
-- `where`
-
 ### `Syrus::Host::AdminController`
 
 Since: `0.1.16`
@@ -40,12 +27,6 @@ Supplies admin navigation and route metadata; host navigation implementation det
 Supported members:
 
 - `admin_pages`
-
-### `Syrus::Host::AdminPendingActionToolSupport`
-
-Since: `0.1.16`
-
-Mixin for admin MCP tools that act on pending actions; the action lifecycle is not promised.
 
 ### `Syrus::Host::AdversarialReviewProjects`
 
@@ -87,12 +68,6 @@ Supported members:
 
 - `tool_result`
 - `tool_use`
-
-### `Syrus::Host::AgentPreviewRegistry`
-
-Since: `0.1.16`
-
-Registers and looks up agent preview handlers for chat tools; the registry's storage is not promised.
 
 ### `Syrus::Host::AgentPrompts`
 
@@ -291,17 +266,6 @@ Supported members:
 - `params`
 - `render`
 
-### `Syrus::Host::AppEvents`
-
-Since: `0.1.16`
-
-Broadcasts app events to connected clients (broadcast, broadcast_chat_resource); channel names and payloads are not promised.
-
-Supported members:
-
-- `broadcast`
-- `broadcast_chat_resource`
-
 ### `Syrus::Host::AppPresentation`
 
 Since: `0.1.16`
@@ -315,22 +279,6 @@ Supported members:
 - `external_pr_url`
 - `job_slug`
 
-### `Syrus::Host::AppSetting`
-
-Since: `0.1.16`
-
-Reads instance-wide settings through current and named readers (discord_bot_token, max_job_failures, polling_paused?, ui_engagement_telemetry_enabled?, video_retention_days, video_storage_budget_bytes); storage and other settings are not promised.
-
-Supported members:
-
-- `current`
-- `discord_bot_token`
-- `max_job_failures`
-- `polling_paused?`
-- `ui_engagement_telemetry_enabled?`
-- `video_retention_days`
-- `video_storage_budget_bytes`
-
 ### `Syrus::Host::ApplicationRecord`
 
 Since: `0.1.16`
@@ -343,37 +291,6 @@ Supported members:
 - `table_name`
 - `table_name=`
 
-### `Syrus::Host::AuthorizationCheckpointOrigin`
-
-Since: `0.1.16`
-
-Names where an authorization checkpoint originated; origin values are not promised.
-
-### `Syrus::Host::AuthorizationDecision`
-
-Since: `0.1.16`
-
-Base value for an authorization decision plugins specialize; decision evaluation is not promised.
-
-### `Syrus::Host::AuthorizationRequest`
-
-Since: `0.1.16`
-
-Base value for an authorization request plugins specialize; request evaluation is not promised.
-
-### `Syrus::Host::AuthorizedInvocation`
-
-Since: `0.1.16`
-
-Issues and claims authorized tool invocations (issue!, where, unclaimed, ClaimResult); storage is not promised.
-
-Supported members:
-
-- `ClaimResult`
-- `issue!`
-- `unclaimed`
-- `where`
-
 ### `Syrus::Host::AutoApproveModes`
 
 Since: `0.1.16`
@@ -384,16 +301,6 @@ Supported members:
 
 - `option_for`
 - `options`
-
-### `Syrus::Host::BackendExceptionLogging`
-
-Since: `0.1.16`
-
-Ingests a failed background job into the exception log (ingest_job); log storage is not promised.
-
-Supported members:
-
-- `ingest_job`
 
 ### `Syrus::Host::BackgroundJob`
 
@@ -447,12 +354,6 @@ Supported members:
 - `new`
 - `target_repository`
 
-### `Syrus::Host::BulkPendingActionToolSupport`
-
-Since: `0.1.16`
-
-Mixin for MCP tools that act on pending actions in batches; MAX_BATCH_SIZE is the batch cap and may change.
-
 ### `Syrus::Host::CableChannel`
 
 Since: `0.1.16`
@@ -495,16 +396,6 @@ Builds the human-facing capability and operation names and descriptions a capabi
 Supported members:
 
 - `for`
-
-### `Syrus::Host::CapabilityRegistryValidator`
-
-Since: `0.1.16`
-
-Validates a capability registry against the application (for_application); validation rules are not promised.
-
-Supported members:
-
-- `for_application`
 
 ### `Syrus::Host::CapabilityValidationError`
 
@@ -870,16 +761,6 @@ Supported members:
 - `table`
 - `text`
 
-### `Syrus::Host::ClusterCounterSampler`
-
-Since: `0.1.16`
-
-Captures the cluster counter status for metrics (capture_status); sampling cadence is not promised.
-
-Supported members:
-
-- `capture_status`
-
 ### `Syrus::Host::CodexAccountScope`
 
 Since: `0.1.16`
@@ -1138,33 +1019,6 @@ Supported members:
 - `new`
 - `raw`
 
-### `Syrus::Host::CoworkerDefaultPolicy`
-
-Since: `0.1.16`
-
-Evaluates the default coworker tool policy (ROLES, validate!, verdict, violations, grant_policy_for, requestable?, descriptor_auto_allowable?); the policy table itself may change.
-
-Supported members:
-
-- `ROLES`
-- `descriptor_auto_allowable?`
-- `grant_policy_for`
-- `requestable?`
-- `validate!`
-- `verdict`
-- `violations`
-
-### `Syrus::Host::CoworkerToolExposure`
-
-Since: `0.1.16`
-
-Answers whether a plugin tool definition or provider is exposed to coworkers (plugin_definition?, plugin_provider?); exposure rules are not promised.
-
-Supported members:
-
-- `plugin_definition?`
-- `plugin_provider?`
-
 ### `Syrus::Host::CredentialProbe`
 
 Since: `0.1.16`
@@ -1187,16 +1041,6 @@ Supported members:
 
 - `api_user`
 - `user`
-
-### `Syrus::Host::DataCleanup`
-
-Since: `0.1.16`
-
-Registers a plugin's data-cleanup contribution (register); cleanup scheduling and ordering are not promised.
-
-Supported members:
-
-- `register`
 
 ### `Syrus::Host::DiffReviewAnnotationProvider`
 
@@ -1351,16 +1195,6 @@ Supported members:
 
 - `parse`
 
-### `Syrus::Host::Events`
-
-Since: `0.1.16`
-
-Publishes a named domain event for subscribers (publish); delivery, ordering and retries are not promised.
-
-Supported members:
-
-- `publish`
-
 ### `Syrus::Host::EvidenceRedactor`
 
 Since: `0.1.16`
@@ -1472,24 +1306,6 @@ Supported members:
 - `provider_key`
 - `refresh`
 - `submit`
-
-### `Syrus::Host::Feature`
-
-Since: `0.1.16`
-
-Reads and manages feature flags (enabled?, clear_enabled_cache!, find_or_create_by!, create!, where, find_by!, public_send for named *_enabled? predicates); the flag set is not promised.
-
-Supported members:
-
-- `clear_enabled_cache!`
-- `coding_mode_enabled?`
-- `coworker_connected_accounts_enabled?`
-- `create!`
-- `enabled?`
-- `find_by!`
-- `find_or_create_by!`
-- `public_send`
-- `where`
 
 ### `Syrus::Host::Filters`
 
@@ -1783,12 +1599,6 @@ Supported members:
 - `release!`
 - `rename!`
 
-### `Syrus::Host::HasConfigurableRetention`
-
-Since: `0.1.16`
-
-Model concern giving a plugin-owned record a configurable retention window; retention execution is not promised.
-
 ### `Syrus::Host::InboundMessageRouter`
 
 Since: `0.1.16`
@@ -1814,31 +1624,6 @@ Base class for plugin-contributed input sources (issue intake); only subclassing
 Supported members:
 
 - `new`
-
-### `Syrus::Host::Installer`
-
-Since: `0.1.16`
-
-Syncs plugin-owned installed assets (sync!); what is installed and when is not promised.
-
-Supported members:
-
-- `sync!`
-
-### `Syrus::Host::InstanceVersion`
-
-Since: `0.1.16`
-
-Reads live worker heartbeats (fresh, worker_live?, worker_queue_live?, queue_names, HEARTBEAT_STALE_THRESHOLD); heartbeat storage is not promised.
-
-Supported members:
-
-- `HEARTBEAT_STALE_THRESHOLD`
-- `create!`
-- `fresh`
-- `queue_names`
-- `worker_live?`
-- `worker_queue_live?`
 
 ### `Syrus::Host::InvestigationJobCreator`
 
@@ -2036,23 +1821,6 @@ Supported members:
 - `ParseError`
 - `parse`
 
-### `Syrus::Host::KubernetesCluster`
-
-Since: `0.1.16`
-
-Queries registered Kubernetes clusters through basic finders; credentials and unlisted columns are not promised.
-
-Supported members:
-
-- `all`
-- `count`
-- `find`
-- `find_by`
-- `find_each`
-- `new`
-- `order`
-- `where`
-
 ### `Syrus::Host::LandedCommit`
 
 Since: `0.1.16`
@@ -2084,32 +1852,6 @@ Supported members:
 - `new`
 - `run`
 
-### `Syrus::Host::MaintenanceTaskResult`
-
-Since: `0.1.16`
-
-Value a maintenance task returns (new); how results are recorded is not promised.
-
-Supported members:
-
-- `new`
-
-### `Syrus::Host::McpAuthorizationSupport`
-
-Since: `0.1.16`
-
-Mixin giving MCP tool handlers authorization helpers and the AuthorizationError they raise; helper internals are not promised.
-
-### `Syrus::Host::McpInvocationContext`
-
-Since: `0.1.16`
-
-Issues the MCP invocation context handed to an agent run (issue_for_app_run); token format is not promised.
-
-Supported members:
-
-- `issue_for_app_run`
-
 ### `Syrus::Host::McpPagination`
 
 Since: `0.1.16`
@@ -2129,39 +1871,6 @@ Adds plugin-owned authorization attributes to workflow MCP runs; the receiving c
 Supported members:
 
 - `context_attributes`
-
-### `Syrus::Host::McpSidecarLog`
-
-Since: `0.1.16`
-
-Resolves the MCP sidecar log path for a run (path_for); log format is not promised.
-
-Supported members:
-
-- `path_for`
-
-### `Syrus::Host::McpToolPolicy`
-
-Since: `0.1.16`
-
-Answers MCP tool policy questions such as syrus_repository?; the policy rules are not promised.
-
-Supported members:
-
-- `syrus_repository?`
-
-### `Syrus::Host::McpToolRegistry`
-
-Since: `0.1.16`
-
-Reads registered MCP tool entries (entries, entry_for, tool_name_for, coworker_grants); registration is not promised.
-
-Supported members:
-
-- `coworker_grants`
-- `entries`
-- `entry_for`
-- `tool_name_for`
 
 ### `Syrus::Host::McpToolSet`
 
@@ -2193,23 +1902,6 @@ Supported members:
 - `utf8`
 - `with_database_connection`
 - `write_log`
-
-### `Syrus::Host::Memory`
-
-Since: `0.1.16`
-
-Answers whether agent memory is available and selects the memories relevant to a review (available?, selected_review_memories); selection rules are not promised.
-
-Supported members:
-
-- `available?`
-- `selected_review_memories`
-
-### `Syrus::Host::MemoryStore`
-
-Since: `0.1.16`
-
-Marks a class as the plugin-provided agent memory store; store orchestration is not promised.
 
 ### `Syrus::Host::MergeTrain`
 
@@ -2262,43 +1954,6 @@ Supported members:
 - `counter`
 - `gauge`
 - `histogram`
-
-### `Syrus::Host::MysqlConnection`
-
-Since: `0.1.16`
-
-Queries and stores MySQL browser connections (find, find_by, where, order, count, new, transaction, ADMIN_SURFACE); credentials and unlisted columns are not promised.
-
-Supported members:
-
-- `ADMIN_SURFACE`
-- `count`
-- `find`
-- `find_by`
-- `new`
-- `order`
-- `transaction`
-- `where`
-
-### `Syrus::Host::MysqlQueryAudit`
-
-Since: `0.1.16`
-
-Records an audit entry for a MySQL browser query (create!); audit columns are not promised.
-
-Supported members:
-
-- `create!`
-
-### `Syrus::Host::ObservabilityEventSink`
-
-Since: `0.1.16`
-
-Reads observability sink statistics (stats); sink internals are not promised.
-
-Supported members:
-
-- `stats`
 
 ### `Syrus::Host::OperationalLogSearch`
 
@@ -2368,40 +2023,6 @@ Supported members:
 - `relative_path`
 - `root`
 
-### `Syrus::Host::PendingActionAuthorizedToolCall`
-
-Since: `0.1.16`
-
-Base class for pending actions that execute an authorized tool call; authorization storage is not promised.
-
-### `Syrus::Host::PendingActionBase`
-
-Since: `0.1.16`
-
-Base class plugins subclass to define a pending action; dispatch and persistence are not promised.
-
-### `Syrus::Host::PendingActionItem`
-
-Since: `0.1.16`
-
-Queries pending action items (pending); columns are not promised.
-
-Supported members:
-
-- `pending`
-
-### `Syrus::Host::PendingActionPermissionManagement`
-
-Since: `0.1.16`
-
-Base class for pending actions that change permission rules; permission storage is not promised.
-
-### `Syrus::Host::PendingActionToolSupport`
-
-Since: `0.1.16`
-
-Mixin for MCP tools that create pending actions; the action lifecycle is not promised.
-
 ### `Syrus::Host::PendingWorkWakeup`
 
 Since: `0.1.16`
@@ -2411,17 +2032,6 @@ Wakes the scheduler after an input source finds pending work for a repository.
 Supported members:
 
 - `call`
-
-### `Syrus::Host::PerformanceLogEvent`
-
-Since: `0.1.16`
-
-Reads performance-log event retention bounds (retention_floor, retention_window); event storage is not promised.
-
-Supported members:
-
-- `retention_floor`
-- `retention_window`
 
 ### `Syrus::Host::PerformanceLogging`
 
@@ -2433,62 +2043,6 @@ Supported members:
 
 - `phase`
 - `report_duration`
-
-### `Syrus::Host::PermissionCapabilityDescriptor`
-
-Since: `0.1.16`
-
-Describes one permission capability and operation (new) and lists the grant policies (POLICIES); descriptor storage and evaluation are not promised.
-
-Supported members:
-
-- `POLICIES`
-- `new`
-
-### `Syrus::Host::PermissionCatalog`
-
-Since: `0.1.16`
-
-Looks up a registered permission capability and operation (find!) and raises UnknownCapability for unregistered ones; catalog contents are not promised.
-
-Supported members:
-
-- `UnknownCapability`
-- `find!`
-
-### `Syrus::Host::PermissionLease`
-
-Since: `0.1.16`
-
-Queries permission leases (all, none, where, active); lease storage is not promised.
-
-Supported members:
-
-- `active`
-- `all`
-- `none`
-- `where`
-
-### `Syrus::Host::PermissionManagement`
-
-Since: `0.1.16`
-
-Manages permission rules and leases for a user (new); the rules model and PROFILE_SOURCE_PREFIX source marker are the only other members promised.
-
-Supported members:
-
-- `PROFILE_SOURCE_PREFIX`
-- `new`
-
-### `Syrus::Host::PermissionPolicyRank`
-
-Since: `0.1.16`
-
-Maps a permission policy to its strictness rank (fetch); the rank values are not promised beyond ordering.
-
-Supported members:
-
-- `fetch`
 
 ### `Syrus::Host::PermissionProvider`
 
@@ -2504,41 +2058,6 @@ Supported members:
 - `register_permission_preset`
 - `register_resource_scope`
 - `retire_permission_identifier`
-
-### `Syrus::Host::PermissionRequest`
-
-Since: `0.1.16`
-
-Base value for a permission request plugins specialize; request handling is not promised.
-
-### `Syrus::Host::PermissionRule`
-
-Since: `0.1.16`
-
-Queries and creates permission rules (all, none, where, find_by, active, create!, transaction); rule evaluation is not promised.
-
-Supported members:
-
-- `active`
-- `all`
-- `create!`
-- `find_by`
-- `none`
-- `transaction`
-- `where`
-
-### `Syrus::Host::PersistentMcpDaemon`
-
-Since: `0.1.16`
-
-Addresses the persistent MCP daemon (host, port, MCP_PATH, INVOCATION_CONTEXT_HEADER); daemon lifecycle is not promised.
-
-Supported members:
-
-- `INVOCATION_CONTEXT_HEADER`
-- `MCP_PATH`
-- `host`
-- `port`
 
 ### `Syrus::Host::PlatformConfigBase`
 
@@ -2592,12 +2111,6 @@ Supported members:
 - `syrus_plugin`
 - `syrus_plugin_definition`
 
-### `Syrus::Host::PluginDataCleanup`
-
-Since: `0.1.16`
-
-Bases a plugin's data-cleanup job; scheduling is not promised.
-
 ### `Syrus::Host::PluginInvocation`
 
 Since: `0.1.16`
@@ -2607,29 +2120,6 @@ Contains plugin provider failures behind the shared runtime health boundary; run
 Supported members:
 
 - `call`
-
-### `Syrus::Host::PluginJob`
-
-Since: `0.1.16`
-
-Bases plugin background jobs with retry configuration (configure, DEFAULT_ATTEMPTS); queue topology is not promised.
-
-Supported members:
-
-- `DEFAULT_ATTEMPTS`
-- `configure`
-- `queue_as`
-
-### `Syrus::Host::PluginRecord`
-
-Since: `0.1.16`
-
-Queries the persisted record of a plugin (find_by, find_or_create_by!); columns beyond the filters are not promised.
-
-Supported members:
-
-- `find_by`
-- `find_or_create_by!`
 
 ### `Syrus::Host::PluginRegistry`
 
@@ -2644,17 +2134,6 @@ Supported members:
 - `providers_for`
 - `providers_with_owner_for`
 - `register`
-
-### `Syrus::Host::PluginSettings`
-
-Since: `0.1.16`
-
-Reads a plugin's stored settings (for, get); storage and encryption are not promised.
-
-Supported members:
-
-- `for`
-- `get`
 
 ### `Syrus::Host::PolicyBase`
 
@@ -2762,12 +2241,6 @@ Supported members:
 - `probe_mounts`
 - `run`
 - `start`
-
-### `Syrus::Host::ProposalToolSupport`
-
-Since: `0.1.16`
-
-Mixin for MCP tools that draft proposals; proposal storage is not promised.
 
 ### `Syrus::Host::ProviderAuthFailure`
 
@@ -3089,38 +2562,6 @@ Supported members:
 
 - `retention_definitions`
 
-### `Syrus::Host::RetentionPolicyExecutors`
-
-Since: `0.1.16`
-
-Namespace for retention executors a plugin policy may use (Default, Result); executor internals are not promised.
-
-Supported members:
-
-- `Default`
-- `Result`
-
-### `Syrus::Host::RetentionPolicyRegistry`
-
-Since: `0.1.16`
-
-Namespace for retention policy definitions (Definition); registry internals are not promised.
-
-Supported members:
-
-- `Definition`
-
-### `Syrus::Host::RetentionPruner`
-
-Since: `0.1.16`
-
-Prunes records under a retention policy and exposes DEFAULT_BATCH_SIZE and DEFAULT_MAX_BATCHES; the defaults may change.
-
-Supported members:
-
-- `DEFAULT_BATCH_SIZE`
-- `DEFAULT_MAX_BATCHES`
-
 ### `Syrus::Host::ReviewContextContributor`
 
 Since: `0.1.16`
@@ -3421,12 +2862,6 @@ Supported members:
 - `resolve`
 - `validate_arguments!`
 
-### `Syrus::Host::SkipIfPending`
-
-Since: `0.1.16`
-
-Job concern that skips enqueueing when an equivalent job is pending; matching rules are not promised.
-
 ### `Syrus::Host::SmartFolder`
 
 Since: `0.1.16`
@@ -3623,20 +3058,6 @@ Resolves the workspace of a step.
 Supported members:
 
 - `for`
-
-### `Syrus::Host::SyrusVersion`
-
-Since: `0.1.16`
-
-Reads the running Syrus version, role, hostname and process kind (current, description, hostname, role, server_process?); formats are not promised.
-
-Supported members:
-
-- `current`
-- `description`
-- `hostname`
-- `role`
-- `server_process?`
 
 ### `Syrus::Host::SyrusYmlConfig`
 
@@ -3847,22 +3268,6 @@ Supported members:
 - `chat_tool_set_for`
 - `chat_tool_sets`
 
-### `Syrus::Host::TracksFinishedAt`
-
-Since: `0.1.16`
-
-Model concern that stamps a finished-at time on terminal states; the stamping rules are not promised.
-
-### `Syrus::Host::TypedArtifactProvenance`
-
-Since: `0.1.16`
-
-Reads the typed-artifact provenance recorded for a run (for_run); provenance storage is not promised.
-
-Supported members:
-
-- `for_run`
-
 ### `Syrus::Host::TypedArtifactRenderer`
 
 Since: `0.1.16`
@@ -3971,17 +3376,6 @@ Supported members:
 - `instantiate`
 - `start!`
 
-### `Syrus::Host::WorkerCapabilities`
-
-Since: `0.1.16`
-
-Reads and normalizes worker capabilities (current, normalize); probe details are not promised.
-
-Supported members:
-
-- `current`
-- `normalize`
-
 ### `Syrus::Host::WorkerCapabilityProbe`
 
 Since: `0.1.16`
@@ -3991,58 +3385,6 @@ Lets a plugin advertise worker capabilities; capability routing is not promised.
 Supported members:
 
 - `capability_probes`
-
-### `Syrus::Host::WorkerHealthRunCorrelation`
-
-Since: `0.1.16`
-
-Correlates worker health samples with a run (for_run); correlation internals are not promised.
-
-Supported members:
-
-- `for_run`
-
-### `Syrus::Host::WorkerHealthSampleAnalysis`
-
-Since: `0.1.16`
-
-Analyzes worker health samples (health_for, critical_dimensions_for); thresholds are not promised.
-
-Supported members:
-
-- `critical_dimensions_for`
-- `health_for`
-
-### `Syrus::Host::WorkerHostHealthSample`
-
-Since: `0.1.16`
-
-Queries worker host health samples (worker_role); columns beyond the filter are not promised.
-
-Supported members:
-
-- `worker_role`
-
-### `Syrus::Host::WorkerQueueTopology`
-
-Since: `0.1.16`
-
-Answers which queues a worker role consumes (consumes?); topology is not promised.
-
-Supported members:
-
-- `consumes?`
-
-### `Syrus::Host::WorkerStorageIdentity`
-
-Since: `0.1.16`
-
-Resolves worker storage identity (default_data_root, queue_key); identity format is not promised.
-
-Supported members:
-
-- `default_data_root`
-- `queue_key`
 
 ### `Syrus::Host::Workflow`
 
@@ -4087,12 +3429,6 @@ Base class for plugin-contributed workflow kinds; resolve_plan is the supported 
 Supported members:
 
 - `resolve_plan`
-
-### `Syrus::Host::WorkflowPayload`
-
-Since: `0.1.16`
-
-Builds the MCP payload describing a workflow; payload members are not promised.
 
 ### `Syrus::Host::WorkflowRecord`
 
@@ -4146,16 +3482,6 @@ Supported members:
 - `new`
 - `path_for`
 
-### `Syrus::Host::WorkspaceDependencyEnv`
-
-Since: `0.1.16`
-
-Builds the dependency environment for a workspace (for); contents are not promised.
-
-Supported members:
-
-- `for`
-
 ### `Syrus::Host::WorkspaceGitTransport`
 
 Since: `0.1.16`
@@ -4169,16 +3495,6 @@ Supported members:
 - `env`
 - `register!`
 - `url`
-
-### `Syrus::Host::WorkspaceReuseSummary`
-
-Since: `0.1.16`
-
-Summarizes workspace reuse outcomes (call); summary members are not promised.
-
-Supported members:
-
-- `call`
 
 ### `Syrus::Host::WorkspaceTab`
 
@@ -4197,6 +3513,12 @@ These core constants are recognized by the compatibility scanner because
 bundled plugins still reference them. They are not supported for new or
 external plugins. Migrate to a public `Syrus::Host` facade instead.
 
+- `AdminAction`
+- `AppEvents`
+- `AppSetting`
+- `AuthorizationCheckpointOrigin`
+- `AuthorizedInvocation`
+- `BackendExceptionLogging`
 - `ChatBridgeThread`
 - `ChatMessage`
 - `ChatPendingAction`
@@ -4210,5 +3532,93 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `ChatSessionLifecycle`
 - `ChatSessions::Creator`
 - `ChatTurnJob`
+- `Feature`
+- `HasConfigurableRetention`
+- `InstanceVersion`
+- `InstanceVersion::HEARTBEAT_STALE_THRESHOLD`
+- `KubernetesCluster`
+- `MaintenanceTasks::Definitions::Base::Result`
+- `Mcp::CoworkerToolExposure`
+- `Mcp::Tools`
+- `Mcp::Tools::AdminPendingActionToolSupport`
+- `Mcp::Tools::AgentPreviewRegistry`
+- `Mcp::Tools::AuthorizationSupport`
+- `Mcp::Tools::AuthorizationSupport::AuthorizationError`
+- `Mcp::Tools::BulkPendingActionToolSupport`
+- `Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE`
+- `Mcp::Tools::PendingActionToolSupport`
+- `Mcp::Tools::ProposalToolSupport`
+- `McpInvocationContext`
+- `McpSidecarLog`
+- `McpToolPayloads::WorkflowPayload`
+- `McpToolPolicy`
+- `McpToolRegistry`
 - `Mentionable`
 - `Mentionables::Resolver`
+- `Metrics::ClusterCounterSampler`
+- `MysqlConnection`
+- `MysqlConnection::ADMIN_SURFACE`
+- `MysqlQueryAudit`
+- `Observability::EventSink`
+- `PendingActionItem`
+- `PendingActions::AuthorizedToolCall`
+- `PendingActions::Base`
+- `PendingActions::PermissionManagement`
+- `PerformanceLogEvent`
+- `PerformanceLogging::BROWSER_TRACE_EVENT`
+- `PerformanceLogging::FEATURE_SLUG`
+- `PerformanceLogging::SLOW_JOB_EVENT`
+- `PerformanceLogging::SLOW_PHASE_EVENT`
+- `PerformanceLogging::SLOW_REQUEST_EVENT`
+- `PerformanceLogging::SLOW_SQL_EVENT`
+- `PerformanceLogging::Store`
+- `PerformanceLogging::Store::MAX_EVENTS`
+- `PermissionLease`
+- `PermissionRule`
+- `Permissions::AuthorizationDecision`
+- `Permissions::AuthorizationRequest`
+- `Permissions::CapabilityDescriptor`
+- `Permissions::CapabilityDescriptor::POLICIES`
+- `Permissions::CapabilityDescriptorAdapter`
+- `Permissions::CapabilityRegistryValidator`
+- `Permissions::Catalog`
+- `Permissions::Catalog::UnknownCapability`
+- `Permissions::CoworkerDefaultPolicy`
+- `Permissions::CoworkerDefaultPolicy::ROLES`
+- `Permissions::Management`
+- `Permissions::Management::PROFILE_SOURCE_PREFIX`
+- `Permissions::PermissionRequest`
+- `Permissions::PolicyEvaluator::POLICY_RANK`
+- `PersistentMcpDaemon`
+- `PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER`
+- `PersistentMcpDaemon::MCP_PATH`
+- `PluginDataCleanup`
+- `PluginJob`
+- `PluginJob::DEFAULT_ATTEMPTS`
+- `PluginRecord`
+- `RetentionPolicyExecutors::Default`
+- `RetentionPolicyExecutors::Result`
+- `RetentionPolicyRegistry::Definition`
+- `RetentionPruner::DEFAULT_BATCH_SIZE`
+- `RetentionPruner::DEFAULT_MAX_BATCHES`
+- `SkipIfPending`
+- `Syrus::DataCleanup`
+- `Syrus::Events`
+- `Syrus::Installer`
+- `Syrus::Memory`
+- `Syrus::Plugin::AgentProvider::ModelInfo`
+- `Syrus::Plugin::MemoryStore`
+- `Syrus::Plugin::WorkflowArtifactContributor`
+- `Syrus::PluginApi`
+- `Syrus::PluginSettings`
+- `SyrusMcp::TypedArtifactProvenance`
+- `SyrusVersion`
+- `TracksFinishedAt`
+- `WorkerCapabilities`
+- `WorkerHealthRunCorrelation`
+- `WorkerHealthSampleAnalysis`
+- `WorkerHostHealthSample`
+- `WorkerQueueTopology`
+- `WorkerStorageIdentity`
+- `WorkspaceDependencyEnv`
+- `WorkspaceReuseOutcomes::Summary`

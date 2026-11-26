@@ -9,13 +9,13 @@ module Whiteboard
   module DataCleanup
     def self.install_into(scope)
       scope.effect("chat session boards") do
-        Syrus::Host::DataCleanup.register("ChatSession", "whiteboard.boards") do |chat_session|
+        Syrus::DataCleanup.register("ChatSession", "whiteboard.boards") do |chat_session|
           Whiteboard::Board.where(chat_session_id: chat_session.id).find_each(&:destroy)
         end
       end
 
       scope.effect("chat session snapshots") do
-        Syrus::Host::DataCleanup.register("ChatSession", "whiteboard.snapshots") do |chat_session|
+        Syrus::DataCleanup.register("ChatSession", "whiteboard.snapshots") do |chat_session|
           Whiteboard::Snapshot.where(chat_session_id: chat_session.id).find_each(&:destroy)
         end
       end

@@ -1,7 +1,7 @@
 require "syrus/installer"
 
 module SyrusClaudeAgent
-  extend Syrus::Host::PluginApi
+  extend Syrus::PluginApi
 
   syrus_plugin "claude_agent" do
     experimental false

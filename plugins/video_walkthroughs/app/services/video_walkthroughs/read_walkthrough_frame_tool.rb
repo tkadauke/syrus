@@ -10,7 +10,7 @@ module VideoWalkthroughs
   # decides matters (a different timestamp, or a re-grab).
   #
   # Delivery: the frame comes back as a native MCP `image` content block
-  # (Syrus::Host::McpTools.image_result). Claude Code renders that into the agent's
+  # (Mcp::Tools.image_result). Claude Code renders that into the agent's
   # context as an actual image it sees THIS turn — no Gemini round-trip, no
   # workspace file, no extra Read call. 720p (the compact stored blob) is
   # empirically enough for Claude to OCR, so this extracts at FrameExtractor's

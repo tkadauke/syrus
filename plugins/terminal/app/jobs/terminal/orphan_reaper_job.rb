@@ -1,5 +1,5 @@
 module Terminal
-  class OrphanReaperJob < Syrus::Host::PluginJob
+  class OrphanReaperJob < PluginJob
     plugin :terminal
 
     def perform
