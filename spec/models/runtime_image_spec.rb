@@ -11,6 +11,7 @@ RSpec.describe RuntimeImage do
     expect(image.provenance).to eq({})
     expect(image).to be_pending
     expect(image.retention_state).to eq("default")
+    expect(image.verification_state).to eq("unverified")
   end
 
   it "validates digest format and uniqueness per namespace and platform" do
@@ -31,7 +32,7 @@ RSpec.describe RuntimeImage do
   end
 
   it "only treats available, unrevoked images as pullable" do
-    image = described_class.create!(attrs)
+    image = described_class.create!(attrs.merge(verification_state: "candidate"))
     expect(described_class.pullable).to be_empty
     image.mark_available!
     expect(described_class.pullable).to contain_exactly(image)
