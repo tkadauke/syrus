@@ -52,6 +52,12 @@ module RuntimeImages
       worker_cache.acquire(image, &block)
     end
 
+    # Supplies an available image to verification before it is eligible for
+    # normal acquisition. WorkerCache still proves the immutable digest.
+    def acquire_for_verification(image, &block)
+      worker_cache.acquire_for_verification(image, &block)
+    end
+
     # The namespace for an owner identity, created on first use. Callers that
     # submit builds need it before anything has been published.
     def namespace_for(owner_kind, owner_ref)
