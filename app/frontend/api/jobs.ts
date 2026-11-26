@@ -1165,12 +1165,27 @@ export type JobRecoveryDecision = {
   mode: string
   explanation: string
   guidance?: string | null
-  evidence: { source_workflow_id?: number; source_revision?: string; failure_classification?: string; measured_failure_identities?: string[]; compared_iterations?: Record<string, number>; rounds?: Array<Record<string, unknown>> }
+  evidence: {
+    source_workflow_id?: number
+    source_revision?: string
+    failure_classification?: string
+    measured_failure_identities?: string[]
+    compared_iterations?: Record<string, number>
+    rounds?: Array<Record<string, unknown>>
+  }
 }
 
 export type JobRecoveryIntervention = {
-  id: number; action: string; actor: string; actor_type: string; origin: string
-  reason?: string | null; guidance?: string | null; source_revision?: string | null; resulting_revision?: string | null; performed_at?: string | null
+  id: number
+  action: string
+  actor: string
+  actor_type: string
+  origin: string
+  reason?: string | null
+  guidance?: string | null
+  source_revision?: string | null
+  resulting_revision?: string | null
+  performed_at?: string | null
 }
 
 export type JobResetAction = {
