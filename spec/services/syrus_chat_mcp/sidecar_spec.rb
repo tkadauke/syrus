@@ -124,6 +124,8 @@ RSpec.describe Mcp::Sidecar do
         list_jobs
         search_jobs
         read_job
+        inspect_workflow_outcome_overrides
+        request_workflow_outcome_override
         list_epics
         read_epic
         approve_job
@@ -142,7 +144,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(30)
+      expect(tool_names.size).to eq(32)
       expect(tool_names).not_to include("complete_implement_step")
     end
 
