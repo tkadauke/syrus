@@ -97,6 +97,16 @@ Supported members:
 
 - `call`
 
+### `Syrus::Host::AdversarialReviewPrompt`
+
+Since: `0.1.16`
+
+Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::AdversarialReviewStep`
 
 Since: `0.1.16`
@@ -445,6 +455,16 @@ Supported members:
 
 - `pending`
 
+### `Syrus::Host::BackendExceptionLogging`
+
+Since: `0.1.16`
+
+Ingests a failed background job into the exception log; log storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ingest_job`
+
 ### `Syrus::Host::BackgroundJob`
 
 Since: `0.1.16`
@@ -642,6 +662,17 @@ Supported members:
 - `open!`
 - `reply!`
 
+### `Syrus::Host::ChatBridgeThreadRecord`
+
+Since: `0.1.16`
+
+Persists a bridge between chat threads; only basic lookup and creation are public. Only the listed members are supported.
+
+Supported members:
+
+- `create!`
+- `find_by`
+
 ### `Syrus::Host::ChatContextCompactor`
 
 Since: `0.1.16`
@@ -809,6 +840,17 @@ Supported members:
 
 - `chat_prompt_section`
 
+### `Syrus::Host::ChatProposalRecord`
+
+Since: `0.1.16`
+
+Queries chat proposals joined to their chat session; columns beyond the join and filters are not promised. Chat is planned to become a plugin, so this contract may move with it. Only the listed members are supported.
+
+Supported members:
+
+- `joins`
+- `where`
+
 ### `Syrus::Host::ChatProvider`
 
 Since: `0.1.16`
@@ -852,6 +894,16 @@ Supported members:
 
 - `deliver_one_if_idle!`
 
+### `Syrus::Host::ChatQueuedMessageRecord`
+
+Since: `0.1.16`
+
+Exposes the internal-role metadata key used when a plugin queues a host-delivered chat message. Only the listed members are supported.
+
+Supported members:
+
+- `INTERNAL_ROLE_KEY`
+
 ### `Syrus::Host::ChatResultBadges`
 
 Since: `0.1.16`
@@ -877,15 +929,27 @@ Supported members:
 
 Since: `0.1.16`
 
-Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.
+Reads a chat session's identity, title, owner, and repository through find; MODES lists the chat modes; turns, broadcasts, artifacts, persistence, and other associations are not promised.
 
 Supported members:
 
+- `MODES`
 - `find`
 - `id`
 - `repository`
 - `title`
 - `user`
+
+### `Syrus::Host::ChatSessionCreator`
+
+Since: `0.1.16`
+
+Creates chat sessions through the host lifecycle and safely enqueues their first turn. Only the listed members are supported.
+
+Supported members:
+
+- `enqueue_turn`
+- `new`
 
 ### `Syrus::Host::ChatSessionLifecycle`
 
@@ -1434,6 +1498,28 @@ Since: `0.1.16`
 
 Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
 
+### `Syrus::Host::DiffReviewComment`
+
+Since: `0.1.16`
+
+Queries diff review comments by job, version, anchor and state; columns beyond those filters are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `none`
+- `where`
+
+### `Syrus::Host::DiffReviewVersion`
+
+Since: `0.1.16`
+
+Queries diff review versions and resolves the best match for a run; columns beyond the filters are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `best_match_for`
+- `where`
+
 ### `Syrus::Host::DiffReviews`
 
 Since: `0.1.16`
@@ -1609,6 +1695,16 @@ Supported members:
 
 - `available_for?`
 
+### `Syrus::Host::ExecutionBackendBase`
+
+Since: `0.1.16`
+
+Bases an alternate execution backend; request routing is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `run`
+
 ### `Syrus::Host::ExternalReviewArtifact`
 
 Since: `0.1.16`
@@ -1763,6 +1859,16 @@ Supported members:
 - `SmartFolderResolution`
 - `UnknownFilterField`
 
+### `Syrus::Host::FinalReviewVersion`
+
+Since: `0.1.16`
+
+Resolves the diff review version a final review applies to for a job, workflow and run. Only the listed members are supported.
+
+Supported members:
+
+- `resolve`
+
 ### `Syrus::Host::FtsQueryParser`
 
 Since: `0.1.16`
@@ -1772,6 +1878,22 @@ Model concern that turns a user query into a full-text search expression for a s
 Supported members:
 
 - `parse_fts_query`
+
+### `Syrus::Host::GateResult`
+
+Since: `0.1.16`
+
+Value a plugin gate returns to let a start proceed or to hold it, with an optional reason, retry time and details; the scheduling that consumes it is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `block`
+- `blocked?`
+- `details`
+- `pass`
+- `pass?`
+- `reason`
+- `retry_at`
 
 ### `Syrus::Host::GatedToolSet`
 
@@ -2035,6 +2157,32 @@ Supported members:
 - `run`
 - `timeout_minutes`
 - `when_files_changed`
+
+### `Syrus::Host::Handle`
+
+Since: `0.1.16`
+
+Reserves and checks the unique @handle namespace shared by users, teams and coworkers; FORMAT is the validation pattern. Only the listed members are supported.
+
+Supported members:
+
+- `FORMAT`
+- `create!`
+- `exists?`
+- `find_or_create_by!`
+
+### `Syrus::Host::HandleRegistry`
+
+Since: `0.1.16`
+
+Claims, renames and releases the unique handles that address users and coworkers; handle storage is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `claim!`
+- `normalize`
+- `release!`
+- `rename!`
 
 ### `Syrus::Host::Handles`
 
@@ -2426,6 +2574,17 @@ Supported members:
 - `manifest_for_landed_sha`
 - `record_main_parity!`
 
+### `Syrus::Host::LocalExecution`
+
+Since: `0.1.16`
+
+The default local execution backend an alternate backend may delegate to. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+- `run`
+
 ### `Syrus::Host::MaintenanceTaskResult`
 
 Since: `0.1.16`
@@ -2575,6 +2734,17 @@ Marks a class as the plugin-provided agent memory store; store orchestration is 
 Since: `0.1.16`
 
 Marks a plugin model as an @-mentionable chat target; mention storage is not promised. Only the listed members are supported.
+
+### `Syrus::Host::MentionableResolver`
+
+Since: `0.1.16`
+
+Resolves mention syntax and mention identities through host and plugin providers. Only the listed members are supported.
+
+Supported members:
+
+- `find`
+- `resolve`
 
 ### `Syrus::Host::MentionablesResolver`
 
@@ -3861,11 +4031,53 @@ Since: `0.1.16`
 
 Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
 
+### `Syrus::Host::ReviewVerdictSubmission`
+
+Since: `0.1.16`
+
+Records a reviewer's verdict for a review artifact. Only the listed members are supported.
+
+Supported members:
+
+- `call!`
+
 ### `Syrus::Host::ReviewerTargetProvider`
 
 Since: `0.1.16`
 
 Declarative plugin point a plugin includes to contribute; the contribution hooks it documents are the contract and host dispatch is not promised. Only the listed members are supported.
+
+### `Syrus::Host::ReviewerTargetRequired`
+
+Since: `0.1.16`
+
+Raised when a review requires a reviewer target and none was pinned. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
+### `Syrus::Host::ReviewerTargetResolver`
+
+Since: `0.1.16`
+
+Resolves a reviewer-target reference through the enabled providers; provider selection and failure containment are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `resolve`
+
+### `Syrus::Host::ReviewerTargetUnavailable`
+
+Since: `0.1.16`
+
+Raised when a pinned reviewer target cannot currently be resolved. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::ReviewerTargets`
 
@@ -4112,6 +4324,12 @@ Supported members:
 - `resolution_errors`
 - `resolve`
 - `validate_arguments!`
+
+### `Syrus::Host::SkipIfPending`
+
+Since: `0.1.16`
+
+Job concern that skips enqueueing when an equivalent job is pending; matching rules are not promised. Only the listed members are supported.
 
 ### `Syrus::Host::SmartFolder`
 
@@ -4395,6 +4613,17 @@ Since: `0.1.16`
 
 Core constant used by the main-branch health plugin; the value itself is the supported contract. Only the listed members are supported.
 
+### `Syrus::Host::SyrusYmlParseError`
+
+Since: `0.1.16`
+
+Raised by a plugin's repository-configuration parser when its .syrus.yml contribution is invalid. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
+
 ### `Syrus::Host::SystemAlert`
 
 Since: `0.1.16`
@@ -4648,6 +4877,16 @@ Supported members:
 
 - `enrich`
 
+### `Syrus::Host::UiEngagementSampleRecord`
+
+Since: `0.1.16`
+
+Queries recorded UI engagement samples by user and time; columns beyond those filters are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `where`
+
 ### `Syrus::Host::UiSlot`
 
 Since: `0.1.16`
@@ -4865,6 +5104,17 @@ Supported members:
 - `pass?`
 - `reason`
 - `retry_at`
+
+### `Syrus::Host::WorkLaunchConflict`
+
+Since: `0.1.16`
+
+Raised when a launch collides with work that already holds the same lock, so callers may retry later. Only the listed members are supported.
+
+Supported members:
+
+- `message`
+- `new`
 
 ### `Syrus::Host::WorkLauncher`
 
