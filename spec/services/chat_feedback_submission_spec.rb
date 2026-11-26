@@ -145,6 +145,19 @@ RSpec.describe ChatFeedbackSubmission do
       expect(job.job_attachments.first).to have_attributes(kind: "pending_snapshot", source_url: "snapshot:#{snapshot.id}")
     end
 
+    it "does not attach media when the job state rejects the feedback" do
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      snapshot = whiteboard_snapshot
+
+      result = described_class.call(
+        job: job, feedback: "See the attached whiteboard.", allowed_states: %w[implemented approved],
+        chat_session: chat_session, media: [ "snapshot:#{snapshot.id}" ]
+      )
+
+      expect(result).not_to be_success
+      expect(job.job_attachments).to be_empty
+    end
+
     it "does nothing when media is blank" do
       job = Factories.job_record(user: user, repository: repository, state: "implemented")
 
