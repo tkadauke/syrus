@@ -11,7 +11,9 @@ class Coworkers::EnvironmentInspection
 
   def call
     environment = @environment.reload
-    revisions = environment.revisions.includes(:build_request, :runtime_image).reorder(number: :desc).to_a
+    revisions = environment.revisions
+      .includes(:runtime_image, build_request: [ :result, { evidences: :attempt } ])
+      .reorder(number: :desc).to_a
     active = environment.active_revision
     candidate = environment.candidate_revision
     build_revision = revisions.find { |revision| revision.build_request.present? }
