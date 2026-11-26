@@ -4285,6 +4285,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.integer "cleanup_failure_count", default: 0, null: false
     t.datetime "cleanup_failed_at"
     t.string "cleanup_last_error", limit: 500
+    t.string "verification_state", limit: 24, default: "unverified", null: false
     t.index ["availability", "retention_state"], name: "idx_runtime_images_state"
     t.index ["runtime_image_namespace_id", "digest", "platform"], name: "idx_runtime_images_identity", unique: true
     t.index ["source_kind", "source_ref"], name: "idx_runtime_images_source"

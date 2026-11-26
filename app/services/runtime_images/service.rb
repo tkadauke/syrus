@@ -7,7 +7,7 @@ module RuntimeImages
       @provider_override = provider
     end
 
-    def publish(namespace:, source_kind:, source_ref:, platform:, source_digest: nil, provenance: {}, payload: nil, verification_state: "candidate")
+    def publish(namespace:, source_kind:, source_ref:, platform:, source_digest: nil, provenance: {}, payload: nil, verification_state: "unverified")
       audited("publish", namespace: namespace) do
         publish_image(namespace: namespace, source_kind: source_kind, source_ref: source_ref, platform: platform,
                       source_digest: source_digest, provenance: provenance, payload: payload, verification_state: verification_state)

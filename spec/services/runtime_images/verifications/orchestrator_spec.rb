@@ -21,7 +21,7 @@ RSpec.describe RuntimeImages::Verifications::Orchestrator do
     calls = []
     registry.register("sbom", ->(**) { calls << "sbom"; result })
     registry.register("vulnerability", ->(**) { calls << "vulnerability"; result })
-    policy = { "version" => 7, "checks" => [ { "key" => "sbom", "required" => true }, { "key" => "vulnerability", "required" => true } ] }
+    policy = { "version" => 7, "z_setting" => true, "checks" => [ { "key" => "sbom", "required" => true }, { "key" => "vulnerability", "required" => true } ] }
 
     attempt = orchestrator.verify(image, policy: policy)
 
@@ -29,9 +29,17 @@ RSpec.describe RuntimeImages::Verifications::Orchestrator do
     expect(attempt.decision).to eq("candidate")
     expect(attempt.image_digest).to eq(image.digest)
     expect(attempt.policy_snapshot).to eq(policy)
+    expect(attempt.policy_snapshot.keys).to eq(%w[checks version z_setting])
     expect(attempt.checks.pluck(:verifier_key, :state)).to eq([ [ "sbom", "passed" ], [ "vulnerability", "passed" ] ])
     expect(calls).to eq(%w[sbom vulnerability])
     expect(image.reload).to be_candidate
+  end
+
+  it "bounds retries when an attempt number keeps colliding" do
+    allow(RuntimeImageVerificationAttempt).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
+
+    expect { orchestrator.verify(image) }.to raise_error(ActiveRecord::RecordNotUnique)
+    expect(RuntimeImageVerificationAttempt).to have_received(:create!).exactly(described_class::ATTEMPT_NUMBER_RETRIES + 1).times
   end
 
   it "fails closed when a required verifier is unavailable" do
