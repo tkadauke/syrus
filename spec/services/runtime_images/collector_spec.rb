@@ -8,7 +8,8 @@ RSpec.describe RuntimeImages::Collector do
   let(:window) { 30.days }
 
   def publish(payload, age: 60.days)
-    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "rev-#{payload}", platform: "linux/amd64", payload: payload)
+    image = service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "rev-#{payload}",
+                            platform: "linux/amd64", payload: payload, verification_state: "candidate")
     image.update_columns(published_at: age.ago)
     image
   end
@@ -111,7 +112,7 @@ RSpec.describe RuntimeImages::Collector do
   describe "retention policy wiring" do
     it "registers the policies and runs the executor through the shared registry" do
       keys = RetentionPolicyRegistry.definitions.map(&:key)
-      expect(keys).to include(:runtime_image, :runtime_image_pull_event, :runtime_image_audit_event)
+      expect(keys).to include(:runtime_image, :runtime_image_verification_evidence, :runtime_image_pull_event, :runtime_image_audit_event)
       expect { RetentionPolicyRegistry.validate! }.not_to raise_error
 
       old = publish("old", age: 90.days)
@@ -120,6 +121,20 @@ RSpec.describe RuntimeImages::Collector do
       result = RetentionPolicyRegistry.fetch(:runtime_image).executor.call
       expect(result.deleted_count).to eq(1)
       expect(old.reload).to be_deleted
+    end
+
+
+    it "prunes superseded verification evidence but always retains the latest attestation" do
+      image = publish("verified", age: 1.day)
+      attributes = { image_digest: image.digest, state: "accepted", decision: "candidate", policy_snapshot: {},
+                     policy_digest: "sha256:#{"a" * 64}", started_at: 201.days.ago }
+      old = image.runtime_image_verification_attempts.create!(**attributes, number: 1, finished_at: 200.days.ago)
+      latest = image.runtime_image_verification_attempts.create!(**attributes, number: 2, finished_at: 190.days.ago)
+
+      RetentionPolicyRegistry.fetch(:runtime_image_verification_evidence).executor.call
+
+      expect(RuntimeImageVerificationAttempt.exists?(old.id)).to be(false)
+      expect(RuntimeImageVerificationAttempt.exists?(latest.id)).to be(true)
     end
 
     it "prunes old pull and audit events through the generic executor" do
