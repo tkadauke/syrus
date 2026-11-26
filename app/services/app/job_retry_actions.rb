@@ -10,6 +10,7 @@ module App
 
     def as_json
       {
+        recovery_decision: recovery_decision.as_json,
         failed_step: failed_step_action,
         implementation: implementation_action
       }
@@ -18,6 +19,10 @@ module App
     private
 
     attr_reader :job
+
+    def recovery_decision
+      @recovery_decision ||= RecoveryDecision.for(job: job, workflow: latest_workflow)
+    end
 
     def latest_workflow
       @latest_workflow ||= job.latest_workflow

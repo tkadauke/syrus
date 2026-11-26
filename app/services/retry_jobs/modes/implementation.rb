@@ -58,6 +58,8 @@ module RetryJobs
           }.compact)
       end
 
+      def recovery_action = "repair"
+
       private
 
       def latest_workflow

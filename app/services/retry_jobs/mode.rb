@@ -32,6 +32,7 @@ module RetryJobs
     end
 
     def group_confirmation_strategy = "independent"
+    def recovery_action = "rerun_check"
 
     protected
 
