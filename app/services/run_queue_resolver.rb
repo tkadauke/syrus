@@ -45,6 +45,15 @@ class RunQueueResolver
 
   def self.resolve(...) = new(...).resolve
 
+  # Whether the worker this process runs on satisfies what `run` requires.
+  def self.locally_satisfied?(run:)
+    new(run: run).locally_satisfied?
+  end
+
+  def locally_satisfied?
+    satisfies?(WorkerCapabilities.normalize(WorkerCapabilities.current.fetch(:capabilities)), required_capabilities)
+  end
+
   def self.resolve_candidate(workflow:, step:)
     new(workflow: workflow, step: step).resolve
   end

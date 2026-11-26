@@ -128,6 +128,7 @@ class RunJob < ApplicationJob
     @job = @run.job
     return if defer_for_macos_worker_drain?
     return if defer_for_macos_version_skew?
+    return if hand_back_incapable_run?
     return if hand_back_unknown_step_kind?
     return fail_unknown_step_kind! unless step_kind_provided_here?(@step)
 
@@ -297,6 +298,26 @@ class RunJob < ApplicationJob
     )
     defer_run(@run.id, routing.delay)
     true
+  end
+
+  # A worker claims from shared queues by queue name alone, and a Run whose
+  # placement merely defaults to Linux skips the live capability check -- so
+  # the macOS worker, which consumes the shared compute queue, ran every Linux
+  # grader of a macOS-home workflow's landing while Linux workers sat idle.
+  # A worker runs only what it satisfies; anything else goes back to the queue
+  # the resolver picks, for a worker that does.
+  CAPABILITY_HANDBACK_DELAY = 5.seconds
+
+  def hand_back_incapable_run?
+    return false unless @run&.queued? && compute_run?
+    return false if RunQueueResolver.locally_satisfied?(run: @run)
+
+    Rails.logger.info("[RunJob] this worker does not satisfy Run ##{@run.id}'s placement requirements - handing it back")
+    defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[RunJob] capability check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
+    false
   end
 
   def hand_back_unknown_step_kind?

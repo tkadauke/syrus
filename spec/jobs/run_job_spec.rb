@@ -1401,6 +1401,26 @@ RSpec.describe RunJob, :ci_only do
         )
       end
 
+      # Regression: the macOS worker claimed Linux-default graders from the
+      # shared compute queue and ran them while Linux workers sat idle.
+      it "hands back a Run whose placement this worker does not satisfy" do
+        on_host(os: "macos", git_sha: "50d35be290")
+        expect(RunHostAdmission).not_to receive(:call)
+
+        expect { RunJob.perform_now(run.id) }.to have_enqueued_job(RunJob).with(run.id)
+
+        expect(run.reload).to be_queued
+      end
+
+      it "runs a Run whose placement this worker satisfies" do
+        on_host(os: "linux", git_sha: "50d35be290")
+        job_instance = RunJob.new(run.id)
+        job_instance.instance_variable_set(:@run, run)
+        job_instance.instance_variable_set(:@step, run.step)
+
+        expect(job_instance.send(:hand_back_incapable_run?)).to be(false)
+      end
+
       it "does not hold back a Mac worker that runs the active release" do
         on_host(os: "macos", git_sha: "50d35be290")
         job_instance = RunJob.new(run.id)
