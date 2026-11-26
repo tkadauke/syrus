@@ -49,6 +49,12 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(setting.errors[:singleton_key]).to be_present
   end
 
+  # Regression: a process that loaded the columns before the drop migration
+  # kept selecting host_admission_policy, failing every job in production.
+  it "keeps recently dropped columns ignored so pre-migration processes never select them" do
+    expect(AppSetting.ignored_columns).to include("host_admission_policy", "user_daily_spend_budget_usd")
+  end
+
   it "enforces one sentinel row at the database level" do
     AppSetting.current
 

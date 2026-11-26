@@ -2,7 +2,12 @@ class AppSetting < ApplicationRecord
   SINGLETON_KEY = 1
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
 
-  self.ignored_columns += %w[user_daily_spend_budget_usd]
+  # A dropped column stays ignored for at least one release: a process that
+  # loaded AppSetting's columns before the drop migration ran keeps selecting
+  # it otherwise, and every query on the settings row -- which nearly every
+  # job makes -- fails until that process restarts. Dropping
+  # host_admission_policy without this took production's job execution down.
+  self.ignored_columns += %w[user_daily_spend_budget_usd host_admission_policy]
 
   # Bot tokens used to be clearable here; they are now instance-owned connected
   # accounts, managed on the connected accounts page. No secret remains.
