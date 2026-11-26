@@ -27,6 +27,7 @@ module Coworkers
     lifecycle callback_providers: "Coworkers::Callbacks"
     data_policy retention_policies: "Coworkers::ReviewContextRetentionPolicy"
     provides sidebar_pages: "Coworkers::SidebarPages",
+             permission_provider: "Coworkers::EnvironmentPermissionProvider",
              "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
     workflow_kinds(
