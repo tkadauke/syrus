@@ -115,7 +115,9 @@ module Deploy
       version = "v0.0.0-deploy.#{sha}"
       result = shell.stream_write(
         [ "bin/release-macos-worker", version ],
-        env: { "SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => config.macos_signing_key_file }
+        # Build the commit this deploy started from, not whatever HEAD is now:
+        # another session committing mid-deploy otherwise changed the release.
+        env: { "SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => config.macos_signing_key_file, "SYRUS_RELEASE_GIT_REF" => sha }
       )
       raise Failure.new("macOS workers: building the release artifact failed") unless result.success?
 

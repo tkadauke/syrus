@@ -101,7 +101,9 @@ RSpec.describe Deploy::MacosWorkers do
 
     build = shell.commands.first
     expect(build[1]).to eq([ "bin/release-macos-worker", "v0.0.0-deploy.#{sha}" ])
-    expect(build[2]).to eq("SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => key_file)
+    # Pinned to the deploy's commit: another session committing mid-deploy
+    # must not change what is released.
+    expect(build[2]).to eq("SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => key_file, "SYRUS_RELEASE_GIT_REF" => sha)
     upload = requests(shell).first
     expect(upload.last).to eq("https://syrus.example.test/api/v1/admin/macos_worker_releases")
     expect(upload).to include("-F", "git_sha=#{sha}", "artifact_sha256=#{Digest::SHA256.hexdigest("tarball")}")

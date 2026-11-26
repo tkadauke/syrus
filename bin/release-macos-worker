@@ -48,14 +48,24 @@ syrus_release_require_command shasum
 
 cd "$ROOT"
 
+# The commit to package. A deploy pins the commit it started from: building
+# from HEAD let another session's commit, landing mid-deploy, change the
+# release under it -- the artifact took the new commit's name and code while
+# the cluster ran the old one. A pinned commit is read from git, not the
+# working tree, so uncommitted changes do not matter to it.
+RELEASE_REF="${SYRUS_RELEASE_GIT_REF:-HEAD}"
+if [ "$RELEASE_REF" != "HEAD" ]; then
+  SKIP_CLEAN_CHECK=1
+fi
+
 if [ "$SKIP_CLEAN_CHECK" = 0 ] && [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ]; then
   echo "uncommitted changes - commit or stash before building a release artifact" >&2
   exit 1
 fi
 
-GIT_SHA="$(git rev-parse --short HEAD)"
-FULL_GIT_SHA="$(git rev-parse HEAD)"
-BUILT_AT="${SYRUS_BUILT_AT:-$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}"
+GIT_SHA="$(git rev-parse --short "$RELEASE_REF")"
+FULL_GIT_SHA="$(git rev-parse "$RELEASE_REF")"
+BUILT_AT="${SYRUS_BUILT_AT:-$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' "$RELEASE_REF" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}"
 OUT_DIR="$(syrus_release_output_dir "$VERSION" macos-worker)"
 TMP_DIR="$(mktemp -d)"
 NAME="syrus-worker-macos-arm64-${GIT_SHA}"
@@ -69,7 +79,7 @@ syrus_release_prepare_output_dir "$OUT_DIR"
 echo "== Staging native macOS worker: $NAME =="
 mkdir -p "$STAGING"
 
-git archive --format=tar HEAD | tar -C "$STAGING" -xf -
+git archive --format=tar "$FULL_GIT_SHA" | tar -C "$STAGING" -xf -
 
 mkdir -p "$(dirname "$MANIFEST")"
 cat > "$MANIFEST" <<JSON

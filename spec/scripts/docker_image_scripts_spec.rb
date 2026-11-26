@@ -86,7 +86,7 @@ RSpec.describe "Docker image scripts" do
     expect(release_macos_worker).to include('"git_sha": "$GIT_SHA"')
     expect(release_macos_worker).to include('"dependency_policy": "host_activation"')
     expect(release_macos_worker).to include("SHA256SUMS-macos-worker.txt")
-    expect(release_macos_worker).to include("git archive --format=tar HEAD")
+    expect(release_macos_worker).to include(%(git archive --format=tar "$FULL_GIT_SHA"))
 
     expect(build_yml).to include("build-macos-worker:")
     expect(build_yml).to include('run: bin/release-macos-worker "$TAG"')

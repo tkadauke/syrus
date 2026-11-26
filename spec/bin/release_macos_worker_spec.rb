@@ -31,6 +31,22 @@ RSpec.describe "native macOS worker release artifact" do
     FileUtils.rm_rf(output_dir)
   end
 
+  # Regression: a deploy built the release from HEAD, so another session's
+  # commit landing mid-deploy changed the release's name and code under it.
+  it "packages the pinned commit, not HEAD, when one is given" do
+    pinned_short = git("rev-parse", "--short", "HEAD~1")
+
+    stdout, stderr, status = Open3.capture3(
+      { "SYRUS_BUILT_AT" => "2026-10-03T12:34:56Z", "SYRUS_RELEASE_GZIP_LEVEL" => "1", "SYRUS_RELEASE_GIT_REF" => "HEAD~1" },
+      "bash", script, version, chdir: root
+    )
+
+    expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    artifact_path = File.join(output_dir, "syrus-worker-macos-arm64-#{pinned_short}.tar.gz")
+    expect(File).to exist(artifact_path)
+    expect(tar_output("-xOzf", artifact_path, "syrus-worker-macos-arm64-#{pinned_short}/GIT_SHA").strip).to eq(pinned_short)
+  end
+
   it "packages the source checkout, worker metadata, and checksum file" do
     short_sha = git("rev-parse", "--short", "HEAD")
     full_sha = git("rev-parse", "HEAD")
