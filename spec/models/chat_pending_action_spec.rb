@@ -99,7 +99,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(job.reload).to be_approved
   end
 
-  it "fails approve_job confirmation while approval-blocking runtime work is active" do
+  it "confirms approve_job while runtime work is active" do
     job = Factories.job_record(user: user, repository: repository, state: "implemented")
     retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
     attach_work_unit(retry_workflow, kind: "retry", state: "queued")
@@ -109,9 +109,9 @@ RSpec.describe ChatPendingAction, :ci_only do
       requested_by: "agent"
     )
 
-    expect { action.confirm! }.to raise_error(ArgumentError, "job has active approval-blocking runtime work")
-    expect(action.reload).to be_failed
-    expect(job.reload).to be_implemented
+    expect(action.confirm!).to be true
+    expect(action.reload).to be_confirmed
+    expect(job.reload).to be_approved
   end
 
   it "promotes a queued action to pending and broadcasts the chat update" do

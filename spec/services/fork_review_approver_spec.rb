@@ -98,8 +98,8 @@ RSpec.describe ForkReviewApprover do
         fork_repo.update!(review_policy: "self")
         stub_close_fork_pr
         stub_open_upstream_pr(pr_number: 102)
-        # The fork review PR is approved after the initial Workflow finished;
-        # an approval under still-active approval-blocking work is refused.
+        # Keep this fixture terminal so the example isolates fork-review
+        # propagation rather than concurrent workflow bookkeeping.
         job.runs.update_all(state: "succeeded")
         job.workflows.each do |workflow|
           workflow.update!(state: "succeeded")

@@ -70,7 +70,7 @@ module Workflows
     def blocked!
       JobClosure.lock_pending_workflows!(workflow)
       workflow.finished_at = Time.current
-      if Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+      if Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
         # Auxiliary work must give back its locks when it cannot proceed. A
         # WorkUnit has no blocked *outcome*, and a blocked unit would keep
         # holding the Job-wide lock behind an already-terminal Workflow.

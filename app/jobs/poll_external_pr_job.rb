@@ -168,9 +168,11 @@ class PollExternalPrJob < ApplicationJob
   end
 
   def unapprove_stale_approval!
-    return unless @job.may_unapprove?
-
-    Job::ApprovalUnapprover.call(job: @job, user: @job.user)
+    @job.with_lock do
+      @job.stop_landing! if @job.landing?
+      @job.reload
+      Job::ApprovalUnapprover.call(job: @job, user: @job.user) if @job.may_unapprove?
+    end
   end
 
   # Same-repo external PR (job.external_pr_fork? == false): Syrus already

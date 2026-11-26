@@ -187,7 +187,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item.fetch(:bulk_actions)).to include(approve: true)
     end
 
-    it "keeps can_approve false while normal runtime work is active" do
+    it "keeps can_approve true while normal runtime work is active" do
       repo.update!(auto_merge_enabled: true)
       job = Factories.job_record(user: user, owner_user: user, repository: repo, state: "implemented")
       workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
@@ -196,10 +196,10 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", section: "rows", state: "implemented")
       item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
 
-      expect(item.fetch(:bulk_actions)).to include(approve: false)
+      expect(item.fetch(:bulk_actions)).to include(approve: true)
     end
 
-    it "keeps can_approve false for a queued approval-blocking Run without WorkUnit ownership" do
+    it "keeps can_approve true for a queued Run without WorkUnit ownership" do
       repo.update!(auto_merge_enabled: true)
       job = Factories.job_record(user: user, owner_user: user, repository: repo, state: "implemented")
       Run.create!(job: job, trigger_kind: "retry", state: "queued", agent_provider: job.agent_provider)
@@ -207,7 +207,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", section: "rows", state: "implemented")
       item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
 
-      expect(item.fetch(:bulk_actions)).to include(approve: false)
+      expect(item.fetch(:bulk_actions)).to include(approve: true)
     end
   end
 

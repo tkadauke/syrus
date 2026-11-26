@@ -16,12 +16,12 @@ module Workflows
     # Whether starting `workflow` moves its Job to :running. The reconciler's
     # Job-state repair asks the same question (ReconcileJobStatesJob::Plan), so
     # a Job this leaves where it is -- a lifecycle-owning Workflow's Job, an
-    # implemented Job under a non-approval-blocking follow-up -- is not then
+    # implemented Job under an implemented-state-compatible follow-up -- is not then
     # forced to :running on the next pass.
     def self.lifts_job_on_start?(workflow, job = workflow.job)
       return false if workflow.landing_workflow?
       return false if workflow.infrastructure_workflow?
-      return false if job.implemented? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+      return false if job.implemented? && Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
 
       true
     end

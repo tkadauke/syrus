@@ -311,7 +311,7 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def pending_followup?
-    WorkUnits::Ownership.active_for_job?(@job)
+    WorkUnits::Ownership.active_for_job_kind?(@job, Workflow::TriggerKind.feedback_values)
   end
 
   # Fetches the FULL comment thread (no `since:` cutoff), not just new
@@ -419,6 +419,8 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def clear_stale_approval!
+    @job.stop_landing! if @job.landing?
+    @job.reload
     return unless @job.may_unapprove?
 
     Job::ApprovalUnapprover.call(job: @job, user: @job.user)

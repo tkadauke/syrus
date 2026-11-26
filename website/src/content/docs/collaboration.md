@@ -111,7 +111,7 @@ The `confirm` policy is useful when comments from multiple reviewers arrive in b
 Syrus recognizes three approval signals for team repositories:
 
 - **Syrus UI** — click Approve on the Job page.
-- **GitHub review approval** — submit an Approving review on the pull request. Syrus records this as `github_review` approval and moves the Job forward when the review policy is satisfied. While the Job still has work running that could change the pull request (anything other than a rebase or a manual review), Syrus waits, the same way the Approve button does, and records the approval on the first check after that work finishes.
+- **GitHub review approval** — submit an Approving review on the pull request. Syrus records this as `github_review` approval and moves an implemented Job forward when the review policy is satisfied. Active workflows and pull-request checks do not disable approval; they remain landing safety gates. Confirmed actionable feedback withdraws approval and preempts an active landing attempt before follow-up work starts.
 - **GitHub PR merge** — if the PR is merged directly on GitHub outside of Syrus, the Job closes as `external_pr_merged`.
 
 ---

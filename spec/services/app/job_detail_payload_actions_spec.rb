@@ -524,12 +524,12 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:actions, :can_approve)).to be(true)
     end
 
-    it "is false while an implementation workflow is still active for the job" do
+    it "stays true while an implementation workflow is still active for the job" do
       job = implemented_job
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
       attach_work_unit(workflow, member_jobs: [ job ], state: "running")
 
-      expect(payload_for(job).dig(:actions, :can_approve)).to be(false)
+      expect(payload_for(job).dig(:actions, :can_approve)).to be(true)
     end
 
     it "is false for an approved job even when approval evidence exists" do

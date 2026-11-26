@@ -133,12 +133,12 @@ RSpec.describe Workflow::TriggerKind do
     end
   end
 
-  describe ".non_approval_blocking?" do
+  describe ".implemented_state_compatible?" do
     let(:non_approval_blocking_kinds) { %w[rebase stack_rebase manual_visual_review manual_post_implementation_review visual_diff] }
 
     it "is true for maintenance/QA kinds that never change the diff under review" do
       non_approval_blocking_kinds.each do |kind|
-        expect(described_class.non_approval_blocking?(kind)).to be(true)
+        expect(described_class.implemented_state_compatible?(kind)).to be(true)
       end
     end
 
@@ -146,13 +146,13 @@ RSpec.describe Workflow::TriggerKind do
       expect(described_class.values).to include(*non_approval_blocking_kinds)
 
       described_class.values.each do |kind|
-        expect(described_class.non_approval_blocking?(kind)).to eq(non_approval_blocking_kinds.include?(kind)),
-          "expected non_approval_blocking?(#{kind.inspect}) to be #{non_approval_blocking_kinds.include?(kind)}"
+        expect(described_class.implemented_state_compatible?(kind)).to eq(non_approval_blocking_kinds.include?(kind)),
+          "expected implemented_state_compatible?(#{kind.inspect}) to be #{non_approval_blocking_kinds.include?(kind)}"
       end
     end
 
     it "is false for an unknown kind" do
-      expect(described_class.non_approval_blocking?("unknown_kind")).to be(false)
+      expect(described_class.implemented_state_compatible?("unknown_kind")).to be(false)
     end
   end
 

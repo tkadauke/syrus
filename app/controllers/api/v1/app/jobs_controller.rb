@@ -137,11 +137,6 @@ module Api
           job = find_job
           return unless authorize_job_mutation!(job)
           return if reject_stale_job_revision?(job)
-          if params[:expected_revision].present? && job.approval_blocking_runtime_work?
-            render_error("stale_job", I18n.t("api.base.stale_job"), status: :conflict)
-            return
-          end
-
           result = ChatFeedbackSubmission.call(
             job: job,
             feedback: params[:body],
