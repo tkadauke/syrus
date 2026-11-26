@@ -576,6 +576,14 @@ class AutoRetryJob < ApplicationJob
     )
   end
 
+  def record_automatic_intervention(attempt, action, &block)
+    RecoveryInterventions::Perform.call(
+      job: attempt.job, source_workflow: attempt.workflow, action:, mode: attempt.retry_kind,
+      actor_type: "system", origin: "auto_retry_job", reason: attempt.failure_classification,
+      &block
+    )
+  end
+
   def log(attempt, message)
     run = attempt.job.runs.reorder(created_at: :desc).first
     return unless run

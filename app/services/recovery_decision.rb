@@ -62,7 +62,7 @@ class RecoveryDecision
     end
 
     class NoProgress < Base
-      def match? = context.stop.present?
+      def match? = context.stop.present? || context.workflow&.failure_reason == GraderLoopProgress::NO_PROGRESS_REASON
       def decision
         stop = context.stop
         result(kind: "grader_loop_no_progress", action: "repair_with_guidance", mode: "failed_step",
