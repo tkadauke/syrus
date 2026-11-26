@@ -19,6 +19,7 @@ import { Modal } from "../../components/Modal"
 import { Textarea } from "../../components/Textarea"
 import { CodeSurface, DescriptionList, Notice, Section, Surface, surfaceClasses, Text } from "../../components/ui"
 import { pluginIconSrc } from "../../lib/pluginIcon"
+import { RecoveryCard } from "./RecoveryCard"
 import {
   fetchJobGradeLog,
   fetchJobRunArtifacts,
@@ -135,6 +136,7 @@ export function WorkflowsTab({
 
   return (
     <div className="space-y-4">
+      <RecoveryCard command={command} payload={payload} />
       <DesiredWorkPanel intent={payload.current_intent || null} />
       <WorkUnitsPanel command={command} payload={payload} prefix={prefix} units={workUnits} />
       <WorkflowsPagination payload={payload} prefix={prefix} />
@@ -1638,6 +1640,7 @@ function StepCard({
   const cancellationNotice = stepCancellationNotice(step)
   const agentic = stepAgentic(step)
   const diagnosticRelevant = Boolean(activeRun) || isDiagnosticRelevantStep(step)
+  const stepDisplayName = collectorDecisionLabel(step, payload, t) || displayName || step.display_name
 
   const artifacts = workflowArtifacts ?? {}
   const summaryArtifact =
@@ -1665,7 +1668,7 @@ function StepCard({
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="w-6 shrink-0 text-right font-mono text-xs text-text-subtle">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-text-primary">{displayName || step.display_name}</span>
+          <span className="truncate text-sm font-medium text-text-primary">{stepDisplayName}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {displayStatus ? <StatusPill state={displayStatus} /> : null}
@@ -1742,6 +1745,12 @@ function StepCard({
       ) : null}
     </div>
   )
+}
+
+function collectorDecisionLabel(step: JobStep, payload: JobDetailPayload, t: (key: string) => string) {
+  if (step.kind !== "grader_collect" && step.kind !== "preflight_grader_collect") return null
+  if (payload.actions.recovery_decision?.kind === "grader_loop_no_progress" && step.state === "failed") return t("grader_loop_decision_stopped")
+  return t("grader_loop_decision_continued")
 }
 
 function CancellationNotice({ message }: { message: string }) {

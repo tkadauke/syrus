@@ -1294,6 +1294,8 @@ module App
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
         can_write: writable,
+        recovery_decision: retry_actions[:recovery_decision],
+        recovery_timeline: retry_actions[:recovery_timeline],
         can_override_planned_execution: writable && planned_execution_override_json[:eligible],
         planned_execution_override_blocked_reason: planned_execution_override_json[:refusal_reason],
         can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),
