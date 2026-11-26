@@ -34,6 +34,7 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     allow(AppSetting).to receive(:beta_mode_enabled?).and_return(true)
     allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(base)
     allow(Syrus::Host::RuntimeImages).to receive(:retain)
+    allow(Syrus::Events).to receive(:publish)
     RuntimeImageBuildResult.create!(request: request, runtime_image: image, outcome: "succeeded", finished_at: Time.current)
   end
 
@@ -44,6 +45,10 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(environment.reload).to have_attributes(state: "candidate", candidate_revision_id: revision.id,
                                                    candidate_runtime_image_id: image.id, last_error_code: nil)
     expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.verified", runtime_image_id: image.id)).to exist
+    expect(Syrus::Events).to have_received(:publish).with(
+      "coworker_environment.candidate", hash_including(coworker_id: coworker.id, revision_id: revision.id,
+                                                        inspection: hash_including("v" => 1, "state" => "candidate"))
+    )
   end
 
   it "publishes atomically and retires the previous active revision" do
@@ -59,6 +64,10 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(environment.reload).to have_attributes(state: "active", active_revision_id: revision.id,
                                                    candidate_revision_id: nil)
     expect(Syrus::Host::RuntimeImages).to have_received(:retain).with(image, reason: "active coworker environment", actor: "operator")
+    expect(Syrus::Events).to have_received(:publish).with(
+      "coworker_environment.activated", hash_including(revision_id: revision.id,
+                                                        inspection: hash_including("active_digest" => image.digest))
+    )
   end
 
   it "rejects a succeeded build whose image record is missing" do
@@ -68,6 +77,9 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
 
     expect(revision.reload).to be_rejected
     expect(environment.reload).to have_attributes(state: "failed", last_error_code: "missing_image_record")
+    expect(Syrus::Events).to have_received(:publish).with(
+      "coworker_environment.rejected", hash_including(revision_id: revision.id)
+    )
   end
 
   it "keeps the current active image selected when a replacement build fails" do
@@ -83,6 +95,9 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(revision.reload).to be_rejected
     expect(environment.reload).to have_attributes(state: "active", active_revision_id: active.id,
                                                    last_error_code: "builder_failed")
+    expect(Syrus::Events).to have_received(:publish).with(
+      "coworker_environment.build_failed", hash_including(revision_id: revision.id)
+    )
   end
 
   it "fails closed when the image ABI is incompatible" do
@@ -125,6 +140,9 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(revision.reload).to be_rejected
     expect(environment.reload).to have_attributes(state: "revoked", last_error_code: "image_deleted")
     expect(RuntimeImageAuditEvent.where(event_type: "coworker_environment.revoked", runtime_image_id: image.id)).to exist
+    expect(Syrus::Events).to have_received(:publish).with(
+      "coworker_environment.revoked", hash_including(revision_id: revision.id)
+    )
   end
 
   it "keeps the previous active revision selected when a replacement candidate is revoked" do

@@ -45,6 +45,7 @@ class Coworkers::EnvironmentLifecycle
                                   candidate_revision: nil, candidate_runtime_image: nil,
                                   last_error_code: nil, last_audit_event: event)
       Syrus::Host::RuntimeImages.retain(image, reason: "active coworker environment", actor: actor)
+      publish_event("activated", revision)
       revision
     end
   end
@@ -53,6 +54,7 @@ class Coworkers::EnvironmentLifecycle
     begin_verification!(revision)
     transition_revision!(revision, :rejected)
     clear_candidate!(revision, state: :failed, code: code, event: audit("rejected", revision, actor: actor, code: code))
+    publish_event("rejected", revision)
   end
 
   def revoke!(revision, reason:, actor: "system")
@@ -122,11 +124,13 @@ class Coworkers::EnvironmentLifecycle
     revision.update!(audit_event: event) if event
     @environment.transition_to!(:candidate, candidate_revision: revision, candidate_runtime_image: image,
                                 last_error_code: nil, last_audit_event: event) unless @environment.candidate?
+    publish_event("candidate", revision)
   end
 
   def fail_build!(revision, code)
     transition_revision!(revision, revision.verifying? ? :rejected : :build_failed)
     clear_candidate!(revision, state: :failed, code: code, event: audit("build_failed", revision, code: code))
+    publish_event("build_failed", revision)
   end
 
   def mark_incompatible!(revision)
@@ -134,6 +138,7 @@ class Coworkers::EnvironmentLifecycle
     transition_revision!(revision, revision.active? ? :retired : :rejected)
     clear_candidate!(revision, state: :failed, code: INCOMPATIBLE,
                      event: audit("incompatible", revision, code: INCOMPATIBLE), clear_active: was_active)
+    publish_event("rejected", revision)
   end
 
   def compatible_now?(revision)
@@ -160,6 +165,7 @@ class Coworkers::EnvironmentLifecycle
     attrs.merge!(active_revision: nil, active_runtime_image: nil) if @environment.active_revision_id == revision.id
     attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil) if @environment.candidate_revision_id == revision.id
     @environment.update!(attrs)
+    publish_event("revoked", revision)
     revision
   end
 
@@ -171,6 +177,15 @@ class Coworkers::EnvironmentLifecycle
       attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil)
     end
     @environment.update!(attrs)
+  end
+
+  def publish_event(kind, revision)
+    inspection = Coworkers::EnvironmentInspection.new(@environment).call
+    Syrus::Events.publish(
+      "coworker_environment.#{kind}", coworker_id: @environment.coworker_id,
+      environment_id: @environment.id, revision_id: revision&.id,
+      inspection: Coworkers::EnvironmentInspectionSerializer.new(inspection).as_json
+    )
   end
 
   def audit(action, revision, actor: "system", code: nil)
