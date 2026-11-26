@@ -207,8 +207,7 @@ Each concurrent unit holds one landing lane. Lane 1 uses the lock key `landing:r
 
 With the default of 1, landing behaves exactly as it did before the setting existed. The stuck-Job explainer reports each lane, whether it is occupied, and which unit holds it.
 
-The authenticated app API exposes live lane status at
-`GET /api/v1/app/landing_lanes`. It reports every visible repository's
+The authenticated app exposes live landing-lane status. It reports every visible repository's
 configured and busy lane counts, approved backlog, and every configured slot,
 including empty capacity. Occupied lanes link to the visible anchor Job,
 bundle members, and landing Workflow and report their current phase, graders,

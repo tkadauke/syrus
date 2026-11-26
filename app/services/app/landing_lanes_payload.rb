@@ -13,7 +13,7 @@ module App
     PHASE_ORDER = %w[assemble build prepare reconcile grade collect land].freeze
     TERMINAL_GRADER_STATES = %w[succeeded failed cancelled skipped blocked].freeze
 
-    def self.call(repositories:, jobs: Job.all, now: Time.current)
+    def self.call(repositories:, jobs:, now: Time.current)
       new(repositories:, jobs:, now:).call
     end
 
