@@ -83,7 +83,7 @@ module Steps
 
       mirror_durable_approval_to_github!(client, gate.pr)
 
-      enforce_validation_parity!(gate.pr)
+      enforce_validation_parity!(gate)
 
       previous_base_sha = capture_previous_base_sha(client, gate)
 
@@ -108,10 +108,14 @@ module Steps
       log("auto_merge: merged PR ##{job.pr_number}")
     end
 
-    # The PR head about to be merged must be backed by a SHA-bound validation
+    # The head about to be merged must be backed by a SHA-bound validation
     # manifest with conclusive required results (LandingValidationManifest).
-    def enforce_validation_parity!(pr)
-      sha = MergeabilityRecorder.head_sha(pr)
+    # That is the head merge_pull_request sends, which a final clean rebase
+    # advances; reading it from the PR fetched before the rebase checked the
+    # stale head, so every landing whose base moved after validation was
+    # refused ("evidence is for <new>, not <old>") and deferred for a retry.
+    def enforce_validation_parity!(gate)
+      sha = merge_head_sha(gate)
       verdict = LandingValidationManifest.gate(job: job, sha: sha, workflow: workflow)
       return if verdict.ok?
 

@@ -715,6 +715,10 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     allow(client).to receive(:add_issue_comment)
     described_class.new(run).call
 
+    # Regression: the parity check read the head from the PR fetched before
+    # the rebase and refused the merge as unproven for the stale head.
+    expect(LandingValidationManifest).to have_received(:gate).with(hash_including(sha: "new-head"))
+    expect(LandingValidationManifest).not_to have_received(:gate).with(hash_including(sha: "old-head"))
     expect(AutoRebase).to have_received(:new).with(job, base_branch: "main", branch_name: "syrus/issue-42-1")
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "new-head"))
