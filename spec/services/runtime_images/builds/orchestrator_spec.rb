@@ -20,9 +20,11 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
   end
 
   def image_for(request)
-    RuntimeImages::Service.new(provider: provider).publish(
+    image = RuntimeImages::Service.new(provider: provider).publish(
       namespace: namespace, source_kind: "git", source_ref: "r#{request.id}", platform: "linux/amd64", payload: "p#{request.id}"
     )
+    image.update!(verification_state: "candidate")
+    image
   end
 
   describe "submit" do
