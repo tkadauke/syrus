@@ -197,15 +197,16 @@ module Api
             return
           end
 
+          mode = RetryJobs::Modes::FailedStep.new(
+            job:, source_workflow_id: workflow.id, retry_context: params[:retry_context]
+          )
           result = RecoveryInterventions::Perform.call(
             job:, source_workflow: workflow,
-            action: failed_step.kind == "grader_fanout" ? "restart_grade_loop" : "repair",
+            action: mode.recovery_action,
             mode: "failed_step", actor_type: "operator", actor: Current.user,
             origin: "job_page", reason: params[:reason], guidance: params[:retry_context]
           ) do
-            OperatorRetryContext.with_context(workflow, params[:retry_context]) do
-              RetryFailedStepEnqueuer.call(workflow: workflow)
-            end
+            mode.execute
           end
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)

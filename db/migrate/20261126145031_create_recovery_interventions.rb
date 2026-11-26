@@ -9,6 +9,7 @@ class CreateRecoveryInterventions < ActiveRecord::Migration[8.1]
       t.integer :resulting_step_id
       t.integer :resulting_run_id
       t.string :source_loop_id
+      t.string :resulting_loop_id
       t.string :actor_type, null: false
       t.integer :actor_id
       t.string :actor_display

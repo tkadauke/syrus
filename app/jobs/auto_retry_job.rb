@@ -325,13 +325,15 @@ class AutoRetryJob < ApplicationJob
     return RetryFailedStepEnqueuer::Result.new(workflow: nil, run: nil, step: nil, error: "no other provider is available for content the provider refused") unless alternate
     return retry_workflow(attempt) unless attempt.workflow.retry_available?
 
-    RetryFailedStepEnqueuer.call(
-      workflow: attempt.workflow,
-      agent_provider: alternate,
-      disable_session_resume: true,
-      restart_grade_loop: false,
-      failed_step: attempt.run&.step
-    )
+    record_automatic_intervention(attempt, "rerun_check") do
+      RetryFailedStepEnqueuer.call(
+        workflow: attempt.workflow,
+        agent_provider: alternate,
+        disable_session_resume: true,
+        restart_grade_loop: false,
+        failed_step: attempt.run&.step
+      )
+    end
   end
 
   def alternate_provider_for(attempt)
@@ -391,17 +393,21 @@ class AutoRetryJob < ApplicationJob
   end
 
   def retry_failed_step(attempt)
-    return retry_running_in_place_step(attempt) if running_in_place_step_retry?(attempt)
+    if running_in_place_step_retry?(attempt)
+      return record_automatic_intervention(attempt, "rerun_check") { retry_running_in_place_step(attempt) }
+    end
 
     if attempt.workflow.retry_available?
       clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-      RetryFailedStepEnqueuer.call(
-        workflow: attempt.workflow,
-        agent_provider: attempt.agent_provider,
-        disable_session_resume: attempt.failure_classification == "agent_resume_unavailable",
-        restart_grade_loop: false,
-        failed_step: attempt.run&.step
-      )
+      record_automatic_intervention(attempt, "rerun_check") do
+        RetryFailedStepEnqueuer.call(
+          workflow: attempt.workflow,
+          agent_provider: attempt.agent_provider,
+          disable_session_resume: attempt.failure_classification == "agent_resume_unavailable",
+          restart_grade_loop: false,
+          failed_step: attempt.run&.step
+        )
+      end
     else
       retry_workflow(attempt)
     end
@@ -551,13 +557,15 @@ class AutoRetryJob < ApplicationJob
     return retry_failed_step(attempt) if attempt.failure_classification == "agent_resume_unavailable"
     return retry_failed_step(attempt) if session.provider.present? && session.provider != attempt.agent_provider
 
-    RetryFailedStepEnqueuer.call(
-      workflow: attempt.workflow,
-      parent_session_id: session.session_id,
-      prompt: Prompts::Resume.new.to_s,
-      agent_provider: session.provider.presence || attempt.agent_provider,
-      restart_grade_loop: false
-    )
+    record_automatic_intervention(attempt, "resume") do
+      RetryFailedStepEnqueuer.call(
+        workflow: attempt.workflow,
+        parent_session_id: session.session_id,
+        prompt: Prompts::Resume.new.to_s,
+        agent_provider: session.provider.presence || attempt.agent_provider,
+        restart_grade_loop: false
+      )
+    end
   end
 
   def record_automatic_intervention(attempt, action, &block)

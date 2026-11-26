@@ -7,6 +7,15 @@ RSpec.describe RecoveryDecision do
     [ job, workflow ]
   end
 
+  def add_failed_step(workflow, classification: nil)
+    step = workflow.steps.create!(kind: "implement", position: 1, state: "failed")
+    run = step.runs.create!(job: workflow.job, trigger_kind: workflow.trigger_kind, state: "failed")
+    run.create_run_failure_classification!(
+      classification:, retryable: true, confidence: 0.9, classified_at: Time.current
+    ) if classification
+    step
+  end
+
   it "recommends guided repair and retains measured no-progress evidence" do
     job, workflow = failed_workflow
     workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
@@ -45,6 +54,32 @@ RSpec.describe RecoveryDecision do
 
     expect(described_class.for(job:, workflow:)).to have_attributes(
       kind: "infrastructure_only", recommended_action: "rerun_unchanged"
+    )
+  end
+
+  it "recommends resuming interrupted work" do
+    job, workflow = failed_workflow
+    add_failed_step(workflow, classification: "agent_interrupted")
+
+    expect(described_class.for(job:, workflow:)).to have_attributes(
+      kind: "interrupted_resumable", recommended_action: "resume", mode: "failed_step"
+    )
+  end
+
+  it "recommends guided repair for a measured failure" do
+    job, workflow = failed_workflow
+    add_failed_step(workflow, classification: "test_failure")
+
+    expect(described_class.for(job:, workflow:)).to have_attributes(
+      kind: "measured_failure", recommended_action: "repair_with_guidance", mode: "failed_step"
+    )
+  end
+
+  it "recommends restarting from base when no recovery target exists" do
+    job = Factories.job_record(state: "failed")
+
+    expect(described_class.for(job:)).to have_attributes(
+      kind: "restart_from_base", recommended_action: "restart", mode: "restart"
     )
   end
 end
