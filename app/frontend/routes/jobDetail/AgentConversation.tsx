@@ -291,6 +291,10 @@ function isNumberRecord(value: unknown): value is Record<string, number> {
 function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: AgentConversationNode | null; onClose: () => void }) {
   const { t } = useT("jobs")
   const [page, setPage] = useState(1)
+  const promptBodyClassName = [
+    "min-w-0 max-h-48 overflow-y-auto overflow-x-hidden",
+    "whitespace-pre-wrap break-words text-sm text-text-primary [overflow-wrap:anywhere]"
+  ].join(" ")
   const artifactsPath = node?.run_id != null ? `/api/v1/app/jobs/${jobId}/runs/${node.run_id}/artifacts` : null
   useEffect(() => setPage(1), [node?.run_id])
   const transcriptQueryKey = ["job_run_artifacts", String(jobId), String(node?.run_id), "transcript", page] as const
@@ -331,7 +335,7 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
               {transcript.data.prompt ? (
                 <section className="min-w-0 shrink-0 border-b border-border px-3 py-3" data-testid="run-input-prompt">
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversation_input_prompt")}</h3>
-                  <div className="min-w-0 max-h-48 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words text-sm text-text-primary [overflow-wrap:anywhere]">
+                  <div className={promptBodyClassName}>
                     {renderLightMarkdown(transcript.data.prompt)}
                   </div>
                 </section>
