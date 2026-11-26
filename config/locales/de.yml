@@ -589,6 +589,8 @@ de:
         coding_checkout_not_found: "Für diesen Chat gibt es keinen aktiven Coding-Checkout."
         containment_required: "Shell-Befehle sind deaktiviert, solange abgeschottete Chat-Ausführung erforderlich ist: Die Befehle würden auf dem Worker laufen, außerhalb des Containers, auf den der Chat-Agent beschränkt ist. Ein Administrator kann das in den Einstellungen ändern."
         local_daemon_disconnected: "Der lokale Daemon ist nicht verbunden. Führe `syrus local` in deinem Repository aus, um fortzufahren."
+    landing_lanes:
+      feature_disabled: "Landing-Lanes sind auf dieser Instanz nicht aktiviert."
     chats:
       groups:
         shared_with_me: "Mit mir geteilt"

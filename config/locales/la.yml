@@ -589,6 +589,8 @@ la:
         coding_checkout_not_found: "Nullum coding checkout activum huic chat est."
         containment_required: "Mandata testae inhibita sunt dum exsecutio chat inclusa requiritur: in operario currerent, extra continentem cui agens chat circumscribitur. Administrator hoc in Optionibus mutare potest."
         local_daemon_disconnected: "Daemon localis non conexus est. Exsequere `syrus local` in tuo Repository ut pergas."
+    landing_lanes:
+      feature_disabled: "Viae imponendi in hac instantia non activatae sunt."
     chats:
       groups:
         shared_with_me: "Mecum communicata"
