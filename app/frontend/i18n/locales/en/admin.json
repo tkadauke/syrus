@@ -543,6 +543,10 @@
         "name": "Terminal",
         "description": "Enables the interactive terminal experience."
       },
+      "landing_lanes": {
+        "name": "Landing lanes",
+        "description": "Shows the landing-lanes dashboard strip, full-page observability experience, and supporting API payload. Landing behavior and the existing landing queue remain unchanged when disabled."
+      },
       "video_walkthroughs": {
         "name": "Walkthrough videos",
         "description": "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key."

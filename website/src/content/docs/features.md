@@ -1853,6 +1853,11 @@ enable instance beta mode before turning them on. Beta mode does not enable any
 feature by itself; it only permits explicit opt-in to beta or experimental
 capabilities.
 
+The experimental `landing_lanes` flag is off by default. It enables the compact
+dashboard strip, the full landing-lanes page, and their authenticated API
+payload without changing landing concurrency, the existing landing queue
+summary, or landing execution when disabled.
+
 The `performance_logging` operations flag records structured slow-request,
 slow-SQL, slow application-phase, and selected browser route-load events for production debugging. Slow
 request events include request/user context, trigger reasons, SQL counters, and
