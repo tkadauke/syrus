@@ -44,6 +44,7 @@ import {
   type DashboardPayload
 } from "../../api/dashboard"
 import { type LandingQueueBlockerJob } from "../../api/jobs"
+import { LandingLanesStrip } from "../LandingLanes"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../../lib/jobNavigationContext"
@@ -59,6 +60,7 @@ export function JobsDashboardTable({
   columns,
   controls,
   landingQueueEntries,
+  landingQueueVisible = false,
   landingQueueStatus,
   onReorderColumns,
   prefix,
@@ -71,6 +73,7 @@ export function JobsDashboardTable({
   columns: string[]
   controls: DashboardPayload["controls"]
   landingQueueEntries: DashboardLandingQueueEntry[]
+  landingQueueVisible?: boolean
   landingQueueStatus?: DashboardLandingQueueStatus | null
   onReorderColumns?: (nextOrder: string[]) => void
   prefix: string
@@ -112,6 +115,7 @@ export function JobsDashboardTable({
     <div className="space-y-3">
       <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
+      {landingQueueVisible ? <LandingLanesStrip prefix={prefix} /> : null}
       <JobDashboardNoticePanels panels={uiPanels} prefix={prefix} t={t} />
       <JobsTable
         allSelected={allSelected}
