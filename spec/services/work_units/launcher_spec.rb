@@ -629,6 +629,7 @@ RSpec.describe WorkUnits::Launcher do
 
   it "starts an unstarted workflow on an available failover provider during admission" do
     user.update!(
+      claude_oauth_token: "oat-test",
       codex_auth_mode: "api_key",
       codex_api_key: "sk-test"
     )
@@ -639,15 +640,16 @@ RSpec.describe WorkUnits::Launcher do
       candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
     )
     workflow = described_class.instantiate(kind: "initial", job: job, agent_provider: "claude")
-    allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
-      {
-        state: "open",
-        open: true,
-        retry_after: 10.minutes.from_now.iso8601,
-        evidence: { current: { observed_at: 1.minute.ago.iso8601 } }
-      }
-    )
-    allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
+    allow(App::ProviderAvailability).to receive(:for_user) do |_user, provider, **_options|
+      if provider == "claude"
+        {
+          state: "open",
+          open: true,
+          retry_after: 10.minutes.from_now.iso8601,
+          evidence: { current: { observed_at: 1.minute.ago.iso8601 } }
+        }
+      end
+    end
 
     result = described_class.start!(workflow)
 
