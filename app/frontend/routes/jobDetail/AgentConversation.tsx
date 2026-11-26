@@ -11,6 +11,7 @@ import type { AgentConversationNode, AgentConversationWorkflow } from "../../api
 import { fetchJobAgentConversation, fetchJobAgentConversationNode, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
 import { renderLightMarkdown } from "../../lib/Markdown"
+import { keepPreviousDataWithin } from "../../lib/placeholderData"
 import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import {
   avatarColorClass,
@@ -292,10 +293,12 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
   const [page, setPage] = useState(1)
   const artifactsPath = node?.run_id != null ? `/api/v1/app/jobs/${jobId}/runs/${node.run_id}/artifacts` : null
   useEffect(() => setPage(1), [node?.run_id])
+  const transcriptQueryKey = ["job_run_artifacts", String(jobId), String(node?.run_id), "transcript", page] as const
   const transcript = useQuery({
-    queryKey: ["job_run_artifacts", String(jobId), String(node?.run_id), "transcript", page],
+    queryKey: transcriptQueryKey,
     queryFn: () => fetchJobRunArtifacts(artifactsPath as string, "transcript", page),
-    enabled: node != null && artifactsPath != null
+    enabled: node != null && artifactsPath != null,
+    placeholderData: keepPreviousDataWithin(transcriptQueryKey, [0, 1, 2, 3])
   })
 
   if (!node) return null

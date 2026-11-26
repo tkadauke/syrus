@@ -46,6 +46,11 @@ describe("AgentConversationTab", () => {
   })
 
   it("renders an agent_session card and opens its transcript in a sidebar on click", async () => {
+    let resolveOlderPage!: (response: Response) => void
+    const olderPageResponse = new Promise<Response>((resolve) => {
+      resolveOlderPage = resolve
+    })
+
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/1/agent_conversation") {
@@ -77,6 +82,7 @@ describe("AgentConversationTab", () => {
       }
       if (path.startsWith("/api/v1/app/jobs/1/runs/501/artifacts?artifact=transcript")) {
         const page = new URL(path, "http://example.test").searchParams.get("page")
+        if (page === "2") return olderPageResponse
         return Promise.resolve(
           jsonResponse({
             job_id: 1,
@@ -122,6 +128,25 @@ describe("AgentConversationTab", () => {
     expect(screen.queryByTestId("run-transcript-log-compact")).not.toBeInTheDocument()
     expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Older" }))
+    expect(screen.getByTestId("run-input-prompt")).toHaveTextContent("Implement the greeting helper.")
+    expect(screen.getByText("Wrote the greeting helper.")).toBeInTheDocument()
+    resolveOlderPage(
+      jsonResponse({
+        job_id: 1,
+        workflow_id: 9,
+        run_id: 501,
+        base_ref: null,
+        head_ref: null,
+        artifact: "transcript",
+        prompt: "Implement the **greeting** helper.\nUse `friendly_name_with_a_very_long_unbroken_suffix_abcdefghijklmnopqrstuvwxyz` safely.",
+        logs_count: 101,
+        logs_page: 2,
+        logs_per_page: 100,
+        logs_total_pages: 2,
+        logs_has_older: false,
+        logs: [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Started the implementation.", created_at: null }]
+      })
+    )
     expect(await screen.findByText("Started the implementation.")).toBeInTheDocument()
     expect(screen.getByTestId("run-input-prompt")).toHaveTextContent("Implement the greeting helper.")
     expect(screen.getByRole("button", { name: "Newer" })).toBeInTheDocument()
