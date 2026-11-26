@@ -57,13 +57,36 @@ module RuntimeImages
     # returned to a launcher. +provider+ narrows the check to the provider
     # the turn will run; +confinement_policy+ is what the worker enforces.
     def acquire(image, prefetch: false, provider: nil, confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION)
-      unless image.reload.pullable?
+      arguments = { prefetch: prefetch, admission: ->(candidate) { candidate.pullable? },
+                    provider_pull: ->(candidate) { @service.pull(candidate) }, provider: provider,
+                    confinement_policy: confinement_policy, validate_abi: true }
+      return acquire_image(image, **arguments) unless block_given?
+
+      acquire_image(image, **arguments) { |reference| yield reference }
+    end
+
+    # Verification must inspect a published image before it can become a
+    # launchable candidate. This path retains immutable-digest validation and
+    # leasing, but admits only stored, non-revoked images and deliberately
+    # skips the launch-only runtime ABI gate.
+    def acquire_for_verification(image)
+      arguments = { prefetch: false,
+                    admission: ->(candidate) { candidate.available? && candidate.revoked_at.nil? && candidate.verification_state == "unverified" },
+                    provider_pull: ->(candidate) { @service.pull_for_verification(candidate) }, validate_abi: false }
+      return acquire_image(image, **arguments) unless block_given?
+
+      acquire_image(image, **arguments) { |reference| yield reference }
+    end
+
+    def acquire_image(image, prefetch:, admission:, provider_pull:, validate_abi:, provider: nil,
+                      confinement_policy: RuntimeAbi::CONFINEMENT_POLICY_VERSION)
+      unless admission.call(image.reload)
         record(image, "revoked", monotonic, cache_hit: false, prefetch: prefetch)
         raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
       end
-      entry, hit = lease_local(image, prefetch)
+      entry, hit = lease_local(image, prefetch, admission, provider_pull)
       begin
-        validate_abi!(image, provider: provider, confinement_policy: confinement_policy)
+        validate_abi!(image, provider: provider, confinement_policy: confinement_policy) if validate_abi
       rescue RuntimeAbi::Incompatible
         release(entry)
         raise
@@ -75,6 +98,7 @@ module RuntimeImages
         release(entry)
       end
     end
+    private :acquire_image
 
     # Drops one lease. The entry stays protected until every concurrent
     # holder has released (or the lease expires). Non-block callers pass
@@ -160,7 +184,8 @@ module RuntimeImages
 
     def cache_bytes = RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes)
 
-    def ensure_local(image, prefetch:)
+    def ensure_local(image, prefetch:, admission: ->(candidate) { candidate.pullable? },
+                     provider_pull: ->(candidate) { @service.pull(candidate) })
       started = monotonic
       entry = settled_entry(image)
       if entry&.state == "present" && verified?(image)
@@ -168,7 +193,7 @@ module RuntimeImages
         record(image, "hit", started, cache_hit: true, prefetch: prefetch)
         return [entry, true]
       end
-      [single_flight(image, prefetch) { pull_and_verify(image, started, prefetch) }, false]
+      [single_flight(image, prefetch, admission, provider_pull) { pull_and_verify(image, started, prefetch, admission, provider_pull) }, false]
     end
 
     # An "evicting" row means eviction owns the engine removal. Pulling into
@@ -213,14 +238,14 @@ module RuntimeImages
       RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", claim_token: token).delete_all == 1
     end
 
-    def pull_and_verify(image, started, prefetch)
+    def pull_and_verify(image, started, prefetch, admission, provider_pull)
       # Re-check durable state: the image may have been revoked while waiting.
-      raise Revoked, "runtime image #{image.digest} was revoked" unless image.reload.pullable?
+      raise Revoked, "runtime image #{image.digest} was revoked" unless admission.call(image.reload)
       with_slot(image, started, prefetch) do
         auth = grant_for(image)
         # Provider.pull verifies the manifest hashes to the digest and the
         # locator belongs to the namespace before any bytes move.
-        @service.pull(image)
+        provider_pull.call(image)
         @engine.pull(reference_for(image), timeout: @pull_timeout, auth: auth)
         unless @engine.digests(reference_for(image)).include?(image.digest)
           @engine.remove(reference_for(image)) rescue nil
@@ -249,7 +274,7 @@ module RuntimeImages
 
     # One pull per digest at a time; waiters reuse the result and then
     # re-verify through the normal hit path.
-    def single_flight(image, prefetch)
+    def single_flight(image, prefetch, admission, provider_pull)
       key = image.id
       owner, gate = @inflight_mutex.synchronize do
         existing = @inflight[key]
@@ -265,7 +290,9 @@ module RuntimeImages
       else
         gate.synchronize { nil }
         entry = RuntimeImageCacheEntry.for_host(hostname).present.find_by(runtime_image: image)
-        entry || single_flight(image, prefetch) { pull_and_verify(image, monotonic, prefetch) }
+        entry || single_flight(image, prefetch, admission, provider_pull) do
+          pull_and_verify(image, monotonic, prefetch, admission, provider_pull)
+        end
       end
     end
 
@@ -321,9 +348,9 @@ module RuntimeImages
     LEASE_ATTEMPTS = 3
     EVICTION_POLL_SECONDS = 0.05
 
-    def lease_local(image, prefetch)
+    def lease_local(image, prefetch, admission, provider_pull)
       LEASE_ATTEMPTS.times do
-        entry, hit = ensure_local(image, prefetch: prefetch)
+        entry, hit = ensure_local(image, prefetch: prefetch, admission: admission, provider_pull: provider_pull)
         return [entry, hit] if lease(entry)
       end
       raise Busy, "runtime image #{image.digest} kept being evicted on #{hostname}"

@@ -53,10 +53,25 @@ module RuntimeImages
 
     def pull(image)
       raise NotPullable, "runtime image #{image.digest} is #{image.availability}" unless image.pullable?
+      pull_from_provider(image)
+    end
+
+    # Verification is the sole pre-candidate consumer. Revoked and removed
+    # images remain inaccessible, while the provider still validates the
+    # requested namespace, locator, platform, and immutable digest.
+    def pull_for_verification(image)
+      unless image.available? && image.revoked_at.nil? && image.verification_state == "unverified"
+        raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
+      end
+      pull_from_provider(image)
+    end
+
+    def pull_from_provider(image)
       provider_for(image.runtime_image_namespace).pull(
         PullRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform, locator: image.locator)
       )
     end
+    private :pull_from_provider
 
     # Revocation is recorded before the provider is told, so a provider outage
     # can never leave a revoked image pullable.
