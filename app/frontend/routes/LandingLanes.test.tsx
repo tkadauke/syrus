@@ -31,7 +31,7 @@ const payload: LandingLanesPayload = {
           estimate_kind: "best_case",
           graders: [
             { name: "rspec", state: "running", carried: false, expected_seconds: 100, progress: 0.4 },
-            { name: "lint", state: "carried", carried: true, expected_seconds: 0, progress: 1 }
+            { name: "lint", state: "carried", carried: true, expected_seconds: 300, progress: 1 }
           ],
           multisect: {
             sub_lanes: [
@@ -73,6 +73,21 @@ describe("landing lanes", () => {
     expect(screen.getByText("section-1 · round 3")).toBeInTheDocument()
     expect(screen.getByText("~3 min best case")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /JOB-13/ })).toHaveAttribute("href", "/jobs/13")
+    expect(screen.getByRole("progressbar", { name: "acme/rocket Lane 1 section-1 · round 3 landing progress" })).toHaveAttribute("aria-valuenow", "35")
+    expect(screen.getByRole("progressbar", { name: "acme/rocket Lane 1 section-2 · round 3 landing progress" })).toHaveAttribute("aria-valuenow", "0")
+    expect(screen.getByRole("progressbar", { name: "acme/anvil Lane 1 landing progress" })).toBeInTheDocument()
+  })
+
+  it("weights grading by rerun graders without carried-forward runtime", () => {
+    const gradingLane = { ...payload.repositories[0].lanes[0], multisect: null }
+    const gradingPayload = {
+      ...payload,
+      repositories: [{ ...payload.repositories[0], lanes: [gradingLane] }]
+    }
+    render(<LandingLanesPage payload={gradingPayload} />, { wrapper: wrapper() })
+
+    const progress = screen.getByRole("progressbar", { name: "acme/rocket Lane 1 landing progress" })
+    expect(progress.children[4]).toHaveStyle({ flex: 100 / 30 })
   })
 
   it("uses the strip as the full page entry point and applies a landing-lanes broadcast without polling", async () => {
@@ -85,6 +100,7 @@ describe("landing lanes", () => {
 
     const link = await screen.findByRole("link", { name: "View all lanes" })
     expect(link).toHaveAttribute("href", "/landing_lanes")
+    expect(within(screen.getByText("Landing lanes").parentElement!).getAllByRole("link")).toEqual([link])
     expect(screen.getByText("JOB-10")).toBeInTheDocument()
     current = {
       ...payload,
@@ -94,6 +110,5 @@ describe("landing lanes", () => {
 
     expect(await screen.findByText("JOB-99")).toBeInTheDocument()
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
-    expect(within(screen.getByText("Landing lanes").parentElement!).getAllByRole("link")).toHaveLength(1)
   })
 })
