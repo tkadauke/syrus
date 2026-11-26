@@ -227,11 +227,11 @@ RSpec.describe PollForkReviewPrJob, :ci_only do
       }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
     end
 
-    it "does not enqueue a duplicate pr_comment workflow when a conflicting WorkUnit slips past the active-unit precheck" do
+    it "retains pr_comment work when a conflicting WorkUnit slips past the active-unit precheck" do
       # `pending_followup?`'s active-unit check is a plain
       # unlocked SELECT with a TOCTOU gap. Simulate it losing the race and
-      # confirm WorkUnits::Launcher itself still refuses to materialize a
-      # second Workflow.
+      # confirm WorkUnits::Launcher materializes the feedback so it can wait
+      # behind the unrelated active work.
       stub_issue_comments([
         { id: 1, body: "More feedback", user: { login: "reviewer" }, created_at: t1.iso8601 }
       ])
@@ -241,9 +241,13 @@ RSpec.describe PollForkReviewPrJob, :ci_only do
 
       expect {
         described_class.perform_now(job.id)
-      }.not_to change { Workflow.count }
+      }.to change { Workflow.count }.by(1)
 
-      expect(job.workflows.where(trigger_kind: "pr_comment")).to be_empty
+      feedback = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(feedback.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ActiveWorkLock::REASON
+      )
       expect(existing.work_unit.reload).to be_active
     end
 
