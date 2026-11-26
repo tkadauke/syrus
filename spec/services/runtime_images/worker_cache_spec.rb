@@ -39,7 +39,8 @@ RSpec.describe RuntimeImages::WorkerCache do
   let(:cache) { described_class.new(engine: engine, service: service, hostname: "w1", acquire_timeout: 0.2) }
 
   def publish(payload)
-    service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "r-#{payload}", platform: "linux/amd64", payload: payload)
+    service.publish(namespace: namespace, source_kind: "dockerfile", source_ref: "r-#{payload}", platform: "linux/amd64", payload: payload,
+                    verification_state: "candidate")
   end
 
   def outcomes = RuntimeImagePullEvent.order(:id).pluck(:outcome)
@@ -63,7 +64,7 @@ RSpec.describe RuntimeImages::WorkerCache do
       provenance = { "recipe_digest" => recipe_digest,
                      RuntimeImages::RuntimeAbi::ATTESTATION_KEY => RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) }
       service.publish(namespace: namespace, source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND, source_ref: "base", platform: "linux/amd64",
-                      source_digest: source_digest, provenance: provenance, payload: "base")
+                      source_digest: source_digest, provenance: provenance, payload: "base", verification_state: "candidate")
     end
 
     it "hands out a compatible standard base image" do

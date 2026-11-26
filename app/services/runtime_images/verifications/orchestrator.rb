@@ -1,6 +1,7 @@
 module RuntimeImages
   module Verifications
     class Orchestrator
+      ATTEMPT_NUMBER_RETRIES = 3
       DEFAULT_POLICY = {
         "version" => 1,
         "checks" => [ { "key" => "manifest", "required" => true } ],
@@ -18,14 +19,19 @@ module RuntimeImages
       # path: prior evidence remains immutable and the latest decision alone
       # controls candidate eligibility.
       def verify(image, policy: DEFAULT_POLICY, context: {}, now: Time.current)
-        snapshot = canonical(policy)
-        attempt = create_attempt(image, snapshot, now)
-        checks = Array(snapshot.fetch("checks"))
-        checks = [ { "key" => "policy_checks_missing", "required" => true } ] if checks.empty?
-        checks.each_with_index { |definition, position| run_check(attempt, definition, position, context, now) }
-        finish(attempt, now)
-      rescue ActiveRecord::RecordNotUnique
-        retry
+        attempt_number_retries = 0
+        begin
+          snapshot = canonical(policy)
+          attempt = create_attempt(image, snapshot, now)
+          checks = Array(snapshot.fetch("checks"))
+          checks = [ { "key" => "policy_checks_missing", "required" => true } ] if checks.empty?
+          checks.each_with_index { |definition, position| run_check(attempt, definition, position, context, now) }
+          finish(attempt, now)
+        rescue ActiveRecord::RecordNotUnique
+          attempt_number_retries += 1
+          retry if attempt_number_retries <= ATTEMPT_NUMBER_RETRIES
+          raise
+        end
       end
 
       private
