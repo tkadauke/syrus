@@ -1077,6 +1077,11 @@ la:
       owner_assigned: "Possessor Job attributus est."
       choose_owner: "Elige possessorem."
       owner_not_found: "Usor possessor non inventus est."
+  services:
+    runtime_images:
+      verifications:
+        supply_chain_policy:
+          blocked: "Regula catenae commeatus inventa vetuit: vulnerabilitates: %{vulnerability_count}; fasciculi vetiti: %{package_count}."
   plugin_repository_configuration:
     absent_legacy_owner: "%{key} ad additamentum absens %{owner} pertinet"
     provider_not_installed: "provisor configurationis %{owner} non installatus est"

@@ -1077,6 +1077,11 @@ de:
       owner_assigned: "Job-Besitzer zugewiesen."
       choose_owner: "Wähle einen Besitzer."
       owner_not_found: "Besitzer nicht gefunden."
+  services:
+    runtime_images:
+      verifications:
+        supply_chain_policy:
+          blocked: "Die Lieferkettenrichtlinie hat Funde blockiert: Schwachstellen: %{vulnerability_count}; verbotene Pakete: %{package_count}."
   plugin_repository_configuration:
     absent_legacy_owner: "%{key} gehört zum fehlenden Plugin %{owner}"
     provider_not_installed: "Konfigurationsanbieter %{owner} ist nicht installiert"
