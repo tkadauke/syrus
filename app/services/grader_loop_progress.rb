@@ -261,12 +261,12 @@ class GraderLoopProgress
 
   def source_revision
     previous = workflow.steps.where(loop_id: collect_step.loop_id, iteration: ...collect_step.iteration)
-      .where(kind: Step::AGENTIC_KINDS).order(iteration: :desc, position: :desc, id: :desc).first
+      .where(kind: Step::AGENTIC_KINDS).reorder(iteration: :desc, position: :desc, id: :desc).first
     previous&.latest_run&.head_sha
   end
 
   def repaired_revision
     workflow.steps.where(loop_id: collect_step.loop_id, iteration: collect_step.iteration)
-      .where(kind: Step::AGENTIC_KINDS).order(position: :desc, id: :desc).first&.latest_run&.head_sha
+      .where(kind: Step::AGENTIC_KINDS).reorder(position: :desc, id: :desc).first&.latest_run&.head_sha
   end
 end

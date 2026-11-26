@@ -24,6 +24,7 @@ RSpec.describe RecoveryInterventions::Perform do
     expect(record).to have_attributes(
       job:, source_workflow: source, source_step: fanout, resulting_workflow: resulting,
       resulting_step:, source_loop_id: "source-loop", actor_type: "operator", actor_id: user.id,
+      resulting_loop_id: "result-loop",
       origin: "job_page", action: "restart_grade_loop", recovery_kind: "grader_loop_no_progress",
       reason: "Try the measured fix", guidance: "Repair the frontend assertion"
     )
