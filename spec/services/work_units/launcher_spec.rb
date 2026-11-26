@@ -273,29 +273,26 @@ RSpec.describe WorkUnits::Launcher do
       expect(job.workflows.where(trigger_kind: "retry").count).to eq(1)
     end
 
-    it "rejects a cross-kind conflict sharing the same job lock (pr_comment vs. chat_feedback)" do
+    it "retains pr_comment work behind a cross-kind conflict sharing the same job lock" do
       described_class.instantiate(kind: "chat_feedback", job: job)
       workflow_count = Workflow.count
       step_count = Step.count
 
-      expect {
-        described_class.instantiate(kind: "pr_comment", job: job)
-      }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}/)
+      waiting = described_class.instantiate(kind: "pr_comment", job: job)
 
-      expect(Workflow.count).to eq(workflow_count)
-      expect(Step.count).to eq(step_count)
-      expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(0)
+      expect(Workflow.count).to eq(workflow_count + 1)
+      expect(Step.count).to be > step_count
+      expect(waiting.work_unit.work_unit_locks).to be_empty
     end
 
-    it "checks locks before asking the workflow template to insert records" do
+    it "materializes pr_comment work before it waits behind an active lock" do
       described_class.instantiate(kind: "chat_feedback", job: job)
       allow(Workflows::PrFeedback).to receive(:instantiate).and_call_original
 
-      expect {
-        described_class.instantiate(kind: "pr_comment", job: job)
-      }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}/)
+      waiting = described_class.instantiate(kind: "pr_comment", job: job)
 
-      expect(Workflows::PrFeedback).not_to have_received(:instantiate)
+      expect(Workflows::PrFeedback).to have_received(:instantiate)
+      expect(waiting.work_unit.work_unit_locks).to be_empty
     end
 
     it "still materializes definitions that wait behind an active lock" do

@@ -348,12 +348,11 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(ChatFeedbackSubmission).not_to have_received(:call)
     end
 
-    it "surfaces a graceful error instead of raising when retrying a work_kind path races an unrelated active WorkUnit" do
+    it "retains a work_kind retry behind an unrelated active WorkUnit" do
       # `active_feedback_workflow_for?` only flags a conflict
       # when the active workflow references *this* comment. An unrelated
       # active feedback workflow for the same job still shares the
-      # "job:<id>" lock, so WorkUnits::Launcher.instantiate must be
-      # rescued here rather than raising a 500.
+      # "job:<id>" lock, so the retry must materialize and wait its turn.
       other_comment = make_pr_comment(handling_state: "active")
       attach_work_unit(Workflow.create!(
         job: job,
@@ -378,9 +377,13 @@ RSpec.describe "App API pending feedback", type: :request do
 
       post "/api/v1/app/jobs/#{job.id}/pending_feedback/#{comment.id}/retry"
 
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(parse_body["error"]["message"]).to include("already queued or running")
-      expect(comment.reload.handling_state).to eq("failed")
+      expect(response).to have_http_status(:created)
+      workflow = Workflow.find(parse_body["workflow"]["id"])
+      expect(workflow.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ActiveWorkLock::REASON
+      )
+      expect(comment.reload.handling_state).to eq("active")
     end
   end
 
