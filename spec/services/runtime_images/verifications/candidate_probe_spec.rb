@@ -12,7 +12,8 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
   let(:request) do
     RuntimeImageBuildRequest.create!(runtime_image_namespace: namespace, source_kind: "extension", source_ref: "one",
                                      source_digest: image.source_digest, source_manifest: {}, recipe_digest: "sha256:#{"d" * 64}",
-                                     recipe: { "input_policy" => { "base_digest" => base_digest, "smoke_test" => "./smoke-test" } },
+                                     recipe: { "input_policy" => { "base_digest" => base_digest,
+                                                                    "smoke_test" => "syrus-environment-smoke-test" } },
                                      platform: "linux/amd64", requester_kind: "test", requester_ref: "1", dedup_key: "probe", state: "queued")
   end
   let(:built_images) { double("built images") }
@@ -39,7 +40,8 @@ RSpec.describe RuntimeImages::Verifications::CandidateProbe do
     expect(results.values).to all(be_passed)
     smoke = commands.last
     expect(smoke).to include("--read-only", "--network", "none", "--cap-drop", "ALL", "--pids-limit", "256",
-                             "--memory", "1g", "--cpus", "1", "--entrypoint", "/bin/sh", "-lc", "./smoke-test")
+                             "--memory", "1g", "--cpus", "1", "--entrypoint", "/bin/sh", "-lc",
+                             "syrus-environment-smoke-test")
     expect(smoke.grep(/secret|credential|token/i)).to be_empty
   end
 
