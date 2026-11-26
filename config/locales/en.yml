@@ -221,6 +221,7 @@ en:
       required_for_file_anchor: "must be present for file anchors"
       blank_for_file_anchor: "must be blank for file anchors"
       not_a_dns_host_name: "must be a DNS host name, not an IP address"
+      runtime_image_digest_mismatch: "must match the immutable runtime image"
       blank_for_repository_anchor: "must be blank for repository anchors"
       repository_mismatch: "must belong to the same repository"
       same_user_required: "must belong to the same user"

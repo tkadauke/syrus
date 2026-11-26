@@ -21,6 +21,6 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
   private
 
   def digest_matches_image
-    errors.add(:image_digest, "must match the immutable runtime image") if runtime_image && image_digest != runtime_image.digest
+    errors.add(:image_digest, :runtime_image_digest_mismatch) if runtime_image && image_digest != runtime_image.digest
   end
 end
