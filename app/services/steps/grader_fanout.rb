@@ -371,11 +371,19 @@ module Steps
       return [ active_graders, [] ] if repair_files.empty?
 
       carried_forward = []
+      substitutes = []
       remaining = active_graders.reject do |grader|
         prior = passed_steps_by_name[grader.name]
         next false unless prior
         next false if grader.metadata["always_rerun"] == true
-        next false if repair_affects_target?(grader, repair_files)
+        if repair_affects_target?(grader, repair_files)
+          focused = focused_substitute_for(grader, repair_files)
+          next false unless focused
+
+          substitutes << focused
+          carried_forward << [ grader, CarryForwardResult.new("carried forward; repair re-checked by #{focused.name}", target_fingerprints_for(grader), []) ]
+          next true
+        end
 
         current = target_fingerprints_for(grader)
         prior_fingerprints = prior.details.to_h["target_fingerprints"].to_h
@@ -386,7 +394,41 @@ module Steps
         true
       end
 
+      substitutes.uniq(&:name).each { |focused| remaining << focused unless remaining.any? { |grader| grader.name == focused.name } }
       [ remaining, carried_forward ]
+    end
+
+    # A whole CI suite that already passed tells the repair round nothing a
+    # focused run of the repaired files would not: re-running it after a
+    # landing fix took about an hour per round (all rspec shards) to re-prove
+    # tests the fix never touched. Its focused counterpart -- same grader type
+    # and project, `focused` mode -- checks the repair instead. A failure
+    # elsewhere that slips through is what the main grader and main repair
+    # exist for. Repairs to suite-wide inputs still re-run the whole suite.
+    SUITE_WIDE_REPAIR_INPUTS = %w[
+      Gemfile Gemfile.lock package.json package-lock.json .syrus.yml
+      spec/rails_helper.rb spec/spec_helper.rb spec/support/ config/ db/schema.rb
+      vite.config.ts tsconfig.json
+    ].freeze
+
+    def focused_substitute_for(grader, repair_files)
+      return nil unless grader.metadata.to_h["grader_mode"] == "ci"
+      return nil if repair_files.any? { |file| suite_wide_repair_input?(file) }
+
+      type = grader.metadata.to_h["grader_type"]
+      project = grader.metadata.to_h["project_path"]
+      all_plan_graders.find do |candidate|
+        metadata = candidate.metadata.to_h
+        metadata["grader_mode"] == "focused" && metadata["grader_type"] == type && metadata["project_path"] == project
+      end
+    end
+
+    def suite_wide_repair_input?(file)
+      SUITE_WIDE_REPAIR_INPUTS.any? { |input| input.end_with?("/") ? file.start_with?(input) : file == input }
+    end
+
+    def all_plan_graders
+      @all_plan_graders ||= graph_grade_plan.graders
     end
 
     # Grader Steps, latest iteration and position first. Each Step carries a

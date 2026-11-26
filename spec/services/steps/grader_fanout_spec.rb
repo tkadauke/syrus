@@ -2678,6 +2678,57 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
     end
 
+    # Regression: a landing fix that touched app code re-ran every passed
+    # rspec CI shard -- about an hour per repair round -- to re-prove tests the
+    # fix never touched. The focused counterpart re-checks the repair instead.
+    def repair_round_with_suite(diff_paths)
+      workflow.update!(trigger_kind: "merge_train")
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: failing
+              run: bin/failing
+            - name: suite-ci
+              run: bin/suite-ci
+              when_files_changed: ["app/**"]
+              metadata:
+                grader_type: rspec
+                grader_mode: ci
+            - name: suite-focused
+              run: bin/suite-focused
+              phases: [review]
+              metadata:
+                grader_type: rspec
+                grader_mode: focused
+      YAML
+      stub_changed_files("app/models/job.rb")
+      handler.call
+      first = workflow.steps.where(kind: "grader", iteration: 1).index_by { |grader| grader.details["name"] }
+      first.each_value { |grader| grader.update_columns(state: "succeeded") }
+      first.fetch("failing").update_columns(state: "failed")
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: 2,
+        step_agent_diff: diff_paths.map { |path| "diff --git a/#{path} b/#{path}\n--- a/#{path}\n+++ b/#{path}\n@@ -1 +1 @@\n-old\n+new\n" }.join
+      )
+      build_iteration_two_handler.call
+      workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }
+    end
+
+    it "re-checks a repair with the focused grader instead of re-running a passed CI suite" do
+      second = repair_round_with_suite(%w[app/models/job.rb])
+
+      expect(second).to match_array(%w[failing suite-focused])
+      carried = workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)
+      expect(carried.map { |entry| entry["name"] }).to include("suite-ci")
+    end
+
+    it "re-runs the whole passed CI suite when the repair touches a suite-wide input" do
+      second = repair_round_with_suite(%w[app/models/job.rb Gemfile.lock])
+
+      expect(second).to match_array(%w[failing suite-ci])
+    end
+
     it "narrows repeated landing repairs to failed, inconclusive, and repair-affected targets" do
       workflow.update!(trigger_kind: "merge_train")
       scoped = [

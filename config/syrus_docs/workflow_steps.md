@@ -533,6 +533,8 @@ as evidence for the final revision.
 
 Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. Runs only after final graders fail on the exact PR branch being landed; successful repairs are pushed before the merge API call.
 
+The grading round after a repair re-runs the graders that failed and the graders whose scope the repair touched. A CI-mode grader that already passed (for example the `rspec-ci-*` shards) is carried forward instead, and its focused counterpart (same grader type and project, `focused` mode) re-checks the files the repair changed. When the repair touches a suite-wide input -- `Gemfile`, `Gemfile.lock`, `package.json`, `package-lock.json`, `.syrus.yml`, `spec/rails_helper.rb`, `spec/spec_helper.rb`, `spec/support/`, `config/`, `db/schema.rb`, `vite.config.ts` or `tsconfig.json` -- the full CI grader re-runs. A regression the focused run misses surfaces in the main grader after landing.
+
 A `landing_fix` turn that legitimately finds nothing to fix does not fail the
 workflow. If the agent investigates the failing graders and confirms (by
 filing `report_main_concern` during this `landing_fix` repair lineage) that
