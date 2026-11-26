@@ -93,7 +93,8 @@ RSpec.describe "WorkUnit runtime gates" do
         candidate_availability: nil,
         decided_at: Time.current,
         exhausted: false,
-        routing_resolution: nil
+        routing_resolution: nil,
+        decision_mode: "availability_failover"
       )
       decision = ProviderAvailabilityPause::Decision.new(
         pause: false,
@@ -128,7 +129,8 @@ RSpec.describe "WorkUnit runtime gates" do
         candidate_availability: nil,
         decided_at: Time.current,
         exhausted: false,
-        routing_resolution: nil
+        routing_resolution: nil,
+        decision_mode: "availability_failover"
       )
       decision = ProviderAvailabilityPause::Decision.new(
         pause: false,
