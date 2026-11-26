@@ -65,19 +65,20 @@ RSpec.describe "API: review workspace", type: :request do
     get "/api/v1/app/review_workspace", headers: { "Authorization" => "Bearer #{token}" }
 
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to include("count" => 0, "jobs" => [])
+    expect(response.parsed_body).to include("count" => 1)
+    expect(response.parsed_body.fetch("jobs").pluck("id")).to eq([ current_job.id ])
     expect(response.body).not_to include(outside_job.issue_title)
 
     get "/api/v1/app/review_workspace/count", headers: { "Authorization" => "Bearer #{token}" }
 
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to include("count" => 0)
+    expect(response.parsed_body).to include("count" => 1)
 
     get "/api/v1/app/dashboard", params: { subject: "job", section: "chrome" },
       headers: { "Authorization" => "Bearer #{token}" }
 
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.fetch("ui_panels").pluck("id")).not_to include("review_workspace.ready_jobs")
+    expect(response.parsed_body.fetch("ui_panels").pluck("id")).to include("review_workspace.ready_jobs")
   end
 
   describe "GET /api/v1/app/review_workspace/:id/summary" do
