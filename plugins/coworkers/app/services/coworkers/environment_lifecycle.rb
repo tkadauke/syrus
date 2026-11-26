@@ -155,7 +155,8 @@ class Coworkers::EnvironmentLifecycle
     transition_revision!(revision, target)
     event = audit("revoked", revision, actor: actor, code: reason)
     attrs = { last_error_code: reason.to_s, last_audit_event: event }
-    attrs[:state] = "revoked" if projected_current
+    active_remains = @environment.active_revision_id.present? && @environment.active_revision_id != revision.id
+    attrs[:state] = active_remains ? "active" : "revoked" if projected_current
     attrs.merge!(active_revision: nil, active_runtime_image: nil) if @environment.active_revision_id == revision.id
     attrs.merge!(candidate_revision: nil, candidate_runtime_image: nil) if @environment.candidate_revision_id == revision.id
     @environment.update!(attrs)
