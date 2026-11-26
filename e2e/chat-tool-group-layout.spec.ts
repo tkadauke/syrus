@@ -43,7 +43,7 @@ for (const viewport of [
       await expect(preview).toHaveCSS("text-overflow", "ellipsis")
       await expectOneComputedLine(summary)
       await expectSameOrderedRow(summary.locator(":scope > span"))
-      expect(await pills.count()).toBe(text.includes("(2)") || text.includes("9") ? 2 : 1)
+      expect(await pills.count()).toBe(1)
       await expectNoHorizontalOverflow(page, summary)
     }
 
