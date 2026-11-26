@@ -15,7 +15,12 @@ module PendingActions
       end
 
       progress!("Creating #{payload.fetch('mode', 'auto').humanize(capitalize: false)} retry for #{job.slug}...")
-      result = mode.execute
+      source_workflow = job.workflows.find_by(id: payload["source_workflow_id"])
+      result = RecoveryInterventions::Perform.call(
+        job:, source_workflow:, action: mode.recovery_action, mode: mode_name,
+        actor_type: "operator", actor: user, origin: "mcp_retry_job",
+        reason: payload["reason"].presence || action.reason, guidance: payload["context"]
+      ) { mode.execute }
       raise ArgumentError, result.error unless result.success?
 
       result.workflow

@@ -177,7 +177,13 @@ module Api
             return
           end
 
-          result = mode.execute
+          source_workflow = job.workflows.find_by(id: preflight.details["source_workflow_id"])
+          guidance = params[:retry_context].presence || params[:replay_context]
+          result = RecoveryInterventions::Perform.call(
+            job:, source_workflow:, action: "repair", mode: "implementation",
+            actor_type: "operator", actor: Current.user, origin: "job_page",
+            reason: params[:reason], guidance:
+          ) { mode.execute }
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return

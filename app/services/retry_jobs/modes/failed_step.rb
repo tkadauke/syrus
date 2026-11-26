@@ -19,7 +19,8 @@ module RetryJobs
         return failure("No failed step or grader loop is available to retry.") unless step
 
         success("source_workflow_id" => workflow.id, "failed_step_id" => step.id,
-          "failed_step_kind" => step.kind, "source_snapshot_id" => WorkflowSourceSnapshots.current_for(workflow)&.id)
+          "failed_step_kind" => step.kind, "source_snapshot_id" => WorkflowSourceSnapshots.current_for(workflow)&.id,
+          "recovery_decision" => RecoveryDecision.for(job: job, workflow: workflow).as_json)
       end
 
       def execute
@@ -27,6 +28,11 @@ module RetryJobs
         OperatorRetryContext.with_context(workflow, @retry_context) do
           RetryFailedStepEnqueuer.call(workflow: workflow)
         end
+      end
+
+      def recovery_action
+        step = source_workflow && RetryFailedStepEnqueuer.failed_step_for(source_workflow)
+        step&.kind == "grader_fanout" ? "restart_grade_loop" : "repair"
       end
     end
   end
