@@ -154,6 +154,7 @@ per-user/private:
   - app/controllers/concerns/provider_account_serialization.rb
   - app/controllers/concerns/provider_routing_rule_serialization.rb
   - app/controllers/api/v1/app/provider_routing_rules_controller.rb
+  - app/controllers/api/v1/app/workflow_outcome_overrides_controller.rb
   - plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb
   - plugins/review_workspace/app/controllers/api/v1/app/review_workspace_controller.rb
@@ -405,6 +406,7 @@ instead of broader model scopes.
 | `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
 | `app/controllers/api/v1/app/provider_routing_rules_controller.rb` | per-user/private and repository-write affordance | User-scoped routing rules are created/updated/deleted under `Current.user.id`; repository-scoped rules resolve the repository through `policy_scope(Repository)` and require `RepositoryPolicy#update?` for `Current.user`. |
+| `app/controllers/api/v1/app/workflow_outcome_overrides_controller.rb` | per-user/private | Override candidates and mutations are limited to Jobs visible to the current user; the current user is recorded as the audited override actor. |
 | `app/controllers/api/v1/app/admin/provider_routing_holds_controller.rb` | admin-only | Releases or overrides a durable provider-routing hold from the in-app Job UI and records `Current.user` as the operator who released it. |
 | `app/controllers/api/v1/app/admin/settings_controller.rb` | admin-only | App-wide settings are admin-only; `Current.user` stamps the actor for workflow-admission-control audit metadata and `AdminAction` rows. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |

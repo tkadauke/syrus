@@ -143,6 +143,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `git_status` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
 | `hold_job` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `inspect_provider_circuit` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `inspect_workflow_outcome_overrides` | chat | essential | read | no | - | - | - | - | essential |
 | `list_epics` | chat | essential | read | no | - | - | - | - | essential |
 | `list_files` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
 | `list_jobs` | chat | essential | read | no | - | - | - | - | essential |
@@ -176,6 +177,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `repair_queue_affinity` | chat | essential | write | yes | - | - | - | - | gated (operational) |
 | `replace_pr_branch_with_workflow_output` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
 | `repo_info` | chat | essential | read | no | - | - | - | - | essential |
+| `request_workflow_outcome_override` | chat | essential | write | no | - | - | - | - | gated (operational) |
 | `rerun_ci_repair` | chat | essential | write | yes | - | - | - | - | gated (operational) |
 | `reset_job` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `reset_workspace` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (destructive) |
@@ -320,6 +322,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (confidential cross boundary) |
 | `hold_job` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, destructive) |
 | `inspect_provider_circuit` | coworker | essential | read | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_diagnostics` | - | deniable (instance wide observability) |
+| `inspect_workflow_outcome_overrides` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_outcome_override_observation` | - | essential |
 | `list_epics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |
 | `list_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
 | `list_pending_actions` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
@@ -355,6 +358,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `repair_queue_affinity` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational) |
 | `replace_pr_branch_with_workflow_output` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, external_write) |
 | `repo_info` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `request_workflow_outcome_override` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_outcome_overrides` | - | gated (operational) |
 | `rerun_ci_repair` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational) |
 | `reset_job` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational, destructive) |
 | `restack_epic` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, external_write) |

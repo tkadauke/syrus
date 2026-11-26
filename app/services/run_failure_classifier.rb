@@ -135,6 +135,9 @@ class RunFailureClassifier
     when provider_model_unsupported?
       result(ProviderModelUnsupported::CLASSIFICATION, 0.95, false,
              "The provider refused the model it was asked for. Retrying cannot help; the run has to go to a provider or model that accepts it.")
+    when provider_policy_refusal?
+      result(ProviderPolicyRefusal::CLASSIFICATION, 0.98, false,
+             "The provider refused the request under its policy. Retrying the same reviewer cannot help.")
     # Legacy/external text fallback: new Syrus-owned agent invocation failures
     # declare Problems in Steps::Base#run_agent, but old RunDiagnostic rows and
     # third-party provider text still reach this classifier with prose only.
@@ -328,6 +331,11 @@ class RunFailureClassifier
 
   def provider_prompt_too_long?
     text_match?(/prompt is too long|context.*too long|maximum context|context length|ran out of room in the model's context window/i)
+  end
+
+  def provider_policy_refusal?
+    run.agent_outcome.to_s == ProviderPolicyRefusal::OUTCOME ||
+      ProviderPolicyRefusal.detect?(provider_failure_text)
   end
 
   def stdin_race_failed?

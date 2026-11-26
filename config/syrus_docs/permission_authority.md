@@ -469,3 +469,29 @@ When a remembered scope needs confirmation, the card summarizes what will be
 remembered, where it applies, how long it lasts, and how to revoke it in
 Settings → Permissions. Allow once, stale-request handling, and rule semantics
 are unchanged.
+
+## Workflow outcome overrides
+
+Failed review members and required implementation or landing graders expose an
+override only when their gate marks the failure technically overridable. The
+override binds to the exact candidate revision, gate identity, plan or prompt
+version, and evidence digest. It records the result as `failed, overridden`;
+it never rewrites failed evidence as a pass. Changed code or evidence requires
+a new request.
+
+`syrus.workflow_outcome_overrides@v1` uses the normal permission evaluator, so
+authority is not tied to administrator status. The Job UI shows the scope and
+consequence, requires a reason, and asks for confirmation. Chat and coworker
+agents can inspect candidates and request confirmation with
+`inspect_workflow_outcome_overrides` and `request_workflow_outcome_override`.
+Agent requests include diagnosis, remediation attempted, justification, and an
+optional linked Syrus bug report; agents should repair the cause or report a
+product defect whenever practical.
+
+Consumption resumes the blocked collector or gate instead of repeating the
+implementation step. The original failure remains labeled `failed, overridden`
+on the Workflow after execution continues. Syrus also writes that marker to the
+Run transcript and operational audit, and counts consumed overrides by the
+bounded gate kind and request channel. Repeating the same exact-evidence request
+is idempotent; cancellation, supersession, a changed revision, or changed
+evidence prevents the old request from advancing work.

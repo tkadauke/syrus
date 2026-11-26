@@ -73,6 +73,8 @@ de:
         invalid_utf8: "%{name} ist kein gültiger UTF-8-Text."
         total_too_large: "Anhänge dürfen insgesamt höchstens 20 MB groß sein."
     mcp:
+      workflow_outcome_overrides:
+        pending_confirmation: "Die Ergebnisübersteuerung wartet für den exakten Nachweis %{evidence} auf die Bestätigung eines Operators."
       unland_confirmation:
         job: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
         epic: "%{subject} zurücksetzen? Eine Bestätigung durch einen Operator ist erforderlich."
@@ -97,6 +99,30 @@ de:
   time:
     formats:
       long: "%Y-%m-%d %H:%M"
+
+  models:
+    workflow_outcome_override:
+      errors:
+        invalidated_cannot_be_consumed: "Eine ungültig gemachte Außerkraftsetzung kann nicht verbraucht werden"
+        gate_kind_not_registered: "ist nicht registriert"
+        failure_not_overridable: "Der Gate-Fehler kann technisch nicht außer Kraft gesetzt werden"
+        workflow_job_mismatch: "muss zum Job der Außerkraftsetzung gehören"
+        step_requires_workflow: "erfordert einen Workflow"
+        step_workflow_mismatch: "muss zum Workflow der Außerkraftsetzung gehören"
+        version_required: "Eine Plan- oder Prompt-Version ist erforderlich"
+        gate_failure_mismatch: "stimmt nicht mit dem Gate-Fehler überein"
+        fingerprint_digest_mismatch: "stimmt nicht mit den gebundenen Nachweisen und der Revision überein"
+        current_fingerprint_mismatch: "Der Fingerabdruck der Außerkraftsetzung stimmt nicht mit den aktuellen Gate-Nachweisen und der Revision überein"
+        claims_immutable: "Die Angaben der Außerkraftsetzung sind unveränderlich: %{attributes}"
+        consumed_at_immutable: "ist nach dem Setzen unveränderlich"
+        invalidation_cause_immutable: "ist nach dem Setzen unveränderlich"
+        terminal_states_mutually_exclusive: "Eine Außerkraftsetzung kann nicht zugleich verbraucht und ungültig gemacht sein"
+
+  services:
+    workflow_outcome_overrides:
+      telemetry:
+        message: "Workflow-Ergebnis fehlgeschlagen, übersteuert"
+        transcript: "Workflow-Ergebnis fehlgeschlagen, übersteuert: %{gate_kind} %{gate_identity} bei %{candidate_head_sha} (Nachweis %{evidence_digest})."
 
   errors:
     messages:
@@ -264,6 +290,8 @@ de:
       stacked_children: "Aktive gestapelte Kind-Jobs hängen von diesem Branch ab: %{slugs}; setze sie zurück oder lande sie zuerst."
       state: "%{slug} kann im Status %{state} nicht zurückgesetzt werden; wiederhole oder öffne ihn zuerst erneut."
   api:
+    workflow_outcome_overrides:
+      denied: "Du hast keine Berechtigung, dieses Workflow-Ergebnis zu übersteuern."
     cli_commands:
       errors:
         plugin_not_found: "Dieses Plugin ist nicht installiert."

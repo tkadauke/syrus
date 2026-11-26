@@ -73,6 +73,8 @@ la:
         invalid_utf8: "%{name} textus UTF-8 validus non est."
         total_too_large: "Adiuncta simul non maiora quam 20 MB esse debent."
     mcp:
+      workflow_outcome_overrides:
+        pending_confirmation: "Superatio exitus confirmationem operatoris pro testimonio exacto %{evidence} exspectat."
       unland_confirmation:
         job: "%{subject} revocare? Confirmatio operatoris requiritur."
         epic: "%{subject} revocare? Confirmatio operatoris requiritur."
@@ -97,6 +99,30 @@ la:
   time:
     formats:
       long: "%Y-%m-%d %H:%M"
+
+  models:
+    workflow_outcome_override:
+      errors:
+        invalidated_cannot_be_consumed: "exceptio infirmata consumi non potest"
+        gate_kind_not_registered: "non registratum est"
+        failure_not_overridable: "defectus portae technice superari non potest"
+        workflow_job_mismatch: "ad Job exceptionis pertinere debet"
+        step_requires_workflow: "Workflow requirit"
+        step_workflow_mismatch: "ad Workflow exceptionis pertinere debet"
+        version_required: "versio consilii aut prompti requiritur"
+        gate_failure_mismatch: "cum defectu portae non congruit"
+        fingerprint_digest_mismatch: "cum testimonio et revisione conexis non congruit"
+        current_fingerprint_mismatch: "vestigium exceptionis cum testimonio portae et revisione praesentibus non congruit"
+        claims_immutable: "assertiones exceptionis immutabiles sunt: %{attributes}"
+        consumed_at_immutable: "postquam positum est mutari non potest"
+        invalidation_cause_immutable: "postquam posita est mutari non potest"
+        terminal_states_mutually_exclusive: "exceptio simul consumpta et infirmata esse non potest"
+
+  services:
+    workflow_outcome_overrides:
+      telemetry:
+        message: "Exitus Workflow defecit, superatus"
+        transcript: "Exitus Workflow defecit, superatus: %{gate_kind} %{gate_identity} apud %{candidate_head_sha} (testimonium %{evidence_digest})."
 
   errors:
     messages:
@@ -264,6 +290,8 @@ la:
       stacked_children: "Filii Job strati vivi ab hoc ramo pendent: %{slugs}; eos prius repone vel terrae affer."
       state: "%{slug} ex statu %{state} reponi non potest; prius iterum conare vel reaperi."
   api:
+    workflow_outcome_overrides:
+      denied: "Potestatem non habes hunc exitum cursus superandi."
     cli_commands:
       errors:
         plugin_not_found: "Hoc plugin non installatum est."

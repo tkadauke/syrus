@@ -289,6 +289,7 @@ module App
             planned_execution: workflow.planned_execution_json,
             provider_failover: App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: @job.workflow_agent_provider),
             state: workflow.state,
+            outcome_overrides: workflow_outcome_overrides_json(workflow),
             failure_count: workflow.failure_count,
             artifacts: @workflow_detail ? workflow_artifacts_json(workflow) : workflow_list_artifacts_json(workflow),
             cancellation: Workflows::CancellationAttribution.payload_for(workflow),
@@ -307,6 +308,19 @@ module App
             steps: PerformanceLogging.phase("job_detail.workflow.steps", job_id: @job.id, workflow_id: workflow.id, step_count: steps.size) do
               steps.map { |step| @workflow_detail ? step_json(step, workflow: workflow, latest_step: latest_step) : step_summary_json(step, workflow: workflow, latest_step: latest_step) }
             end
+          }
+        end
+      end
+
+      def workflow_outcome_overrides_json(workflow)
+        workflow.workflow_outcome_overrides.select(&:consumed?).map do |override|
+          {
+            id: override.id,
+            effective_state: override.effective_state,
+            gate_kind: override.gate_kind,
+            gate_identity: override.gate_identity,
+            reason: override.reason,
+            consumed_at: iso8601(override.consumed_at)
           }
         end
       end
@@ -354,7 +368,7 @@ module App
       end
 
       def workflows_scope
-        @job.workflows.preload(:workflow_artifact_values).reorder(created_at: :desc, id: :desc)
+        @job.workflows.preload(:workflow_artifact_values, :workflow_outcome_overrides).reorder(created_at: :desc, id: :desc)
       end
 
       def total_workflows

@@ -756,6 +756,14 @@ export type JobWorkflow = {
   agent_provider: string | null
   provider_failover?: ProviderFailover
   state: string
+  outcome_overrides?: Array<{
+    id: number
+    effective_state: "failed, overridden"
+    gate_kind: string
+    gate_identity: string
+    reason: string
+    consumed_at: string | null
+  }>
   failure_count: number
   artifacts: Record<string, unknown> | null
   cleaned_up_at: string | null
@@ -862,6 +870,32 @@ export type JobStep = {
   runs_displayed?: number
   runs_truncated?: boolean
   runs: JobRun[]
+}
+
+export type WorkflowOutcomeOverrideCandidate = {
+  job_id: number
+  workflow_id: number
+  step_id: number
+  gate_kind: string
+  gate_identity: string
+  candidate_head_sha: string
+  evidence_digest: string
+  fingerprint_digest: string
+  label: string
+  consequence: string
+  policy: "allow" | "ask" | "deny"
+  technically_overridable: boolean
+}
+
+export function fetchWorkflowOutcomeOverrideCandidates(jobId: number) {
+  return getJson<{ candidates: WorkflowOutcomeOverrideCandidate[] }>(`/api/v1/app/jobs/${jobId}/workflow_outcome_overrides`)
+}
+
+export function createWorkflowOutcomeOverride(jobId: number, fingerprintDigest: string, reason: string) {
+  return postJson<{ override: { id: number; effective_state: string } }>(`/api/v1/app/jobs/${jobId}/workflow_outcome_overrides`, {
+    fingerprint_digest: fingerprintDigest,
+    reason
+  })
 }
 
 export type JobStepPlacement = {

@@ -40,7 +40,8 @@ module Admin
       "spawn_chats" => "spawn_chat",
       "accept_insight" => "accept_insights",
       "dismiss_insight" => "dismiss_insights",
-      "retire_insight" => "retire_insights"
+      "retire_insight" => "retire_insights",
+      "request_workflow_outcome_override" => "workflow_outcome_override"
     }.freeze
 
     STATIC_CAPABILITIES = {
@@ -96,6 +97,19 @@ module Admin
         decisions: {
           admin_api: { status: "not_exposed", reason: "Personal API token lifecycle belongs to the user API, not the instance-admin API." },
           mcp: { status: "not_exposed", reason: "MCP uses scoped invocation credentials instead of durable personal API tokens." }
+        }
+      },
+      workflow_outcome_override: {
+        sources: {
+          user_api: [
+            { source: "user_api", name: "GET /api/v1/app/jobs/:job_id/workflow_outcome_overrides" },
+            { source: "user_api", name: "POST /api/v1/app/jobs/:job_id/workflow_outcome_overrides" }
+          ]
+        },
+        decisions: {
+          admin_api: { status: "not_exposed", reason: "The admin API exposure is supplied by its registered PendingAction." },
+          cli: { status: "not_exposed", reason: "No CLI command is registered for workflow outcome overrides." },
+          mcp: { status: "not_exposed", reason: "The MCP exposure is supplied by its registered request tool." }
         }
       }
     }.freeze
@@ -186,6 +200,7 @@ module Admin
       unapprove_job
       wake_landing_queue
       wake_provider_admission
+      workflow_outcome_override
     ].freeze
 
     WORKFLOW_MCP_CAPABILITIES = %w[

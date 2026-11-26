@@ -1,0 +1,31 @@
+module WorkflowOutcomeOverrides
+  # Dispatches through the registered gate contract so future gate kinds own
+  # their continuation behavior alongside their failure contract.
+  class Resumer
+    class ResumeFailed < StandardError; end
+
+    def self.call(override:)
+      new(override:).call
+    rescue ResumeFailed
+      # A failed reconciliation transaction may have rolled back lifecycle
+      # writes while leaving the caller's instance dirty.
+      override.reload
+      override.invalidate!("resume_failed") unless override.consumed? || override.invalidated?
+      raise
+    end
+
+    def initialize(override:)
+      @override = override
+    end
+
+    def call
+      return override if override.consumed?
+
+      GateRegistry.default.fetch(override.gate_kind).resume(override)
+    end
+
+    private
+
+    attr_reader :override
+  end
+end

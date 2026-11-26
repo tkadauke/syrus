@@ -73,6 +73,11 @@ module Steps
       unsuccessful_required = failed_required + cancelled_required
       infrastructure_failed_required = unsuccessful_required.select { |g| infrastructure_failed_step?(g) }
       real_failed_required = unsuccessful_required - infrastructure_failed_required
+      # An override is one-shot evidence for a gate that can otherwise
+      # advance. Do not consume it while an unrelated infrastructure failure
+      # still forces the whole gate to retry.
+      overridden_required = infrastructure_failed_required.empty? ? apply_outcome_overrides!(real_failed_required, grader_steps) : []
+      real_failed_required -= overridden_required
       infrastructure_evidence = if infrastructure_failed_required.any?
         record_infrastructure_evidence!(infrastructure_failed_required)
       end
@@ -107,6 +112,11 @@ module Steps
       end
 
       if real_failed_required.empty?
+        if overridden_required.any? && infrastructure_failed_required.empty?
+          log("[grader_collect] exact-evidence outcome override accepted: #{grader_names(overridden_required).join(', ')}")
+          record_validation_manifest!(head_sha: current_head_sha, base_sha: landing_base_sha, base_ref: landing_base_ref)
+          return
+        end
         fail_for_infrastructure!(infrastructure_failed_required, evidence: infrastructure_evidence)
       end
 
@@ -129,6 +139,27 @@ module Steps
     end
 
     private
+
+    def apply_outcome_overrides!(failed_required, all_graders)
+      required_plan = all_graders.select { |grader| grader.details.to_h["required"] }.map do |grader|
+        details = grader.details.to_h
+        {
+          "grader_key" => details["target_label"].presence || details["name"],
+          "command_fingerprint" => details.dig("target_fingerprints", "command_fingerprint"),
+          "required" => true
+        }
+      end.sort_by { |entry| entry["grader_key"].to_s }
+
+      failed_required.select do |grader|
+        WorkflowOutcomeOverrides::GraderResult.apply!(
+          workflow: workflow, grader_step: grader,
+          candidate_head_sha: current_head_sha, candidate_tree_sha: current_tree_sha,
+          candidate_base_sha: landing_base_sha,
+          grader_plan_digest: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY),
+          required_grader_plan: required_plan
+        )
+      end
+    end
 
     def ci_repair_target_fixed?(grader_steps, carried_forward, target_health_skipped)
       return false unless workflow.trigger_kind == "ci_failure"

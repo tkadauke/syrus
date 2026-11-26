@@ -193,6 +193,42 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "accepts an exact-evidence override without recording reusable passing conclusions" do
+    grader = workflow.steps.find_by!(kind: "grader")
+    grader.update!(
+      state: "failed",
+      details: grader.details.merge(
+        "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true,
+        "technically_overridable" => true, "command" => "bin/rspec", "exit_code" => 1,
+        "output" => "1 example, 1 failure"
+      )
+    )
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "grade-plan-v1")
+    required_plan = [ {
+      "grader_key" => "//:grade/rspec",
+      "command_fingerprint" => grader.details.dig("target_fingerprints", "command_fingerprint"),
+      "required" => true
+    } ]
+    result = WorkflowOutcomeOverrides::GraderResult.new(
+      workflow:, grader_step: grader, candidate_head_sha: "abc123", candidate_tree_sha: "abc123",
+      candidate_base_sha: "abc123", grader_plan_digest: "grade-plan-v1", required_grader_plan: required_plan
+    )
+    override = WorkflowOutcomeOverride.record!(
+      gate_failure: result.failure, job:, workflow:, step: grader, actor: Factories.user,
+      gate_kind: result.gate_kind, gate_identity: result.gate_identity,
+      candidate_head_sha: "abc123", candidate_tree_sha: "abc123", candidate_base_sha: "abc123",
+      plan_version: result.plan_version, evidence_digest: result.evidence_digest,
+      channel: "ui", reason: "Confirmed false positive", permission_decision: { "state" => "allow" }
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(grader.reload).to be_failed
+    expect(grader.details.dig("outcome_override", "id")).to eq(override.id)
+    expect(GraderConclusion.where(workflow:, status: "passed")).to be_empty
+    expect(override.reload).to be_consumed
+  end
+
   it "allows a committed CI repair through when its explicitly mapped pass is carried forward and an unrelated grader has an infrastructure failure" do
     workflow.update_columns(trigger_kind: "ci_failure")
     workflow.set_artifact!("head_sha", "original123")

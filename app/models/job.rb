@@ -7,6 +7,7 @@ class Job < ApplicationRecord
   include HasProposer
   include AuthorizationCheckpointOrigin
   has_many :planned_execution_overrides, dependent: :destroy
+  has_many :workflow_outcome_overrides, dependent: :restrict_with_error
   include AASM
   include RecordsStateTransitions
   include Revisionable

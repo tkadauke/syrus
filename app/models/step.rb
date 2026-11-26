@@ -14,6 +14,7 @@ class Step < ApplicationRecord
   AGENTIC_KINDS = Step::Kind.agentic_values
 
   belongs_to :workflow
+  has_many :workflow_outcome_overrides, dependent: :restrict_with_error
   belongs_to :next_step, class_name: "Step", optional: true
   has_one :previous_step, class_name: "Step", foreign_key: :next_step_id
   has_many :target_health_records, dependent: :nullify

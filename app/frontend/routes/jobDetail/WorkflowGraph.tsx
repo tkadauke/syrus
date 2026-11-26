@@ -15,6 +15,8 @@ import { StatusPill, TonePill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
+import { Modal } from "../../components/Modal"
+import { Textarea } from "../../components/Textarea"
 import { CodeSurface, DescriptionList, Notice, Section, Surface, surfaceClasses, Text } from "../../components/ui"
 import { pluginIconSrc } from "../../lib/pluginIcon"
 import {
@@ -22,6 +24,8 @@ import {
   fetchJobRunArtifacts,
   fetchJobSourceFileContent,
   fetchWorkflowDetail,
+  fetchWorkflowOutcomeOverrideCandidates,
+  createWorkflowOutcomeOverride,
   type JobAdversarialReviewIteration,
   type JobCoworkerReviewIteration,
   type JobSecurityReviewIteration,
@@ -563,6 +567,7 @@ function WorkflowCard({
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+            {workflow.outcome_overrides?.length ? <SmallPill>{t("outcome_override_effective_state")}</SmallPill> : null}
             <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
             {workflow.retry_available ? (
               <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
@@ -699,6 +704,7 @@ function WorkflowMobileControls({
   return (
     <div className="flex shrink-0 items-center gap-1">
       {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+      {workflow.outcome_overrides?.length ? <SmallPill>{t("outcome_override_effective_state")}</SmallPill> : null}
       {hasCommands ? (
         <div>
           <Button
@@ -1360,6 +1366,7 @@ function GraderDetails({ details, jobId, prefix, workflowId }: { details: Record
           <CodeSurface code={command} maxHeightClassName="max-h-32" mode="command" />
         </div>
       ) : null}
+      <OutcomeOverrideAction jobId={jobId} stepId={Number(details.step_id || 0)} />
     </Surface>
   )
 }
@@ -1467,7 +1474,11 @@ function PrOutcomeNotice({ number, url, roleLabelKey }: { number: number | null;
 // affordance instead of shown by default.
 function StepDetailsSection({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
   if (step.kind === "grader" || step.kind === "preflight_grader") {
-    return <GraderDetails details={objectDetails(step.details)} jobId={jobId} prefix={prefix} workflowId={workflowId} />
+    return (
+      <>
+        <GraderDetails details={{ ...objectDetails(step.details), step_id: step.id }} jobId={jobId} prefix={prefix} workflowId={workflowId} />
+      </>
+    )
   }
   if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") {
     return null
@@ -1481,11 +1492,84 @@ function StepDetailsSection({ step, jobId, prefix, workflowId }: { step: JobStep
 
   return (
     <>
+      <OutcomeOverrideAction jobId={jobId} stepId={step.id} />
       {softFailures.map((failure, index) => (
         <SoftCommandFailurePanel failure={failure} key={index} />
       ))}
       {debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null}
     </>
+  )
+}
+
+function OutcomeOverrideAction({ jobId, stepId }: { jobId: number; stepId: number }) {
+  const { t } = useT("jobs")
+  const [selectedFingerprint, setSelectedFingerprint] = useState<string | null>(null)
+  const [reason, setReason] = useState("")
+  const query = useQuery({
+    queryKey: ["workflow-outcome-overrides", jobId],
+    queryFn: () => fetchWorkflowOutcomeOverrideCandidates(jobId),
+    enabled: stepId > 0
+  })
+  const candidates = query.data?.candidates?.filter((item) => item.step_id === stepId) || []
+  const candidate = candidates.find((item) => item.fingerprint_digest === selectedFingerprint)
+  const mutation = useMutation({
+    mutationFn: () => createWorkflowOutcomeOverride(jobId, candidate!.fingerprint_digest, reason.trim()),
+    onSuccess: () => {
+      setSelectedFingerprint(null)
+      void query.refetch()
+    }
+  })
+  if (candidates.length === 0) return null
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap gap-2">
+        {candidates.map((item) => (
+          <Button
+            disabled={item.policy === "deny"}
+            key={item.fingerprint_digest}
+            onClick={() => setSelectedFingerprint(item.fingerprint_digest)}
+            variant="secondary"
+          >
+            {t("outcome_override_action_named", { label: item.label })}
+          </Button>
+        ))}
+      </div>
+      {candidates.some((item) => item.policy === "deny") ? <p className="mt-1 text-xs text-danger-text">{t("outcome_override_denied")}</p> : null}
+      <Modal label={t("outcome_override_title")} onClose={() => setSelectedFingerprint(null)} open={Boolean(candidate)}>
+        {candidate ? (
+          <div className="space-y-3 text-sm">
+            <h2 className="text-lg font-semibold text-text-primary">{t("outcome_override_title")}</h2>
+            <Notice tone="warning">
+              <p className="font-medium">{candidate.label}</p>
+              <p>{candidate.consequence}</p>
+            </Notice>
+            <DescriptionList.Root density="compact">
+              <DescriptionList.Item label={t("outcome_override_scope")}>{candidate.gate_kind.replaceAll("_", " ")}</DescriptionList.Item>
+              <DescriptionList.Item label={t("outcome_override_revision")}>
+                <code>{candidate.candidate_head_sha.slice(0, 12)}</code>
+              </DescriptionList.Item>
+              <DescriptionList.Item label={t("outcome_override_evidence")}>
+                <code>{candidate.evidence_digest.slice(0, 12)}</code>
+              </DescriptionList.Item>
+            </DescriptionList.Root>
+            <label className="block font-medium" htmlFor={`override-reason-${stepId}`}>
+              {t("outcome_override_reason")}
+            </label>
+            <Textarea id={`override-reason-${stepId}`} onChange={(event) => setReason(event.target.value)} required value={reason} />
+            {mutation.error ? <p className="text-danger-text">{errorMessage(mutation.error, t("outcome_override_error"))}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setSelectedFingerprint(null)} variant="secondary">
+                {t("outcome_override_cancel")}
+              </Button>
+              <Button disabled={!reason.trim() || mutation.isPending} onClick={() => mutation.mutate()} variant="danger">
+                {mutation.isPending ? t("outcome_override_confirming") : t("outcome_override_confirm")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
   )
 }
 

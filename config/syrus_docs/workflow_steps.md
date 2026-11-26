@@ -301,7 +301,17 @@ credential, availability, and circuit evidence. `drop` removes them and
 recomputes count-based quorum, subject to `min_members`; `hold` defers admission
 through the provider-routing hold path; and `fail` reports the panel as unable
 to proceed. If fewer than `min_members` non-skipped verdicts remain, consensus
-is `skipped`.
+is `skipped`. The same policy is applied when a member becomes unavailable
+during execution. An explicit provider policy refusal, unsupported model, or
+equivalent permanent provider failure is recorded as member unavailability;
+Syrus does not spend retries asking the same provider again.
+
+An authorized outcome override may make one submitted negative member verdict
+or unavailable-member result non-blocking. The override must match the exact
+reviewed commit, panel member identity, and evidence digest. The original
+verdict, critique, and provider failure remain in the panel artifact; the
+collector records the override separately and uses its effective approval only
+for consensus and gate advancement.
 
 Required review gates share one immutable implementation-HEAD barrier. Panel
 fanout completion only records that members were created; downstream mutation,

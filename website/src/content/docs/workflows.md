@@ -326,6 +326,24 @@ graders and PR publication. The warning is an explicit exception for that
 gate and exact commit; the stale verdict is not treated as current approval.
 Optional panels do not block this gate.
 
+Panel availability rules also apply after execution starts. A provider policy
+refusal or another permanent provider failure is treated as an unavailable
+member, so `drop`, `hold`, `fail`, and the configured minimum-member count still
+govern the result without futile retries. Authorized exact-commit overrides can
+make a negative or unavailable member non-blocking; Syrus retains the original
+verdict and evidence in the review record.
+
+The same exact-evidence override is available for technically overridable
+implementation and landing grader failures. Authorized operators see the gate,
+revision, evidence fingerprint, and consequence before confirming, and must
+provide an audit reason. The original failed result remains visible as
+`failed, overridden`; a new revision or changed evidence cannot reuse it.
+After confirmation, Syrus resumes at the blocked collector or gate rather than
+rerunning implementation. Workflow status and Run transcripts retain the
+`failed, overridden` marker while later work continues. Repeated requests for
+the same evidence are idempotent, and cancellation or supersession prevents a
+stale request from advancing the Workflow.
+
 | Step | Agentic | Purpose |
 | --- | --- | --- |
 | `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
