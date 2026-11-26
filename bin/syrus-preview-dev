@@ -24,12 +24,13 @@ trap cleanup EXIT INT TERM
 # if its initial pass stalls or exits without writing an asset, Playwright can
 # only report that the web server missed its startup deadline. One-shot builds
 # fail directly with their useful output in the logs and guarantee the files
-# exist. Interactive previews still start watchers so edits rebuild; CI serves
-# one immutable checkout and avoids spending its startup budget on them.
+# exist. Interactive previews still start watchers so edits rebuild; CI and
+# isolated grader runs serve one immutable checkout and avoid racing the built
+# assets or spending their test budget on development processes.
 bin/rails tailwindcss:build > log/tailwind.log 2>&1
 npm run build > log/vite.log 2>&1
 
-if [ -z "${CI:-}" ]; then
+if [ -z "${CI:-}" ] && [ -z "${E2E_ISOLATE:-}" ]; then
   bin/rails tailwindcss:watch >> log/tailwind.log 2>&1 &
   pids+=("$!")
 
