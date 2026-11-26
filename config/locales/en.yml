@@ -40,6 +40,8 @@ en:
   hello: "Hello world"
 
   server:
+    detach_job:
+      confirmation: "Detach %{job} from its inferred parent and restack PR #%{pr_number} onto %{destination_base}?"
     permissions:
       coworker_request_waiting: "Waiting for the owner to decide the required permissions."
       policy_evaluated: "Canonical permission policy evaluated"

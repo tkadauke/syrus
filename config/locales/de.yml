@@ -9,6 +9,8 @@ de:
   coworkers:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
+    detach_job:
+      confirmation: "%{job} vom abgeleiteten übergeordneten Job lösen und PR #%{pr_number} auf %{destination_base} neu stapeln?"
     permissions:
       coworker_request_waiting: "Warten auf die Entscheidung des Eigentümers über die erforderlichen Berechtigungen."
       policy_evaluated: "Kanonische Berechtigungsrichtlinie ausgewertet"
