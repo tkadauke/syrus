@@ -123,7 +123,13 @@ describe("AgentConversationTab", () => {
     const prompt = screen.getByTestId("run-input-prompt")
     expect(prompt).toHaveTextContent("Input prompt")
     expect(prompt).toHaveTextContent("Implement the greeting helper.")
-    expect(prompt.firstElementChild?.nextElementSibling).toHaveClass("min-w-0", "overflow-x-hidden", "whitespace-pre-wrap", "break-words", "[overflow-wrap:anywhere]")
+    expect(prompt.firstElementChild?.nextElementSibling).toHaveClass(
+      "min-w-0",
+      "overflow-x-hidden",
+      "whitespace-pre-wrap",
+      "break-words",
+      "[overflow-wrap:anywhere]"
+    )
     expect(screen.getByTestId("run-transcript-log-assistant")).toBeInTheDocument()
     expect(screen.queryByTestId("run-transcript-log-compact")).not.toBeInTheDocument()
     expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
