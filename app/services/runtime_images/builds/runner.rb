@@ -27,10 +27,13 @@ module RuntimeImages
 
       def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new,
                      base_verifier: ConformanceProbe.method(:verify_published!), candidate_probe: Verifications::CandidateProbe.new,
-                     supply_chain_verifier: Verifications::SupplyChainVerifier.new)
+                     supply_chain_verifier: Verifications::SupplyChainVerifier.new, image_policy_verifier: nil)
         @base_verifier = base_verifier
         @candidate_probe = candidate_probe
         @supply_chain_verifier = supply_chain_verifier
+        @image_policy_verifier = image_policy_verifier || Verifications::ImagePolicyVerifier.new(
+          scanner: Verifications::ImagePolicyScanner.new(built_images: BuiltImages.new(service: service))
+        )
         @orchestrator = orchestrator
         @service = service
         @builder = builder
@@ -114,7 +117,7 @@ module RuntimeImages
           provenance: provenance_for(request, output, evidence), payload: output.payload, verification_state: "unverified"
         )
         evidence.image_digest = image.digest
-        verification = verify_candidate(request, image)
+        verification = verify_candidate(request, image, evidence)
         unless verification.accepted?
           retryable = verification.state == "blocked"
           raise BuildFailed.new(verification.message || "image verification #{verification.state}",
@@ -124,11 +127,12 @@ module RuntimeImages
         image
       end
 
-      def verify_candidate(request, image)
+      def verify_candidate(request, image, evidence)
         registry = Verifications::Registry.new
         registry.register("manifest", Verifications::ManifestVerifier.new(service: @service))
         registry.register("supply_chain", @supply_chain_verifier)
         policy = Verifications::Policy.current
+        policy["checks"] << { "key" => "image_policy", "required" => true }
         if request.source_kind == CoworkerBase::SOURCE_KIND
           registry.register("base_conformance", Verifications::CallableVerifier.new(@base_verifier, evidence_kind: "confined_conformance_probe"))
           policy["checks"] << { "key" => "base_conformance", "required" => true }
@@ -141,7 +145,10 @@ module RuntimeImages
             policy["checks"] << { "key" => key, "required" => true }
           end
         end
-        Verifications::Orchestrator.new(registry: registry, service: @service).verify(image, policy: policy, context: { build_request_id: request.id })
+        registry.register("image_policy", @image_policy_verifier)
+        Verifications::Orchestrator.new(registry: registry, service: @service).verify(
+          image, policy: policy, context: { build_request_id: request.id, build_evidence: evidence }
+        )
       end
 
       # A verified standard base becomes a promotion candidate. It is never
