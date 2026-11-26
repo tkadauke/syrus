@@ -397,6 +397,21 @@ grade:
       - "bin/check-primary-migration-baselines"
     timeout_minutes: 10
 
+  - name: thread-budget
+    description: |
+      Rejects a SolidQueue worker config whose thread budget exceeds
+      the DB connection pool. Mismatch crashloops the worker pod at
+      boot — it can't claim a connection per thread. Bump
+      RAILS_MAX_THREADS / config/database.yml's pool, or trim the
+      queue's thread count.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && JOB_CONCURRENCY=6 DB_POOL=9 bin/check-thread-budget
+    phases: [review, landing, ci, unland]
+    # Landing dispatches graders in parallel; this one starts with the same
+    # `bundle check` as eager-load/production-build-boot, so it needs the
+    # same 3-minute headroom under contention instead of the tighter 1-minute
+    # budget that produced a spurious exit-124 with zero actual failures.
+    timeout_minutes: 3
+
   - name: feature-slugs
     description: |
       Ensures every Feature.enabled? call and frontend featureFlags
