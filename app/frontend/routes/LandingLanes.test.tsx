@@ -102,6 +102,11 @@ describe("landing lanes", () => {
     expect(link).toHaveAttribute("href", "/landing_lanes")
     expect(within(screen.getByText("Landing lanes").parentElement!).getAllByRole("link")).toEqual([link])
     expect(screen.getByText("JOB-10")).toBeInTheDocument()
+    const emptyProgress = screen.getByRole("progressbar", { name: "acme/rocket Lane 2 landing progress" })
+    expect(emptyProgress).toHaveAttribute("aria-valuenow", "0")
+    Array.from(emptyProgress.children).forEach((segment) => {
+      expect(segment.firstElementChild).toHaveStyle({ width: "0%" })
+    })
     current = {
       ...payload,
       repositories: [{ ...payload.repositories[0], lanes: [{ ...payload.repositories[0].lanes[0], anchor_job: { id: 99, slug: "JOB-99", app_path: "/jobs/99" } }] }]
