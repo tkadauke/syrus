@@ -89,7 +89,7 @@ module RuntimeImages
 
       def smoke_result(reference, command)
         argv = constrained_command(reference)
-        argv[-2] = "/bin/sh"
+        argv[option_value_index!(argv, "--entrypoint")] = "/bin/sh"
         argv.concat([ "-lc", command.to_s ])
         output, status = @runner.call(argv)
         return passed("smoke_test", Digest::SHA256.hexdigest(output.to_s)) if status.to_i.zero?
@@ -107,9 +107,17 @@ module RuntimeImages
 
       def constrained_command(reference)
         argv = CoworkerBase.probe_command(reference)
-        position = argv.index("--pids-limit")
-        argv.insert(position + 2, "--memory", MEMORY_LIMIT, "--cpus", CPU_LIMIT)
+        position = option_value_index!(argv, "--pids-limit")
+        argv.insert(position + 1, "--memory", MEMORY_LIMIT, "--cpus", CPU_LIMIT)
         argv
+      end
+
+      def option_value_index!(argv, option)
+        position = argv.index(option)
+        value_index = position && position + 1
+        return value_index if value_index && value_index < argv.length && !argv[value_index].to_s.start_with?("--")
+
+        raise ProviderError, "probe command is missing a value for #{option}"
       end
 
       def dependent_failures(results)
