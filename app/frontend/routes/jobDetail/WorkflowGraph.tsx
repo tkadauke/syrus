@@ -1379,6 +1379,7 @@ function GraderDetails({ details, jobId, prefix, workflowId }: { details: Record
 // siblings in the same grade group.
 function GraderFanoutSummary({ step }: { step: JobStep }) {
   const { t } = useT("jobs")
+  const [skippedExpanded, setSkippedExpanded] = useState(false)
   const selections = graderFanoutSelections(step)
   const debugDetails = debugOnlyDetails(step)
 
@@ -1394,8 +1395,18 @@ function GraderFanoutSummary({ step }: { step: JobStep }) {
       <div className="flex flex-wrap items-center gap-2">
         {selectedCount > 0 ? <SmallPill>{t("grader_fanout_selected_count", { count: selectedCount })}</SmallPill> : null}
         {skipped.length > 0 ? <SmallPill>{t("grader_fanout_skipped_count", { count: skipped.length })}</SmallPill> : null}
+        {skipped.length > 0 ? (
+          <button
+            aria-expanded={skippedExpanded}
+            className="font-medium text-brand hover:text-brand-emphasis focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            onClick={() => setSkippedExpanded((current) => !current)}
+            type="button"
+          >
+            {t(skippedExpanded ? "grader_fanout_hide_skipped" : "grader_fanout_show_skipped", { count: skipped.length })}
+          </button>
+        ) : null}
       </div>
-      {skipped.length > 0 ? (
+      {skippedExpanded ? (
         <ul className="list-disc space-y-0.5 pl-4 text-text-muted">
           {skipped.map((selection, index) => (
             <li key={selection.targetLabel || selection.name || index}>
