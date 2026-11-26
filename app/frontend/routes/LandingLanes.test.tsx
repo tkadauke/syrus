@@ -57,7 +57,11 @@ const payload: LandingLanesPayload = {
 function wrapper(client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), landingLanesEnabled = true) {
   client.setQueryData(["bootstrap"], { feature_flags: { landing_lanes: landingLanesEnabled } })
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={client}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider>
+    return (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </QueryClientProvider>
+    )
   }
 }
 
@@ -81,9 +85,9 @@ describe("landing lanes", () => {
   })
 
   it("fetches the full experience on direct navigation while enabled", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
 
     render(<LandingLanesRoute />, { wrapper: wrapper() })
 
@@ -122,9 +126,9 @@ describe("landing lanes", () => {
 
   it("uses the strip as the full page entry point and applies a landing-lanes broadcast without polling", async () => {
     let current = payload
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(current), { status: 200, headers: { "Content-Type": "application/json" } }))
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockImplementation(() => Promise.resolve(new Response(JSON.stringify(current), { status: 200, headers: { "Content-Type": "application/json" } })))
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(<LandingLanesStrip />, { wrapper: wrapper(client) })
 
@@ -139,7 +143,9 @@ describe("landing lanes", () => {
     })
     current = {
       ...payload,
-      repositories: [{ ...payload.repositories[0], lanes: [{ ...payload.repositories[0].lanes[0], anchor_job: { id: 99, slug: "JOB-99", app_path: "/jobs/99" } }] }]
+      repositories: [
+        { ...payload.repositories[0], lanes: [{ ...payload.repositories[0].lanes[0], anchor_job: { id: 99, slug: "JOB-99", app_path: "/jobs/99" } }] }
+      ]
     }
     applyAppEvent(client, { type: "landing_lanes.updated", resource: "landing_lanes", id: 1 })
 
