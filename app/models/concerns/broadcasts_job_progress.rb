@@ -86,6 +86,8 @@ module BroadcastsJobProgress
 
   def landing_lane_progress?(owner_job)
     workflow = respond_to?(:workflow) ? self.workflow : (self if is_a?(Workflow))
+    return false unless workflow && WorkDefinitions.landing_workflow_kinds.include?(workflow.trigger_kind)
+
     unit = workflow&.work_unit
     return false unless unit&.active?
 
