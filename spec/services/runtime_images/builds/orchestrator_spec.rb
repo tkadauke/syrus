@@ -20,10 +20,11 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
   end
 
   def image_for(request)
-    image = RuntimeImages::Service.new(provider: provider).publish(
+    service = RuntimeImages::Service.new(provider: provider)
+    image = service.publish(
       namespace: namespace, source_kind: "git", source_ref: "r#{request.id}", platform: "linux/amd64", payload: "p#{request.id}"
     )
-    image.update!(verification_state: "candidate")
+    RuntimeImages::Verifications::Orchestrator.new(service: service).verify(image)
     image
   end
 
@@ -159,6 +160,19 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
       expect(attempt.reload.state).to eq("succeeded")
       expect(result).to have_attributes(outcome: "succeeded", attempts_used: 1)
       expect(result.runtime_image).to be_present
+    end
+
+    it "does not trust candidate state without an accepted digest-bound verification attempt" do
+      request = submit
+      _, attempt = orchestrator.claim_next
+      orchestrator.begin_verifying(attempt)
+      image = RuntimeImages::Service.new(provider: provider).publish(
+        namespace: namespace, source_kind: "git", source_ref: "unverified-#{request.id}", platform: "linux/amd64",
+        payload: "unverified-#{request.id}", verification_state: "candidate"
+      )
+
+      expect { orchestrator.succeed(attempt, image: image) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |error| expect(error.code).to eq("verification_incomplete") }
     end
 
     it "gives cancellation precedence when it lands just before success" do

@@ -16,6 +16,8 @@ RSpec.describe RuntimeImages::Service do
   it "publishes an immutable digest with source identity and provenance" do
     image = publish
     expect(image).to be_available
+    expect(image.verification_state).to eq("unverified")
+    expect(image).not_to be_pullable
     expect(image.digest).to match(RuntimeImage::DIGEST_FORMAT)
     expect(image.source_kind).to eq("dockerfile")
     expect(image.provenance).to eq("builder" => "synthetic")
@@ -30,7 +32,7 @@ RSpec.describe RuntimeImages::Service do
   end
 
   it "resolves, inspects, and pulls an available image" do
-    image = publish
+    image = publish(verification_state: "candidate")
     expect(service.resolve(namespace: namespace, reference: "rev-1", platform: "linux/amd64")).to eq(image)
     expect(service.inspect_image(image).present).to be(true)
     expect(service.pull(image).digest).to eq(image.digest)
@@ -126,7 +128,7 @@ RSpec.describe RuntimeImages::Service do
   end
 
   it "reports a missing provider registration" do
-    expect { described_class.new.pull(RuntimeImage.new(runtime_image_namespace: namespace, availability: "available")) }
+    expect { described_class.new.pull(RuntimeImage.new(runtime_image_namespace: namespace, availability: "available", verification_state: "candidate")) }
       .to raise_error(RuntimeImages::NotFound, /no runtime image provider/)
   end
 end
