@@ -2194,7 +2194,7 @@ describe("AppChromeV2 primary nav reordering", () => {
     await waitFor(() => {
       expect(queryClient.getQueryState(["sidebar_badge", "badged.page"])?.status).toBe("success")
     })
-    const badge = within(primaryNav).getByText("2")
+    const badge = await within(primaryNav).findByText("2")
     expect(badge).toHaveClass("bg-danger", "text-surface")
     expect(badge).not.toHaveClass("bg-red-500", "text-white")
 
