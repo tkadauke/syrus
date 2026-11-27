@@ -1760,6 +1760,7 @@ export type JobRunArtifactsPayload = {
   base_ref: string | null
   head_ref: string | null
   artifact: "transcript" | "agent_diff" | "step_agent_diff"
+  prompt?: string | null
   agent_diff?: string | null
   agent_diff_bytes?: number
   step_agent_diff?: string | null

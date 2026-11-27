@@ -137,11 +137,6 @@ module Api
           job = find_job
           return unless authorize_job_mutation!(job)
           return if reject_stale_job_revision?(job)
-          if params[:expected_revision].present? && job.approval_blocking_runtime_work?
-            render_error("stale_job", I18n.t("api.base.stale_job"), status: :conflict)
-            return
-          end
-
           result = ChatFeedbackSubmission.call(
             job: job,
             feedback: params[:body],
@@ -348,7 +343,7 @@ module Api
 
         def run_artifacts
           job = find_job_by_param(:job_id)
-          runs = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:step)
+          runs = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :prompt, :updated_at).includes(:step)
           run = if params[:run_id] == "latest"
             runs.reorder(created_at: :desc, id: :desc).first
           else

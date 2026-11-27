@@ -1554,7 +1554,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
   it "returns a transcript page without either diff blob" do
     run = job.initial_run
-    run.update!(agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n", base_sha: "base-sha", head_sha: "head-sha")
+    run.update!(agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n", base_sha: "base-sha", head_sha: "head-sha", prompt: "Review and implement this request.")
     run.job_logs.create!(sequence: 1, kind: "stderr", chunk: "second line")
     run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "first line")
 
@@ -1569,6 +1569,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "base_ref" => "base-sha",
       "head_ref" => "head-sha",
       "artifact" => "transcript",
+      "prompt" => "Review and implement this request.",
       "logs_count" => 2,
       "logs_page" => 1,
       "logs_per_page" => 100,

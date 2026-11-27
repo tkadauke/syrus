@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Workflows::JobLifecyclePropagation do
-  Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES.each do |kind|
+  Workflow::TriggerKind::IMPLEMENTED_STATE_COMPATIBLE_VALUES.each do |kind|
     it "keeps an implemented Job approvable when a #{kind} workflow starts" do
       job = Factories.job_record(state: "implemented")
       workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running")

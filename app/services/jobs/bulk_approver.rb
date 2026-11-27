@@ -37,7 +37,7 @@ module Jobs
         @jobs.each do |job|
           job.lock!
 
-          unless job.may_approve? && !job.approval_blocking_runtime_work?
+          unless job.may_approve?
             failed << job
             next
           end

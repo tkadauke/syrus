@@ -293,7 +293,7 @@ module Api
             render_error("not_found", lifecycle_t("workflow_not_found"), status: :not_found)
             return
           end
-          unless Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+          unless Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
             render_error("validation_failed", lifecycle_t("dismiss_auxiliary_only"), status: :unprocessable_content)
             return
           end
@@ -329,41 +329,47 @@ module Api
           return unless authorize_job_mutation!(job)
           return if reject_stale_job_revision?(job)
 
-          unless job.auto_merge_enabled?
-            render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
-            return
-          end
-          if job.approval_blocking_runtime_work?
-            render_error("validation_failed", lifecycle_t("run_active"), status: :unprocessable_content)
-            return
-          end
-          unless job.can_add_job_approval?(Current.user)
-            render_error("validation_failed", lifecycle_t("approval_forbidden"), status: :unprocessable_content)
-            return
+          approved = job.with_lock do
+            job.reload
+            unless job.auto_merge_enabled?
+              render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
+              return
+            end
+            unless job.can_add_job_approval?(Current.user)
+              render_error("validation_failed", lifecycle_t("approval_forbidden"), status: :unprocessable_content)
+              return
+            end
+
+            approval = job.job_approvals.find_or_initialize_by(user: Current.user)
+            stale_withdrawn_approval = job.approval_withdrawn? &&
+              approval.approved_at.present? &&
+              approval.approved_at <= job.approval_withdrawn_at
+            if stale_withdrawn_approval
+              approval.approved_at = Time.current
+            else
+              approval.approved_at ||= Time.current
+            end
+            approval.save!
+            Metrics::ProductUsage.record(:job_approved)
+
+            if job.approval_satisfied? && job.may_approve?
+              job.approve!(via: "operator", by_user: Current.user)
+              true
+            else
+              false
+            end
           end
 
-          approval = job.job_approvals.find_or_initialize_by(user: Current.user)
-          stale_withdrawn_approval = job.approval_withdrawn? &&
-            approval.approved_at.present? &&
-            approval.approved_at <= job.approval_withdrawn_at
-          if stale_withdrawn_approval
-            approval.approved_at = Time.current
-          else
-            approval.approved_at ||= Time.current
-          end
-          approval.save!
-          Metrics::ProductUsage.record(:job_approved)
-
-          if job.approval_satisfied? && job.may_approve?
-            job.approve!(via: "operator", by_user: Current.user)
-            github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
-            landing_workflow = LandingQueueProcessor.try_land!(job)
-            landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
-            changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
-            render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
-          else
+          unless approved
             render_job(job.reload, message: lifecycle_t("approval_recorded"), changed: [ "approval" ])
+            return
           end
+
+          github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
+          landing_workflow = LandingQueueProcessor.try_land!(job)
+          landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
+          changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
+          render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
         end
 
         def unapprove

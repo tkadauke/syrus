@@ -80,7 +80,7 @@ module RetryJobs
         @agent_blocked_workflow = workflow if workflow&.blocked? &&
           workflow.artifact("cannot_proceed").present? &&
           !workflow.landing_workflow? &&
-          !Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+          !Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
       end
 
       def retire_agent_blocked_workflow!

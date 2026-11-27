@@ -35,7 +35,7 @@ module BlockedImplementationFeedback
 
     workflow = job.latest_workflow
     return nil unless workflow&.blocked? && workflow.artifact("cannot_proceed").present?
-    return nil if workflow.landing_workflow? || Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+    return nil if workflow.landing_workflow? || Workflow::TriggerKind.implemented_state_compatible?(workflow.trigger_kind)
 
     workflow
   end

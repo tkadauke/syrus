@@ -1,13 +1,19 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { fetchLandingLanes, type LandingLane, type LandingLanesPayload, type LandingLanesRepository } from "../api/landingLanes"
+import { readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { PageHeading } from "../components/Heading"
-import { Notice, Page, Section, Surface } from "../components/ui"
+import { Notice, Page, PageHeading as UiPageHeading, Section, Surface, Text } from "../components/ui"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { withRoutePrefix } from "../lib/routing"
 
 export function LandingLanesRoute() {
+  if (!useLandingLanesEnabled()) return <LandingLanesUnavailable />
+  return <EnabledLandingLanesRoute />
+}
+
+function EnabledLandingLanesRoute() {
   const { t } = useT("dashboard")
   usePageTitle(t("landing_lanes.title"))
   const query = useQuery({ queryKey: ["landing_lanes"], queryFn: ({ signal }) => fetchLandingLanes({ signal }) })
@@ -18,6 +24,18 @@ export function LandingLanesRoute() {
       {query.isError ? <Notice tone="danger">{t("landing_lanes.load_error")}</Notice> : null}
       {query.isLoading ? <div className="text-sm text-muted">{t("loading")}</div> : null}
       {query.data ? <LandingLanesPage payload={query.data} /> : null}
+    </Page.Root>
+  )
+}
+
+function LandingLanesUnavailable() {
+  const { t } = useT("nav")
+  return (
+    <Page.Root size="narrow">
+      <Page.Header>
+        <UiPageHeading>{t("sidebar_pages.unavailable_heading")}</UiPageHeading>
+        <Text>{t("sidebar_pages.unavailable_body")}</Text>
+      </Page.Header>
     </Page.Root>
   )
 }
@@ -101,7 +119,9 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
           {lane.member_jobs && lane.member_jobs.length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted">
               <span>{t("landing_lanes.bundle_members")}</span>
-              {lane.member_jobs.map((job) => <JobLink job={job} key={job.id} />)}
+              {lane.member_jobs.map((job) => (
+                <JobLink job={job} key={job.id} />
+              ))}
             </div>
           ) : null}
         </div>
@@ -123,13 +143,17 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
             )
           })}
         </div>
-      ) : <div className="mt-3"><LaneProgress lane={lane} repositorySlug={repositorySlug} /></div>}
+      ) : (
+        <div className="mt-3">
+          <LaneProgress lane={lane} repositorySlug={repositorySlug} />
+        </div>
+      )}
       {lane.repair_round ? (
         <div className="mt-3 text-xs text-muted">
           <span className="font-semibold text-default">{t("landing_lanes.repair_round", { round: lane.repair_round })}</span>
           {lane.graders?.length ? (
             <span className="ml-2">
-              {lane.graders.map((grader) => grader.carried ? t("landing_lanes.carried_grader", { name: grader.name }) : grader.name).join(" · ")}
+              {lane.graders.map((grader) => (grader.carried ? t("landing_lanes.carried_grader", { name: grader.name }) : grader.name)).join(" · ")}
             </span>
           ) : null}
         </div>
@@ -139,7 +163,11 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
 }
 
 function JobLink({ job }: { job: { id: number; slug: string; app_path: string } }) {
-  return <Link className="font-medium text-link hover:underline" to={job.app_path}>{job.slug}</Link>
+  return (
+    <Link className="font-medium text-link hover:underline" to={job.app_path}>
+      {job.slug}
+    </Link>
+  )
 }
 
 const SUB_LANE_PROGRESS: Record<string, number> = { queued: 0, running: 0.35, succeeded: 1 }
@@ -198,7 +226,11 @@ function LaneProgress({ lane, repositorySlug }: { lane: LandingLane; repositoryS
 }
 
 function ProgressSegment({ progress, weight }: { progress: number; weight: number }) {
-  return <div className="relative h-full bg-subtle" style={{ flex: weight }}><div className="absolute inset-y-0 left-0 bg-brand" style={{ width: `${progress * 100}%` }} /></div>
+  return (
+    <div className="relative h-full bg-subtle" style={{ flex: weight }}>
+      <div className="absolute inset-y-0 left-0 bg-brand" style={{ width: `${progress * 100}%` }} />
+    </div>
+  )
 }
 
 function weightedGraderProgress(lane: LandingLane) {
@@ -218,6 +250,11 @@ function phaseLabel(lane: LandingLane, t: (key: string, options?: Record<string,
 }
 
 export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
+  if (!useLandingLanesEnabled()) return null
+  return <EnabledLandingLanesStrip prefix={prefix} />
+}
+
+function EnabledLandingLanesStrip({ prefix = "" }: { prefix?: string }) {
   const { t } = useT("dashboard")
   const query = useQuery({ queryKey: ["landing_lanes"], queryFn: ({ signal }) => fetchLandingLanes({ signal }) })
   if (!query.data) return null
@@ -226,7 +263,9 @@ export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
     <Surface className="px-3 py-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-default">{t("landing_lanes.title")}</h2>
-        <Link className="text-xs font-semibold text-link hover:underline" to={withRoutePrefix("/landing_lanes", prefix)}>{t("landing_lanes.view_all")}</Link>
+        <Link className="text-xs font-semibold text-link hover:underline" to={withRoutePrefix("/landing_lanes", prefix)}>
+          {t("landing_lanes.view_all")}
+        </Link>
       </div>
       <div className="space-y-3">
         {query.data.repositories.map((repository) => (
@@ -239,7 +278,9 @@ export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
                   <span className="truncate font-medium">{lane.empty ? t("landing_lanes.empty") : lane.anchor_job?.slug}</span>
                   <span className="truncate text-muted">{lane.empty ? "" : phaseLabel(lane, t)}</span>
                   <LaneProgress lane={lane} repositorySlug={repository.slug} />
-                  <span className="whitespace-nowrap text-muted">{lane.empty ? "" : t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}</span>
+                  <span className="whitespace-nowrap text-muted">
+                    {lane.empty ? "" : t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}
+                  </span>
                 </div>
               ))}
             </div>
@@ -248,4 +289,10 @@ export function LandingLanesStrip({ prefix = "" }: { prefix?: string }) {
       </div>
     </Surface>
   )
+}
+
+function useLandingLanesEnabled() {
+  const queryClient = useQueryClient()
+  const bootstrap = queryClient.getQueryData<BootstrapPayload>(["bootstrap"]) ?? readInitialBootstrap()
+  return bootstrap?.feature_flags?.landing_lanes === true
 }

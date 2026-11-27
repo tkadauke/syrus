@@ -386,6 +386,10 @@
         "name": "Terminale",
         "description": "Experientiam terminalem interactivam activat."
       },
+      "landing_lanes": {
+        "name": "Viae imponendi",
+        "description": "Summarium viarum imponendi in tabula, paginam plenam observationis, et responsum API adiunctum ostendit. Ratio imponendi et ordo imponendi iam exstans, proprietate infirmata, immutata manent."
+      },
       "video_walkthroughs": {
         "name": "Videones Perambulationis",
         "description": "Capturam narratam imaginum scaenicae recipe vel trahe in colloquium; Gemini eam analyzat et agens colloquii ad Epicum pergit. Clave API Gemini opus est."

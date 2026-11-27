@@ -67,8 +67,6 @@
   "decision_brief": "Entscheidungsübersicht",
   "brief_readiness": "Entscheidung",
   "brief_ready": "Bereit zur Freigabe",
-  "brief_blocked_checks_failing": "Blockiert: Prüfungen schlagen fehl",
-  "brief_blocked_checks_pending": "Blockiert: Prüfungen laufen noch",
   "brief_blocked_dependencies": "Blockiert: wartet auf Abhängigkeiten",
   "brief_blocked_generic": "Freigabe ist derzeit nicht verfügbar",
   "brief_scope": "Änderungen",

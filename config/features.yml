@@ -127,3 +127,11 @@ features:
     description_i18n_key: "features.slugs.unlanding.description"
     experimental: true
     default: false
+  - slug: landing_lanes
+    category: "Labs"
+    name: "Landing lanes"
+    name_i18n_key: "features.slugs.landing_lanes.name"
+    description: "Shows the landing-lanes dashboard strip, full-page observability experience, and supporting API payload. Landing behavior and the existing landing queue remain unchanged when disabled."
+    description_i18n_key: "features.slugs.landing_lanes.description"
+    experimental: true
+    default: false

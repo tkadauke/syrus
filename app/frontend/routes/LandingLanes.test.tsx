@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import type { LandingLanesPayload } from "../api/landingLanes"
 import { applyAppEvent } from "../lib/appEvents"
-import { LandingLanesPage, LandingLanesStrip } from "./LandingLanes"
+import { LandingLanesPage, LandingLanesRoute, LandingLanesStrip } from "./LandingLanes"
 
 const payload: LandingLanesPayload = {
   estimate_kind: "best_case",
@@ -54,13 +54,47 @@ const payload: LandingLanesPayload = {
   ]
 }
 
-function wrapper(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function wrapper(client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), landingLanesEnabled = true) {
+  client.setQueryData(["bootstrap"], { feature_flags: { landing_lanes: landingLanesEnabled } })
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={client}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider>
+    return (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </QueryClientProvider>
+    )
   }
 }
 
 describe("landing lanes", () => {
+  it("does not render or fetch the dashboard strip while the feature is disabled", () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+
+    render(<LandingLanesStrip />, { wrapper: wrapper(undefined, false) })
+
+    expect(screen.queryByText("Landing lanes")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("renders the unavailable page without fetching on direct navigation while disabled", () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+
+    render(<LandingLanesRoute />, { wrapper: wrapper(undefined, false) })
+
+    expect(screen.getByRole("heading", { name: "Page unavailable" })).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("fetches the full experience on direct navigation while enabled", async () => {
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(<LandingLanesRoute />, { wrapper: wrapper() })
+
+    expect(await screen.findByText("acme/rocket")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
   it("groups full lane details by repository and renders empty, repair, rebase, multisect, backlog, and best-case states", () => {
     render(<LandingLanesPage payload={payload} />, { wrapper: wrapper() })
 
@@ -92,9 +126,9 @@ describe("landing lanes", () => {
 
   it("uses the strip as the full page entry point and applies a landing-lanes broadcast without polling", async () => {
     let current = payload
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(current), { status: 200, headers: { "Content-Type": "application/json" } }))
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockImplementation(() => Promise.resolve(new Response(JSON.stringify(current), { status: 200, headers: { "Content-Type": "application/json" } })))
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(<LandingLanesStrip />, { wrapper: wrapper(client) })
 
@@ -109,7 +143,9 @@ describe("landing lanes", () => {
     })
     current = {
       ...payload,
-      repositories: [{ ...payload.repositories[0], lanes: [{ ...payload.repositories[0].lanes[0], anchor_job: { id: 99, slug: "JOB-99", app_path: "/jobs/99" } }] }]
+      repositories: [
+        { ...payload.repositories[0], lanes: [{ ...payload.repositories[0].lanes[0], anchor_job: { id: 99, slug: "JOB-99", app_path: "/jobs/99" } }] }
+      ]
     }
     applyAppEvent(client, { type: "landing_lanes.updated", resource: "landing_lanes", id: 1 })
 

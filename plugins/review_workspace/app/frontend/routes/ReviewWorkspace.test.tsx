@@ -1259,20 +1259,20 @@ describe("ReviewWorkspaceRoute", () => {
       expect(screen.getByTestId("mobile-no-evidence")).toHaveTextContent("No visual evidence submitted.")
     })
 
-    it("shows blocked, failing-check and blocking-review states", async () => {
+    it("shows failing checks separately from the actual approval decision", async () => {
       mockDetail({
         job: {
           id: 42,
           summary_state: "implemented",
           pr_checks: { state: "failing", attribution: { verdict: "own", own_names: ["rspec"], failing_names: ["rspec"] } }
         },
-        actions: { can_approve: false },
+        actions: { can_approve: true },
         workflows: [{ id: 2, artifacts: { security_review_iterations: [{ iteration: 2, verdict: "needs_work", reviewed_head_sha: "h1" }] } }]
       })
       mockList()
       renderRoute("/review/JOB-42")
       await screen.findByTestId("mobile-decision-brief")
-      expect(rowText("readiness")).toContain("checks are failing")
+      expect(rowText("readiness")).toContain("Ready to approve")
       expect(rowText("checks")).toContain("Failing: rspec")
       expect(rowText("security")).toContain("Blocking findings")
       expect(rowText("adversarial")).toBeUndefined()

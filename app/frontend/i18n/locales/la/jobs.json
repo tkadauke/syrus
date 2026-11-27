@@ -138,6 +138,7 @@
   "conversation_view_source": "Fontem videre",
   "conversation_transcript_panel_label": "Transcriptum: {{label}}",
   "conversation_transcript_close": "Transcriptum claudere",
+  "conversation_input_prompt": "Mandatum initii",
   "tab_timeline": "Linea temporis",
   "timeline_select_workflow": "Cursus",
   "timeline_waterfall_loading": "Linea temporis oneratur...",

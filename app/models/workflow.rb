@@ -173,11 +173,11 @@ class Workflow < ApplicationRecord
 
   OPERATOR_DISMISSABLE_STATES = %w[blocked queued running].freeze
 
-  # Auxiliary (non-approval-blocking) workflows that are stuck or in flight can
+  # Implemented-state-compatible workflows that are stuck or in flight can
   # be cancelled/dismissed by an operator from the Job page. Implement and the
   # other primary workflows keep their dedicated controls.
   def operator_dismissable?
-    Workflow::TriggerKind.non_approval_blocking?(trigger_kind) && state.in?(OPERATOR_DISMISSABLE_STATES)
+    Workflow::TriggerKind.implemented_state_compatible?(trigger_kind) && state.in?(OPERATOR_DISMISSABLE_STATES)
   end
 
   # One-line reason shown next to the dismiss action so the operator knows what

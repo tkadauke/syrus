@@ -141,6 +141,7 @@
   "conversation_view_source": "View source",
   "conversation_transcript_panel_label": "{{label}} transcript",
   "conversation_transcript_close": "Close transcript",
+  "conversation_input_prompt": "Input prompt",
   "tab_timeline": "Timeline",
   "timeline_select_workflow": "Workflow",
   "timeline_waterfall_loading": "Loading timeline...",

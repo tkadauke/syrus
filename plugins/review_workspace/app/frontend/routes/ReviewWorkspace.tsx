@@ -740,7 +740,6 @@ function MobileReviewCard({
     canApprove,
     changeScope,
     currentHeadSha,
-    dependencyBlocked: job.dependency_blocked,
     payload,
     screenshotCount: screenshots.length
   })

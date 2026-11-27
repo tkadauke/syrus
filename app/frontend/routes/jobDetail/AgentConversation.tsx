@@ -11,6 +11,7 @@ import type { AgentConversationNode, AgentConversationWorkflow } from "../../api
 import { fetchJobAgentConversation, fetchJobAgentConversationNode, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
 import { renderLightMarkdown } from "../../lib/Markdown"
+import { keepPreviousDataWithin } from "../../lib/placeholderData"
 import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import {
   avatarColorClass,
@@ -290,12 +291,18 @@ function isNumberRecord(value: unknown): value is Record<string, number> {
 function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: AgentConversationNode | null; onClose: () => void }) {
   const { t } = useT("jobs")
   const [page, setPage] = useState(1)
+  const promptBodyClassName = [
+    "min-w-0 max-h-48 overflow-y-auto overflow-x-hidden",
+    "whitespace-pre-wrap break-words text-sm text-text-primary [overflow-wrap:anywhere]"
+  ].join(" ")
   const artifactsPath = node?.run_id != null ? `/api/v1/app/jobs/${jobId}/runs/${node.run_id}/artifacts` : null
   useEffect(() => setPage(1), [node?.run_id])
+  const transcriptQueryKey = ["job_run_artifacts", String(jobId), String(node?.run_id), "transcript", page] as const
   const transcript = useQuery({
-    queryKey: ["job_run_artifacts", String(jobId), String(node?.run_id), "transcript", page],
+    queryKey: transcriptQueryKey,
     queryFn: () => fetchJobRunArtifacts(artifactsPath as string, "transcript", page),
-    enabled: node != null && artifactsPath != null
+    enabled: node != null && artifactsPath != null,
+    placeholderData: keepPreviousDataWithin(transcriptQueryKey, [0, 1, 2, 3])
   })
 
   if (!node) return null
@@ -324,11 +331,21 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
             <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p>
           ) : null}
           {transcript.data ? (
-            transcript.data.logs && transcript.data.logs.length > 0 ? (
-              <RunTranscriptLogs agentic fillHeight logs={transcript.data.logs} />
-            ) : (
-              <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
-            )
+            <div className="min-h-0 flex flex-1 flex-col overflow-hidden">
+              {transcript.data.prompt ? (
+                <section className="min-w-0 shrink-0 border-b border-border px-3 py-3" data-testid="run-input-prompt">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversation_input_prompt")}</h3>
+                  <div className={promptBodyClassName}>
+                    {renderLightMarkdown(transcript.data.prompt)}
+                  </div>
+                </section>
+              ) : null}
+              {transcript.data.logs && transcript.data.logs.length > 0 ? (
+                <RunTranscriptLogs agentic fillHeight logs={transcript.data.logs} />
+              ) : (
+                <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
+              )}
+            </div>
           ) : null}
           {transcript.data ? (
             <TranscriptPagination

@@ -935,7 +935,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(stack_rebase.work_unit.reload).to be_running
   end
 
-  it "rejects approval while normal runtime work is active" do
+  it "approves while normal runtime work is active" do
     job.update!(state: "implemented")
     job.initial_run.update_columns(state: "succeeded")
     finish_work_units_for(job)
@@ -944,9 +944,9 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
     post app_job_path(job, "approve"), as: :json
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(job.reload).to be_implemented
-    expect(job.job_approvals).to be_empty
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_approved
+    expect(job.job_approvals.where(user: user)).to exist
   end
 
   it "records an approval vote without transitioning when policy is not yet satisfied (two_person)" do
@@ -1286,7 +1286,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
     def dismiss_path(job_record, workflow) = "/api/v1/app/jobs/#{job_record.id}/workflows/#{workflow.id}/dismiss"
 
-    Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES.each do |kind|
+    Workflow::TriggerKind::IMPLEMENTED_STATE_COMPATIBLE_VALUES.each do |kind|
       it "retires a blocked #{kind} workflow with its work unit and clears needs-attention" do
         job.update!(state: "implemented")
         workflow = Workflow.create!(job: job, trigger_kind: kind, state: "blocked", artifacts: { "cannot_proceed" => { "reason" => "missing binary" } })

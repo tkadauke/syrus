@@ -34,6 +34,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
   def mark_workflows_succeeded_for_polling!(target)
     target.workflows.update_all(state: "succeeded")
     WorkUnits::TerminalWorkflowSync.for_job(target)
+    target.update!(state: "implemented")
   end
 
   def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef", base_sha: "base000000000000000000000000000000000000", merge_commit_sha: nil)
@@ -91,6 +92,16 @@ RSpec.describe PollPullRequestJob, :ci_only do
       agent_outcome: "provider_transient",
       finished_at: 1.minute.ago
     )
+  end
+
+  def start_landing_workflow!(target)
+    target.approve!(via: "operator")
+    target.start_landing!
+    target.save!
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: target)
+    workflow.update_columns(state: "running", started_at: 1.minute.ago)
+    workflow.work_unit.update_columns(state: "running")
+    workflow
   end
 
   describe "close conditions" do
@@ -206,6 +217,60 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.approved_via).to be_nil
       expect(job.approved_at).to be_nil
       expect(job.closure_reason).to be_nil
+    end
+
+    it "preempts an active landing workflow before queueing fresh PR feedback" do
+      repository.update!(auto_merge_enabled: false)
+      landing = start_landing_workflow!(job)
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_pr
+      stub_reviews([])
+      stub_issue_comments([
+        { id: 1, body: "please address this before landing",
+          user: { login: "operator" }, created_at: 1.minute.ago.iso8601 }
+      ])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      expect(job.reload).to be_implemented
+      expect(job.approved_at).to be_nil
+      expect(landing.reload).to be_cancelled
+    end
+
+    it "retains fresh PR feedback behind unrelated active work" do
+      active_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+      job.approve!(via: "operator")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_pr
+      stub_reviews([])
+      stub_issue_comments([
+        { id: 1, body: "please address this after the visual review",
+          user: { login: "operator" }, created_at: 1.minute.ago.iso8601 }
+      ])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      feedback = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(job.reload).to be_implemented
+      expect(job.approved_at).to be_nil
+      expect(job.last_seen_comment_at).to be_present
+      expect(feedback.work_unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ActiveWorkLock::REASON
+      )
+      expect(active_workflow.work_unit.reload).to be_active
     end
 
     it "closes with reason=pr_merged after a manually merged approved PR when auto-merge is disabled" do
@@ -2421,7 +2486,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.not_to change { JobApproval.count }
     end
 
-    it "does not re-approve a Job whose chat_feedback workflow is still queued or running" do
+    it "re-approves an implemented Job whose chat_feedback workflow is still queued or running" do
       user.update!(github_handle: "reviewer")
       job.update!(state: "implemented")
       workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
@@ -2434,7 +2499,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
       described_class.perform_now(job.id)
 
-      expect(job.reload.state).to eq("implemented")
+      expect(job.reload.state).to eq("approved")
     end
   end
 

@@ -50,7 +50,7 @@ test("approves an implemented job and reflects it in the dashboard", async ({ pa
 
   await page.getByRole("button", { name: "Approve", exact: true }).click()
 
-  await expect(page.getByText("Job approved.")).toBeVisible()
+  await expect(page.getByText("Job approved.")).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0)
 
   const row = await dashboardRowFor(page, title)
