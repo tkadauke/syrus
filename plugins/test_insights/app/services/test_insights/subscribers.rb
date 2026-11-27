@@ -23,6 +23,11 @@ module TestInsights
       run = Syrus::Host::RunRecord.find_by(id: event[:run_id])
       return if run.nil?
 
+      if path.zero?
+        log(run, "[grader:#{event[:grader_name]}] test output is empty - skipping ingestion")
+        return
+      end
+
       parser_name = nil
       parser_name, parsed = parse(path, event[:format_hint])
       return if parsed.nil?
