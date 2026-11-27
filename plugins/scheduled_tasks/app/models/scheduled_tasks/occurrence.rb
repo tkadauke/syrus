@@ -17,7 +17,15 @@ module ScheduledTasks
     end
 
     def complete!(job:, at: Time.current)
-      update!(job_id: job&.id, completed_at: at)
+      update!(job_id: job&.id, completed_at: at, failed_at: nil)
+    end
+
+    def fail!(at: Time.current)
+      update!(failed_at: at) unless completed_at?
+    end
+
+    def failed_attempt?(at:)
+      failed_at.present? && failed_at.to_i == at.to_i && failed_at.usec == at.usec
     end
   end
 end

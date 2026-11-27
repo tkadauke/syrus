@@ -35,15 +35,18 @@ module ScheduledTasks
         if occurrence.completed_at?
           return Result.new(job: occurrence.job, skipped: true, reason: "already_fired_window")
         end
+        retrying_failed_attempt = occurrence.failed_attempt?(at: @now)
 
         return Result.new(job: nil, skipped: true, reason: "not_fireable") if @task.archived? || @task.fired?
         unless Syrus::Host::RepositoryPolicy.new(@task.user, @task.repository).write?
           @task.pause!(reason: "auto") unless @task.auto_paused? || @task.system_schedule?
           return Result.new(job: nil, skipped: true, reason: "repository_write_access_required")
         end
-        return Result.new(job: nil, skipped: true, reason: "not_due") if @require_due && !@task.due?(now: @now)
+        if @require_due && !retrying_failed_attempt && !@task.due?(now: @now)
+          return Result.new(job: nil, skipped: true, reason: "not_due")
+        end
 
-        if @task.fired_in_window?(window_start)
+        if !retrying_failed_attempt && @task.fired_in_window?(window_start)
           return Result.new(job: nil, skipped: true, reason: "already_fired_window")
         end
 
