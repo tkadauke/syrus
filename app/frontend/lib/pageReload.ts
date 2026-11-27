@@ -12,7 +12,7 @@ export function reloadPage(reason = "app_requested", reload: () => void = () => 
   try {
     window.sessionStorage.setItem(RELOAD_BREADCRUMB_KEY, JSON.stringify({ reason, at: new Date().toISOString(), path: window.location.pathname }))
   } catch {
-    // Reload remains available when storage is disabled.
+    // handled-error-expected: Browser storage may be unavailable; the requested reload must still proceed.
   }
   reload()
 }
@@ -27,6 +27,7 @@ export function readReloadBreadcrumb(): ReloadBreadcrumb | null {
     if (typeof parsed.reason !== "string" || typeof parsed.at !== "string" || typeof parsed.path !== "string") return (cachedReloadBreadcrumb = null)
     return (cachedReloadBreadcrumb = parsed as ReloadBreadcrumb)
   } catch {
+    // handled-error-expected: Missing, disabled, or malformed browser storage means there is no usable breadcrumb.
     return (cachedReloadBreadcrumb = null)
   }
 }
