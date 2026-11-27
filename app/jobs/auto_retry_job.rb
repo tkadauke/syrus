@@ -92,6 +92,12 @@ class AutoRetryJob < ApplicationJob
   end
 
   PROVIDER_DELAYED_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+  # Non-retryable classifications whose reconciler repair *is* a retry: a PR
+  # branch that moved before pr_open pushed is repaired by retrying from the
+  # current branch (WorkEngine::RepairPlanner::BranchDivergedPrOpen). The
+  # retryability recheck below skipped every such attempt, so the repair was
+  # scheduled, skipped, and the Job sat failed for a human.
+  REPAIRED_BY_RETRY_CLASSIFICATIONS = %w[branch_diverged].freeze
 
   def skip_if_provider_delay_no_longer_matches(attempt)
     return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)
@@ -148,6 +154,8 @@ class AutoRetryJob < ApplicationJob
     fresh = RunFailureClassifier.persist!(attempt.run)
     return false if fresh.retryable
     return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
+    return false if REPAIRED_BY_RETRY_CLASSIFICATIONS.include?(fresh.classification) &&
+      fresh.classification == attempt.failure_classification
 
     attempt.update!(skipped_reason: not_retryable_skip_reason(attempt, fresh))
     WorkUnits::AutoRetryBackoff.clear!(attempt)

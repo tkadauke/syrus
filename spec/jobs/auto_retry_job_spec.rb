@@ -285,6 +285,24 @@ RSpec.describe AutoRetryJob do
     expect(attempt.reload.performed_at).to be_present
   end
 
+  # Regression: the reconciler repairs a PR branch that moved before pr_open
+  # pushed by retrying the workflow, but the retryability recheck skipped the
+  # attempt as "not retryable: branch_diverged" and the Job stayed failed.
+  it "performs a reconciler retry for a diverged PR branch it was scheduled to repair" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    attempt.update!(failure_classification: "branch_diverged")
+    allow(RunFailureClassifier).to receive(:persist!)
+      .and_return(RunFailureClassifier::Result.new(classification: "branch_diverged", confidence: 0.95, retryable: false, reason: "The PR branch changed.", diagnostic_summary: nil, classifier_inputs: {}))
+    result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(result)
+
+    described_class.perform_now(attempt.id)
+
+    expect(RetryWorkflowEnqueuer).to have_received(:call)
+    expect(attempt.reload.skipped_reason).to be_nil
+    expect(attempt.performed_at).to be_present
+  end
+
   it "resumes the failed agentic step in the original workflow" do
     attempt, agent_step, _agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
 
