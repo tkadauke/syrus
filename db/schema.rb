@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_27_182549) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_27_190107) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -4345,9 +4345,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_182549) do
     t.datetime "due_at", null: false
     t.integer "job_id"
     t.datetime "completed_at"
-    t.datetime "failed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "failed_at"
     t.index ["job_id"], name: "index_scheduled_task_occurrences_on_job_id", unique: true
     t.index ["scheduled_task_id", "due_at"], name: "index_scheduled_task_occurrences_on_task_and_due_at", unique: true
   end
