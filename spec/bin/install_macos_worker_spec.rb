@@ -167,10 +167,13 @@ RSpec.describe "macOS worker installer" do
         expect(install_offset).not_to be_nil
         expect(install_offset).to be < stdout.index("bundle install")
         pinned_node = File.read(File.join(root, ".node-version")).strip
-        # The pinned toolchain, then only the system's own directories.
+        # The pinned toolchain, then only the system's own directories. The
+        # private MySQL client's bin is on it so a job's own mysql2 build finds
+        # that mysql_config before mysql2's built-in Homebrew locations.
         expect(stdout).to include(
           "PATH=#{install_root}/rubies/#{pinned_ruby}/bin:#{install_root}/nodes/#{pinned_node}/bin:" \
-          "#{install_root}/agent-clis/bin:#{install_root}/tools/mise/#{mise_version}/bin:/usr/bin:/bin:/usr/sbin:/sbin "
+          "#{install_root}/agent-clis/bin:#{install_root}/tools/mise/#{mise_version}/bin:" \
+          "#{install_root}/tools/mysql-client/#{mysql_version}/bin:/usr/bin:/bin:/usr/sbin:/sbin "
         )
         expect(stdout).not_to include("/opt/homebrew")
         # The agent CLIs are installed with the pinned Node into a Syrus-owned

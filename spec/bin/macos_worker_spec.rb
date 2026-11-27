@@ -346,6 +346,32 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  # Regression: workflow steps inherit the worker's PATH, and a job's own
+  # `bundle install` built mysql2 against Homebrew's mysql_config -- mysql2's
+  # extconf falls back to Homebrew's locations when PATH has none -- which no
+  # longer linked once the worker left Homebrew, so every prepare step on the
+  # Mac failed.
+  it "puts the pinned MySQL client's mysql_config first on the PATH that workflow steps inherit" do
+    Dir.mktmpdir do |dir|
+      bin_dir = with_stubbed_host_bin(dir)
+      write_stub(File.join(bin_dir, "mysql_config"), "#!/usr/bin/env bash\necho host\n")
+      runtimes = install_fake_runtimes(dir, bin_dir)
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") }.merge(runtimes),
+        "bash", "-c",
+        'source "$1/bin/macos-runtime-env" && syrus_macos_runtime_activate "$1" "$2" && command -v mysql_config',
+        "bash", root, File.join(dir, "shared"),
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout.strip).to eq(
+        File.join(runtimes.fetch("SYRUS_MACOS_TOOLS_ROOT"), "mysql-client", toolchain_pin("MYSQL_CLIENT_VERSION"), "bin", "mysql_config")
+      )
+    end
+  end
+
   # Regression: another account's Homebrew install upgraded a library
   # Homebrew's node@22 linked against, Node aborted at launch, and every npm
   # step on the Mac worker failed.

@@ -260,14 +260,19 @@ syrus_macos_runtimes_install() {
 # --- activate ---------------------------------------------------------------
 
 # The PATH prefix a release runs with: its pinned Ruby and Node, the agent
-# CLIs installed with that Node, and its pinned mise.
+# CLIs installed with that Node, its pinned mise, and its pinned MySQL
+# client's mysql_config. Workflow steps inherit this PATH, and mysql2's
+# extconf looks for mysql_config on PATH before its built-in list of Homebrew
+# locations -- so a job's own `bundle install` builds mysql2 against the
+# private client too, not a shared Homebrew one it cannot link.
 syrus_macos_runtime_path() {
-  local release_root="$1" ruby node mise
+  local release_root="$1" ruby node mise mysql
   ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
   node="$(syrus_macos_node_version "$release_root")" || return 1
   mise="$(syrus_macos_toolchain_value "$release_root" MISE_VERSION)" || return 1
-  printf '%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
-    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")"
+  mysql="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_VERSION)" || return 1
+  printf '%s/bin:%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
+    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")" "$(syrus_macos_mysql_client_prefix "$mysql")"
 }
 
 # The Bundler settings a release builds and runs its gems with.
