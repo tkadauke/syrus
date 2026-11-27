@@ -2,6 +2,8 @@ require "base64"
 
 module Mcp
   module Tools
+    class TransientDatabaseContention < StandardError; end
+
     HEAD_TAIL_BYTES = 4.kilobytes
 
     class CurrentMessage
@@ -62,6 +64,19 @@ module Mcp
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
       end
 
+      def transient_database_contention(message)
+        MCP::Tool::Response.new(
+          [ { type: "text", text: JSON.generate({
+            error: {
+              code: "temporary_database_contention",
+              message: message,
+              retryable: true
+            }
+          }) } ],
+          error: true
+        )
+      end
+
       def unauthorized(message)
         MCP::Tool::Response.new([ { type: "text", text: "Unauthorized: #{message}" } ], error: true)
       end
@@ -97,6 +112,12 @@ module Mcp
       end
 
       def exception_response(exception)
+        if exception.is_a?(TransientDatabaseContention)
+          return transient_database_contention(
+            "The confirmation could not be created because Syrus is temporarily busy. Please retry the tool call."
+          )
+        end
+
         tool_error("Tool failed with #{exception.class}. This is an unexpected Syrus tool error; report it to the operator and retry only after the underlying bug is fixed.")
       end
 

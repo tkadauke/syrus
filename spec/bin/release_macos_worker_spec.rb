@@ -36,11 +36,19 @@ RSpec.describe "native macOS worker release artifact" do
   it "packages the pinned commit, not HEAD, when one is given" do
     # A commit with HEAD's tree but its own SHA: distinct from HEAD, yet it
     # carries every file the release requires, whatever the history holds.
-    pinned = git(
-      "-c", "user.name=Syrus Release Spec",
-      "-c", "user.email=syrus-release-spec@example.invalid",
-      "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "release spec pin"
+    identity = {
+      "GIT_AUTHOR_NAME" => "Release Spec",
+      "GIT_AUTHOR_EMAIL" => "release-spec@example.test",
+      "GIT_COMMITTER_NAME" => "Release Spec",
+      "GIT_COMMITTER_EMAIL" => "release-spec@example.test"
+    }
+    pinned, status = Open3.capture2(
+      identity,
+      "git", "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "release spec pin",
+      chdir: root
     )
+    expect(status).to be_success
+    pinned = pinned.strip
     pinned_short = git("rev-parse", "--short", pinned)
 
     stdout, stderr, status = Open3.capture3(

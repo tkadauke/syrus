@@ -402,7 +402,7 @@ pointer, or resize input require a current control lease obtained through
 `runtime_acquire_control`; read-only inspection and waiting do not.
 
 `runtime_start` accepts `repository_id` or `repository_slug` to select an attached repository. Omit the selector only when the chat has one accessible repository; with several, the tool lists their slugs and IDs for an explicit choice.
-The selected repository must be attached to the current chat and accessible to its user. Coworker product checkouts remain read-only; their Runtime Sessions use separate writable runtime workspaces.
+The selected repository must be attached to the current chat and accessible to its user. Coworker product checkouts remain read-only; their Runtime Sessions use separate writable runtime workspaces. Startup and build/reload have durable bounded operation state. Inspect `runtime_status.operation` to distinguish active work, a retryable timeout, provider failure, normal completion, and successful late completion. `runtime_logs.operation_entries` contains the corresponding lifecycle/error evidence. Retrying `runtime_start` reuses the matching non-stopped session instead of creating a second provider resource, and build timeouts release the agent's build lease.
 
 Plugins may declare `:secret_env` configuration whose value is read from the
 process environment and is never stored in the database.

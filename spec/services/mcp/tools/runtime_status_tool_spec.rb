@@ -48,6 +48,23 @@ RSpec.describe Mcp::Tools::RuntimeStatusTool do
     expect(payload(call(session_id: session.id))[:active_agent_input_lease]).to be_nil
   end
 
+  it "reconciles an expired operation without requiring a retry" do
+    session = RuntimeSession.create!(
+      repository: repository, chat_session: chat_session, workspace_ref: "a",
+      provider_key: "browser", display_name: "Browser", state: "building",
+      metadata: { "runtime_operation" => { "id" => "abandoned-op", "kind" => "build", "state" => "active", "deadline_at" => 1.minute.ago.iso8601 } }
+    )
+    lease = RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "build", reason: "reload")
+    session.update!(metadata: session.metadata.deep_merge("runtime_operation" => { "lease_id" => lease.id }))
+
+    body = payload(call(session_id: session.id))
+
+    expect(body).to include(state: "failed", last_error: a_string_including("exceeded its durable deadline"))
+    expect(body[:operation]).to include(state: "timed_out", outcome: "retryable_timeout")
+    expect(lease.reload.state).to eq("released")
+    expect(session.reload.runtime_operation_logs.last.fetch("message")).to include("existing session remains retryable")
+  end
+
   it "returns an error when there is no active session" do
     response = call
 

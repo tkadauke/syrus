@@ -1,5 +1,13 @@
 module Mcp::Tools
   module ProposalToolSupport
+    PENDING_ACTION_CONTENTION_ERRORS = [
+      ActiveRecord::LockWaitTimeout,
+      ActiveRecord::Deadlocked,
+      ActiveRecord::StatementTimeout
+    ].freeze
+    PENDING_ACTION_MAX_ATTEMPTS = 3
+    PENDING_ACTION_RETRY_BASE_DELAY = 0.025
+
     private
 
     def normalize_string_list(value)
@@ -122,12 +130,63 @@ module Mcp::Tools
     end
 
     def create_pending_action_for_current_message!(server_context, chat_session, **attributes)
-      pending_action = nil
-      ApplicationRecord.transaction do
-        pending_action = chat_session.pending_actions.create!(**attributes)
-        attach_pending_action_to_current_message!(server_context, pending_action)
+      attempt = 0
+
+      begin
+        attempt += 1
+        if (pending_action = reconciled_pending_action(server_context, chat_session, attributes))
+          return pending_action
+        end
+
+        pending_action = nil
+        ApplicationRecord.transaction do
+          pending_action = chat_session.pending_actions.create!(**attributes)
+          attach_pending_action_to_current_message!(server_context, pending_action)
+        end
+        pending_action
+      rescue *PENDING_ACTION_CONTENTION_ERRORS => error
+        log_pending_action_contention(error, server_context, chat_session, attributes, attempt)
+        if attempt >= PENDING_ACTION_MAX_ATTEMPTS
+          raise Mcp::Tools::TransientDatabaseContention, "pending action persistence remained contended"
+        end
+
+        sleep(pending_action_retry_delay(attempt)) unless Rails.env.test?
+        retry
       end
+    end
+
+    def reconciled_pending_action(server_context, chat_session, attributes)
+      message_id = server_context[:current_message]&.id
+      return unless message_id
+
+      pending_action_id = chat_session.messages.where(id: message_id).pick(:pending_action_id)
+      return unless pending_action_id
+
+      pending_action = chat_session.pending_actions.find_by(id: pending_action_id)
+      return unless pending_action
+      return unless pending_action.action == attributes[:action].to_s
+      return unless pending_action.requested_by == attributes[:requested_by].to_s
+      return unless pending_action.payload == attributes[:payload].deep_stringify_keys
+
       pending_action
+    end
+
+    def pending_action_retry_delay(attempt)
+      base = PENDING_ACTION_RETRY_BASE_DELAY * (2**(attempt - 1))
+      base + rand(0.0..base)
+    end
+
+    def log_pending_action_contention(error, server_context, chat_session, attributes, attempt)
+      pool_diagnostics = ActiveRecord::Base.connection_pool.stat.slice(
+        :size, :connections, :busy, :dead, :idle, :waiting, :checkout_timeout
+      )
+      Rails.logger.warn(
+        "[Mcp::Tools::ProposalToolSupport] pending action contention " \
+        "exception=#{error.class.name} action=#{attributes[:action]} chat_id=#{chat_session.id} " \
+        "tool_call_id=#{attributes[:tool_use_id] || 'none'} " \
+        "message_id=#{server_context[:current_message]&.id || 'none'} " \
+        "attempt=#{attempt}/#{PENDING_ACTION_MAX_ATTEMPTS} pool=#{pool_diagnostics.inspect}"
+      )
     end
 
     def dependency_proposals(chat_session, depends_on)

@@ -10,9 +10,11 @@ module RuntimeSessionPresenter
   # captured frame's Document id there so the `frame` action can look it up)
   # but that no consumer -- agent or operator -- should see rendered back as
   # if it were provider-reported metadata like `url`/`port`.
-  INTERNAL_METADATA_KEYS = %w[latest_frame_document_id].freeze
+  INTERNAL_METADATA_KEYS = %w[latest_frame_document_id runtime_operation runtime_operation_logs].freeze
 
   def session_payload(session)
+    operation = RuntimeSessions::Operation.reconcile_expired!(session)
+
     {
       id: session.id,
       provider_key: session.provider_key,
@@ -26,6 +28,7 @@ module RuntimeSessionPresenter
       latest_frame_url: session.latest_frame_url,
       latest_frame_at: session.latest_frame_at&.iso8601,
       last_error: session.last_error,
+      operation: operation,
       active_agent_input_lease: lease_payload(session.active_agent_input_lease)
     }
   end
