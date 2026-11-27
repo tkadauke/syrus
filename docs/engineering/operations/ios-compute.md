@@ -240,11 +240,10 @@ package registries, release artifacts, and any target-repository services used
 by builds or tests. The cluster does not need inbound SSH to the Mac pool for
 normal operation.
 
-Roll Mac workers after the Linux web/worker deployment has run migrations.
-Use the drain-aware updater so Syrus stops counting a selected Mac as
-compatible capacity, lets active Runs settle, activates the desired release,
-and verifies the fresh heartbeat plus macOS/Xcode capabilities before moving
-to the next host.
+Every deploy updates the Mac workers: it activates their release right after
+production's migrations and fails if a live Mac worker does not catch up (see
+[macOS worker updates](macos_worker_updates.md)). The drain-aware rolling
+update there remains for updating one host at a time by hand.
 
 ## Inspect missing-capability blockers
 
