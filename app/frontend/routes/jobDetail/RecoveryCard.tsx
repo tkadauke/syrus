@@ -13,15 +13,16 @@ const ACTION_KEYS: Record<JobRecoveryDecision["recommended_action"], string> = {
   fresh_implementation: "recovery_action_restart_implementation",
   restart: "recovery_action_restart_implementation"
 }
-
 export function RecoveryCard({ command, payload }: { command: ReturnType<typeof useJobCommand>; payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const [dialogOpen, setDialogOpen] = useState(false)
   const decision = payload.actions.recovery_decision
   if (!decision || !["failed", "blocked", "cancelled"].includes(payload.job.state)) return null
   const action = decision.mode === "failed_step" ? payload.actions.retry_failed_step_action : payload.actions.retry_implementation_action
-  const failures = decision.evidence.measured_failure_identities ?? []
-  const inconclusive = inconclusiveFailures(decision)
+  const failures = decision.measured_failures ?? []
+  const inconclusive = (decision.inconclusive_infrastructure_failures ?? []).map(
+    (failure) => failure.name || failure.classification || "Infrastructure execution failure"
+  )
   const timeline = payload.actions.recovery_timeline ?? []
   const required = decision.kind === "grader_loop_no_progress"
   const prefill = [decision.guidance, failures.length ? t("recovery_guidance_failures", { failures: failures.join(", ") }) : null].filter(Boolean).join("\n\n")
@@ -87,7 +88,6 @@ export function RecoveryCard({ command, payload }: { command: ReturnType<typeof 
     </Section.Root>
   )
 }
-
 function EvidenceList({ label, values }: { label: string; values: string[] }) {
   return (
     <div>
@@ -101,12 +101,4 @@ function EvidenceList({ label, values }: { label: string; values: string[] }) {
       </ul>
     </div>
   )
-}
-
-function inconclusiveFailures(decision: JobRecoveryDecision) {
-  return (decision.evidence.rounds ?? [])
-    .flatMap((round) => (Array.isArray(round.grader_results) ? round.grader_results : []))
-    .filter((result): result is Record<string, unknown> => Boolean(result && typeof result === "object"))
-    .filter((result) => result.classification === "infrastructure" || result.measured === false)
-    .map((result) => String(result.name || result.identity || "Infrastructure execution failure"))
 }

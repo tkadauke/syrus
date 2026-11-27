@@ -18,7 +18,7 @@ module App
 
     def as_json
       {
-        recovery_decision: recovery_decision.as_json,
+        recovery_decision: RecoveryContract.for_job(job, workflow: latest_workflow)[:decision],
         recovery_timeline: recovery_timeline,
         failed_step: failed_step_action,
         implementation: implementation_action
