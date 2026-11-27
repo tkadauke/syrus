@@ -97,6 +97,16 @@ Supported members:
 
 - `new`
 
+### `Syrus::Host::AdversarialReviewPrompt`
+
+Since: `0.1.16`
+
+Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change. Only the listed members are supported.
+
+Supported members:
+
+- `new`
+
 ### `Syrus::Host::AdversarialReviewStep`
 
 Since: `0.1.16`
@@ -226,17 +236,23 @@ Supported members:
 
 Since: `0.1.16`
 
-Names the agent roles a plugin may pass as the role of a tool context or workflow run; only the listed role identifiers are promised, not the role groupings or authorization derived from them. Only the listed members are supported.
+Names the agent roles a plugin may pass as the role of a tool context or workflow run and the CHAT_ROLES and WORKFLOW_ROLES groupings of them; only the listed role identifiers are promised, not authorization derived from them. Only the listed members are supported.
 
 Supported members:
 
 - `AGENT_INSIGHT`
+- `CHAT_CODING`
+- `CHAT_LOCAL`
 - `CHAT_PLANNER`
+- `CHAT_ROLES`
 - `COWORKER`
 - `COWORKER_CHAT`
+- `WORKFLOW_ADVERSARIAL_REVIEWER`
 - `WORKFLOW_COWORKER_REVIEWER`
+- `WORKFLOW_IMPLEMENT`
 - `WORKFLOW_MANUAL`
 - `WORKFLOW_ROLES`
+- `WORKFLOW_VISUAL_REVIEWER`
 
 ### `Syrus::Host::AgentRoles`
 
@@ -1430,6 +1446,22 @@ Parses the shared lcov and Cobertura coverage report formats for the ecosystem c
 Supported members:
 
 - `for`
+
+### `Syrus::Host::CoworkerDefaultPolicy`
+
+Since: `0.1.16`
+
+Applies the default policy for coworker roles to capability descriptors; the rule table is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `ROLES`
+- `descriptor_auto_allowable?`
+- `grant_policy_for`
+- `requestable?`
+- `validate!`
+- `verdict`
+- `violations`
 
 ### `Syrus::Host::CredentialProbe`
 
