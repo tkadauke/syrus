@@ -51,7 +51,7 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
   end
 
   it "rejects an archive whose declared size exceeds the source ceiling before downloading it" do
-    blob = instance_double(ActiveStorage::Blob, byte_size: 5)
+    blob = double("ActiveStorage blob", byte_size: 5)
     allow(attachment).to receive(:blob).and_return(blob)
     allow(source_archive).to receive_messages(attached?: true, attachment: attachment)
     allow(RuntimeImages::Builds::Config).to receive(:max_source_bytes).and_return(4)
@@ -63,7 +63,7 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
   end
 
   it "streams source archives with a running cap when blob metadata understates their size" do
-    blob = instance_double(ActiveStorage::Blob, byte_size: 1)
+    blob = double("ActiveStorage blob", byte_size: 1)
     allow(blob).to receive(:download).and_yield("abc").and_yield("def")
     allow(attachment).to receive(:blob).and_return(blob)
     allow(source_archive).to receive_messages(attached?: true, attachment: attachment)
