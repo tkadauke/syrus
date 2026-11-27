@@ -1551,13 +1551,16 @@ RSpec.describe ProcessRunner, :ci_only do
   it "terminates the process group when the silent timeout elapses" do
     marker = File.join(@dir, "silent-child.pid")
     terminated = File.join(@dir, "silent-child.terminated")
-    child_command = "trap('TERM') { File.write(#{terminated.inspect}, 'yes'); exit! }; sleep 120"
+    child_command = <<~RUBY
+      trap('TERM') { File.write(#{terminated.inspect}, 'yes'); exit! }
+      File.write(#{marker.inspect}, Process.pid.to_s)
+      sleep 120
+    RUBY
     command = <<~RUBY
-      child = Process.spawn(
+      Process.spawn(
         #{ruby.inspect}, "-e",
         #{child_command.inspect}
       )
-      File.write(#{marker.inspect}, child.to_s)
       sleep 120
     RUBY
     result = described_class.new(
