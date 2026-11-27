@@ -11,6 +11,7 @@
     "fill": "Implere",
     "evaluate": "Aestimare",
     "hover": "Superponere",
+    "press_key": "Clavem premere",
     "drag": "Trahere",
     "drop": "Deponere",
     "file_upload": "Fasciculum imponere"
@@ -22,7 +23,8 @@
     "condition": "Condicio",
     "path": "Iter",
     "files": "Fasciculi",
-    "page": "pagina"
+    "page": "pagina",
+    "key": "Clavis"
   },
   "status": { "success": "successus", "error": "error", "failed": "defecit" },
   "rows": { "title": "Titulus", "current_url": "URL praesens", "viewport": "Prospectus", "snapshot": "Snapshot", "text": "Textus" },

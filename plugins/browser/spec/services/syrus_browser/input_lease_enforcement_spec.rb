@@ -20,6 +20,7 @@ RSpec.describe "SyrusBrowser input-lease enforcement (DOC-17)" do
       expect(SyrusBrowser::ClickTool.requires_input_lease?).to be true
       expect(SyrusBrowser::FillTool.requires_input_lease?).to be true
       expect(SyrusBrowser::HoverTool.requires_input_lease?).to be true
+      expect(SyrusBrowser::PressKeyTool.requires_input_lease?).to be true
       expect(SyrusBrowser::DragTool.requires_input_lease?).to be true
       expect(SyrusBrowser::DropTool.requires_input_lease?).to be true
       expect(SyrusBrowser::FileUploadTool.requires_input_lease?).to be true

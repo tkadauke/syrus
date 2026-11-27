@@ -11,6 +11,7 @@ import browserFileUploadToolCard from "./browser_file_upload"
 import browserFillToolCard from "./browser_fill"
 import browserHoverToolCard from "./browser_hover"
 import browserNavigateToolCard from "./browser_navigate"
+import browserPressKeyToolCard from "./browser_press_key"
 import browserEmulateToolCard from "./browser_emulate"
 import browserResizeToolCard from "./browser_resize"
 import browserScreenshotToolCard from "./browser_screenshot"
@@ -45,6 +46,7 @@ describe("browser tool cards", () => {
       browserFillToolCard,
       browserEvaluateToolCard,
       browserHoverToolCard,
+      browserPressKeyToolCard,
       browserDragToolCard,
       browserDropToolCard,
       browserFileUploadToolCard
@@ -62,6 +64,7 @@ describe("browser tool cards", () => {
       "browser_fill",
       "browser_evaluate",
       "browser_hover",
+      "browser_press_key",
       "browser_drag",
       "browser_drop",
       "browser_file_upload"
@@ -382,6 +385,10 @@ describe("browser tool cards", () => {
   it("summarizes other Browser interaction tools exposed by the plugin", () => {
     expect(browserHoverToolCard.collapsedSummary?.(context({ toolName: "browser_hover", input: { element: "Help icon", target: "e8" }, resultBody: "" }))).toBe(
       "Hover Help icon · success"
+    )
+
+    expect(browserPressKeyToolCard.collapsedSummary?.(context({ toolName: "browser_press_key", input: { key: "Control+S" }, resultBody: "" }))).toBe(
+      "Press key Control+S · success"
     )
 
     expect(

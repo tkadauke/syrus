@@ -18,7 +18,11 @@ module ScheduledTasks
 
     def record_failure(task, error, now)
       begin
-        task.record_fire_failure!(error, at: now)
+        due_at = task.reload.fire_window_start(now: now, manual: false)
+        task.with_lock do
+          task.record_fire_failure!(error, at: now)
+          record_failed_occurrence(task, due_at: due_at, attempted_at: now) if due_at
+        end
       rescue StandardError => recording_error
         Rails.logger.error(
           "[ScheduledTasks::FireDueTaskJob] task ##{task.id} failure record failed: " \
@@ -32,6 +36,11 @@ module ScheduledTasks
       Rails.logger.warn(
         "[ScheduledTasks::FireDueTaskJob] task ##{task.id} fire failed: #{error.class}: #{error.message}"
       )
+    end
+
+    def record_failed_occurrence(task, due_at:, attempted_at:)
+      occurrence = task.occurrences.find_or_create_by!(due_at: due_at)
+      occurrence.fail!(at: attempted_at)
     end
   end
 end

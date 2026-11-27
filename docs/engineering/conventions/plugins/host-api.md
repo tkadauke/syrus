@@ -4276,11 +4276,15 @@ Supported members:
 
 Since: `0.1.16`
 
-Finds a runtime session by id; state transitions, persistence and other associations are not promised. Runtime-session plugins implement Syrus::Host::RuntimeSessionProvider. Only the listed members are supported.
+Finds and scopes runtime sessions by id, state, provider, and primary selection; state transitions, persistence and associations are not promised. Runtime-session plugins implement Syrus::Host::RuntimeSessionProvider. Only the listed members are supported.
 
 Supported members:
 
+- `active`
 - `find`
+- `for_provider`
+- `primary`
+- `where`
 
 ### `Syrus::Host::RuntimeSessionRegistry`
 

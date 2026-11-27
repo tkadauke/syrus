@@ -4,7 +4,7 @@ import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 export type BrowserAction =
-  "navigate" | "snapshot" | "screenshot" | "resize" | "emulate" | "wait" | "close" | "click" | "fill" | "evaluate" | "hover" | "drag" | "drop" | "file_upload"
+  "navigate" | "snapshot" | "screenshot" | "resize" | "emulate" | "wait" | "close" | "click" | "fill" | "evaluate" | "hover" | "press_key" | "drag" | "drop" | "file_upload"
 
 type BrowserPreview = {
   src: string | null
@@ -58,6 +58,7 @@ const ACTION_CONFIGS: Record<BrowserAction, ActionConfig> = {
   fill: { action: "fill", labelKey: "actions.fill", targetLabelKey: "targets.target" },
   evaluate: { action: "evaluate", labelKey: "actions.evaluate", targetLabelKey: "targets.target" },
   hover: { action: "hover", labelKey: "actions.hover", targetLabelKey: "targets.target" },
+  press_key: { action: "press_key", labelKey: "actions.press_key", targetLabelKey: "targets.key" },
   drag: { action: "drag", labelKey: "actions.drag", targetLabelKey: "targets.path" },
   drop: { action: "drop", labelKey: "actions.drop", targetLabelKey: "targets.target" },
   file_upload: { action: "file_upload", labelKey: "actions.file_upload", targetLabelKey: "targets.files" }
@@ -228,6 +229,7 @@ function actionTarget(context: ToolCardContext, action: BrowserAction) {
   if (action === "wait") return waitTarget(input)
   if (action === "screenshot") return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref)
   if (["click", "fill", "hover", "drop"].includes(action)) return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref)
+  if (action === "press_key") return displayValue(input.key)
   if (action === "evaluate")
     return displayValue(input.element) || displayValue(input.target) || displayValue(input.ref) || (displayValue(input.function) ? t("targets.page") : null)
   if (action === "drag") return dragTarget(input)

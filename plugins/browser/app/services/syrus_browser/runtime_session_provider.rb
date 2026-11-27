@@ -36,10 +36,12 @@ module SyrusBrowser
       def capabilities(_repository, _config)
         {
           stream: "screenshot",
-          input: %w[pointer keyboard],
-          inspect: %w[dom],
+          input: %w[click fill type hover keyboard pointer touch drag drop upload],
+          inspect: %w[semantic_dom stable_refs screenshot wait],
           build: %w[dev_server hot_reload],
-          artifacts: %w[screenshots logs]
+          artifacts: %w[screenshots logs],
+          interaction: %w[click fill hover keyboard pointer touch drag drop upload evaluate],
+          viewport: %w[resize emulate]
         }
       end
     end
@@ -105,8 +107,7 @@ module SyrusBrowser
         return { error: "lease_required", message: "the #{owner} must hold an active input lease before sending input events" }
       end
 
-      lease.record_input!(event)
-      response = RuntimeInputEvent.for(event).deliver(SessionRegistry.fetch(SessionContext.for_runtime_session(runtime_session).session_key))
+      response = RuntimeInputEvent.for(event).deliver(runtime_session, owner: owner, lease: lease)
       result = tool_response_to_hash(response)
       result.merge(delivered: !result[:error])
     end

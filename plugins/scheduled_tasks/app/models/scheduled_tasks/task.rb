@@ -23,6 +23,8 @@ module ScheduledTasks
     # The class is Task now, so Rails would infer `task_id`; the column is
     # still `scheduled_task_id` and stays that way until Job Origin step 4.
     has_many :jobs, foreign_key: :scheduled_task_id, inverse_of: false, dependent: :nullify
+    has_many :occurrences, class_name: "ScheduledTasks::Occurrence", foreign_key: :scheduled_task_id,
+                           inverse_of: :task, dependent: :delete_all
 
     # Transient, not persisted. Set by the controller when the operator's
     # schedule_input previously resolved through the LLM cadence fallback, so
@@ -231,7 +233,7 @@ module ScheduledTasks
     end
 
     def record_fire!(at: Time.current)
-      update!(last_fired_at: at)
+      update!(last_fired_at: [ last_fired_at, at ].compact.max)
     end
 
     def record_success!(at: Time.current)
