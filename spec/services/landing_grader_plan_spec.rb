@@ -97,7 +97,7 @@ RSpec.describe LandingGraderPlan do
         expect(names).to include("plugins-coworkers-rspec-ci")
         expect(names).not_to include("plugins-coworkers-rspec")
 
-        expect(names).to include("rspec-ci-1-of-4", "rspec-ci-4-of-4", "react-tests-ci")
+        expect(names).to include("rspec-ci-1-of-8", "rspec-ci-8-of-8", "react-tests-ci")
         expect(names).not_to include("rspec", "rspec-ci", "react-tests", "e2e")
         names.select { |name| name.end_with?("-ci") }.each do |ci_name|
           expect(names).not_to include(ci_name.delete_suffix("-ci")), ci_name

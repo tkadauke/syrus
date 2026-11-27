@@ -33,7 +33,7 @@ class RecoveryContract
   def decision = @decision ||= RecoveryDecision.for(job:, workflow:)
 
   def decision_payload
-    return unless workflow || job.failed?
+    return unless job.failed? || workflow&.state.in?(%w[failed blocked cancelled])
 
     rounds = bounded_rounds
     decision.as_json.except(:evidence).merge(
@@ -83,8 +83,12 @@ class RecoveryContract
   end
 
   def bounded_rounds
-    rounds = Array(decision.evidence[:rounds]).presence || Array(workflow&.artifact(GraderLoopProgress::ARTIFACT_KEY))
+    rounds = normalized_rounds(decision.evidence[:rounds]).presence || normalized_rounds(workflow&.artifact(GraderLoopProgress::ARTIFACT_KEY))
     rounds.last(ROUND_LIMIT)
+  end
+
+  def normalized_rounds(value)
+    Array(value).select { |round| round.is_a?(Hash) }
   end
 
   def round_summary(round)

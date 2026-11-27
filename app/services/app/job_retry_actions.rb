@@ -79,7 +79,7 @@ module App
 
       {
         key: "retry_implementation",
-        label: recovery_action_label,
+        label: implementation_action_label,
         path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       }
     end
@@ -98,11 +98,16 @@ module App
     end
 
     def failed_step_label
-      return recovery_action_label if recovery_decision.recommended_action.present?
-      return "Restart grade loop" if failed_step&.kind == "grader_fanout" && failed_step.loop_id.present?
+      return recovery_action_label if failed_step&.kind == "grader_fanout" && failed_step.loop_id.present?
       return "Retry merge train now" if latest_workflow&.trigger_kind == "merge_train"
 
       Workflow::TriggerKind.retry_label_for(latest_workflow.trigger_kind, step_kind: failed_step&.kind)
+    end
+
+    def implementation_action_label
+      return recovery_action_label if recovery_decision.recommended_action.in?(%w[fresh_implementation restart])
+
+      "Retry implementation"
     end
 
     def recovery_action_label

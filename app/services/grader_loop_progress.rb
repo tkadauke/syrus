@@ -260,13 +260,18 @@ class GraderLoopProgress
   end
 
   def source_revision
-    previous = workflow.steps.where(loop_id: collect_step.loop_id, iteration: ...collect_step.iteration)
-      .where(kind: Step::AGENTIC_KINDS).reorder(iteration: :desc, position: :desc, id: :desc).first
-    previous&.latest_run&.head_sha
+    step_id = workflow.steps.where(loop_id: collect_step.loop_id, iteration: ...collect_step.iteration)
+      .where(kind: Step::AGENTIC_KINDS).reorder(iteration: :desc, position: :desc, id: :desc).pick(:id)
+    latest_head_sha(step_id)
   end
 
   def repaired_revision
-    workflow.steps.where(loop_id: collect_step.loop_id, iteration: collect_step.iteration)
-      .where(kind: Step::AGENTIC_KINDS).reorder(position: :desc, id: :desc).first&.latest_run&.head_sha
+    step_id = workflow.steps.where(loop_id: collect_step.loop_id, iteration: collect_step.iteration)
+      .where(kind: Step::AGENTIC_KINDS).reorder(position: :desc, id: :desc).pick(:id)
+    latest_head_sha(step_id)
+  end
+
+  def latest_head_sha(step_id)
+    Run.where(step_id:).reorder(created_at: :desc, id: :desc).pick(:head_sha) if step_id
   end
 end

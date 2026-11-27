@@ -29,7 +29,11 @@ class RecoveryDecision
       @workflow = workflow
     end
 
-    def failed_step = workflow && RetryFailedStepEnqueuer.failed_step_for(workflow)
+    def failed_step
+      return @failed_step if defined?(@failed_step)
+
+      @failed_step = workflow && RetryFailedStepEnqueuer.failed_step_for(workflow)
+    end
     def failed_run = failed_step&.latest_run
     def classification = failed_run&.run_failure_classification&.classification.to_s.presence
     def stop = workflow&.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY).to_h
