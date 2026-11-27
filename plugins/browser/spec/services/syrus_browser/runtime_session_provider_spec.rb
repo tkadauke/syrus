@@ -43,10 +43,12 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
     it "matches DOC-17's RuntimeCapability shape" do
       expect(described_class.capabilities(repository, {})).to eq(
         stream: "screenshot",
-        input: %w[pointer keyboard],
-        inspect: %w[dom],
+        input: %w[click fill type hover keyboard pointer touch drag drop upload],
+        inspect: %w[semantic_dom stable_refs screenshot wait],
         build: %w[dev_server hot_reload],
-        artifacts: %w[screenshots logs]
+        artifacts: %w[screenshots logs],
+        interaction: %w[click fill hover keyboard pointer touch drag drop upload evaluate],
+        viewport: %w[resize emulate]
       )
     end
   end
@@ -157,27 +159,27 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       expect(result[:error]).to eq("lease_required")
     end
 
-    it "delivers pointer input once the agent holds an active input lease" do
+    it "delegates target-based pointer input to the authoritative click tool" do
       browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
       SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
       RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
 
       result = provider.input(
         runtime_session.id,
-        { type: "pointer", action: "click", x: 40, y: 60, normalized_x: 0.25, normalized_y: 0.5, "_runtime_control_owner" => "agent" }
+        { type: "pointer", action: "click", target: "e3", "_runtime_control_owner" => "agent" }
       )
 
       expect(result[:error]).to be false
       expect(result[:delivered]).to be true
       expect(browser_session).to have_received(:call_tool).with(
-        name: "browser_evaluate",
-        arguments: { "function" => include("normalized_x", "window.innerWidth", "elementFromPoint") }
+        name: "browser_click",
+        arguments: { "target" => "e3" }
       )
     ensure
       SyrusBrowser::SessionRegistry.reset!
     end
 
-    it "delivers text input once the operator holds an active input lease" do
+    it "delegates target-based text input to Playwright for an operator lease" do
       browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
       SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
       RuntimeControlLease.acquire!(
@@ -188,10 +190,23 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
         reason: "manual input"
       )
 
-      result = provider.input(runtime_session.id, { type: "text", text: "hello", "_runtime_control_owner" => "user" })
+      result = provider.input(runtime_session.id, { type: "text", target: "e4", text: "hello", "_runtime_control_owner" => "user" })
 
       expect(result[:error]).to be false
-      expect(browser_session).to have_received(:call_tool).with(name: "browser_evaluate", arguments: { "function" => include("insertText") })
+      expect(browser_session).to have_received(:call_tool).with(name: "browser_type", arguments: { "target" => "e4", "text" => "hello" })
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "delegates keyboard input to Playwright instead of dispatching a DOM event" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "submit form")
+
+      result = provider.input(runtime_session.id, { type: "key", key: "Enter", "_runtime_control_owner" => "agent" })
+
+      expect(result[:error]).to be false
+      expect(browser_session).to have_received(:call_tool).with(name: "browser_press_key", arguments: { "key" => "Enter" })
     ensure
       SyrusBrowser::SessionRegistry.reset!
     end
