@@ -43,5 +43,4 @@ RSpec.describe "Syrus::Host filter, smart-folder, search and presentation facade
     expect(Syrus::Host::Filters::Chips::Jobs::JobType).to equal(Filters::Chips::Jobs::JobType)
     expect(Syrus::Host.public?("Syrus::Host::Filters::Ast::AndNode")).to be(true)
   end
-
 end

@@ -44,5 +44,4 @@ RSpec.describe "Syrus::Host permission presentation and redaction facades" do
     expect(presentation.capability_name).to eq("K8s Observe")
     expect(presentation.operation_name).to eq("List")
   end
-
 end
