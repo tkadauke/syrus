@@ -11,6 +11,25 @@ module Api
         LEGACY_TRANSCRIPT_MAX_BYTES = 1.megabyte
         GRAPH_MAX_NODES = 500
 
+        private def find_visual_evidence
+          evidence = WorkflowVisualEvidence.joins(:workflow)
+            .merge(find_job.workflows)
+            .find_by!(stable_id: params[:evidence_id])
+          raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
+
+          evidence
+        end
+
+        private def render_visual_evidence_storage_error(error)
+          raise error unless StorageConnectivity.transient_error?(error)
+          raise error if response.committed?
+
+          expires_now
+          response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+          render json: { error: { code: "storage_unavailable", message: "Visual evidence storage is temporarily unavailable. Please retry shortly." } },
+            status: :service_unavailable
+        end
+
         def index
           jobs = policy_scope(Job)
                    .includes(:epic, :repository, :deployment_stage_statuses)
@@ -80,21 +99,24 @@ module Api
         end
 
         def visual_evidence
-          job = find_job
-          evidence = WorkflowVisualEvidence.joins(:workflow)
-            .merge(job.workflows)
-            .find_by!(stable_id: params[:evidence_id])
-          raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
-
+          evidence = find_visual_evidence
           send_secure_blob(evidence.image.blob, immutable: true)
         rescue StandardError => e
-          raise unless StorageConnectivity.transient_error?(e)
-          raise if response.committed?
+          render_visual_evidence_storage_error(e)
+        end
 
-          expires_now
-          response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
-          render json: { error: { code: "storage_unavailable", message: "Visual evidence storage is temporarily unavailable. Please retry shortly." } },
-            status: :service_unavailable
+        def visual_evidence_thumbnail
+          evidence = find_visual_evidence
+          thumbnail = evidence.image.variant(resize_to_limit: [ 640, 480 ]).processed
+          send_secure_file(
+            thumbnail.download,
+            filename: "#{evidence.image.filename.base}-thumbnail#{evidence.image.filename.extension_with_delimiter}",
+            type: thumbnail.content_type,
+            etag: thumbnail.key,
+            immutable: true
+          )
+        rescue StandardError => e
+          render_visual_evidence_storage_error(e)
         end
 
         def unland_plan

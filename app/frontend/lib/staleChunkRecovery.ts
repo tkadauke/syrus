@@ -30,7 +30,7 @@ function writeMarker(value: string) {
   }
 }
 
-export function installStaleChunkRecovery(reload: () => void = reloadPage) {
+export function installStaleChunkRecovery(reload: (reason?: string) => void = reloadPage) {
   const handler = (event: Event) => {
     const revision = assetRevision()
     if (readMarker() === revision) return
@@ -39,7 +39,7 @@ export function installStaleChunkRecovery(reload: () => void = reloadPage) {
     if (!writeMarker(revision)) return
 
     event.preventDefault()
-    reload()
+    reload("stale_chunk_recovery")
   }
 
   window.addEventListener("vite:preloadError", handler)

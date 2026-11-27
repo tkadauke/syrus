@@ -100,7 +100,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       page_identity: { "path" => "/dashboard", "title" => "Dashboard" },
       viewport: { "width" => 390, "height" => 844 }, content_digest: "digest", submission_failed_at: Time.current
     )
-    evidence.image.attach(io: StringIO.new("png-data"), filename: "dashboard.png", content_type: "image/png")
+    image_data = Base64.decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+    evidence.image.attach(io: StringIO.new(image_data), filename: "dashboard.png", content_type: "image/png")
 
     get "/api/v1/app/jobs/#{job.id}/tabs/review"
 
@@ -109,18 +110,30 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(gallery).to include("captured_count" => 1, "submitted_count" => 0)
     expect(gallery.fetch("screenshots").first).to include(
       "id" => evidence.stable_id, "sequence" => 1, "status" => "draft", "submission_failed" => true,
-      "page" => { "path" => "/dashboard", "title" => "Dashboard" }, "viewport" => { "width" => 390, "height" => 844 }
+      "page" => { "path" => "/dashboard", "title" => "Dashboard" }, "viewport" => { "width" => 390, "height" => 844 },
+      "image_url" => "/api/v1/app/jobs/#{job.id}/visual_evidence/#{evidence.stable_id}",
+      "original_url" => "/api/v1/app/jobs/#{job.id}/visual_evidence/#{evidence.stable_id}",
+      "thumbnail_url" => "/api/v1/app/jobs/#{job.id}/visual_evidence/#{evidence.stable_id}/thumbnail"
     )
 
-    get gallery.fetch("screenshots").first.fetch("image_url")
+    get gallery.fetch("screenshots").first.fetch("original_url")
     expect(response).to have_http_status(:ok)
-    expect(response.body).to eq("png-data")
+    expect(response.body).to eq(image_data)
     expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
 
+    get gallery.fetch("screenshots").first.fetch("thumbnail_url")
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("image/png")
+    expect(response.body.bytesize).to be < image_data.bytesize * 10
+
     sign_in_as(Factories.user)
-    get gallery.fetch("screenshots").first.fetch("image_url")
+    get gallery.fetch("screenshots").first.fetch("thumbnail_url")
     expect(response).to have_http_status(:not_found)
     expect(response.headers["Cache-Control"]).to eq("no-cache")
+
+    sign_in_as(user)
+    get "/api/v1/app/jobs/#{job.id}/visual_evidence/missing/thumbnail"
+    expect(response).to have_http_status(:not_found)
   end
 
   it "returns retryable unavailable JSON when visual evidence storage is temporarily unreachable" do
