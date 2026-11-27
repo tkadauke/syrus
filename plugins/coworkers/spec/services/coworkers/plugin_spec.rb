@@ -53,6 +53,7 @@ RSpec.describe "Coworkers plugin" do
     report = Syrus::PluginPurge.new("coworkers").report
 
     expect(report.tables).to contain_exactly(
+      "coworker_base_releases",
       "coworker_chats",
       "coworker_environment_revisions",
       "coworker_environments",

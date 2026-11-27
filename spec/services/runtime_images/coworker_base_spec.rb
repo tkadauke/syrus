@@ -153,7 +153,8 @@ RSpec.describe RuntimeImages::CoworkerBase do
         namespace: namespace, source_kind: "syrus_base", source_ref: described_class.source_ref, source_digest: source_digest,
         platform: "linux/amd64", payload: "base",
         provenance: { "recipe_digest" => recipe_digest, RuntimeImages::RuntimeAbi::ATTESTATION_KEY =>
-          RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) }
+          RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) },
+        verification_state: "candidate"
       )
       releases = RuntimeImages::BaseReleases.new(service: service)
       expect(described_class.current_image(releases: releases)).to be_nil
