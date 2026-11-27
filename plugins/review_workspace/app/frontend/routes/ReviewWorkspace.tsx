@@ -775,7 +775,7 @@ function MobileReviewCard({
                   <img
                     alt={screenshot.page?.title || screenshot.page?.path || t("visual_evidence")}
                     className="max-h-[42dvh] w-full object-contain"
-                    src={screenshot.image_url}
+                    src={screenshot.thumbnail_url}
                   />
                 </button>
               ))}

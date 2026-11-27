@@ -24,7 +24,7 @@ export function ApiVersionBanner() {
   return (
     <div className={BANNER_CLASS} role="alert">
       <span>{t("shell.api_version_mismatch")}</span>
-      <Button onClick={reloadPage} size="sm" variant="secondary">
+      <Button onClick={() => reloadPage("operator_version_recovery")} size="sm" variant="secondary">
         {t("route_error.reload_page")}
       </Button>
     </div>

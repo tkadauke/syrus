@@ -1403,7 +1403,9 @@ export type JobVisualEvidence = {
   viewport?: { width?: number; height?: number; device_scale_factor?: number } | null
   device?: string | null
   submission_failed: boolean
-  image_url: string
+  image_url?: string
+  original_url: string
+  thumbnail_url: string
 }
 
 export type JobVisualEvidenceGallery = {
