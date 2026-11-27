@@ -116,8 +116,37 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     )
 
     expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
-    expect(stdout).to include("threads=6, pool: 9, required: 9")
+    expect(stdout).to match(/threads=6, pool: \d+, required: 9/)
+    expect(stdout[/threads=6, pool: (\d+)/, 1].to_i).to be >= 9
     expect(stderr).to be_empty
+  end
+
+  # Regression: a 16-CPU compute pod claims 12 Runs at once, but the pool
+  # stayed at 9, so every Run thread past the ninth timed out waiting for a
+  # connection.
+  it "sizes the default MySQL pool to a large compute pod's run worker" do
+    stdout, stderr, status = spawn_clean(
+      "HOME" => ENV.fetch("HOME"),
+      "PATH" => ENV.fetch("PATH"),
+      "JOB_CONCURRENCY" => "12",
+      "SYRUS_WORKER_CPU_LIMIT" => "16",
+      "SYRUS_SQLITE" => nil
+    )
+
+    expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    expect(stdout).to match(/queue\.compute\.yml \(worst worker: queues=.* threads=12, pool: (\d+)/)
+    expect(stdout[/queue\.compute\.yml.*?pool: (\d+)/, 1].to_i).to be >= 15
+  end
+
+  it "keeps an explicit DB_POOL" do
+    stdout, _stderr, _status = spawn_clean(
+      "HOME" => ENV.fetch("HOME"),
+      "PATH" => ENV.fetch("PATH"),
+      "DB_POOL" => "40",
+      "SYRUS_SQLITE" => nil
+    )
+
+    expect(stdout).to include("pool: 40")
   end
 
   it "finds gems when BUNDLE_PATH is set to an empty Syrus worker path (main grader scenario)" do

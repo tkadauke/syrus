@@ -101,7 +101,18 @@ production:
     # dead connection does not take a worker down -- the budget
     # bin/check-thread-budget enforces -- still far fewer idle sessions than
     # the ten per process every queue process and worker pod used to reserve.
-    pool: <%= ENV.fetch("DB_POOL", 9) %>
+    # A compute pod's run worker claims RunProcessParallelism.host_capacity
+    # Runs at once (queue.compute.yml), which grows with the pod's CPU limit:
+    # a 16-CPU pod runs 12 Run threads against a pool of 9 and every thread
+    # past the ninth timed out. Without an explicit DB_POOL the pool therefore
+    # also covers one thread per visible CPU (an upper bound on that figure)
+    # plus the overhead -- or the explicit JOB_CONCURRENCY or
+    # SYRUS_WORKER_CPU_LIMIT, which may exceed it. Pools open connections
+    # lazily, so the larger cap costs nothing in processes that run fewer
+    # threads.
+    <% require "etc" %>
+    <% run_threads_bound = [ Etc.nprocessors, ENV["SYRUS_WORKER_CPU_LIMIT"].to_f.ceil, ENV["JOB_CONCURRENCY"].to_i ].max %>
+    pool: <%= ENV.fetch("DB_POOL") { [ 9, run_threads_bound + 3 ].max } %>
     host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
     database: syrus_production
     username: syrus
