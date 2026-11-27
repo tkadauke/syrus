@@ -24,7 +24,6 @@ RSpec.describe "Syrus grader configuration" do
     expect(plan.graders.map(&:name)).to eq(%w[
       migration-collisions
       migration-lint
-      thread-budget
       feature-slugs
       plugin-model-namespaces
       plugin-boundaries
@@ -38,11 +37,13 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
-  it "checks the documented worker thread budget instead of the grader worker's concurrency" do
-    plan = RepoGradePlan.for(Rails.root)
-    grader = plan.graders.find { |candidate| candidate.name == "thread-budget" }
+  # The thread budget is checked by spec/bin/check_thread_budget_spec.rb at
+  # fixed pod sizes. As a grader its verdict followed whichever worker ran
+  # it, so the same commit passed on a small worker and failed on a large one.
+  it "does not check the thread budget as a host-dependent grader" do
+    commands = RepoGradePlan.for(Rails.root).graders.map(&:command)
 
-    expect(grader.command).to include("JOB_CONCURRENCY=6 bin/check-thread-budget")
+    expect(commands.grep(/check-thread-budget/)).to be_empty
   end
 
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
