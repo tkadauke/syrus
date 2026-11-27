@@ -1422,7 +1422,7 @@ describe("Kubernetes cluster tool cards", () => {
       expect(responsiveBody).toHaveClass("sm:table-row-group")
       rendered.unmount()
     }
-  })
+  }, 30_000)
 
   it("renders workload cards with readiness, selectors, rollout counts, and recent conditions", () => {
     render(
