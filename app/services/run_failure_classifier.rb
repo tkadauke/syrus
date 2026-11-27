@@ -619,7 +619,7 @@ class RunFailureClassifier
     return false if run.agent_provider.blank?
     return true if run.agent_outcome.to_s == "server_error"
 
-    text_match?(%r{
+    provider_transient_text.match?(%r{
       overloaded|
       temporar(?:y|ily)|
       transient|
@@ -763,6 +763,24 @@ class RunFailureClassifier
 
   def diagnostic
     @diagnostic ||= run.run_diagnostic
+  end
+
+  # The text provider_transient? reads: the searchable text minus Syrus's own
+  # system log lines and Ruby backtrace frames. A deterministic `mysql2` build
+  # failure in prepare was classified transient, and retried a dozen times
+  # an hour, because the log held "Bundler::Settings#temporary" (a backtrace
+  # frame) and Syrus's own "deferred landing after a transient failure" --
+  # which, once written, made every later failure of the Job look transient.
+  BACKTRACE_FRAME = /\.rb:\d+:in\b/
+
+  def provider_transient_text
+    @provider_transient_text ||= [
+      run.agent_outcome,
+      run.agent_summary,
+      diagnostic&.error_class,
+      diagnostic&.error_message,
+      recent_logs.reject { |log| log.kind.to_s == "system" }.map(&:chunk)
+    ].flatten.compact.join("\n").lines.grep_v(BACKTRACE_FRAME).join
   end
 
   def recent_logs

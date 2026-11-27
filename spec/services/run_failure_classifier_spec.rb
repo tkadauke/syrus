@@ -285,6 +285,23 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(run.reload.run_failure_classification).to be_nil
   end
 
+  # Regression: a deterministic native-extension build failure in prepare was
+  # retried a dozen times an hour, matched as transient on a backtrace frame
+  # and on Syrus's own "after a transient failure" system log line.
+  it "does not read a backtrace frame or Syrus's own system log as a transient provider failure" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "prepare command failed (exit 5): bundle install\n" \
+        "An error occurred while installing mysql2 (0.5.7), and Bundler cannot continue.\n" \
+        "/opt/ruby/lib/bundler/settings.rb:159:in 'Bundler::Settings#temporary'"
+    )
+    run.job_logs.create!(sequence: 900, kind: "system",
+                         chunk: "landing_queue: deferred landing after a transient failure; the Job keeps its approval")
+
+    expect(classification.classification).not_to eq("provider_transient")
+  end
+
   it "classifies Claude transient provider failures from result text" do
     run.update!(state: "failed", agent_provider: "claude", agent_summary: "Claude is overloaded, please retry later.")
 
