@@ -19,10 +19,10 @@ RSpec.describe SyrusBrowser::McpToolSet do
   describe ".tool_definitions" do
     subject(:defs) { described_class.tool_definitions }
 
-    it "exposes fourteen granular browser tools" do
+    it "exposes the granular browser tools, including native keyboard input" do
       names = defs.map { |d| d[:name] }
       expect(names).to contain_exactly(
-        "browser_navigate", "browser_click", "browser_fill", "browser_hover", "browser_snapshot",
+        "browser_navigate", "browser_click", "browser_fill", "browser_hover", "browser_press_key", "browser_snapshot",
         "browser_screenshot", "browser_wait_for", "browser_resize", "browser_emulate", "browser_evaluate",
         "browser_file_upload", "browser_drop", "browser_drag", "browser_close"
       )

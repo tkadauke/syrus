@@ -7,7 +7,7 @@ module Mcp::Tools
     tool_name "runtime_input"
 
     description <<~DESC
-      Deliver an input event (pointer, keyboard, touch, stdin, ...) to a
+      Deliver a provider-neutral input event to a
       Runtime Session's target (DOC-17). The provider enforces DOC-17's
       shared-control lease: this fails with `lease_required` unless the
       agent currently holds an active "input" mode runtime_acquire_control
@@ -20,8 +20,11 @@ module Mcp::Tools
         session_id: { description: "Runtime Session id. Defaults to the chat's primary active session." },
         event: {
           type: "object",
-          description: "Provider-specific input event payload (e.g. { \"type\": \"click\", \"target\": \"e3\" } " \
-                       "or terminal { \"type\": \"key\", \"key\": \"Ctrl+C\" })."
+          description: "Provider-specific input event payload. Browser sessions use stable inspected refs, " \
+                       "e.g. { \"type\": \"click\", \"target\": \"e3\" }, " \
+                       "{ \"type\": \"fill\", \"target\": \"e4\", \"text\": \"name@example.com\" }, " \
+                       "or { \"type\": \"key\", \"key\": \"Enter\" }. Terminal sessions may use " \
+                       "{ \"type\": \"key\", \"key\": \"Ctrl+C\" }."
         }
       },
       required: %w[event]

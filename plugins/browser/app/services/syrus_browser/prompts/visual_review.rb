@@ -306,8 +306,9 @@ module SyrusBrowser::Prompts
         #{targets.join("\n")}
 
         Use only tools supported by each target's advertised capabilities.
-        Browser targets retain the existing browser tools and
-        submit_visual_artifact flow for compatibility. For cli_tui targets:
+        Browser targets use Runtime Session lifecycle/lease tools and the
+        Playwright-backed semantic browser interactions; `runtime_input` is a
+        compatibility adapter onto those same interactions. For cli_tui targets:
         acquire input control, inspect the semantic screen state, and use
         runtime_wait with a later generation or expected visible text instead
         of fixed sleeps. Drive meaningful states with runtime_input text, key,
@@ -427,7 +428,7 @@ module SyrusBrowser::Prompts
 
         1. Decide whether the changed behavior is observable in one of the configured runtime targets. If it is not, call `submit_visual_review` with verdict `skipped` and explain why.
         2. Inspect the target with `runtime_inspect`. Use `runtime_wait` for startup, changed-screen, visible-text, and quiet-period synchronization instead of arbitrary sleeps.
-        3. Before sending keyboard, pointer, touch, or stdin events, call `runtime_acquire_control` with mode `input`. Exercise the changed behavior with `runtime_input`, renew the short lease when necessary, and call `runtime_release_control` when interaction is complete.
+        3. Before consequential interaction, call `runtime_acquire_control` with mode `input`. For browser targets, inspect stable refs and use the semantic click/fill/hover/keyboard/drag/drop/upload tools; `runtime_input` is only a compatibility alias and requires the same refs. For other providers, use `runtime_input` with an advertised event type. Renew the short lease when necessary, and call `runtime_release_control` when interaction is complete.
         4. At each configured capture expectation, call `runtime_capture_artifact` with a concise `checkpoint_label`. Use `runtime_snapshot` for intermediate views that do not need to become labeled review evidence.
         5. Review every relevant target and configured dimension. Report concrete visible defects with verdict `needs_work`, or call `submit_visual_review` with verdict `approved` after the expected evidence has been captured. Use `skipped` only when the behavior cannot be exercised or the runtime is genuinely blocked.
 
