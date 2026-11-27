@@ -13,7 +13,9 @@ module Coworkers
       sections = []
       sections << "### Daily memory\n\n#{daily_memory}" if daily_memory.present?
       if messages.exists?
-        lines = messages.order(:created_at).limit(500).map do |message|
+        message_ids = messages.order(:created_at, :id).limit(500).pluck(:id)
+        ordered_messages = Syrus::Host::ChatMessageRecord.where(id: message_ids).index_by(&:id)
+        lines = message_ids.filter_map { |id| ordered_messages[id] }.map do |message|
           "- CHAT-#{message.chat_session_id} #{message.created_at.iso8601} #{message.role}: #{text(message.extract_text_from_content).truncate(1_000)}"
         end
         sections << "### Messages\n\n#{lines.join("\n")}"
