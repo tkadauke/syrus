@@ -1,4 +1,5 @@
 require "tmpdir"
+require "fileutils"
 
 module RuntimeImages
   module Verifications
@@ -39,8 +40,43 @@ module RuntimeImages
         return unless request.source_archive.attached?
 
         archive = File.join(dir, "source.archive")
-        File.binwrite(archive, request.source_archive.download)
-        Builds::SourceExtractor.new.extract(archive, File.join(dir, "source"))
+        stage_source(request.source_archive.attachment.blob, archive)
+        remaining = scratch_limit - directory_bytes(dir)
+        raise Builds::Rejected.new("source_too_large", "source leaves no room in the policy scan storage ceiling") unless remaining.positive?
+
+        Builds::SourceExtractor.new.extract(archive, File.join(dir, "source"), max_bytes: remaining)
+      ensure
+        FileUtils.rm_f(archive) if archive
+      end
+
+      def stage_source(blob, archive)
+        ceiling = Builds::Config.max_source_bytes
+        if blob.byte_size > ceiling
+          raise Builds::Rejected.new("source_too_large", "source archive is #{blob.byte_size} bytes, over the #{ceiling} byte limit")
+        end
+
+        written = 0
+        File.open(archive, "wb") do |file|
+          blob.download do |chunk|
+            written += chunk.bytesize
+            raise Builds::Rejected.new("source_too_large", "source archive exceeds the #{ceiling} byte limit") if written > ceiling
+
+            file.write(chunk)
+          end
+        end
+      end
+
+      # The archive and extracted source may coexist briefly. Add the three
+      # bounded inspection outputs so every byte staged for a scan fits under
+      # one deterministic ceiling even when Active Storage metadata lies.
+      def scratch_limit
+        (2 * Builds::Config.max_source_bytes) + (3 * OUTPUT_LIMIT) + Builds::Config.build_log_bytes
+      end
+
+      def directory_bytes(dir)
+        Dir.glob(File.join(dir, "**", "*"), File::FNM_DOTMATCH).sum do |path|
+          File.file?(path) ? File.size(path) : 0
+        end
       end
 
       def merge_results(left, right)
