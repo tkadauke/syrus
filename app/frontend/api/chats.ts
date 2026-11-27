@@ -496,6 +496,8 @@ export type ChatMessageItem = {
   id: number
   entity_revision?: number
   role: "user" | "assistant" | "tool_use" | "tool_result" | "system"
+  turn_message_id?: number | null
+  assistant_presentation?: "progress" | "final" | null
   tool_name?: string | null
   content?: unknown
   text: string

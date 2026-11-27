@@ -70,6 +70,7 @@ class ChatTurnJob < ApplicationJob
 
     @chat = chat
     @user_message = user_message
+    @turn_message_id = user_message.turn_message_id || user_message.id
     @turn_lifecycle = lifecycle
     @agent_chat = lifecycle.context
     @turn_started_at = Time.current
@@ -94,6 +95,7 @@ class ChatTurnJob < ApplicationJob
     @current_assistant_content = []
     @mcp_ready_server_names = Set.new
     @first_assistant_message_recorded = false
+    Rails.logger.info("[ChatTurnJob] turn_started chat_id=#{@chat.id} trigger_message_id=#{@user_message.id} turn_message_id=#{@turn_message_id} authorization_continuation=#{authorization_continuation_turn?}")
 
     provider = chat_provider
 
@@ -146,7 +148,7 @@ class ChatTurnJob < ApplicationJob
     return if stop_requested?(force: true)
 
     log_mcp_startup_stall!(result) if result
-    flush_current_assistant_content!
+    flush_current_assistant_content!(presentation: @chat.reload.waiting_for_permission? ? "progress" : "final")
     return if @chat.reload.deleted?
 
     capture_session!(provider, result) if result && !ephemeral_agent_turn?
@@ -234,6 +236,7 @@ class ChatTurnJob < ApplicationJob
         @chat.messages.create!(
           role: "system",
           content: { "text" => "Workspace changes are still recoverable locally, but Syrus could not save them to the coworker's home branch: #{result.message}" },
+          turn_message_id: @turn_message_id,
           skip_turn_trigger: true
         )
         Rails.logger.error("[ChatTurnJob] chat_turn_finalizer #{provider}: #{result.exception_class}: #{result.message}")
@@ -492,6 +495,7 @@ class ChatTurnJob < ApplicationJob
     tool_use_id = "skill-resolve-#{SecureRandom.uuid}"
     @chat.messages.create!(
       role: "tool_use",
+      turn_message_id: @turn_message_id,
       tool_name: "resolve_skill",
       tool_use_id: tool_use_id,
       content: {
@@ -503,6 +507,7 @@ class ChatTurnJob < ApplicationJob
     )
     @chat.messages.create!(
       role: "tool_result",
+      turn_message_id: @turn_message_id,
       tool_name: "resolve_skill",
       tool_use_id: tool_use_id,
       content: {
@@ -892,10 +897,11 @@ class ChatTurnJob < ApplicationJob
     when "tool_call"
       return if tool_name.blank?
 
-      flush_current_assistant_content!
+      flush_current_assistant_content!(presentation: "progress")
       record_transcript_mcp_tool_call(tool_name: tool_name, tool_use_id: tool_use_id, tool_input: tool_input)
       @chat.messages.create!(
         role: "tool_use",
+        turn_message_id: @turn_message_id,
         tool_name: tool_name,
         tool_use_id: tool_use_id,
         content: {
@@ -908,7 +914,7 @@ class ChatTurnJob < ApplicationJob
     when "tool_result"
       return if tool_name.blank? && tool_use_id.blank? && tool_result_content.blank?
 
-      flush_current_assistant_content!
+      flush_current_assistant_content!(presentation: "progress")
       record_transcript_mcp_tool_result(tool_name: tool_name,
                                         tool_use_id: tool_use_id,
                                         tool_result_content: tool_result_content,
@@ -916,6 +922,7 @@ class ChatTurnJob < ApplicationJob
       anchor_pending_action_to_tool_call!(tool_use_id, tool_result_content) unless tool_result_error == true
       @chat.messages.create!(
         role: "tool_result",
+        turn_message_id: @turn_message_id,
         tool_name: tool_name,
         tool_use_id: tool_use_id,
         content: {
@@ -926,7 +933,7 @@ class ChatTurnJob < ApplicationJob
         }
       )
     else
-      flush_current_assistant_content!
+      flush_current_assistant_content!(presentation: "progress")
       record_required_server_ready!(mcp_servers) if mcp_servers.present?
       return if mcp_servers.present? &&
                 mcp_servers.all? { |server| mcp_pending?(server["status"].to_s) }
@@ -996,7 +1003,7 @@ class ChatTurnJob < ApplicationJob
     )
   end
 
-  def flush_current_assistant_content!
+  def flush_current_assistant_content!(presentation: "progress")
     return if @current_assistant_content.nil? || @current_assistant_content.empty?
     if @chat.reload.deleted?
       @current_assistant_content = []
@@ -1005,7 +1012,23 @@ class ChatTurnJob < ApplicationJob
 
     blocks = @current_assistant_content.dup
     @current_assistant_content = []
-    @chat.messages.create!(role: "assistant", content: blocks)
+    @chat.messages.transaction do
+      if presentation == "final"
+        @chat.messages.where(role: "assistant", turn_message_id: @turn_message_id, assistant_presentation: "final")
+          .update_all(
+            assistant_presentation: "progress",
+            entity_revision: Arel.sql("entity_revision + 1"),
+            updated_at: Time.current
+          )
+      end
+      message = @chat.messages.create!(
+        role: "assistant",
+        content: blocks,
+        turn_message_id: @turn_message_id,
+        assistant_presentation: presentation
+      )
+      Rails.logger.info("[ChatTurnJob] assistant_event chat_id=#{@chat.id} trigger_message_id=#{@user_message.id} turn_message_id=#{@turn_message_id} message_id=#{message.id} presentation=#{presentation} blocks=#{blocks.size}")
+    end
   end
 
   def system_content_for(chunk, mcp_servers:)
@@ -1167,7 +1190,7 @@ class ChatTurnJob < ApplicationJob
   def create_message!(role, content)
     return if @chat.reload.deleted?
 
-    @chat.messages.create!(role: role, content: content.stringify_keys)
+    @chat.messages.create!(role: role, content: content.stringify_keys, turn_message_id: @turn_message_id)
   end
 
   def close_dangling_tool_calls!(reason = ChatDanglingToolCallCloser::DEFAULT_REASON)

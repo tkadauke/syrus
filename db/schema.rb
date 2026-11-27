@@ -647,6 +647,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.bigint "entity_revision", default: 0, null: false
     t.json "mentions"
     t.string "client_idempotency_key"
+    t.integer "turn_message_id"
+    t.string "assistant_presentation"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
     t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"
@@ -664,6 +666,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.index ["proposal_id"], name: "index_chat_messages_on_proposal_id"
     t.index ["sender_user_id", "client_idempotency_key"], name: "idx_chat_messages_sender_idempotency", unique: true, where: "client_idempotency_key IS NOT NULL"
     t.index ["sender_user_id"], name: "index_chat_messages_on_sender_user_id"
+    t.index ["turn_message_id"], name: "index_chat_messages_on_turn_message_id"
   end
 
   create_table "chat_participants", force: :cascade do |t|

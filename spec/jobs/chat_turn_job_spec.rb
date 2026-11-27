@@ -2392,19 +2392,49 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(block).not_to have_key("signature")
   end
 
-  it "flushes accumulated assistant content before a tool_use message" do
+  it "classifies pre-tool commentary as progress and the terminal answer as the only final reply" do
     ChatTurnJob.agent_runner = ->(log_sink:, **_) {
       log_sink.call("Thinking...", kind: "thinking", thinking: "Thinking...", signature: "s")
       log_sink.call("Using tool.", kind: "assistant_text")
       log_sink.call("● Read(...)", kind: "tool_call", tool_name: "Read", tool_input: { "file_path" => "/x" }, tool_use_id: "toolu_1")
       log_sink.call("content", kind: "tool_result", tool_name: "Read", tool_result_content: "content", tool_result_error: false, tool_use_id: "toolu_1")
+      log_sink.call("Checking another source.", kind: "assistant_text")
+      log_sink.call("● Search(...)", kind: "tool_call", tool_name: "Search", tool_input: { "query" => "x" }, tool_use_id: "toolu_2")
+      log_sink.call("match", kind: "tool_result", tool_name: "Search", tool_result_content: "match", tool_result_error: false, tool_use_id: "toolu_2")
+      log_sink.call("Final answer.", kind: "assistant_text")
       result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
     }
 
     described_class.perform_now(chat.id, user_message.id)
 
     roles = chat.messages.order(:created_at, :id).pluck(:role)
-    expect(roles).to eq(%w[user assistant tool_use tool_result])
+    expect(roles).to eq(%w[user assistant tool_use tool_result assistant tool_use tool_result assistant])
+    events = chat.messages.where.not(role: "user").order(:id)
+    expect(events.pluck(:turn_message_id).uniq).to eq([ user_message.id ])
+    expect(events.where(role: "assistant").pluck(:assistant_presentation)).to eq(%w[progress progress final])
+    expect(events.where(role: "assistant", assistant_presentation: "final").sole.extract_text_from_content).to eq("Final answer.")
+  end
+
+  it "keeps an authorization continuation in the original logical turn and replaces its apparent final reply" do
+    chat.messages.create!(
+      role: "assistant", content: [ { "type" => "text", "text" => "Waiting for permission." } ],
+      turn_message_id: user_message.id, assistant_presentation: "final"
+    )
+    continuation = chat.messages.create!(
+      role: "system",
+      content: { "text" => "Permission granted. Continuing...", "authorization_continuation" => true },
+      turn_message_id: user_message.id
+    )
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("Authorized result.", kind: "assistant_text")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, continuation.id)
+
+    replies = chat.messages.where(role: "assistant", turn_message_id: user_message.id).order(:id)
+    expect(replies.pluck(:assistant_presentation)).to eq(%w[progress final])
+    expect(replies.last.extract_text_from_content).to eq("Authorized result.")
   end
 
   it "stores tool_use messages in canonical content-blocks format with id, name, and input" do
@@ -2649,6 +2679,9 @@ RSpec.describe ChatTurnJob, :ci_only do
     system_idx = roles.index("system")
     assistant_idx = roles.index("assistant")
     expect(assistant_idx).to be < system_idx, "assistant message should precede the cancellation system message"
+    expect(chat.messages.find_by(role: "assistant")).to have_attributes(
+      assistant_presentation: "progress", turn_message_id: user_message.id
+    )
     expect(chat.messages.find_by(role: "system").content["text"]).to eq("Cancelled by operator.")
   end
 

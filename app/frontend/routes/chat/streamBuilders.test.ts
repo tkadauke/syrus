@@ -35,6 +35,40 @@ function group(item: ChatRenderItem | undefined): ChatToolGroupItem {
   return item
 }
 
+it("preserves progress, tool, and final-answer ordering across a refreshed transcript", () => {
+  const progress = {
+    type: "message",
+    id: 2,
+    role: "assistant",
+    text: "Checking.",
+    bookmarkable: false,
+    turn_message_id: 1,
+    assistant_presentation: "progress"
+  } as ChatMessageItem
+  const finalReply = {
+    type: "message",
+    id: 5,
+    role: "assistant",
+    text: "Done.",
+    bookmarkable: true,
+    turn_message_id: 1,
+    assistant_presentation: "final"
+  } as ChatMessageItem
+
+  const items = renderChatMessages([
+    progress,
+    toolUse(3, { toolUseId: "tu_1", toolName: "read_file", turn_message_id: 1 }),
+    toolResult(4, { toolUseId: "tu_1", content: "contents", turn_message_id: 1 }),
+    finalReply
+  ])
+
+  expect(items.map((item) => (item.type === "message" ? [item.role, item.assistant_presentation] : [item.type]))).toEqual([
+    ["assistant", "progress"],
+    ["tool_group"],
+    ["assistant", "final"]
+  ])
+})
+
 describe("renderChatMessages tool grouping", () => {
   it("removes a retired pending action's anchored tool call and paired result", () => {
     const messages = [
