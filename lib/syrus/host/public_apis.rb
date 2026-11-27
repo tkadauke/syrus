@@ -3,6 +3,9 @@ require "syrus/host/backup_artifact_source"
 require "syrus/host/backup_destination"
 require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
+require "syrus/host/agent_runtime"
+require "syrus/host/agent_prompts"
+require "syrus/host/skill_catalog"
 require "syrus/host/runtime_images"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
@@ -23,6 +26,7 @@ module Syrus
   module Host
     module PublicApis
       ALIASES = {
+        AdversarialReviewPrompt: "Prompts::AdversarialReview",
         PluginApi: "Syrus::PluginApi",
         AgentProvider: "Syrus::Plugin::AgentProvider",
         AdminPage: "Syrus::Plugin::AdminPage",
@@ -753,7 +757,8 @@ module Syrus
         SpeechToTextUnavailable: [ "Raised when a transcription backend is unavailable.", %w[new message] ],
         PathJailEscape: [ "Raised when a path resolves outside its root; carries the reason, relative path and root.", %w[new reason relative_path root message] ],
         SyrusYmlParseError: [ "Raised by a plugin's repository-configuration parser when its .syrus.yml contribution is invalid.", %w[new message] ],
-        AgentRole: [ "Names the agent roles a plugin may pass as the role of a tool context or workflow run; only the listed role identifiers are promised, not the role groupings or authorization derived from them.", %w[AGENT_INSIGHT CHAT_PLANNER COWORKER COWORKER_CHAT WORKFLOW_COWORKER_REVIEWER WORKFLOW_MANUAL WORKFLOW_ROLES] ],
+        AgentRole: [ "Names the agent roles a plugin may pass as the role of a tool context or workflow run and the CHAT_ROLES and WORKFLOW_ROLES groupings of them; only the listed role identifiers are promised, not authorization derived from them.", %w[AGENT_INSIGHT CHAT_CODING CHAT_LOCAL CHAT_PLANNER CHAT_ROLES COWORKER COWORKER_CHAT WORKFLOW_ADVERSARIAL_REVIEWER WORKFLOW_COWORKER_REVIEWER WORKFLOW_IMPLEMENT WORKFLOW_MANUAL WORKFLOW_ROLES WORKFLOW_VISUAL_REVIEWER] ],
+        AdversarialReviewPrompt: [ "Bases review prompts a plugin builds on the shared adversarial-review prompt; only subclassing is promised and the prompt text may change.", %w[new] ],
         ReviewerTargetResolver: [ "Resolves a reviewer-target reference through the enabled providers; provider selection and failure containment are not promised.", %w[resolve] ],
         ReviewerTargetRequired: [ "Raised when a review requires a reviewer target and none was pinned.", %w[new message] ],
         ReviewerTargetUnavailable: [ "Raised when a pinned reviewer target cannot currently be resolved.", %w[new message] ],
@@ -878,7 +883,7 @@ module Syrus
         EpicFilter: [ "Builds an epic scope from a shared filter tree.", %w[from_tree] ],
         TestCaseIdentity: [ "Canonicalizes test-case identity.", %w[canonical_suite] ],
         JunitXmlParser: [ "Parses JUnit XML test reports; ParseError is raised on malformed input.", %w[parse ParseError] ],
-        JobRecord: [ "Reads and queries jobs through identity, state, ownership, and visibility-scoped lookups, plus the Kind, Origin, ProviderSetting and TERMINAL_STATES vocabularies; transitions, callbacks, and unlisted associations are not promised.", %w[find find_by where all none count exists? maximum order select new create! transaction accessible_to visible_to effectively_owned_by approval_blocking_job_ids initial_state_for_creator open_threads priority_rank sanitize_sql_like Kind Origin ProviderSetting TERMINAL_STATES] ],
+        JobRecord: [ "Reads and queries jobs through identity, state, ownership, and visibility-scoped lookups, plus the Kind, Origin, ProviderSetting and TERMINAL_STATES vocabularies; transitions, callbacks, and unlisted associations are not promised.", %w[find find_by where all none count exists? maximum order select new create! transaction accessible_to visible_to effectively_owned_by initial_state_for_creator open_threads priority_rank sanitize_sql_like Kind Origin ProviderSetting TERMINAL_STATES] ],
         RunRecord: [ "Queries runs by state and association, and reads the ACTIVE_STATES vocabulary; dispatch, lifecycle transitions, and unlisted associations are not promised.", %w[find find_by where joins select terminal ACTIVE_STATES] ],
         PolicyBase: [ "Base class for plugin authorization policies; Scope is the base class for policy scopes. Authorization helpers beyond subclassing are not promised.", %w[new Scope] ],
         Handle: [ "Reserves and checks the unique @handle namespace shared by users, teams and coworkers; FORMAT is the validation pattern.", %w[FORMAT exists? find_or_create_by! create!] ],
