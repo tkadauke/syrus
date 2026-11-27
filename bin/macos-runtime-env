@@ -278,6 +278,10 @@ syrus_macos_bundle_env() {
   printf 'BUNDLE_PATH=%s\n' "$(syrus_macos_bundle_path "$shared_dir" "$ruby" "$mysql")"
   printf 'BUNDLE_APP_CONFIG=%s\n' "$shared_dir/bundle-config"
   printf 'BUNDLE_BUILD__MYSQL2=%s\n' "$(syrus_macos_mysql2_build_flag "$mysql")"
+  # A Mac worker never processes images: leaving out the image gems keeps
+  # libvips -- here only a shared Homebrew one -- out of the bundle and the
+  # process. See the images group in the Gemfile.
+  printf 'BUNDLE_WITHOUT=images\n'
 }
 
 # Puts a release's pinned toolchain first on PATH, with only the system's own

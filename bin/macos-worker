@@ -68,9 +68,6 @@ export SOLID_QUEUE_SKIP_RECURRING="1"
 # them; just under launchd's ExitTimeOut (3600s in the worker plist), the same
 # budget compute pods get from their termination grace period.
 export SOLID_QUEUE_SHUTDOWN_TIMEOUT="${SOLID_QUEUE_SHUTDOWN_TIMEOUT:-3540}"
-# A Mac worker never processes images, so libvips stays out of the process:
-# the only libvips on such a host would be a shared Homebrew one.
-export SYRUS_LIBVIPS=disabled
 
 # A Mac worker reaches MySQL across the network, outside the cluster. When a
 # connection dies without the local socket being reset -- as it routinely did

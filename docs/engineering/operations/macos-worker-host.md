@@ -33,8 +33,9 @@ Homebrew is not a prerequisite. The worker ignores it even if the host has it.
 `bin/macos-worker` sources the env file and then forces `RAILS_ENV`
 (production by default), `SYRUS_ROLE=worker`,
 `SOLID_QUEUE_CONFIG=config/queue.compute.yml`, `SOLID_QUEUE_SKIP_RECURRING=1`,
-`SYRUS_LIBVIPS=disabled`, `SOLID_QUEUE_SHUTDOWN_TIMEOUT` (default 3540), and
-bounded `DB_*_TIMEOUT`s. `GIT_SHA` comes from the release's own `GIT_SHA`
+`SOLID_QUEUE_SHUTDOWN_TIMEOUT` (default 3540), bounded `DB_*_TIMEOUT`s, and the
+Bundler settings from `syrus_macos_bundle_env` (including
+`BUNDLE_WITHOUT=images`, which keeps libvips out of the process). `GIT_SHA` comes from the release's own `GIT_SHA`
 file: a value in the env file is ignored, and a warning is logged. Do not set
 `GIT_SHA` in the env file.
 

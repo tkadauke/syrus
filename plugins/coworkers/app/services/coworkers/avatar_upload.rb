@@ -6,6 +6,9 @@ class Coworkers::AvatarUpload
     raise ArgumentError, "avatar must be an image" unless upload.content_type.to_s.start_with?("image/")
     raise ArgumentError, "avatar must be smaller than 5 MB" if upload.size > MAX_BYTES
 
+    # Loaded here rather than at boot: workers without the images gem group
+    # (the macOS workers) must boot and eager-load without libvips.
+    require "image_processing/vips"
     resized = ImageProcessing::Vips.source(upload.tempfile).resize_to_limit(MAX_DIMENSION, MAX_DIMENSION).call
     coworker.avatar.attach(io: resized, filename: upload.original_filename, content_type: upload.content_type)
   ensure

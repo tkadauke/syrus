@@ -20,8 +20,10 @@ RSpec.describe "plugin gem requires" do
   # Directories a `require` may legitimately resolve against in production: the
   # groups the image actually installs, the stdlib, and Ruby's default gems.
   # BUNDLE_WITHOUT names development and test, so :production counts here --
-  # that is where the MySQL adapter and the S3 client live.
-  BUNDLED_GROUPS = %i[default production].freeze
+  # that is where the MySQL adapter and the S3 client live. :images ships in
+  # the image too; only macOS workers leave it out, and they load those gems
+  # nowhere at boot (spec/config/libvips_boot_spec.rb).
+  BUNDLED_GROUPS = %i[default production images].freeze
 
   def production_load_paths
     @production_load_paths ||= begin

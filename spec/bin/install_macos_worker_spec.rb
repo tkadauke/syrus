@@ -155,6 +155,7 @@ RSpec.describe "macOS worker installer" do
         # Homebrew build setting left by an older install is cleared.
         expect(stdout).to include("BUNDLE_BUILD__MYSQL2=--with-mysql-config=#{install_root}/tools/mysql-client/#{mysql_version}/bin/mysql_config")
         expect(stdout).to include("bundle config unset --local build.mysql2")
+        expect(stdout).to include("BUNDLE_WITHOUT=images")
         remove_offset = stdout.index("rm -rf #{node_modules}")
         link_offset = stdout.index("ln -s #{install_root}/shared/node/#{release_sha}/node_modules #{node_modules}")
         expect(remove_offset).not_to be_nil

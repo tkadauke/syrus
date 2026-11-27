@@ -57,7 +57,10 @@ gem. **Prevention:** mark the gem `force_ruby_platform: true` in the
 `mysql2` fails to load. **Cause:** Homebrew is shared with every account on
 the host and upgrades its libraries in place. **Prevention:** resolve
 everything through `bin/macos-runtime-env`. Keep the plist `PATH` at
-`/usr/bin:/bin:/usr/sbin:/sbin`, and keep `SYRUS_LIBVIPS=disabled`. A new
+`/usr/bin:/bin:/usr/sbin:/sbin`, and keep the `images` gem group out of the
+Mac bundle (`BUNDLE_WITHOUT=images`): Active Storage's engine config loads
+`ruby-vips` on every Rails boot whenever the gem is in the bundle, so an
+environment switch cannot keep libvips out. A new
 native dependency gets a pin in `config/macos_worker_toolchain.env` with a
 SHA-256, never a `brew install`. `bin/macos-worker-check` fails if `PATH`
 contains Homebrew.
@@ -126,5 +129,28 @@ throttled disk I/O, below any interactive build. **Prevention:** both plists
 in `config/launchd/` use `Standard`; `spec/bin/macos_worker_spec.rb` guards
 it. Plist changes reach a host only through `bin/install-macos-worker` (see
 [when to rerun the installer](../operations/macos-worker-host.md#install)).
+
+## A Bundler setting in the shared config outranking the environment
+
+**Symptom:** `mysql2` fails to link (`library 'zstd' not found`), or builds
+against Homebrew's MySQL client although `BUNDLE_BUILD__MYSQL2` names the
+private one. **Cause:** Bundler ranks the local config
+(`$BUNDLE_APP_CONFIG/config`, here `/opt/syrus/shared/bundle-config/config`)
+above environment variables, and older setups wrote a Homebrew
+`build.mysql2` there. **Prevention:** the installer and the updater both run
+`bundle config unset --local build.mysql2` before `bundle install`. Pass new
+Bundler settings through `syrus_macos_bundle_env`, never `bundle config
+--local`.
+
+## Unchecked steps in the updater
+
+**Symptom:** the updater reports a release as activated, and the worker then
+crash-loops with `Could not find <gems> in locally installed gems`.
+**Cause:** `run_once` runs as an `if` condition, where bash ignores
+`set -e`, so a failed `bundle install` did not stop the activation.
+**Prevention:** every step in `bin/syrus-macos-updater`'s `run_once` and
+`prepare_release` checks its own status and returns; a failed preparation
+reports `failed` and leaves `current` on the old release.
+`spec/bin/syrus_macos_updater_spec.rb` guards it.
 
 Return to the [pitfalls index](README.md).

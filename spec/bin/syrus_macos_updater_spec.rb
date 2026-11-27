@@ -273,6 +273,66 @@ RSpec.describe "native macOS worker updater" do
     end
   end
 
+  # Regression: a release whose bundle install failed was activated anyway --
+  # run_once runs as an `if` condition, where bash ignores `set -e` -- and the
+  # worker crash-looped on missing gems.
+  it "stays on the current release and reports failure when preparing the new one fails" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      install_root = File.join(dir, "install")
+      releases_dir = File.join(install_root, "releases")
+      current_release = File.join(releases_dir, "aaa1111")
+      current_link = File.join(install_root, "current")
+      report_file = File.join(dir, "report.jsonl")
+      bundle_log = File.join(dir, "bundle.log")
+      FileUtils.mkdir_p(current_release)
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "bbb2222")
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "bbb2222")
+      write_env(env_file, metadata: metadata)
+      File.open(env_file, "a") do |file|
+        file.puts "SYRUS_UPDATE_REPORT_URL=https://syrus.example.test/report"
+        file.puts "SYRUS_API_TOKEN=test-token"
+      end
+      bin_dir = stub_prepare_commands(dir)
+      write_executable(File.join(bin_dir, "bundle"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\n' "$*" >> "#{bundle_log}"
+        [[ "$1" == "install" ]] && { echo "An error occurred while installing mysql2" >&2; exit 5; }
+        exit 0
+      BASH
+      write_executable(File.join(bin_dir, "curl"), <<~BASH)
+        #!/usr/bin/env bash
+        cat >> "#{report_file}"
+        printf '\\n' >> "#{report_file}"
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        {
+          "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}",
+          "SYRUS_MACOS_INSTALL_ROOT" => install_root,
+          "SYRUS_MACOS_CURRENT_LINK" => current_link
+        },
+        "bash", script, "--env-file", env_file, "--once", "--skip-restart"
+      )
+
+      expect(status.exitstatus).to eq(1), "expected failure, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(File.realpath(current_link)).to eq(current_release)
+      expect(stdout).not_to include("activated")
+      # A Homebrew build.mysql2 in the shared Bundler config would outrank
+      # BUNDLE_BUILD__MYSQL2, so it is cleared before the install.
+      expect(File.readlines(bundle_log, chomp: true).first(2))
+        .to eq([ "config unset --local build.mysql2", "install --jobs 1" ])
+      reports = File.readlines(report_file).map { |line| JSON.parse(line)["status"] }
+      expect(reports.map { |report| report["state"] }).not_to include("restarting", "current")
+      expect(reports).to include(a_hash_including("state" => "failed", "message" => "preparing release dependencies failed"))
+    end
+  end
+
   it "drops privileges for preparation and restores root ownership before installing the privileged updater" do
     Dir.mktmpdir do |raw_dir|
       dir = File.realpath(raw_dir)

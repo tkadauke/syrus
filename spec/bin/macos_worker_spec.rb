@@ -277,6 +277,9 @@ RSpec.describe "native macOS worker scripts" do
       expect(stdout).to include("NODE=/opt/syrus/nodes/#{pinned_node}/bin/node")
       expect(stdout).to include("AGENT_CLIS=/opt/syrus/agent-clis/bin")
       expect(stdout).to include("BUNDLE_PATH=/opt/syrus/shared/bundles/ruby-#{pinned_ruby}")
+      # Keeps libvips out of the worker; see spec/config/libvips_boot_spec.rb.
+      expect(stdout).to include("BUNDLE_WITHOUT=images")
+      expect(stdout).not_to include("SYRUS_LIBVIPS")
     end
   end
 
