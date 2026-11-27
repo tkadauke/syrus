@@ -242,6 +242,18 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  # Regression: as Background jobs the worker and updater ran at the lowest
+  # CPU priority with throttled I/O, so another account's Xcode build on the
+  # host starved them: heartbeats lapsed and an update took many minutes to
+  # unpack a release.
+  it "runs the worker and updater at standard priority, not as background jobs" do
+    %w[com.syrus.worker.plist com.syrus.updater.plist].each do |name|
+      plist = File.read(File.join(root, "config/launchd", name))
+
+      expect(plist).to match(%r{<key>ProcessType</key>\s*<string>Standard</string>})
+    end
+  end
+
   it "gives in-flight runs an hour to drain on SIGTERM before launchd kills the worker" do
     plist = File.read(File.join(root, "config/launchd/com.syrus.worker.plist"))
 

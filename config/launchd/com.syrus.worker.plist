@@ -41,8 +41,11 @@
   <true/>
   <key>RunAtLoad</key>
   <true/>
+  <!-- Standard, not Background: launchd runs Background jobs at the lowest
+       CPU priority with throttled disk I/O, so any other account's build on
+       the host starves the worker -- heartbeats lapse and work crawls. -->
   <key>ProcessType</key>
-  <string>Background</string>
+  <string>Standard</string>
   <key>Umask</key>
   <integer>18</integer>
   <key>SoftResourceLimits</key>

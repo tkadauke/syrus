@@ -117,4 +117,14 @@ that is still running at `ExitTimeOut`. **Prevention:** keep
 `SOLID_QUEUE_SHUTDOWN_TIMEOUT` (3540, in `bin/macos-worker`) below the worker
 plist's `ExitTimeOut` (3600), and change both together.
 
+## Running the services as `Background` launchd jobs
+
+**Symptom:** whenever another account builds on the host, the worker's
+heartbeats lapse and updates take many minutes to unpack a release. **Cause:**
+launchd runs `ProcessType` `Background` jobs at the lowest CPU priority with
+throttled disk I/O, below any interactive build. **Prevention:** both plists
+in `config/launchd/` use `Standard`; `spec/bin/macos_worker_spec.rb` guards
+it. Plist changes reach a host only through `bin/install-macos-worker` (see
+[when to rerun the installer](../operations/macos-worker-host.md#install)).
+
 Return to the [pitfalls index](README.md).
