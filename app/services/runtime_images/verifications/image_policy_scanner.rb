@@ -1,5 +1,6 @@
 require "tmpdir"
 require "fileutils"
+require "rbconfig"
 
 module RuntimeImages
   module Verifications
@@ -11,6 +12,9 @@ module RuntimeImages
       Report = Data.define(:metadata, :history, :secrets, :scanned_at)
       OUTPUT_LIMIT = 32.megabytes
       TIMEOUT = 10.minutes
+      SCAN_SCRIPT = Rails.root.join("bin/scan-runtime-image-inputs")
+      NAMESPACE_PREFIX = %w[unshare --user --map-root-user --mount --].freeze
+      MOUNT_SCRIPT = 'set -eu; mount -t tmpfs -o "size=$2,nr_inodes=$3,mode=0700" tmpfs "$1"; shift 3; exec "$@"'.freeze
 
       def initialize(built_images: BuiltImages.new, runner: nil)
         @built_images = built_images
@@ -22,9 +26,9 @@ module RuntimeImages
           metadata = json([ "docker", "image", "inspect", reference ]).first || {}
           history = text([ "docker", "image", "history", "--no-trunc", "--format", "{{json .}}", reference ])
           secrets = json([ "trivy", "image", "--quiet", "--format", "json", "--scanners", "secret", reference ])
-          Dir.mktmpdir("runtime-image-policy") do |dir|
+          Dir.mktmpdir("runtime-image-policy", ProcessRunner.probe_workdir.to_s) do |dir|
             write_inputs(dir, request, evidence, history, metadata)
-            auxiliary = json([ "trivy", "fs", "--quiet", "--format", "json", "--scanners", "secret", dir ])
+            auxiliary = json(input_scan_command(dir, request.source_archive.attached?))
             secrets = merge_results(secrets, auxiliary)
           end
           Report.new(metadata: metadata, history: history, secrets: secrets, scanned_at: Time.current)
@@ -41,12 +45,6 @@ module RuntimeImages
 
         archive = File.join(dir, "source.archive")
         stage_source(request.source_archive.attachment.blob, archive)
-        remaining = scratch_limit - directory_bytes(dir)
-        raise Builds::Rejected.new("source_too_large", "source leaves no room in the policy scan storage ceiling") unless remaining.positive?
-
-        Builds::SourceExtractor.new.extract(archive, File.join(dir, "source"), max_bytes: remaining)
-      ensure
-        FileUtils.rm_f(archive) if archive
       end
 
       def stage_source(blob, archive)
@@ -66,18 +64,17 @@ module RuntimeImages
         end
       end
 
-      # The archive and extracted source may coexist briefly. Add the three
-      # bounded inspection outputs so every byte staged for a scan fits under
-      # one deterministic ceiling even when Active Storage metadata lies.
-      def scratch_limit
-        (2 * Builds::Config.max_source_bytes) + (3 * OUTPUT_LIMIT) + Builds::Config.build_log_bytes
+      def input_scan_command(dir, archive_attached)
+        work = File.join(dir, "work")
+        FileUtils.mkdir_p(work)
+        archive = archive_attached ? File.join(dir, "source.archive") : "-"
+        [ *NAMESPACE_PREFIX, "sh", "-c", MOUNT_SCRIPT, "sh", work, scan_storage_bytes.to_s, scan_inodes.to_s,
+          RbConfig.ruby, SCAN_SCRIPT.to_s, dir, work, archive, Builds::Config.max_source_bytes.to_s,
+          Builds::Config.max_source_entries.to_s ]
       end
 
-      def directory_bytes(dir)
-        Dir.glob(File.join(dir, "**", "*"), File::FNM_DOTMATCH).sum do |path|
-          File.file?(path) ? File.size(path) : 0
-        end
-      end
+      def scan_storage_bytes = Builds::Config.max_source_bytes + (2 * OUTPUT_LIMIT) + Builds::Config.build_log_bytes
+      def scan_inodes = Builds::Config.max_source_entries + 32
 
       def merge_results(left, right)
         Hash(left).merge("Results" => Array(Hash(left)["Results"]) + Array(Hash(right)["Results"]))
