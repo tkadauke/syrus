@@ -183,6 +183,7 @@ per-user/private:
   - app/controllers/api/v1/app/jobs_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
   - app/controllers/api/v1/app/approval_delegations_controller.rb
+  - app/controllers/api/v1/app/agent_questions_controller.rb
   - app/controllers/api/v1/app/notification_preferences_controller.rb
   - app/controllers/api/v1/app/notifications_controller.rb
   - app/controllers/api/v1/app/permission_hub_preferences_controller.rb
@@ -431,6 +432,7 @@ instead of broader model scopes.
 | `plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
 | `plugins/calendar/app/controllers/api/v1/app/calendar/events_controller.rb` | per-user/private | Calendar events are built by `Calendar::EventQuery.call(user: Current.user, ...)`, so each event source only returns data the signed-in user is authorized to see. |
 | `app/controllers/api/v1/app/approval_delegations_controller.rb` | per-user/private | Lists, creates, and revokes only `Current.user.approval_provider_delegations`. |
+| `app/controllers/api/v1/app/agent_questions_controller.rb` | per-user/private and repository-write affordance | Lists questions only for Jobs visible to `Current.user`; answers additionally require the Job write policy. |
 | `app/controllers/api/v1/app/notification_preferences_controller.rb` | per-user/private | Reads and updates only `Current.user.notification_preferences`. |
 | `app/controllers/api/v1/app/pending_feedback_controller.rb` | per-user/private | Pending feedback actions (apply/ignore/replace) find the parent job through `Current.user.jobs` and serialize a full `App::JobDetailPayload` for that user. |
 | `app/controllers/api/v1/app/notifications_controller.rb` | per-user/private | Notification listing and mark-read commands operate only on `Current.user.notifications`. |
