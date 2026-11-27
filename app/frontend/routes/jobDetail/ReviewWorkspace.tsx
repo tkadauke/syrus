@@ -771,7 +771,11 @@ export function VisualEvidenceGallery({
       {preview ? (
         <DocumentPreviewModal
           key={preview.id}
-          file={{ contentType: "image/png", rawUrl: preview.original_url, title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page") }}
+          file={{
+            contentType: "image/png",
+            rawUrl: preview.original_url,
+            title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page")
+          }}
           footerActions={
             <div aria-label={t("visual_evidence_navigation")} className="flex gap-2">
               <Button onClick={() => movePreview(-1)} size="sm" variant="secondary">
