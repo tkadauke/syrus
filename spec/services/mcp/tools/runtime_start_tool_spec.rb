@@ -263,6 +263,23 @@ RSpec.describe Mcp::Tools::RuntimeStartTool, full_chat_access: :all do
     end
   end
 
+  it "reconciles an expired persisted startup and retries the existing session" do
+    with_workspace do |workspace|
+      session = RuntimeSession.create!(
+        repository: repository, chat_session: chat_session, workspace_ref: workspace,
+        provider_key: "stub", display_name: "Stub Provider", state: "starting",
+        metadata: { "runtime_operation" => { "id" => "abandoned-op", "kind" => "startup", "state" => "active", "deadline_at" => 1.minute.ago.iso8601 } }
+      )
+
+      body = payload(call(provider: "stub"))
+
+      expect(body).to include(id: session.id, state: "running")
+      expect(RuntimeSession.count).to eq(1)
+      expect(session.reload.runtime_operation_logs.map { |entry| entry.fetch("message") }).to include(a_string_including("exceeded its durable deadline"))
+      expect(session.current_runtime_operation).to include("kind" => "startup", "outcome" => "succeeded")
+    end
+  end
+
   it "returns an error when Coding Mode is disabled" do
     enable_coding_mode!(enabled: false)
 
