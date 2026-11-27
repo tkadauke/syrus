@@ -11,6 +11,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 
 | Owner | Method | Path | Handler |
 |---|---|---|---|
+| core | GET | `/api/v1/app/agent_questions` | `api/v1/app/agent_questions#index` |
+| core | POST | `/api/v1/app/agent_questions/:id/answer` | `api/v1/app/agent_questions#answer` |
 | core | GET | `/api/v1/app/approval_delegations` | `api/v1/app/approval_delegations#index` |
 | core | POST | `/api/v1/app/approval_delegations` | `api/v1/app/approval_delegations#create` |
 | core | POST | `/api/v1/app/approval_delegations/:id/revoke` | `api/v1/app/approval_delegations#revoke` |
@@ -247,6 +249,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:job_id/diff_review_versions/:id` | `api/v1/app/diff_review_versions#show` |
 | core | POST | `/api/v1/app/jobs/:job_id/epic_dependencies` | `api/v1/app/job_metadata#add_epic_dependency` |
 | core | DELETE | `/api/v1/app/jobs/:job_id/epic_dependencies/:depends_on_epic_id` | `api/v1/app/job_metadata#remove_epic_dependency` |
+| core | POST | `/api/v1/app/jobs/:job_id/file_question_fix` | `api/v1/app/job_lifecycle#file_question_fix` |
 | core | POST | `/api/v1/app/jobs/:job_id/mark_valid` | `api/v1/app/job_metadata#mark_valid` |
 | core | POST | `/api/v1/app/jobs/:job_id/move_to_backlog` | `api/v1/app/job_lifecycle#move_to_backlog` |
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_coding_mode` | `api/v1/app/job_coding_mode#open` |

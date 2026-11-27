@@ -205,6 +205,7 @@ module Admin
     ].freeze
 
     WORKFLOW_MCP_CAPABILITIES = %w[
+      ask_user_question
       patch_workflow
       propose_job
       report_cannot_proceed
