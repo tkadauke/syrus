@@ -105,7 +105,9 @@ module App
     end
 
     def implementation_action_label
-      return recovery_action_label if recovery_decision.recommended_action.in?(%w[fresh_implementation restart])
+      if job.failed? && recovery_decision.recommended_action.in?(%w[fresh_implementation restart])
+        return recovery_action_label
+      end
 
       "Retry implementation"
     end
