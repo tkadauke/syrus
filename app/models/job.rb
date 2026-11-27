@@ -1737,12 +1737,14 @@ class Job < ApplicationRecord
     return unless base
 
     base = base.first(50)
-    n = 1
     candidate = base
-    loop do
-      break unless Job.where(slug: candidate).exists?
-      candidate = "#{base.first(46)}-#{n}"
-      n += 1
+    # A taken base gets a random suffix, not the next free number. Recurring
+    # Jobs (a coworker's daily journaling task, say) share one truncated base,
+    # so numbering scanned every earlier slug -- 160+ queries per create --
+    # and Jobs created at the same moment all chose the same "next free"
+    # number and all but one failed on the unique index.
+    while Job.where(slug: candidate).exists?
+      candidate = "#{base.first(43)}-#{SecureRandom.alphanumeric(6).downcase}"
     end
     self[:slug] = candidate
   end

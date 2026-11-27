@@ -57,6 +57,22 @@ RSpec.describe Job, :ci_only do
 
       expect(job.slug).to eq("JOB-#{job.id}")
     end
+
+    # Regression: recurring Jobs share one truncated title base, and the
+    # numbered suffix had every Job created at the same moment pick the same
+    # "next free" slug; all but one failed on the unique index.
+    it "gives Jobs created at the same moment distinct stored slugs" do
+      title = "Scheduled coworker task: Journaling for 2026-11-16 and onward"
+      Factories.job_record(issue_title: title, issue_number: 501)
+      racers = [ 502, 503 ].map do |number|
+        Factories.job_record(issue_title: title, issue_number: number).tap { |job| job[:slug] = nil }
+      end
+
+      racers.each { |job| job.send(:generate_slug) }
+
+      expect(racers.map { |job| job[:slug] }.uniq.size).to eq(2)
+      expect(racers.map { |job| job[:slug] }).to all(start_with("scheduled-coworker-task-journaling-for-2026"))
+    end
   end
 
   describe "#discussion_chat" do
