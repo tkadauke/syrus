@@ -1,4 +1,5 @@
 {
+  "landing_lanes": { "title": "Landing-Lanes", "load_error": "Landing-Lanes konnten nicht geladen werden.", "view_all": "Alle Lanes anzeigen", "repository_summary": "{{busy}} von {{total}} Lanes belegt · {{waiting}} genehmigt und wartend", "lane": "Lane {{number}}", "empty": "Leere Lane", "draining": "Wird geleert", "bundle_members": "Bundle-Mitglieder:", "waiting_backlog": "Wartender Backlog", "no_waiting": "Keine genehmigten Jobs warten.", "best_case": "~{{minutes}} Min. im besten Fall", "progress": "Landing-Fortschritt für {{context}}", "repair_round": "Reparaturrunde {{round}}", "carried_grader": "{{name}} (übernommen)", "rebasing": "Rebase auf main", "multisect_rung": "{{role}} · Runde {{round}}", "phases": { "assemble": "Zusammenstellen", "build": "Build", "prepare": "Vorbereiten", "reconcile": "Abgleichen", "grade": "Prüfen", "collect": "Sammeln", "land": "Landen" } },
   "title": "Übersicht",
   "proposed_by": "Vorgeschlagen von {{name}} {{handle}}",
   "legacy_epics_title": "Epics",

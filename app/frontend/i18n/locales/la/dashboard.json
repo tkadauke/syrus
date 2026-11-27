@@ -1,4 +1,5 @@
 {
+  "landing_lanes": { "title": "Viae imponendi", "load_error": "Viae imponendi onerari non potuerunt.", "view_all": "Omnes vias vide", "repository_summary": "{{busy}} ex {{total}} viis occupatae · {{waiting}} approbata exspectant", "lane": "Via {{number}}", "empty": "Via vacua", "draining": "Exhauritur", "bundle_members": "Sodales fasciculi:", "waiting_backlog": "Ordo exspectans", "no_waiting": "Nulla opera approbata exspectant.", "best_case": "~{{minutes}} min optimo casu", "progress": "Progressus impositionis: {{context}}", "repair_round": "circuitus reparationis {{round}}", "carried_grader": "{{name}} (translatus)", "rebasing": "ad main denuo fundatur", "multisect_rung": "{{role}} · circuitus {{round}}", "phases": { "assemble": "componitur", "build": "aedificatur", "prepare": "praeparatur", "reconcile": "conciliatur", "grade": "probatur", "collect": "colligitur", "land": "imponitur" } },
   "title": "Tabula",
   "proposed_by": "Propositum a {{name}} {{handle}}",
   "legacy_epics_title": "Epica",

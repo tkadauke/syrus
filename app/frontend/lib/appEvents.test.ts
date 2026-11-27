@@ -67,6 +67,7 @@ describe("queryKeysFor", () => {
       ["repositories", "3", "delivery"],
       ["repositories", "3", "syrus_yml"]
     ])
+    expect(queryKeysFor(event("landing_lanes", 3))).toEqual([["landing_lanes"]])
     expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
     expect(queryKeysFor(event("operator_briefing", 2))).toEqual([["operator_briefing"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])

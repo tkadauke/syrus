@@ -33,6 +33,9 @@ describe("App dashboard landing queue", () => {
     document.body.appendChild(script)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
+      if (path === "/api/v1/app/landing_lanes") {
+        return Promise.resolve(jsonResponse({ estimate_kind: "best_case", repositories: [] }))
+      }
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }

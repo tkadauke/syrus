@@ -1,4 +1,5 @@
 {
+  "landing_lanes": { "title": "Landing lanes", "load_error": "Unable to load landing lanes.", "view_all": "View all lanes", "repository_summary": "{{busy}} of {{total}} lanes busy · {{waiting}} approved waiting", "lane": "Lane {{number}}", "empty": "Empty lane", "draining": "Draining", "bundle_members": "Bundle members:", "waiting_backlog": "Waiting backlog", "no_waiting": "No approved jobs are waiting.", "best_case": "~{{minutes}} min best case", "progress": "{{context}} landing progress", "repair_round": "repair round {{round}}", "carried_grader": "{{name}} (carried)", "rebasing": "rebasing onto main", "multisect_rung": "{{role}} · round {{round}}", "phases": { "assemble": "assembling", "build": "building", "prepare": "preparing", "reconcile": "reconciling", "grade": "grading", "collect": "collecting", "land": "landing" } },
   "title": "Dashboard",
   "proposed_by": "Proposed by {{name}} {{handle}}",
   "legacy_epics_title": "Epics",

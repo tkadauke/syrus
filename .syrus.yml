@@ -380,7 +380,10 @@ grade:
       boot — it can't claim a connection per thread. Bump
       RAILS_MAX_THREADS / config/database.yml's pool, or trim the
       queue's thread count.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && bin/check-thread-budget
+    # The grader worker's JOB_CONCURRENCY describes that worker, not the
+    # repository's supported production default. Pin the documented six-thread
+    # budget so an oversized grading worker does not contaminate this check.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && JOB_CONCURRENCY=6 bin/check-thread-budget
     phases: [review, landing, ci, unland]
     # Landing dispatches graders in parallel; this one starts with the same
     # `bundle check` as eager-load/production-build-boot, so it needs the
