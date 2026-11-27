@@ -568,9 +568,23 @@ module Steps
     # Steps::Grade wrote per iteration so existing
     # Prompts::GradeFailureFeedback rendering still works during the
     # transitional period.
+    # The loop that wrote workflow.artifacts["iterations"]. A merge train that
+    # rebuilds starts a fresh retry_until loop whose iterations count from 1
+    # again, while the array still held the previous loop's rounds. Writing
+    # round 1 over index 0 left a stale, all-green "iteration 3" last, and the
+    # landing_fix agent -- reading the newest iteration as the current verdict
+    # -- concluded every grader passed and committed nothing, three rounds in
+    # a row, while collect kept failing the same shards.
+    ITERATIONS_LOOP_ARTIFACT_KEY = "iterations_loop_id".freeze
+
     def append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
       iterations = Array(workflow.artifact("iterations"))
+      recorded_loop = workflow.artifact(ITERATIONS_LOOP_ARTIFACT_KEY)
+      iterations = [] if step.loop_id.present? && recorded_loop.present? && recorded_loop != step.loop_id
       index = run.iteration - 1
+      # Rounds past this one belong to an earlier pass and describe a HEAD
+      # that is no longer under test; this round is the newest by definition.
+      iterations = iterations.first(index)
       iteration = if grader_steps.empty? && (cache_hit = workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY))
         [
           {
@@ -632,6 +646,7 @@ module Steps
       mark_repeated_grader_result!(iterations, index, iteration)
       iterations[index] = iteration
       workflow.set_artifact!("iterations", iterations)
+      workflow.set_artifact!(ITERATIONS_LOOP_ARTIFACT_KEY, step.loop_id) if step.loop_id.present?
     end
 
     def grader_outcome_for(grader_step)
