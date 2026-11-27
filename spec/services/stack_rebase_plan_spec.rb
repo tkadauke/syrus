@@ -20,6 +20,27 @@ RSpec.describe StackRebasePlan do
     )
   end
 
+  # Regression: a merge train landed the parent and deleted its branch; the
+  # child's stack rebase still targeted the parent branch and failed fetching
+  # a ref that no longer existed.
+  it "rebases a child of a landed parent onto the branch the parent merged into" do
+    stack_epic = epic
+    parent = stack_job(epic: stack_epic, number: 41)
+    child = stack_job(epic: stack_epic, number: 42, parent: parent)
+    parent.update_columns(state: "closed")
+
+    expect(described_class.base_branch_for(child.reload, {})).to eq(child.effective_base_branch)
+    expect(described_class.base_branch_for(child, {})).not_to eq(parent.branch_name)
+  end
+
+  it "still rebases a child onto its open parent's branch" do
+    stack_epic = epic
+    parent = stack_job(epic: stack_epic, number: 43)
+    child = stack_job(epic: stack_epic, number: 44, parent: parent)
+
+    expect(described_class.base_branch_for(child, {})).to eq(parent.branch_name)
+  end
+
   it "traverses anchored downstream Epics in dependency order when enabled" do
     allow(Feature).to receive(:early_epic_dependency_execution_enabled?).and_return(true)
     epic_a, epic_b, epic_c = 3.times.map { epic }
