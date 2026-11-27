@@ -14,10 +14,10 @@ DRY_RUN=0
 SKIP_DEPENDENCIES=0
 SKIP_SERVICES=0
 
-# Ruby and Node are not Homebrew formulae here: each release runs the Ruby
-# and Node its .ruby-version and .node-version pin, installed by mise, and the
-# agent CLIs are installed with that Node (see bin/macos-runtime-env).
-BREW_FORMULAE=(mysql-client pkg-config vips openssl@3 readline libyaml mise go)
+# Nothing comes from Homebrew: it is shared with every account on the host,
+# and an upgrade there has broken the worker's Ruby, Node, and mysql2. Each
+# release installs the toolchain it pins (bin/macos-runtime-env), and the
+# agent CLIs are installed with its Node.
 CLAUDE_CODE_VERSION="2.1.330"
 CODEX_CLI_VERSION="0.171.0"
 
@@ -27,7 +27,9 @@ Usage: sudo bin/install-macos-worker [options]
 
 Prepares a native macOS Syrus compute worker. The current checkout or unpacked
 worker release becomes /opt/syrus/current; deployment credentials must already
-exist in the env file.
+exist in the env file, and the release signing public key must be installed.
+Idempotent: rerunning it converges the host on this release. Uses nothing
+from Homebrew. bin/uninstall-macos-worker reverses it.
 
 Options:
   --env-file PATH          Worker env file (default: /etc/syrus/worker.env)
@@ -36,7 +38,7 @@ Options:
   --install-root PATH      Release root (default: /opt/syrus)
   --data-root PATH         Persistent worker data (default: /var/lib/syrus)
   --service-user NAME      launchd worker user (default: syrus-worker)
-  --skip-dependencies      Do not install Homebrew formulae or agent CLIs
+  --skip-dependencies      Do not (re)install the agent CLIs
   --skip-services          Prepare the host but do not load launchd services
   --dry-run                Print mutating commands without running them
 USAGE
@@ -74,12 +76,6 @@ if [[ "$EUID" -ne 0 && "$DRY_RUN" != "1" ]]; then
   exit 1
 fi
 
-ADMIN_USER="${SUDO_USER:-${USER:-}}"
-if [[ -z "$ADMIN_USER" || "$ADMIN_USER" == "root" ]]; then
-  echo "install-macos-worker: run with sudo from the admin account that owns Homebrew" >&2
-  exit 1
-fi
-
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "install-macos-worker: create $ENV_FILE before installing the worker" >&2
   exit 1
@@ -95,16 +91,6 @@ if [[ ! -f "$UPDATE_PUBLIC_KEY" ]] || ! openssl pkey -pubin -in "$UPDATE_PUBLIC_
   echo "install-macos-worker: install the release signing public key at $UPDATE_PUBLIC_KEY first" >&2
   echo "  (see docs/engineering/operations/macos_worker_updates.md, One-time setup)" >&2
   exit 1
-fi
-
-if [[ "$SKIP_DEPENDENCIES" != "1" ]]; then
-  BREW="/opt/homebrew/bin/brew"
-  if [[ ! -x "$BREW" ]]; then
-    echo "install-macos-worker: Homebrew must be installed for the admin account first" >&2
-    exit 1
-  fi
-  say "Installing host dependencies"
-  run sudo -H -u "$ADMIN_USER" "$BREW" install "${BREW_FORMULAE[@]}"
 fi
 
 say "Preparing the service account and filesystem"
@@ -146,48 +132,59 @@ fi
 run chown -R root:wheel "$RELEASE_PATH"
 run chmod -R go-w "$RELEASE_PATH"
 
-say "Installing the release's pinned Ruby and Node"
+say "Installing the release's pinned toolchain"
 export SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-$INSTALL_ROOT/rubies}"
 export SYRUS_MACOS_NODES_ROOT="${SYRUS_MACOS_NODES_ROOT:-$INSTALL_ROOT/nodes}"
+export SYRUS_MACOS_TOOLS_ROOT="${SYRUS_MACOS_TOOLS_ROOT:-$INSTALL_ROOT/tools}"
 export SYRUS_MACOS_AGENT_CLI_PREFIX="${SYRUS_MACOS_AGENT_CLI_PREFIX:-$INSTALL_ROOT/agent-clis}"
 # shellcheck source=bin/macos-runtime-env
 source "$ROOT/bin/macos-runtime-env"
-RUBY_VERSION_PIN="$(syrus_macos_ruby_version "$ROOT")"
 NODE_VERSION_PIN="$(syrus_macos_node_version "$ROOT")"
 RUNTIME_PATH="$(syrus_macos_runtime_path "$ROOT")"
+# The PATH every step below runs with: the pinned toolchain, then only the
+# system's own directories -- never Homebrew's or /usr/local's.
+WORKER_PATH="$RUNTIME_PATH:$SYRUS_MACOS_SYSTEM_PATH"
 NODE_BIN="$(syrus_macos_node_prefix "$NODE_VERSION_PIN")/bin"
-RUBY_BUNDLE_PATH="$(syrus_macos_bundle_path "$INSTALL_ROOT/shared" "$RUBY_VERSION_PIN")"
-run syrus_macos_ruby_install "$RUBY_VERSION_PIN"
-run syrus_macos_node_install "$NODE_VERSION_PIN"
+BUNDLE_ENV=()
+while IFS= read -r line; do BUNDLE_ENV+=("$line"); done < <(syrus_macos_bundle_env "$ROOT" "$INSTALL_ROOT/shared")
+if [[ ${#BUNDLE_ENV[@]} -eq 0 ]]; then
+  echo "install-macos-worker: could not determine the Bundler settings for this release" >&2
+  exit 1
+fi
+run syrus_macos_runtimes_install "$ROOT"
 
-say "Installing the agent CLIs with the pinned Node"
-# Root-owned, outside Homebrew's prefix, so nothing else on the host can
-# upgrade or remove them under the worker.
-run mkdir -p "$SYRUS_MACOS_AGENT_CLI_PREFIX"
-run env PATH="$NODE_BIN:/usr/bin:/bin" "$NODE_BIN/npm" install -g --prefix "$SYRUS_MACOS_AGENT_CLI_PREFIX" \
-  "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_CLI_VERSION"
-run chown -R root:wheel "$SYRUS_MACOS_AGENT_CLI_PREFIX"
-run chmod -R go-w "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+agent_clis_current() {
+  [[ "$("$SYRUS_MACOS_AGENT_CLI_PREFIX/bin/claude" --version 2>/dev/null)" == "$CLAUDE_CODE_VERSION"* ]] &&
+    [[ "$(PATH="$NODE_BIN:/usr/bin:/bin" "$SYRUS_MACOS_AGENT_CLI_PREFIX/bin/codex" --version 2>/dev/null)" == *"$CODEX_CLI_VERSION" ]]
+}
+if [[ "$SKIP_DEPENDENCIES" != "1" ]] && ! agent_clis_current; then
+  say "Installing the agent CLIs with the pinned Node"
+  # Root-owned, outside Homebrew's prefix, so nothing else on the host can
+  # upgrade or remove them under the worker.
+  run mkdir -p "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+  run env PATH="$NODE_BIN:/usr/bin:/bin" "$NODE_BIN/npm" install -g --prefix "$SYRUS_MACOS_AGENT_CLI_PREFIX" \
+    "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_CLI_VERSION"
+  run chown -R root:wheel "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+  run chmod -R go-w "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+fi
 
 say "Preparing release dependencies"
-# mysql2 builds against Homebrew's keg-only mysql-client, which is not on the
-# default compiler paths. Bundler reads this from the shared app config for
-# every release, including ones the updater prepares.
-run sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" PATH="$RUNTIME_PATH:/usr/bin:/bin" \
+# mysql2 builds against the release's pinned MySQL client through
+# BUNDLE_BUILD__MYSQL2; hosts installed before that kept a Homebrew path in
+# the shared Bundler config, which would otherwise outlive Homebrew's client.
+run sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" PATH="$WORKER_PATH" \
   BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" \
-  bundle config set --local build.mysql2 "--with-mysql-config=/opt/homebrew/opt/mysql-client/bin/mysql_config"
+  bundle config unset --local build.mysql2
 NODE_DEPS_PATH="$INSTALL_ROOT/shared/node/$RELEASE_SHA"
 run mkdir -p "$NODE_DEPS_PATH"
 run cp "$RELEASE_PATH/package.json" "$RELEASE_PATH/package-lock.json" "$NODE_DEPS_PATH/"
 run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$NODE_DEPS_PATH"
 if [[ "$DRY_RUN" == "1" ]]; then
-  echo "+ (cd $RELEASE_PATH && PATH=$RUNTIME_PATH:... BUNDLE_PATH=$RUBY_BUNDLE_PATH BUNDLE_FROZEN=true bundle install; cd $NODE_DEPS_PATH && npm ci)"
+  echo "+ (cd $RELEASE_PATH && PATH=$WORKER_PATH ${BUNDLE_ENV[*]} BUNDLE_FROZEN=true bundle install; cd $NODE_DEPS_PATH && npm ci)"
 else
   # Frozen: a host Bundler newer than the lockfile's BUNDLED WITH otherwise
   # tries to rewrite Gemfile.lock inside the root-owned release.
-  sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
-    PATH="$RUNTIME_PATH:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/bin:/bin" \
-    BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" BUNDLE_PATH="$RUBY_BUNDLE_PATH" \
+  sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" PATH="$WORKER_PATH" "${BUNDLE_ENV[@]}" \
     bash -c 'cd "$1" && BUNDLE_FROZEN=true bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci' bash "$RELEASE_PATH" "$NODE_DEPS_PATH"
 fi
 # A repeated install already has this symlink, while hosts installed by older
@@ -204,8 +201,7 @@ say "Validating the worker"
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "+ $INSTALL_ROOT/current/bin/macos-worker-check --env-file $ENV_FILE"
 else
-  sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
-    PATH="$RUNTIME_PATH:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+  sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" PATH="$WORKER_PATH" \
     "$RELEASE_PATH/bin/macos-worker-check" --env-file "$ENV_FILE"
 fi
 
@@ -221,6 +217,18 @@ run install -o root -g wheel -m 755 "$RELEASE_PATH/bin/syrus-macos-updater" "$LI
 run install -o root -g wheel -m 644 "$RELEASE_PATH/bin/macos-runtime-env" "$LIBEXEC_ROOT/macos-runtime-env"
 
 if [[ "$SKIP_SERVICES" != "1" ]]; then
+  # Hosts once reached MySQL and object storage through kubectl port-forward
+  # tunnels, which stalled and dropped connections; the worker now connects
+  # directly. Remove them so a reinstalled host cannot fall back on them.
+  for label in mysql-tunnel minio-tunnel; do
+    plist="/Library/LaunchDaemons/com.syrus.$label.plist"
+    if [[ -f "$plist" ]]; then
+      say "Removing the retired $label service"
+      launchctl bootout "system/com.syrus.$label" >/dev/null 2>&1 || true
+      run rm -f "$plist"
+    fi
+  done
+
   say "Installing launchd services"
   for label in worker updater; do
     plist="com.syrus.$label.plist"

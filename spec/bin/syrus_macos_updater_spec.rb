@@ -22,6 +22,8 @@ RSpec.describe "native macOS worker updater" do
     File.write(File.join(release_root, ".ruby-version"), "#{pinned_ruby}\n")
     File.write(File.join(release_root, ".node-version"), "#{pinned_node}\n")
     FileUtils.cp(File.join(root, "bin/macos-runtime-env"), File.join(release_root, "bin/macos-runtime-env"))
+    FileUtils.mkdir_p(File.join(release_root, "config"))
+    FileUtils.cp(File.join(root, "config/macos_worker_toolchain.env"), File.join(release_root, "config/macos_worker_toolchain.env"))
     File.write(File.join(release_root, "package.json"), "{}\n")
     File.write(File.join(release_root, "package-lock.json"), %({"lockfileVersion":3,"packages":{}}\n))
     check_body = if command_log
@@ -83,10 +85,29 @@ RSpec.describe "native macOS worker updater" do
   # Stands in for mise: "installs" a Ruby or Node that reports the requested
   # version to the helper's version probe. The fake Ruby hands every other
   # invocation (the updater's own scripts) to the real Ruby running this spec.
-  def write_fake_mise(dir)
-    path = File.join(dir, "fake-mise")
+  def toolchain_pin(key)
+    File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^#{key}=(.+)$/, 1]
+  end
+
+  # The toolchain is downloaded over HTTPS in production. Here the pinned mise
+  # and MySQL client are already installed under the tools root -- as on a host
+  # that ran an earlier release -- so the helper's checks find them in place.
+  def install_fake_tools(dir)
+    tools = File.join(dir, "tools")
+    mise_version = toolchain_pin("MISE_VERSION")
+    mysql_version = toolchain_pin("MYSQL_CLIENT_VERSION")
+    write_fake_mise(dir, File.join(tools, "mise", mise_version, "bin", "mise"), mise_version)
+    mysql = File.join(tools, "mysql-client", mysql_version)
+    write_executable(File.join(mysql, "bin", "mysql_config"), "#!/usr/bin/env bash\necho #{mysql_version}\n")
+    FileUtils.mkdir_p(File.join(mysql, "lib"))
+    FileUtils.touch(File.join(mysql, "lib", "libmysqlclient.24.dylib"))
+    tools
+  end
+
+  def write_fake_mise(dir, path = File.join(dir, "fake-mise"), version = "0.0.0")
     write_executable(path, <<~BASH)
       #!/usr/bin/env bash
+      [[ "$1" == "--version" ]] && { echo "#{version} macos-arm64"; exit 0; }
       [[ "$1" == "install" ]] || exit 2
       tool="${2%@*}"
       version="${2#*@}"
@@ -112,7 +133,8 @@ RSpec.describe "native macOS worker updater" do
     dir = File.dirname(metadata)
     File.write(path, <<~ENV)
       SYRUS_MACOS_RUBIES_ROOT=#{File.join(dir, "rubies")}
-      SYRUS_MACOS_MISE=#{write_fake_mise(dir)}
+      SYRUS_MACOS_TOOLS_ROOT=#{install_fake_tools(dir)}
+      SYRUS_MACOS_SYSTEM_PATH=#{File.join(dir, "bin")}:#{ENV.fetch("PATH")}
       SYRUS_UPDATE_METADATA_URL=file://#{metadata}
       SYRUS_MACOS_UPDATE_PUBLIC_KEY_FILE=#{File.join(File.dirname(metadata), "update-public.pem")}
       SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1
@@ -325,7 +347,7 @@ RSpec.describe "native macOS worker updater" do
       expect(File.read(File.join(dir, "mise-installs.log"))).to eq("ruby@#{pinned_ruby}\nnode@#{pinned_node}\n")
       expect(commands).to include(
         "bundle env ruby=#{dir}/rubies/#{pinned_ruby}/bin/ruby node=#{install_root}/nodes/#{pinned_node}/bin/node " \
-        "bundle_path=#{install_root}/shared/bundles/ruby-#{pinned_ruby}"
+        "bundle_path=#{install_root}/shared/bundles/ruby-#{pinned_ruby}-mysql-#{toolchain_pin("MYSQL_CLIENT_VERSION")}"
       )
       expect(commands).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-runtime-env #{File.dirname(privileged_updater)}/macos-runtime-env")
       expect(commands).to include("npm #{install_root}/shared/node/bbb2222")

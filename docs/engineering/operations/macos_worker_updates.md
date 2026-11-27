@@ -91,11 +91,12 @@ SHA-256 digest. `file://` transport is disabled unless the explicit
 `SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1` test override is present.
 
 During activation the updater installs the release root-owned and non-writable
-by the worker under `/opt/syrus/releases/<sha>`. If the release pins a Ruby in
-`.ruby-version`, or a Node in `.node-version`, that the host does not have
-yet, the updater installs it with mise under `/opt/syrus/rubies/<version>` or
-`/opt/syrus/nodes/<version>`. It then runs host-local dependency
-setup (`bundle install` into that Ruby's bundle, `npm ci`, and
+by the worker under `/opt/syrus/releases/<sha>`. It installs any part of the
+toolchain the release pins that the host does not have yet -- mise and the
+MySQL client from `config/macos_worker_toolchain.env`, Ruby and Node from
+`.ruby-version` and `.node-version` -- under `/opt/syrus`, never from
+Homebrew. It then runs host-local dependency
+setup (`bundle install` into that toolchain's bundle, `npm ci`, and
 `bin/macos-worker-check`) as the `syrus-worker` account, atomically replaces
 `/opt/syrus/current`, and restarts `system/com.syrus.worker` with
 `launchctl kickstart -k`.

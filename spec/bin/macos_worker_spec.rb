@@ -11,20 +11,23 @@ RSpec.describe "native macOS worker scripts" do
 
   let(:pinned_ruby) { File.read(File.join(root, ".ruby-version")).strip }
   let(:pinned_node) { File.read(File.join(root, ".node-version")).strip }
+  let(:system_path) { "/usr/bin:/bin:/usr/sbin:/sbin" }
 
-  it "gives worker and updater services Homebrew's native build paths, but not its Ruby or Node" do
+  def toolchain_pin(key)
+    File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^#{key}=(.+)$/, 1]
+  end
+
+  # Homebrew is shared with every account on the host, and upgrades there
+  # broke the worker's Ruby, Node, and mysql2. The services start with only
+  # the system's own directories; bin/macos-worker adds the pinned toolchain.
+  it "starts worker and updater services with nothing from Homebrew or /usr/local" do
     %w[com.syrus.worker.plist com.syrus.updater.plist].each do |name|
       plist = File.read(File.join(root, "config/launchd", name))
 
-      # Ruby and Node come from the release's version files
-      # (bin/macos-runtime-env), so a Homebrew upgrade -- or a formula another
-      # account on the host installs -- cannot change or break them.
-      expect(plist).not_to include("ruby@")
-      expect(plist).not_to include("node@")
+      expect(plist).to match(%r{<key>PATH</key>\s*<string>/usr/bin:/bin:/usr/sbin:/sbin</string>})
+      expect(plist).not_to include("/opt/homebrew")
+      expect(plist).not_to include("/usr/local/bin")
       expect(plist).not_to include("BUNDLE_PATH")
-      expect(plist).to include("/opt/homebrew/opt/mysql-client/bin")
-      expect(plist).to include("/opt/homebrew/opt/mysql-client/lib/pkgconfig")
-      expect(plist).to include("-I/opt/homebrew/opt/mysql-client/include")
     end
   end
 
@@ -202,7 +205,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir)
 
       stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
         "bash",
         check,
         "--env-file",
@@ -229,7 +232,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir, ruby_version: "3.4.99")
 
       stdout, _stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
         "bash", check, "--env-file", env_file,
         unsetenv_others: true
       )
@@ -284,16 +287,28 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
-  def install_fake_runtimes(dir, node: true)
+  # The pinned toolchain as the installer leaves it, under temporary roots.
+  # SYRUS_MACOS_SYSTEM_PATH keeps the stubbed host commands reachable after
+  # activation replaces PATH.
+  def install_fake_runtimes(dir, bin_dir, node: true)
     rubies = File.join(dir, "rubies")
     nodes = File.join(dir, "nodes")
+    tools = File.join(dir, "tools")
     FileUtils.mkdir_p(File.join(rubies, pinned_ruby, "bin"))
     write_stub(File.join(rubies, pinned_ruby, "bin", "ruby"), fake_ruby_body(pinned_ruby))
     if node
       FileUtils.mkdir_p(File.join(nodes, pinned_node, "bin"))
       write_stub(File.join(nodes, pinned_node, "bin", "node"), "#!/usr/bin/env bash\necho v#{pinned_node}\n")
     end
-    { "SYRUS_MACOS_RUBIES_ROOT" => rubies, "SYRUS_MACOS_NODES_ROOT" => nodes }
+    mise_bin = File.join(tools, "mise", toolchain_pin("MISE_VERSION"), "bin")
+    FileUtils.mkdir_p(mise_bin)
+    write_stub(File.join(mise_bin, "mise"), "#!/usr/bin/env bash\necho #{toolchain_pin("MISE_VERSION")} macos-arm64\n")
+    mysql = File.join(tools, "mysql-client", toolchain_pin("MYSQL_CLIENT_VERSION"))
+    FileUtils.mkdir_p([ File.join(mysql, "bin"), File.join(mysql, "lib") ])
+    write_stub(File.join(mysql, "bin", "mysql_config"), "#!/usr/bin/env bash\necho #{toolchain_pin("MYSQL_CLIENT_VERSION")}\n")
+    FileUtils.touch(File.join(mysql, "lib", "libmysqlclient.24.dylib"))
+    { "SYRUS_MACOS_RUBIES_ROOT" => rubies, "SYRUS_MACOS_NODES_ROOT" => nodes, "SYRUS_MACOS_TOOLS_ROOT" => tools,
+      "SYRUS_MACOS_SYSTEM_PATH" => "#{bin_dir}:#{system_path}" }
   end
 
   it "runs the worker on the pinned Ruby and Node once they are installed" do
@@ -305,7 +320,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir, ruby_version: "3.4.99", node_version: "25.0.0")
 
       stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") }.merge(install_fake_runtimes(dir)),
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") }.merge(install_fake_runtimes(dir, bin_dir)),
         "bash", entrypoint, "--env-file", env_file, "--check",
         unsetenv_others: true
       )
@@ -326,7 +341,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir)
 
       _stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") }.merge(install_fake_runtimes(dir, node: false)),
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") }.merge(install_fake_runtimes(dir, bin_dir, node: false)),
         "bash", entrypoint, "--env-file", env_file, "--check",
         unsetenv_others: true
       )
@@ -343,13 +358,30 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir, node_version: "25.0.0")
 
       stdout, _stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
         "bash", check, "--env-file", env_file,
         unsetenv_others: true
       )
 
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include("FAIL Node on PATH is v25.0.0, but the release pins #{pinned_node}")
+    end
+  end
+
+  it "fails validation when Homebrew or /usr/local is on PATH" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir)
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:/opt/homebrew/bin:#{system_path}", "HOME" => ENV.fetch("HOME") },
+        "bash", check, "--env-file", env_file,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("FAIL PATH includes shared directories other accounts can change: /opt/homebrew/bin")
     end
   end
 
@@ -366,7 +398,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir, xcode_select_path: "/Library/Developer/CommandLineTools")
 
       stdout, _stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
         "bash",
         check,
         "--env-file",
@@ -385,7 +417,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir)
 
       stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
         "bash",
         check,
         unsetenv_others: true
@@ -406,7 +438,7 @@ RSpec.describe "native macOS worker scripts" do
       bin_dir = with_stubbed_host_bin(dir)
 
       stdout, _stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
         "bash",
         check,
         "--env-file",

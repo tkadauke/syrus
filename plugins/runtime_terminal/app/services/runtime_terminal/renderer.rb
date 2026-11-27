@@ -1,5 +1,4 @@
 require "cgi"
-require "vips"
 
 module RuntimeTerminal
   # Deterministic terminal-surface renderer. It consumes Screen#snapshot's
@@ -29,6 +28,9 @@ module RuntimeTerminal
     end
 
     def png
+      # Loaded here rather than at boot: workers that never render a terminal
+      # (the macOS workers) must boot without libvips.
+      require "vips"
       image = Vips::Image.black(width, height).new_from_image(rgba(DEFAULT_BACKGROUND)).copy(interpretation: "srgb")
       rendered_cells.each do |cell|
         unless cell.fetch(:background) == DEFAULT_BACKGROUND

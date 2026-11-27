@@ -68,6 +68,9 @@ export SOLID_QUEUE_SKIP_RECURRING="1"
 # them; just under launchd's ExitTimeOut (3600s in the worker plist), the same
 # budget compute pods get from their termination grace period.
 export SOLID_QUEUE_SHUTDOWN_TIMEOUT="${SOLID_QUEUE_SHUTDOWN_TIMEOUT:-3540}"
+# A Mac worker never processes images, so libvips stays out of the process:
+# the only libvips on such a host would be a shared Homebrew one.
+export SYRUS_LIBVIPS=disabled
 
 # This worker reaches MySQL through a `kubectl port-forward` tunnel. When a
 # forwarded stream dies the local socket is never reset, so a query on that
@@ -122,7 +125,8 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'RUBY=%s\n' "$(syrus_macos_ruby_prefix "$RUBY_VERSION_PIN")/bin/ruby"
   printf 'NODE=%s\n' "$(syrus_macos_node_prefix "$NODE_VERSION_PIN")/bin/node"
   printf 'AGENT_CLIS=%s\n' "$SYRUS_MACOS_AGENT_CLI_PREFIX/bin"
-  printf 'BUNDLE_PATH=%s\n' "$(syrus_macos_bundle_path "$SHARED_DIR" "$RUBY_VERSION_PIN")"
+  printf 'MISE=%s\n' "$(syrus_macos_mise_bin "$ROOT")"
+  syrus_macos_bundle_env "$ROOT" "$SHARED_DIR"
   printf 'RAILS_ENV=%s\n' "$RAILS_ENV"
   printf 'SYRUS_ROLE=%s\n' "$SYRUS_ROLE"
   printf 'GIT_SHA=%s\n' "$GIT_SHA"

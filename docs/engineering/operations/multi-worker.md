@@ -162,26 +162,33 @@ The expected filesystem layout is:
 | `/opt/syrus/rubies/<version>` | root-owned Ruby a release pins in `.ruby-version`, installed by mise as a self-contained prebuilt binary |
 | `/opt/syrus/nodes/<version>` | root-owned Node a release pins in `.node-version`, installed by mise as a self-contained prebuilt binary |
 | `/opt/syrus/agent-clis` | root-owned npm prefix holding the pinned agent CLIs (Claude Code, Codex), installed with that Node |
-| `/opt/syrus/shared/bundles/ruby-<version>` | Bundler install path reused by every release on that Ruby version |
+| `/opt/syrus/tools/mise/<version>` | root-owned pinned mise binary, downloaded and checksum-verified from `config/macos_worker_toolchain.env` |
+| `/opt/syrus/tools/mysql-client/<version>` | root-owned MySQL client library (Oracle's official build, with its own OpenSSL) that `mysql2` links against |
+| `/opt/syrus/shared/bundles/ruby-<ruby>-mysql-<client>` | Bundler install path reused by every release on that Ruby and MySQL client |
 | `/usr/local/libexec/syrus/syrus-macos-updater` | root-owned updater executed by launchd, outside the release tree |
 | `/usr/local/libexec/syrus/macos-runtime-env` | root-owned copy of the pinned-runtime helper the updater sources |
 | `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces (`workflows/<workflow_id>`), per-workflow grader scratch beside them (`workflow-scratch/<workflow_id>`: grader checkouts, prepare caches, archive staging), version/capability probe scratch (`runtime-probes/`), search SQLite file if configured there, and `.syrus-worker-storage-id` |
 | `/var/log/syrus/worker.log` / `worker.err.log` | launchd stdout/stderr logs |
 | `/etc/syrus/worker.env` | root-owned env file with app, DB, storage, and worker capability credentials |
 
-Mac workers never run Homebrew's Ruby or Node. Homebrew is shared with every
-other account on the host, and an upgrade there -- even of a library a
-formula links against -- can break a Ruby or Node under a running worker.
-`bin/macos-worker`, the installer, and the updater all source
-`bin/macos-runtime-env`, which puts the release's pinned Ruby and Node (the
-versions the Linux image uses) and the agent CLIs installed with that Node
-first on `PATH`, and points Bundler at that Ruby's own bundle. The worker
-refuses to start if either runtime is missing rather than falling back to the
-host's, and `bin/macos-worker-check` fails if the Ruby or Node on `PATH` does
-not match `.ruby-version` or `.node-version`. A Ruby or Node bump is a version
-file change: the installer or updater installs the new version before
-preparing the release, and the previous one stays in place for rollback. The
-agent CLIs are installed by `bin/install-macos-worker`.
+Mac workers use nothing from Homebrew or `/usr/local`. Both are shared with
+every other account on the host, and upgrades there -- even of a library a
+formula links against -- have broken the worker's Ruby, Node, and `mysql2`.
+A release pins its toolchain instead: Ruby and Node in `.ruby-version` and
+`.node-version` (the versions the Linux image uses), and mise and the MySQL
+client library in `config/macos_worker_toolchain.env`, with the SHA-256 of
+each download. `bin/macos-worker`, the installer, and the updater all source
+`bin/macos-runtime-env`, which installs that toolchain under `/opt/syrus`
+and starts the worker with a `PATH` of only the toolchain, the agent CLIs
+installed with its Node, and the system's own directories, and with Bundler
+pointed at the bundle built against that Ruby and MySQL client. The worker
+skips loading libvips (`SYRUS_LIBVIPS=disabled`): it never processes images.
+It refuses to start if any pinned piece is missing rather than falling back
+to the host's, and `bin/macos-worker-check` fails if the Ruby or Node on
+`PATH` does not match its pin or `PATH` includes Homebrew or `/usr/local`. A
+toolchain bump is a pin change: the installer or updater installs the new
+version before preparing the release, and the previous one stays in place
+for rollback. The agent CLIs are installed by `bin/install-macos-worker`.
 
 Release cleanup should keep the current release, at least one rollback release,
 and any release that still has a running `bin/jobs` process. Workspace cleanup

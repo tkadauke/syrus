@@ -1,23 +1,39 @@
 # shellcheck shell=bash
-# Pinned runtimes for native macOS workers. Sourced, not executed, by
+# The pinned toolchain for native macOS workers. Sourced, not executed, by
 # bin/macos-worker, bin/install-macos-worker, and the privileged updater
 # (which runs its own installed copy next to itself rather than code from a
 # release tree).
 #
-# A release runs on the Ruby its .ruby-version names and the Node its
-# .node-version names -- the versions the Linux image uses -- installed by
-# mise as self-contained prebuilt binaries under $SYRUS_MACOS_RUBIES_ROOT and
-# $SYRUS_MACOS_NODES_ROOT. Nothing Syrus runs depends on Homebrew's Ruby or
-# Node, so a Homebrew upgrade or a formula someone else installs on the host
-# cannot swap them, or break them, under a running worker. Each Ruby version
-# gets its own gem bundle, because native extensions built for one Ruby build
-# must not be loaded by another. The agent CLIs are installed with the pinned
-# Node into $SYRUS_MACOS_AGENT_CLI_PREFIX, outside Homebrew's prefix too.
+# Nothing a Mac worker runs comes from Homebrew. Homebrew is shared with every
+# account on the host, and an upgrade there -- even of a library a formula
+# links against -- has broken Ruby, Node, and mysql2 under a running worker. A
+# release instead pins:
+#
+#   .ruby-version, .node-version     Ruby and Node (the Linux image's versions),
+#                                    installed by mise as self-contained
+#                                    prebuilt binaries
+#   config/macos_worker_toolchain.env
+#                                    mise itself and the MySQL client library
+#                                    mysql2 links against, downloaded from
+#                                    their publishers and checked against the
+#                                    SHA-256 pinned there
+#
+# Everything lands root-owned and read-only under /opt/syrus, keyed by
+# version, so installs are idempotent and older versions stay for rollback.
+# Each Ruby + MySQL client pair gets its own gem bundle, because native
+# extensions built against one must not be loaded with another. The agent
+# CLIs are installed with the pinned Node into $SYRUS_MACOS_AGENT_CLI_PREFIX.
 
 SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-/opt/syrus/rubies}"
 SYRUS_MACOS_NODES_ROOT="${SYRUS_MACOS_NODES_ROOT:-/opt/syrus/nodes}"
+SYRUS_MACOS_TOOLS_ROOT="${SYRUS_MACOS_TOOLS_ROOT:-/opt/syrus/tools}"
 SYRUS_MACOS_AGENT_CLI_PREFIX="${SYRUS_MACOS_AGENT_CLI_PREFIX:-/opt/syrus/agent-clis}"
-SYRUS_MACOS_MISE="${SYRUS_MACOS_MISE:-/opt/homebrew/bin/mise}"
+SYRUS_MACOS_TOOLCHAIN_FILE="config/macos_worker_toolchain.env"
+# What follows the pinned toolchain on PATH: the system's own directories
+# only, never Homebrew's or /usr/local's. Overridable for specs.
+SYRUS_MACOS_SYSTEM_PATH="${SYRUS_MACOS_SYSTEM_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+
+# --- pins ---------------------------------------------------------------
 
 # A pinned x.y.z version from a release's version file.
 syrus_macos_pinned_version() {
@@ -37,13 +53,39 @@ syrus_macos_pinned_version() {
 syrus_macos_ruby_version() { syrus_macos_pinned_version "$1/.ruby-version" Ruby; }
 syrus_macos_node_version() { syrus_macos_pinned_version "$1/.node-version" Node; }
 
+# One KEY=VALUE from a release's toolchain file. Parsed rather than sourced:
+# the updater runs as root and never executes release code.
+syrus_macos_toolchain_value() {
+  local release_root="$1" key="$2" file value
+  file="$release_root/$SYRUS_MACOS_TOOLCHAIN_FILE"
+  if [[ ! -f "$file" ]]; then
+    echo "macos-runtime: $file not found" >&2
+    return 1
+  fi
+  value="$(sed -n "s/^${key}=//p" "$file" | head -n 1)"
+  if [[ -z "$value" || ! "$value" =~ ^[A-Za-z0-9._:/@+-]+$ ]]; then
+    echo "macos-runtime: missing or invalid $key in $file" >&2
+    return 1
+  fi
+  printf '%s\n' "$value"
+}
+
 syrus_macos_ruby_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_RUBIES_ROOT" "$1"; }
 syrus_macos_node_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_NODES_ROOT" "$1"; }
+syrus_macos_mise_prefix() { printf '%s/mise/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
+syrus_macos_mysql_client_prefix() { printf '%s/mysql-client/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
 
-# Gem bundle for one Ruby version: <shared dir>/bundles/ruby-<version>.
+# Gem bundle for one Ruby + MySQL client pair:
+# <shared dir>/bundles/ruby-<ruby>-mysql-<client>.
 syrus_macos_bundle_path() {
-  printf '%s/bundles/ruby-%s\n' "$1" "$2"
+  printf '%s/bundles/ruby-%s-mysql-%s\n' "$1" "$2" "$3"
 }
+
+syrus_macos_mysql2_build_flag() {
+  printf -- '--with-mysql-config=%s/bin/mysql_config\n' "$(syrus_macos_mysql_client_prefix "$1")"
+}
+
+# --- installed? ---------------------------------------------------------
 
 syrus_macos_ruby_installed() {
   local prefix
@@ -59,23 +101,110 @@ syrus_macos_node_installed() {
     [[ "$("$prefix/bin/node" --version 2>/dev/null)" == "v$1" ]]
 }
 
-# Installs one tool version with mise, root-owned and read-only. mise runs
-# against throwaway data/config dirs from / so no user or project mise
-# configuration can influence what gets installed, and the finished install
-# is moved into place only after it runs.
-syrus_macos_runtime_install() {
-  local tool="$1" version="$2" root="$3" probe="$4" prefix work installed
-  prefix="$root/$version"
-  if [[ ! -x "$SYRUS_MACOS_MISE" ]]; then
-    echo "macos-runtime: mise not found at $SYRUS_MACOS_MISE" >&2
+syrus_macos_mise_installed() {
+  local prefix
+  prefix="$(syrus_macos_mise_prefix "$1")"
+  [[ -x "$prefix/bin/mise" ]] &&
+    [[ "$("$prefix/bin/mise" --version 2>/dev/null)" == "$1"* ]]
+}
+
+syrus_macos_mysql_client_installed() {
+  local prefix
+  prefix="$(syrus_macos_mysql_client_prefix "$1")"
+  [[ -x "$prefix/bin/mysql_config" ]] &&
+    [[ "$("$prefix/bin/mysql_config" --version 2>/dev/null)" == "$1" ]] &&
+    compgen -G "$prefix/lib/libmysqlclient.*.dylib" >/dev/null
+}
+
+# --- install --------------------------------------------------------------
+
+# Downloads a URL to a file and checks it against a pinned SHA-256.
+_syrus_macos_fetch() {
+  local url="$1" sha256="$2" dest="$3" actual
+  if ! curl -fsSL --proto '=https' --proto-redir '=https' --retry 3 -o "$dest" "$url"; then
+    echo "macos-runtime: could not download $url" >&2
     return 1
   fi
+  actual="$(shasum -a 256 "$dest" | awk '{print $1}')"
+  if [[ "$actual" != "$sha256" ]]; then
+    echo "macos-runtime: $url has SHA-256 $actual, expected $sha256" >&2
+    return 1
+  fi
+}
+
+# Moves a finished install into place, root-owned and read-only.
+_syrus_macos_place() {
+  local built="$1" prefix="$2"
+  mkdir -p "$(dirname "$prefix")"
+  rm -rf "$prefix.next" "$prefix"
+  mv "$built" "$prefix.next"
+  if [[ "$EUID" -eq 0 ]]; then
+    chown -R root:wheel "$prefix.next"
+  fi
+  chmod -R go-w "$prefix.next"
+  mv "$prefix.next" "$prefix"
+}
+
+syrus_macos_mise_install() {
+  local release_root="$1" version url sha256 work
+  version="$(syrus_macos_toolchain_value "$release_root" MISE_VERSION)" || return 1
+  syrus_macos_mise_installed "$version" && return 0
+  url="$(syrus_macos_toolchain_value "$release_root" MISE_URL)" || return 1
+  sha256="$(syrus_macos_toolchain_value "$release_root" MISE_SHA256)" || return 1
+
+  work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-mise.XXXXXX")"
+  mkdir -p "$work/install/bin"
+  if ! _syrus_macos_fetch "$url" "$sha256" "$work/install/bin/mise"; then
+    rm -rf "$work"
+    return 1
+  fi
+  chmod 755 "$work/install/bin/mise"
+  _syrus_macos_place "$work/install" "$(syrus_macos_mise_prefix "$version")"
+  rm -rf "$work"
+  syrus_macos_mise_installed "$version" ||
+    { echo "macos-runtime: mise $version does not run" >&2; return 1; }
+}
+
+# Only the client side of the official MySQL build: mysql_config, the headers
+# mysql2 compiles against, and the libraries it links (libmysqlclient with the
+# OpenSSL it carries).
+syrus_macos_mysql_client_install() {
+  local release_root="$1" version url sha256 work top
+  version="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_VERSION)" || return 1
+  syrus_macos_mysql_client_installed "$version" && return 0
+  url="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_URL)" || return 1
+  sha256="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_SHA256)" || return 1
+
+  work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-mysql.XXXXXX")"
+  if ! _syrus_macos_fetch "$url" "$sha256" "$work/client.tar.gz"; then
+    rm -rf "$work"
+    return 1
+  fi
+  mkdir -p "$work/extract"
+  tar -xzf "$work/client.tar.gz" -C "$work/extract"
+  top="$(find "$work/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  mkdir -p "$work/install/bin" "$work/install/lib"
+  cp "$top/bin/mysql_config" "$work/install/bin/"
+  cp -R "$top/include" "$work/install/include"
+  cp -P "$top"/lib/libmysqlclient*.dylib "$top"/lib/libssl*.dylib "$top"/lib/libcrypto*.dylib "$work/install/lib/"
+  _syrus_macos_place "$work/install" "$(syrus_macos_mysql_client_prefix "$version")"
+  rm -rf "$work"
+  syrus_macos_mysql_client_installed "$version" ||
+    { echo "macos-runtime: MySQL client $version is not usable" >&2; return 1; }
+}
+
+# Installs one tool version with the release's pinned mise. mise runs against
+# throwaway data/config dirs from / so no user or project mise configuration
+# can influence what gets installed, and the finished install is moved into
+# place only after it runs.
+syrus_macos_runtime_install() {
+  local mise="$1" tool="$2" version="$3" root="$4" probe="$5" work installed
   work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-$tool.XXXXXX")"
   if ! (cd / && env \
       MISE_DATA_DIR="$work/data" MISE_CACHE_DIR="$work/cache" \
       MISE_CONFIG_DIR="$work/config" MISE_STATE_DIR="$work/state" \
       MISE_GLOBAL_CONFIG_FILE="$work/config/none.toml" \
-      "$SYRUS_MACOS_MISE" install "$tool@$version"); then
+      "$mise" install "$tool@$version"); then
     rm -rf "$work"
     echo "macos-runtime: mise could not install $tool $version" >&2
     return 1
@@ -86,57 +215,81 @@ syrus_macos_runtime_install() {
     echo "macos-runtime: installed $tool does not report version $version" >&2
     return 1
   fi
-
-  mkdir -p "$root"
-  rm -rf "$prefix.next" "$prefix"
-  mv "$installed" "$prefix.next"
-  if [[ "$EUID" -eq 0 ]]; then
-    chown -R root:wheel "$prefix.next"
-  fi
-  chmod -R go-w "$prefix.next"
-  mv "$prefix.next" "$prefix"
+  _syrus_macos_place "$installed" "$root/$version"
   rm -rf "$work"
 }
 
 _syrus_macos_ruby_probe() { [[ "$("$1/bin/ruby" -e 'print RUBY_VERSION' 2>/dev/null)" == "$2" ]]; }
 _syrus_macos_node_probe() { [[ "$("$1/bin/node" --version 2>/dev/null)" == "v$2" ]]; }
 
+syrus_macos_mise_bin() {
+  local version
+  version="$(syrus_macos_toolchain_value "$1" MISE_VERSION)" || return 1
+  printf '%s/bin/mise\n' "$(syrus_macos_mise_prefix "$version")"
+}
+
 syrus_macos_ruby_install() {
-  syrus_macos_ruby_installed "$1" && return 0
-  syrus_macos_runtime_install ruby "$1" "$SYRUS_MACOS_RUBIES_ROOT" _syrus_macos_ruby_probe || return 1
-  syrus_macos_ruby_installed "$1" || { echo "macos-runtime: Ruby $1 does not run from $(syrus_macos_ruby_prefix "$1")" >&2; return 1; }
+  local release_root="$1" version
+  version="$(syrus_macos_ruby_version "$release_root")" || return 1
+  syrus_macos_ruby_installed "$version" && return 0
+  syrus_macos_runtime_install "$(syrus_macos_mise_bin "$release_root")" ruby "$version" \
+    "$SYRUS_MACOS_RUBIES_ROOT" _syrus_macos_ruby_probe || return 1
+  syrus_macos_ruby_installed "$version" ||
+    { echo "macos-runtime: Ruby $version does not run from $(syrus_macos_ruby_prefix "$version")" >&2; return 1; }
 }
 
 syrus_macos_node_install() {
-  syrus_macos_node_installed "$1" && return 0
-  syrus_macos_runtime_install node "$1" "$SYRUS_MACOS_NODES_ROOT" _syrus_macos_node_probe || return 1
-  syrus_macos_node_installed "$1" || { echo "macos-runtime: Node $1 does not run from $(syrus_macos_node_prefix "$1")" >&2; return 1; }
+  local release_root="$1" version
+  version="$(syrus_macos_node_version "$release_root")" || return 1
+  syrus_macos_node_installed "$version" && return 0
+  syrus_macos_runtime_install "$(syrus_macos_mise_bin "$release_root")" node "$version" \
+    "$SYRUS_MACOS_NODES_ROOT" _syrus_macos_node_probe || return 1
+  syrus_macos_node_installed "$version" ||
+    { echo "macos-runtime: Node $version does not run from $(syrus_macos_node_prefix "$version")" >&2; return 1; }
 }
 
-# Installs every runtime a release pins.
+# Installs everything a release pins. mise first: it installs Ruby and Node.
 syrus_macos_runtimes_install() {
-  local release_root="$1" ruby node
-  ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
-  node="$(syrus_macos_node_version "$release_root")" || return 1
-  syrus_macos_ruby_install "$ruby" && syrus_macos_node_install "$node"
+  local release_root="$1"
+  syrus_macos_mise_install "$release_root" &&
+    syrus_macos_mysql_client_install "$release_root" &&
+    syrus_macos_ruby_install "$release_root" &&
+    syrus_macos_node_install "$release_root"
 }
 
-# The PATH prefix a release runs with: its pinned Ruby and Node, then the
-# agent CLIs installed with that Node.
+# --- activate ---------------------------------------------------------------
+
+# The PATH prefix a release runs with: its pinned Ruby and Node, the agent
+# CLIs installed with that Node, and its pinned mise.
 syrus_macos_runtime_path() {
-  local release_root="$1" ruby node
+  local release_root="$1" ruby node mise
   ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
   node="$(syrus_macos_node_version "$release_root")" || return 1
-  printf '%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+  mise="$(syrus_macos_toolchain_value "$release_root" MISE_VERSION)" || return 1
+  printf '%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
+    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")"
 }
 
-# Puts a release's pinned Ruby and Node first on PATH and points Bundler at
-# that Ruby's bundle. Fails when either is not installed instead of silently
-# falling back to whatever `ruby` or `node` the host has.
+# The Bundler settings a release builds and runs its gems with.
+syrus_macos_bundle_env() {
+  local release_root="$1" shared_dir="$2" ruby mysql
+  ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
+  mysql="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_VERSION)" || return 1
+  printf 'BUNDLE_PATH=%s\n' "$(syrus_macos_bundle_path "$shared_dir" "$ruby" "$mysql")"
+  printf 'BUNDLE_APP_CONFIG=%s\n' "$shared_dir/bundle-config"
+  printf 'BUNDLE_BUILD__MYSQL2=%s\n' "$(syrus_macos_mysql2_build_flag "$mysql")"
+}
+
+# Puts a release's pinned toolchain first on PATH, with only the system's own
+# directories after it, and points Bundler at that toolchain's bundle. Fails
+# when any pinned piece is missing instead of falling back to whatever the
+# host has.
 syrus_macos_runtime_activate() {
-  local release_root="$1" shared_dir="$2" ruby node runtime_path
+  local release_root="$1" shared_dir="$2" ruby node mise mysql runtime_path line
   ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
   node="$(syrus_macos_node_version "$release_root")" || return 1
+  mise="$(syrus_macos_toolchain_value "$release_root" MISE_VERSION)" || return 1
+  mysql="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_VERSION)" || return 1
   if ! syrus_macos_ruby_installed "$ruby"; then
     echo "macos-runtime: Ruby $ruby (from $release_root/.ruby-version) is not installed under $SYRUS_MACOS_RUBIES_ROOT; run bin/install-macos-worker" >&2
     return 1
@@ -145,11 +298,19 @@ syrus_macos_runtime_activate() {
     echo "macos-runtime: Node $node (from $release_root/.node-version) is not installed under $SYRUS_MACOS_NODES_ROOT; run bin/install-macos-worker" >&2
     return 1
   fi
+  if ! syrus_macos_mise_installed "$mise"; then
+    echo "macos-runtime: mise $mise is not installed under $SYRUS_MACOS_TOOLS_ROOT; run bin/install-macos-worker" >&2
+    return 1
+  fi
+  if ! syrus_macos_mysql_client_installed "$mysql"; then
+    echo "macos-runtime: MySQL client $mysql is not installed under $SYRUS_MACOS_TOOLS_ROOT; run bin/install-macos-worker" >&2
+    return 1
+  fi
   runtime_path="$(syrus_macos_runtime_path "$release_root")" || return 1
-  export PATH="$runtime_path:$PATH"
-  export BUNDLE_PATH
-  BUNDLE_PATH="$(syrus_macos_bundle_path "$shared_dir" "$ruby")"
-  export BUNDLE_APP_CONFIG="$shared_dir/bundle-config"
+  export PATH="$runtime_path:$SYRUS_MACOS_SYSTEM_PATH"
+  while IFS= read -r line; do
+    export "${line?}"
+  done < <(syrus_macos_bundle_env "$release_root" "$shared_dir")
   export SYRUS_MACOS_RUBY_VERSION="$ruby"
   export SYRUS_MACOS_NODE_VERSION="$node"
 }

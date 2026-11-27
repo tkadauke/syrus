@@ -12,10 +12,9 @@ RSpec.describe "macOS worker installer" do
   it "defines the complete baseline and pinned agent CLIs" do
     source = File.read(script)
 
-    expect(source).to include("BREW_FORMULAE=(mysql-client pkg-config vips openssl@3 readline libyaml mise go)")
-    # Ruby and Node come from the release's version files via mise, never
-    # Homebrew, whose formulae other accounts on the host can upgrade.
-    expect(source).not_to match(/(ruby|node)@\d/)
+    # Nothing comes from Homebrew, which other accounts on the host can
+    # upgrade: the release's toolchain comes from bin/macos-runtime-env.
+    expect(source).not_to match(%r{brew install|/opt/homebrew|BREW_FORMULAE})
     expect(source).to include('CLAUDE_CODE_VERSION="2.1.330"')
     expect(source).to include('CODEX_CLI_VERSION="0.171.0"')
     expect(source).to include('git config --global credential.helper ""')
@@ -144,17 +143,18 @@ RSpec.describe "macOS worker installer" do
             "SUDO_USER" => ENV.fetch("USER", "syrus-test"),
             "USER" => "root"
           },
-          "bash", script, "--dry-run", "--skip-dependencies", "--skip-services",
+          "bash", script, "--dry-run", "--skip-services",
           "--env-file", env_file, "--install-root", install_root, "--update-public-key", public_key,
           unsetenv_others: true
         )
 
         expect(status).to be_success, "#{layout}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
-        # mysql2 builds against Homebrew's keg-only mysql-client; without this
-        # a fresh host cannot compile it.
-        expect(stdout).to include(
-          "bundle config set --local build.mysql2 --with-mysql-config=/opt/homebrew/opt/mysql-client/bin/mysql_config"
-        )
+        mysql_version = File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^MYSQL_CLIENT_VERSION=(.+)$/, 1]
+        mise_version = File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^MISE_VERSION=(.+)$/, 1]
+        # mysql2 builds against the release's pinned MySQL client, and a
+        # Homebrew build setting left by an older install is cleared.
+        expect(stdout).to include("BUNDLE_BUILD__MYSQL2=--with-mysql-config=#{install_root}/tools/mysql-client/#{mysql_version}/bin/mysql_config")
+        expect(stdout).to include("bundle config unset --local build.mysql2")
         remove_offset = stdout.index("rm -rf #{node_modules}")
         link_offset = stdout.index("ln -s #{install_root}/shared/node/#{release_sha}/node_modules #{node_modules}")
         expect(remove_offset).not_to be_nil
@@ -162,16 +162,20 @@ RSpec.describe "macOS worker installer" do
         expect(stdout).to include("BUNDLE_FROZEN=true bundle install")
         expect(stdout).to include("mv -h -f #{install_root}/current.next #{install_root}/current")
         pinned_ruby = File.read(File.join(root, ".ruby-version")).strip
-        install_offset = stdout.index("+ syrus_macos_ruby_install #{pinned_ruby}")
+        install_offset = stdout.index("+ syrus_macos_runtimes_install #{root}")
         expect(install_offset).not_to be_nil
         expect(install_offset).to be < stdout.index("bundle install")
         pinned_node = File.read(File.join(root, ".node-version")).strip
-        expect(stdout).to include("+ syrus_macos_node_install #{pinned_node}")
-        expect(stdout).to include("PATH=#{install_root}/rubies/#{pinned_ruby}/bin:#{install_root}/nodes/#{pinned_node}/bin:#{install_root}/agent-clis/bin:")
+        # The pinned toolchain, then only the system's own directories.
+        expect(stdout).to include(
+          "PATH=#{install_root}/rubies/#{pinned_ruby}/bin:#{install_root}/nodes/#{pinned_node}/bin:" \
+          "#{install_root}/agent-clis/bin:#{install_root}/tools/mise/#{mise_version}/bin:/usr/bin:/bin:/usr/sbin:/sbin "
+        )
+        expect(stdout).not_to include("/opt/homebrew")
         # The agent CLIs are installed with the pinned Node into a Syrus-owned
         # prefix, not Homebrew's global one.
         expect(stdout).to match(%r{#{Regexp.escape(install_root)}/nodes/#{pinned_node}/bin/npm install -g --prefix #{Regexp.escape(install_root)}/agent-clis @anthropic-ai/claude-code@[\d.]+ @openai/codex@[\d.]+})
-        expect(stdout).to include("BUNDLE_PATH=#{install_root}/shared/bundles/ruby-#{pinned_ruby}")
+        expect(stdout).to include("BUNDLE_PATH=#{install_root}/shared/bundles/ruby-#{pinned_ruby}-mysql-#{mysql_version}")
         expect(stdout).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-runtime-env /usr/local/libexec/syrus/macos-runtime-env")
       end
     end

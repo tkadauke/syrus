@@ -166,10 +166,10 @@ Mac workers should start through:
 /opt/syrus/current/bin/macos-worker --env-file /etc/syrus/worker.env
 ```
 
-For a fresh host, first install Homebrew and full Xcode with an iOS simulator
-runtime, create `/etc/syrus/worker.env`, install the release signing public
-key, and run the release's idempotent installer from the admin account that
-owns Homebrew:
+For a fresh host, first install full Xcode with an iOS simulator runtime,
+create `/etc/syrus/worker.env`, install the release signing public key, and
+run the release's idempotent installer. The worker does not need Homebrew,
+and does not use it if the host has one:
 
 ```bash
 sudo /path/to/unpacked-worker/bin/install-macos-worker \
@@ -177,10 +177,11 @@ sudo /path/to/unpacked-worker/bin/install-macos-worker \
 ```
 
 The installer owns the repeatable host baseline and launchd setup: the
-pinned Ruby and Node, the agent CLIs, the Bundler build settings, the worker
-and updater services. It refuses to run without the release signing public
-key. Secrets, signing identities, Xcode, and simulator runtime downloads
-remain explicit operator responsibilities.
+release's pinned toolchain (mise, the MySQL client library, Ruby, Node), the
+agent CLIs, the worker and updater services. It refuses to run without the
+release signing public key. Rerunning it converges the host on the release;
+`bin/uninstall-macos-worker` reverses it. Secrets, signing identities, Xcode,
+and simulator runtime downloads remain explicit operator responsibilities.
 
 ### Reinstalling a Mac worker host
 
@@ -198,6 +199,13 @@ it on a wiped host, restore what lives outside the repository:
    backup of the private key; losing it means generating a new pair and
    reinstalling the public key on every Mac host.
 4. Full Xcode with the simulator runtimes the target repositories need.
+
+To rehearse a restore, `sudo bin/uninstall-macos-worker` removes the worker,
+its services, and everything under `/opt/syrus` while keeping the env file,
+the public key, worker data, logs, and the service account; rerunning the
+installer then brings the same worker back. `--all` also removes those, for
+a true wipe; `--force` kills the worker instead of letting in-flight runs
+drain first.
 
 Do not recreate `kubectl port-forward` tunnels for the database or storage.
 They relay every query over one stream through the Kubernetes API server,

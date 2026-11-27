@@ -146,6 +146,15 @@ if [[ -f "$ROOT/.ruby-version" ]] && have_command ruby; then
   fi
 fi
 
+# Homebrew and /usr/local are shared with every account on the host; nothing
+# the worker runs may resolve through them (bin/macos-runtime-env).
+shared_path_entries="$(tr ':' '\n' <<<"$PATH" | grep -E '^/opt/homebrew(/|$)|^/usr/local(/|$)' | tr '\n' ' ' || true)"
+if [[ -z "$shared_path_entries" ]]; then
+  ok "PATH has no Homebrew or /usr/local entries"
+else
+  fail "PATH includes shared directories other accounts can change: $shared_path_entries"
+fi
+
 if [[ -f "$ROOT/.node-version" ]]; then
   pinned_node="$(tr -d '[:space:]' < "$ROOT/.node-version")"
   running_node="$(node --version 2>/dev/null || true)"
