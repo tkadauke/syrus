@@ -24,11 +24,12 @@ Before filing iOS work, confirm all of these are true:
 - At least one external macOS compute worker heartbeats with matching
   capabilities and consumes the macOS compute queues, such as
   `runs-macos-arm64` and `merges-macos-arm64`.
-- `bin/macos-worker-check --env-file /etc/syrus/worker.env` passes on each Mac
-  host that should receive iOS work.
+- `bin/macos-worker-check` passes on each Mac host that should receive iOS
+  work, run through the wrapper as the hub's
+  [health check](macos-workers.md#health-check) shows.
 - The host was prepared with `bin/install-macos-worker`, which installs the
-  release's pinned Ruby and Node (through mise), native build dependencies,
-  `mise`, and pinned agent CLIs before loading the launchd worker.
+  release's pinned toolchain and agent CLIs and loads the launchd worker
+  ([host setup](macos-worker-host.md#install)).
 - The launchd worker user can access any signing keychain, certificates,
   provisioning profiles, package registries, internal services, and artifact
   storage the target repository needs.
@@ -150,100 +151,11 @@ change.
 
 ## Operate the Mac worker pool
 
-Run native Mac workers beside the Linux cluster, not inside it. In a typical
-k3s deployment:
-
-| Tier | Where it runs | Responsibility |
-| --- | --- | --- |
-| Web and data services | Linux k3s or managed services | App, API, database, object storage, ingress |
-| Home worker | One Linux pod | Chat, polling, indexing, cleanup, control-plane, videos |
-| Linux compute | Linux pods | Ordinary implementation, backend graders, Linux merges |
-| macOS compute | External launchd hosts | Xcode, SwiftPM, iOS simulator, macOS merges |
-
-Mac workers should start through:
-
-```bash
-/opt/syrus/current/bin/macos-worker --env-file /etc/syrus/worker.env
-```
-
-For a fresh host, first install full Xcode with an iOS simulator runtime,
-create `/etc/syrus/worker.env`, install the release signing public key, and
-run the release's idempotent installer. The worker does not need Homebrew,
-and does not use it if the host has one:
-
-```bash
-sudo /path/to/unpacked-worker/bin/install-macos-worker \
-  --env-file /etc/syrus/worker.env
-```
-
-The installer owns the repeatable host baseline and launchd setup: the
-release's pinned toolchain (mise, the MySQL client library, Ruby, Node), the
-agent CLIs, the worker and updater services. It refuses to run without the
-release signing public key. Rerunning it converges the host on the release;
-`bin/uninstall-macos-worker` reverses it. Secrets, signing identities, Xcode,
-and simulator runtime downloads remain explicit operator responsibilities.
-
-### Reinstalling a Mac worker host
-
-Everything under `/opt/syrus` comes back from the installer. Before running
-it on a wiped host, restore what lives outside the repository:
-
-1. A fixed address for the host (a DHCP reservation). The database
-   LoadBalancer below admits only that address.
-2. `/etc/syrus/worker.env`, `root:syrus-worker`, mode `0640`: the app,
-   database, and storage credentials, the settings below, and a fresh
-   `SYRUS_MACOS_WORKER_TOKEN` (`bin/rails syrus:macos_worker_token`).
-3. `/etc/syrus/macos-worker-update-public.pem`, the public half of the
-   release signing key kept on the deploy machine (see
-   [macOS worker updates](macos_worker_updates.md#one-time-setup)). Keep a
-   backup of the private key; losing it means generating a new pair and
-   reinstalling the public key on every Mac host.
-4. Full Xcode with the simulator runtimes the target repositories need.
-
-To rehearse a restore, `sudo bin/uninstall-macos-worker` removes the worker,
-its services, and everything under `/opt/syrus` while keeping the env file,
-the public key, worker data, logs, and the service account; rerunning the
-installer then brings the same worker back. `--all` also removes those, for
-a true wipe; `--force` kills the worker instead of letting in-flight runs
-drain first.
-
-Do not recreate `kubectl port-forward` tunnels for the database or storage.
-They relay every query over one stream through the Kubernetes API server,
-stall under load, and drop connections, and Syrus then declares the worker
-dead and discards in-flight work.
-
-The env file should force compute-only behavior and advertise the host's
-capabilities:
-
-```dotenv
-SYRUS_ROLE=worker
-SOLID_QUEUE_CONFIG=config/queue.compute.yml
-SOLID_QUEUE_SKIP_RECURRING=1
-SYRUS_DATA_ROOT=/var/lib/syrus
-SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
-```
-
-It also points the worker at the database and object storage directly:
-
-```dotenv
-# A LoadBalancer Service in front of MySQL whose loadBalancerSourceRanges
-# admit only the Mac host's fixed address.
-DB_HOST=<database LoadBalancer address>
-# Object storage through its HTTPS ingress, not a tunnel.
-S3_ENDPOINT=https://<object storage ingress host>
-```
-
-Mac workers are outbound clients. They need access to the production database,
-storage, Syrus API host, GitHub and configured remotes, model providers,
-package registries, release artifacts, and any target-repository services used
-by builds or tests. The cluster does not need inbound SSH to the Mac pool for
-normal operation.
-
-Every deploy updates the Mac workers: it activates their release right after
-production's migrations and fails if a live Mac worker does not catch up (see
-[macOS worker updates](macos_worker_updates.md)). The drain-aware rolling
-update there remains for updating one host at a time by hand.
+Installing, updating, and repairing the Mac hosts is covered from the
+[macOS workers hub](macos-workers.md): [host setup](macos-worker-host.md),
+[updates](macos_worker_updates.md), and
+[troubleshooting](macos-worker-troubleshooting.md). This runbook covers only
+the iOS side: repository configuration, Jobs, and placement.
 
 ## Inspect missing-capability blockers
 

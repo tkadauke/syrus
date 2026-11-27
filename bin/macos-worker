@@ -72,11 +72,12 @@ export SOLID_QUEUE_SHUTDOWN_TIMEOUT="${SOLID_QUEUE_SHUTDOWN_TIMEOUT:-3540}"
 # the only libvips on such a host would be a shared Homebrew one.
 export SYRUS_LIBVIPS=disabled
 
-# This worker reaches MySQL through a `kubectl port-forward` tunnel. When a
-# forwarded stream dies the local socket is never reset, so a query on that
-# connection would wait forever: an MCP tool call blocked that way timed out
-# in the agent while the daemon still waited on the database. Bound every
-# socket operation so a dead connection fails, and Rails reconnects, instead.
+# A Mac worker reaches MySQL across the network, outside the cluster. When a
+# connection dies without the local socket being reset -- as it routinely did
+# through the retired `kubectl port-forward` tunnels -- a query on it would
+# wait forever: an MCP tool call blocked that way timed out in the agent while
+# the daemon still waited on the database. Bound every socket operation so a
+# dead connection fails, and Rails reconnects, instead.
 # Well above the 10s lock-wait ceiling (config/database.yml).
 export DB_CONNECT_TIMEOUT="${DB_CONNECT_TIMEOUT:-10}"
 export DB_READ_TIMEOUT="${DB_READ_TIMEOUT:-30}"

@@ -67,9 +67,9 @@ Use these rules for persistence, ownership invariants, migrations, and backfills
   policy is `config/initializers/foreign_keys.rb` and is guarded by
   `spec/migrations/mysql_fresh_install_compatibility_spec.rb`.
 - **No in-place renames.** A deploy migrates the database before every
-  worker runs the new release: compute pods drain in-flight Runs on the old
-  code and macOS workers update on their own schedule, so a renamed table or
-  column fails all of them at once. Keep the old name (`self.table_name`,
+  worker runs the new release: compute pods and macOS workers both drain
+  in-flight Runs on the old code, so a renamed table or column fails all of
+  them at once. Keep the old name (`self.table_name`,
   `alias_attribute`) or expand and contract across releases: add the new
   table or column, ship code that uses it, drop the old one later.
   `bin/check-migrations` (`rolling_deploy_rename`) rejects `rename_table` and

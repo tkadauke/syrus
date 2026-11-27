@@ -2515,14 +2515,15 @@ session outcome.
   cache directory still has usable shims before the shared cache
   populates.
 - Native macOS compute workers are external launchd services, not Kubernetes
-  nodes. They run `bin/macos-worker` from a versioned source artifact, consume
-  only compute queues through `config/queue.compute.yml`, advertise capabilities
-  such as `os:macos`, `arch:arm64`, and `toolchains:xcode`, and keep workflow
-  data under their own `SYRUS_DATA_ROOT`. A pull-based updater activates
-  `syrus-worker-macos-arm64-<sha>.tar.gz` releases after local dependency
-  setup and `bin/macos-worker-check`; drain-aware rolling updates stop routing
-  new Mac-capability Runs to a host while it finishes active work and switches
-  releases.
+  nodes. They run `bin/macos-worker` from a signed source artifact on a
+  release-pinned toolchain under `/opt/syrus` (never Homebrew), consume only
+  compute queues through `config/queue.compute.yml`, advertise capabilities
+  such as `os:macos`, `arch:arm64`, and `toolchain:xcode`, and keep workflow
+  data under their own `SYRUS_DATA_ROOT`. Every production deploy activates a
+  release after migrations; a pull-based updater installs it immediately and
+  restarts the worker gracefully, and a Mac on another revision takes no work
+  until it has. Drain-aware updates remain for manual one-host updates. See
+  the [macOS workers hub](../operations/macos-workers.md).
 - A shared **sccache** compiler cache backs C/C++ (and other
   sccache-supported) compilation during `prepare`/grader commands: the
   worker image symlinks `cc`/`c++`/`gcc`/`g++`/`clang`/`clang++` ahead of

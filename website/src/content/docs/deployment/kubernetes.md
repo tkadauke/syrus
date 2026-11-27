@@ -158,13 +158,16 @@ write Run state. The root-owned `/etc/syrus/worker.env` should include:
   credentials rather than per-user encrypted credentials.
 - `SYRUS_MACOS_WORKER_TOKEN` for updater status reports and desired-release
   polling.
-- Artifact verification material, including the release checksum metadata and
-  any trust anchors needed to fetch it from private storage.
+
+The release-signing public key lives beside the env file at
+`/etc/syrus/macos-worker-update-public.pem`; see
+[macOS Workers](/docs/deployment/macos-workers).
 
 Mac workers must not run database migrations. The cluster deploy should run
 the new release's database migrations before any web or worker workload is
-rolled to the new image, then the Mac pool can move to a schema-compatible
-worker artifact.
+rolled to the new image; the deploy activates the matching Mac worker release
+at that same point, and a Mac still on the old revision takes no new work
+until it has updated.
 
 That ordering is intentional: it avoids new worker code running against an old
 schema, but it means old code may run briefly against the new schema while the
@@ -300,14 +303,16 @@ Native macOS workers run outside Kubernetes under launchd. They should use
 `bin/macos-worker --env-file /etc/syrus/worker.env`, which forces
 `SYRUS_ROLE=worker`, `SOLID_QUEUE_CONFIG=config/queue.compute.yml`, and
 `SOLID_QUEUE_SKIP_RECURRING=1` so the host consumes only compute/capability
-queues. Use `bin/macos-worker-check --env-file /etc/syrus/worker.env` before
-loading the LaunchDaemon to validate Ruby/Bundler, Node/npm, Git, Xcode Command
-Line Tools, full Xcode, simulator runtimes, and required production
-credentials. The launchd template is checked in at
-`config/launchd/com.syrus.worker.plist`; install it for a dedicated
-`syrus-worker` user with a persistent `/var/lib/syrus` data root, release
-symlink `/opt/syrus/current`, logs under `/var/log/syrus`, and a root-owned env
-file under `/etc/syrus`. That env file must include the normal production app
+queues. `bin/install-macos-worker` provisions the host: a dedicated
+`syrus-worker` user, a persistent `/var/lib/syrus` data root, the release
+symlink `/opt/syrus/current`, the release's pinned Ruby and Node under
+`/opt/syrus` (never Homebrew), logs under `/var/log/syrus`, and the worker and
+updater LaunchDaemons from `config/launchd/`. It validates the host with
+`bin/macos-worker-check` (Ruby/Bundler, Node/npm, Git, Xcode Command Line
+Tools, full Xcode, simulator runtimes, and required production credentials),
+which you can rerun at any time through
+`bin/macos-worker --check --env-file /etc/syrus/worker.env`. The root-owned env
+file lives under `/etc/syrus`. That env file must include the normal production app
 identity and secrets, including `SYRUS_APP_HOST`, `SECRET_KEY_BASE`, Active
 Record encryption keys or `RAILS_MASTER_KEY`, DB credentials, storage
 credentials, `SYRUS_WORKER_POOL_NAME`, and `SYRUS_WORKER_CAPABILITIES`.
@@ -315,20 +320,23 @@ Release builds publish a source artifact named
 `syrus-worker-macos-arm64-<git_sha>.tar.gz` with checksums. It carries the
 tracked app source, binstubs, lockfiles, package manifests, launchd template,
 `GIT_SHA`, `SYRUS_VERSION`, and worker release metadata; native gems and other
-host-specific dependencies are installed on each Mac during activation. Mac
-workers should update only after the k3s cluster has deployed schema-compatible
-code and run migrations; the Mac workers themselves should not run migrations.
+host-specific dependencies are installed on each Mac during activation.
+Releases are signed, and every production deploy publishes and activates one
+after the cluster's migrations; the Mac workers themselves never run
+migrations.
 
 The Mac pool lifecycle is launchd-based:
 
 - `com.syrus.worker` keeps the compute worker process running.
 - `com.syrus.updater` polls Syrus or `SYRUS_UPDATE_METADATA_URL` for desired
   release metadata.
-- The updater downloads the source artifact, verifies its SHA-256, installs
-  host-local dependencies, flips `/opt/syrus/current`, and restarts the worker.
-- Rolling updates drain one Mac at a time. Drained hosts finish active Runs,
-  stop accepting new compatible work, activate the desired release, heartbeat
-  at the new `git_sha`, and then rejoin the pool.
+- The updater downloads the source artifact, verifies its signature and
+  SHA-256, installs host-local dependencies, flips `/opt/syrus/current`, and
+  restarts the worker, which lets in-flight Runs finish first.
+- A release a deploy activates rolls out to every Mac at once. For manual
+  one-host updates, a drain-aware flow updates one Mac at a time: drained
+  hosts finish active Runs, stop accepting new compatible work, activate the
+  desired release, heartbeat at the new `git_sha`, and then rejoin the pool.
 
 Admin queue and worker-health surfaces show worker capabilities, drain/update
 state, stale versions, failed update reports, selected queues, and
@@ -341,10 +349,12 @@ check when a Mac-capability Workflow is waiting.
   advertised capability (`os:macos`), and that the process consumes
   `runs-macos-arm64` or the expected resume queue. Check whether every Mac is
   draining or updating.
-- **Stale Mac worker version**: check updater status in worker health, confirm
-  `SYRUS_MACOS_WORKER_TOKEN` can read the desired release, verify artifact URL
-  access, and compare the worker's reported `git_sha` with the desired release.
-- **Xcode not installed or not licensed**: run `bin/macos-worker-check
+- **Stale Mac worker version**: check updater status in worker health and
+  `/var/log/syrus/updater.log`, confirm `SYRUS_MACOS_WORKER_TOKEN` has not
+  expired, confirm the installed public key matches the signing key, and
+  compare the worker's reported `git_sha` with the desired release. Until it
+  updates, the Mac takes no new work.
+- **Xcode not installed or not licensed**: run `bin/macos-worker --check
   --env-file /etc/syrus/worker.env` on the host, then fix `xcode-select`,
   accept the Xcode license, and install required Command Line Tools.
 - **Missing simulators**: install the required iOS runtime in Xcode, then rerun
