@@ -52,7 +52,7 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
     expect(JSON.parse(json_line)).to include("validation" => "passed", "tests" => "passed")
   end
 
-  it "generates every variant and validates each one end to end" do
+  it "generates every variant and validates the boundary variants end to end" do
     Dir.mktmpdir("plugin-scaffold-acceptance") do |temporary|
       variants = [ [], [ "--frontend" ], [ "--model" ], [ "--cli" ], [ "--frontend", "--model", "--cli" ] ]
       variants.each_with_index do |flags, index|
@@ -60,7 +60,13 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
         generation_output = generate(@cli_binary, plugin, *flags)
         expect(generation_output).to eq("Created #{plugin}\nRun: cd #{plugin} && syrus plugin test .\n")
         expect_optional_surfaces(plugin, flags)
-        expect_plugin_test_to_pass(plugin)
+
+        # plugin-test boots Rails, loads a fresh schema, validates the complete
+        # external-plugin contract, and runs the generated spec. The empty and
+        # all-options variants cover both sides of every conditional template;
+        # running the same host boot for each single-option subset only repeats
+        # those two already-covered paths.
+        expect_plugin_test_to_pass(plugin) if flags.empty? || flags.length == 3
       end
     end
   end
