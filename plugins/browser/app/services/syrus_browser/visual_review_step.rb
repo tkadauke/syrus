@@ -206,6 +206,13 @@ module SyrusBrowser
     rescue StandardError => e
       stop_runtime_sessions!
       failure = { "reason" => "runtime_session_start_failed", "message" => e.message, "run_id" => run.id }
+      # A preview command that fails (`npm ci`, say) carries its output in the
+      # error's details. Without it the Run log read only "preview setup
+      # failed: npm ci", and nobody could tell a broken lockfile from a flaky
+      # registry.
+      output_tail = e.respond_to?(:details) ? e.details.to_h["output_tail"].presence : nil
+      failure["output_tail"] = output_tail if output_tail
+      log("[visual_review] runtime session start failed: #{e.message}\n#{output_tail}".strip)
       workflow.set_artifact!("visual_review_runtime_failure", failure)
       # A runtime that would not start is a transient capture failure, not an
       # unavailable review: reported as review_execution_unavailable it was

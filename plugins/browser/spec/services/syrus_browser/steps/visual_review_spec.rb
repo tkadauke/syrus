@@ -151,6 +151,27 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
     )
   end
 
+  # Regression: a failed preview command surfaced only as "preview setup
+  # failed: npm ci", without the command's output.
+  it "keeps the failing preview command's output when runtime startup fails" do
+    target = double(legacy_browser: false)
+    lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true, start_required?: true)
+    error = Syrus::Host::PreviewPreparation::Error.new(
+      "preview setup failed: npm ci",
+      details: { "reason" => "preview_command_failed", "output_tail" => "npm ERR! lockfile out of sync" }
+    )
+    allow(lifecycle).to receive(:start!).and_raise(error)
+    allow(handler).to receive(:visual_review_runtime_targets).and_return([ target ])
+    allow(handler).to receive(:start_runtime_sessions!).and_call_original
+    allow(handler).to receive(:stop_runtime_sessions!).and_call_original
+    allow(VisualReviewRuntimeSession).to receive(:new).and_return(lifecycle)
+    allow(handler).to receive(:log)
+
+    expect { handler.send(:start_runtime_sessions!) }.to raise_error(Steps::Base::StepFailed)
+    expect(workflow.reload.artifact("visual_review_runtime_failure")).to include("output_tail" => "npm ERR! lockfile out of sync")
+    expect(handler).to have_received(:log).with(a_string_including("npm ERR! lockfile out of sync"))
+  end
+
   it "records optional browser-provider startup failure as failed coverage instead of a successful skip" do
     target = double(legacy_browser: false)
     lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true, start_required?: false)
