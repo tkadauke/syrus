@@ -159,6 +159,61 @@ RSpec.describe RunHostAdmission do
     expect(decision.details["active_compute_run_count"]).to eq(2)
   end
 
+  describe "whole-host graders" do
+    before do
+      GraderResourceGrant.reset_inflight!
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(6)
+      pin_target!(12)
+      run.step.update!(kind: "grader", details: { "name" => "rspec-ci-1-of-8", "resources" => { "cpu" => "all" } })
+    end
+
+    after { GraderResourceGrant.reset_inflight! }
+
+    # Regression: eight rspec shards fanned out at once, and a 6-core worker
+    # took three of them beside other whole-host graders while 12-core
+    # workers each ran one. Every shard on the crowded host ran at a
+    # fraction of its grant for 40+ minutes and held the merge train.
+    it "refuses a third whole-host grader on a host two of them already book, with a reroutable reason" do
+      2.times { |i| whole_host_grader_on_worker_a(i) }
+
+      decision = described_class.call(run: run)
+
+      expect(decision).to be_defer
+      expect(decision.reason).to be_in(DistributedRunAdmissionRouter::REROUTABLE_REASONS)
+      expect(decision.details["resource_guard_binding_terms"]).to eq([ "grader_cpu_booked" ])
+    end
+
+    it "admits a whole-host grader beside one other and books it before it spawns" do
+      whole_host_grader_on_worker_a(0)
+
+      expect(described_class.call(run: run)).to be_admit
+      expect(GraderResourceGrant.inflight_claims(excluding_run_id: nil)).to eq(run.id => 3)
+    end
+
+    it "counts shards admitted moments ago that have not spawned yet" do
+      2.times do |i|
+        sibling = run.step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+        GraderResourceGrant.record_inflight!(sibling.id, 3)
+      end
+
+      expect(described_class.call(run: run)).to be_defer
+    end
+
+    it "leaves bounded graders to the existing guards" do
+      run.step.update!(details: { "name" => "lint", "resources" => { "cpu" => 1 } })
+      2.times { |i| whole_host_grader_on_worker_a(i) }
+
+      expect(described_class.call(run: run)).to be_admit
+    end
+  end
+
+  def whole_host_grader_on_worker_a(index)
+    other = compute_run_on_worker_a(20 + index, workflow_host: "worker-b")
+    other.step.update!(kind: "grader", details: { "name" => "rspec-ci-#{index + 2}-of-8", "resources" => { "cpu" => "all" } })
+    other.spawned_processes.create!(workflow: other.workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago)
+    other
+  end
+
   it "lets background work yield to landing work while the worker is under warning pressure" do
     main_grader_job = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 901)
     landing = Workflows::Initial.instantiate(job: main_grader_job, agent_provider: "codex")

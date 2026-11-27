@@ -60,15 +60,44 @@ class RunHostAdmission
     return admit("resource_guard_not_needed") if step.kind.in?(LIGHTWEIGHT_STEP_KINDS)
     return busy("memory_pressure") if memory_pressure_exceeded?
     return busy("memory_headroom") if memory_headroom_low?
+    return busy("grader_cpu_booked") if grader_cpu_booked?
     return admit("provider_bound_step") if provider_bound_candidate?
     return busy("concurrency_target") if active_compute_run_count >= concurrency_target
 
+    book_whole_host_grader!
     admit("host_capacity_available")
   end
 
   private
 
   attr_reader :run, :queue_name, :now
+
+  # A whole-host grader goes where the cores are free. The busy refusal is
+  # reroutable, so DistributedRunAdmissionRouter hands it to the least-loaded
+  # healthy worker instead of stacking it on a host whose CPUs are taken.
+  def grader_cpu_booked?
+    whole_host_grader_grant&.cpu_booked? || false
+  end
+
+  # Shards of one fan-out are claimed within seconds of each other, minutes
+  # before any of them spawns a process, so the spawned-process view alone
+  # shows every one of them an empty host. Booking the admitted grader in the
+  # grant's in-flight registry closes that window; its real grant replaces the
+  # entry when it spawns, and the registry drops it once the Run is terminal.
+  def book_whole_host_grader!
+    grant = whole_host_grader_grant
+    GraderResourceGrant.record_inflight!(run.id, grant.whole_host_floor) if grant
+  end
+
+  def whole_host_grader_grant
+    return @whole_host_grader_grant if defined?(@whole_host_grader_grant)
+
+    @whole_host_grader_grant =
+      if step.kind == "grader"
+        grant = GraderResourceGrant.new(run: run, hostname: hostname)
+        grant if GraderResourceRequest.from_details(step.details&.dig("resources"))&.unbounded_cpu?
+      end
+  end
 
   def admit(reason)
     Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "admit", reason: reason })

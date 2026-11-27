@@ -93,6 +93,26 @@ class GraderResourceGrant
     )
   end
 
+  # Whether this host's CPUs are already handed out to the point where one
+  # more whole-host grader would only share them. Every whole-host grader is
+  # granted at least half the host, so two book it fully. A third one placed
+  # here anyway ran its rspec shard at a fraction of the host for 40+ minutes
+  # beside five peers while 12-core workers each ran a single shard -- the
+  # merge train waited on the slowest shard.
+  def cpu_booked?
+    return false unless request.unbounded_cpu?
+
+    booked_cpu_cores + whole_host_floor > host_capacity
+  end
+
+  def booked_cpu_cores
+    fixed_claim_cores + (unbounded_claimant_count * whole_host_floor)
+  end
+
+  def whole_host_floor
+    (host_capacity / 2.0).ceil
+  end
+
   private
 
   attr_reader :run, :request, :hostname
