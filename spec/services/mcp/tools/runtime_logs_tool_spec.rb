@@ -54,4 +54,19 @@ RSpec.describe Mcp::Tools::RuntimeLogsTool do
     expect(body[:provider_error]).to include("log transport unavailable")
     expect(body[:operation_entries].first[:message]).to include("provider operation failed")
   end
+
+  it "reconciles an expired operation before returning logs" do
+    session.update!(state: "starting", metadata: {
+      "runtime_operation" => {
+        "id" => "abandoned-op", "kind" => "startup", "state" => "active",
+        "deadline_at" => 1.minute.ago.iso8601
+      }
+    })
+
+    body = payload(call(session_id: session.id))
+
+    expect(body[:operation_entries].last[:message]).to include("exceeded its durable deadline")
+    expect(session.reload).to have_attributes(state: "failed", last_error: a_string_including("exceeded its durable deadline"))
+    expect(session.current_runtime_operation).to include("state" => "timed_out", "outcome" => "retryable_timeout")
+  end
 end

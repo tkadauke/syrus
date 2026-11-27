@@ -30,6 +30,7 @@ module Mcp::Tools
         session, error = resolve_runtime_session(chat_session, session_id)
         return error if error
 
+        RuntimeSessions::Operation.reconcile_expired!(session)
         provider = provider_instance_for(session)
         provider_logs = provider.logs(session.id, cursor.presence || 0, { limit: limit }.compact).to_h
         Mcp::Tools.success(provider_logs.merge(operation_entries: session.runtime_operation_logs))

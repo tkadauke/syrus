@@ -22,8 +22,10 @@ module RuntimeSessions
     end
 
     def self.reconcile_expired!(session)
+      operation = current(session)
+      return operation unless operation&.fetch("state", nil) == "active" && deadline_elapsed?(operation)
+
       lease_id = nil
-      operation = nil
 
       session.with_lock do
         session.reload
