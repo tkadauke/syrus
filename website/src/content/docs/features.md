@@ -444,7 +444,14 @@ testing) start it, build or
 reload it, snapshot or inspect what's running, page through its logs, and
 tear it down when done: `runtime_list_sessions`, `runtime_start`,
 `runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
-`runtime_snapshot`, `runtime_inspect`, and `runtime_logs`. Sending input to a
+`runtime_snapshot`, `runtime_inspect`, and `runtime_logs`.
+Runtime startup and build/reload calls record their provider operation before
+doing work. `runtime_status` reports whether that operation is active, timed
+out and retryable, failed, or completed (including a late completion), while
+`runtime_logs` includes its durable lifecycle and error entries alongside
+provider output. Retrying reuses the existing session and provider resource;
+a timed-out build also releases the agent's build lease.
+Sending input to a
 Runtime Session (`runtime_input`, and the equivalent direct
 `browser_click`/`browser_fill`/`browser_hover` tools) requires the agent to
 first request a short-lived control lease with `runtime_acquire_control` and

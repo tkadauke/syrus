@@ -63,7 +63,10 @@ module Mcp::Tools
         provider_class, error = resolve_provider_class(provider, repository, config)
         return error if error
 
-        runtime_session = RuntimeSession.create!(
+        runtime_session = chat_session.runtime_sessions
+          .where(repository: repository, provider_key: provider_class.provider_key, workspace_ref: workspace_path)
+          .where.not(state: "stopped").order(created_at: :desc).first
+        runtime_session ||= RuntimeSession.create!(
           repository: repository,
           chat_session: chat_session,
           workspace_ref: workspace_path,
@@ -74,15 +77,20 @@ module Mcp::Tools
           state: "starting"
         )
 
-        begin
-          result = provider_class.new.start_session(workspace_path, config.merge(runtime_session: runtime_session))
-          runtime_session.update!(state: "running", metadata: runtime_session.metadata.merge(result.to_h.deep_stringify_keys))
-        rescue StandardError => e
-          runtime_session.update!(state: "failed", last_error: "#{e.class}: #{e.message}")
-          return Mcp::Tools.invalid("failed to start runtime session: #{e.message}")
+        current = runtime_session.current_runtime_operation
+        if current&.fetch("state", nil) == "active"
+          return Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
         end
 
-        Mcp::Tools.success(runtime_session_payload(runtime_session))
+        runtime_session.update!(state: "starting", last_error: nil)
+        operation = RuntimeSessions::Operation.new(session: runtime_session, kind: :startup)
+        result = operation.call do
+          provider_class.new.start_session(workspace_path, config.merge(runtime_session: runtime_session))
+        end
+        return Mcp::Tools.invalid("failed to start runtime session: #{result.error.message}") if result.error && !result.timed_out?
+        return Mcp::Tools.invalid(result.error) if result.timed_out?
+
+        Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end

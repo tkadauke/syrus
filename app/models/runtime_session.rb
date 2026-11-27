@@ -50,4 +50,7 @@ class RuntimeSession < ApplicationRecord
   def agent_input_lease_active?
     active_agent_input_lease.present?
   end
+
+  def current_runtime_operation = RuntimeSessions::Operation.current(self)
+  def runtime_operation_logs = RuntimeSessions::Operation.logs(self)
 end
