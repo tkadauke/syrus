@@ -858,7 +858,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       finding = Syrus::PluginHostSurface::Scanner::Finding.new(
         constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
       )
-      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], unlisted: [ finding ], dynamic: [],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external_scan", version: "1.0.0", external: true,
         plugin_host_surface_scan: scan)
@@ -877,7 +877,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       finding = Syrus::PluginHostSurface::Scanner::StringFinding.new(
         constant: "Job", tier: "dynamic", path: "lib/external.rb", line: 9, method: "class_name"
       )
-      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [ finding ],
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], unlisted: [], dynamic: [ finding ],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external_dynamic_scan", version: "1.0.0", external: true,
         plugin_host_surface_scan: scan)
@@ -895,7 +895,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       finding = Syrus::PluginHostSurface::Scanner::Finding.new(
         constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
       )
-      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], unlisted: [ finding ], dynamic: [],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil, name: "external_runtime_failure", version: "1.0.0", external: true,
         provides: { callbacks: provider }, plugin_host_surface_scan: scan)

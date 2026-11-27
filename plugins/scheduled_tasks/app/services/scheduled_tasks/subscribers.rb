@@ -7,7 +7,7 @@ module ScheduledTasks
   # User#seed_default_cron_templates -- core models reaching into this
   # plugin's models. All three are events now.
   class Subscribers
-    include Syrus::Plugin::DomainSubscriber
+    include Syrus::Host::DomainSubscriber
 
     # Only the "too many" reasons consume the consecutive-failure cap that can
     # auto-pause a schedule. `replaced_by_scheduled_task` is bookkeeping for
@@ -50,7 +50,7 @@ module ScheduledTasks
     def self.on_user_created(event)
       return unless event[:first_user]
 
-      user = User.find_by(id: event[:user_id])
+      user = Syrus::Host::UserRecord.find_by(id: event[:user_id])
       ScheduledTasks::CronTemplate.seed_defaults_for(user) if user
     rescue StandardError => e
       Rails.logger.error("[ScheduledTasks] template seeding failed for user #{event[:user_id]}: #{e.class}: #{e.message}")

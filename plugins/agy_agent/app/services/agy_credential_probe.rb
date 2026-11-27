@@ -11,13 +11,13 @@ class AgyCredentialProbe
   end
 
   def self.refresh_for(user:, force: false)
-    result = ::CredentialProbe.call(user: user, credential: CREDENTIAL)
+    result = Syrus::Host::CredentialProbe.call(user: user, credential: CREDENTIAL)
     record_evidence!(user: user, result: result)
     result
   end
 
   def self.record_evidence!(user:, result:, observed_at: Time.current)
-    ProviderAvailabilityEvidence.create!(
+    Syrus::Host::ProviderAvailabilityEvidence.create!(
       user: user,
       provider: "agy",
       account_id: nil,
@@ -25,7 +25,7 @@ class AgyCredentialProbe
       status: evidence_status(result),
       source: "usage_probe",
       observed_at: observed_at,
-      details: ProviderAvailabilityEvidence.sanitized_details(
+      details: Syrus::Host::ProviderAvailabilityEvidence.sanitized_details(
         message: result.message,
         snapshot: result.details.fetch(:snapshot, {})
       )
@@ -49,16 +49,16 @@ class AgyCredentialProbe
       agy_home = File.join(workspace, ".agy")
       FileUtils.mkdir_p(agy_home)
       output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(
-          AgentInvocation::ENV_FORWARD,
+      result = Syrus::Host::ProcessRunner.new(
+        env: Syrus::Host::ProcessRunner.forwarded_env(
+          Syrus::Host::AgentRuntime.forwarded_env_keys,
           extra: agy_env(agy_home)
         ),
         command: agy_command,
         stdin_data: stdin_event,
-        mounts: ProcessRunner.mounts(workspace),
+        mounts: Syrus::Host::ProcessRunner.mounts(workspace),
         network: "agent",
-        timeout: CredentialProbe::TIMEOUT_SECONDS,
+        timeout: Syrus::Host::CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",
         on_output_chunk: ->(chunk) { append_output(output, chunk) }
@@ -81,15 +81,15 @@ class AgyCredentialProbe
   def user = probe.send(:user)
 
   def missing(message)
-    CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: { status: "probe_unavailable" })
+    Syrus::Host::CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: { status: "probe_unavailable" })
   end
 
   def success(message, details: {})
-    CredentialProbe::Result.new(credential: CREDENTIAL, ok: true, message: message, details: details)
+    Syrus::Host::CredentialProbe::Result.new(credential: CREDENTIAL, ok: true, message: message, details: details)
   end
 
   def failure(message, details: {})
-    CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: details)
+    Syrus::Host::CredentialProbe::Result.new(credential: CREDENTIAL, ok: false, message: message, details: details)
   end
 
   def append_output(output, chunk) = probe.send(:append_output, output, chunk)
@@ -134,11 +134,11 @@ class AgyCredentialProbe
   def failure_details(output)
     text = output.to_s
     status =
-      if ProviderAuthFailure.detect?(text)
+      if Syrus::Host::ProviderAuthFailure.detect?(text)
         "auth_error"
-      elsif ProviderUsageLimit.detect?(text)
+      elsif Syrus::Host::ProviderUsageLimit.detect?(text)
         "exhausted"
-      elsif ProviderRateLimitEvidence.text_match?(text)
+      elsif Syrus::Host::ProviderRateLimitEvidence.text_match?(text)
         "warning"
       else
         "probe_inconclusive"

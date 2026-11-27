@@ -20,17 +20,17 @@ module AgentMemory::Tools
         chat_session = server_context.fetch(:chat_session)
         id = Integer(memory_id, exception: false)
         memory = id && AgentMemory::Entry.active.find_by(id: id, user_id: chat_session.user_id)
-        return ::Mcp::Tools.invalid("memory not found or not owned: #{memory_id}") unless memory
-        return ::Mcp::Tools.invalid("global memories cannot be published") if memory.global?
+        return Syrus::Host::McpTools.invalid("memory not found or not owned: #{memory_id}") unless memory
+        return Syrus::Host::McpTools.invalid("global memories cannot be published") if memory.global?
 
         previous_published = nil
         memory.with_lock do
           previous_published = memory.published?
           memory.update!(published: true)
         end
-        ::Mcp::Tools.success(memory: memory_payload(memory), previous_published: previous_published)
+        Syrus::Host::McpTools.success(memory: memory_payload(memory), previous_published: previous_published)
       rescue ActiveRecord::RecordInvalid => e
-        ::Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+        Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
       end
     end
   end

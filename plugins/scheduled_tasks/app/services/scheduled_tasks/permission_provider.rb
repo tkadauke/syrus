@@ -15,9 +15,9 @@ module ScheduledTasks
   # data. Creation and immediate firing keep their pending-action lifecycle, and
   # the approved action re-validates repository write access when it runs.
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = AgentRole::CHAT_ROLES
+    ROLES = Syrus::Host::AgentRole::CHAT_ROLES
     OBSERVE = "scheduled_tasks.observe@v1".freeze
     AUTOMATION = "scheduled_tasks.automation@v1".freeze
 
@@ -39,7 +39,7 @@ module ScheduledTasks
         operation = "scheduled_tasks/#{name}@v1"
         register_capability(
           capability:, operation:, effects:, risk:, essential:,
-          presentation: Permissions::CapabilityPresentation.for(capability:, operation:),
+          presentation: Syrus::Host::CapabilityPresentation.for(capability:, operation:),
           requestable_roles: ROLES, defaults: ROLES.index_with { default },
           maximum_autonomy:, authority_durations: durations,
           resource_scope: { type: :none },
@@ -50,12 +50,12 @@ module ScheduledTasks
     end
 
     define(capability: OBSERVE, name: "list", effects: %i[local_read], risk: :low, essential: true,
-           default: :allow, maximum_autonomy: :permanent, durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS)
+           default: :allow, maximum_autonomy: :permanent, durations: Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS)
     define(capability: OBSERVE, name: "read", effects: %i[local_read], risk: :low, essential: true,
-           default: :allow, maximum_autonomy: :permanent, durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS)
+           default: :allow, maximum_autonomy: :permanent, durations: Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS)
     # Pausing only removes autonomy, so it is essential.
     define(capability: AUTOMATION, name: "pause", effects: %i[internal_write], risk: :low, essential: true,
-           default: :allow, maximum_autonomy: :permanent, durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS)
+           default: :allow, maximum_autonomy: :permanent, durations: Syrus::Host::CapabilityDescriptor::AUTHORITY_DURATIONS)
     define(capability: AUTOMATION, name: "create", effects: %i[internal_write persistent_autonomy], risk: :medium,
            default: :ask, maximum_autonomy: :chat_session, durations: SESSION)
     define(capability: AUTOMATION, name: "update", effects: %i[internal_write persistent_autonomy], risk: :medium,

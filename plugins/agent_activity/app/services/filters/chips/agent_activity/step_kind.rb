@@ -4,14 +4,14 @@ module Filters
       # "Role" in the UI: the Step#kind of the agentic step this session ran
       # as for workflow-backed agents, ChatSession#mode for chat-backed agents,
       # and "design_doc" for design-doc-backed agents.
-      class StepKind < Base
+      class StepKind < Syrus::Host::Filters::Chips::Base
         filter_name "step_kind"
         label "Role"
         bucket :enum
         operators :is_one_of
         values(
-          *Step::AGENTIC_KINDS.map { |kind| { "value" => kind, "label" => Step::Kind.label_for(kind) } },
-          *ChatSession::MODES.map { |mode| { "value" => mode, "label" => mode.humanize } },
+          *Syrus::Host::Step::AGENTIC_KINDS.map { |kind| { "value" => kind, "label" => Syrus::Host::Step::Kind.label_for(kind) } },
+          *Syrus::Host::ChatSession::MODES.map { |mode| { "value" => mode, "label" => mode.humanize } },
           { "value" => "design_doc", "label" => "Design Doc" }
         )
 
@@ -26,8 +26,8 @@ module Filters
         private
 
         def role_sql(values)
-          workflow_kinds = values & Step::AGENTIC_KINDS
-          chat_modes = values & ChatSession::MODES
+          workflow_kinds = values & Syrus::Host::Step::AGENTIC_KINDS
+          chat_modes = values & Syrus::Host::ChatSession::MODES
           predicates = []
           binds = []
 

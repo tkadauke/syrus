@@ -1,3 +1,3 @@
-class Job::ProviderSetting::Agy < Job::ProviderSetting::Base
+class Job::ProviderSetting::Agy < Syrus::Host::JobRecord::ProviderSetting::Base
   def resolve(_job) = "agy"
 end

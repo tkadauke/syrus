@@ -1,5 +1,5 @@
 module ConnectedAccounts
-  class ProviderConfig < ApplicationRecord
+  class ProviderConfig < Syrus::Host::Record
     self.table_name = "connected_accounts_provider_configs"
     encrypts :client_secret
     attribute :scope_catalog, :json, default: -> { [] }

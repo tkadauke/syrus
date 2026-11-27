@@ -1,5 +1,5 @@
 module CredentialStore
-  class CredentialAccessEvent < ApplicationRecord
+  class CredentialAccessEvent < Syrus::Host::Record
     self.table_name = "credential_store_credential_access_events"
 
     SURFACES = %w[workflow chat admin api].freeze

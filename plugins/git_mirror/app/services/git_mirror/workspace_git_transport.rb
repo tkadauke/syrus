@@ -13,7 +13,7 @@ module GitMirror
   # itself -- ContentProvider's JSON client never needs one -- is this
   # class's own concern.
   class WorkspaceGitTransport
-    include Syrus::Plugin::WorkspaceGitTransport
+    include Syrus::Host::WorkspaceGitTransport
 
     class << self
       def available_for?(repository)

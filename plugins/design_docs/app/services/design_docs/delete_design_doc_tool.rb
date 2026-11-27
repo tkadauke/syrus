@@ -3,7 +3,7 @@ require "mcp"
 module DesignDocs
   class DeleteDesignDocTool < MCP::Tool
     extend ToolSupport
-    extend ::Mcp::Tools::ProposalToolSupport
+    extend Syrus::Host::ProposalToolSupport
 
     FAST_PATH_MAX_AGE = ArchivePreview::FAST_PATH_MAX_AGE
 

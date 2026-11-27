@@ -69,7 +69,7 @@ module CredentialStore
         credential_id = credential.respond_to?(:id) ? credential.id : credential
         Credential.transaction do
           locked = Credential.lock.find(credential_id)
-          owner = Syrus::PluginRegistry.credential_type_owner(locked.credential_type)
+          owner = Syrus::Host::PluginRegistry.credential_type_owner(locked.credential_type)
           raise Denied, "credential type is not managed by #{plugin_name}" unless owner == plugin_name.to_s
           raise Denied, "credential revoked" if locked.revoked?
 

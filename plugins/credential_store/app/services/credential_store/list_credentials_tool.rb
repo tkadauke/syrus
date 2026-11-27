@@ -25,7 +25,7 @@ module CredentialStore
 
     class << self
       def call(server_context:, credential_type: nil, scope: nil, query: nil, limit: CredentialDiscovery::DEFAULT_LIMIT)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         payload = CredentialDiscovery.call(
           context: context,
           credential_type: credential_type,
@@ -35,10 +35,10 @@ module CredentialStore
         )
         MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ])
       rescue CredentialDiscovery::InvalidFilter => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       rescue StandardError => e
         Rails.logger.error("[CredentialStore::ListCredentialsTool] #{e.class}")
-        Mcp::Tools.invalid("Could not list stored credential metadata")
+        Syrus::Host::McpTools.invalid("Could not list stored credential metadata")
       end
     end
   end

@@ -23,14 +23,14 @@ module TestInsights
         "label" => "Reason",
         "bucket" => "enum",
         "operators" => %w[ is ],
-        "values" => %w[ failing flaky slow ].map { |value| { "value" => value, "label" => Filters::Schema.humanize_value(value) } }
+        "values" => %w[ failing flaky slow ].map { |value| { "value" => value, "label" => Syrus::Host::Filters::Schema.humanize_value(value) } }
       },
       {
         "field" => "status",
         "label" => "Status",
         "bucket" => "enum",
         "operators" => %w[ is ],
-        "values" => %w[ passed failed error skipped ].map { |value| { "value" => value, "label" => Filters::Schema.humanize_value(value) } }
+        "values" => %w[ passed failed error skipped ].map { |value| { "value" => value, "label" => Syrus::Host::Filters::Schema.humanize_value(value) } }
       },
       {
         "field" => "suite_name",
@@ -53,15 +53,15 @@ module TestInsights
     end
 
     def self.from_params(params)
-      new(Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME]))
+      new(Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME]))
     end
 
     def initialize(tree)
-      @ast = Filters::Ast.parse(tree)
+      @ast = Syrus::Host::Filters::Ast.parse(tree)
     end
 
     def to_h
-      Filters::Ast.serialize(@ast)
+      Syrus::Host::Filters::Ast.serialize(@ast)
     end
 
     def active?
@@ -87,11 +87,11 @@ module TestInsights
         collected = {}
         collect = lambda do |node|
           case node
-          when Filters::Ast::Chip
+          when Syrus::Host::Filters::Ast::Chip
             collected[node.field] = node.value if FIELDS.include?(node.field) && !collected.key?(node.field)
-          when Filters::Ast::AndNode, Filters::Ast::OrNode
+          when Syrus::Host::Filters::Ast::AndNode, Syrus::Host::Filters::Ast::OrNode
             node.children.each(&collect)
-          when Filters::Ast::NotNode
+          when Syrus::Host::Filters::Ast::NotNode
             collect.call(node.child)
           end
         end

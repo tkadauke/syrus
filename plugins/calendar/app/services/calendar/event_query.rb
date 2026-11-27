@@ -19,8 +19,8 @@ module Calendar
       raise InvalidRange, "calendar range cannot exceed 42 days" if ends_at - starts_at > MAX_RANGE
 
       failures = []
-      events = Syrus::PluginRegistry.providers_for("calendar:event_source").flat_map do |provider|
-        PerformanceLogging.plugin_call(extension_point: "calendar:event_source", provider:, operation: :calendar_events) do
+      events = Syrus::Host::PluginRegistry.providers_for("calendar:event_source").flat_map do |provider|
+        Syrus::Host::PerformanceLogging.plugin_call(extension_point: "calendar:event_source", provider:, operation: :calendar_events) do
           Array(provider.calendar_events(user:, starts_at:, ends_at:)).map { |event| normalize(event) }
         end
       rescue StandardError => error

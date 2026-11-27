@@ -1,5 +1,5 @@
 module WorkerTimeline
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   FILTER_CHIPS = {
     "repository_id" => "Filters::Chips::WorkerTimeline::RepositoryId",
@@ -43,7 +43,7 @@ module WorkerTimeline
 
     while_enabled do |scope|
       scope.effect("worker_timeline smart folder subject") do
-        SmartFolder.register_subject!(
+        Syrus::Host::SmartFolder.register_subject!(
           :worker_timeline,
           label: "Worker Timeline",
           effective_filter_contract: :smart_folder_resolution,

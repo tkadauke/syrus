@@ -35,13 +35,13 @@ module SyrusDev
 
     class << self
       def call(server_context:, limit: PerformancePayload::DEFAULT_LIMIT, revision_scope: "current", include_events: false)
-        context = McpToolContext.from_server_context(server_context)
+        context = Syrus::Host::ToolContext.from_server_context(server_context)
         unless coworker_diagnostics_authorized?(context)
-          return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
-          return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+          return Syrus::Host::McpTools.not_authorized unless context.role == Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT
+          return Syrus::Host::McpTools.invalid("performance diagnostics are only available for Syrus repositories") unless Syrus::Host::McpToolPolicy.syrus_repository?(context.repository)
         end
 
-        payload, events = PerformanceLogging.suppress do
+        payload, events = Syrus::Host::PerformanceLogging.suppress do
           builder = PerformancePayload.new(params: { limit: limit, revision_scope: revision_scope })
           [ builder.as_json, include_events ? builder.events_json[:events] : [] ]
         end
@@ -185,7 +185,7 @@ module SyrusDev
       def scrub_text(value, limit)
         return nil if value.nil?
 
-        CommandRedactor.redact_assignments(value)
+        Syrus::Host::CommandRedactor.redact_assignments(value)
           .safe_byteslice(0, limit)
       end
     end

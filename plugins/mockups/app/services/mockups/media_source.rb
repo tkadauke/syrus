@@ -2,7 +2,7 @@ module Mockups
   # The "preview_panel_version:<id>" media kind. A version can carry several
   # files, so this is the source that returns more than one Document.
   module MediaSource
-    include Syrus::Plugin::ChatMediaSource
+    include Syrus::Host::ChatMediaSource
 
     def self.chat_media_kind = "preview_panel_version"
 
@@ -10,7 +10,7 @@ module Mockups
     # from a version it actually built, not any PreviewPanelVersion id in the
     # system.
     def self.versions_for(chat_session)
-      PreviewPanelVersion.where(preview_panel: chat_session.preview_panels)
+      Syrus::Host::PreviewPanelVersionRecord.where(preview_panel: chat_session.preview_panels)
     end
 
     def self.chat_media_exists?(chat_session:, id:)
@@ -24,7 +24,7 @@ module Mockups
       file_attachments = version.files.to_a
       return nil if file_attachments.empty?
 
-      remaining_capacity = Document::MAX_ATTACHMENTS_PER_JOB - job.job_attachments.count
+      remaining_capacity = Syrus::Host::Document::MAX_ATTACHMENTS_PER_JOB - job.job_attachments.count
       to_attach = file_attachments.first(remaining_capacity)
       omitted = file_attachments - to_attach
 
@@ -53,10 +53,10 @@ module Mockups
 
       names = omitted_attachments.map { |attachment| attachment.blob.filename.to_s }
       note = "\n\n_Note: #{names.size} preview panel mockup file(s) were not attached because this Job " \
-             "already has #{Document::MAX_ATTACHMENTS_PER_JOB} attachments (the per-Job limit): " \
+             "already has #{Syrus::Host::Document::MAX_ATTACHMENTS_PER_JOB} attachments (the per-Job limit): " \
              "#{names.join(', ')}._"
-      JobDefinitionUpdater.new(job).update!(description: "#{job.issue_body}#{note}")
-    rescue JobDefinitionUpdater::Immutable
+      Syrus::Host::JobDefinitionUpdater.new(job).update!(description: "#{job.issue_body}#{note}")
+    rescue Syrus::Host::JobDefinitionUpdater::Immutable
       # The Job started after the preliminary check; its definition is now frozen.
     end
   end

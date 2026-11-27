@@ -25,7 +25,7 @@ module ScheduledTasks
           task, err = find_scheduled_task(chat_session, scheduled_task_id)
           return err if err
 
-          Mcp::Tools.success(scheduled_task: scheduled_task_payload(task).merge(prompt: task.prompt))
+          Syrus::Host::McpTools.success(scheduled_task: scheduled_task_payload(task).merge(prompt: task.prompt))
         end
       end
     end

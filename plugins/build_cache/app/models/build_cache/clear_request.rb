@@ -7,7 +7,7 @@
 # itself — that model is chat_session-scoped, and this is a plain admin-UI
 # surface with no chat involved.
 module BuildCache
-  class ClearRequest < ApplicationRecord
+  class ClearRequest < Syrus::Host::Record
     self.table_name = "build_cache_clear_requests"
 
     SCOPES = %w[ full partial ].freeze
@@ -52,7 +52,7 @@ module BuildCache
         }
       )
 
-      AdminAction.log!(
+      Syrus::Host::AdminAction.log!(
         user: user,
         action: :build_cache_clear,
         params: {

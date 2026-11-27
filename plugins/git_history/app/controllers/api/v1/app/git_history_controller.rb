@@ -1,14 +1,14 @@
 module Api
   module V1
     module App
-      class GitHistoryController < BaseController
+      class GitHistoryController < Syrus::Host::AppController
         def index
           repository = find_repository
           limit = params.fetch(:limit, ::GitHistory::Commits::DEFAULT_LIMIT).to_i.clamp(1, ::GitHistory::Commits::MAX_LIMIT)
 
           result = ::GitHistory::Commits.call(
             repository: repository,
-            user: Current.user,
+            user: Syrus::Host::Current.user,
             cursor: params[:cursor],
             limit: limit
           )
@@ -25,7 +25,7 @@ module Api
         private
 
         def find_repository
-          Repository.accessible_to(Current.user).find(params[:repository_id])
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find(params[:repository_id])
         end
 
         def repository_json(repository)

@@ -9,9 +9,9 @@ module RuntimeTerminal
     TIMEOUT = 10.seconds
     COMMAND_PATH = "/usr/local/bin:/usr/bin:/bin"
     NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/
-    FORBIDDEN = SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV.to_set.freeze
+    FORBIDDEN = Syrus::Host::SyrusYmlConfig::VISUAL_REVIEW_FORBIDDEN_ENV.to_set.freeze
 
-    class Error < RuntimeSessionProviders::ConfigurationError; end
+    class Error < Syrus::Host::RuntimeSessionRegistry::ConfigurationError; end
 
     class InputResolver
       def self.for(name)
@@ -34,11 +34,11 @@ module RuntimeTerminal
 
     class RunApiCredential
       def self.resolve(run)
-        unless run && Run::ACTIVE_STATES.include?(run.state)
+        unless run && Syrus::Host::RunRecord::ACTIVE_STATES.include?(run.state)
           raise Error, "visual-review environment input run_api_credential is unavailable for an inactive Run"
         end
 
-        McpInvocationContext.issue_for_app_run(run, expires_in: 30.minutes)
+        Syrus::Host::McpInvocationContext.issue_for_app_run(run, expires_in: 30.minutes)
       end
     end
 
@@ -81,9 +81,9 @@ module RuntimeTerminal
     end
 
     def capture(argv, payload)
-      capture = ProcessRunner.new(
+      capture = Syrus::Host::ProcessRunner.new(
         env: { "PATH" => COMMAND_PATH }, command: argv,
-        mounts: ProcessRunner.mounts(runtime_session.workspace_ref), network: "grader",
+        mounts: Syrus::Host::ProcessRunner.mounts(runtime_session.workspace_ref), network: "grader",
         timeout: TIMEOUT, stdin_data: payload, kind: "grader",
         run: runtime_session.run, workflow: runtime_session.workflow, job: runtime_session.job
       ).capture(limit: MAX_OUTPUT_BYTES)

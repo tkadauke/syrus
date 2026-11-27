@@ -527,7 +527,7 @@ that specific row has `agentic_access_enabled: true`, mirroring
 `MysqlDbBrowser::AgenticAccess.connection!(id)` and
 `Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
 first-party tools. `AgenticAccess.cluster!`/`.cluster_with_write_access!`
-delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`
+delegate their gating logic to the shared `Syrus::Host::AgenticConnection`
 concern (`lib/syrus/plugin/agentic_connection.rb`), which
 `MysqlDbBrowser::AgenticAccess` also extends - the two plugins' near-identical
 find-by-id/raise-if-disabled classes and credential visibility predicate live

@@ -10,7 +10,7 @@ module AgentActivity
     def self.call(...) = new(...).call
 
     def self.base_relation
-      Agent
+      Syrus::Host::AgentRecord
         .where(agent_process_exists_sql)
     end
 
@@ -18,9 +18,9 @@ module AgentActivity
       relation = base_relation
       return relation.where(admin_visibility_sql(user)) if scope == :admin
 
-      visible_job_ids = Job.visible_to(
+      visible_job_ids = Syrus::Host::JobRecord.visible_to(
         user,
-        scope: Job.accessible_to(user).or(Job.effectively_owned_by(user))
+        scope: Syrus::Host::JobRecord.accessible_to(user).or(Syrus::Host::JobRecord.effectively_owned_by(user))
       ).select(:id)
       relation.where(operator_visibility_sql(user, visible_job_ids))
     end
@@ -78,7 +78,7 @@ module AgentActivity
           )
         )",
         visible_job_ids,
-        Step::AGENTIC_KINDS
+        Syrus::Host::Step::AGENTIC_KINDS
       ])
     end
 
@@ -129,7 +129,7 @@ module AgentActivity
         )",
         user.id,
         user.id,
-        Repository.accessible_to(user).select(:id)
+        Syrus::Host::RepositoryRecord.accessible_to(user).select(:id)
       ])
     end
 
@@ -153,7 +153,7 @@ module AgentActivity
               AND steps.kind IN (?)
           )
         )",
-        Step::AGENTIC_KINDS
+        Syrus::Host::Step::AGENTIC_KINDS
       ])
     end
 
@@ -196,26 +196,26 @@ module AgentActivity
     end
 
     def self.count_for_smart_folder(base_scope, folder)
-      filter = folder.filter.presence || Filters::Ast.serialize(Filters::Ast::EMPTY)
-      ast = Filters::Ast.parse(filter)
+      filter = folder.filter.presence || Syrus::Host::Filters::Ast.serialize(Syrus::Host::Filters::Ast::EMPTY)
+      ast = Syrus::Host::Filters::Ast.parse(filter)
 
-      if ast == Filters::Ast::EMPTY
+      if ast == Syrus::Host::Filters::Ast::EMPTY
         count = capped_count(base_scope)
-        return { count: count, count_capped: count >= SmartFolder::COUNT_CAP }
+        return { count: count, count_capped: count >= Syrus::Host::SmartFolder::COUNT_CAP }
       end
       return exact_status_count(base_scope, ast.children.first.value) if single_status_filter?(ast)
 
       nil
     end
 
-    def self.capped_count(scope, limit: SmartFolder::COUNT_CAP)
-      Filters::BaseFilter.capped_count(scope, limit: limit)
+    def self.capped_count(scope, limit: Syrus::Host::SmartFolder::COUNT_CAP)
+      Syrus::Host::Filters::BaseFilter.capped_count(scope, limit: limit)
     end
 
     def self.single_status_filter?(ast)
-      ast.is_a?(Filters::Ast::AndNode) &&
+      ast.is_a?(Syrus::Host::Filters::Ast::AndNode) &&
         ast.children.one? &&
-        ast.children.first.is_a?(Filters::Ast::Chip) &&
+        ast.children.first.is_a?(Syrus::Host::Filters::Ast::Chip) &&
         ast.children.first.field == "status" &&
         ast.children.first.op == "is"
     end
@@ -256,7 +256,7 @@ module AgentActivity
     end
 
     def preload_agent_processes(agents)
-      scope = SpawnedProcess
+      scope = Syrus::Host::SpawnedProcess
         .where(kind: "agent")
         .select(:id, :agent_id, :kind, :started_at, :finished_at, :outcome)
       ActiveRecord::Associations::Preloader.new(

@@ -20,7 +20,7 @@ RSpec.describe "Steps::Grader real RSpec output ingestion", requires_plugin: "ru
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(default_enabled: true, disableable: true, experimental: false, requires_syrus: nil,
         name:    "ruby",
-        version: Syrus::PluginApi.default_version,
+        version: Syrus::Host::PluginApi.default_version,
         provides: { "test_insights:parser" => Ruby::RspecParser }
       )
     end

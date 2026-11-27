@@ -3,7 +3,7 @@ require "mcp"
 module ScheduledTasks
   module McpTools
     class ScheduleRecurringTool < MCP::Tool
-      extend ::Mcp::Tools::ProposalToolSupport
+      extend Syrus::Host::ProposalToolSupport
 
       tool_name "schedule_recurring"
 
@@ -32,19 +32,19 @@ module ScheduledTasks
       class << self
         def call(label:, prompt:, server_context:, schedule_input: nil, cron_expression: nil, schedule_timezone: nil)
           chat_session = server_context.fetch(:chat_session)
-          unless chat_session.repository && RepositoryPolicy.new(chat_session.user, chat_session.repository).write?
-            return Mcp::Tools.invalid("repository write access is required to create a scheduled task")
+          unless chat_session.repository && Syrus::Host::RepositoryPolicy.new(chat_session.user, chat_session.repository).write?
+            return Syrus::Host::McpTools.invalid("repository write access is required to create a scheduled task")
           end
 
           schedule_input = schedule_input.to_s.strip.presence || cron_expression.to_s.strip
           label = label.to_s.strip
           prompt = prompt.to_s.strip
 
-          return Mcp::Tools.invalid("schedule_input is required") if schedule_input.empty?
-          return Mcp::Tools.invalid("label is required") if label.empty?
-          return Mcp::Tools.invalid("prompt is required") if prompt.empty?
+          return Syrus::Host::McpTools.invalid("schedule_input is required") if schedule_input.empty?
+          return Syrus::Host::McpTools.invalid("label is required") if label.empty?
+          return Syrus::Host::McpTools.invalid("prompt is required") if prompt.empty?
           if prompt.match?(CHAT_DIRECTED_PROMPT)
-            return Mcp::Tools.invalid("This prompt asks to wake or remind the current chat. Use schedule_wakeup for chat continuation; schedule_recurring creates background repository Jobs and Workflows and cannot wake this chat.")
+            return Syrus::Host::McpTools.invalid("This prompt asks to wake or remind the current chat. Use schedule_wakeup for chat continuation; schedule_recurring creates background repository Jobs and Workflows and cannot wake this chat.")
           end
 
           preview = ScheduledTasks::Task.new(
@@ -57,7 +57,7 @@ module ScheduledTasks
             cron_expression: cron_expression,
             prompt: prompt
           )
-          return Mcp::Tools.invalid(preview.errors.full_messages.to_sentence) unless preview.valid?
+          return Syrus::Host::McpTools.invalid(preview.errors.full_messages.to_sentence) unless preview.valid?
 
           next_fire_at = preview.next_fire_at(from: Time.current)
           action = create_pending_action_for_current_message!(
@@ -78,7 +78,7 @@ module ScheduledTasks
             }
           )
 
-          Mcp::Tools.success(
+          Syrus::Host::McpTools.success(
             pending_action_id: action.id,
             label: label,
             prompt: prompt,
@@ -90,7 +90,7 @@ module ScheduledTasks
             message: "Schedule #{label} as a recurring task?"
           )
         rescue ActiveRecord::RecordInvalid => e
-          Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+          Syrus::Host::McpTools.invalid(e.record.errors.full_messages.to_sentence)
         end
       end
     end

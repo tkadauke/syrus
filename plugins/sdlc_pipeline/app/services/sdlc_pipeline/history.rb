@@ -16,14 +16,14 @@ module SdlcPipeline
     end
 
     def call
-      entries = Stage.entries(RepoDeploymentStagesReader.for_repository(repository).stages)
-      job_scope = filter.apply(Job.visible_to(user)).where(repository_id: repository.id)
+      entries = Stage.entries(Syrus::Host::RepoDeploymentStagesReader.for_repository(repository).stages)
+      job_scope = filter.apply(Syrus::Host::JobRecord.visible_to(user)).where(repository_id: repository.id)
         .where("jobs.created_at <= ?", to).includes(:epic, :deployment_stage_statuses)
         .order(created_at: :asc, id: :asc)
       jobs = job_scope.limit(MAX_JOBS + 1).to_a
       jobs_truncated = jobs.length > MAX_JOBS
       jobs = jobs.first(MAX_JOBS)
-      transitions = StateTransition.where(subject_type: "Job", subject_id: jobs.map(&:id))
+      transitions = Syrus::Host::StateTransition.where(subject_type: "Job", subject_id: jobs.map(&:id))
         .where("created_at <= ?", to).order(:created_at, :id).to_a.group_by(&:subject_id)
 
       checkpoint = jobs.filter_map do |job|
@@ -127,7 +127,7 @@ module SdlcPipeline
 
     def landed_at?(job, at)
       job.finished_at && job.finished_at <= at &&
-        (job.landed_sha.present? || job.no_change_needed? || Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason))
+        (job.landed_sha.present? || job.no_change_needed? || Syrus::Host::Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason))
     end
 
     def lifecycle_key(state)

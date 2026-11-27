@@ -6,7 +6,7 @@ module ScheduledTasks
   # plugin-owned equivalent, and it stops when the plugin is disabled --
   # which the YAML entry never did.
   class Callbacks
-    include Syrus::Plugin::Callbacks
+    include Syrus::Host::Callbacks
 
     def self.on_tick
       PollScheduledTasksJob.perform_later

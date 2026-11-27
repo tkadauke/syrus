@@ -3,7 +3,7 @@ require "digest"
 require "json"
 
 module DesignDocs
-  class DesignDoc < ApplicationRecord
+  class DesignDoc < Syrus::Host::Record
     self.table_name = "design_docs"
 
     VISIBILITIES = %w[private public].freeze
@@ -56,10 +56,10 @@ module DesignDocs
     end
 
     def self.visible_to(user)
-      user = User.find(user) unless user.is_a?(User)
+      user = Syrus::Host::UserRecord.find(user) unless user.is_a?(Syrus::Host::UserRecord)
       collaborator_doc_ids = DesignDocs::DesignDocCollaborator.where(user: user).select(:design_doc_id)
       public_doc_ids = DesignDocs::DesignDocRepository
-        .where(repository_id: Repository.accessible_to(user).select(:id))
+        .where(repository_id: Syrus::Host::RepositoryRecord.accessible_to(user).select(:id))
         .select(:design_doc_id)
 
       where(owner_user: user)
@@ -174,11 +174,11 @@ module DesignDocs
     end
 
     def publish_search_upsert
-      Syrus::Events.publish("design_doc.upserted", design_doc_id: id)
+      Syrus::Host::Events.publish("design_doc.upserted", design_doc_id: id)
     end
 
     def publish_search_delete
-      Syrus::Events.publish("design_doc.deleted", design_doc_id: id)
+      Syrus::Host::Events.publish("design_doc.deleted", design_doc_id: id)
     end
   end
 end

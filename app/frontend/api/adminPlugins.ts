@@ -32,7 +32,6 @@ export type AdminPlugin = {
     jobs?: { queue: string; depth: number; failed_count: number; discarded_count: number; last_error?: string | null; last_discarded_at?: string | null }
     host_surface?: {
       public: Array<{ constant: string; tier: string; path: string; line: number }>
-      legacy: Array<{ constant: string; tier: string; path: string; line: number }>
       unlisted: Array<{ constant: string; tier: string; path: string; line: number }>
       dynamic: Array<{ constant: string; tier: string; path: string; line: number; method: string }>
       minimum_syrus_version?: string | null

@@ -1,7 +1,7 @@
 require "base64"
 require "socket"
 
-class TerminalChannel < ApplicationCable::Channel
+class TerminalChannel < Syrus::Host::CableChannel
   RELAY_ADDRESS_TIMEOUT = 2.seconds
   RELAY_ADDRESS_POLL_INTERVAL = 0.2.seconds
   RELAY_CONNECT_TIMEOUT = 1.second

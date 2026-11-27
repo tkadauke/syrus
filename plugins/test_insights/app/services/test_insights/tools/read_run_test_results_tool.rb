@@ -41,7 +41,7 @@ module TestInsights
 
       class << self
         def call(server_context:, run_id:, grader_name: nil, include_slow_cases: false, include_suites: false, case_limit: nil)
-          Mcp::Tools.with_database_connection do
+          Syrus::Host::McpTools.with_database_connection do
             context = current_context(server_context)
             run = run_for(context, run_id: run_id)
             payload = TestInsights::RunResults.for_run(
@@ -52,13 +52,13 @@ module TestInsights
               case_limit: case_limit
             )
 
-            Mcp::Tools.success(payload)
+            Syrus::Host::McpTools.success(payload)
           end
         rescue ActiveRecord::RecordNotFound
-          Mcp::Tools.not_authorized
+          Syrus::Host::McpTools.not_authorized
         rescue StandardError => e
           Rails.logger.error("[Mcp::Tools::ReadRunTestResultsTool] #{e.class}: #{e.message}")
-          Mcp::Tools.invalid("#{e.class}: #{e.message}")
+          Syrus::Host::McpTools.invalid("#{e.class}: #{e.message}")
         end
       end
     end

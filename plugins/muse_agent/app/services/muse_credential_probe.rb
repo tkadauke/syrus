@@ -14,8 +14,8 @@ class MuseCredentialProbe
 
     Dir.mktmpdir("syrus-muse-probe-") do |workspace|
       output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(AgentInvocation::ENV_FORWARD, extra: MuseInvocation::LAUNCHER_ENV),
+      result = Syrus::Host::ProcessRunner.new(
+        env: Syrus::Host::ProcessRunner.forwarded_env(Syrus::Host::AgentRuntime.forwarded_env_keys, extra: MuseInvocation::LAUNCHER_ENV),
         command: [
           "muse", "exec",
           "--json",
@@ -24,9 +24,9 @@ class MuseCredentialProbe
           "Reply with OK."
         ],
         stdin_data: user.muse_api_key,
-        mounts: ProcessRunner.mounts(workspace),
+        mounts: Syrus::Host::ProcessRunner.mounts(workspace),
         network: "agent",
-        timeout: CredentialProbe::TIMEOUT_SECONDS,
+        timeout: Syrus::Host::CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",
         on_output_chunk: ->(chunk) { append_output(output, chunk) }

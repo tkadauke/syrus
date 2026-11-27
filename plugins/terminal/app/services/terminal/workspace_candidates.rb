@@ -248,7 +248,7 @@ module Terminal
       def queue_name_for(workflow)
         storage_key = workflow.worker_storage_key.presence
         if storage_key
-          queue_name = Workflow.resume_queue_name(storage_key)
+          queue_name = Syrus::Host::WorkflowRecord.resume_queue_name(storage_key)
           return queue_name if live_resume_queues.include?(queue_name)
 
           return nil
@@ -258,7 +258,7 @@ module Terminal
         return nil unless host
         return nil unless live_worker_hosts.include?(host)
 
-        Workflow.resume_queue_name(host)
+        Syrus::Host::WorkflowRecord.resume_queue_name(host)
       end
 
       def live_resume_queues
@@ -266,7 +266,7 @@ module Terminal
       end
 
       def live_worker_hosts
-        @live_worker_hosts ||= InstanceVersion.fresh.where(role: "worker").pluck(:hostname).to_set
+        @live_worker_hosts ||= Syrus::Host::InstanceVersion.fresh.where(role: "worker").pluck(:hostname).to_set
       rescue ActiveRecord::StatementInvalid
         Set.new
       end
@@ -274,7 +274,7 @@ module Terminal
 
     class ChatCandidate < Candidate
       def self.for(chat)
-        working_directory = ChatWorkspace.path_for(chat)
+        working_directory = Syrus::Host::ChatWorkspace.path_for(chat)
         return nil unless working_directory.directory?
 
         new(chat, working_directory:)
@@ -298,7 +298,7 @@ module Terminal
       def queue_name = "chat"
 
       def label
-        title = @chat.title.presence || ChatSession.fallback_title_for(repository) || "Chat ##{@chat.id}"
+        title = @chat.title.presence || Syrus::Host::ChatSessionRecord.fallback_title_for(repository) || "Chat ##{@chat.id}"
         "Chat ##{@chat.id} - #{title}"
       end
 
@@ -361,12 +361,12 @@ module Terminal
       end
 
       def self.live_worker_instances
-        InstanceVersion.fresh.where(role: "worker").order(:hostname)
+        Syrus::Host::InstanceVersion.fresh.where(role: "worker").order(:hostname)
       end
 
       def self.fallback_instance
         Struct.new(:hostname, :data_root_path, :last_heartbeat_at, :started_at)
-          .new(SyrusVersion.hostname, WorkerStorageIdentity.default_data_root.to_s, Time.current, Time.current)
+          .new(Syrus::Host::SyrusVersion.hostname, Syrus::Host::WorkerStorageIdentity.default_data_root.to_s, Time.current, Time.current)
       end
 
       def self.queues_for(instance)
@@ -376,9 +376,9 @@ module Terminal
 
       def self.live_resume_queues_by_hostname
         SolidQueue::Process.where.not(last_heartbeat_at: nil).each_with_object({}) do |process, memo|
-          next if process.last_heartbeat_at < InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago
+          next if process.last_heartbeat_at < Syrus::Host::InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago
 
-          resume_queues = InstanceVersion.queue_names(process.metadata&.dig("queues")).select { |queue| queue.start_with?("resume-") }
+          resume_queues = Syrus::Host::InstanceVersion.queue_names(process.metadata&.dig("queues")).select { |queue| queue.start_with?("resume-") }
           next if resume_queues.empty?
 
           memo[process.hostname] ||= []

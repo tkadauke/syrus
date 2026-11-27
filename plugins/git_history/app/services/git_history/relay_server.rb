@@ -17,7 +17,7 @@ module GitHistory
   # internal network only, never exposed through public ingress. Binding
   # 0.0.0.0 means anything else reachable on that port/network could ask for
   # any repository id, bypassing `GitHistoryController`'s
-  # `Repository.accessible_to(Current.user)` check entirely — the controller
+  # `Repository.accessible_to(Syrus::Host::Current.user)` check entirely — the controller
   # authorizes the *request*, but nothing previously authorized the *caller*.
   # Every request now requires a `Bearer` token matching GitHistory::RelayToken
   # (see RelayClient), a secret derived from the app's own secret_key_base so
@@ -76,7 +76,7 @@ module GitHistory
       def polling_queue_consumer?
         return @polling_queue_consumer if defined?(@polling_queue_consumer)
 
-        @polling_queue_consumer = WorkerQueueTopology.consumes?(POLLING_QUEUE)
+        @polling_queue_consumer = Syrus::Host::WorkerQueueTopology.consumes?(POLLING_QUEUE)
       end
     end
 
@@ -145,7 +145,7 @@ module GitHistory
     end
 
     def find_repository(repository_id)
-      with_connection { Repository.find_by(id: repository_id) }
+      with_connection { Syrus::Host::RepositoryRecord.find_by(id: repository_id) }
     end
 
     def not_found

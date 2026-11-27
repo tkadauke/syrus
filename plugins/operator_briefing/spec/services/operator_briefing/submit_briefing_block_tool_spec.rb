@@ -20,7 +20,7 @@ RSpec.describe OperatorBriefing::Tools::SubmitBriefingBlockTool do
   before do
     PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    Syrus::Installer.reset!
+    Syrus::Host::Installer.reset!
     Feature.clear_enabled_cache!("operator_briefing")
   end
 

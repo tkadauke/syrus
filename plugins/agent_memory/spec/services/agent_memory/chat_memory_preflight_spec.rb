@@ -16,7 +16,7 @@ RSpec.describe Prompts::ChatSystem, "memory preflight" do
   end
 
   it "adds no memory section or preflight when no memory store is registered" do
-    allow(Syrus::Memory).to receive(:chat_instructions).and_return("")
+    allow(Syrus::Host::Memory).to receive(:chat_instructions).and_return("")
     out = described_class.new(repository: repo, chat_session: chat).to_s.squish
 
     expect(out).not_to include("## Memory", "Memory preflight", "list_memories", "search_memories")

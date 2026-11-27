@@ -94,7 +94,7 @@ module TestInsights
     end
 
     def accessible_scope
-      @user.admin? ? Repository.all : Repository.accessible_to(@user)
+      @user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(@user)
     end
 
     def clamp_limit(limit)

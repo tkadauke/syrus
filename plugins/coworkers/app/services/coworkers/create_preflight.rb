@@ -56,9 +56,9 @@ class Coworkers::CreatePreflight
     raise ArgumentError, "chat provider is not configured: #{provider}" unless @owner.chat_provider_configured?(provider)
     return if model.blank?
 
-    available = Array(Syrus::Host::AgentProviders.for(provider).available_models).map { |entry| entry.respond_to?(:id) ? entry.id : entry.to_s }
+    available = Array(Syrus::Host::AgentProviderRegistry.for(provider).available_models).map { |entry| entry.respond_to?(:id) ? entry.id : entry.to_s }
     raise ArgumentError, "unknown chat model for #{provider}: #{model}" unless available.include?(model)
-  rescue Syrus::Host::AgentProviders::ConfigurationError
+  rescue Syrus::Host::AgentProviderConfigurationError
     raise ArgumentError, "chat provider is not configured: #{provider}"
   end
 

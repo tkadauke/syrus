@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocRepository < ApplicationRecord
+  class DesignDocRepository < Syrus::Host::Record
     self.table_name = "design_doc_repositories"
 
     belongs_to :design_doc, class_name: "DesignDocs::DesignDoc"
@@ -13,7 +13,7 @@ module DesignDocs
     private
 
     def publish_design_doc_search_upsert
-      Syrus::Events.publish("design_doc.upserted", design_doc_id: design_doc_id)
+      Syrus::Host::Events.publish("design_doc.upserted", design_doc_id: design_doc_id)
     end
   end
 end

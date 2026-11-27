@@ -5,10 +5,10 @@ RSpec.describe "Local backup jobs", type: :job do
     allow(LocalBackups::Creator).to receive(:new).and_return(instance_double(LocalBackups::Creator, call: backup))
     retention = instance_double(LocalBackups::Retention, call: nil)
     allow(LocalBackups::Retention).to receive(:new).and_return(retention)
-    allow(Syrus::Events).to receive(:publish)
+    allow(Syrus::Host::Events).to receive(:publish)
     LocalBackups::CreateJob.perform_now(reason: "manual")
     expect(retention).to have_received(:call)
-    expect(Syrus::Events).to have_received(:publish).with(
+    expect(Syrus::Host::Events).to have_received(:publish).with(
       "local_backups.backup.completed", backup_uuid: "backup-uuid", stored_bytes: 12
     )
   end

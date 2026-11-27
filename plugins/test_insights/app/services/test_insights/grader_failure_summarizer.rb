@@ -12,8 +12,6 @@ module TestInsights
   #
   # These records are exact, so this summary is complete by construction.
   class GraderFailureSummarizer
-    include Syrus::Plugin::GraderFailureSummarizer
-
     FAILED_STATUSES = %w[failed error].freeze
     FILE_LIMIT = 15
     EXAMPLES_PER_FILE = 5

@@ -2,7 +2,7 @@ require "fileutils"
 require "json"
 
 class AgyInvocation
-  DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
+  DEFAULT_TIMEOUT_SECONDS = Syrus::Host::AgentRuntime.default_timeout_seconds
   STARTUP_ERROR_MAX_BYTES = 4.kilobytes
 
   def self.configured_model
@@ -114,16 +114,16 @@ class AgyInvocation
     current_chat_session = Thread.current[:syrus_current_chat_session]
     current_agent =
       Thread.current[:syrus_current_agent] ||
-      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
+      (Syrus::Host::AgentRecord.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
 
-    runner_result = ProcessRunner.new(
+    runner_result = Syrus::Host::ProcessRunner.new(
       env: agy_env(workspace_path: workspace_path, agy_home: agy_home, api_key: api_key, model: model, effort_level: effort_level).merge(env || {}),
       command: agy_command(resume_session_id: effective_resume_session_id),
       stdin_data: stdin_event(prompt),
-      mounts: ProcessRunner.agent_mounts(workspace_path, agy_home),
+      mounts: Syrus::Host::ProcessRunner.agent_mounts(workspace_path, agy_home),
       network: "agent",
       timeout: timeout,
-      silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+      silent_timeout: Syrus::Host::AgentRuntime.silent_timeout_seconds,
       kind: "agent",
       run: current_run,
       workflow: current_run&.workflow,
@@ -132,8 +132,8 @@ class AgyInvocation
       stop_requested: stop_requested,
       on_spawned_process: process_started,
       workload_policy: workload_policy,
-      max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
-      on_output_line_too_long: AgentInvocation.oversized_event_handler("Agy"),
+      max_output_line_bytes: Syrus::Host::AgentRuntime.max_event_bytes,
+      on_output_line_too_long: Syrus::Host::AgentRuntime.oversized_event_handler("Agy"),
       on_output_line: ->(line) do
         update = process_event(line, log_sink, required_mcp_tools: required_mcp_tools)
         if update
@@ -167,7 +167,7 @@ class AgyInvocation
       session_id: metadata[:session_id]
     )
 
-    AgentInvocation::Result.new(
+    Syrus::Host::InvocationResult.new(
       turns: metadata[:turns],
       exit_status: cleanup_timeout ? 0 : runner_result.exit_status,
       timed_out: !cleanup_timeout && (runner_result.timed_out || runner_result.silent_timed_out),
@@ -209,9 +209,9 @@ class AgyInvocation
   end
 
   def agy_env(workspace_path:, agy_home:, api_key:, model:, effort_level:)
-    ProcessRunner.forwarded_env(
-      AgentInvocation::ENV_FORWARD,
-      extra: WorkspaceDependencyEnv.for(workspace_path).merge(
+    Syrus::Host::ProcessRunner.forwarded_env(
+      Syrus::Host::AgentRuntime.forwarded_env_keys,
+      extra: Syrus::Host::WorkspaceDependencyEnv.for(workspace_path).merge(
         "HOME" => agy_home,
         "AGY_HOME" => agy_home,
         "ANTIGRAVITY_HOME" => agy_home,
@@ -232,7 +232,7 @@ class AgyInvocation
         {
           command: server.fetch(:command),
           args: Array(server[:args]),
-          env: AgentSidecarEnvironment.filter_for_agent_config(server)
+          env: Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server)
         }
       end
     }
@@ -257,7 +257,7 @@ class AgyInvocation
       {
         command: server.fetch(:command),
         args: Array(server[:args]),
-        env: AgentSidecarEnvironment.filter_for_agent_config(server)
+        env: Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server)
       }
     end
   end
@@ -448,8 +448,8 @@ class AgyInvocation
   end
 
   def error_outcome(detail)
-    return ProviderUsageLimit::OUTCOME if ProviderUsageLimit.detect?(detail)
-    return ProviderAuthFailure::OUTCOME if ProviderAuthFailure.detect?(detail)
+    return Syrus::Host::ProviderUsageLimit::OUTCOME if Syrus::Host::ProviderUsageLimit.detect?(detail)
+    return Syrus::Host::ProviderAuthFailure::OUTCOME if Syrus::Host::ProviderAuthFailure.detect?(detail)
 
     "error"
   end

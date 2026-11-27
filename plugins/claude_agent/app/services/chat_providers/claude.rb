@@ -2,8 +2,8 @@ require "fileutils"
 require "json"
 
 module ChatProviders
-  class Claude < Base
-    include Syrus::Plugin::ChatProvider
+  class Claude < Syrus::Host::ChatProviderBase
+    include Syrus::Host::ChatProvider
 
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
     PLANNING_DISALLOWED_TOOLS = %w[
@@ -31,7 +31,7 @@ module ChatProviders
     def self.provider = provider_key
 
     def self.invoke_event_evaluator(chat_session:, workspace_path:, prompt:, session_id:, transcript_jsonl:, mcp_config:, timeout:, max_turns:, runner:)
-      path = ProviderSession.canonical_path_for(home: ENV.fetch("HOME"), cwd: workspace_path, session_id: session_id)
+      path = Syrus::Host::ProviderSession.canonical_path_for(home: ENV.fetch("HOME"), cwd: workspace_path, session_id: session_id)
       FileUtils.mkdir_p(File.dirname(path))
       File.write(path, transcript_jsonl)
 
@@ -119,9 +119,9 @@ module ChatProviders
       session_id = normalized_session_id(result.session_id)
       return missing_session_capture(result) unless session_id
 
-      path = ProviderSession.canonical_path_for(
+      path = Syrus::Host::ProviderSession.canonical_path_for(
         home: ENV.fetch("HOME"),
-        cwd: ChatWorkspace.path_for(chat),
+        cwd: Syrus::Host::ChatWorkspace.path_for(chat),
         session_id: session_id
       )
 
@@ -133,7 +133,7 @@ module ChatProviders
           transcript_jsonl: transcript,
           normalized_messages: normalized_messages_for(
             merge_subagent_transcripts(transcript, home: ENV.fetch("HOME"),
-                                                     cwd: ChatWorkspace.path_for(chat), session_id: session_id)
+                                                     cwd: Syrus::Host::ChatWorkspace.path_for(chat), session_id: session_id)
           ),
           missing_message: nil
         )
@@ -152,7 +152,7 @@ module ChatProviders
 
     def run_invocation(workspace_path:, prompt:, mcp_config:, resume_session_id:,
                        stop_requested:, process_started:, log_sink:, workload_policy:)
-      claude_home = ChatWorkspace.agent_home_for(chat, provider).to_s
+      claude_home = Syrus::Host::ChatWorkspace.agent_home_for(chat, provider).to_s
       FileUtils.mkdir_p(claude_home)
       confined_mcp_config = mcp_config
       if File.file?(mcp_config)
@@ -183,12 +183,12 @@ module ChatProviders
     # Prepend the full chat system prompt so the fresh-retry session gets the
     # role / tools / proposal-flow instructions the resume-mode prompt omits.
     def prompt_with_system(prompt)
-      system = Prompts::ChatSystem.new(repository: chat.repository, chat_session: chat).to_s
+      system = Syrus::Host::AgentPrompts.chat_system(repository: chat.repository, chat_session: chat)
       "#{system}\n\n---\n\n#{prompt}"
     end
 
     def recovery_prompt(prompt)
-      recovery_context = ChatHistoryTranscriptRenderer.resume_recovery(chat_session: chat)
+      recovery_context = Syrus::Host::ChatHistoryTranscriptRenderer.resume_recovery(chat_session: chat)
       [ recovery_context, prompt_without_compact_fallback(prompt) ].compact.join("\n\n---\n\n")
     end
 
@@ -223,16 +223,16 @@ module ChatProviders
     def ensure_provider_session_on_disk!(workspace_path:, session_id:)
       return if session_id.blank?
 
-      PerformanceLogging.phase("chat_startup.session_restore", chat_session_id: chat.id, capture_host_pressure: true) do
-        path = ProviderSession.canonical_path_for(
+      Syrus::Host::PerformanceLogging.phase("chat_startup.session_restore", chat_session_id: chat.id, capture_host_pressure: true) do
+        path = Syrus::Host::ProviderSession.canonical_path_for(
           home: ENV.fetch("HOME"),
           cwd: workspace_path,
           session_id: session_id
         )
-        next if File.exist?(path) && !ChatContextCompactor.enabled_for?(chat)
+        next if File.exist?(path) && !Syrus::Host::ChatContextCompactor.enabled_for?(chat)
         next unless chat.messages.exists?
 
-        jsonl = ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
+        jsonl = Syrus::Host::ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
         FileUtils.mkdir_p(File.dirname(path))
         File.write(path, jsonl)
       end
@@ -249,7 +249,7 @@ module ChatProviders
         return denied.uniq
       end
 
-      return CODING_DISALLOWED_TOOLS if Feature.coding_mode_enabled? && chat.coding?
+      return CODING_DISALLOWED_TOOLS if Syrus::Host::Feature.coding_mode_enabled? && chat.coding?
 
       PLANNING_DISALLOWED_TOOLS
     end
@@ -282,7 +282,7 @@ module ChatProviders
     # ClaudeTranscript can tag sidechain events instead of losing them
     # entirely (the main transcript alone has no trace of subagent activity).
     def merge_subagent_transcripts(transcript, home:, cwd:, session_id:)
-      dir = ProviderSession.canonical_subagents_dir_for(home: home, cwd: cwd, session_id: session_id)
+      dir = Syrus::Host::ProviderSession.canonical_subagents_dir_for(home: home, cwd: cwd, session_id: session_id)
       return transcript unless Dir.exist?(dir)
 
       subagent_lines = Dir.glob(File.join(dir, "**", "agent-*.jsonl")).flat_map do |agent_path|

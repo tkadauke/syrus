@@ -1,6 +1,6 @@
 module AgentProviders
-  class Codex < Base
-    include Syrus::Plugin::AgentProvider
+  class Codex < Syrus::Host::AgentProviderBase
+    include Syrus::Host::AgentProvider
 
     def self.provider_key = "codex"
     def self.display_name = "Codex"
@@ -33,19 +33,19 @@ module AgentProviders
     # CodexInvocation accepts via `model =` in config.toml.
     def self.available_models
       [
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.6-sol", display_name: "GPT-5.6 Sol",
           context_window: :large, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.5", display_name: "GPT-5.5",
           context_window: :large, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.2-codex", display_name: "GPT-5.2 Codex",
           context_window: :large, cost_tier: :medium
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gpt-5.1-codex-mini", display_name: "GPT-5.1 Codex Mini",
           context_window: :standard, cost_tier: :low
         )
@@ -63,34 +63,34 @@ module AgentProviders
       reset_values = windows.filter_map { |window| window["reset_at"].presence }
       return if reset_values.blank?
 
-      Time.zone.parse(reset_values.min) + ProviderQuotaReset::RETRY_BUFFER
+      Time.zone.parse(reset_values.min) + Syrus::Host::ProviderQuotaReset::RETRY_BUFFER
     rescue ArgumentError, TypeError
       nil
     end
 
     def self.false_positive_evidence?(evidence)
-      ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
+      Syrus::Host::ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
         evidence.details&.dig("message"),
         model: evidence.model
       )
     end
 
     def self.suppress_usage_limit_run?(run, model:, observed_at:)
-      ProviderAvailabilityEvidence.suppressed_by_positive_after?(
+      Syrus::Host::ProviderAvailabilityEvidence.suppressed_by_positive_after?(
         user: run.user,
         provider: provider_key,
-        account_id: run.provider_account&.public_id || CodexAccountScope.for_user(run.user),
+        account_id: run.provider_account&.public_id || Syrus::Host::CodexAccountScope.for_user(run.user),
         model: model,
         observed_at: observed_at
       )
     end
 
     def self.ignore_model_for_positive_evidence?(model)
-      ProviderUsageLimit.suspicious_model?(model)
+      Syrus::Host::ProviderUsageLimit.suspicious_model?(model)
     end
 
     def self.usage_signal_account_id(user)
-      user.default_provider_account(provider_key)&.public_id || CodexAccountScope.for_user(user)
+      user.default_provider_account(provider_key)&.public_id || Syrus::Host::CodexAccountScope.for_user(user)
     end
 
     def self.usage_snapshot(user:, evidence:)
@@ -128,7 +128,7 @@ module AgentProviders
     end
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
-      codex_home = File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
+      codex_home = File.join(Syrus::Host::WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
       codex_auth = CodexAuth.new(user: user, codex_home: codex_home)
       auth = CodexAuth.with_refresh_lock(user: user) { codex_auth.prepare! }
       begin
@@ -168,7 +168,7 @@ module AgentProviders
 
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
                          model: nil, effort_level: nil, workload_policy: nil)
-      codex_home = WorkflowWorkspace.agent_home_for(workflow, provider)
+      codex_home = Syrus::Host::WorkflowWorkspace.agent_home_for(workflow, provider)
       codex_auth = CodexAuth.new(user: job.user, provider_account: provider_account, codex_home: codex_home)
       auth = if provider_account
         CodexAuth.with_refresh_lock(user: job.user, provider_account: provider_account) { codex_auth.prepare! }
@@ -182,7 +182,7 @@ module AgentProviders
           prompt: prompt,
           api_key: auth.api_key,
           log_sink: log_sink,
-          runner: RunJob.agent_runner,
+          runner: Syrus::Host::RunJob.agent_runner,
           timeout: timeout,
           codex_home: codex_home,
           mcp_server: (mcp ? mcp_server : nil),
@@ -204,7 +204,7 @@ module AgentProviders
     end
 
     def resume_transcript_jsonl(session_id)
-      AgentProviders::SessionStore.transcript_for(provider: provider, session_id: session_id, job: job)
+      Syrus::Host::AgentSessionStore.transcript_for(provider: provider, session_id: session_id, job: job)
     end
   end
 end

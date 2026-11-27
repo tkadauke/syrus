@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module WorkerTimeline
-      class Window < DateColumn
+      class Window < Syrus::Host::Filters::Chips::DateColumn
         filter_name "window"
         label "Time window"
         column :started_at

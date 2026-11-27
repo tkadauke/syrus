@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module WorkerTimeline
-      class Hostname < Base
+      class Hostname < Syrus::Host::Filters::Chips::Base
         filter_name "hostname"
         label "Hostname"
         bucket :fk

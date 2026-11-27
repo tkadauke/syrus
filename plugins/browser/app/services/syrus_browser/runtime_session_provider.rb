@@ -1,7 +1,7 @@
 module SyrusBrowser
   # DOC-17's first concrete RuntimeSessionProvider: a headless-Chromium
   # session driving the repo's own dev server, via the same
-  # PreviewProcessLauncher / Mcp::Tools::AgentPreviewRegistry the workflow
+  # PreviewProcessLauncher / Syrus::Host::AgentPreviewRegistry the workflow
   # start_preview MCP tool uses -- one dev-server-start-and-health-check
   # implementation shared across both call sites, not two.
   #
@@ -12,7 +12,7 @@ module SyrusBrowser
   # provider's own capture paths through them keeps exactly one
   # implementation of "how a browser session is driven," not two.
   class RuntimeSessionProvider
-    include Syrus::Plugin::RuntimeSessionProvider
+    include Syrus::Host::RuntimeSessionProvider
 
     SessionNotFoundError = Class.new(StandardError)
 
@@ -30,7 +30,7 @@ module SyrusBrowser
         workspace_path = config[:workspace_path] || config["workspace_path"]
         return false if workspace_path.blank?
 
-        PreviewCommandSource.new(workspace_path).resolve.present?
+        Syrus::Host::PreviewCommandSource.new(workspace_path).resolve.present?
       end
 
       def capabilities(_repository, _config)
@@ -48,14 +48,14 @@ module SyrusBrowser
       config = config.to_h.symbolize_keys
       port = Integer(config[:port] || DEFAULT_PORT)
 
-      result = PreviewProcessLauncher.new(workspace_ref).launch!(key: workspace_ref, port: port)
+      result = Syrus::Host::PreviewProcessLauncher.new(workspace_ref).launch!(key: workspace_ref, port: port)
 
       { workspace_ref: workspace_ref, pid: result.pid, port: result.port, url: result.url }
     end
 
     def build_or_reload(session_id, options)
       runtime_session = find_runtime_session(session_id)
-      Mcp::Tools::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
+      Syrus::Host::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
       start_session(runtime_session.workspace_ref, options)
     end
 
@@ -101,7 +101,7 @@ module SyrusBrowser
       lease = input_lease_for(runtime_session, owner)
 
       unless lease
-        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
+        Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
         return { error: "lease_required", message: "the #{owner} must hold an active input lease before sending input events" }
       end
 
@@ -129,20 +129,20 @@ module SyrusBrowser
     def stop_session(session_id)
       runtime_session = find_runtime_session(session_id)
       SessionRegistry.kill(SessionContext.for_runtime_session(runtime_session).session_key)
-      Mcp::Tools::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
+      Syrus::Host::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
       true
     end
 
     private
 
     def find_runtime_session(session_id)
-      return session_id if session_id.is_a?(RuntimeSession)
+      return session_id if session_id.is_a?(Syrus::Host::RuntimeSessionRecord)
 
-      RuntimeSession.find(session_id)
+      Syrus::Host::RuntimeSessionRecord.find(session_id)
     end
 
     def running_preview_for!(runtime_session)
-      Mcp::Tools::AgentPreviewRegistry.get(runtime_session.workspace_ref) ||
+      Syrus::Host::AgentPreviewRegistry.get(runtime_session.workspace_ref) ||
         raise(SessionNotFoundError, "no running dev server for session #{runtime_session.id} — call start_session first")
     end
 
@@ -169,7 +169,7 @@ module SyrusBrowser
     end
 
     def resolved_log_path(workspace_path)
-      source = PreviewCommandSource.new(workspace_path).resolve
+      source = Syrus::Host::PreviewCommandSource.new(workspace_path).resolve
       raw_path = source&.log_paths&.first
       return nil if raw_path.blank? || workspace_path.blank?
 

@@ -1,5 +1,5 @@
 module VideoWalkthroughs
-  extend Syrus::PluginApi
+  extend Syrus::Host::PluginApi
 
   syrus_plugin "video_walkthroughs" do
     requires_syrus nil
@@ -37,8 +37,8 @@ module VideoWalkthroughs
     # them (and their blobs) with it whether the plugin is on or not -- a
     # disabled plugin must not leave orphaned 500MB blobs behind.
     always "chat session associations" do |_scope|
-      unless ChatSession.reflect_on_association(:video_walkthroughs)
-        ChatSession.has_many :video_walkthroughs,
+      unless Syrus::Host::ChatSessionRecord.reflect_on_association(:video_walkthroughs)
+        Syrus::Host::ChatSessionRecord.has_many :video_walkthroughs,
                              class_name: "VideoWalkthroughs::Walkthrough",
                              foreign_key: :chat_session_id,
                              dependent: :destroy
@@ -47,7 +47,7 @@ module VideoWalkthroughs
     end
 
     # A plain aggregate value on a timer -- the declarative sample-block form
-    # (see Syrus::PluginApi::Definition#metrics) samples this on the shared
+    # (see Syrus::Host::PluginApi::Definition#metrics) samples this on the shared
     # control-plane tick, independent of Callbacks#on_tick's own daily
     # retention cadence.
     metrics do

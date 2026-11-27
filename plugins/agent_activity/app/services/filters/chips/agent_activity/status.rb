@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module AgentActivity
-      class Status < Base
+      class Status < Syrus::Host::Filters::Chips::Base
         filter_name "status"
         label "Status"
         bucket :enum

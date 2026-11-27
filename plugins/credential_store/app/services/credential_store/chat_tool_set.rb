@@ -1,6 +1,6 @@
 module CredentialStore
   class ChatToolSet
-    include Syrus::Plugin::ChatMcpToolSet
+    include Syrus::Host::ChatMcpToolSet
 
     TOOL_CLASSES = [ ListCredentialsTool, SshExecTool ].freeze
 
@@ -24,7 +24,7 @@ module CredentialStore
 
     def handle(tool_name, params, server_context)
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown credential store tool: #{tool_name.inspect}") unless klass
+      return Syrus::Host::McpTools.invalid("Unknown credential store tool: #{tool_name.inspect}") unless klass
 
       klass.call(**symbolize(params), server_context: server_context)
     end

@@ -20,23 +20,23 @@ module SdlcPipeline
     class << self
       def call(repository_id:, filter:, server_context:, at: nil, range_start: nil, range_end: nil)
         chat_session = server_context.fetch(:chat_session)
-        repository = Repository.accessible_to(chat_session.user).active.find(repository_id)
-        ast = Filters::Ast.parse(filter)
-        Filters::Compiler.call(ast, scope: Job.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
-        validated = Filters::Ast.serialize(ast)
+        repository = Syrus::Host::RepositoryRecord.accessible_to(chat_session.user).active.find(repository_id)
+        ast = Syrus::Host::Filters::Ast.parse(filter)
+        Syrus::Host::Filters::Compiler.call(ast, scope: Syrus::Host::JobRecord.none, user: chat_session.user, subject: SmartFolders::SUBJECT).load
+        validated = Syrus::Host::Filters::Ast.serialize(ast)
         at, range_start, range_end = [ at, range_start, range_end ].map { |value| validated_time(value) }
         path = pipeline_path(repository.id, validated, at:, range_start:, range_end:)
 
-        AppEvents.broadcast_chat_resource(
+        Syrus::Host::AppEvents.broadcast_chat_resource(
           chat_session_id: chat_session.id, type: "updated", resource: "chat", id: chat_session.id,
           payload: { action: "open_tool_presentation", presentation: "sdlc_pipeline", title_i18n_key: "sdlc_pipeline:title", path: path }
         )
-        Mcp::Tools.success(repository: { id: repository.id, slug: repository.slug }, filter: validated, path: path,
+        Syrus::Host::McpTools.success(repository: { id: repository.id, slug: repository.slug }, filter: validated, path: path,
                            at: at, range_start: range_start, range_end: range_end)
       rescue ArgumentError, ActiveRecord::StatementInvalid => e
-        Mcp::Tools.invalid(e.message)
+        Syrus::Host::McpTools.invalid(e.message)
       rescue ActiveRecord::RecordNotFound
-        Mcp::Tools.invalid("Repository is unavailable.")
+        Syrus::Host::McpTools.invalid("Repository is unavailable.")
       end
 
       private
@@ -50,7 +50,7 @@ module SdlcPipeline
       end
 
       def pipeline_path(repository_id, filter, at:, range_start:, range_end:)
-        params = { q: Filters::QueryParam.encode(filter), at: at, range_start: range_start, range_end: range_end }.compact
+        params = { q: Syrus::Host::Filters::QueryParam.encode(filter), at: at, range_start: range_start, range_end: range_end }.compact
         "/repositories/#{repository_id}/plugin/sdlc-pipeline?#{params.to_query}"
       end
     end

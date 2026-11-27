@@ -3,10 +3,10 @@ module AgentActivity
     def kind = step&.kind
 
     def role
-      AgentRole.for_step_kind(step.kind) if step
+      Syrus::Host::AgentRole.for_step_kind(step.kind) if step
     end
 
-    def role_label = step ? Step::Kind.label_for(step.kind) : "Workflow"
+    def role_label = step ? Syrus::Host::Step::Kind.label_for(step.kind) : "Workflow"
     def agent_provider = @resumable.agent_provider
     def state = @resumable.state
     def workflow_id = step&.workflow_id
@@ -33,7 +33,7 @@ module AgentActivity
 
       {
         id: job.id,
-        slug: ::App::Presentation.job_slug(job.id),
+        slug: Syrus::Host::AppPresentation.job_slug(job.id),
         title: job.issue_title,
         state: job.state
       }

@@ -10,7 +10,7 @@ module VideoWalkthroughs
   class CredentialProbe
     CREDENTIAL = "gemini_api_key".freeze
 
-    Result = ::CredentialProbe::Result
+    Result = Syrus::Host::CredentialProbe::Result
 
     def self.call(probe)
       user = probe.send(:user)

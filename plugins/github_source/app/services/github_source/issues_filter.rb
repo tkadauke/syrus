@@ -72,22 +72,22 @@ module GithubSource
     end
 
     def self.from_params(params)
-      new(Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME]))
+      new(Syrus::Host::Filters::QueryParam.decode(params[Syrus::Host::Filters::QueryParam::PARAM_NAME]))
     end
 
     def self.for_request(params, folder:)
-      return from_params(params) if params.key?(Filters::QueryParam::PARAM_NAME) || params.key?(Filters::QueryParam::PARAM_NAME.to_s)
+      return from_params(params) if params.key?(Syrus::Host::Filters::QueryParam::PARAM_NAME) || params.key?(Syrus::Host::Filters::QueryParam::PARAM_NAME.to_s)
       return new({ "and" => [] }) unless PRESETS.key?(folder)
 
       new({ "and" => [ { "field" => PRESET_FIELD, "op" => "is", "value" => folder } ] })
     end
 
     def initialize(tree)
-      @ast = Filters::Ast.parse(tree)
+      @ast = Syrus::Host::Filters::Ast.parse(tree)
     end
 
     def to_h
-      Filters::Ast.serialize(@ast)
+      Syrus::Host::Filters::Ast.serialize(@ast)
     end
 
     def query
@@ -126,11 +126,11 @@ module GithubSource
         collected = {}
         collect = lambda do |node|
           case node
-          when Filters::Ast::Chip
+          when Syrus::Host::Filters::Ast::Chip
             collected[node.field] = node.value if OWNED_FIELDS.include?(node.field) && !collected.key?(node.field)
-          when Filters::Ast::AndNode, Filters::Ast::OrNode
+          when Syrus::Host::Filters::Ast::AndNode, Syrus::Host::Filters::Ast::OrNode
             node.children.each(&collect)
-          when Filters::Ast::NotNode
+          when Syrus::Host::Filters::Ast::NotNode
             collect.call(node.child)
           end
         end

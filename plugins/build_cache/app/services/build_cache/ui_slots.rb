@@ -1,6 +1,6 @@
 module BuildCache
   class UiSlots
-    include Syrus::Plugin::UiSlot
+    include Syrus::Host::UiSlot
 
     def self.ui_slots(slot:, context:)
       return [] unless slot == "job.detail"

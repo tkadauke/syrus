@@ -2,7 +2,7 @@ require "fileutils"
 require "json"
 
 class CodexInvocation
-  DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
+  DEFAULT_TIMEOUT_SECONDS = Syrus::Host::AgentRuntime.default_timeout_seconds
   # Overridable instance-wide via SYRUS_CODEX_MODEL, and per routing rule via
   # a candidate's `model`. Worth knowing when changing this: a model the
   # account cannot use fails every invocation with a 400 rather than
@@ -76,9 +76,9 @@ class CodexInvocation
 
   class StartupTiming
     # Stages that are genuinely filesystem/config-bound "chat startup" work.
-    # Deliberately excludes process_spawn (ProcessRunner instruments that
+    # Deliberately excludes process_spawn (Syrus::Host::ProcessRunner instruments that
     # uniformly across providers -- see
-    # ProcessRunner#record_chat_process_spawn_latency! -- so bridging it here
+    # Syrus::Host::ProcessRunner#record_chat_process_spawn_latency! -- so bridging it here
     # too would double-count the same stage) and the post-spawn provider
     # round-trip markers (first_agent_event, mcp_startup, first_agent_message,
     # usage_probe), which measure waiting on the model or a network API, not
@@ -129,7 +129,7 @@ class CodexInvocation
       return unless CHAT_STARTUP_STAGES.include?(stage.to_s)
 
       chat_session = Thread.current[:syrus_current_chat_session]
-      PerformanceLogging.report_duration(
+      Syrus::Host::PerformanceLogging.report_duration(
         "chat_startup.#{stage}",
         elapsed_ms,
         metadata: { provider: "codex", chat_session_id: chat_session&.id }.merge(metadata).compact,
@@ -174,22 +174,22 @@ class CodexInvocation
     current_chat_session = Thread.current[:syrus_current_chat_session]
     current_agent =
       Thread.current[:syrus_current_agent] ||
-      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
+      (Syrus::Host::AgentRecord.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
     process_start_requested_at = startup_timing.now
     output_start_requested_at = process_start_requested_at
     mcp_server_names = normalized_mcp_servers(mcp_servers || mcp_server).keys
     oversized_record_reported = false
-    runner_result = ProcessRunner.new(
+    runner_result = Syrus::Host::ProcessRunner.new(
       env: env,
       command: cmd,
       stdin_data: prompt,
-      mounts: ProcessRunner.agent_mounts(workspace_path, codex_home),
+      mounts: Syrus::Host::ProcessRunner.agent_mounts(workspace_path, codex_home),
       network: "agent",
       timeout: timeout,
-      # See AgentInvocation::SILENT_TIMEOUT_SECONDS — same rationale
+      # See Syrus::Host::AgentRuntime.silent_timeout_seconds — same rationale
       # for codex: continuous JSONL streaming, prolonged silence is
       # a wedged process, not normal pacing.
-      silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+      silent_timeout: Syrus::Host::AgentRuntime.silent_timeout_seconds,
       kind: "agent",
       run: current_run,
       workflow: current_run&.workflow,
@@ -201,8 +201,8 @@ class CodexInvocation
         process_started.call(process)
       },
       workload_policy: workload_policy,
-      max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
-      on_output_line_too_long: AgentInvocation.oversized_event_handler("Codex"),
+      max_output_line_bytes: Syrus::Host::AgentRuntime.max_event_bytes,
+      on_output_line_too_long: Syrus::Host::AgentRuntime.oversized_event_handler("Codex"),
       on_output_line: ->(line) do
         startup_timing.record("first_agent_event", started_at: output_start_requested_at, once: true)
         update = process_event(line, log_sink)
@@ -244,7 +244,7 @@ class CodexInvocation
     cleanup_timeout    = provider_succeeded && (runner_result.timed_out || runner_result.silent_timed_out)
 
     transcript_path = rollout_path_for(codex_home, metadata[:session_id])
-    AgentInvocation::Result.new(
+    Syrus::Host::InvocationResult.new(
       turns: metadata[:turns],
       exit_status: cleanup_timeout ? 0 : runner_result.exit_status,
       timed_out: !cleanup_timeout && (runner_result.timed_out || runner_result.silent_timed_out),
@@ -298,9 +298,9 @@ class CodexInvocation
   end
 
   def codex_env(api_key:, codex_home:)
-    ProcessRunner.forwarded_env(
-      AgentInvocation::ENV_FORWARD,
-      extra: WorkspaceDependencyEnv.for(@workspace_path).merge(
+    Syrus::Host::ProcessRunner.forwarded_env(
+      Syrus::Host::AgentRuntime.forwarded_env_keys,
+      extra: Syrus::Host::WorkspaceDependencyEnv.for(@workspace_path).merge(
         "CODEX_HOME" => codex_home,
         "CODEX_API_KEY" => api_key.presence
       )
@@ -336,7 +336,7 @@ class CodexInvocation
         "tool_timeout_sec = #{server.fetch(:tool_timeout_sec, MCP_TOOL_TIMEOUT_SECONDS)}"
       ]
 
-      env = AgentSidecarEnvironment.filter_for_agent_config(server)
+      env = Syrus::Host::AgentSidecarEnvironment.filter_for_agent_config(server)
       if env.any?
         lines << ""
         lines << "[mcp_servers.#{name}.env]"
@@ -392,26 +392,26 @@ class CodexInvocation
       message = event["error"] || event["message"] || "turn failed"
       detail = message.to_s
       scoped_detail = codex_error_detail(detail)
-      detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
+      detail = scoped_detail if Syrus::Host::ProviderUsageLimit.detect?(scoped_detail)
       log_sink.call("[codex error] #{detail}", kind: "system")
-      if ProviderUsageLimit.detect?(detail)
+      if Syrus::Host::ProviderUsageLimit.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderUsageLimit::OUTCOME,
+          outcome: Syrus::Host::ProviderUsageLimit::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderAuthFailure.detect?(detail)
+      if Syrus::Host::ProviderAuthFailure.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderAuthFailure::OUTCOME,
+          outcome: Syrus::Host::ProviderAuthFailure::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderModelUnsupported.detect?(detail)
+      if Syrus::Host::ProviderModelUnsupported.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderModelUnsupported::OUTCOME,
+          outcome: Syrus::Host::ProviderModelUnsupported::OUTCOME,
           final_text: detail
         }
       end
@@ -428,26 +428,26 @@ class CodexInvocation
       message = event["message"] || event["error"] || "error"
       detail = message.to_s
       scoped_detail = codex_error_detail(detail)
-      detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
+      detail = scoped_detail if Syrus::Host::ProviderUsageLimit.detect?(scoped_detail)
       log_sink.call("[codex error] #{detail}", kind: "system")
-      if ProviderUsageLimit.detect?(detail)
+      if Syrus::Host::ProviderUsageLimit.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderUsageLimit::OUTCOME,
+          outcome: Syrus::Host::ProviderUsageLimit::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderAuthFailure.detect?(detail)
+      if Syrus::Host::ProviderAuthFailure.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderAuthFailure::OUTCOME,
+          outcome: Syrus::Host::ProviderAuthFailure::OUTCOME,
           final_text: detail
         }
       end
-      if ProviderModelUnsupported.detect?(detail)
+      if Syrus::Host::ProviderModelUnsupported.detect?(detail)
         return {
           is_error: true,
-          outcome: ProviderModelUnsupported::OUTCOME,
+          outcome: Syrus::Host::ProviderModelUnsupported::OUTCOME,
           final_text: detail
         }
       end

@@ -87,7 +87,7 @@ module JavaScript
       raw = config["phases"]
       phases =
         case raw
-        when nil then SyrusYml::DEFAULT_GRADE_PHASES
+        when nil then Syrus::Host::GraderDefaults.default_phases
         when String then [ raw ]
         else Array(raw)
         end
@@ -182,7 +182,7 @@ module JavaScript
     end
 
     def base_retry
-      SyrusYml::BaseRetry.new(strategy: "plugin", command: nil)
+      Syrus::Host::GraderBaseRetry.new(strategy: "plugin", command: nil)
     end
 
     def coverage?
@@ -349,7 +349,7 @@ module JavaScript
     end
 
     def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil)
-      SyrusYml::GradeStep.new(
+      Syrus::Host::GraderStep.new(
         name: name,
         display_name: display_name_for(mode),
         run: run,

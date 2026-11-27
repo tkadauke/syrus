@@ -1,13 +1,13 @@
 module Filters
   module Chips
     module AgentActivity
-      class AgentProvider < EnumColumn
+      class AgentProvider < Syrus::Host::Filters::Chips::EnumColumn
         filter_name "agent_provider"
         label "Agent"
         column :agent_provider
 
         def self.values
-          User.agent_providers
+          Syrus::Host::UserRecord.agent_providers
         end
 
         def apply

@@ -82,7 +82,7 @@ RSpec.describe VideoWalkthroughs::CredentialProbe do
       allow(client).to receive(:list_models).and_return(%w[ gemini-3.5-flash ])
       user = Factories.user(gemini_api_key: "AIza-stored")
 
-      result = ::CredentialProbe.call(user: user, credential: "gemini_api_key")
+      result = Syrus::Host::CredentialProbe.call(user: user, credential: "gemini_api_key")
 
       expect(result.ok).to be true
       expect(result.credential).to eq("gemini_api_key")
@@ -93,7 +93,7 @@ RSpec.describe VideoWalkthroughs::CredentialProbe do
     it "reports a missing key without calling Google" do
       user = Factories.user(gemini_api_key: nil)
 
-      result = ::CredentialProbe.call(user: user, credential: "gemini_api_key")
+      result = Syrus::Host::CredentialProbe.call(user: user, credential: "gemini_api_key")
 
       expect(result.ok).to be false
       expect(result.message).to eq("Gemini API key is not configured.")

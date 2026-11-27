@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class InsightScheduleConfigsController < BaseController
+      class InsightScheduleConfigsController < Syrus::Host::AppController
         before_action :require_agent_insights_feature
 
         def show
@@ -35,7 +35,7 @@ module Api
         end
 
         def find_repository
-          repo = Repository.accessible_to(Current.user).find_by(id: params[:id])
+          repo = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).find_by(id: params[:id])
           render_error("not_found", "Repository not found.", status: :not_found) unless repo
           repo
         end

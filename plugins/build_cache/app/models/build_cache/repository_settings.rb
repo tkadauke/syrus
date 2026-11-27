@@ -1,6 +1,6 @@
 # Per-repository opt-in for sccache SCCACHE_BASEDIRS path normalization
 # (a build-cache follow-up). Kept off the core Repository model deliberately --
-# see Syrus::DataCleanup / PluginDataCleanup -- a plugin owns the rows that
+# see Syrus::Host::DataCleanup / PluginDataCleanup -- a plugin owns the rows that
 # reference a core record's id, rather than the core model declaring an
 # association back into a plugin table it could be deleted out from under.
 #
@@ -8,7 +8,7 @@
 # see basedirs_safe_for? for the read side most callers should use instead
 # of finding a row directly.
 module BuildCache
-  class RepositorySettings < ApplicationRecord
+  class RepositorySettings < Syrus::Host::Record
     self.table_name = "build_cache_repository_settings"
 
     belongs_to :repository
@@ -16,7 +16,7 @@ module BuildCache
     validates :repository_id, uniqueness: true
 
     def self.for_repository(repository)
-      find_by(repository_id: repository.is_a?(::Repository) ? repository.id : repository)
+      find_by(repository_id: repository.is_a?(Syrus::Host::RepositoryRecord) ? repository.id : repository)
     end
 
     # A repository has proven (config/syrus_docs/sccache_build_cache.md's

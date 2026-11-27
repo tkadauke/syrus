@@ -13,7 +13,7 @@ module SyrusBrowser
   #      with no current Run; resolved to that chat's active browser
   #      RuntimeSession.
   #   3. otherwise -- the existing workflow Run path (visual_review and any
-  #      other agentic step), resolved via Mcp::Tools.run_from_context.
+  #      other agentic step), resolved via Syrus::Host::McpTools.run_from_context.
   #
   # Local Mode routing (a third, materially different daemon-backed browser)
   # is intentionally not a branch here yet -- DOC-16's own broker work adds
@@ -31,12 +31,12 @@ module SyrusBrowser
         elsif server_context.key?(:chat_session)
           for_chat_session(server_context[:chat_session])
         else
-          for_run(Mcp::Tools.run_from_context(server_context))
+          for_run(Syrus::Host::McpTools.run_from_context(server_context))
         end
       end
 
       def for_run(run)
-        sink = if run.is_a?(Run) && run.step&.kind == "visual_review"
+        sink = if run.is_a?(Syrus::Host::RunRecord) && run.step&.kind == "visual_review"
           ArtifactSinks::VisualReviewDraft.new(run)
         else
           ArtifactSinks::Null.new

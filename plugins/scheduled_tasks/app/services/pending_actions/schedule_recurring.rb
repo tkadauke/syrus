@@ -1,5 +1,5 @@
 module PendingActions
-  class ScheduleRecurring < Base
+  class ScheduleRecurring < Syrus::Host::PendingActionBase
     action_key "schedule_recurring"
 
     def authorize_execution!
@@ -64,7 +64,7 @@ module PendingActions
     private
 
     def repository_write_access?
-      repository && RepositoryPolicy.new(user, repository).write?
+      repository && Syrus::Host::RepositoryPolicy.new(user, repository).write?
     end
   end
 end

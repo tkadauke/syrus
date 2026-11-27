@@ -82,26 +82,26 @@ module CredentialStore
     end
 
     def manageable_users
-      return User.order(:email_address, :id) if user.admin?
+      return Syrus::Host::UserRecord.order(:email_address, :id) if user.admin?
 
-      User.where(id: user.id)
+      Syrus::Host::UserRecord.where(id: user.id)
     end
 
     def manageable_repositories
       if user.admin?
-        Repository.order(:owner, :name, :id)
+        Syrus::Host::RepositoryRecord.order(:owner, :name, :id)
       else
-        admin_direct_ids = RepositoryMembership.at_least("admin").where(user: user).select(:repository_id)
-        team_ids = TeamMembership.where(user: user).select(:team_id)
-        admin_team_ids = TeamRepository.at_least("admin").where(team_id: team_ids).select(:repository_id)
-        Repository.where(id: admin_direct_ids).or(Repository.where(id: admin_team_ids)).order(:owner, :name, :id)
+        admin_direct_ids = Syrus::Host::RepositoryMembershipRecord.at_least("admin").where(user: user).select(:repository_id)
+        team_ids = Syrus::Host::TeamMembershipRecord.where(user: user).select(:team_id)
+        admin_team_ids = Syrus::Host::TeamRepositoryRecord.at_least("admin").where(team_id: team_ids).select(:repository_id)
+        Syrus::Host::RepositoryRecord.where(id: admin_direct_ids).or(Syrus::Host::RepositoryRecord.where(id: admin_team_ids)).order(:owner, :name, :id)
       end
     end
 
     def manageable_teams
-      return Team.order(:name, :id) if user.admin?
+      return Syrus::Host::TeamRecord.order(:name, :id) if user.admin?
 
-      Team.joins(:team_memberships)
+      Syrus::Host::TeamRecord.joins(:team_memberships)
         .where(team_memberships: { user_id: user.id, role: "owner" })
         .distinct
         .order(:name, :id)

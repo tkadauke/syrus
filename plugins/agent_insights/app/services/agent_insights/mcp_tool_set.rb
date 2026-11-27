@@ -45,13 +45,13 @@ module AgentInsights
     end
 
     def self.handler_classes(context: nil)
-      return TOOL_CLASSES if context.nil? || context.role == AgentRole::AGENT_INSIGHT
+      return TOOL_CLASSES if context.nil? || context.role == Syrus::Host::AgentRole::AGENT_INSIGHT
 
       []
     end
 
     def handle(tool_name, params, server_context)
-      context = McpToolContext.from_server_context(server_context)
+      context = Syrus::Host::ToolContext.from_server_context(server_context)
       klass = self.class.handler_classes(context: context).find { |candidate| candidate.tool_name == tool_name.to_s }
       unless klass
         return MCP::Tool::Response.new([ { type: "text", text: "Unknown Agent Insights tool: #{tool_name.inspect}" } ], error: true)

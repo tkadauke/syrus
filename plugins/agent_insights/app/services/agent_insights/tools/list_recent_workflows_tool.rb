@@ -29,19 +29,19 @@ module AgentInsights
       )
 
       class << self
-        include McpToolPayloads::WorkflowPayload
+        include Syrus::Host::WorkflowPayload
 
         DEFAULT_LIMIT = 20
         MAX_LIMIT = 50
 
         def call(server_context:, since: nil, limit: nil, page: nil)
-          context_run = Mcp::Tools.run_from_context(server_context)
+          context_run = Syrus::Host::McpTools.run_from_context(server_context)
           repository = context_run.job.repository
           cutoff = parse_since(since) || default_cutoff(context_run)
           per_page = normalized_limit(limit)
-          page_num = Mcp::Pagination.normalize_page(page)
+          page_num = Syrus::Host::McpPagination.normalize_page(page)
 
-          scope = ::Workflow
+          scope = Syrus::Host::WorkflowRecord
             .joins(:job)
             .includes(:job, :workflow_warnings)
             .where(jobs: { repository_id: repository.id, user_id: context_run.job.user_id })
@@ -54,7 +54,7 @@ module AgentInsights
           workflows = scope.offset((page_num - 1) * per_page).limit(per_page).to_a
           workflow_ids = workflows.map(&:id)
           @runs_by_workflow = runs_by_workflow(workflow_ids)
-          @step_counts = ::Step.where(workflow_id: workflow_ids).group(:workflow_id).count
+          @step_counts = Syrus::Host::Step.where(workflow_id: workflow_ids).group(:workflow_id).count
           @summaries = summaries_by_workflow(workflow_ids)
 
           MCP::Tool::Response.new([
@@ -72,7 +72,7 @@ module AgentInsights
             }
           ])
         rescue ArgumentError => e
-          Mcp::Tools.invalid(e.message)
+          Syrus::Host::McpTools.invalid(e.message)
         rescue StandardError => e
           Rails.logger.error("[AgentInsights::ListRecentWorkflowsTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
@@ -126,7 +126,7 @@ module AgentInsights
         def summaries_by_workflow(workflow_ids)
           return {} if workflow_ids.empty?
 
-          ::Workflow.joins(:workflow_artifact_values)
+          Syrus::Host::WorkflowRecord.joins(:workflow_artifact_values)
             .where(id: workflow_ids, workflow_artifact_values: { key: "summary" })
             .pluck(:id, "workflow_artifact_values.value")
             .to_h { |id, raw| [ id, (JSON.parse(raw) rescue raw) ] }
@@ -135,7 +135,7 @@ module AgentInsights
         def runs_by_workflow(workflow_ids)
           return {} if workflow_ids.empty?
 
-          ::Run.joins(:step)
+          Syrus::Host::RunRecord.joins(:step)
             .where(steps: { workflow_id: workflow_ids })
             .select(RUN_COLUMNS)
             .order("runs.created_at DESC, runs.id DESC")
@@ -178,7 +178,7 @@ module AgentInsights
             kind: warning.kind,
             severity: warning.severity,
             title: text_snippet(redact(warning.title), 200),
-            evidence: CommandRedactor.redact_value(warning.evidence),
+            evidence: Syrus::Host::CommandRedactor.redact_value(warning.evidence),
             state: warning.state,
             created_job_id: warning.created_job_id,
             created_at: warning.created_at&.iso8601
@@ -198,7 +198,7 @@ module AgentInsights
         end
 
         def redact(value)
-          ::Mcp::Tools::EvidenceRedactor.call(value)
+          Syrus::Host::EvidenceRedactor.call(value)
         end
       end
     end

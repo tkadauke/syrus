@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      class MockupsController < BaseController
+      class MockupsController < Syrus::Host::AppController
         PER_PAGE = 30
 
         def index
@@ -10,7 +10,7 @@ module Api
             return
           end
 
-          filter = Mockups::Filter.from_params(params, user: Current.user)
+          filter = Mockups::Filter.from_params(params, user: Syrus::Host::Current.user)
           scope = filter.apply(base_scope).recent_first
 
           page = [ params[:page].to_i, 1 ].max
@@ -35,7 +35,7 @@ module Api
             mockup: summary_json(mockup),
             # The panel is core's; this is the same payload the chat sidebar
             # renders, pointed at the chat-independent panel routes.
-            panel: PreviewPanel::Payload.new(
+            panel: Syrus::Host::PreviewPanelRecord::Payload.new(
               mockup.preview_panel,
               scheme: request.ssl? ? "https" : "http",
               include_versions: params[:versions] == "all"
@@ -49,12 +49,12 @@ module Api
         # the panel's own rule -- not a second, looser one defined here.
         def base_scope
           Mockups::Mockup
-            .where(preview_panel_id: PreviewPanel.accessible_to(Current.user).select(:id))
+            .where(preview_panel_id: Syrus::Host::PreviewPanelRecord.accessible_to(Syrus::Host::Current.user).select(:id))
             .includes(preview_panel: :latest_version)
         end
 
         def filter_schema
-          ::Filters::Schema.for(subject: :mockup, user: Current.user)
+          Syrus::Host::Filters::Schema.for(subject: :mockup, user: Syrus::Host::Current.user)
         end
 
         def summary_json(mockup)

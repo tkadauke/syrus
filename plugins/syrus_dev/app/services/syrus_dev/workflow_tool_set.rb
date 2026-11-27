@@ -1,6 +1,6 @@
 module SyrusDev
   class WorkflowToolSet
-    include Syrus::Plugin::McpToolSet
+    include Syrus::Host::McpToolSet
 
     OPERATIONS = {
       "read_performance_diagnostics" => "syrus_dev.performance/read@v1",
@@ -9,11 +9,11 @@ module SyrusDev
     }.freeze
 
     def self.available_for?(repository)
-      McpToolPolicy.syrus_repository?(repository)
+      Syrus::Host::McpToolPolicy.syrus_repository?(repository)
     end
 
     def self.available_for_context?(context)
-      McpToolPolicy.syrus_repository?(context.repository) && tool_classes_for(context.role).any?
+      Syrus::Host::McpToolPolicy.syrus_repository?(context.repository) && tool_classes_for(context.role).any?
     end
 
     def self.tool_definitions(context: nil)
@@ -28,7 +28,7 @@ module SyrusDev
     end
 
     def handle(tool_name, params, context)
-      run_context = McpToolContext.from_server_context(context)
+      run_context = Syrus::Host::ToolContext.from_server_context(context)
       klass = self.class.tool_classes_for(run_context.role).find { |k| k.tool_name == tool_name }
       raise "SyrusDev::WorkflowToolSet: unknown tool #{tool_name.inspect}" unless klass
 
@@ -39,9 +39,9 @@ module SyrusDev
       case role
       when nil
         [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool, ReadWorkspaceReuseOutcomesTool ]
-      when AgentRole::WORKFLOW_IMPLEMENT
+      when Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT
         [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool, ReadWorkspaceReuseOutcomesTool ]
-      when AgentRole::AGENT_INSIGHT
+      when Syrus::Host::AgentRole::AGENT_INSIGHT
         [ ReadSyrusLogsTool ]
       else
         []

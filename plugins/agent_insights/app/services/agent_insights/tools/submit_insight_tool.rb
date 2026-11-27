@@ -88,40 +88,40 @@ module AgentInsights
                  evidence: nil, suggested_prompt: nil, memory_suggestion: nil,
                  proposal_type: nil, target_memory_id: nil, stale_memory_text: nil,
                  stale_memory_evidence: nil, target_insight_id: nil)
-          run = Mcp::Tools.run_from_context(server_context)
+          run = Syrus::Host::McpTools.run_from_context(server_context)
 
-          title_s     = CommandRedactor.redact(Mcp::Tools.utf8(title)).strip
-          category_s  = CommandRedactor.redact(Mcp::Tools.utf8(category)).strip
-          severity_s  = Mcp::Tools.utf8(severity).strip
+          title_s     = Syrus::Host::CommandRedactor.redact(Syrus::Host::McpTools.utf8(title)).strip
+          category_s  = Syrus::Host::CommandRedactor.redact(Syrus::Host::McpTools.utf8(category)).strip
+          severity_s  = Syrus::Host::McpTools.utf8(severity).strip
           confidence_f = confidence.to_f
           suggested_prompt_s = redact_optional(suggested_prompt)
           memory_suggestion_s = redact_optional(memory_suggestion)
           stale_memory_text_s = redact_optional(stale_memory_text)
           stale_memory_evidence_s = redact_optional(stale_memory_evidence)
 
-          return Mcp::Tools.invalid("title is required")                              if title_s.empty?
-          return Mcp::Tools.invalid("title too long (#{title_s.length} chars)")       if title_s.length > MAX_TITLE_LENGTH
-          return Mcp::Tools.invalid("category is required")                           if category_s.empty?
-          return Mcp::Tools.invalid("severity must be one of: #{SEVERITIES.join(', ')}") unless SEVERITIES.include?(severity_s)
-          return Mcp::Tools.invalid("confidence must be between 0.0 and 1.0")         unless confidence_f.between?(0.0, 1.0)
+          return Syrus::Host::McpTools.invalid("title is required")                              if title_s.empty?
+          return Syrus::Host::McpTools.invalid("title too long (#{title_s.length} chars)")       if title_s.length > MAX_TITLE_LENGTH
+          return Syrus::Host::McpTools.invalid("category is required")                           if category_s.empty?
+          return Syrus::Host::McpTools.invalid("severity must be one of: #{SEVERITIES.join(', ')}") unless SEVERITIES.include?(severity_s)
+          return Syrus::Host::McpTools.invalid("confidence must be between 0.0 and 1.0")         unless confidence_f.between?(0.0, 1.0)
 
           proposal_type_s = normalize_proposal_type(proposal_type, suggested_prompt: suggested_prompt_s, memory_suggestion: memory_suggestion_s)
           if proposal_type.to_s == "revise_existing_insight"
-            return Mcp::Tools.invalid("revise_existing_insight is no longer accepted. Call update_insight for pending/dismissed insights; submit a new insight when an accepted insight changed.")
+            return Syrus::Host::McpTools.invalid("revise_existing_insight is no longer accepted. Call update_insight for pending/dismissed insights; submit a new insight when an accepted insight changed.")
           end
-          return Mcp::Tools.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
+          return Syrus::Host::McpTools.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
 
           normalized_evidence = normalize_evidence(evidence)
-          return Mcp::Tools.invalid("evidence must include at least one non-empty item or be omitted") if evidence_supplied?(evidence) && normalized_evidence.empty?
+          return Syrus::Host::McpTools.invalid("evidence must include at least one non-empty item or be omitted") if evidence_supplied?(evidence) && normalized_evidence.empty?
 
           scope_error = validate_evidence_scope(normalized_evidence, run)
-          return Mcp::Tools.invalid(scope_error) if scope_error
+          return Syrus::Host::McpTools.invalid(scope_error) if scope_error
 
           memory = nil
           if proposal_type_s == "remove_memory"
             memory = validate_target_memory(target_memory_id, run)
-            return Mcp::Tools.invalid("target_memory_id must reference an active accessible repository memory") unless memory
-            return Mcp::Tools.invalid("stale_memory_evidence is required for remove_memory proposals") if stale_memory_evidence_s.to_s.strip.blank?
+            return Syrus::Host::McpTools.invalid("target_memory_id must reference an active accessible repository memory") unless memory
+            return Syrus::Host::McpTools.invalid("stale_memory_evidence is required for remove_memory proposals") if stale_memory_evidence_s.to_s.strip.blank?
           end
 
           suggestion = Suggestion.create!(
@@ -136,10 +136,10 @@ module AgentInsights
             suggested_prompt:  suggested_prompt_s.presence,
             memory_suggestion: memory_suggestion_s.presence,
             target_memory:     memory,
-            stale_memory_text: stale_memory_text_s.presence || CommandRedactor.redact(memory&.content),
+            stale_memory_text: stale_memory_text_s.presence || Syrus::Host::CommandRedactor.redact(memory&.content),
             stale_memory_evidence: stale_memory_evidence_s.presence
           )
-          ChatWorkEvents.publish!(
+          Syrus::Host::ChatWorkEvents.publish!(
             kind: "agent_insight_available",
             severity: severity_s == "high" ? "warning" : "info",
             subject: "Agent Insight available",
@@ -166,7 +166,7 @@ module AgentInsights
           }
           run.workflow.set_artifact!("insights", insights)
 
-          Mcp::Tools.write_log(run, "[mcp] submit_insight: #{title_s.truncate(80)} (#{severity_s})")
+          Syrus::Host::McpTools.write_log(run, "[mcp] submit_insight: #{title_s.truncate(80)} (#{severity_s})")
 
           MCP::Tool::Response.new([ { type: "text", text: "Suggestion ##{suggestion.id} saved." } ])
         rescue StandardError => e
@@ -177,8 +177,8 @@ module AgentInsights
         private
 
         def redact_optional(value)
-          text = Mcp::Tools.utf8(value).strip
-          text.present? ? CommandRedactor.redact(text) : nil
+          text = Syrus::Host::McpTools.utf8(value).strip
+          text.present? ? Syrus::Host::CommandRedactor.redact(text) : nil
         end
 
         def normalize_evidence(evidence)
@@ -190,7 +190,7 @@ module AgentInsights
             normalized = {
               "job_id" => integer_value(entry, "job_id"),
               "run_id" => integer_value(entry, "run_id"),
-              "kind"   => CommandRedactor.redact(string_value(entry, "kind")).presence
+              "kind"   => Syrus::Host::CommandRedactor.redact(string_value(entry, "kind")).presence
             }.compact
 
             normalized.presence
@@ -230,13 +230,13 @@ module AgentInsights
 
           repository_id = run.job.repository_id
 
-          jobs_by_id = Job.where(id: job_ids, repository_id: repository_id).index_by(&:id)
+          jobs_by_id = Syrus::Host::JobRecord.where(id: job_ids, repository_id: repository_id).index_by(&:id)
           inaccessible_job_ids = job_ids - jobs_by_id.keys
           if inaccessible_job_ids.any?
             return "evidence references jobs outside the current repository scope: #{inaccessible_job_ids.join(', ')}"
           end
 
-          runs_by_id = Run
+          runs_by_id = Syrus::Host::RunRecord
             .includes(:job)
             .where(id: run_ids, jobs: { repository_id: repository_id })
             .references(:job)

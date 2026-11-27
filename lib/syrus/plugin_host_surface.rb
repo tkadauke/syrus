@@ -1,33 +1,34 @@
-require "yaml"
-
 module Syrus
   class PluginHostSurface
-    Entry = Data.define(:name, :reason) do
-      def initialize(name:, reason: nil) = super
-    end
-    DEFAULT_PATH = Pathname.new(File.expand_path("../../config/plugin_host_surface.yml", __dir__))
+    # Keep exceptions rare and document why a stable public contract cannot be
+    # exposed. Entries are exact constant names; wildcard exemptions are not
+    # supported. There are currently no exceptions.
+    INTENTIONAL_INTERNAL_REFERENCES = {}.freeze
 
-    attr_reader :legacy_baseline
+    def public?(name)
+      name = name.to_s
+      return true if name == "Syrus::Host"
 
-    def initialize(path: DEFAULT_PATH)
-      data = YAML.safe_load_file(path, permitted_classes: [], aliases: false) || {}
-      @legacy_baseline = Integer(data.fetch("legacy_baseline"))
-      @entries = Array(data.fetch("constants")).map { |attributes| Entry.new(name: attributes.fetch("name").to_s, reason: attributes["reason"]&.to_s) }
-      validate!
-      @by_name = @entries.to_h { |entry| [ entry.name, entry ] }
-    rescue KeyError, ArgumentError, TypeError => e
-      raise ArgumentError, "invalid plugin host surface: #{e.message}"
+      Syrus::Host.apis.any? do |api|
+        public_names(api).any? { |public_name| name == public_name || name.start_with?("#{public_name}::") }
+      end || documented_plugin_interfaces.any? { |public_name| name == public_name || name.start_with?("#{public_name}::") }
     end
 
-    def entries = @entries.dup
-    def lookup(name) = @by_name[name.to_s]
-    alias legacy_entries entries
+    def allowed_internal?(name) = INTENTIONAL_INTERNAL_REFERENCES.key?(name.to_s)
 
     private
 
-    def validate!
-      duplicates = @entries.group_by(&:name).select { |_name, entries| entries.many? }.keys
-      raise ArgumentError, "duplicate names: #{duplicates.join(', ')}" if duplicates.any?
+    def public_names(api)
+      target_name = api.name.safe_constantize.then { |target| target.respond_to?(:name) && target.is_a?(Module) ? target.name : nil }
+      [ api.name, target_name ].compact.uniq
+    end
+
+    def documented_plugin_interfaces
+      @documented_plugin_interfaces ||= [
+        *Syrus::PluginRegistry::INTERFACE_FOR.values.filter_map { |resolver| resolver.call.name },
+        "Syrus::PluginApi",
+        "Syrus::Plugin::CliCommandHandler"
+      ].uniq
     end
   end
 end

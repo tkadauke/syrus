@@ -1,6 +1,6 @@
 module AgentProviders
-  class Agy < Base
-    include Syrus::Plugin::AgentProvider
+  class Agy < Syrus::Host::AgentProviderBase
+    include Syrus::Host::AgentProvider
 
     def self.provider_key = "agy"
     def self.display_name = "Antigravity"
@@ -33,15 +33,15 @@ module AgentProviders
     # AgyInvocation forwards via SYRUS_AGY_MODEL/AGY_MODEL.
     def self.available_models
       [
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gemini-3-pro", display_name: "Gemini 3 Pro",
           context_window: :xlarge, cost_tier: :high
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gemini-3-flash", display_name: "Gemini 3 Flash",
           context_window: :large, cost_tier: :medium
         ),
-        Syrus::Plugin::AgentProvider::ModelInfo.new(
+        Syrus::Host::AgentProvider::ModelInfo.new(
           id: "gemini-2.5-flash", display_name: "Gemini 2.5 Flash",
           context_window: :large, cost_tier: :low
         )
@@ -50,9 +50,9 @@ module AgentProviders
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
       api_key = user.gemini_api_key.presence
-      raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
+      raise Syrus::Host::AgentProviderConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
-      agy_home = File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "agy")
+      agy_home = File.join(Syrus::Host::WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "agy")
       AgyInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -71,7 +71,7 @@ module AgentProviders
       return invalid_session_capture(result) unless AgyAgent::SessionPaths.valid_session_id?(result.session_id)
 
       path = AgyAgent::SessionPaths.canonical_path_for(
-        home: WorkflowWorkspace.agent_home_for(workflow, provider),
+        home: Syrus::Host::WorkflowWorkspace.agent_home_for(workflow, provider),
         cwd: workspace.path,
         session_id: result.session_id
       )
@@ -98,7 +98,7 @@ module AgentProviders
               model: nil, effort_level: nil, workload_policy: nil, **_ignored)
       log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
       api_key = credential(:gemini_api_key, user: job.user.reload).presence
-      raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
+      raise Syrus::Host::AgentProviderConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
       on_session_id = ->(sid) { @run.update_columns(live_session_id: sid) rescue nil }
 
@@ -107,9 +107,9 @@ module AgentProviders
         prompt: prompt,
         api_key: api_key,
         log_sink: log_sink,
-        runner: RunJob.agent_runner,
+        runner: Syrus::Host::RunJob.agent_runner,
         timeout: timeout,
-        agy_home: WorkflowWorkspace.agent_home_for(workflow, provider),
+        agy_home: Syrus::Host::WorkflowWorkspace.agent_home_for(workflow, provider),
         resume_session_id: resume_session_id,
         resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
         mcp_server: (mcp ? mcp_server : nil),
@@ -136,7 +136,7 @@ module AgentProviders
     end
 
     def resume_transcript_jsonl(session_id)
-      AgentProviders::SessionStore.transcript_for(provider: provider, session_id: session_id, job: job)
+      Syrus::Host::AgentSessionStore.transcript_for(provider: provider, session_id: session_id, job: job)
     end
   end
 end

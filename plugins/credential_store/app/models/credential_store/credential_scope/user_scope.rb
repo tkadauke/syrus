@@ -14,7 +14,7 @@ module CredentialStore
         [ context.user&.id ].compact
       end
 
-      def model_class = ::User
+      def model_class = Syrus::Host::UserRecord
     end
   end
 end

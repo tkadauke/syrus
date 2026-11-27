@@ -5,7 +5,7 @@ module Api
       # and TestInsights::Tools::ReadTestInsightTool -- same TestInsights::Query /
       # TestInsights::Detail service objects the MCP tools call, reachable with a
       # bearer token instead of a browser session or an agent run.
-      class RepositoryTestsController < BaseController
+      class RepositoryTestsController < Syrus::Host::AdminController
         def index
           result = TestInsights::Query.call(
             user: current_api_user,
@@ -33,7 +33,7 @@ module Api
         end
 
         def show
-          repository = Repository.find(params[:repository_id])
+          repository = Syrus::Host::RepositoryRecord.find(params[:repository_id])
           test_identity = TestInsights::TestIdentity.for_repository(repository).find(params[:id])
 
           render json: TestInsights::Detail.call(

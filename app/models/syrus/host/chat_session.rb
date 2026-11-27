@@ -3,6 +3,9 @@ module Syrus
     class ChatSession < ReadFacade
       wraps ::ChatSession
 
+      # The chat modes a session can run in.
+      MODES = ::ChatSession::MODES
+
       def id = read(:id)
       def title = read(:title)
       def user = User.wrap(read(:user))

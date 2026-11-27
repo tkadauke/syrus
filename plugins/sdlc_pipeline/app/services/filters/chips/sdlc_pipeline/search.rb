@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module SdlcPipeline
-      class Search < Base
+      class Search < Syrus::Host::Filters::Chips::Base
         filter_name "search"
         label "Search"
         bucket :string
@@ -11,15 +11,15 @@ module Filters
         def apply
           unsupported_op! unless op == :contains
           query = value.to_s.strip
-          pattern = "%#{Job.sanitize_sql_like(query)}%"
+          pattern = "%#{Syrus::Host::JobRecord.sanitize_sql_like(query)}%"
           relation = scope.left_joins(:epic)
           matches = relation.where(
             "jobs.issue_title LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern OR " \
             "CAST(jobs.issue_number AS CHAR) LIKE :pattern OR epics.title LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern",
             pattern: pattern
           )
-          job_ids = canonical_numbers(query, /\bJOB-(\d+)\b/i, model: Job, attribute: :id)
-          epic_numbers = canonical_numbers(query, /\bEPIC-(\d+)\b/i, model: Epic, attribute: :number)
+          job_ids = canonical_numbers(query, /\bJOB-(\d+)\b/i, model: Syrus::Host::JobRecord, attribute: :id)
+          epic_numbers = canonical_numbers(query, /\bEPIC-(\d+)\b/i, model: Syrus::Host::Epic, attribute: :number)
           matches = matches.or(relation.where(jobs: { id: job_ids })) if job_ids.any?
           matches = matches.or(relation.where(epics: { number: epic_numbers })) if epic_numbers.any?
           matches

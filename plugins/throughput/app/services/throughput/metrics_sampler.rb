@@ -8,7 +8,7 @@ module Throughput
   # docs/engineering/architecture/metrics.md). This class instead follows
   # Metrics::LandingSampler's shape: registers via the manifest's
   # `metrics do ... sampler MetricsSampler end` (see
-  # Syrus::PluginApi::Definition#metrics) rather than a plugin-owned
+  # Syrus::Host::PluginApi::Definition#metrics) rather than a plugin-owned
   # tick_interval/on_tick, so #sample! runs on the shared control-plane tick
   # and folds newly-finished landing attempts into a cumulative,
   # cache-mediated total (a cursor over `finished_at`, set exactly once and
@@ -51,11 +51,11 @@ module Throughput
       totals = read_checkpoint.fetch("totals")
       return false if totals.blank?
 
-      units = Syrus::Metrics.counter(:syrus_throughput_landing_units_total)
+      units = Syrus::Host::Metrics.counter(:syrus_throughput_landing_units_total)
       Hash(totals["landing_units_total"]).each { |tags, total| units.reconcile!(total, tags: tags) }
 
       if totals["jobs_landed_total"]
-        Syrus::Metrics.counter(:syrus_throughput_jobs_landed_total).reconcile!(totals["jobs_landed_total"].to_i)
+        Syrus::Host::Metrics.counter(:syrus_throughput_jobs_landed_total).reconcile!(totals["jobs_landed_total"].to_i)
       end
       true
     end
@@ -67,7 +67,7 @@ module Throughput
       return cursor["auto_merge_through"] = now.iso8601(6) if after.nil?
 
       sample_source("succeeded auto_merge workflows") do
-        count = Workflow.where(trigger_kind: "auto_merge", state: "succeeded")
+        count = Syrus::Host::WorkflowRecord.where(trigger_kind: "auto_merge", state: "succeeded")
                         .where(finished_at: Time.iso8601(after)...now)
                         .count
         increment_unit_totals!(totals, unit_type: "auto_merge", attempts: count, jobs: count)
@@ -81,8 +81,8 @@ module Throughput
       return cursor["merge_train_through"] = now.iso8601(6) if after.nil?
 
       sample_source("succeeded merge trains and members") do
-        trains = MergeTrain.where(state: "succeeded").where(finished_at: Time.iso8601(after)...now).pluck(:id)
-        jobs_landed = trains.empty? ? 0 : MergeTrainMember.where(merge_train_id: trains).count
+        trains = Syrus::Host::MergeTrain.where(state: "succeeded").where(finished_at: Time.iso8601(after)...now).pluck(:id)
+        jobs_landed = trains.empty? ? 0 : Syrus::Host::MergeTrainMember.where(merge_train_id: trains).count
         increment_unit_totals!(totals, unit_type: "merge_train", attempts: trains.size, jobs: jobs_landed)
 
         cursor["merge_train_through"] = now.iso8601(6)

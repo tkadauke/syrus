@@ -40,7 +40,7 @@ module TestInsights
     private
 
     def accessible_scope
-      @user.admin? ? Repository.all : Repository.accessible_to(@user)
+      @user.admin? ? Syrus::Host::RepositoryRecord.all : Syrus::Host::RepositoryRecord.accessible_to(@user)
     end
 
     def clamp_history_limit(value)
@@ -200,7 +200,7 @@ module TestInsights
     def truncate(text)
       return nil if text.blank?
 
-      Mcp::Tools.truncate_text(Mcp::Tools.utf8(text), FAILURE_SNIPPET_BYTES)
+      Syrus::Host::McpTools.truncate_text(Syrus::Host::McpTools.utf8(text), FAILURE_SNIPPET_BYTES)
     end
 
     def iso8601(value)

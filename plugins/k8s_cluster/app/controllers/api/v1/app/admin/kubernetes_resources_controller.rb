@@ -9,7 +9,7 @@ module Api
         # MysqlSchemaController expresses as separate routes - kept as one
         # route per resource kind here to match the plugin's declared route
         # list one-for-one.
-        class KubernetesResourcesController < BaseController
+        class KubernetesResourcesController < Syrus::Host::AppAdminController
           before_action :require_k8s_cluster_enabled
           before_action :set_cluster
           before_action :validate_resource_identifiers
@@ -119,7 +119,7 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+            Syrus::Host::ToolContext.new(surface: :admin, role: nil, user: Syrus::Host::Current.user)
           end
 
           # Cluster-scoped kinds (Namespace, Node): `name` alone selects
@@ -193,7 +193,7 @@ module Api
           end
 
           def set_cluster
-            @cluster = KubernetesCluster.find(params[:id])
+            @cluster = Syrus::Host::KubernetesCluster.find(params[:id])
           end
 
           def require_k8s_cluster_enabled

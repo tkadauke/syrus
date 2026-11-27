@@ -27,7 +27,7 @@ module ScheduledTasks
       @task.with_lock do
         @task.reload
         return Result.new(job: nil, skipped: true, reason: "not_fireable") if @task.archived? || @task.fired?
-        unless RepositoryPolicy.new(@task.user, @task.repository).write?
+        unless Syrus::Host::RepositoryPolicy.new(@task.user, @task.repository).write?
           @task.pause!(reason: "auto") unless @task.auto_paused? || @task.system_schedule?
           return Result.new(job: nil, skipped: true, reason: "repository_write_access_required")
         end
@@ -53,7 +53,7 @@ module ScheduledTasks
           @task.record_fire!(at: @now)
           return job
         end
-        unless job.is_a?(Job) && job.scheduled_task_id == @task.id
+        unless job.is_a?(Syrus::Host::JobRecord) && job.scheduled_task_id == @task.id
           raise ArgumentError, "scheduled task fire handler must return a Job linked to its task"
         end
 
@@ -73,7 +73,7 @@ module ScheduledTasks
         pr_number = old_job.external_pr_number || old_job.pr_number
         Rails.logger.info("[ScheduledTasks::Fire] task ##{@task.id} closing prior PR ##{pr_number} (#{old_job.slug}) per replace policy")
         begin
-          GithubClient.for(repository: @task.repository, user: @task.user).close_pull_request(@task.repository.slug, pr_number)
+          Syrus::Host::GithubClient.for(repository: @task.repository, user: @task.user).close_pull_request(@task.repository.slug, pr_number)
         rescue StandardError => e
           Rails.logger.warn("[ScheduledTasks::Fire] failed to close PR ##{pr_number}: #{e.class}: #{e.message}")
         end

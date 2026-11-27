@@ -4,9 +4,9 @@ require "uri"
 
 module SyrusBrowser
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_CODING, AgentRole::CHAT_PLANNER, AgentRole::COWORKER_CHAT, AgentRole::WORKFLOW_VISUAL_REVIEWER ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_CODING, Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::WORKFLOW_VISUAL_REVIEWER ].freeze
     ALLOW_DEFAULTS = ROLES.index_with { :allow }.freeze
 
     class << self
@@ -103,7 +103,7 @@ module SyrusBrowser
       # lease inside the tools, so the browser is essential (never deniable).
       register_capability(
         capability:, operation:, effects:, risk:, requestable_roles: ROLES, defaults:, essential: true,
-        presentation: Permissions::CapabilityPresentation.for(capability:, operation:),
+        presentation: Syrus::Host::CapabilityPresentation.for(capability:, operation:),
         maximum_autonomy:, authority_durations:, resource_scope: :browser_session,
         classifier: classifier || fixed_classifier(operation, effects, risk),
         fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)

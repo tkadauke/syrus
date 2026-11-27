@@ -1,7 +1,7 @@
 module AgentActivity
   class DesignDocSessionContext < SessionContext
     def kind = "design_doc"
-    def role = AgentRole::CHAT_PLANNER
+    def role = Syrus::Host::AgentRole::CHAT_PLANNER
     def role_label = "Design Doc"
     def agent_provider = @resumable.agent_provider
     def state = @resumable.status == "canceled" ? "cancelled" : @resumable.status

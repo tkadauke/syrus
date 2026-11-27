@@ -2,7 +2,7 @@ require "rails_helper"
 
 # What the memory store actually puts in front of a chat agent: the pinned
 # context lines, their ranking, and the byte budget. Core renders whatever
-# `Syrus::Memory` hands back -- these examples are about what this store
+# `Syrus::Host::Memory` hands back -- these examples are about what this store
 # hands back through a real `Prompts::ChatSystem`.
 RSpec.describe Prompts::ChatSystem, "agent memory context" do
   let(:repo) { repository(owner: "acme", name: "widgets") }

@@ -120,7 +120,7 @@ module Go
       lf = file_stats.values.sum { |stats| stats[:lf] }
       lh = file_stats.values.sum { |stats| stats[:lh] }
 
-      CoverageAnalysis::Parsers::Base::ParseResult.new(
+      Syrus::Host::CoverageParseResult.new(
         raw: {
           hit_map: hit_map,
           lf: lf, lh: lh,

@@ -1,9 +1,9 @@
 module Api
   module V1
     module App
-      class CronTemplatesController < BaseController
+      class CronTemplatesController < Syrus::Host::AppController
         def index
-          templates = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).order(:name)
+          templates = ScheduledTasks::CronTemplate.where(user_id: Syrus::Host::Current.user.id).order(:name)
           applied_task_counts = ScheduledTasks::Task.alive.where(cron_template_id: templates.select(:id)).group(:cron_template_id).count
           render json: {
             templates: templates.map { |template| template_index_json(template, applied_tasks_count: applied_task_counts.fetch(template.id, 0)) },
@@ -17,7 +17,7 @@ module Api
         end
 
         def create
-          template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).build(cron_template_params)
+          template = ScheduledTasks::CronTemplate.where(user_id: Syrus::Host::Current.user.id).build(cron_template_params)
           template.skill_args = cron_template_skill_args
           template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
           assign_skill_validation_context(template)
@@ -49,7 +49,7 @@ module Api
             input: params[:schedule_input].presence || params[:cron_expression],
             structured_intent: unsafe_hash(params[:structured_intent]),
             timezone: params[:schedule_timezone].presence || ScheduledTasks::Schedules::RecurringSchedule.server_timezone,
-            user: Current.user
+            user: Syrus::Host::Current.user
           )
 
           render json: schedule_preview_json(result)
@@ -64,7 +64,7 @@ module Api
         private
 
         def find_template
-          ScheduledTasks::CronTemplate.where(user_id: Current.user.id).find(params[:id])
+          ScheduledTasks::CronTemplate.where(user_id: Syrus::Host::Current.user.id).find(params[:id])
         end
 
         def template_detail_payload(template)
@@ -114,7 +114,7 @@ module Api
         end
 
         def template_repositories
-          Repository.accessible_to(Current.user).merge(Repository.writable_by(Current.user)).active
+          Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user).merge(Syrus::Host::RepositoryRecord.writable_by(Syrus::Host::Current.user)).active
             .order(:owner, :name).map { |repository| repository_json(repository) }
         end
 
@@ -143,8 +143,8 @@ module Api
           repository_id = params.dig(:cron_template, :validation_repository_id).presence
           return if repository_id.nil?
 
-          template.skill_validation_repository = Repository.accessible_to(Current.user)
-            .merge(Repository.writable_by(Current.user)).active.find(repository_id)
+          template.skill_validation_repository = Syrus::Host::RepositoryRecord.accessible_to(Syrus::Host::Current.user)
+            .merge(Syrus::Host::RepositoryRecord.writable_by(Syrus::Host::Current.user)).active.find(repository_id)
         end
 
         def schedule_preview_json(result)

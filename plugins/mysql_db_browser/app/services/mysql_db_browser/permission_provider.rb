@@ -1,12 +1,12 @@
 module MysqlDbBrowser
   class PermissionProvider
-    include Syrus::Plugin::PermissionProvider
+    include Syrus::Host::PermissionProvider
 
-    ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    ROLES = [ Syrus::Host::AgentRole::CHAT_PLANNER, Syrus::Host::AgentRole::WORKFLOW_IMPLEMENT ].freeze
     # Coworkers request read access through request_permission, so the read
     # operations must be requestable by them. The critical query operation
     # stays on ROLES: coworker execution remains read-only.
-    READ_ROLES = (ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).freeze
+    READ_ROLES = (ROLES + [ Syrus::Host::AgentRole::COWORKER_CHAT, Syrus::Host::AgentRole::COWORKER ]).freeze
     READ_DEFAULTS = ROLES.index_with { :ask }.freeze
     COWORKER_READ_DEFAULTS = READ_ROLES.index_with { :ask }.freeze
     # Listing connections, databases and tables, and describing a table, read
@@ -29,7 +29,7 @@ module MysqlDbBrowser
       end
 
       def lookup_connection(identifier, context:)
-        connection = MysqlConnection.find_by(id: identifier)
+        connection = Syrus::Host::MysqlConnection.find_by(id: identifier)
         return unless connection&.agentic_access_enabled?
 
         credential = CredentialMaterial.credential_for(connection)
@@ -58,7 +58,7 @@ module MysqlDbBrowser
       def scope_label(scope, context:)
         return "All MySQL #{scope.fetch('kind')} targets" unless scope["mysql_connection_id"]
 
-        connection = MysqlConnection.find_by(id: scope.fetch("mysql_connection_id"))
+        connection = Syrus::Host::MysqlConnection.find_by(id: scope.fetch("mysql_connection_id"))
         [ connection&.label || "MySQL connection #{scope.fetch('mysql_connection_id')}", scope["database"], scope["table"] ].compact.join(" / ")
       end
 
@@ -102,7 +102,7 @@ module MysqlDbBrowser
     READ_OPERATIONS.each do |operation, scope|
       register_capability(
         capability: "mysql.read@v1", operation:, effects: %i[network_read confidential_read credential_use],
-        presentation: Permissions::CapabilityPresentation.for(capability: "mysql.read@v1", operation:),
+        presentation: Syrus::Host::CapabilityPresentation.for(capability: "mysql.read@v1", operation:),
         risk: :medium, requestable_roles: READ_ROLES, defaults: COWORKER_READ_DEFAULTS,
         maximum_autonomy: :permanent, authority_durations: READ_DURATIONS, resource_scope: scope,
         classifier: ->(_arguments) { { operation:, effects: %i[network_read confidential_read credential_use], risk: :medium, confidence: :certain } },
@@ -127,7 +127,7 @@ module MysqlDbBrowser
     # execute@v1 below and still ask.
     register_capability(
       capability: "mysql.query@v1", operation: "mysql.query/read@v1",
-      presentation: Permissions::CapabilityPresentation.for(capability: "mysql.query@v1", operation: "mysql.query/read@v1"),
+      presentation: Syrus::Host::CapabilityPresentation.for(capability: "mysql.query@v1", operation: "mysql.query/read@v1"),
       effects: %i[network_read confidential_read credential_use],
       risk: :medium, requestable_roles: ROLES, defaults: READ_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: READ_DURATIONS, resource_scope: :query,
@@ -137,7 +137,7 @@ module MysqlDbBrowser
 
     register_capability(
       capability: "mysql.query@v1", operation: "mysql.query/execute@v1",
-      presentation: Permissions::CapabilityPresentation.for(capability: "mysql.query@v1", operation: "mysql.query/execute@v1"),
+      presentation: Syrus::Host::CapabilityPresentation.for(capability: "mysql.query@v1", operation: "mysql.query/execute@v1"),
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: READ_DEFAULTS,
       maximum_autonomy: :invocation, authority_durations: %i[invocation], resource_scope: :query,
@@ -152,7 +152,7 @@ module MysqlDbBrowser
       name: "mysql_read_only", label: "MySQL read-only",
       description: "Ask before reading metadata or data from a selected MySQL target.",
       rules: READ_OPERATIONS.map do |operation, _scope|
-        { capability: "mysql.read@v1", operation:, role: AgentRole::CHAT_PLANNER,
+        { capability: "mysql.read@v1", operation:, role: Syrus::Host::AgentRole::CHAT_PLANNER,
           policy: :ask, resource_scope: {}, constraints: {} }
       end
     )
@@ -162,7 +162,7 @@ module MysqlDbBrowser
       description: "Ask for each query invocation against a selected MySQL target.",
       rules: [ {
         capability: "mysql.query@v1", operation: "mysql.query/execute@v1",
-        role: AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {}
+        role: Syrus::Host::AgentRole::CHAT_PLANNER, policy: :ask, resource_scope: {}, constraints: {}
       } ]
     )
   end

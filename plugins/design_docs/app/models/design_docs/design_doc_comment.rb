@@ -1,5 +1,5 @@
 module DesignDocs
-  class DesignDocComment < ApplicationRecord
+  class DesignDocComment < Syrus::Host::Record
     self.table_name = "design_doc_comments"
 
     AUTHOR_KINDS = %w[user agent system].freeze

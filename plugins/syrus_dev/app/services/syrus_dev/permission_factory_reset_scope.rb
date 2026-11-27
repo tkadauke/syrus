@@ -23,11 +23,11 @@ module SyrusDev
     end
 
     def key = self.class.name.demodulize.underscore
-    def users = ::User.none
+    def users = Syrus::Host::UserRecord.none
     def profile_users = users
-    def rules = PermissionRule.none
-    def leases = PermissionLease.none
-    def requests = ChatPendingAction.none
+    def rules = Syrus::Host::PermissionRule.none
+    def leases = Syrus::Host::PermissionLease.none
+    def requests = Syrus::Host::ChatPendingActionRecord.none
 
     private
 

@@ -1,5 +1,5 @@
 module AgentInsights
-  class AuditEvent < ApplicationRecord
+  class AuditEvent < Syrus::Host::Record
     self.table_name = "agent_insight_audit_events"
 
     EVENT_TYPES = %w[ updated dismissed retired ].freeze
@@ -34,9 +34,9 @@ module AgentInsights
 
     def self.resolve_actor(actor)
       case actor
-      when User
+      when Syrus::Host::UserRecord
         [ "user", actor, nil ]
-      when Run
+      when Syrus::Host::RunRecord
         [ "agent", nil, actor ]
       else
         [ "system", nil, nil ]
