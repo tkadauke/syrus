@@ -11,6 +11,7 @@
     "fill": "Ausfüllen",
     "evaluate": "Auswerten",
     "hover": "Darüberfahren",
+    "press_key": "Taste drücken",
     "drag": "Ziehen",
     "drop": "Ablegen",
     "file_upload": "Datei hochladen"
@@ -22,7 +23,8 @@
     "condition": "Bedingung",
     "path": "Pfad",
     "files": "Dateien",
-    "page": "Seite"
+    "page": "Seite",
+    "key": "Taste"
   },
   "status": { "success": "erfolgreich", "error": "Fehler", "failed": "fehlgeschlagen" },
   "rows": { "title": "Titel", "current_url": "Aktuelle URL", "viewport": "Ansichtsbereich", "snapshot": "Snapshot", "text": "Text" },
