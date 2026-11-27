@@ -57,6 +57,38 @@ RSpec.describe "macOS worker installer" do
     end
   end
 
+  def write_public_key(dir)
+    private_key = File.join(dir, "signing.pem")
+    public_key = File.join(dir, "public.pem")
+    system("openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", private_key,
+      out: File::NULL, err: File::NULL, exception: true)
+    system("openssl", "pkey", "-in", private_key, "-pubout", "-out", public_key, out: File::NULL, err: File::NULL, exception: true)
+    public_key
+  end
+
+  # A host installed without the key installs fine and then silently never
+  # applies another deploy's release.
+  it "refuses to install without the release signing public key, before any host change" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      File.write(env_file, "SYRUS_APP_HOST=https://syrus.example.test\n")
+      shim_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(shim_dir)
+      File.write(File.join(shim_dir, "uname"), "#!/usr/bin/env sh\nprintf 'Darwin\\n'\n")
+      FileUtils.chmod(0o755, File.join(shim_dir, "uname"))
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{shim_dir}:/usr/bin:/bin", "SUDO_USER" => ENV.fetch("USER", "syrus-test"), "USER" => "root" },
+        "bash", script, "--dry-run", "--env-file", env_file, "--update-public-key", File.join(dir, "missing.pem"),
+        unsetenv_others: true
+      )
+
+      expect(status).not_to be_success
+      expect(stdout).to be_empty
+      expect(stderr).to include("install the release signing public key at #{dir}/missing.pem first")
+    end
+  end
+
   it "documents dependency-only and service activation controls" do
     stdout, stderr, status = Open3.capture3("bash", script, "--help")
 
@@ -88,6 +120,7 @@ RSpec.describe "macOS worker installer" do
       shim_dir = File.join(dir, "bin")
       FileUtils.mkdir_p([ release_path, shim_dir ])
       File.write(env_file, "SYRUS_APP_HOST=https://syrus.example.test\n")
+      public_key = write_public_key(dir)
       File.write(File.join(shim_dir, "uname"), "#!/usr/bin/env sh\nprintf 'Darwin\\n'\n")
       File.write(File.join(shim_dir, "dscl"), <<~SH)
         #!/usr/bin/env sh
@@ -112,11 +145,16 @@ RSpec.describe "macOS worker installer" do
             "USER" => "root"
           },
           "bash", script, "--dry-run", "--skip-dependencies", "--skip-services",
-          "--env-file", env_file, "--install-root", install_root,
+          "--env-file", env_file, "--install-root", install_root, "--update-public-key", public_key,
           unsetenv_others: true
         )
 
         expect(status).to be_success, "#{layout}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+        # mysql2 builds against Homebrew's keg-only mysql-client; without this
+        # a fresh host cannot compile it.
+        expect(stdout).to include(
+          "bundle config set --local build.mysql2 --with-mysql-config=/opt/homebrew/opt/mysql-client/bin/mysql_config"
+        )
         remove_offset = stdout.index("rm -rf #{node_modules}")
         link_offset = stdout.index("ln -s #{install_root}/shared/node/#{release_sha}/node_modules #{node_modules}")
         expect(remove_offset).not_to be_nil

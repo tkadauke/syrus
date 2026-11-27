@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="/etc/syrus/worker.env"
+UPDATE_PUBLIC_KEY="/etc/syrus/macos-worker-update-public.pem"
 INSTALL_ROOT="/opt/syrus"
 DATA_ROOT="/var/lib/syrus"
 LOG_ROOT="/var/log/syrus"
@@ -30,6 +31,8 @@ exist in the env file.
 
 Options:
   --env-file PATH          Worker env file (default: /etc/syrus/worker.env)
+  --update-public-key PATH Public key the updater verifies releases with
+                           (default: /etc/syrus/macos-worker-update-public.pem)
   --install-root PATH      Release root (default: /opt/syrus)
   --data-root PATH         Persistent worker data (default: /var/lib/syrus)
   --service-user NAME      launchd worker user (default: syrus-worker)
@@ -42,6 +45,7 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file) ENV_FILE="${2:?--env-file requires a path}"; shift 2 ;;
+    --update-public-key) UPDATE_PUBLIC_KEY="${2:?--update-public-key requires a path}"; shift 2 ;;
     --install-root) INSTALL_ROOT="${2:?--install-root requires a path}"; shift 2 ;;
     --data-root) DATA_ROOT="${2:?--data-root requires a path}"; shift 2 ;;
     --service-user) SERVICE_USER="${2:?--service-user requires a name}"; SERVICE_GROUP="$SERVICE_USER"; shift 2 ;;
@@ -82,6 +86,14 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 if grep -Ev '^[[:space:]]*(#|$|[A-Za-z_][A-Za-z0-9_]*=)' "$ENV_FILE" | grep -q .; then
   echo "install-macos-worker: $ENV_FILE contains lines that are not dotenv assignments" >&2
+  exit 1
+fi
+# Every deploy updates this worker through the updater, which refuses any
+# release it cannot verify with this key. Without it the host installs fine
+# and then silently never updates again.
+if [[ ! -f "$UPDATE_PUBLIC_KEY" ]] || ! openssl pkey -pubin -in "$UPDATE_PUBLIC_KEY" -noout >/dev/null 2>&1; then
+  echo "install-macos-worker: install the release signing public key at $UPDATE_PUBLIC_KEY first" >&2
+  echo "  (see docs/engineering/operations/macos_worker_updates.md, One-time setup)" >&2
   exit 1
 fi
 
@@ -158,6 +170,12 @@ run chown -R root:wheel "$SYRUS_MACOS_AGENT_CLI_PREFIX"
 run chmod -R go-w "$SYRUS_MACOS_AGENT_CLI_PREFIX"
 
 say "Preparing release dependencies"
+# mysql2 builds against Homebrew's keg-only mysql-client, which is not on the
+# default compiler paths. Bundler reads this from the shared app config for
+# every release, including ones the updater prepares.
+run sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" PATH="$RUNTIME_PATH:/usr/bin:/bin" \
+  BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" \
+  bundle config set --local build.mysql2 "--with-mysql-config=/opt/homebrew/opt/mysql-client/bin/mysql_config"
 NODE_DEPS_PATH="$INSTALL_ROOT/shared/node/$RELEASE_SHA"
 run mkdir -p "$NODE_DEPS_PATH"
 run cp "$RELEASE_PATH/package.json" "$RELEASE_PATH/package-lock.json" "$NODE_DEPS_PATH/"

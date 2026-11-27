@@ -167,17 +167,42 @@ Mac workers should start through:
 ```
 
 For a fresh host, first install Homebrew and full Xcode with an iOS simulator
-runtime, create `/etc/syrus/worker.env`, and run the release's idempotent
-installer:
+runtime, create `/etc/syrus/worker.env`, install the release signing public
+key, and run the release's idempotent installer from the admin account that
+owns Homebrew:
 
 ```bash
 sudo /path/to/unpacked-worker/bin/install-macos-worker \
   --env-file /etc/syrus/worker.env
 ```
 
-The installer owns the repeatable host baseline and launchd setup. Deployment
-network tunnels, secrets, signing identities, Xcode, and simulator runtime
-downloads remain explicit operator responsibilities.
+The installer owns the repeatable host baseline and launchd setup: the
+pinned Ruby and Node, the agent CLIs, the Bundler build settings, the worker
+and updater services. It refuses to run without the release signing public
+key. Secrets, signing identities, Xcode, and simulator runtime downloads
+remain explicit operator responsibilities.
+
+### Reinstalling a Mac worker host
+
+Everything under `/opt/syrus` comes back from the installer. Before running
+it on a wiped host, restore what lives outside the repository:
+
+1. A fixed address for the host (a DHCP reservation). The database
+   LoadBalancer below admits only that address.
+2. `/etc/syrus/worker.env`, `root:syrus-worker`, mode `0640`: the app,
+   database, and storage credentials, the settings below, and a fresh
+   `SYRUS_MACOS_WORKER_TOKEN` (`bin/rails syrus:macos_worker_token`).
+3. `/etc/syrus/macos-worker-update-public.pem`, the public half of the
+   release signing key kept on the deploy machine (see
+   [macOS worker updates](macos_worker_updates.md#one-time-setup)). Keep a
+   backup of the private key; losing it means generating a new pair and
+   reinstalling the public key on every Mac host.
+4. Full Xcode with the simulator runtimes the target repositories need.
+
+Do not recreate `kubectl port-forward` tunnels for the database or storage.
+They relay every query over one stream through the Kubernetes API server,
+stall under load, and drop connections, and Syrus then declares the worker
+dead and discards in-flight work.
 
 The env file should force compute-only behavior and advertise the host's
 capabilities:
@@ -189,6 +214,16 @@ SOLID_QUEUE_SKIP_RECURRING=1
 SYRUS_DATA_ROOT=/var/lib/syrus
 SYRUS_WORKER_POOL_NAME=macos-xcode
 SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+```
+
+It also points the worker at the database and object storage directly:
+
+```dotenv
+# A LoadBalancer Service in front of MySQL whose loadBalancerSourceRanges
+# admit only the Mac host's fixed address.
+DB_HOST=<database LoadBalancer address>
+# Object storage through its HTTPS ingress, not a tunnel.
+S3_ENDPOINT=https://<object storage ingress host>
 ```
 
 Mac workers are outbound clients. They need access to the production database,
