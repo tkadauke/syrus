@@ -46,6 +46,25 @@ RSpec.describe Mcp::Tools::RuntimeBuildOrReloadTool, full_chat_access: :all do
     expect(session.last_error).to include("dev server crashed")
   end
 
+  it "records a bounded timeout and releases the associated build lease" do
+    stub_const("RuntimeSessions::Operation::DEFAULT_TIMEOUT", 0.01.seconds)
+    release = Queue.new
+    lease = RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "build", reason: "reload")
+    allow_any_instance_of(stub_runtime_provider_class).to receive(:build_or_reload) do
+      release.pop
+      { reloaded: true }
+    end
+
+    response = call(session_id: session.id)
+
+    expect(response).to be_error
+    expect(session.reload).to have_attributes(state: "failed")
+    expect(session.current_runtime_operation).to include("kind" => "build", "outcome" => "retryable_timeout", "lease_id" => lease.id)
+    expect(lease.reload.state).to eq("released")
+  ensure
+    release << true if release
+  end
+
   it "returns an error for an unknown session" do
     response = call(session_id: 999_999_999)
 

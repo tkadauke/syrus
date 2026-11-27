@@ -25,11 +25,33 @@ RSpec.describe Mcp::Tools::RuntimeLogsTool do
 
   it "defaults cursor to the beginning" do
     session
-    expect(payload(call)).to eq(entries: [ "line-0" ], cursor: 1)
+    expect(payload(call)).to eq(entries: [ "line-0" ], cursor: 1, operation_entries: [])
   end
 
   it "passes the given cursor through to the provider" do
     session
-    expect(payload(call(cursor: "3"))).to eq(entries: [ "line-3" ], cursor: 4)
+    expect(payload(call(cursor: "3"))).to eq(entries: [ "line-3" ], cursor: 4, operation_entries: [])
+  end
+
+  it "returns durable operation logs alongside provider logs" do
+    session.update!(metadata: {
+      "runtime_operation_logs" => [ { "at" => "2026-11-27T00:00:00Z", "operation_id" => "op-1", "message" => "startup provider operation timed out" } ]
+    })
+
+    expect(payload(call)[:operation_entries]).to contain_exactly(
+      at: "2026-11-27T00:00:00Z", operation_id: "op-1", message: "startup provider operation timed out"
+    )
+  end
+
+  it "still returns operation evidence when provider log retrieval fails" do
+    session.update!(metadata: {
+      "runtime_operation_logs" => [ { "at" => "2026-11-27T00:00:00Z", "operation_id" => "op-1", "message" => "startup provider operation failed: boom" } ]
+    })
+    allow_any_instance_of(stub_runtime_provider_class).to receive(:logs).and_raise("log transport unavailable")
+
+    body = payload(call)
+
+    expect(body[:provider_error]).to include("log transport unavailable")
+    expect(body[:operation_entries].first[:message]).to include("provider operation failed")
   end
 end
