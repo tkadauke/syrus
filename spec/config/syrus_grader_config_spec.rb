@@ -46,6 +46,35 @@ RSpec.describe "Syrus grader configuration" do
     expect(commands.grep(/check-thread-budget/)).to be_empty
   end
 
+  # The migration and boot graders each pay a checkout and bundle check per
+  # round; a diff that touches none of their inputs selects none of them,
+  # while the unconditional unland smoke graders stay.
+  describe "path-filtered infrastructure graders" do
+    let(:graph) { TargetGraph::Compiler.compile(Rails.root) }
+    let(:filtered) { %w[migration-collisions migration-lint migration-baselines eager-load production-build-boot fresh-production-db-prepare] }
+
+    def selected(changed_files)
+      RepoGradePlan.for(Rails.root).graders.map(&:name).select do |name|
+        graph.affected("//:grade/#{name}", changed_files: changed_files).affected
+      end
+    end
+
+    it "skips them all for a frontend-only change" do
+      expect(selected([ "app/frontend/routes/Dashboard.tsx" ]) & filtered).to be_empty
+      expect(selected([ "app/frontend/routes/Dashboard.tsx" ])).to include("plugin-boundaries", "feature-slugs")
+    end
+
+    it "runs the boot graders but not the migration graders for a Ruby change" do
+      expect(selected([ "app/models/job.rb" ]) & filtered)
+        .to contain_exactly("eager-load", "production-build-boot", "fresh-production-db-prepare")
+    end
+
+    it "runs every one of them for a migration" do
+      expect(selected([ "db/migrate/20261127000000_add_thing.rb" ]) & filtered).to match_array(filtered)
+      expect(selected([ "plugins/coworkers/db/migrate/20261127000000_add_thing.rb" ]) & filtered).to match_array(filtered)
+    end
+  end
+
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 

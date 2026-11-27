@@ -348,6 +348,14 @@ grade:
       DBs and crash production deploys with "table already exists."
     run: bin/check-migration-collisions --all
     phases: [review, landing, ci, unland]
+    # Skipped when the diff touches nothing this grader reads; an unknown
+    # diff still runs it. Saves its checkout and bundle check on frontend,
+    # docs and config-only rounds.
+    when_files_changed:
+      - "db/**"
+      - "plugins/*/db/**"
+      - "config/database.yml"
+      - "bin/check-migration-collisions"
     timeout_minutes: 1
 
   - name: migration-lint
@@ -360,6 +368,14 @@ grade:
       bigint/reference columns without DB-level FK constraints.
     run: bin/check-migrations
     phases: [review, landing, ci, unland]
+    # Skipped when the diff touches nothing this grader reads; an unknown
+    # diff still runs it. Saves its checkout and bundle check on frontend,
+    # docs and config-only rounds.
+    when_files_changed:
+      - "db/**"
+      - "plugins/*/db/**"
+      - "config/database.yml"
+      - "bin/check-migrations"
     timeout_minutes: 1
 
   - name: migration-baselines
@@ -371,6 +387,14 @@ grade:
       database but crash deploys when an environment is still behind.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-primary-migration-baselines
     phases: [landing, ci]
+    # Skipped when the diff touches nothing this grader reads; an unknown
+    # diff still runs it. Saves its checkout and bundle check on frontend,
+    # docs and config-only rounds.
+    when_files_changed:
+      - "db/**"
+      - "plugins/*/db/**"
+      - "config/database.yml"
+      - "bin/check-primary-migration-baselines"
     timeout_minutes: 10
 
   - name: feature-slugs
@@ -482,6 +506,23 @@ grade:
       files vs per-class siblings.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
     phases: [review, landing, ci, unland]
+    # Skipped when the diff touches nothing this grader reads; an unknown
+    # diff still runs it. Saves its checkout and bundle check on frontend,
+    # docs and config-only rounds.
+    when_files_changed:
+      - "**/*.rb"
+      - "**/*.rake"
+      - "**/*.ru"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - ".ruby-version"
+      - "config/**"
+      - "plugins/*/config/**"
+      - "plugins/*/*.gemspec"
+      - "lib/**"
+      - "db/**"
+      - "plugins/*/db/**"
+      - "bin/check-eager-load"
     # Same shared-worker contention as plugin-model-namespaces/
     # plugin-boundaries, plus this one also forces Zeitwerk to autoload every
     # file (heavier than a plain boot). Landing now runs enough concurrent
@@ -541,6 +582,23 @@ grade:
       this grader fails before the production image build does.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
     phases: [review, landing, ci, unland]
+    # Skipped when the diff touches nothing this grader reads; an unknown
+    # diff still runs it. Saves its checkout and bundle check on frontend,
+    # docs and config-only rounds.
+    when_files_changed:
+      - "**/*.rb"
+      - "**/*.rake"
+      - "**/*.ru"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - ".ruby-version"
+      - "config/**"
+      - "plugins/*/config/**"
+      - "plugins/*/*.gemspec"
+      - "lib/**"
+      - "db/**"
+      - "plugins/*/db/**"
+      - "bin/check-production-build-boot"
     timeout_minutes: 3
 
   - name: frontend-typecheck
@@ -571,6 +629,23 @@ grade:
       databases do not exercise.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-fresh-production-db-prepare
     phases: [review, landing, ci]
+    # Skipped when the diff touches nothing this grader reads; an unknown
+    # diff still runs it. Saves its checkout and bundle check on frontend,
+    # docs and config-only rounds.
+    when_files_changed:
+      - "**/*.rb"
+      - "**/*.rake"
+      - "**/*.ru"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - ".ruby-version"
+      - "config/**"
+      - "plugins/*/config/**"
+      - "plugins/*/*.gemspec"
+      - "lib/**"
+      - "db/**"
+      - "plugins/*/db/**"
+      - "bin/check-fresh-production-db-prepare"
     timeout_minutes: 5
 
   - type: rspec
