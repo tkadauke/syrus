@@ -935,7 +935,9 @@ module App
             viewport: item.viewport,
             device: item.device,
             submission_failed: item.submission_failed_at.present?,
-            image_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}"
+            image_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}",
+            original_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}",
+            thumbnail_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}/thumbnail"
           }
         end
       }

@@ -2,6 +2,7 @@ import { getRecentApiRequests, postJson } from "./client"
 import { readInitialBootstrap } from "./bootstrap"
 import { getRecentErrors } from "../lib/errorRingBuffer"
 import { scrubBrowserErrorText } from "../lib/browserErrorRedaction"
+import { readReloadBreadcrumb } from "../lib/pageReload"
 
 export { scrubBrowserErrorText } from "../lib/browserErrorRedaction"
 
@@ -114,6 +115,8 @@ export function buildBrowserErrorPayload(
       boundary: options.boundary,
       history_length: window.history.length,
       visibility_state: document.visibilityState,
+      previous_reload: readReloadBreadcrumb(),
+      navigation_type: (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.type ?? null,
       ...(options.handledError ? { handled_error: options.handledError } : {})
     }
   }
