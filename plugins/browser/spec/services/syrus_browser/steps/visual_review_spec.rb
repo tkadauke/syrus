@@ -137,8 +137,13 @@ RSpec.describe SyrusBrowser::VisualReviewStep do
 
     expect(first_lifecycle).to receive(:stop!).once
     expect(second_lifecycle).to receive(:stop!).once
+    # Regression: reported as review_execution_unavailable, a failed runtime
+    # launch was never retried and stranded the Job and its stack for days.
     expect { handler.send(:start_runtime_sessions!) }
-      .to raise_error(Steps::Base::StepFailed, /runtime unavailable/)
+      .to raise_error(Steps::Base::StepFailed, /runtime unavailable/) { |error|
+        expect(error.problem.code).to eq("review_evidence_capture_failed")
+        expect(Problem::Kind.retryable?(error.problem.code)).to be(true)
+      }
     expect(workflow.reload.artifact("visual_review_iterations")).to be_blank
     expect(workflow.artifact("visual_review_runtime_failure")).to include(
       "reason" => "runtime_session_start_failed",

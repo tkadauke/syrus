@@ -207,11 +207,14 @@ module SyrusBrowser
       stop_runtime_sessions!
       failure = { "reason" => "runtime_session_start_failed", "message" => e.message, "run_id" => run.id }
       workflow.set_artifact!("visual_review_runtime_failure", failure)
-      skip_or_fail_unavailable_review!(
-        review_kind: "visual_review",
-        reason: failure["reason"],
-        message: failure["message"],
-        config_required: true
+      # A runtime that would not start is a transient capture failure, not an
+      # unavailable review: reported as review_execution_unavailable it was
+      # never retried, and one failed browser launch stranded the Job -- and
+      # every Job stacked on it -- for days.
+      fail_with!(
+        :review_evidence_capture_failed,
+        "visual_review review could not execute: #{failure["message"]}",
+        evidence: { review_kind: "visual_review", reason: failure["reason"] }
       )
     end
 
