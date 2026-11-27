@@ -45,4 +45,10 @@ RSpec.describe "Syrus::Host chat, runtime, preview and appearance facades" do
       expect(Syrus::Host.public?("Syrus::Host::#{name}")).to be(true)
     end
   end
+
+  it "lets runtime providers resolve an active provider session for a Run" do
+    api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::RuntimeSessionRecord" }
+
+    expect(api.members).to include("where", "active", "for_provider", "primary")
+  end
 end
