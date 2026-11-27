@@ -10,9 +10,11 @@ description: Product feature reference for Jobs, Epics, schedules, chats, creden
 Workflow agents can pause and ask structured single-choice, multiple-choice,
 or free-text questions. Waiting questions appear in the sidebar inbox, in the
 mobile Activity tabs, and at the top of the affected Job. Answering resumes the
-same agent session. The Job panel also explains the consequences of retrying as
-is, filing a repair Job that becomes a dependency, or giving up and cancelling
-the Job.
+same agent session and is the panel's primary path. Filing a repair Job that
+becomes a dependency and giving up are separate alternatives. Retrying without
+an answer is kept under secondary recovery options and requires confirmation:
+it cancels the attempt, withdraws the question, and starts a fresh implementation
+attempt without added context, so the agent may ask the same question again.
 
 Question eagerness has five levels from Autonomous through Inquisitive. It can
 be set for a user or repository, overridden while filing a Job, and paired with
