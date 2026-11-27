@@ -1,6 +1,4 @@
 require "rails_helper"
-require "rubygems/package"
-require "stringio"
 
 RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
   let(:image) { instance_double(RuntimeImage) }
@@ -19,8 +17,8 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
         [ { "Size" => 10, "Config" => {} } ]
       elsif argv.first(3) == [ "docker", "image", "history" ]
         next [ "history line", 0 ]
-      elsif argv[1] == "fs"
-        root = argv.last
+      elsif argv.include?(described_class::SCAN_SCRIPT.to_s)
+        root = argv.fetch(argv.index(described_class::SCAN_SCRIPT.to_s) + 1)
         scanned_files = Dir.glob("#{root}/**/*", File::FNM_DOTMATCH).select { |path| File.file?(path) }
           .to_h { |path| [ File.basename(path), File.binread(path) ] }
         { "Results" => [ { "Target" => "inputs", "Secrets" => [] } ] }
@@ -76,19 +74,24 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
     end.to raise_error(RuntimeImages::Builds::Rejected, /archive exceeds the 5 byte limit/)
   end
 
-  it "limits extracted source to the remaining aggregate scratch budget" do
-    bytes = tar("secret.txt" => "0123456789")
-    blob = instance_double(ActiveStorage::Blob, byte_size: bytes.bytesize)
-    allow(blob).to receive(:download).and_yield(bytes)
-    allow(attachment).to receive(:blob).and_return(blob)
-    allow(source_archive).to receive_messages(attached?: true, attachment: attachment)
-    allow(RuntimeImages::Builds::Config).to receive(:max_source_bytes).and_return(bytes.bytesize)
-    scanner = scanner_with_inputs
-    allow(scanner).to receive(:scratch_limit).and_return(bytes.bytesize + 35)
+  it "scans extracted inputs inside a size- and inode-bounded private tmpfs" do
+    allow(RuntimeImages::Builds::Config).to receive_messages(max_source_bytes: 1000, max_source_entries: 200_000, build_log_bytes: 50)
+    command = nil
+    runner = lambda do |argv|
+      command = argv if argv.include?(described_class::SCAN_SCRIPT.to_s)
+      payload = argv.first(3) == [ "docker", "image", "inspect" ] ? [ { "Config" => {} } ] :
+        (argv.first(3) == [ "docker", "image", "history" ] ? "" : { "Results" => [] })
+      [ JSON.generate(payload), 0, false ]
+    end
+    allow(built_images).to receive(:acquire_for_verification).with(image).and_yield("image@sha256:digest")
 
-    expect do
-      scanner.call(image: image, request: request, evidence: evidence)
-    end.to raise_error(RuntimeImages::Builds::Rejected, /source exceeds/)
+    described_class.new(built_images: built_images, runner: runner).call(image: image, request: request, evidence: evidence)
+
+    expect(command).to start_with(*described_class::NAMESPACE_PREFIX)
+    expect(command).to include(described_class::MOUNT_SCRIPT)
+    script_index = command.index(described_class::MOUNT_SCRIPT)
+    expect(command.fetch(script_index + 3)).to eq((1000 + (2 * described_class::OUTPUT_LIMIT) + 50).to_s)
+    expect(command.fetch(script_index + 4)).to eq("200032")
   end
 
   def scanner_with_inputs
@@ -99,13 +102,5 @@ RSpec.describe RuntimeImages::Verifications::ImagePolicyScanner do
       [ JSON.generate(payload), 0, false ]
     end
     described_class.new(built_images: built_images, runner: runner)
-  end
-
-  def tar(files)
-    io = StringIO.new
-    Gem::Package::TarWriter.new(io) do |writer|
-      files.each { |name, body| writer.add_file_simple(name, 0o600, body.bytesize) { |file| file.write(body) } }
-    end
-    io.string
   end
 end
