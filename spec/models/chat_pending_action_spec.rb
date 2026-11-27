@@ -343,7 +343,10 @@ RSpec.describe ChatPendingAction, :ci_only do
     workflow = job.workflows.where(trigger_kind: "retry").last
     expect(workflow.first_step.runs.count).to eq(1)
     expect(PendingActions::RetryJob.new(action.reload).tool_card_outcome).to eq(
-      workflows: [ { workflow_id: workflow.id, job_id: job.id } ]
+      workflows: [ {
+        workflow_id: workflow.id, job_id: job.id, recovery_mode: "auto",
+        requested_by: "agent", origin: "mcp_retry_job"
+      } ]
     )
   end
 
@@ -616,11 +619,17 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect {
       retry_action.confirm!
     }.to change { step.runs.count }.by(1)
+      .and change(RecoveryIntervention, :count).by(1)
     expect(workflow.reload).to be_running
     expect(step.reload).to be_queued
     expect(retry_action.reload.result).to be_a(Run)
     expect(retry_action.before_snapshot.dig("jobs", 0, "workflow", "state")).to eq("failed")
     expect(retry_action.after_snapshot.dig("jobs", 0, "workflow", "state")).to eq("running")
+    expect(RecoveryIntervention.last).to have_attributes(
+      job:, source_workflow: workflow, resulting_workflow: workflow, resulting_step: step,
+      actor_type: "agent", actor_id: admin.id, origin: "mcp_admin_retry_step",
+      action: "repair", recovery_mode: "failed_step", reason: "Retry the failed step."
+    )
 
     allow_any_instance_of(Workflow).to receive(:cleanup_workspace!).and_return(true)
     cleanup_action = admin_session.pending_actions.create!(

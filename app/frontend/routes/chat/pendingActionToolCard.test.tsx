@@ -221,12 +221,39 @@ describe("retry_job pending action card", () => {
     const livePendingAction = liveAction({
       action: "retry_job",
       execution_status: "applied",
-      outcome: { workflows: [{ workflow_id: 61270, job_id: 4222 }] }
+      review: {
+        recovery_kind: "grader_loop_no_progress",
+        recovery_mode: "failed_step",
+        source_workflow_id: 60001,
+        source_failure_classification: "test_failure",
+        guidance: "Fix the persistent frontend assertion.",
+        requested_by: "agent",
+        origin: "mcp_retry_job"
+      },
+      outcome: {
+        workflows: [
+          {
+            workflow_id: 61270,
+            job_id: 4222,
+            recovery_kind: "grader_loop_no_progress",
+            recovery_mode: "failed_step",
+            source_workflow_id: 60001,
+            source_failure_classification: "test_failure",
+            guidance: "Fix the persistent frontend assertion.",
+            requested_by: "agent",
+            origin: "mcp_retry_job"
+          }
+        ]
+      }
     })
     render(<>{retryJobCard.renderExpanded(retryContext({ livePendingAction }))}</>)
 
     expect(screen.getByText("Retry workflow started")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-61270" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-61270")
+    expect(screen.getByRole("link", { name: "WF-60001" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-60001")
+    expect(screen.getByText("grader_loop_no_progress")).toBeInTheDocument()
+    expect(screen.getByText("Fix the persistent frontend assertion.")).toBeInTheDocument()
+    expect(screen.getByText("mcp_retry_job")).toBeInTheDocument()
     expect(screen.getByText("applied")).toBeInTheDocument()
   })
 

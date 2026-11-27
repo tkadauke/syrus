@@ -730,6 +730,97 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     PendingActions::RetryJob.new(pending_action).execute
 
     expect(workflow.reload.artifact("replay_context")).to include("Add the two legacy host surface entries.")
+    expect(job.recovery_interventions.last).to have_attributes(
+      actor_type: "operator", actor_id: user.id, origin: "mcp_retry_job",
+      guidance: "Add the two legacy host surface entries."
+    )
+  end
+
+  it "returns structured guidance_required for a measured failure without creating an action" do
+    job = make_retryable_job(state: "failed")
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    step = workflow.steps.find_by!(kind: "implement")
+    step.update!(state: "failed")
+    step.latest_run.create_run_failure_classification!(classification: "test_failure", retryable: true,
+      confidence: 0.9, classified_at: Time.current)
+    workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
+      "reason" => GraderLoopProgress::NO_PROGRESS_REASON, "explanation" => "failing set unchanged",
+      "previous_iteration" => 1, "current_iteration" => 2, "failing_set" => [ "frontend renders recovery" ]
+    })
+
+    response = call_tool("retry_job", job_id: job.id)
+    body = payload(response)
+
+    expect(body).to include(status: "guidance_required", pending_action_created: false,
+      persistent_failures: [ "frontend renders recovery" ])
+    expect(body[:suggested_guidance]).to be_present
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
+  it "requires guidance for a measured failure without a stored classification" do
+    job = make_retryable_job(state: "failed")
+    job.workflows.find_by!(trigger_kind: "initial").steps.find_by!(kind: "implement").update!(state: "failed")
+
+    body = payload(call_tool("retry_job", job_id: job.id))
+
+    expect(body).to include(status: "guidance_required", pending_action_created: false)
+    expect(body[:suggested_guidance]).to be_present
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
+  it "returns a recovery decision when an explicit restart has no source workflow" do
+    job = make_retryable_job(state: "failed")
+
+    response = call_tool("retry_job", job_id: job.id, mode: "implementation", source_workflow_id: 999_999,
+      reason: "Restart from the current base.")
+    body = payload(response)
+
+    expect(response.dig(:result, :isError)).not_to be(true)
+    expect(body[:recovery]).to include(kind: "restart_from_base", recommended_action: "restart")
+  end
+
+  it "bounds a no-progress decision when the selected source workflow is missing" do
+    job = make_retryable_job(state: "failed")
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    workflow.steps.find_by!(kind: "implement").update!(state: "failed")
+    oversized = "x" * 5_000
+    rounds = Array.new(50) do |iteration|
+      { "loop_id" => oversized, "iteration" => iteration, "failing_set" => [ oversized ],
+        "source_revision" => oversized, "repaired_revision" => oversized }
+    end
+    workflow.set_artifact!(GraderLoopProgress::STOP_ARTIFACT_KEY, {
+      "reason" => GraderLoopProgress::NO_PROGRESS_REASON, "explanation" => oversized,
+      "failing_set" => [ oversized ], "rounds" => rounds
+    })
+
+    body = payload(call_tool("retry_job", job_id: job.id, source_workflow_id: 999_999))
+
+    expect(body).to include(status: "guidance_required", pending_action_created: false)
+    expect(body.dig(:recoveries, 0, :evidence)).not_to have_key(:rounds)
+    expect(body.dig(:recoveries, 0, :compared_repair_iterations).size).to eq(RecoveryContract::ROUND_LIMIT)
+    expect(body.to_json.bytesize).to be < 40.kilobytes
+  end
+
+  it "creates an unchanged failed-step rerun for an infrastructure-only no-verdict outcome" do
+    job = make_retryable_job(state: "failed")
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    step = workflow.steps.find_by!(kind: "implement")
+    step.update!(state: "failed")
+    step.latest_run.create_run_failure_classification!(classification: "timeout", retryable: true,
+      confidence: 0.9, classified_at: Time.current)
+
+    response = call_tool("retry_job", job_id: job.id)
+    pending = chat_session.pending_actions.find(payload(response).fetch(:pending_action_id))
+
+    expect(pending.payload).to include(
+      "mode" => "failed_step", "recovery_kind" => "infrastructure_only",
+      "recovery_action" => "rerun_unchanged", "source_failure_classification" => "timeout",
+      "source_workflow_id" => workflow.id
+    )
+    expect(PendingActions::RetryJob.new(pending).tool_card_review).to include(
+      recovery_kind: "infrastructure_only", recovery_mode: "failed_step",
+      source_failure_classification: "timeout", requested_by: "agent", origin: "mcp_retry_job"
+    )
   end
 
   it "rejects operator guidance for a retry mode that cannot carry it" do

@@ -36,7 +36,11 @@ module Api
             render_error("not_found", t("api.job_run_commands.errors.source_run_not_found"), status: :not_found)
             return
           end
-          result = ResumeWorkflowEnqueuer.call(job: job, source_run: source_run)
+          result = RecoveryInterventions::Perform.call(
+            job:, source_workflow: source_run.workflow, action: "resume", mode: "resume",
+            actor_type: "operator", actor: Current.user, origin: "job_page",
+            reason: params[:reason], guidance: params[:guidance]
+          ) { ResumeWorkflowEnqueuer.call(job: job, source_run: source_run) }
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return
@@ -193,8 +197,16 @@ module Api
             return
           end
 
-          result = OperatorRetryContext.with_context(workflow, params[:retry_context]) do
-            RetryFailedStepEnqueuer.call(workflow: workflow)
+          mode = RetryJobs::Modes::FailedStep.new(
+            job:, source_workflow_id: workflow.id, retry_context: params[:retry_context]
+          )
+          result = RecoveryInterventions::Perform.call(
+            job:, source_workflow: workflow,
+            action: mode.recovery_action,
+            mode: "failed_step", actor_type: "operator", actor: Current.user,
+            origin: "job_page", reason: params[:reason], guidance: params[:retry_context]
+          ) do
+            mode.execute
           end
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)

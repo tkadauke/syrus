@@ -115,6 +115,7 @@ class Job < ApplicationRecord
   has_many :chat_proposals, dependent: :nullify
   has_many :chat_attachments, as: :attachable, dependent: :destroy
   has_many :workflows, -> { order(:created_at, :id) }, dependent: :destroy
+  has_many :recovery_interventions, -> { order(:performed_at, :id) }, dependent: :destroy
   has_many :workflow_warnings, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
   # direct has_many :runs is a convenience accessor, NOT a cascade
