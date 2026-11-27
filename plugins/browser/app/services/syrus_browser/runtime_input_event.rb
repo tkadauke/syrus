@@ -23,7 +23,7 @@ module SyrusBrowser
       @event = event.to_h.stringify_keys
     end
 
-    def deliver(runtime_session, owner: "agent")
+    def deliver(runtime_session, owner: "agent", lease: nil)
       tool.call(server_context: { runtime_session: runtime_session, runtime_control_owner: owner }, **arguments.symbolize_keys)
     end
 
@@ -41,9 +41,13 @@ module SyrusBrowser
     end
 
     class Pointer < Click
-      def arguments
-        return super if (event["action"].presence || "click") == "click" && target.present?
-        { target: nil, element: "pointer input requires action=click and a stable target/ref" }
+      def deliver(runtime_session, owner: "agent", lease: nil)
+        unless (event["action"].presence || "click") == "click" && target.present?
+          lease&.record_input!(event)
+          return BrowserTool.error("pointer input requires action=click and a stable target/ref; coordinate-only input is unsupported")
+        end
+
+        super
       end
     end
 
@@ -69,7 +73,7 @@ module SyrusBrowser
 
     class Drop < RuntimeInputEvent
       def tool = DropTool
-      def arguments = { target: target, element: event["element"], paths: event["paths"] }.compact
+      def arguments = { target: target, element: event["element"], paths: event["paths"], data: event["data"] }.compact
     end
 
     class Upload < RuntimeInputEvent
@@ -78,7 +82,8 @@ module SyrusBrowser
     end
 
     class Unknown < RuntimeInputEvent
-      def deliver(_runtime_session, owner: "agent")
+      def deliver(_runtime_session, owner: "agent", lease: nil)
+        lease&.record_input!(event)
         BrowserTool.error("unsupported_input_event: #{event['type']}")
       end
     end

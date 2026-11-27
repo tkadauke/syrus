@@ -107,7 +107,7 @@ module SyrusBrowser
         return { error: "lease_required", message: "the #{owner} must hold an active input lease before sending input events" }
       end
 
-      response = RuntimeInputEvent.for(event).deliver(runtime_session, owner: owner)
+      response = RuntimeInputEvent.for(event).deliver(runtime_session, owner: owner, lease: lease)
       result = tool_response_to_hash(response)
       result.merge(delivered: !result[:error])
     end
