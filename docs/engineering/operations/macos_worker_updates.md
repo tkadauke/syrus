@@ -92,8 +92,9 @@ SHA-256 digest. `file://` transport is disabled unless the explicit
 
 During activation the updater installs the release root-owned and non-writable
 by the worker under `/opt/syrus/releases/<sha>`. If the release pins a Ruby in
-`.ruby-version` that the host does not have yet, the updater installs it with
-mise under `/opt/syrus/rubies/<version>`. It then runs host-local dependency
+`.ruby-version`, or a Node in `.node-version`, that the host does not have
+yet, the updater installs it with mise under `/opt/syrus/rubies/<version>` or
+`/opt/syrus/nodes/<version>`. It then runs host-local dependency
 setup (`bundle install` into that Ruby's bundle, `npm ci`, and
 `bin/macos-worker-check`) as the `syrus-worker` account, atomically replaces
 `/opt/syrus/current`, and restarts `system/com.syrus.worker` with

@@ -13,9 +13,10 @@ DRY_RUN=0
 SKIP_DEPENDENCIES=0
 SKIP_SERVICES=0
 
-# Ruby is not a Homebrew formula here: each release runs the Ruby its
-# .ruby-version pins, installed by mise (see bin/macos-ruby-env).
-BREW_FORMULAE=(node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)
+# Ruby and Node are not Homebrew formulae here: each release runs the Ruby
+# and Node its .ruby-version and .node-version pin, installed by mise, and the
+# agent CLIs are installed with that Node (see bin/macos-runtime-env).
+BREW_FORMULAE=(mysql-client pkg-config vips openssl@3 readline libyaml mise go)
 CLAUDE_CODE_VERSION="2.1.330"
 CODEX_CLI_VERSION="0.171.0"
 
@@ -92,9 +93,6 @@ if [[ "$SKIP_DEPENDENCIES" != "1" ]]; then
   fi
   say "Installing host dependencies"
   run sudo -H -u "$ADMIN_USER" "$BREW" install "${BREW_FORMULAE[@]}"
-  run sudo -H -u "$ADMIN_USER" env PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/bin:/bin" \
-    /opt/homebrew/opt/node@22/bin/npm install -g \
-    "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_CLI_VERSION"
 fi
 
 say "Preparing the service account and filesystem"
@@ -136,14 +134,28 @@ fi
 run chown -R root:wheel "$RELEASE_PATH"
 run chmod -R go-w "$RELEASE_PATH"
 
-say "Installing the release's pinned Ruby"
+say "Installing the release's pinned Ruby and Node"
 export SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-$INSTALL_ROOT/rubies}"
-# shellcheck source=bin/macos-ruby-env
-source "$ROOT/bin/macos-ruby-env"
+export SYRUS_MACOS_NODES_ROOT="${SYRUS_MACOS_NODES_ROOT:-$INSTALL_ROOT/nodes}"
+export SYRUS_MACOS_AGENT_CLI_PREFIX="${SYRUS_MACOS_AGENT_CLI_PREFIX:-$INSTALL_ROOT/agent-clis}"
+# shellcheck source=bin/macos-runtime-env
+source "$ROOT/bin/macos-runtime-env"
 RUBY_VERSION_PIN="$(syrus_macos_ruby_version "$ROOT")"
-RUBY_BIN="$(syrus_macos_ruby_prefix "$RUBY_VERSION_PIN")/bin"
+NODE_VERSION_PIN="$(syrus_macos_node_version "$ROOT")"
+RUNTIME_PATH="$(syrus_macos_runtime_path "$ROOT")"
+NODE_BIN="$(syrus_macos_node_prefix "$NODE_VERSION_PIN")/bin"
 RUBY_BUNDLE_PATH="$(syrus_macos_bundle_path "$INSTALL_ROOT/shared" "$RUBY_VERSION_PIN")"
 run syrus_macos_ruby_install "$RUBY_VERSION_PIN"
+run syrus_macos_node_install "$NODE_VERSION_PIN"
+
+say "Installing the agent CLIs with the pinned Node"
+# Root-owned, outside Homebrew's prefix, so nothing else on the host can
+# upgrade or remove them under the worker.
+run mkdir -p "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+run env PATH="$NODE_BIN:/usr/bin:/bin" "$NODE_BIN/npm" install -g --prefix "$SYRUS_MACOS_AGENT_CLI_PREFIX" \
+  "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_CLI_VERSION"
+run chown -R root:wheel "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+run chmod -R go-w "$SYRUS_MACOS_AGENT_CLI_PREFIX"
 
 say "Preparing release dependencies"
 NODE_DEPS_PATH="$INSTALL_ROOT/shared/node/$RELEASE_SHA"
@@ -151,12 +163,12 @@ run mkdir -p "$NODE_DEPS_PATH"
 run cp "$RELEASE_PATH/package.json" "$RELEASE_PATH/package-lock.json" "$NODE_DEPS_PATH/"
 run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$NODE_DEPS_PATH"
 if [[ "$DRY_RUN" == "1" ]]; then
-  echo "+ (cd $RELEASE_PATH && PATH=$RUBY_BIN:... BUNDLE_PATH=$RUBY_BUNDLE_PATH BUNDLE_FROZEN=true bundle install; cd $NODE_DEPS_PATH && npm ci)"
+  echo "+ (cd $RELEASE_PATH && PATH=$RUNTIME_PATH:... BUNDLE_PATH=$RUBY_BUNDLE_PATH BUNDLE_FROZEN=true bundle install; cd $NODE_DEPS_PATH && npm ci)"
 else
   # Frozen: a host Bundler newer than the lockfile's BUNDLED WITH otherwise
   # tries to rewrite Gemfile.lock inside the root-owned release.
   sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
-    PATH="$RUBY_BIN:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/bin:/bin" \
+    PATH="$RUNTIME_PATH:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/bin:/bin" \
     BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" BUNDLE_PATH="$RUBY_BUNDLE_PATH" \
     bash -c 'cd "$1" && BUNDLE_FROZEN=true bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci' bash "$RELEASE_PATH" "$NODE_DEPS_PATH"
 fi
@@ -175,7 +187,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo "+ $INSTALL_ROOT/current/bin/macos-worker-check --env-file $ENV_FILE"
 else
   sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
-    PATH="$RUBY_BIN:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    PATH="$RUNTIME_PATH:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$RELEASE_PATH/bin/macos-worker-check" --env-file "$ENV_FILE"
 fi
 
@@ -188,7 +200,7 @@ run mv -h -f "$INSTALL_ROOT/current.next" "$INSTALL_ROOT/current"
 
 say "Installing the privileged updater outside the worker release tree"
 run install -o root -g wheel -m 755 "$RELEASE_PATH/bin/syrus-macos-updater" "$LIBEXEC_ROOT/syrus-macos-updater"
-run install -o root -g wheel -m 644 "$RELEASE_PATH/bin/macos-ruby-env" "$LIBEXEC_ROOT/macos-ruby-env"
+run install -o root -g wheel -m 644 "$RELEASE_PATH/bin/macos-runtime-env" "$LIBEXEC_ROOT/macos-runtime-env"
 
 if [[ "$SKIP_SERVICES" != "1" ]]; then
   say "Installing launchd services"

@@ -145,6 +145,16 @@ if [[ -f "$ROOT/.ruby-version" ]] && have_command ruby; then
     fail "Ruby openssl extension does not load"
   fi
 fi
+
+if [[ -f "$ROOT/.node-version" ]]; then
+  pinned_node="$(tr -d '[:space:]' < "$ROOT/.node-version")"
+  running_node="$(node --version 2>/dev/null || true)"
+  if [[ "$running_node" == "v$pinned_node" ]]; then
+    ok "Node matches .node-version: $pinned_node"
+  else
+    fail "Node on PATH is ${running_node:-not runnable}, but the release pins $pinned_node (.node-version)"
+  fi
+fi
 require_command node Node
 require_command npm NPM
 require_command git Git

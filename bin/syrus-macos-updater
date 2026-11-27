@@ -75,14 +75,16 @@ require_command() {
   fi
 }
 
-# Pinned-Ruby helpers. The updater sources its own installed copy, next to
-# itself, never one from a release tree.
+# Pinned-runtime helpers (Ruby and Node). The updater sources its own
+# installed copy, next to itself, never one from a release tree.
 UPDATER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUBY_ENV_LIB="${SYRUS_MACOS_RUBY_ENV_LIB:-$UPDATER_DIR/macos-ruby-env}"
+RUNTIME_ENV_LIB="${SYRUS_MACOS_RUNTIME_ENV_LIB:-$UPDATER_DIR/macos-runtime-env}"
 export SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-$INSTALL_ROOT/rubies}"
-if [[ -f "$RUBY_ENV_LIB" ]]; then
-  # shellcheck source=bin/macos-ruby-env
-  source "$RUBY_ENV_LIB"
+export SYRUS_MACOS_NODES_ROOT="${SYRUS_MACOS_NODES_ROOT:-$INSTALL_ROOT/nodes}"
+export SYRUS_MACOS_AGENT_CLI_PREFIX="${SYRUS_MACOS_AGENT_CLI_PREFIX:-$INSTALL_ROOT/agent-clis}"
+if [[ -f "$RUNTIME_ENV_LIB" ]]; then
+  # shellcheck source=bin/macos-runtime-env
+  source "$RUNTIME_ENV_LIB"
   # The updater's own small scripts run on the active release's Ruby when it
   # is installed; otherwise on whatever `ruby` PATH has (macOS ships one).
   if current_ruby_version="$(syrus_macos_ruby_version "$CURRENT_LINK" 2>/dev/null)" &&
@@ -329,17 +331,18 @@ running_as_root() {
 
 prepare_release() {
   local release_path="$1"
-  local command node_deps_path ruby_version ruby_bin bundle_path
+  local command node_deps_path ruby_version runtime_path bundle_path
   node_deps_path="$SHARED_DIR/node/$TARGET_SHA"
 
-  # Install the Ruby the new release pins before anything runs on it.
-  if ! declare -F syrus_macos_ruby_install >/dev/null; then
-    echo "syrus-macos-updater: $RUBY_ENV_LIB is missing; reinstall with bin/install-macos-worker" >&2
+  # Install the Ruby and Node the new release pins before anything runs on
+  # them; nothing here uses Homebrew's.
+  if ! declare -F syrus_macos_runtimes_install >/dev/null; then
+    echo "syrus-macos-updater: $RUNTIME_ENV_LIB is missing; reinstall with bin/install-macos-worker" >&2
     return 1
   fi
   ruby_version="$(syrus_macos_ruby_version "$release_path")" || return 1
-  syrus_macos_ruby_install "$ruby_version" || return 1
-  ruby_bin="$(syrus_macos_ruby_prefix "$ruby_version")/bin"
+  syrus_macos_runtimes_install "$release_path" || return 1
+  runtime_path="$(syrus_macos_runtime_path "$release_path")" || return 1
   bundle_path="$(syrus_macos_bundle_path "$SHARED_DIR" "$ruby_version")"
 
   # Frozen: a host Bundler newer than the lockfile's BUNDLED WITH otherwise
@@ -351,7 +354,7 @@ prepare_release() {
     cp "$release_path/package.json" "$release_path/package-lock.json" "$node_deps_path/"
     chown -R "$SERVICE_USER:$SERVICE_USER" "$node_deps_path"
     sudo -H -u "$SERVICE_USER" env \
-      HOME="${SYRUS_DATA_ROOT:-/var/lib/syrus}" PATH="$ruby_bin:$PATH" \
+      HOME="${SYRUS_DATA_ROOT:-/var/lib/syrus}" PATH="$runtime_path:$PATH" \
       BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$bundle_path" \
       bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
     chown -R root:wheel "$release_path"
@@ -360,7 +363,7 @@ prepare_release() {
     ln -s "$node_deps_path/node_modules" "$release_path/node_modules"
   else
     node_deps_path="$release_path"
-    PATH="$ruby_bin:$PATH" BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$bundle_path" \
+    PATH="$runtime_path:$PATH" BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$bundle_path" \
       bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
   fi
 }
@@ -387,7 +390,7 @@ install_privileged_updater() {
   running_as_root || return 0
 
   install -o root -g wheel -m 755 "$release_path/bin/syrus-macos-updater" "$PRIVILEGED_UPDATER_PATH"
-  install -o root -g wheel -m 644 "$release_path/bin/macos-ruby-env" "$(dirname "$PRIVILEGED_UPDATER_PATH")/macos-ruby-env"
+  install -o root -g wheel -m 644 "$release_path/bin/macos-runtime-env" "$(dirname "$PRIVILEGED_UPDATER_PATH")/macos-runtime-env"
 }
 
 prune_releases() {

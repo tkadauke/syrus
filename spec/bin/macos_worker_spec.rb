@@ -10,16 +10,18 @@ RSpec.describe "native macOS worker scripts" do
   let(:check) { File.join(root, "bin/macos-worker-check") }
 
   let(:pinned_ruby) { File.read(File.join(root, ".ruby-version")).strip }
+  let(:pinned_node) { File.read(File.join(root, ".node-version")).strip }
 
-  it "gives worker and updater services Homebrew's node and native build paths, but not its Ruby" do
+  it "gives worker and updater services Homebrew's native build paths, but not its Ruby or Node" do
     %w[com.syrus.worker.plist com.syrus.updater.plist].each do |name|
       plist = File.read(File.join(root, "config/launchd", name))
 
-      # Ruby comes from the release's .ruby-version (bin/macos-ruby-env), so a
-      # Homebrew upgrade cannot change it under a running worker.
+      # Ruby and Node come from the release's version files
+      # (bin/macos-runtime-env), so a Homebrew upgrade -- or a formula another
+      # account on the host installs -- cannot change or break them.
       expect(plist).not_to include("ruby@")
+      expect(plist).not_to include("node@")
       expect(plist).not_to include("BUNDLE_PATH")
-      expect(plist).to include("/opt/homebrew/opt/node@22/bin")
       expect(plist).to include("/opt/homebrew/opt/mysql-client/bin")
       expect(plist).to include("/opt/homebrew/opt/mysql-client/lib/pkgconfig")
       expect(plist).to include("-I/opt/homebrew/opt/mysql-client/include")
@@ -60,14 +62,15 @@ RSpec.describe "native macOS worker scripts" do
     BASH
   end
 
-  def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer", ruby_version: pinned_ruby)
+  def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer", ruby_version: pinned_ruby,
+                            node_version: pinned_node)
     bin_dir = File.join(dir, "bin")
     FileUtils.mkdir_p(bin_dir)
 
     write_stub(File.join(bin_dir, "uname"), "#!/usr/bin/env bash\necho Darwin\n")
     write_stub(File.join(bin_dir, "ruby"), fake_ruby_body(ruby_version))
     write_stub(File.join(bin_dir, "bundle"), "#!/usr/bin/env bash\necho Bundler version 2.7.2\n")
-    write_stub(File.join(bin_dir, "node"), "#!/usr/bin/env bash\necho v24.0.0\n")
+    write_stub(File.join(bin_dir, "node"), "#!/usr/bin/env bash\necho v#{node_version}\n")
     write_stub(File.join(bin_dir, "npm"), "#!/usr/bin/env bash\necho 11.0.0\n")
     write_stub(File.join(bin_dir, "git"), "#!/usr/bin/env bash\necho git version 2.50.0\n")
     write_stub(File.join(bin_dir, "mise"), "#!/usr/bin/env bash\necho 2026.1.0\n")
@@ -256,6 +259,8 @@ RSpec.describe "native macOS worker scripts" do
 
       expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(stdout).to include("RUBY=/opt/syrus/rubies/#{pinned_ruby}/bin/ruby")
+      expect(stdout).to include("NODE=/opt/syrus/nodes/#{pinned_node}/bin/node")
+      expect(stdout).to include("AGENT_CLIS=/opt/syrus/agent-clis/bin")
       expect(stdout).to include("BUNDLE_PATH=/opt/syrus/shared/bundles/ruby-#{pinned_ruby}")
     end
   end
@@ -279,26 +284,79 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
-  it "runs the worker on the pinned Ruby once it is installed" do
+  def install_fake_runtimes(dir, node: true)
+    rubies = File.join(dir, "rubies")
+    nodes = File.join(dir, "nodes")
+    FileUtils.mkdir_p(File.join(rubies, pinned_ruby, "bin"))
+    write_stub(File.join(rubies, pinned_ruby, "bin", "ruby"), fake_ruby_body(pinned_ruby))
+    if node
+      FileUtils.mkdir_p(File.join(nodes, pinned_node, "bin"))
+      write_stub(File.join(nodes, pinned_node, "bin", "node"), "#!/usr/bin/env bash\necho v#{pinned_node}\n")
+    end
+    { "SYRUS_MACOS_RUBIES_ROOT" => rubies, "SYRUS_MACOS_NODES_ROOT" => nodes }
+  end
+
+  it "runs the worker on the pinned Ruby and Node once they are installed" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")
       write_env(env_file, "GIT_SHA" => "abc123")
-      bin_dir = with_stubbed_host_bin(dir, ruby_version: "3.4.99")
-      rubies = File.join(dir, "rubies")
-      FileUtils.mkdir_p(File.join(rubies, pinned_ruby, "bin"))
-      write_stub(File.join(rubies, pinned_ruby, "bin", "ruby"), fake_ruby_body(pinned_ruby))
+      # The host's own ruby and node are other versions -- as when another
+      # account's Homebrew install changes or breaks them.
+      bin_dir = with_stubbed_host_bin(dir, ruby_version: "3.4.99", node_version: "25.0.0")
 
       stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME"),
-          "SYRUS_MACOS_RUBIES_ROOT" => rubies },
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") }.merge(install_fake_runtimes(dir)),
         "bash", entrypoint, "--env-file", env_file, "--check",
         unsetenv_others: true
       )
 
-      # The host's own ruby (stubbed as 3.4.99) is shadowed by the pinned one.
       expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(stdout).to include("OK   Ruby matches .ruby-version: #{pinned_ruby}")
+      expect(stdout).to include("OK   Node matches .node-version: #{pinned_node}")
     end
+  end
+
+  # Regression: another account's Homebrew install upgraded a library
+  # Homebrew's node@22 linked against, Node aborted at launch, and every npm
+  # step on the Mac worker failed.
+  it "refuses to start when the pinned Node is not installed instead of using the host's Node" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir)
+
+      _stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") }.merge(install_fake_runtimes(dir, node: false)),
+        "bash", entrypoint, "--env-file", env_file, "--check",
+        unsetenv_others: true
+      )
+
+      expect(status).not_to be_success
+      expect(stderr).to include("Node #{pinned_node} (from #{root}/.node-version) is not installed under #{dir}/nodes")
+    end
+  end
+
+  it "fails validation when the Node on PATH is not the release's pinned Node" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      bin_dir = with_stubbed_host_bin(dir, node_version: "25.0.0")
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        "bash", check, "--env-file", env_file,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("FAIL Node on PATH is v25.0.0, but the release pins #{pinned_node}")
+    end
+  end
+
+  it "pins the Node major version the Linux image installs" do
+    node_major = File.read(File.join(root, "Dockerfile"))[/^ARG NODE_MAJOR=(\d+)$/, 1]
+
+    expect(pinned_node).to match(/\A#{node_major}\.\d+\.\d+\z/)
   end
 
   it "fails validation when only Command Line Tools are selected" do

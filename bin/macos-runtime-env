@@ -1,0 +1,155 @@
+# shellcheck shell=bash
+# Pinned runtimes for native macOS workers. Sourced, not executed, by
+# bin/macos-worker, bin/install-macos-worker, and the privileged updater
+# (which runs its own installed copy next to itself rather than code from a
+# release tree).
+#
+# A release runs on the Ruby its .ruby-version names and the Node its
+# .node-version names -- the versions the Linux image uses -- installed by
+# mise as self-contained prebuilt binaries under $SYRUS_MACOS_RUBIES_ROOT and
+# $SYRUS_MACOS_NODES_ROOT. Nothing Syrus runs depends on Homebrew's Ruby or
+# Node, so a Homebrew upgrade or a formula someone else installs on the host
+# cannot swap them, or break them, under a running worker. Each Ruby version
+# gets its own gem bundle, because native extensions built for one Ruby build
+# must not be loaded by another. The agent CLIs are installed with the pinned
+# Node into $SYRUS_MACOS_AGENT_CLI_PREFIX, outside Homebrew's prefix too.
+
+SYRUS_MACOS_RUBIES_ROOT="${SYRUS_MACOS_RUBIES_ROOT:-/opt/syrus/rubies}"
+SYRUS_MACOS_NODES_ROOT="${SYRUS_MACOS_NODES_ROOT:-/opt/syrus/nodes}"
+SYRUS_MACOS_AGENT_CLI_PREFIX="${SYRUS_MACOS_AGENT_CLI_PREFIX:-/opt/syrus/agent-clis}"
+SYRUS_MACOS_MISE="${SYRUS_MACOS_MISE:-/opt/homebrew/bin/mise}"
+
+# A pinned x.y.z version from a release's version file.
+syrus_macos_pinned_version() {
+  local file="$1" label="$2" version
+  if [[ ! -f "$file" ]]; then
+    echo "macos-runtime: $file not found" >&2
+    return 1
+  fi
+  version="$(tr -d '[:space:]' < "$file")"
+  if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "macos-runtime: unsupported $label version '$version' in $file" >&2
+    return 1
+  fi
+  printf '%s\n' "$version"
+}
+
+syrus_macos_ruby_version() { syrus_macos_pinned_version "$1/.ruby-version" Ruby; }
+syrus_macos_node_version() { syrus_macos_pinned_version "$1/.node-version" Node; }
+
+syrus_macos_ruby_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_RUBIES_ROOT" "$1"; }
+syrus_macos_node_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_NODES_ROOT" "$1"; }
+
+# Gem bundle for one Ruby version: <shared dir>/bundles/ruby-<version>.
+syrus_macos_bundle_path() {
+  printf '%s/bundles/ruby-%s\n' "$1" "$2"
+}
+
+syrus_macos_ruby_installed() {
+  local prefix
+  prefix="$(syrus_macos_ruby_prefix "$1")"
+  [[ -x "$prefix/bin/ruby" ]] &&
+    [[ "$("$prefix/bin/ruby" -e 'print RUBY_VERSION' 2>/dev/null)" == "$1" ]]
+}
+
+syrus_macos_node_installed() {
+  local prefix
+  prefix="$(syrus_macos_node_prefix "$1")"
+  [[ -x "$prefix/bin/node" ]] &&
+    [[ "$("$prefix/bin/node" --version 2>/dev/null)" == "v$1" ]]
+}
+
+# Installs one tool version with mise, root-owned and read-only. mise runs
+# against throwaway data/config dirs from / so no user or project mise
+# configuration can influence what gets installed, and the finished install
+# is moved into place only after it runs.
+syrus_macos_runtime_install() {
+  local tool="$1" version="$2" root="$3" probe="$4" prefix work installed
+  prefix="$root/$version"
+  if [[ ! -x "$SYRUS_MACOS_MISE" ]]; then
+    echo "macos-runtime: mise not found at $SYRUS_MACOS_MISE" >&2
+    return 1
+  fi
+  work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-$tool.XXXXXX")"
+  if ! (cd / && env \
+      MISE_DATA_DIR="$work/data" MISE_CACHE_DIR="$work/cache" \
+      MISE_CONFIG_DIR="$work/config" MISE_STATE_DIR="$work/state" \
+      MISE_GLOBAL_CONFIG_FILE="$work/config/none.toml" \
+      "$SYRUS_MACOS_MISE" install "$tool@$version"); then
+    rm -rf "$work"
+    echo "macos-runtime: mise could not install $tool $version" >&2
+    return 1
+  fi
+  installed="$work/data/installs/$tool/$version"
+  if ! "$probe" "$installed" "$version"; then
+    rm -rf "$work"
+    echo "macos-runtime: installed $tool does not report version $version" >&2
+    return 1
+  fi
+
+  mkdir -p "$root"
+  rm -rf "$prefix.next" "$prefix"
+  mv "$installed" "$prefix.next"
+  if [[ "$EUID" -eq 0 ]]; then
+    chown -R root:wheel "$prefix.next"
+  fi
+  chmod -R go-w "$prefix.next"
+  mv "$prefix.next" "$prefix"
+  rm -rf "$work"
+}
+
+_syrus_macos_ruby_probe() { [[ "$("$1/bin/ruby" -e 'print RUBY_VERSION' 2>/dev/null)" == "$2" ]]; }
+_syrus_macos_node_probe() { [[ "$("$1/bin/node" --version 2>/dev/null)" == "v$2" ]]; }
+
+syrus_macos_ruby_install() {
+  syrus_macos_ruby_installed "$1" && return 0
+  syrus_macos_runtime_install ruby "$1" "$SYRUS_MACOS_RUBIES_ROOT" _syrus_macos_ruby_probe || return 1
+  syrus_macos_ruby_installed "$1" || { echo "macos-runtime: Ruby $1 does not run from $(syrus_macos_ruby_prefix "$1")" >&2; return 1; }
+}
+
+syrus_macos_node_install() {
+  syrus_macos_node_installed "$1" && return 0
+  syrus_macos_runtime_install node "$1" "$SYRUS_MACOS_NODES_ROOT" _syrus_macos_node_probe || return 1
+  syrus_macos_node_installed "$1" || { echo "macos-runtime: Node $1 does not run from $(syrus_macos_node_prefix "$1")" >&2; return 1; }
+}
+
+# Installs every runtime a release pins.
+syrus_macos_runtimes_install() {
+  local release_root="$1" ruby node
+  ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
+  node="$(syrus_macos_node_version "$release_root")" || return 1
+  syrus_macos_ruby_install "$ruby" && syrus_macos_node_install "$node"
+}
+
+# The PATH prefix a release runs with: its pinned Ruby and Node, then the
+# agent CLIs installed with that Node.
+syrus_macos_runtime_path() {
+  local release_root="$1" ruby node
+  ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
+  node="$(syrus_macos_node_version "$release_root")" || return 1
+  printf '%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" "$SYRUS_MACOS_AGENT_CLI_PREFIX"
+}
+
+# Puts a release's pinned Ruby and Node first on PATH and points Bundler at
+# that Ruby's bundle. Fails when either is not installed instead of silently
+# falling back to whatever `ruby` or `node` the host has.
+syrus_macos_runtime_activate() {
+  local release_root="$1" shared_dir="$2" ruby node runtime_path
+  ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
+  node="$(syrus_macos_node_version "$release_root")" || return 1
+  if ! syrus_macos_ruby_installed "$ruby"; then
+    echo "macos-runtime: Ruby $ruby (from $release_root/.ruby-version) is not installed under $SYRUS_MACOS_RUBIES_ROOT; run bin/install-macos-worker" >&2
+    return 1
+  fi
+  if ! syrus_macos_node_installed "$node"; then
+    echo "macos-runtime: Node $node (from $release_root/.node-version) is not installed under $SYRUS_MACOS_NODES_ROOT; run bin/install-macos-worker" >&2
+    return 1
+  fi
+  runtime_path="$(syrus_macos_runtime_path "$release_root")" || return 1
+  export PATH="$runtime_path:$PATH"
+  export BUNDLE_PATH
+  BUNDLE_PATH="$(syrus_macos_bundle_path "$shared_dir" "$ruby")"
+  export BUNDLE_APP_CONFIG="$shared_dir/bundle-config"
+  export SYRUS_MACOS_RUBY_VERSION="$ruby"
+  export SYRUS_MACOS_NODE_VERSION="$node"
+}

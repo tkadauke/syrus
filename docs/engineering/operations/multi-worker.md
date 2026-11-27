@@ -160,22 +160,28 @@ The expected filesystem layout is:
 | `/opt/syrus/releases/<sha>` | root-owned, immutable release checkout; the worker cannot modify privileged code |
 | `/opt/syrus/current` | symlink to the active release |
 | `/opt/syrus/rubies/<version>` | root-owned Ruby a release pins in `.ruby-version`, installed by mise as a self-contained prebuilt binary |
+| `/opt/syrus/nodes/<version>` | root-owned Node a release pins in `.node-version`, installed by mise as a self-contained prebuilt binary |
+| `/opt/syrus/agent-clis` | root-owned npm prefix holding the pinned agent CLIs (Claude Code, Codex), installed with that Node |
 | `/opt/syrus/shared/bundles/ruby-<version>` | Bundler install path reused by every release on that Ruby version |
 | `/usr/local/libexec/syrus/syrus-macos-updater` | root-owned updater executed by launchd, outside the release tree |
-| `/usr/local/libexec/syrus/macos-ruby-env` | root-owned copy of the pinned-Ruby helper the updater sources |
+| `/usr/local/libexec/syrus/macos-runtime-env` | root-owned copy of the pinned-runtime helper the updater sources |
 | `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces (`workflows/<workflow_id>`), per-workflow grader scratch beside them (`workflow-scratch/<workflow_id>`: grader checkouts, prepare caches, archive staging), version/capability probe scratch (`runtime-probes/`), search SQLite file if configured there, and `.syrus-worker-storage-id` |
 | `/var/log/syrus/worker.log` / `worker.err.log` | launchd stdout/stderr logs |
 | `/etc/syrus/worker.env` | root-owned env file with app, DB, storage, and worker capability credentials |
 
-Mac workers never run Homebrew's Ruby. `bin/macos-worker`, the installer, and
-the updater all source `bin/macos-ruby-env`, which puts the release's pinned
-Ruby first on `PATH` and points Bundler at that Ruby's own bundle, the same
-Ruby version the Linux image uses. The worker refuses to start if that Ruby is
-missing rather than falling back to a host Ruby, and `bin/macos-worker-check`
-fails if the Ruby on `PATH` does not match `.ruby-version`. A Ruby bump is a
-`.ruby-version` change: the installer or updater installs the new version
-before preparing the release, and the previous Ruby and bundle stay in place
-for rollback.
+Mac workers never run Homebrew's Ruby or Node. Homebrew is shared with every
+other account on the host, and an upgrade there -- even of a library a
+formula links against -- can break a Ruby or Node under a running worker.
+`bin/macos-worker`, the installer, and the updater all source
+`bin/macos-runtime-env`, which puts the release's pinned Ruby and Node (the
+versions the Linux image uses) and the agent CLIs installed with that Node
+first on `PATH`, and points Bundler at that Ruby's own bundle. The worker
+refuses to start if either runtime is missing rather than falling back to the
+host's, and `bin/macos-worker-check` fails if the Ruby or Node on `PATH` does
+not match `.ruby-version` or `.node-version`. A Ruby or Node bump is a version
+file change: the installer or updater installs the new version before
+preparing the release, and the previous one stays in place for rollback. The
+agent CLIs are installed by `bin/install-macos-worker`.
 
 Release cleanup should keep the current release, at least one rollback release,
 and any release that still has a running `bin/jobs` process. Workspace cleanup

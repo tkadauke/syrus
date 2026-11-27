@@ -12,9 +12,10 @@ RSpec.describe "macOS worker installer" do
   it "defines the complete baseline and pinned agent CLIs" do
     source = File.read(script)
 
-    expect(source).to include("BREW_FORMULAE=(node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)")
-    # Ruby comes from the release's .ruby-version via mise, never Homebrew.
-    expect(source).not_to match(/ruby@\d/)
+    expect(source).to include("BREW_FORMULAE=(mysql-client pkg-config vips openssl@3 readline libyaml mise go)")
+    # Ruby and Node come from the release's version files via mise, never
+    # Homebrew, whose formulae other accounts on the host can upgrade.
+    expect(source).not_to match(/(ruby|node)@\d/)
     expect(source).to include('CLAUDE_CODE_VERSION="2.1.330"')
     expect(source).to include('CODEX_CLI_VERSION="0.171.0"')
     expect(source).to include('git config --global credential.helper ""')
@@ -126,9 +127,14 @@ RSpec.describe "macOS worker installer" do
         install_offset = stdout.index("+ syrus_macos_ruby_install #{pinned_ruby}")
         expect(install_offset).not_to be_nil
         expect(install_offset).to be < stdout.index("bundle install")
-        expect(stdout).to include("PATH=#{install_root}/rubies/#{pinned_ruby}/bin:")
+        pinned_node = File.read(File.join(root, ".node-version")).strip
+        expect(stdout).to include("+ syrus_macos_node_install #{pinned_node}")
+        expect(stdout).to include("PATH=#{install_root}/rubies/#{pinned_ruby}/bin:#{install_root}/nodes/#{pinned_node}/bin:#{install_root}/agent-clis/bin:")
+        # The agent CLIs are installed with the pinned Node into a Syrus-owned
+        # prefix, not Homebrew's global one.
+        expect(stdout).to match(%r{#{Regexp.escape(install_root)}/nodes/#{pinned_node}/bin/npm install -g --prefix #{Regexp.escape(install_root)}/agent-clis @anthropic-ai/claude-code@[\d.]+ @openai/codex@[\d.]+})
         expect(stdout).to include("BUNDLE_PATH=#{install_root}/shared/bundles/ruby-#{pinned_ruby}")
-        expect(stdout).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-ruby-env /usr/local/libexec/syrus/macos-ruby-env")
+        expect(stdout).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-runtime-env /usr/local/libexec/syrus/macos-runtime-env")
       end
     end
   end

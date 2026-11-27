@@ -34,10 +34,13 @@ RSpec.describe "native macOS worker release artifact" do
   # Regression: a deploy built the release from HEAD, so another session's
   # commit landing mid-deploy changed the release's name and code under it.
   it "packages the pinned commit, not HEAD, when one is given" do
-    pinned_short = git("rev-parse", "--short", "HEAD~1")
+    # A commit with HEAD's tree but its own SHA: distinct from HEAD, yet it
+    # carries every file the release requires, whatever the history holds.
+    pinned = git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "release spec pin")
+    pinned_short = git("rev-parse", "--short", pinned)
 
     stdout, stderr, status = Open3.capture3(
-      { "SYRUS_BUILT_AT" => "2026-10-03T12:34:56Z", "SYRUS_RELEASE_GZIP_LEVEL" => "1", "SYRUS_RELEASE_GIT_REF" => "HEAD~1" },
+      { "SYRUS_BUILT_AT" => "2026-10-03T12:34:56Z", "SYRUS_RELEASE_GZIP_LEVEL" => "1", "SYRUS_RELEASE_GIT_REF" => pinned },
       "bash", script, version, chdir: root
     )
 
@@ -72,8 +75,9 @@ RSpec.describe "native macOS worker release artifact" do
     expect(entries).to include("#{root_entry}/bin/install-macos-worker")
     expect(entries).to include("#{root_entry}/bin/syrus-macos-updater")
     expect(entries).to include("#{root_entry}/bin/macos-worker-check")
-    expect(entries).to include("#{root_entry}/bin/macos-ruby-env")
+    expect(entries).to include("#{root_entry}/bin/macos-runtime-env")
     expect(entries).to include("#{root_entry}/.ruby-version")
+    expect(entries).to include("#{root_entry}/.node-version")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.worker.plist")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.updater.plist")
     expect(entries).to include("#{root_entry}/Gemfile")

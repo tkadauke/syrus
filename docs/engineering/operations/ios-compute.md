@@ -27,8 +27,8 @@ Before filing iOS work, confirm all of these are true:
 - `bin/macos-worker-check --env-file /etc/syrus/worker.env` passes on each Mac
   host that should receive iOS work.
 - The host was prepared with `bin/install-macos-worker`, which installs the
-  release's pinned Ruby (through mise), native build dependencies, `mise`, and
-  pinned agent CLIs before loading the launchd worker.
+  release's pinned Ruby and Node (through mise), native build dependencies,
+  `mise`, and pinned agent CLIs before loading the launchd worker.
 - The launchd worker user can access any signing keychain, certificates,
   provisioning profiles, package registries, internal services, and artifact
   storage the target repository needs.

@@ -20,7 +20,8 @@ RSpec.describe "native macOS worker updater" do
     FileUtils.mkdir_p(File.join(release_root, "bin"))
     File.write(File.join(release_root, "GIT_SHA"), "#{sha}\n")
     File.write(File.join(release_root, ".ruby-version"), "#{pinned_ruby}\n")
-    FileUtils.cp(File.join(root, "bin/macos-ruby-env"), File.join(release_root, "bin/macos-ruby-env"))
+    File.write(File.join(release_root, ".node-version"), "#{pinned_node}\n")
+    FileUtils.cp(File.join(root, "bin/macos-runtime-env"), File.join(release_root, "bin/macos-runtime-env"))
     File.write(File.join(release_root, "package.json"), "{}\n")
     File.write(File.join(release_root, "package-lock.json"), %({"lockfileVersion":3,"packages":{}}\n))
     check_body = if command_log
@@ -77,19 +78,26 @@ RSpec.describe "native macOS worker updater" do
   end
 
   let(:pinned_ruby) { "3.4.10" }
+  let(:pinned_node) { "22.23.5" }
 
-  # Stands in for mise: "installs" a Ruby that reports the requested version
-  # to the helper's version probe and hands every other invocation (the
-  # updater's own scripts) to the real Ruby running this spec.
+  # Stands in for mise: "installs" a Ruby or Node that reports the requested
+  # version to the helper's version probe. The fake Ruby hands every other
+  # invocation (the updater's own scripts) to the real Ruby running this spec.
   def write_fake_mise(dir)
     path = File.join(dir, "fake-mise")
     write_executable(path, <<~BASH)
       #!/usr/bin/env bash
       [[ "$1" == "install" ]] || exit 2
-      version="${2#ruby@}"
-      bin="$MISE_DATA_DIR/installs/ruby/$version/bin"
+      tool="${2%@*}"
+      version="${2#*@}"
+      bin="$MISE_DATA_DIR/installs/$tool/$version/bin"
       mkdir -p "$bin"
-      printf '%s\n' "$version" >> #{File.join(dir, "mise-installs.log").inspect}
+      printf '%s\n' "$tool@$version" >> #{File.join(dir, "mise-installs.log").inspect}
+      if [[ "$tool" == "node" ]]; then
+        printf '#!/usr/bin/env bash\necho v%s\n' "$version" > "$bin/node"
+        chmod 755 "$bin/node"
+        exit 0
+      fi
       cat > "$bin/ruby" <<RUBY
       #!/usr/bin/env bash
       if [[ "\\$1" == "-e" && "\\$2" == "print RUBY_VERSION" ]]; then printf '%s' "$version"; exit 0; fi
@@ -271,7 +279,7 @@ RSpec.describe "native macOS worker updater" do
         write_executable(File.join(bin_dir, command), <<~BASH)
           #!/usr/bin/env bash
           printf '#{command} %s BUNDLE_FROZEN=%s\n' "$PWD $*" "${BUNDLE_FROZEN:-}" >> #{command_log.inspect}
-          printf '#{command} env ruby=%s bundle_path=%s\n' "$(command -v ruby)" "${BUNDLE_PATH:-}" >> #{command_log.inspect}
+          printf '#{command} env ruby=%s node=%s bundle_path=%s\n' "$(command -v ruby)" "$(command -v node)" "${BUNDLE_PATH:-}" >> #{command_log.inspect}
         BASH
       end
       write_executable(File.join(bin_dir, "chown"), <<~BASH)
@@ -312,9 +320,14 @@ RSpec.describe "native macOS worker updater" do
       expect(commands).to match(/^bundle .* BUNDLE_FROZEN=true$/)
       # The release's pinned Ruby is installed first and bundles into its own
       # per-version gem directory.
-      expect(File.read(File.join(dir, "mise-installs.log"))).to eq("#{pinned_ruby}\n")
-      expect(commands).to include("bundle env ruby=#{dir}/rubies/#{pinned_ruby}/bin/ruby bundle_path=#{install_root}/shared/bundles/ruby-#{pinned_ruby}")
-      expect(commands).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-ruby-env #{File.dirname(privileged_updater)}/macos-ruby-env")
+      # The release's pinned Ruby and Node are installed first, and bundling
+      # runs on them, not on whatever the host's Homebrew provides.
+      expect(File.read(File.join(dir, "mise-installs.log"))).to eq("ruby@#{pinned_ruby}\nnode@#{pinned_node}\n")
+      expect(commands).to include(
+        "bundle env ruby=#{dir}/rubies/#{pinned_ruby}/bin/ruby node=#{install_root}/nodes/#{pinned_node}/bin/node " \
+        "bundle_path=#{install_root}/shared/bundles/ruby-#{pinned_ruby}"
+      )
+      expect(commands).to include("install -o root -g wheel -m 644 #{release_path}/bin/macos-runtime-env #{File.dirname(privileged_updater)}/macos-runtime-env")
       expect(commands).to include("npm #{install_root}/shared/node/bbb2222")
       expect(commands).to include("check --env-file #{env_file}")
       expect(commands).to include("chown -R root:wheel #{release_path}")
