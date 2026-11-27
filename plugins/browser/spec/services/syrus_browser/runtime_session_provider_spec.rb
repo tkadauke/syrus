@@ -211,6 +211,53 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       SyrusBrowser::SessionRegistry.reset!
     end
 
+    it "delegates the remaining compatibility event types to their authoritative browser tools" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "interact with the page")
+
+      events_and_calls = [
+        [ { type: "hover", target: "e5" }, { name: "browser_hover", arguments: { "target" => "e5" } } ],
+        [ { type: "drag", start_ref: "e6", end_ref: "e7" }, { name: "browser_drag", arguments: { "startTarget" => "e6", "endTarget" => "e7" } } ],
+        [ { type: "drop", ref: "e8", data: { "text/plain" => "hello" } }, { name: "browser_drop", arguments: { "target" => "e8", "data" => { "text/plain" => "hello" } } } ],
+        [ { type: "upload", paths: [ "/tmp/evidence.txt" ] }, { name: "browser_file_upload", arguments: { "paths" => [ "/tmp/evidence.txt" ] } } ]
+      ]
+
+      events_and_calls.each do |event, expected_call|
+        result = provider.input(runtime_session.id, event.merge("_runtime_control_owner" => "agent"))
+
+        expect(result[:error]).to be false
+        expect(browser_session).to have_received(:call_tool).with(expected_call)
+      end
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "rejects coordinate-only pointer input with compatibility guidance after validating the lease" do
+      lease = RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
+      allow(runtime_session).to receive(:active_agent_input_lease).and_return(lease)
+      expect(lease).to receive(:record_input!).with(hash_including("type" => "pointer", "x" => 40))
+
+      result = provider.input(
+        runtime_session,
+        { type: "pointer", action: "click", x: 40, y: 60, normalized_x: 0.25, normalized_y: 0.5, "_runtime_control_owner" => "agent" }
+      )
+
+      expect(result[:error]).to be true
+      expect(result[:content].first[:text]).to include("coordinate-only input is unsupported")
+    end
+
+    it "records unsupported input attempts on the active lease before returning an error" do
+      lease = RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "interact with the page")
+      allow(runtime_session).to receive(:active_agent_input_lease).and_return(lease)
+      expect(lease).to receive(:record_input!).with(hash_including("type" => "scroll", "delta_y" => 100))
+
+      result = provider.input(runtime_session, { type: "scroll", delta_y: 100, "_runtime_control_owner" => "agent" })
+
+      expect(result[:error]).to be true
+      expect(result[:content].first[:text]).to include("unsupported_input_event: scroll")
+    end
+
     it "does not allow an agent input call while only the operator holds the lease" do
       RuntimeControlLease.acquire!(
         runtime_session: runtime_session,
