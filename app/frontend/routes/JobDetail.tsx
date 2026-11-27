@@ -299,17 +299,7 @@ export function JobQuestionPanel({
         <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
       </div>
       <AgentQuestions questions={questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
-      <div className="grid gap-2 sm:grid-cols-3">
-        <div>
-          <Button
-            disabled={command.isPending}
-            onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/retry_implementation` })}
-            variant="secondary"
-          >
-            {t("question_retry")}
-          </Button>
-          <p className="mt-1 text-xs text-text-muted">{t("question_retry_consequence")}</p>
-        </div>
+      <div className="grid gap-2 sm:grid-cols-2">
         <div>
           <Button
             disabled={command.isPending}
@@ -331,6 +321,24 @@ export function JobQuestionPanel({
           <p className="mt-1 text-xs text-text-muted">{t("question_give_up_consequence")}</p>
         </div>
       </div>
+      <details className="rounded border border-border-subtle p-3 text-sm">
+        <summary className="cursor-pointer font-medium">{t("question_recovery_title")}</summary>
+        <p className="mt-2 text-xs text-text-muted">{t("question_retry_consequence")}</p>
+        <Button
+          className="mt-2"
+          disabled={command.isPending}
+          onClick={() =>
+            command.mutate({
+              method: "post",
+              path: `/api/v1/app/jobs/${job.id}/retry_implementation`,
+              confirm: t("question_retry_confirm")
+            })
+          }
+          variant="secondary"
+        >
+          {t("question_retry")}
+        </Button>
+      </details>
     </section>
   )
 }
