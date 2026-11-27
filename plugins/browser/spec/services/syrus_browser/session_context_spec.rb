@@ -22,6 +22,22 @@ RSpec.describe SyrusBrowser::SessionContext do
         expect(result.owner).to eq(run)
         expect(result.artifact_sink).to be_a(SyrusBrowser::ArtifactSinks::VisualReviewDraft)
       end
+
+      it "uses the Run's browser Runtime Session identity when one is active" do
+        runtime_session = RuntimeSession.create!(
+          repository: repository, job: run.job, workflow: run.workflow, run: run,
+          workspace_ref: "/workspace", provider_key: "browser", display_name: "Browser",
+          state: "running", primary: true
+        )
+        server_context = { run_id: run.id }
+        allow(Mcp::Tools).to receive(:run_from_context).with(server_context).and_return(run)
+
+        result = described_class.resolve(server_context)
+
+        expect(result.session_key).to eq("runtime_session:#{runtime_session.id}")
+        expect(result.owner).to eq(runtime_session)
+        expect(result.artifact_sink).to be_a(SyrusBrowser::ArtifactSinks::VisualReviewDraft)
+      end
     end
 
     context "with a runtime_session-shaped server_context (provider delegation)" do

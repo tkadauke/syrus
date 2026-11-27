@@ -445,11 +445,17 @@ reload it, snapshot or inspect what's running, page through its logs, and
 tear it down when done: `runtime_list_sessions`, `runtime_start`,
 `runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
 `runtime_snapshot`, `runtime_inspect`, and `runtime_logs`. Sending input to a
-Runtime Session (`runtime_input`, and the equivalent direct
-`browser_click`/`browser_fill`/`browser_hover` tools) requires the agent to
-first request a short-lived control lease with `runtime_acquire_control` and
+Runtime Session requires the agent to first request a short-lived control
+lease with `runtime_acquire_control` and
 release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
+browser sessions use the semantic `browser_click`, `browser_fill`,
+`browser_hover`, `browser_press_key`, `browser_drag`, `browser_drop`, and
+`browser_file_upload` tools with stable references returned by
+`browser_snapshot`. The older `runtime_input` browser event shape remains only
+as a deprecated compatibility adapter onto those same Playwright-backed
+operations; it is not a second input engine. Non-browser providers continue to
+use `runtime_input` with their advertised event types;
 chat tool cards show input delivery errors and provider event details, while
 typed text is masked by default and can only be revealed with an explicit
 control;

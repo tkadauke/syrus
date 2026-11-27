@@ -506,7 +506,7 @@ module Syrus
         PreviewPanelVersionRecord: [ "Queries the built versions of preview panels (where); columns beyond the filters are not promised.", %w[where] ],
         PreviewCommandSource: [ "Resolves the command that starts a workspace's preview from its configuration; resolution rules are not promised.", %w[new resolve] ],
         PreviewProcessLauncher: [ "Launches a workspace's preview process on a port (launch!); process supervision is not promised.", %w[new launch!] ],
-        RuntimeSessionRecord: [ "Finds a runtime session by id; state transitions, persistence and other associations are not promised. Runtime-session plugins implement Syrus::Host::RuntimeSessionProvider.", %w[find] ],
+        RuntimeSessionRecord: [ "Finds and scopes runtime sessions by id, state, provider, and primary selection; state transitions, persistence and associations are not promised. Runtime-session plugins implement Syrus::Host::RuntimeSessionProvider.", %w[find where active for_provider primary] ],
         RuntimeControlLease: [ "Audits rejected agent input against a runtime session (audit_input_rejected!) and runs a block under agent input control (with_agent_input_control); lease acquisition and expiry are not promised.", %w[audit_input_rejected! with_agent_input_control] ],
         RuntimeSessionRegistry: [ "Resolves the runtime-session provider class for a provider key (for) and defines ConfigurationError, raised for misconfigured providers; provider discovery is not promised.", %w[for ConfigurationError] ],
         ChatJobStatusExtension: [ "Lets a plugin add actions to the chat Jobs workspace by returning a hash merged into the job-status response's extensions member; response assembly is not promised.", %w[payload] ],

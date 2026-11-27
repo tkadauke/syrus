@@ -41,7 +41,10 @@ module SyrusBrowser
         else
           ArtifactSinks::Null.new
         end
-        Result.new(session_key: "run:#{run.id}", artifact_sink: sink, owner: run)
+        runtime_session = active_browser_session_for_run(run)
+        return Result.new(session_key: "run:#{run.id}", artifact_sink: sink, owner: run) unless runtime_session
+
+        Result.new(session_key: "runtime_session:#{runtime_session.id}", artifact_sink: sink, owner: runtime_session)
       end
 
       def for_runtime_session(runtime_session)
@@ -63,6 +66,14 @@ module SyrusBrowser
 
       def active_browser_session_for(chat_session)
         scope = chat_session.runtime_sessions.active.for_provider(RuntimeSessionProvider.provider_key)
+        scope.primary.first || scope.first
+      end
+
+      def active_browser_session_for_run(run)
+        return unless run.is_a?(Syrus::Host::RunRecord)
+
+        scope = Syrus::Host::RuntimeSessionRecord.where(run_id: run.id).active
+          .for_provider(RuntimeSessionProvider.provider_key)
         scope.primary.first || scope.first
       end
     end
