@@ -88,7 +88,7 @@ RSpec.describe ScheduledTasks::FireDueTaskJob do
   end
 
   it "retries the exact failed occurrence for a system schedule without defeating its poll backoff" do
-    now = Time.utc(2026, 11, 4, 3, 15)
+    now = Time.at(Time.utc(2026, 11, 4, 3, 15).to_i, 123_456, :microsecond).utc
     definition = Class.new(ScheduledTasks::SystemSchedules::Definition) do
       def prompt(task:, target_date:) = "System work for #{target_date || task.id}"
       def failure_date(task:, now:) = now.to_date
