@@ -105,4 +105,24 @@ RSpec.describe SyrusBrowser::Tools::RunVisualReviewTool do
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("job not found")
   end
+
+  it "returns a structured retryable error when shared pending-action contention persists" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    allow(chat_session.pending_actions)
+      .to receive(:create!).and_raise(ActiveRecord::StatementTimeout, "statement timeout")
+
+    response = call_tool(job_id: job.id)
+    body = payload(response)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(body).to eq(
+      error: {
+        code: "temporary_database_contention",
+        message: "The confirmation could not be created because Syrus is temporarily busy. Please retry the tool call.",
+        retryable: true
+      }
+    )
+    expect(chat_session.pending_actions.reload).to be_empty
+    expect(chat_session.pending_actions).to have_received(:create!).exactly(3).times
+  end
 end

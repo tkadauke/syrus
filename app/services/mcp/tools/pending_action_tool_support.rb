@@ -16,6 +16,10 @@ module Mcp::Tools
         state: pending_action.state,
         message: message
       )
+    rescue Mcp::Tools::TransientDatabaseContention
+      Mcp::Tools.transient_database_contention(
+        "The confirmation could not be created because Syrus is temporarily busy. Please retry the tool call."
+      )
     end
 
     def user_job(chat_session, job_id)
