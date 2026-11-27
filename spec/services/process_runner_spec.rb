@@ -1462,14 +1462,28 @@ RSpec.describe ProcessRunner, :ci_only do
       ).run
     end
 
-    sleep 0.2
+    probe = nil
+    Timeout.timeout(5) do
+      loop do
+        if lock_path.dirname.directory?
+          candidate = File.open(lock_path, File::CREAT | File::RDWR)
+          if candidate.flock(File::LOCK_EX | File::LOCK_NB) == false
+            probe = candidate
+            break
+          end
+          candidate.close
+        end
+        runner_thread.value unless runner_thread.alive?
+        sleep 0.01
+      end
+    end
 
-    probe = File.open(lock_path, File::CREAT | File::RDWR)
-    expect(probe.flock(File::LOCK_EX | File::LOCK_NB)).to eq(false)
+    expect(probe).to be_present
     probe.close
 
     runner_thread.join
   ensure
+    runner_thread&.join
     ENV.delete("SYRUS_DATA_ROOT")
     FileUtils.rm_rf(data_root) if data_root
   end
@@ -1554,6 +1568,9 @@ RSpec.describe ProcessRunner, :ci_only do
 
     expect(result).to be_silent_timed_out
     expect(Integer(File.read(marker))).to be_positive
+    Timeout.timeout(5) do
+      sleep 0.01 until File.exist?(terminated)
+    end
     expect(File.read(terminated)).to eq("yes")
   end
 
