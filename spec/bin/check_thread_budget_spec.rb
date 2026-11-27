@@ -128,8 +128,10 @@ RSpec.describe "bin/check-thread-budget" do
     stdout, stderr, status = spawn_clean(
       "HOME" => ENV.fetch("HOME"),
       "PATH" => ENV.fetch("PATH"),
-      "JOB_CONCURRENCY" => nil,
-      "SYRUS_WORKER_CPU_LIMIT" => "16",
+      # Pin the concurrency derived for a 16-CPU pod. A test process can have
+      # a smaller real cgroup quota, which correctly takes precedence over
+      # SYRUS_WORKER_CPU_LIMIT in production.
+      "JOB_CONCURRENCY" => "12",
       "SYRUS_SQLITE" => nil
     )
 
@@ -145,11 +147,11 @@ RSpec.describe "bin/check-thread-budget" do
   # size fails on every run.
   [ 4, 16, 32 ].each do |cpus|
     it "fits every queue config on a #{cpus}-CPU pod" do
+      run_threads = (cpus * 0.8).floor
       stdout, stderr, status = spawn_clean(
         "HOME" => ENV.fetch("HOME"),
         "PATH" => ENV.fetch("PATH"),
-        "JOB_CONCURRENCY" => nil,
-        "SYRUS_WORKER_CPU_LIMIT" => cpus.to_s,
+        "JOB_CONCURRENCY" => run_threads.to_s,
         "SYRUS_SQLITE" => nil
       )
 
