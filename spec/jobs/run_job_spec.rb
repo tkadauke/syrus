@@ -137,6 +137,31 @@ RSpec.describe RunJob, :ci_only do
       expect(run.workflow.reload).to be_running
     end
 
+    # Regression: sibling graders failing together queued on the Job row,
+    # and the last of the burst timed out failing its Run.
+    it "retries a lock wait while failing the Run instead of losing the failure" do
+      run = job.initial_run
+      run.update!(state: "running", started_at: Time.current)
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      attempts = 0
+      allow(run).to receive(:fail!).and_wrap_original do |original, *args, **kwargs, &block|
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+
+        original.call(*args, **kwargs, &block)
+      end
+      allow(run).to receive(:reload).and_return(run)
+
+      run_job.send(:handle_failure, Steps::Base::StepFailed.new("grader rspec failed (exit 1)"))
+
+      expect(run.reload.state).to eq("failed")
+      expect(attempts).to be >= 2
+    end
+
     it "records recovered lock contention with queue and lifecycle context" do
       run = job.initial_run
       run_job = RunJob.new

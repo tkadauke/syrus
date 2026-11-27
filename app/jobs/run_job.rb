@@ -1118,7 +1118,13 @@ class RunJob < ApplicationJob
 
     return cancel_run_after_external_cancellation! if cancelled_while_running?
 
-    fail_run_tolerating_duplicate_diagnostic! if @run&.may_fail?
+    # Failing a Run locks its whole lineage, so sibling graders of one
+    # workflow failing together queue on the same Job row. The last of a
+    # burst timed out, and its Run recorded the lock wait instead of the
+    # grader's own result. Retried like every other lifecycle write.
+    if @run&.may_fail?
+      with_lifecycle_lock_retry("fail_run") { fail_run_tolerating_duplicate_diagnostic! if @run.may_fail? }
+    end
 
     record_landing_failure!(exception)
     if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
