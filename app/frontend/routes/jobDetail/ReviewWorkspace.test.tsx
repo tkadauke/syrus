@@ -2231,9 +2231,7 @@ describe("ReviewWorkspace", () => {
       })
     )
     // Comments resolve after the diff, as they can on a loaded grader.
-    vi.mocked(fetchDiffReviewComments).mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(commentsPayload([lineComment])), 50))
-    )
+    vi.mocked(fetchDiffReviewComments).mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(commentsPayload([lineComment])), 50)))
 
     renderWorkspace()
 
