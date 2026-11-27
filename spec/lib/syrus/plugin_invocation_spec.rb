@@ -82,6 +82,15 @@ RSpec.describe Syrus::PluginInvocation do
     expect(result).to have_attributes(reason: :timeout, exception_class: "Timeout::Error", value: [])
   end
 
+  it "rejects an over-budget result when the asynchronous timeout arrives late" do
+    allow(Timeout).to receive(:timeout).and_yield
+    allow(described_class).to receive(:monotonic_now).and_return(10.0, 10.02)
+
+    result = invoke(timeout: 0.001) { [ "late" ] }
+
+    expect(result).to have_attributes(reason: :timeout, exception_class: "Timeout::Error", value: [])
+  end
+
   it "does not rescue exceptions outside StandardError" do
     expect { invoke { raise Interrupt } }.to raise_error(Interrupt)
   end
