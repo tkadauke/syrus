@@ -60,10 +60,19 @@ RSpec.describe "runtime image build jobs" do
 
   describe RuntimeImageBuildJob do
     before do
-      allow_any_instance_of(RuntimeImages::Verifications::SupplyChainVerifier).to receive(:call)
-        .and_return(RuntimeImages::Verifications::Result.pass(evidence_references: [ { "kind" => "test" } ]))
-      allow_any_instance_of(RuntimeImages::Verifications::ImagePolicyVerifier).to receive(:call)
-        .and_return(RuntimeImages::Verifications::Result.pass(evidence_references: [ { "kind" => "test" } ]))
+      report = RuntimeImages::Verifications::ImagePolicyScanner::Report.new(
+        metadata: {
+          "Size" => 1, "RootFS" => { "Layers" => [] },
+          "Config" => { "User" => "1000:1000", "Entrypoint" => nil, "Cmd" => [ "/bin/bash" ], "Labels" => {} }
+        },
+        history: "", secrets: { "Results" => [] }, scanned_at: Time.current
+      )
+      allow_any_instance_of(RuntimeImages::Verifications::ImagePolicyScanner).to receive(:call).and_return(report)
+      scan = RuntimeImages::Verifications::SupplyChainScanner::Scan.new(
+        sbom: { "bomFormat" => "CycloneDX", "components" => [] }, report: { "Results" => [] },
+        scanner_name: "test", scanner_version: "1", database_version: "test", scanned_at: Time.current
+      )
+      allow_any_instance_of(RuntimeImages::Verifications::SupplyChainScanner).to receive(:call).and_return(scan)
     end
 
     it "runs the claimed attempt through the registered builder" do
@@ -75,7 +84,7 @@ RSpec.describe "runtime image build jobs" do
 
       described_class.perform_now(request.id, attempt.id)
 
-      expect(request.reload).to be_succeeded
+      expect(request.reload).to be_succeeded, -> { "build attempt failed: #{attempt.reload.error_code}: #{attempt.error_message}" }
     end
 
     it "does not build again when another delivery already started the attempt" do
@@ -100,7 +109,7 @@ RSpec.describe "runtime image build jobs" do
       described_class.perform_now(request.id, attempt.id)
 
       expect(attempt.reload.execution_started_at).to be_present
-      expect(request.reload).to be_succeeded
+      expect(request.reload).to be_succeeded, -> { "build attempt failed: #{attempt.reload.error_code}: #{attempt.error_message}" }
     end
 
     it "is a no-op for an attempt that is no longer active" do
