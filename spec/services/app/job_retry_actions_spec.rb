@@ -96,7 +96,8 @@ RSpec.describe App::JobRetryActions do
       actions = actions_for(job)
 
       expect(actions[:recovery_decision]).to include(
-        kind: "infrastructure_only", recommended_action: "rerun_unchanged"
+        kind: "infrastructure_only", recommended_action: "rerun_unchanged",
+        measured_failures: [], inconclusive_infrastructure_failures: []
       )
       expect(actions[:implementation]).to be_nil
       expect(actions[:failed_step]).to include(

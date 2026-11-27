@@ -24,10 +24,10 @@ describe("RecoveryCard", () => {
             recommended_action: "repair_with_guidance",
             mode: "failed_step",
             explanation: "None of the previously failing test identities passed after repair.",
+            measured_failures: ["frontend\0renders recovery"],
+            inconclusive_infrastructure_failures: [{ name: "worker timeout", classification: "timeout", affected_decision: false }],
             evidence: {
-              source_workflow_id: 9,
-              measured_failure_identities: ["frontend\0renders recovery"],
-              rounds: [{ grader_results: [{ name: "worker timeout", classification: "infrastructure" }] }]
+              source_workflow_id: 9
             }
           },
           retry_failed_step_action: { key: "retry_failed_step", label: "Retry", path: "/retry" }
@@ -51,7 +51,8 @@ describe("RecoveryCard", () => {
             mode: "failed_step",
             explanation: "No progress.",
             guidance: "Inspect the persistent assertion.",
-            evidence: { measured_failure_identities: ["frontend\0assertion"] }
+            measured_failures: ["frontend\0assertion"],
+            evidence: {}
           },
           retry_failed_step_action: { key: "retry_failed_step", label: "Retry", path: "/retry" }
         })}

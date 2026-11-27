@@ -1167,13 +1167,17 @@ export type JobRecoveryDecision = {
   mode: string
   explanation: string
   guidance?: string | null
+  measured_failures?: string[]
+  inconclusive_infrastructure_failures?: Array<{
+    name?: string
+    classification?: string
+    affected_decision?: boolean
+  }>
   evidence: {
     source_workflow_id?: number
     source_revision?: string
     failure_classification?: string
-    measured_failure_identities?: string[]
     compared_iterations?: Record<string, number>
-    rounds?: Array<Record<string, unknown>>
   }
 }
 
