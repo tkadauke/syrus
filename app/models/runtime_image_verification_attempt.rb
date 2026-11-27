@@ -1,4 +1,8 @@
 class RuntimeImageVerificationAttempt < ApplicationRecord
+  include HasConfigurableRetention
+
+  configurable_retention setting_key: :runtime_image_verification_evidence_retention_days, unit: :days
+
   STATES = %w[running accepted rejected blocked].freeze
   TERMINAL_STATES = STATES - [ "running" ]
 
@@ -26,8 +30,11 @@ class RuntimeImageVerificationAttempt < ApplicationRecord
   def accepted? = state == "accepted"
 
   scope :prunable, lambda {
+    cutoff = retention_cutoff
+    next none unless cutoff
+
     latest_ids = select("MAX(runtime_image_verification_attempts.id)").group(:runtime_image_id)
-    where.not(id: latest_ids)
+    where.not(id: latest_ids).where(finished_at: ...cutoff)
   }
 
   private
