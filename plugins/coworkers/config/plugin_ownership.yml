@@ -16,6 +16,7 @@ ownership:
     - /api/v1/app/coworkers
   tables:
     - coworker_chats
+    - coworker_base_releases
     - coworker_environment_revisions
     - coworker_environments
     - coworker_grants
