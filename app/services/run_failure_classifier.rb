@@ -200,6 +200,8 @@ class RunFailureClassifier
       result("database_lock", 0.80, true, "The run failed during transient database contention, timeout, or connection exhaustion.")
     when provider_turn_failed?
       result("provider_transient", 0.65, true, "The provider reported a generic failed turn; retrying should rerun the same step.")
+    when agent_process_exited_without_outcome?
+      result("provider_transient", 0.60, true, "The agent process exited non-zero without reporting an outcome; retrying resumes the captured session.")
     when git_failure?
       result("git_failure", 0.70, false, "A git operation failed.")
     else
@@ -502,6 +504,17 @@ class RunFailureClassifier
     %w[adversarial_review security_review visual_review].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
       text_match?(/agent didn't call/i)
+  end
+
+  # Steps::Base raises a bare "agent exited N" when the provider CLI exits
+  # non-zero with no outcome of its own. A Codex session that had finished
+  # its work and was committing exited 1 this way; as an unclassified
+  # application error it was never retried, and its failure stranded every
+  # Job stacked on it for days. The retry budget still bounds a real crash
+  # loop.
+  def agent_process_exited_without_outcome?
+    run.agent_outcome.blank? &&
+      diagnostic&.error_message.to_s.match?(/\Aagent exited \d+\z/)
   end
 
   def provider_turn_failed?

@@ -292,6 +292,17 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(true)
   end
 
+  # Regression: a Codex implement step that finished its work exited 1 with
+  # no outcome, was classified an unretryable application error, and blocked
+  # every Job stacked on it for days.
+  it "retries an agent process that exited non-zero without an outcome" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: nil)
+    RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "agent exited 1")
+
+    expect(classification.classification).to eq("provider_transient")
+    expect(classification.retryable).to eq(true)
+  end
+
   it "classifies Claude server_error outcomes as retryable provider transients" do
     run.update!(state: "failed", agent_provider: "claude", agent_outcome: "server_error")
 
