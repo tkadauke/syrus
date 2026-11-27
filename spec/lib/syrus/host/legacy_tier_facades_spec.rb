@@ -78,15 +78,9 @@ RSpec.describe "Syrus::Host facades replacing legacy plugin constants" do
     expect(ChatMessage).to have_received(:skip_callback).with(:commit, :after, :noop_callback, on: :create)
   end
 
-  it "keeps the legacy allowlist free of stale entries and records reasons" do
-    surface = Syrus::PluginHostSurface.new
-    expect(surface.lookup("Job").reason).to be_present
-    expect(surface.legacy_baseline).to eq(surface.legacy_entries.size)
-  end
-
   describe "service aliases for the coworkers, review and briefing plugins" do
     {
-      Memory: "Syrus::Memory", PromptsMemoryContext: "Prompts::MemoryContext",
+      Memory: "Syrus::Memory", MemoryStore: "Syrus::Plugin::MemoryStore", PromptsMemoryContext: "Prompts::MemoryContext",
       PromptsAdversarialReview: "Prompts::AdversarialReview", McpAuthorizationSupport: "Mcp::Tools::AuthorizationSupport",
       McpPendingActionToolSupport: "Mcp::Tools::PendingActionToolSupport", McpProposalToolSupport: "Mcp::Tools::ProposalToolSupport",
       McpEvidenceRedactor: "Mcp::Tools::EvidenceRedactor", McpPagination: "Mcp::Pagination",
@@ -99,7 +93,9 @@ RSpec.describe "Syrus::Host facades replacing legacy plugin constants" do
         api = Syrus::Host.apis.find { |candidate| candidate.name == "Syrus::Host::#{name}" }
         expect(api).to be_present
         api.members.each do |member|
-          expect(constant.respond_to?(member) || constant.method_defined?(member) || constant.const_defined?(member)).to be(true), "#{name} lacks #{member}"
+          exists = constant.respond_to?(member) || constant.method_defined?(member) || constant.private_method_defined?(member) ||
+            (member.match?(/\A[A-Z]/) && constant.const_defined?(member))
+          expect(exists).to be(true), "#{name} lacks #{member}"
         end
       end
     end

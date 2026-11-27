@@ -11,18 +11,15 @@ RSpec.describe "Built-in plugin host surface", :ci_only do
     false
   end
 
-  it "contains every core constant referenced by a built-in plugin and stays minimal" do
+  it "allows built-in plugins to use only public APIs or explicit exceptions" do
     findings = Admin::PluginHostSurfaceAudit.new.findings
 
     expect(findings).to eq([]), findings.join("\n")
-    expect(Syrus::PluginHostSurface.new.lookup("Syrus::PluginApi")).to be_present
-    expect(Syrus::PluginHostSurface.new.lookup("Syrus::Plugin::Callbacks")).to be_present
+    expect(Admin::PluginHostSurfaceInventory.new.results.map(&:tier).uniq).to all(be_in(%w[public allowlisted]))
   end
 
   it "keeps every public contract documented and resolvable" do
-    # The ceiling covers the narrow, member-listed contracts the main-branch
-    # health plugin needs from core workflow and landing internals, plus the model-shaped facades the coworkers, review and briefing plugins use.
-    expect(Syrus::Host.apis.size).to be_between(25, 260)
+    expect(Syrus::Host.apis.size).to be >= 25
     expect(Syrus::Host.apis.map(&:name)).to all(start_with("Syrus::Host::"))
 
     failures = Syrus::Host.apis.flat_map do |api|

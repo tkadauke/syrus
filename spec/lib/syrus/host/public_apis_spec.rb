@@ -9,11 +9,18 @@ RSpec.describe Syrus::Host::PublicApis do
     Syrus::Host.apis.replace(original_apis)
   end
 
+  it "keeps one boot-time alias fallback without loading the catalog early" do
+    source = Rails.root.join("lib/syrus/host.rb").read
+
+    expect(source.scan(/^      def const_missing\(name\)$/).size).to eq(1)
+    expect(source).to match(/def const_missing\(name\)\n        target = PublicApis::ALIASES\[name\] if const_defined\?\(:PublicApis, false\)/)
+  end
+
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(306)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(306)
+    expect(Syrus::Host.apis.size).to eq(487)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(487)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
@@ -48,7 +55,8 @@ RSpec.describe Syrus::Host::PublicApis do
       api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
       members = api.members.reject { |member| member.match?(/\A[A-Z]/) }
       singleton_members = members.select { |member| target.respond_to?(member) }
-      expect(singleton_members).to include(*(%w[agent_mounts report_duration data_root agent_home_for utf8 write_log from_server_context transaction default_timeout_seconds] & members)), name.to_s
+      expected = %w[agent_mounts report_duration data_root agent_home_for utf8 write_log from_server_context transaction default_timeout_seconds] & members
+      expect(singleton_members).to include(*expected), name.to_s if expected.any?
     end
   end
 

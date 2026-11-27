@@ -7,10 +7,10 @@ module Syrus
     class Scanner
       Finding = Data.define(:constant, :tier, :path, :line)
       StringFinding = Data.define(:constant, :tier, :path, :line, :method)
-      Result = Data.define(:public, :legacy, :unlisted, :dynamic, :minimum_syrus_version, :content_hash, :error) do
+      Result = Data.define(:public, :unlisted, :dynamic, :minimum_syrus_version, :content_hash, :error) do
         def violations? = unlisted.any?
-        def warnings? = legacy.any? || dynamic.any?
-        def findings = [ *public, *legacy, *unlisted, *dynamic ]
+        def warnings? = dynamic.any?
+        def findings = [ *public, *unlisted, *dynamic ]
       end
 
       def initialize(directory, surface: PluginHostSurface.new, inventory: Admin::PluginHostSurfaceInventory.new(surface:))
@@ -29,11 +29,10 @@ module Syrus
           tier = tier_for(reference.constant)
           next if tier == "namespace"
 
-          finding_tier = tier == "legacy" ? "non-public" : tier
-          [ tier, Finding.new(constant: reference.constant, tier: finding_tier, path: reference.path, line: reference.line) ]
+          [ tier, Finding.new(constant: reference.constant, tier:, path: reference.path, line: reference.line) ]
         end.group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
         public_findings = sorted(grouped.fetch("public", []))
-        Result.new(public: public_findings, legacy: sorted(grouped.fetch("legacy", [])),
+        Result.new(public: public_findings,
           unlisted: sorted(grouped.fetch("unlisted", [])), dynamic: dynamic_findings,
           minimum_syrus_version: minimum_version(public_findings),
           content_hash: content_hash, error: nil)
@@ -56,7 +55,7 @@ module Syrus
       def tier_for(constant)
         return "namespace" if constant == "Syrus::Host"
         return "public" if public_api_for(constant) || documented_plugin_interface?(constant)
-        return "legacy" if @surface.lookup(constant)
+        return "public" if @surface.allowed_internal?(constant)
 
         "unlisted"
       end
@@ -81,8 +80,7 @@ module Syrus
       end
 
       def public_names(api)
-        target_name = api.name.safe_constantize.then { |target| target.respond_to?(:name) && target.is_a?(Module) ? target.name : nil }
-        [ api.name, target_name ].compact.uniq
+        [ api.name ]
       end
 
       def documented_plugin_interface?(constant)
@@ -92,6 +90,7 @@ module Syrus
       def documented_plugin_interfaces
         @documented_plugin_interfaces ||= [
           *Syrus::PluginRegistry::INTERFACE_FOR.values.filter_map { |resolver| resolver.call.name },
+          "Syrus::PluginApi",
           "Syrus::Plugin::CliCommandHandler"
         ].uniq
       end

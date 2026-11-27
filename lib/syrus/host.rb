@@ -28,13 +28,11 @@ module Syrus
         @apis ||= []
       end
 
-      # Plugin classes are loaded while the application boots, before the
-      # to_prepare hook installs the facade aliases. Resolve a declared alias on
-      # first reference so boot-time plugin code sees the same constant the hook
-      # installs later.
+      # Plugins resolve their classes while the app boots, before the
+      # to_prepare hook installs the aliases, so materialize one on first use
+      # after the public API catalog is available.
       def const_missing(name)
-        require "syrus/host/public_apis"
-        target = PublicApis::ALIASES[name]
+        target = PublicApis::ALIASES[name] if const_defined?(:PublicApis, false)
         return super unless target
 
         const_set(name, target.constantize)
@@ -45,15 +43,6 @@ module Syrus
         apis.any? do |api|
           candidate == api.name || candidate.start_with?("#{api.name}::")
         end
-      end
-
-      # Plugins resolve their classes while the app boots, before the
-      # to_prepare hook installs the aliases, so materialize one on first use.
-      def const_missing(name)
-        target = PublicApis::ALIASES[name] if const_defined?(:PublicApis, false)
-        return super unless target
-
-        const_set(name, target.constantize)
       end
 
       private

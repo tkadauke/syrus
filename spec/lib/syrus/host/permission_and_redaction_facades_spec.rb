@@ -45,11 +45,4 @@ RSpec.describe "Syrus::Host permission presentation and redaction facades" do
     expect(presentation.operation_name).to eq("List")
   end
 
-  it "no longer lists the promoted constants as legacy" do
-    surface = Syrus::PluginHostSurface.new
-    %w[CommandRedactor Mcp::Pagination CredentialProbe CredentialProbe::Result ToolPayloadRedactor Mcp::Tools::EvidenceRedactor
-       Permissions::CapabilityPresentation Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS].each do |name|
-      expect(surface.lookup(name)).to be_nil, name
-    end
-  end
 end
