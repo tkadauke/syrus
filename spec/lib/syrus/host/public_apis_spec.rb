@@ -71,7 +71,8 @@ RSpec.describe Syrus::Host::PublicApis do
       api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::#{name}" }
       members = api.members.reject { |member| member.match?(/\A[A-Z]/) }
       singleton_members = members.select { |member| target.respond_to?(member) }
-      expect(singleton_members).to include(*(%w[agent_mounts report_duration data_root agent_home_for utf8 write_log from_server_context transaction default_timeout_seconds] & members)), name.to_s
+      expected = %w[agent_mounts report_duration data_root agent_home_for utf8 write_log from_server_context transaction default_timeout_seconds] & members
+      expect(singleton_members).to include(*expected), name.to_s if expected.any?
     end
   end
 
