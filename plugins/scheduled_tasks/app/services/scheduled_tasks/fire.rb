@@ -26,6 +26,16 @@ module ScheduledTasks
     def call
       @task.with_lock do
         @task.reload
+        manual = !@require_due
+        window_start = @task.fire_window_start(now: @now, manual: manual)
+        return Result.new(job: nil, skipped: true, reason: "not_due") if window_start.blank?
+
+        occurrence = @task.occurrences.find_or_create_by!(due_at: window_start)
+        occurrence.lock!
+        if occurrence.completed_at?
+          return Result.new(job: occurrence.job, skipped: true, reason: "already_fired_window")
+        end
+
         return Result.new(job: nil, skipped: true, reason: "not_fireable") if @task.archived? || @task.fired?
         unless Syrus::Host::RepositoryPolicy.new(@task.user, @task.repository).write?
           @task.pause!(reason: "auto") unless @task.auto_paused? || @task.system_schedule?
@@ -33,9 +43,6 @@ module ScheduledTasks
         end
         return Result.new(job: nil, skipped: true, reason: "not_due") if @require_due && !@task.due?(now: @now)
 
-        manual = !@require_due
-        window_start = @task.fire_window_start(now: @now, manual: manual)
-        return Result.new(job: nil, skipped: true, reason: "not_due") if window_start.blank?
         if @task.fired_in_window?(window_start)
           return Result.new(job: nil, skipped: true, reason: "already_fired_window")
         end
@@ -44,6 +51,7 @@ module ScheduledTasks
         if handler.applicable_behaviors.include?(ScheduledTasks::FireHandlers::Base::PR_PILEUP_POLICY)
           policy = ScheduledTasks::PrPileupPolicies.for(@task.pr_pileup_policy).new(@task, fire_service: self)
           if (result = policy.check_pileup)
+            occurrence.complete!(job: result.job, at: @now)
             return result
           end
         end
@@ -51,6 +59,7 @@ module ScheduledTasks
         job = handler.fire!(now: @now)
         if job.is_a?(Result)
           @task.record_fire!(at: @now)
+          occurrence.complete!(job: job.job, at: @now)
           return job
         end
         unless job.is_a?(Syrus::Host::JobRecord) && job.scheduled_task_id == @task.id
@@ -59,6 +68,7 @@ module ScheduledTasks
 
         @task.record_fire!(at: @now)
         @task.mark_fired_one_shot! if @task.one_shot?
+        occurrence.complete!(job: job, at: @now)
 
         Result.new(job: job, skipped: false, reason: nil)
       end

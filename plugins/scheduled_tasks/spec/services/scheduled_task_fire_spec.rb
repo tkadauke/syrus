@@ -169,6 +169,79 @@ RSpec.describe ScheduledTasks::Fire do
       }.to change { Job.count }.by(1)
     end
 
+    it "returns the canonical Job when the same occurrence is retried" do
+      now = Time.utc(2026, 5, 4, 9, 10, 0)
+
+      first = described_class.new(task, now: now).call
+      retry_result = described_class.new(task.reload, now: now + 20.minutes).call
+
+      expect(retry_result).not_to be_fired
+      expect(retry_result.reason).to eq("already_fired_window")
+      expect(retry_result.job).to eq(first.job)
+      expect(task.occurrences.where(due_at: now.beginning_of_hour).count).to eq(1)
+    end
+
+    it "keeps distinct due timestamps as distinct occurrences" do
+      hourly_task = ScheduledTasks::Task.create!(
+        user: user, repository: repository,
+        name: "Hourly work", prompt: "Work hourly.",
+        kind: "cron", cron_expression: "0 * * * *", pr_pileup_policy: "pile"
+      )
+      first_due = (Time.current + 1.hour).beginning_of_hour
+      second_due = first_due + 1.hour
+
+      expect {
+        described_class.new(hourly_task, now: first_due, require_due: true).call
+        described_class.new(hourly_task.reload, now: second_due, require_due: true).call
+      }.to change { Job.where(scheduled_task_id: hourly_task.id).count }.by(2)
+
+      expect(hourly_task.occurrences.order(:due_at).pluck(:due_at)).to eq([ first_due, second_due ])
+      expect(hourly_task.reload.last_fired_at).to eq(second_due)
+    end
+
+    it "can retry after a failure before Job creation" do
+      calls = 0
+      handler = Class.new(ScheduledTasks::FireHandlers::Base) do
+        define_method(:fire!) do |now:|
+          calls += 1
+          raise "before create" if calls == 1
+
+          Job.create!(
+            user: task.user, repository: task.repository, kind: "direct",
+            scheduled_task_id: task.id, origin: "scheduled_tasks", origin_id: task.id.to_s,
+            issue_title: "Retryable scheduled work", issue_body: now.iso8601, issue_number: nil
+          )
+        end
+      end
+      teardown = ScheduledTasks::FireHandlers.register(target: :test, handler: handler) { |candidate| candidate.id == task.id }
+
+      expect { described_class.new(task).call }.to raise_error("before create")
+      expect { described_class.new(task.reload).call }.to change { Job.where(scheduled_task_id: task.id).count }.by(1)
+      expect(task.occurrences.count).to eq(1)
+      expect(task.occurrences.first).to be_completed_at
+    ensure
+      teardown&.call
+    end
+
+    it "rolls back the Job and can retry after a failure before schedule advancement" do
+      original_record_fire = task.method(:record_fire!)
+      calls = 0
+      allow(task).to receive(:record_fire!) do |**args|
+        calls += 1
+        raise "after create" if calls == 1
+
+        original_record_fire.call(**args)
+      end
+
+      expect { described_class.new(task).call }.to raise_error("after create")
+      expect(Job.where(scheduled_task_id: task.id)).to be_empty
+      expect(task.occurrences.reload).to be_empty
+
+      expect { described_class.new(task).call }.to change { Job.where(scheduled_task_id: task.id).count }.by(1)
+      expect(task.reload.last_fired_at).to be_present
+      expect(task.occurrences.sole.job).to eq(task.jobs.sole)
+    end
+
     it "uses the same window guard for poll and manual fires" do
       task.update!(cron_expression: "5 9 * * 1", minute_offset: 49)
       now = Time.utc(2026, 5, 4, 9, 5, 0)

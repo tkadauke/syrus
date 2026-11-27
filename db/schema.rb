@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_27_182549) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -4338,6 +4338,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_145031) do
     t.string "skill_name"
     t.json "skill_args"
     t.index ["user_id"], name: "index_scheduled_task_cron_templates_on_user_id"
+  end
+
+  create_table "scheduled_task_occurrences", force: :cascade do |t|
+    t.integer "scheduled_task_id", null: false
+    t.datetime "due_at", null: false
+    t.integer "job_id"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_scheduled_task_occurrences_on_job_id", unique: true
+    t.index ["scheduled_task_id", "due_at"], name: "index_scheduled_task_occurrences_on_task_and_due_at", unique: true
   end
 
   create_table "scheduled_tasks", force: :cascade do |t|
