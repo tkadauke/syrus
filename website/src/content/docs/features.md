@@ -5,6 +5,21 @@ description: Product feature reference for Jobs, Epics, schedules, chats, creden
 
 # Features
 
+## Operator questions
+
+Workflow agents can pause and ask structured single-choice, multiple-choice,
+or free-text questions. Waiting questions appear in the sidebar inbox, in the
+mobile Activity tabs, and at the top of the affected Job. Answering resumes the
+same agent session and is the panel's primary path. Filing a repair Job that
+becomes a dependency and giving up are separate alternatives. Retrying without
+an answer is kept under secondary recovery options and requires confirmation:
+it cancels the attempt, withdraws the question, and starts a fresh implementation
+attempt without added context, so the agent may ask the same question again.
+
+Question eagerness has five levels from Autonomous through Inquisitive. It can
+be set for a user or repository, overridden while filing a Job, and paired with
+an optional answer timeout in user and repository settings.
+
 This page is the broad product-level reference. Use [Concepts](/docs/concepts)
 for the data model, [Workflows](/docs/workflows) for execution chains,
 [Landing Code](/docs/landing) for merge behavior, [Tests and
@@ -3136,3 +3151,25 @@ decision, pick one option from the scope control, for example "Allow
 screenshots for this chat". Before anything is saved, the card summarizes what
 will be remembered, where it applies, how long it lasts, and how to revoke it
 under Settings → Permissions.
+
+## Operator questions from workflow agents
+
+Workflow agents can pause an implementation, response, or review step to ask
+the operator a batch of structured questions. The waiting step is parked—not
+failed or automatically retried—and resumes in the same provider session when
+the answer arrives. Operators can also list and answer these questions through
+Syrus chat and coworker tools.
+Write-authorized operators can also answer a workflow's existing
+cannot-proceed block as a free-text question, resuming that run and provider
+session. Waiting for an answer does not delay patient automatic rebases.
+
+Syrus notifies the Job owner when a question is asked and links directly to
+the waiting question. Notification preferences can disable that notification.
+The Jobs dashboard also provides a **Waiting for your answer** smart folder and
+boolean filter, which can be combined with other filters and saved.
+
+Repositories, users, and individual Jobs can choose one of five question
+eagerness levels: autonomous, independent, balanced, collaborative, or
+inquisitive. Balanced is the default. An optional answer timeout can apply the
+agent's stated defaults after one hour to four weeks; without one, the workflow
+waits indefinitely.

@@ -482,20 +482,44 @@ export function NeedsAttentionBanner({ job, command }: { job: JobDetailPayload["
           {gracePeriodText}
         </Text>
       ) : null}
+      {dismissal?.reason_text ? (
+        <details className="mt-2 text-xs">
+          <summary className="cursor-pointer font-medium">{t("workflow_block_evidence")}</summary>
+          <p className="mt-1 whitespace-pre-wrap break-words">{dismissal.reason_text}</p>
+        </details>
+      ) : null}
       {dismissal && command ? (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-          {dismissal.reason_text ? (
-            <Text className="min-w-0 flex-1 truncate text-xs" tone="warning">
-              {dismissal.reason_text}
-            </Text>
-          ) : null}
-          <CommandButton
-            command={command}
-            input={{ method: "post", path: dismissal.app_dismiss_path, confirm: t("workflow_dismiss_confirm") }}
-            tone="secondary"
-          >
-            {t("workflow_dismiss")}
-          </CommandButton>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div>
+            <Button
+              disabled={command.isPending}
+              onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/retry_implementation` })}
+              variant="secondary"
+            >
+              {t("question_retry")}
+            </Button>
+            <p className="mt-1 text-xs">{t("question_retry_consequence")}</p>
+          </div>
+          <div>
+            <Button
+              disabled={command.isPending}
+              onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/file_question_fix` })}
+              variant="secondary"
+            >
+              {t("question_file_fix")}
+            </Button>
+            <p className="mt-1 text-xs">{t("question_file_fix_consequence")}</p>
+          </div>
+          <div>
+            <Button
+              disabled={command.isPending}
+              onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/cancel`, confirm: t("question_give_up_confirm") })}
+              variant="danger"
+            >
+              {t("question_give_up")}
+            </Button>
+            <p className="mt-1 text-xs">{t("question_give_up_consequence")}</p>
+          </div>
         </div>
       ) : null}
     </Notice>

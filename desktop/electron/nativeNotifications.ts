@@ -11,6 +11,7 @@ type NativeNotificationPayload = {
   body: string
   jobId: string | null
   prUrl: string | null
+  targetPath?: string | null
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -31,7 +32,8 @@ const KIND_LABELS: Record<string, string> = {
   pull_request_merged: "notification.pr_merged",
   pull_request_opened: "notification.pr_ready",
   pull_request_ready_for_review: "notification.pr_ready",
-  investigation_escalated: "notification.investigation"
+  investigation_escalated: "notification.investigation",
+  agent_question_asked: "notification.agent_question"
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -81,7 +83,8 @@ const notificationPayload = (event: unknown): NativeNotificationPayload | null =
     kind,
     body,
     jobId: jobIdValue(payload.job_id ?? payload.jobId),
-    prUrl: httpUrlValue(payload.pr_url ?? payload.prUrl)
+    prUrl: httpUrlValue(payload.pr_url ?? payload.prUrl),
+    targetPath: stringValue(payload.target_path ?? payload.targetPath) || null
   }
 }
 
@@ -101,12 +104,12 @@ export const nativeNotificationTitle = (kind: string) => {
   return [firstWord, ...words.slice(1)].join(" ")
 }
 
-export const nativeNotificationClickUrl = (payload: Pick<NativeNotificationPayload, "jobId" | "prUrl">, credentials: Credentials | null) => {
+export const nativeNotificationClickUrl = (payload: Pick<NativeNotificationPayload, "jobId" | "prUrl" | "targetPath">, credentials: Credentials | null) => {
   if (payload.prUrl) {
-    return payload.prUrl
+    return httpUrlValue(payload.prUrl)
   }
 
-  if (!payload.jobId || !credentials) {
+  if ((!payload.jobId && !payload.targetPath) || !credentials) {
     return null
   }
 
@@ -115,7 +118,9 @@ export const nativeNotificationClickUrl = (payload: Pick<NativeNotificationPaylo
     return null
   }
 
-  return new URL(`/jobs/${encodeURIComponent(payload.jobId)}`, `${baseUrl}/`).toString()
+  const targetPath =
+    payload.targetPath?.startsWith("/") && !payload.targetPath.startsWith("//") ? payload.targetPath : `/jobs/${encodeURIComponent(payload.jobId!)}`
+  return new URL(targetPath, `${baseUrl}/`).toString()
 }
 
 export const dispatchNativeNotification = (event: unknown, credentials: Credentials | null) => {

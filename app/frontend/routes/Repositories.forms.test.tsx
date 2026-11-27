@@ -176,7 +176,9 @@ describe("App repositories", () => {
               auto_approve_mode: "if_graders_pass",
               feedback_policy: "confirm",
               github_owner_id: "123",
-              github_repository_id: "456"
+              github_repository_id: "456",
+              question_eagerness: null,
+              question_answer_timeout_seconds: null
             }
           })
         })

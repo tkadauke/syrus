@@ -1,7 +1,17 @@
 de:
+  agent_questions:
+    recorded: "Frage(n) gespeichert. Beende jetzt deinen Durchlauf."
+    answered: "Antwort gesendet. Der Workflow wird fortgesetzt."
+    errors:
+      exactly_one_owner: "muss entweder zu einer Chatsitzung oder zu einem Lauf gehören"
+      questions_malformed: "muss eine Liste aus 1 bis 4 korrekt aufgebauten Fragen sein"
+      defaults_malformed: "muss für jede Frage eine nicht leere Standardantwort enthalten"
+      answers_malformed: "Die Antworten müssen zu allen Fragen passen."
+      inactive: "Die Frage ist nicht mehr aktiv."
   unlanding:
     disabled: "Unlanding ist für diese Instanz nicht aktiviert."
   notifications:
+    agent_question_asked: "Deine Antwort wird für %{job} erwartet"
     approval_request:
       one: "Genehmigung erforderlich: %{purpose}"
       other: "%{count} Genehmigungsanfragen benötigen deine Aufmerksamkeit."
@@ -901,6 +911,7 @@ de:
       prompt_blank: "Prompt darf nicht leer sein."
       agent_not_configured: "Dieser Agent ist für den Repository-Eigentümer nicht konfiguriert."
       invalid_priority: "Priorität muss eine der folgenden sein: %{priorities}."
+      invalid_question_eagerness: "Die Fragebereitschaft ist ungültig."
       epic_not_found: "Epic nicht in diesem Repository gefunden."
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
       created: "Direkter Job erstellt."
@@ -992,6 +1003,7 @@ de:
         minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Fix-Job %{slug} angelegt. Dieser Job wird fortgesetzt, nachdem er gelandet ist."
       direct_only: "Nur direkte Jobs können manuell gestartet werden."
       thread_closed: "Thread ist geschlossen — öffne ihn erneut, bevor du die Arbeit startest."
       backlogged: "Job ist im Backlog — gib ihn frei, bevor du die Arbeit startest."

@@ -87,6 +87,23 @@ RSpec.describe Mcp::Tools::ProposeJobTool, :full_chat_access do
     expect(chat_session.proposals.find_by(title: "Invalid priority")).to be_nil
   end
 
+  it "requires a reason for a question eagerness override and materializes both" do
+    rejected = call_tool(repo: repository.slug, title: "Ask more", description: "Build it.", question_eagerness: "collaborative")
+    expect(rejected[:result][:isError]).to be_truthy
+    expect(rejected.dig(:result, :content, 0, :text)).to include("question_eagerness_reason is required")
+
+    accepted = described_class.call(
+      repo: repository.slug, title: "Ask thoughtfully", description: "Build it.",
+      question_eagerness: "collaborative", question_eagerness_reason: "The operator requested design check-ins.",
+      planned_execution: default_planned_execution, server_context: { chat_session: chat_session }
+    )
+    proposal = ChatProposal.find_by!(slug: JSON.parse(accepted.content.first.fetch(:text)).fetch("slug"))
+    expect(proposal).to have_attributes(
+      question_eagerness: "collaborative",
+      question_eagerness_reason: "The operator requested design check-ins."
+    )
+  end
+
   it "stores deployment-stage requirements for existing Job dependencies" do
     stub_deployment_stage("staging")
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 44)

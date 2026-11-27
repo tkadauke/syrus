@@ -11,6 +11,8 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { PermissionRequestCard } from "../components/PermissionRequestCard"
+import { AgentQuestions } from "./chat/AgentQuestions"
+import { answerWorkflowAgentQuestion, fetchOpenAgentQuestions, type WorkflowAgentQuestion } from "../api/agentQuestions"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
@@ -257,6 +259,87 @@ export function JobDetailRoute() {
         />
       ) : null}
     </Page.Root>
+  )
+}
+
+export function JobQuestionPanel({
+  job,
+  paths,
+  command,
+  onNotice
+}: {
+  job: JobDetailPayload["job"]
+  paths: JobDetailPayload["paths"]
+  command: ReturnType<typeof useJobCommand>
+  onNotice: (message: string | null) => void
+}) {
+  const { t } = useT("jobs")
+  const client = useQueryClient()
+  const queryKey = ["agent-questions", "job", job.id] as const
+  const query = useQuery({
+    queryKey,
+    queryFn: () => fetchOpenAgentQuestions(job.id),
+    enabled: job.has_open_agent_question === true,
+    refetchInterval: 15_000
+  })
+  const questions = query.data?.questions ?? []
+  if (questions.length === 0) return null
+
+  async function answer(question: WorkflowAgentQuestion, answers: import("../api/chats").ChatAgentQuestionAnswer[]) {
+    const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
+    await Promise.all([client.invalidateQueries({ queryKey }), client.invalidateQueries({ queryKey: ["agent-questions", "open"] })])
+    return result
+  }
+
+  return (
+    <section aria-label={t("question_panel_title")} className="space-y-3 rounded border border-warning-border bg-warning/10 p-4">
+      <div>
+        <h2 className="font-semibold">{t("question_panel_title")}</h2>
+        <p className="text-sm text-text-secondary">{t("question_panel_consequence")}</p>
+        <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
+      </div>
+      <AgentQuestions questions={questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <Button
+            disabled={command.isPending}
+            onClick={() => command.mutate({ method: "post", path: `/api/v1/app/jobs/${job.id}/file_question_fix` })}
+            variant="secondary"
+          >
+            {t("question_file_fix")}
+          </Button>
+          <p className="mt-1 text-xs text-text-muted">{t("question_file_fix_consequence")}</p>
+        </div>
+        <div>
+          <Button
+            disabled={command.isPending}
+            onClick={() => command.mutate({ method: "post", path: paths.app_cancel_path, confirm: t("question_give_up_confirm") })}
+            variant="danger"
+          >
+            {t("question_give_up")}
+          </Button>
+          <p className="mt-1 text-xs text-text-muted">{t("question_give_up_consequence")}</p>
+        </div>
+      </div>
+      <details className="rounded border border-border-subtle p-3 text-sm">
+        <summary className="cursor-pointer font-medium">{t("question_recovery_title")}</summary>
+        <p className="mt-2 text-xs text-text-muted">{t("question_retry_consequence")}</p>
+        <Button
+          className="mt-2"
+          disabled={command.isPending}
+          onClick={() =>
+            command.mutate({
+              method: "post",
+              path: `/api/v1/app/jobs/${job.id}/retry_implementation`,
+              confirm: t("question_retry_confirm")
+            })
+          }
+          variant="secondary"
+        >
+          {t("question_retry")}
+        </Button>
+      </details>
+    </section>
   )
 }
 
@@ -515,6 +598,12 @@ export function JobDetailView({
       </Page.Header>
 
       <NoticeToast message={notice?.message ?? null} onDismiss={() => setNotice(null)} tone={notice?.tone ?? "notice"} />
+      <JobQuestionPanel
+        command={command}
+        job={payload.job}
+        paths={payload.paths}
+        onNotice={(message) => setNotice(message ? { message, tone: "notice" } : null)}
+      />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
       {unlandDialog}

@@ -529,6 +529,7 @@
     "description": "Elige quae eventus Syri notificationes pro tuo computatro creent.",
     "loading": "Praeferentias notificationum onerans...",
     "section_label": "Notificationes",
+    "pref_agent_question_asked": "Me certiorem fac cum agens responsum meum exspectat",
     "pref_chat_mention": "Me certiorem fac cum aliquis me in colloquio nominat",
     "pref_job_failed": "Me certiorem fac cum officium deficit",
     "pref_job_implemented": "Me certiorem fac cum PR ad recognitionem paratus est",
@@ -2137,5 +2138,19 @@
     "requested_by": "Rogatum ab",
     "duration": "Rogatum pro",
     "technical_details": "Singula technica"
+  },
+  "question_eagerness": {
+    "title": "Studium interrogandi",
+    "slider": "Gradus studii interrogandi",
+    "inherit": "Praedefinitione uti",
+    "timeout": "Terminus responsi (minuta)",
+    "timeout_help": "Ad libitum. Post hoc tempus agens responsum praedefinitum sequitur.",
+    "levels": {
+      "autonomous": { "label": "Autonomus", "description": "Rogat tantum cum opus vere procedere non potest." },
+      "independent": { "label": "Independens", "description": "Etiam ante decisiones difficulter revocandas rogat." },
+      "balanced": { "label": "Aequilibratus", "description": "Rogat cum interpretationes rationabiles ad exitus diversos ducunt." },
+      "collaborative": { "label": "Collaborativus", "description": "Etiam de ambitu, usu et verbis rogat." },
+      "inquisitive": { "label": "Inquisitivus", "description": "Rogat quandocumque aliquid non plane clarum est." }
+    }
   }
 }

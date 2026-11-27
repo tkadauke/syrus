@@ -871,3 +871,26 @@ and its first delivery run inside one transaction, so a failure partway
 through never leaves a stray open thread with no first message. The tool
 returns the thread's id, `state`, `hop_count`, `max_hops`,
 `hops_remaining`, and the recipient chat session id.
+
+## Workflow questions
+
+Implementation, response, and review agents can ask the operator up to four
+structured questions in one batch. The workflow step waits in
+`awaiting_answer` rather than failing or entering the retryable blocked state.
+An answer from chat or another operator surface closes the question everywhere
+and resumes the same provider session when possible. Chat and coworker agents
+can use `list_open_agent_questions` and `answer_agent_question` to handle open
+questions they are authorized to see.
+Answering requires write access to the Job. A workflow already blocked by
+`report_cannot_proceed` appears as one free-text question; answering it resumes
+the blocked run and its provider session. Workflows waiting for an answer do
+not delay patient automatic rebases.
+
+Question eagerness resolves from a Job override, then repository setting, then
+user setting, and defaults to `balanced`. The available levels are
+`autonomous`, `independent`, `balanced`, `collaborative`, and `inquisitive`.
+Proposal tools accept an override only with a reason recording the operator's
+agreement. Optional answer timeouts use the same precedence, accept values
+from one hour through four weeks, and otherwise wait indefinitely. When a
+timeout expires, the agent's stated defaults answer the question and resume
+the workflow.

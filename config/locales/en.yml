@@ -28,9 +28,19 @@
 #       enabled: "ON"
 
 en:
+  agent_questions:
+    recorded: "Question(s) recorded. End your turn now."
+    answered: "Answer submitted. The workflow will continue."
+    errors:
+      exactly_one_owner: "must belong to either a chat session or a run"
+      questions_malformed: "must be an array of 1 to 4 well-formed questions"
+      defaults_malformed: "must provide one non-blank default per question"
+      answers_malformed: "Answers must match every question."
+      inactive: "The question is no longer active."
   unlanding:
     disabled: "Unlanding is not enabled for this instance."
   notifications:
+    agent_question_asked: "Waiting for your answer on %{job}"
     approval_request:
       one: "Approval needed: %{purpose}"
       other: "%{count} approval requests need your attention."
@@ -956,6 +966,7 @@ en:
       prompt_blank: "Prompt can't be blank."
       agent_not_configured: "That agent is not configured for the repository owner."
       invalid_priority: "Priority must be one of: %{priorities}."
+      invalid_question_eagerness: "Question eagerness is invalid."
       epic_not_found: "Epic not found in that repository."
       owner_not_found: "Owner user not found."
       created: "Direct job created."
@@ -1052,6 +1063,7 @@ en:
         minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
 
     job_lifecycle:
+      question_fix_filed: "Fix Job %{slug} filed. This Job will resume after it lands."
       direct_only: "Only direct Jobs can be started manually."
       thread_closed: "Thread is closed - reopen it before starting work."
       backlogged: "Job is in backlog - release it before starting work."

@@ -199,6 +199,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reset", to: "job_lifecycle#reset", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/file_question_fix", to: "job_lifecycle#file_question_fix", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/workflows/:workflow_id/dismiss", to: "job_lifecycle#dismiss_workflow", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
         post "jobs/:job_id/stop_landing", to: "job_lifecycle#stop_landing", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/pause", to: "job_lifecycle#pause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -341,6 +342,8 @@ Rails.application.routes.draw do
         patch "chats/:id/scratchpad_items/:item_id", to: "chats#update_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         delete "chats/:id/scratchpad_items/:item_id", to: "chats#destroy_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
+        get "agent_questions", to: "agent_questions#index"
+        post "agent_questions/:id/answer", to: "agent_questions#answer", constraints: { id: /\d+/ }
         get "chats/:id/goal", to: "chats#show_goal", constraints: { id: /\d+/ }
         put "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }
         patch "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }

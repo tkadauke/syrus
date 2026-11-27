@@ -4,7 +4,7 @@ class Notification < ApplicationRecord
   KINDS = %w[
     job_failed job_implemented pr_comment_addressed pr_merged epic_completed upstream_pr_closed
     main_broken main_inconclusive main_recovered external_pr_feedback investigation_escalated
-    chat_mention approval_request
+    chat_mention approval_request agent_question_asked
   ].freeze
 
   belongs_to :user

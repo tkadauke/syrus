@@ -205,7 +205,7 @@ class Step < ApplicationRecord
     before_all_events { Lineage.lock!(self) if persisted? }
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
+    state :running, :awaiting_answer, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at ||= Time.current }
@@ -229,6 +229,14 @@ class Step < ApplicationRecord
 
     event :block do
       transitions from: [ :queued, :running ], to: :blocked, after: -> { self.finished_at = Time.current }
+    end
+
+    event :await_answer do
+      transitions from: :running, to: :awaiting_answer
+    end
+
+    event :resume_from_answer do
+      transitions from: [ :awaiting_answer, :blocked ], to: :running
     end
 
     # Reopen a failed Step so a new Run can be created on it. Used

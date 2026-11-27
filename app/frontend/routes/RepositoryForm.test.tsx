@@ -456,7 +456,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     })
   })
 
-  it("keeps the repository submit payload unchanged after semantic form wiring", async () => {
+  it("submits the complete repository settings payload", async () => {
     const fetchSpy = mockFetch()
     renderRoute()
 
@@ -502,6 +502,8 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           feedback_policy: "confirm",
           review_policy: "self",
           epic_dependency_policy: "linear",
+          question_eagerness: null,
+          question_answer_timeout_seconds: null,
           github_owner_id: "",
           github_repository_id: ""
         }

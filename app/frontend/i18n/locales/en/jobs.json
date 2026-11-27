@@ -1127,5 +1127,18 @@
   "recovery_revision": "Revision {{revision}}",
   "recovery_guidance_failures": "Persistent failures to address: {{failures}}",
   "grader_loop_decision_stopped": "Loop decision — stopped for no progress",
-  "grader_loop_decision_continued": "Loop decision — continued repair"
+  "grader_loop_decision_continued": "Loop decision — continued repair",
+  "workflow_block_evidence": "Technical evidence",
+  "question_panel_title": "The agent needs your answer",
+  "question_panel_consequence": "Answer and continue resumes this workflow in the same agent session.",
+  "question_recovery_title": "Other recovery options",
+  "question_retry": "Retry as is",
+  "question_retry_confirm": "Cancel this attempt, withdraw the question, and start a new implementation attempt?",
+  "question_retry_consequence": "Cancels this attempt, withdraws the unanswered question, and starts a new implementation attempt without added context. The agent may ask the same question again.",
+  "question_file_fix": "File a fix Job",
+  "question_file_fix_consequence": "Creates a repair Job and resumes this Job after the repair lands.",
+  "question_give_up": "Give up",
+  "question_give_up_confirm": "Give up on this attempt and cancel the Job?",
+  "question_give_up_consequence": "Cancels the active attempt and closes this Job as cancelled.",
+  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}})."
 }

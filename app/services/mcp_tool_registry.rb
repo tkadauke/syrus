@@ -263,6 +263,8 @@ class McpToolRegistry
         read_chat(Mcp::Tools::ReadJobTool),
         workflow_outcome_override_chat(Mcp::Tools::InspectWorkflowOutcomeOverridesTool),
         workflow_outcome_override_chat(Mcp::Tools::RequestWorkflowOutcomeOverrideTool, mutation: true, approval_effect: true),
+        read_chat(Mcp::Tools::ListOpenAgentQuestionsTool),
+        mutation_chat(Mcp::Tools::AnswerAgentQuestionTool, mutation: true),
         mutation_chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
         read_chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
         read_chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),
@@ -537,6 +539,11 @@ class McpToolRegistry
         AgentRole::WORKFLOW_MANUAL
       ]
 
+      question_roles = [
+        AgentRole::WORKFLOW_IMPLEMENT,
+        AgentRole::WORKFLOW_MANUAL
+      ]
+
       metadata_roles = [
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
         AgentRole::WORKFLOW_MANUAL
@@ -555,6 +562,9 @@ class McpToolRegistry
         # infrastructure failures, so granting these would produce false quorum
         # signals.
         workflow_action(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::AskOperatorQuestionTool, capability: :ask_user_question,
+          required_roles: question_roles,
+          step_kinds: %w[implement respond analyze_and_fix manual], mutation: true),
         workflow_action(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
         workflow_action(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow_action(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),

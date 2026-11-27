@@ -7,6 +7,7 @@ import { NotificationsSettingsRoute } from "./NotificationsSettings"
 
 const payload = {
   notification_preferences: {
+    agent_question_asked: true,
     chat_mention: true,
     job_failed: true,
     job_implemented: true,
