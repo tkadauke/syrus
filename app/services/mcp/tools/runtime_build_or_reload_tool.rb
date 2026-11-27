@@ -28,7 +28,7 @@ module Mcp::Tools
         session, error = resolve_runtime_session(chat_session, session_id)
         return error if error
 
-        current = session.current_runtime_operation
+        current = RuntimeSessions::Operation.reconcile_expired!(session)
         return Mcp::Tools.success(runtime_session_payload(session)) if current&.fetch("state", nil) == "active"
 
         lease = session.runtime_control_leases.active.held_by("agent").for_mode("build").first

@@ -65,6 +65,25 @@ RSpec.describe Mcp::Tools::RuntimeBuildOrReloadTool, full_chat_access: :all do
     release << true if release
   end
 
+  it "reconciles an expired persisted build, releases its lease, and retries" do
+    lease = RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "build", reason: "reload")
+    lease.update_column(:expires_at, 1.minute.ago)
+    session.update!(state: "building", metadata: {
+      "runtime_operation" => {
+        "id" => "abandoned-op", "kind" => "build", "state" => "active",
+        "deadline_at" => 1.minute.ago.iso8601, "lease_id" => lease.id
+      }
+    })
+
+    response = call(session_id: session.id)
+
+    expect(response).not_to be_error
+    expect(lease.reload.state).to eq("released")
+    expect(session.reload).to have_attributes(state: "running", last_error: nil)
+    expect(session.runtime_operation_logs.map { |entry| entry.fetch("message") }).to include(a_string_including("exceeded its durable deadline"))
+    expect(session.current_runtime_operation).to include("kind" => "build", "outcome" => "succeeded")
+  end
+
   it "returns an error for an unknown session" do
     response = call(session_id: 999_999_999)
 

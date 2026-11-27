@@ -21,6 +21,51 @@ module RuntimeSessions
       Array(session.metadata["runtime_operation_logs"])
     end
 
+    def self.reconcile_expired!(session)
+      lease_id = nil
+      operation = nil
+
+      session.with_lock do
+        session.reload
+        operation = current(session)
+        next unless operation&.fetch("state", nil) == "active" && deadline_elapsed?(operation)
+
+        kind = operation.fetch("kind", "runtime")
+        message = "#{kind} provider operation exceeded its durable deadline"
+        operation = operation.merge(
+          "state" => "timed_out",
+          "completed_at" => Time.current.iso8601,
+          "outcome" => "retryable_timeout",
+          "error" => message
+        )
+        metadata = session.metadata.deep_dup
+        logs = Array(metadata["runtime_operation_logs"]).last(LOG_LIMIT - 1)
+        logs << { "at" => Time.current.iso8601, "operation_id" => operation.fetch("id"), "message" => "#{message}; the existing session remains retryable" }
+        metadata["runtime_operation"] = operation
+        metadata["runtime_operation_logs"] = logs
+        session.update!(metadata: metadata, state: "failed", last_error: message)
+        lease_id = operation["lease_id"]
+      end
+
+      release_lease(session, lease_id)
+      operation
+    end
+
+    def self.deadline_elapsed?(operation)
+      deadline = operation["deadline_at"]
+      deadline.blank? || Time.iso8601(deadline) <= Time.current
+    rescue ArgumentError
+      true
+    end
+
+    def self.release_lease(session, lease_id)
+      return if lease_id.blank?
+
+      lease = session.runtime_control_leases.find_by(id: lease_id)
+      lease&.release! if lease&.state == "active"
+    end
+    private_class_method :deadline_elapsed?, :release_lease
+
     def initialize(session:, kind:, timeout: DEFAULT_TIMEOUT, lease: nil)
       @session = session
       @kind = kind.to_s
@@ -78,7 +123,7 @@ module RuntimeSessions
         "outcome" => "retryable_timeout",
         "error" => timeout_message
       )
-      persist(operation, "#{@kind} provider operation timed out; the existing session remains retryable", state: "failed", error: timeout_message)
+      persist(operation, "#{@kind} provider operation timed out; the existing session remains retryable", state: "failed", error: timeout_message, require_current: true)
     end
 
     def finish(operation, status, value, late:)
@@ -91,24 +136,26 @@ module RuntimeSessions
       if status == :succeeded
         outcome = late ? "late_succeeded" : "succeeded"
         completed = operation.merge("state" => "completed", "completed_at" => Time.current.iso8601, "outcome" => outcome)
-        persist(completed, "#{@kind} provider operation #{outcome.tr('_', ' ')}", state: "running", error: nil, result: value)
+        persist(completed, "#{@kind} provider operation #{outcome.tr('_', ' ')}", state: "running", error: nil, result: value, require_current: true)
         Result.new(status: :succeeded, value: value, error: nil)
       else
         error = value
         message = "#{error.class}: #{error.message}"
         outcome = late ? "late_failed" : "failed"
         completed = operation.merge("state" => "completed", "completed_at" => Time.current.iso8601, "outcome" => outcome, "error" => message)
-        persist(completed, "#{@kind} provider operation #{outcome.tr('_', ' ')}: #{message}", state: "failed", error: message)
+        persist(completed, "#{@kind} provider operation #{outcome.tr('_', ' ')}: #{message}", state: "failed", error: message, require_current: true)
         Result.new(status: :failed, value: nil, error: error)
       end
     rescue ActiveRecord::RecordNotFound
       Result.new(status: status, value: value, error: status == :failed ? value : nil)
     end
 
-    def persist(operation, log_message, state: nil, error: :unchanged, result: nil)
+    def persist(operation, log_message, state: nil, error: :unchanged, result: nil, require_current: false)
       @session.with_lock do
         @session.reload
         metadata = @session.metadata.deep_dup
+        next false if require_current && metadata.dig("runtime_operation", "id") != operation.fetch("id")
+
         logs = Array(metadata["runtime_operation_logs"]).last(LOG_LIMIT - 1)
         logs << { "at" => Time.current.iso8601, "operation_id" => operation.fetch("id"), "message" => log_message }
         metadata["runtime_operation"] = operation
@@ -118,6 +165,7 @@ module RuntimeSessions
         attributes[:state] = state if state
         attributes[:last_error] = error unless error == :unchanged
         @session.update!(attributes)
+        true
       end
     end
 
@@ -127,7 +175,7 @@ module RuntimeSessions
 
     def release_lease!
       @lease&.reload
-      @lease&.release! if @lease&.active?
+      @lease&.release! if @lease&.state == "active"
     rescue ActiveRecord::RecordNotFound
       nil
     end

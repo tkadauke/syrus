@@ -77,7 +77,7 @@ module Mcp::Tools
           state: "starting"
         )
 
-        current = runtime_session.current_runtime_operation
+        current = RuntimeSessions::Operation.reconcile_expired!(runtime_session)
         if current&.fetch("state", nil) == "active"
           return Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
         end
