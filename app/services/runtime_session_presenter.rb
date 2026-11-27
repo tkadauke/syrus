@@ -13,6 +13,8 @@ module RuntimeSessionPresenter
   INTERNAL_METADATA_KEYS = %w[latest_frame_document_id runtime_operation runtime_operation_logs].freeze
 
   def session_payload(session)
+    operation = RuntimeSessions::Operation.reconcile_expired!(session)
+
     {
       id: session.id,
       provider_key: session.provider_key,
@@ -26,7 +28,7 @@ module RuntimeSessionPresenter
       latest_frame_url: session.latest_frame_url,
       latest_frame_at: session.latest_frame_at&.iso8601,
       last_error: session.last_error,
-      operation: session.current_runtime_operation,
+      operation: operation,
       active_agent_input_lease: lease_payload(session.active_agent_input_lease)
     }
   end
