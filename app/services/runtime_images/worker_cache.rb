@@ -78,6 +78,23 @@ module RuntimeImages
       end
     end
 
+    # Makes an available, unverified image local for the verification pipeline.
+    # Normal workloads must use #acquire, which remains candidate-only.
+    def acquire_for_verification(image)
+      image.reload
+      unless image.available? && image.revoked_at.nil? && image.verification_state == "unverified"
+        raise NotPullable, "runtime image #{image.digest} is not awaiting verification"
+      end
+
+      entry, hit = lease_local(image, false, for_verification: true)
+      return Pulled.new(reference: reference_for(image), cache_hit: hit, entry: entry) unless block_given?
+      begin
+        yield reference_for(image)
+      ensure
+        release(entry)
+      end
+    end
+
     # Drops one lease. The entry stays protected until every concurrent
     # holder has released (or the lease expires). Non-block callers pass
     # Pulled#entry.
@@ -167,7 +184,7 @@ module RuntimeImages
 
     def cache_bytes = RuntimeImageCacheEntry.for_host(hostname).sum(:size_bytes)
 
-    def ensure_local(image, prefetch:)
+    def ensure_local(image, prefetch:, for_verification: false)
       started = monotonic
       entry = settled_entry(image)
       if entry&.state == "present" && verified?(image)
@@ -175,7 +192,9 @@ module RuntimeImages
         record(image, "hit", started, cache_hit: true, prefetch: prefetch)
         return [entry, true]
       end
-      [single_flight(image, prefetch) { pull_and_verify(image, started, prefetch) }, false]
+      [single_flight(image, prefetch, for_verification: for_verification) do
+        pull_and_verify(image, started, prefetch, for_verification: for_verification)
+      end, false]
     end
 
     # An "evicting" row means eviction owns the engine removal. Pulling into
@@ -220,14 +239,20 @@ module RuntimeImages
       RuntimeImageCacheEntry.where(id: entry.id, state: "evicting", claim_token: token).delete_all == 1
     end
 
-    def pull_and_verify(image, started, prefetch)
+    def pull_and_verify(image, started, prefetch, for_verification: false)
       # Re-check durable state: the image may have been revoked while waiting.
-      raise Revoked, "runtime image #{image.digest} was revoked" unless image.reload.pullable?
+      image.reload
+      eligible = if for_verification
+        image.available? && image.revoked_at.nil? && image.verification_state == "unverified"
+      else
+        image.pullable?
+      end
+      raise Revoked, "runtime image #{image.digest} was revoked" unless eligible
       with_slot(image, started, prefetch) do
         auth = grant_for(image)
         # Provider.pull verifies the manifest hashes to the digest and the
         # locator belongs to the namespace before any bytes move.
-        @service.pull(image)
+        for_verification ? @service.pull_for_verification(image) : @service.pull(image)
         @engine.pull(reference_for(image), timeout: @pull_timeout, auth: auth)
         unless @engine.digests(reference_for(image)).include?(image.digest)
           @engine.remove(reference_for(image)) rescue nil
@@ -256,7 +281,7 @@ module RuntimeImages
 
     # One pull per digest at a time; waiters reuse the result and then
     # re-verify through the normal hit path.
-    def single_flight(image, prefetch)
+    def single_flight(image, prefetch, for_verification: false)
       key = image.id
       owner, gate = @inflight_mutex.synchronize do
         existing = @inflight[key]
@@ -272,7 +297,9 @@ module RuntimeImages
       else
         gate.synchronize { nil }
         entry = RuntimeImageCacheEntry.for_host(hostname).present.find_by(runtime_image: image)
-        entry || single_flight(image, prefetch) { pull_and_verify(image, monotonic, prefetch) }
+        entry || single_flight(image, prefetch, for_verification: for_verification) do
+          pull_and_verify(image, monotonic, prefetch, for_verification: for_verification)
+        end
       end
     end
 
@@ -338,9 +365,9 @@ module RuntimeImages
     LEASE_ATTEMPTS = 3
     EVICTION_POLL_SECONDS = 0.05
 
-    def lease_local(image, prefetch)
+    def lease_local(image, prefetch, for_verification: false)
       LEASE_ATTEMPTS.times do
-        entry, hit = ensure_local(image, prefetch: prefetch)
+        entry, hit = ensure_local(image, prefetch: prefetch, for_verification: for_verification)
         return [entry, hit] if lease(entry)
       end
       raise Busy, "runtime image #{image.digest} kept being evicted on #{hostname}"
