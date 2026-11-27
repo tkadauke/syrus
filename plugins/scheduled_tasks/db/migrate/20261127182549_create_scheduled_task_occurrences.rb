@@ -5,7 +5,11 @@ class CreateScheduledTaskOccurrences < ActiveRecord::Migration[8.1]
       t.datetime :due_at, null: false
       t.integer :job_id
       t.datetime :completed_at
+      t.datetime :failed_at
       t.timestamps
+    end
+    unless column_exists?(:scheduled_task_occurrences, :failed_at)
+      add_column :scheduled_task_occurrences, :failed_at, :datetime
     end
 
     unless index_exists?(:scheduled_task_occurrences, %i[scheduled_task_id due_at], unique: true)
