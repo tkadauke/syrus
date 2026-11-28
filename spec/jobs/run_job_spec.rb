@@ -162,6 +162,48 @@ RSpec.describe RunJob, :ci_only do
       expect(attempts).to be >= 2
     end
 
+    # Regression: an auto-merge Run persisted its own failure successfully,
+    # then lost the landing-state update to a MySQL deadlock. That secondary
+    # write needs the same bounded retry as the surrounding lifecycle writes.
+    it "retries a deadlock while recording an auto-merge landing failure" do
+      landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        pr_number: 124,
+        state: "implemented"
+      )
+      landing_job.approve!(via: "github_review")
+      landing_job.start_landing!
+      landing_job.save!
+      workflow = Workflows::AutoMerge.instantiate(job: landing_job)
+      run = workflow.steps.last.runs.create!(
+        job: landing_job,
+        trigger_kind: "auto_merge",
+        agent_provider: workflow.agent_provider,
+        state: "running",
+        started_at: Time.current
+      )
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, workflow)
+      run_job.instance_variable_set(:@job, landing_job)
+      attempts = 0
+      allow(LandingFailureHandler).to receive(:call).and_wrap_original do |original, **kwargs|
+        attempts += 1
+        raise ActiveRecord::Deadlocked, "deadlock found" if attempts == 1
+
+        original.call(**kwargs)
+      end
+
+      run_job.send(:handle_failure, Steps::Base::StepFailed.new("required grader failed"))
+
+      expect(attempts).to eq(2)
+      expect(landing_job.reload).to be_implemented
+      expect(landing_job.landing_failure_reason).to include("required grader failed")
+    end
+
     it "records recovered lock contention with queue and lifecycle context" do
       run = job.initial_run
       run_job = RunJob.new
