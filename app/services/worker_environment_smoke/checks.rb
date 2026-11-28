@@ -123,7 +123,7 @@ class WorkerEnvironmentSmoke
         /usr/local/opt/mysql5* /usr/local/opt/mysql@* /usr/local/opt/mysql-client /usr/local/opt/mysql-client@*
       ].freeze
       SCRIPT = <<~'RUBY'.freeze
-        config = ENV.fetch("SYRUS_SMOKE_MYSQL_CONFIG")
+        config = ENV.fetch("PROBE_MYSQL_CONFIG")
         if RUBY_PLATFORM.include?("darwin") && system("command -v brew >/dev/null 2>&1")
           %w[openssl zstd].each do |formula|
             prefix = IO.popen(["brew", "--prefix", formula], err: File::NULL, &:read).to_s.strip
@@ -153,7 +153,7 @@ class WorkerEnvironmentSmoke
         return Result.failed("no mysql_config found (build flag, PATH, or mysql2's default locations): mysql2 cannot find MySQL client headers and libraries", essential: false) unless config
 
         Dir.mktmpdir("syrus-env-smoke-mysql-") do |dir|
-          result = shell.run([ "ruby", "-rmkmf", "-e", SCRIPT ], env: env.merge("SYRUS_SMOKE_MYSQL_CONFIG" => config),
+          result = shell.run([ "ruby", "-rmkmf", "-e", SCRIPT ], env: env.merge("PROBE_MYSQL_CONFIG" => config),
             chdir: dir, timeout: COMPILE_TIMEOUT)
           next Result.passed(result.output.to_s.lines.last.to_s.strip, mysql_config: config, mysql_config_source: source, essential: false) if result.success?
 

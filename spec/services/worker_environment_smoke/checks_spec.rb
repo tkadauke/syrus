@@ -116,7 +116,7 @@ RSpec.describe WorkerEnvironmentSmoke::Checks do
 
       expect(result).to include("status" => "passed", "detail" => "8.4.10", "mysql_config" => config, "mysql_config_source" => "PATH")
       call = shell.calls.sole
-      expect(call[:env]).to include("SYRUS_SMOKE_MYSQL_CONFIG" => config)
+      expect(call[:env]).to include("PROBE_MYSQL_CONFIG" => config)
       expect(call[:argv].last).to include("have_header", "have_func", "try_run")
     end
 
