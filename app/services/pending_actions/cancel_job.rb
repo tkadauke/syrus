@@ -14,7 +14,8 @@ module PendingActions
           validate_cancellable!
           action_job.cancel_active_execution!
           action_job.update!(canonical_job: canonical_job)
-          action_job.close_with_reason!(closure_reason(canonical_job))
+          references = canonical_job ? [ { type: "Job", id: canonical_job.id } ] : []
+          action_job.close_with_reason!(closure_reason(canonical_job), references:, note: payload["reason"])
         end
       end
       action_job.reload

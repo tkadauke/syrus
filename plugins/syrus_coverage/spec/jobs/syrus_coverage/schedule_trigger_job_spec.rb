@@ -79,7 +79,7 @@ RSpec.describe SyrusCoverage::ScheduleTriggerJob do
 
     it "creates a new Job after the existing coverage-improvement Job closes" do
       described_class.perform_now(workflow.id)
-      Job.where(kind: "direct", repository: repository).last.update_columns(state: "closed", closure_reason: "no_changes", finished_at: Time.current)
+      Job.where(kind: "direct", repository: repository).last.update_columns(state: "closed", closure_reason: "not_needed", finished_at: Time.current)
 
       expect {
         described_class.perform_now(workflow.id)

@@ -161,7 +161,7 @@ RSpec.describe ChatJobSummary do
     active = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged", issue_number: 43)
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "external_pr_merged", issue_number: 44)
-    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "no_changes", issue_number: 45)
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "not_needed", issue_number: 45)
     Factories.job_record(user: user, repository: repository, epic: epic, state: "landing", issue_number: 46)
     Factories.job_record(user: user, repository: repository, epic: epic, state: "no_change_needed", issue_number: 47)
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "cancelled", issue_number: 48)

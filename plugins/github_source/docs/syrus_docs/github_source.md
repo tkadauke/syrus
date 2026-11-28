@@ -80,7 +80,7 @@ GitHub origin and are checked again when resolved.
 
 **Plain issue ingestion.** For a genuinely new issue with no prior Job: if
 the issue already has a linked open PR (`linked_open_pr_for_issue`), the Job
-is created pre-closed with `closure_reason: "preempted"` and
+is created pre-closed with `closure_reason: "external_pr_superseded"` and
 `external_pr_number` set — Syrus never opens a second, competing PR for work
 someone already did by hand. Otherwise a normal Job is created
 (`initial_state_for_issue`, which special-cases a Syrus-recognized GitHub

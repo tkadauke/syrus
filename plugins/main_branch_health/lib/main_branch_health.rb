@@ -48,6 +48,11 @@ module MainBranchHealth
         }
       ],
       job_kinds: [ { kind: "main_grader", infrastructure: true, issueless: true } ],
+      closure_reasons: [
+        { reason: "main_grader", category: "bookkeeping" },
+        { reason: "preflight_passed", category: "bookkeeping" },
+        { reason: "preflight_inconclusive", category: "bookkeeping" }
+      ],
       work_definitions: [ "MainBranchHealth::GraderWorkDefinition", "MainBranchHealth::RepairWorkDefinition" ]
     )
     review_contributions adjudicators: "Adjudicators::ReportedMainConcern"

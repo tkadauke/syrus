@@ -64,7 +64,7 @@ RSpec.describe Mcp::Tools::ListJobsTool do
   it "filters closed jobs and caps the requested limit" do
     2.times do |i|
       job = Factories.job(repository: repository, issue_number: 200 + i)
-      job.close_with_reason!("no_changes")
+      job.close_with_reason!("not_needed")
     end
 
     response = call_tool(state: "closed", limit: 1_000)

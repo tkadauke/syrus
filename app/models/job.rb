@@ -686,7 +686,7 @@ class Job < ApplicationRecord
     state :coding
     state :failed
     # Legacy semi-terminal state for older no-change outcomes. New automatic
-    # no-change outcomes close the Job with closure_reason=no_changes.
+    # no-change outcomes close the Job with closure_reason=not_needed.
     state :no_change_needed
     state :approved
     state :landing
@@ -816,7 +816,7 @@ class Job < ApplicationRecord
     end
 
     # Legacy repair transition for old no-change rows. Normal no-change
-    # propagation now closes the Job with closure_reason=no_changes.
+    # propagation now closes the Job with closure_reason=not_needed.
     event :mark_no_change_needed do
       transitions from: :running, to: :no_change_needed
     end
@@ -923,6 +923,8 @@ class Job < ApplicationRecord
     event :reopen do
       transitions from: :closed, to: :triaging, after: -> {
         self.closure_reason = nil
+        self.closure_references = nil
+        self.closure_note = nil
         self.finished_at = nil
         self.failure_count = 0
         self.reopened_at = Time.current
@@ -1228,10 +1230,20 @@ class Job < ApplicationRecord
 
   # Closing refreshes the Epic's state, so the Epic is locked before the Job
   # row is written (NY40, parents before children).
-  def close_with_reason!(reason)
+  def close_with_reason!(reason, references: [], note: nil)
+    definition = ClosureReason.fetch(reason)
+    references = Array(references).map { |reference| reference.to_h.stringify_keys }
+    references.each do |reference|
+      unless reference["type"].to_s.in?(%w[Job PR Epic]) && reference["id"].present?
+        raise ArgumentError, "closure references require type Job, PR, or Epic and an id"
+      end
+    end
+    raise ArgumentError, "#{reason} requires a Job, PR, or Epic reference" if definition.requires_reference && references.empty?
+    raise ArgumentError, "#{reason} requires a note" if definition.requires_note && note.to_s.strip.blank?
+
     transaction do
       Lineage.lock!(self)
-      update!(closure_reason: reason)
+      update!(closure_reason: definition.reason, closure_references: references, closure_note: note.to_s.presence)
       close!
     end
   end
@@ -1333,7 +1345,7 @@ class Job < ApplicationRecord
   # Cancels every active Run on this Job and closes the thread. Used by
   # both the Cancel button (reason: "cancelled") and Restart (reason:
   # "replaced"). Idempotent on already-closed Jobs.
-  def cancel_active_runs_and_close!(reason)
+  def cancel_active_runs_and_close!(reason, references: [], note: nil)
     return if closed?
 
     transaction do
@@ -1343,7 +1355,7 @@ class Job < ApplicationRecord
       Lineage.lock_active_work!(self)
       reload(lock: true)
       cancel_active_execution!
-      close_with_reason!(reason)
+      close_with_reason!(reason, references:, note:)
     end
   end
 
@@ -1507,16 +1519,7 @@ class Job < ApplicationRecord
   # report -- see Workflows::Investigation. Investigation Jobs never close
   # themselves; this is only ever applied by an explicit operator action.
   INVESTIGATION_REPORTED_CLOSURE_REASON = "investigation_reported".freeze
-  SUCCESSFUL_CLOSURE_REASONS = [
-    "pr_merged",
-    "external_pr_merged",
-    "pr_approved",
-    "no_changes",
-    "promotion_landed",
-    "hotfix_sync_landed",
-    INVESTIGATION_REPORTED_CLOSURE_REASON,
-    "emergency_landed"
-  ].freeze
+  SUCCESSFUL_CLOSURE_REASONS = ClosureReason.successful_values
   # --- needs_attention flag --------------------------------------------------
   # Called by RunJob after a non-rebase run fails. Increments the
   # failure counter and auto-closes the job if the configured threshold
@@ -1841,7 +1844,7 @@ class Job < ApplicationRecord
   # matches MAIN_GRADER_CLOSURE_REASON and the reason Steps::AutoClose
   # uses for its own close_with_reason! call.
   def mark_infrastructure_job_closed
-    self.closure_reason = kind
+    self.closure_reason = ClosureReason.fetch(kind).reason
     self.finished_at ||= Time.current
   end
 
@@ -2458,7 +2461,7 @@ class Job < ApplicationRecord
   end
 
   def saved_change_to_stack_parent_resolved_terminal?
-    state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
+    state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged not_needed ])
   end
 
   def saved_change_to_successful_closed_dependency?
@@ -2467,7 +2470,7 @@ class Job < ApplicationRecord
 
   def saved_change_needs_landing_queue_processor?
     return true if state_changed_in_transaction? && approved?
-    return true if state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
+    return true if state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged not_needed ])
     return true if saved_change_to_priority? && priority == "urgent" && (approved? || landing?)
 
     false

@@ -10,8 +10,8 @@ module Mcp::Tools
     tool_name "close_job_successfully"
 
     description <<~DESC
-      Request that one or more Syrus Jobs be closed as a successful semantic
-      outcome, such as no_changes. Pass job_id for a single Job (unchanged
+      Request that one or more Syrus Jobs be closed with a registered semantic
+      reason. Agents must always supply a reason. Pass job_id for a single Job
       single-confirmation behavior) or job_ids for multiple Jobs, which
       creates one grouped pending action the operator confirms or rejects
       together -- every Job in the group is closed with the same
@@ -30,9 +30,14 @@ module Mcp::Tools
         },
         closure_reason: {
           type: "string",
-          enum: Job::SUCCESSFUL_CLOSURE_REASONS,
-          description: "Successful closure reason to record on the Job(s)."
+          enum: Job::ClosureReason.agent_values,
+          description: "Registered closure reason to record on the Job(s)."
         },
+        references: {
+          type: "array", items: { type: "object" },
+          description: "Referenced Jobs, PRs, or Epics, each with type and id. Required by replacement and implemented_elsewhere reasons."
+        },
+        note: { type: "string", description: "Closure explanation. Required for wont_do and infeasible." },
         comment: {
           type: "string",
           description: "Optional explanatory comment to post on the PR before closing it."
@@ -42,12 +47,19 @@ module Mcp::Tools
     )
 
     class << self
-      def call(job_id: nil, job_ids: nil, closure_reason:, comment: nil, server_context:)
+      def call(job_id: nil, job_ids: nil, closure_reason:, references: [], note: nil, comment: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         return Mcp::Tools.invalid("closure_reason is required") if closure_reason.blank?
-        unless Job::SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason.to_s)
-          return Mcp::Tools.invalid("closure_reason must be one of #{Job::SUCCESSFUL_CLOSURE_REASONS.join(', ')}")
+        definition = Job::ClosureReason.by_reason[closure_reason.to_s]
+        return Mcp::Tools.invalid("closure_reason is not registered") unless definition
+        return Mcp::Tools.invalid("cancelled is reserved for a human close without a reason") if closure_reason.to_s == "cancelled"
+        return Mcp::Tools.invalid("#{closure_reason} requires a Job, PR, or Epic reference") if definition.requires_reference && Array(references).empty?
+        return Mcp::Tools.invalid("#{closure_reason} requires a note") if definition.requires_note && note.to_s.strip.blank?
+        invalid_reference = Array(references).find do |reference|
+          value = reference.to_h.stringify_keys
+          !value["type"].to_s.in?(%w[Job PR Epic]) || value["id"].blank?
         end
+        return Mcp::Tools.invalid("references require type Job, PR, or Epic and an id") if invalid_reference
 
         ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
         return error if error
@@ -61,6 +73,8 @@ module Mcp::Tools
         unless bulk
           job = jobs.first
           payload = { "job_id" => job.id, "closure_reason" => closure_reason.to_s }
+          payload["references"] = references if Array(references).any?
+          payload["note"] = note.to_s if note.present?
           payload["comment"] = comment.to_s if comment.present?
 
           pending_action = create_pending_action_for_current_message!(
@@ -68,7 +82,8 @@ module Mcp::Tools
             chat_session,
             action: "close_job_successfully",
             payload: payload,
-            requested_by: "agent"
+            requested_by: "agent",
+            subject: McpToolContext.from_server_context(server_context).agent_actor
           )
 
           return Mcp::Tools.success(
@@ -82,8 +97,13 @@ module Mcp::Tools
 
         member_attributes = jobs.map do |job|
           member_payload = { "job_id" => job.id, "closure_reason" => closure_reason.to_s }
+          member_payload["references"] = references if Array(references).any?
+          member_payload["note"] = note.to_s if note.present?
           member_payload["comment"] = comment.to_s if comment.present?
-          { action: "close_job_successfully", payload: member_payload, requested_by: "agent" }
+          {
+            action: "close_job_successfully", payload: member_payload, requested_by: "agent",
+            subject: McpToolContext.from_server_context(server_context).agent_actor
+          }
         end
 
         group = create_pending_action_group!(

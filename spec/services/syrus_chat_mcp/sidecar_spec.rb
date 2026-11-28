@@ -131,7 +131,6 @@ RSpec.describe Mcp::Sidecar do
         list_epics
         read_epic
         approve_job
-        cancel_job
         close_job_successfully
         retry_job
         base_refresh_retry_job

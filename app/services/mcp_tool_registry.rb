@@ -272,7 +272,6 @@ class McpToolRegistry
         read_chat(Mcp::Tools::ListEpicsTool),
         read_chat(Mcp::Tools::ReadEpicTool),
         lifecycle_chat(Mcp::Tools::ApproveJobTool, mutation: true),
-        lifecycle_chat(Mcp::Tools::CancelJobTool, mutation: true),
         lifecycle_chat(Mcp::Tools::UnlandJobTool, feature_flag: :unlanding, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::UnlandEpicTool, feature_flag: :unlanding, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),

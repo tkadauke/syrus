@@ -27,10 +27,10 @@ RSpec.describe ClosedPullRequestResolution do
     expect(described_class.reason(job: job, pr: pr, client: client)).to eq("pr_merged")
   end
 
-  it "returns no_changes only when the branch never held a commit" do
+  it "returns not_needed only when the branch never held a commit" do
     allow(BranchPatchPresence).to receive(:classify).and_return(BranchPatchPresence::NO_COMMITS)
 
-    expect(described_class.reason(job: job, pr: pr, client: client)).to eq("no_changes")
+    expect(described_class.reason(job: job, pr: pr, client: client)).to eq("not_needed")
   end
 
   it "returns pr_closed when the branch still has unique patches" do

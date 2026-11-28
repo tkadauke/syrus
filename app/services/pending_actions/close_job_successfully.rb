@@ -5,7 +5,7 @@ module PendingActions
     def execute
       job = action_permitted_job
       reason = payload.fetch("closure_reason")
-      raise ArgumentError, "#{reason} is not a successful Job closure reason." unless successful_reason?(reason)
+      validate_reason!(reason)
       raise ArgumentError, "#{job.slug} is already closed." if job.closed?
       raise ArgumentError, "#{job.slug} cannot be closed from #{job.state}." unless job.may_close?
 
@@ -26,8 +26,14 @@ module PendingActions
       reason = payload["closure_reason"]
       if reason.blank?
         errors.add(:payload, "closure_reason is required")
-      elsif !successful_reason?(reason)
-        errors.add(:payload, "closure_reason must be one of #{Job::SUCCESSFUL_CLOSURE_REASONS.join(', ')}")
+      elsif !Job::ClosureReason.by_reason.key?(reason.to_s)
+        errors.add(:payload, "closure_reason is not registered")
+      elsif reason.to_s == "cancelled"
+        errors.add(:payload, "cancelled is reserved for a human close without a reason")
+      else
+        definition = Job::ClosureReason.fetch(reason)
+        errors.add(:payload, "references are required") if definition.requires_reference && Array(payload["references"]).empty?
+        errors.add(:payload, "note is required") if definition.requires_note && payload["note"].to_s.strip.blank?
       end
     end
 
@@ -45,8 +51,11 @@ module PendingActions
 
     private
 
-    def successful_reason?(reason)
-      Job::SUCCESSFUL_CLOSURE_REASONS.include?(reason.to_s)
+    def validate_reason!(reason)
+      raise ArgumentError, "cancelled is reserved for a human close without a reason" if reason.to_s == "cancelled"
+      definition = Job::ClosureReason.fetch(reason)
+      raise ArgumentError, "#{reason} requires references" if definition.requires_reference && Array(payload["references"]).empty?
+      raise ArgumentError, "#{reason} requires a note" if definition.requires_note && payload["note"].to_s.strip.blank?
     end
 
     def action_permitted_job
@@ -63,7 +72,9 @@ module PendingActions
       ApplicationRecord.transaction do
         cancel_active_execution!(job)
         job.update!(grace_period_expires_at: nil)
-        job.close_with_reason!(reason)
+        StateTransition.with_source("tool", user:, reason:, metadata: closure_metadata) do
+          job.close_with_reason!(reason, references: payload["references"], note: payload["note"])
+        end
       end
 
       progress!("Closing tracked pull request if needed...")
@@ -73,6 +84,17 @@ module PendingActions
 
     def cancel_active_execution!(job)
       job.cancel_active_execution!
+    end
+
+    def closure_metadata
+      actor = action.subject || user
+      {
+        "actor_type" => actor.class.polymorphic_name,
+        "actor_id" => actor.id,
+        "chat_session_id" => action.chat_session_id,
+        "references" => payload["references"],
+        "note" => payload["note"]
+      }.compact
     end
 
     def github_closure_result(job)

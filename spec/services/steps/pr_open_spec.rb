@@ -422,7 +422,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(handoff_workflow.artifact("branch_divergence")).to be_nil
   end
 
-  it "closes a direct initial Job as no_changes when the publication branch matches the effective base" do
+  it "closes a direct initial Job as not_needed when the publication branch matches the effective base" do
     direct_job = Factories.job_record(
       user: user,
       repository: repository,
@@ -474,7 +474,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     apply_pending_job_closures!
     expect(direct_job.reload).to be_closed
-    expect(direct_job.closure_reason).to eq("no_changes")
+    expect(direct_job.closure_reason).to eq("not_needed")
     expect(direct_workflow.reload.artifact("no_pr_reason")).to include(
       "reason" => "empty_publication_branch",
       "base_branch" => "main",
@@ -553,7 +553,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     apply_pending_job_closures!
     expect(job.reload).to be_closed
-    expect(job.closure_reason).to eq("no_changes")
+    expect(job.closure_reason).to eq("not_needed")
     expect(workflow.reload.artifact("pr_open_force_pushed_unopened_branch")).to include(
       "branch" => branch,
       "remote_sha" => "remote-sha",

@@ -10,7 +10,7 @@ export const examples: ToolCardExample[] = [
     label: i18n.t("chat:tool_card_examples.pending_close_with_comment"),
     input: {
       job_id: 80,
-      closure_reason: "no_changes",
+      closure_reason: "not_needed",
       comment: `## Closing note\n\nNo implementation is needed. ${"The existing behavior already covers the request. ".repeat(8)}`
     },
     parsedResult: {
@@ -18,7 +18,7 @@ export const examples: ToolCardExample[] = [
       pending_action_id: 15,
       state: "pending",
       job_id: 80,
-      closure_reason: "no_changes",
+      closure_reason: "not_needed",
       message: i18n.t("chat:tool_card_examples.close_confirmation_required")
     }
   },
@@ -37,7 +37,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "validation_error",
     label: i18n.t("chat:tool_card_examples.invalid_closure_error"),
-    input: { job_id: 84, closure_reason: "no_changes", comment: "This should not be posted." },
+    input: { job_id: 84, closure_reason: "not_needed", comment: "This should not be posted." },
     resultBody: "Error: JOB-84 cannot be closed from running.",
     resultError: true
   }

@@ -18,6 +18,10 @@ module SyrusGithubSource
     provides repo_page_tabs: "GithubSource::RepoPageTabs",
              ui_slots: "GithubSource::UiSlots",
              admin_pages: "GithubSource::AdminPages"
+    workflow_kinds closure_reasons: [
+      { reason: "external_pr_superseded", category: "bookkeeping" },
+      { reason: "external_pr_stale", category: "bookkeeping" }
+    ]
     source_host input_source: "InputSources::Github",
                 source_control_provider: "SourceControl::GithubOperations"
     route :get, "/api/v1/app/admin/github_api_usage", to: "api/v1/app/admin/github_api_usage#show"

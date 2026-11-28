@@ -73,7 +73,7 @@ module InputSources
           Rails.logger.info("[InputSources::Github] #{repository.slug}##{issue.number} preempt-attach to #{prior.slug}: external PR ##{linked[:number]}")
           prior.update!(external_pr_number: linked[:number])
           if prior.open? && prior.pr_number.blank? && !prior.any_active_run?
-            prior.cancel_active_runs_and_close!("preempted")
+            prior.cancel_active_runs_and_close!("external_pr_superseded")
           end
         else
           Rails.logger.info("[InputSources::Github] #{repository.slug}##{issue.number} dedup: prior #{prior.slug} exists")
@@ -92,7 +92,7 @@ module InputSources
           issue_title: issue_title(issue),
           issue_body: issue_body(issue),
           state: "closed",
-          closure_reason: "preempted",
+          closure_reason: "external_pr_superseded",
           external_pr_number: linked[:number],
           finished_at: Time.current,
           input_source: self,

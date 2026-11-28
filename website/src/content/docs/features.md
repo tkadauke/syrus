@@ -923,7 +923,7 @@ and required-grader failures while the throughput dashboard evolves.
 Syrus no longer creates a standalone `Reconciliation: ...` child Job to review
 sibling consistency; that path, including its `reconciliation_mode` setting,
 has been removed. Existing historical reconciliation Jobs remain readable and
-can still close through the successful `no_changes` path when they produce no
+can still close through the successful `not_needed` path when they produce no
 patch.
 
 When reconciliation is a no-op, operators see that the merge train is
@@ -1409,13 +1409,13 @@ behind stale proposal slugs.
 When a proposal is created, edited, or confirmed, Syrus rejects dependency
 targets that are already terminal and cannot satisfy the normal dependency
 gate, such as a Job closed as `cancelled` or an archived Epic. Successfully
-closed dependencies such as `pr_merged`, `external_pr_merged`, `pr_approved`,
-and `no_changes` remain valid and do not block startup.
+closed dependencies such as `pr_merged`, `external_pr_merged`,
+and `not_needed` remain valid and do not block startup.
 Proposal dependencies can also carry explicit wait modes. The default remains
 `success`, which may release execution from an implemented upstream PR before
 its final successful close. Choose `landed` when execution must wait for a Job
 to close with durable evidence that its change reached the landing branch;
-`pr_approved` is not enough, while an explicit successful `no_changes` close is.
+An explicit successful `not_needed` close satisfies the no-change case.
 Landed mode accepts Job targets only, because Epic completion is not used as
 proof that one individual repository change landed. A proposal may instead
 declare a cleanup-style wait-until-closed gate or a deployment-stage gate for an existing upstream Job
@@ -1428,7 +1428,7 @@ normal implementation dependencies continue to require successful completion.
 Deployment-stage mode remains a stronger rollout gate after landing: it waits
 for the configured repository stage rather than merely for the landing SHA.
 Actions that need explicit approval, such as
-canceling, closing a Job successfully as `no_changes`, retrying, reopening,
+canceling, closing a Job successfully as `not_needed`, retrying, reopening,
 polling feedback, checking mergeability,
 delegating GitHub issues, firing scheduled tasks, changing repository
 documents, or pausing and resuming the landing queue, also render as inline
@@ -1455,8 +1455,8 @@ reruns. These batches are capped and deduplicated. Each target is revalidated
 when confirmed and reports its own applied, ineligible, or failed outcome, so
 one changed target does not roll back successful repairs for the others.
 Successful Job close is separate from cancellation: `close_job_successfully`
-records a successful closure reason such as `no_changes`, which satisfies
-dependencies and Epic progress, while `cancel_job` remains non-successful. When
+records a successful closure reason such as `not_needed`, which satisfies
+dependencies and Epic progress; declined and replacement reasons remain non-successful. When
 the Job has a tracked PR, Syrus can post the supplied explanation and close the
 PR after confirmation; any GitHub cleanup failure is reported in chat.
 On the Job detail page, implementation retries can also be enqueued with any

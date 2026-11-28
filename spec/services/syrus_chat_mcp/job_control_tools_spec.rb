@@ -75,24 +75,26 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     job
   end
 
-  it "creates a pending cancel_job confirmation without executing it" do
+  it "uses the unified close tool for a declined Job closure" do
     job = Factories.job(repository: repository)
 
-    response = call_tool("cancel_job", job_id: job.id, reason: "No longer needed.")
+    response = call_tool("close_job_successfully", job_id: job.id, closure_reason: "obsolete")
     body = payload(response)
     pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
-    expect(body).to include(message: "Cancel #{job.slug}? Cancellation requires operator confirmation.")
+    expect(body).to include(message: "Successful Job close requires operator confirmation.")
     expect(pending_action).to be_pending
-    expect(pending_action).to have_attributes(action: "cancel_job", requested_by: "agent")
-    expect(pending_action.payload).to eq("job_id" => job.id, "reason" => "No longer needed.")
+    expect(pending_action).to have_attributes(action: "close_job_successfully", requested_by: "agent")
+    expect(pending_action.payload).to eq("job_id" => job.id, "closure_reason" => "obsolete")
     expect(job.reload).to be_open
   end
 
-  it "rechecks cancellation safety after locking a stale Job" do
+  it "keeps the human cancellation action's landing-evidence recheck" do
     job = Factories.job_record(repository: repository, state: "implemented")
-    body = payload(call_tool("cancel_job", job_id: job.id, reason: "No longer needed."))
-    pending_action = chat_session.pending_actions.find(body.fetch(:pending_action_id))
+    pending_action = chat_session.pending_actions.create!(
+      action: "cancel_job", payload: { "job_id" => job.id, "reason" => "No longer needed." },
+      requested_by: "operator", user: user
+    )
 
     allow_any_instance_of(Job).to receive(:lock!) do |locked_job|
       locked_job.update_column(:landed_sha, "landed-while-confirming")
@@ -193,7 +195,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
   it "rejects cancelling an already closed Job and names the next action" do
     job = Factories.job_record(repository: repository, state: "closed")
 
-    response = call_tool("cancel_job", job_id: job.id, reason: "No longer needed.")
+    response = call_tool("close_job_successfully", job_id: job.id, closure_reason: "obsolete")
 
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("already closed", "Reopen")
@@ -206,7 +208,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     response = call_tool(
       "close_job_successfully",
       job_id: job.id,
-      closure_reason: "no_changes",
+      closure_reason: "not_needed",
       comment: "No unique patches remain against the stack parent."
     )
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
@@ -215,7 +217,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(pending_action).to have_attributes(action: "close_job_successfully", requested_by: "agent")
     expect(pending_action.payload).to eq(
       "job_id" => job.id,
-      "closure_reason" => "no_changes",
+      "closure_reason" => "not_needed",
       "comment" => "No unique patches remain against the stack parent."
     )
     expect(job.reload).to be_approved
@@ -230,17 +232,33 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(chat_session.pending_actions).to be_empty
   end
 
-  it "creates a grouped pending action for cancel_job job_ids" do
+  it "requires registered closure metadata and permits declined reasons only through confirmation" do
+    job = Factories.job(user: user, repository: repository, state: "implemented")
+
+    missing_reference = call_tool("close_job_successfully", job_id: job.id, closure_reason: "duplicate")
+    expect(missing_reference.dig(:result, :isError)).to eq(true)
+    expect(missing_reference.dig(:result, :content, 0, :text)).to include("requires a Job, PR, or Epic reference")
+
+    missing_note = call_tool("close_job_successfully", job_id: job.id, closure_reason: "wont_do")
+    expect(missing_note.dig(:result, :isError)).to eq(true)
+    expect(missing_note.dig(:result, :content, 0, :text)).to include("requires a note")
+
+    response = call_tool("close_job_successfully", job_id: job.id, closure_reason: "wont_do", note: "The requested API cannot be implemented safely.")
+    expect(payload(response)).to include(state: "pending")
+    expect(job.reload).to be_implemented
+  end
+
+  it "creates a grouped pending action for declined Job closures" do
     job_one = Factories.job(repository: repository)
     job_two = Factories.job(repository: repository, issue_number: 43)
 
-    response = call_tool("cancel_job", job_ids: [ job_one.id, job_two.id ], reason: "No longer needed.")
+    response = call_tool("close_job_successfully", job_ids: [ job_one.id, job_two.id ], closure_reason: "obsolete")
     body = payload(response)
     group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
-    expect(body).to include(state: "pending", member_count: 2, message: "Cancel 2 Jobs?")
+    expect(body).to include(state: "pending", member_count: 2, message: "Close 2 Jobs as obsolete?")
     expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
-    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "cancel_job" ])
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "close_job_successfully" ])
     expect(job_one.reload).to be_open
     expect(job_two.reload).to be_open
   end
@@ -252,14 +270,14 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     response = call_tool(
       "close_job_successfully",
       job_ids: [ job_one.id, job_two.id ],
-      closure_reason: "no_changes"
+      closure_reason: "not_needed"
     )
     body = payload(response)
     group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
-    expect(body).to include(state: "pending", member_count: 2, message: "Close 2 Jobs as no_changes?")
+    expect(body).to include(state: "pending", member_count: 2, message: "Close 2 Jobs as not_needed?")
     payloads = group.chat_pending_actions.map(&:payload)
-    expect(payloads).to all(include("closure_reason" => "no_changes"))
+    expect(payloads).to all(include("closure_reason" => "not_needed"))
     expect(payloads.map { |p| p["job_id"] }).to contain_exactly(job_one.id, job_two.id)
     expect(job_one.reload).to be_approved
     expect(job_two.reload).to be_approved
@@ -272,7 +290,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     response = call_tool(
       "close_job_successfully",
       job_ids: [ closable_job.id, already_closed_job.id ],
-      closure_reason: "no_changes"
+      closure_reason: "not_needed"
     )
 
     expect(response.dig(:result, :isError)).to be true
@@ -1053,14 +1071,14 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(job.workflows.where(trigger_kind: "rebase")).to be_empty
   end
 
-  it "allows canceling jobs outside the chat repository when they belong to the chat user" do
+  it "allows closing jobs outside the chat repository when they belong to the chat user" do
     other_job = Factories.job(repository: Factories.repository(user: user))
 
-    response = call_tool("cancel_job", job_id: other_job.id, reason: "No longer needed.")
+    response = call_tool("close_job_successfully", job_id: other_job.id, closure_reason: "obsolete")
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => other_job.id, "reason" => "No longer needed." })
+    expect(pending_action).to have_attributes(action: "close_job_successfully", payload: { "job_id" => other_job.id, "closure_reason" => "obsolete" })
   end
 
   it "finds epics outside the pinned repository when they belong to the user" do
@@ -1144,26 +1162,26 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       expect(job.reload.priority).to eq("high")
     end
 
-    it "allows an admin to cancel another user's job" do
+    it "allows an admin to close another user's job with a registered reason" do
       job = Factories.job_record(repository: other_repository, state: "queued")
 
-      response = admin_call("cancel_job", job_id: job.id, reason: "No longer needed.")
+      response = admin_call("close_job_successfully", job_id: job.id, closure_reason: "obsolete")
 
       expect(response.dig(:result, :isError)).to be_falsey
       pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_action_id])
-      expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => job.id, "reason" => "No longer needed." })
+      expect(pending_action).to have_attributes(action: "close_job_successfully", payload: { "job_id" => job.id, "closure_reason" => "obsolete" })
     end
 
     it "allows an admin to request a successful close for another user's job" do
       job = Factories.job_record(repository: other_repository, state: "approved")
 
-      response = admin_call("close_job_successfully", job_id: job.id, closure_reason: "no_changes")
+      response = admin_call("close_job_successfully", job_id: job.id, closure_reason: "not_needed")
 
       expect(response.dig(:result, :isError)).to be_falsey
       pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_action_id])
       expect(pending_action).to have_attributes(
         action: "close_job_successfully",
-        payload: { "job_id" => job.id, "closure_reason" => "no_changes" }
+        payload: { "job_id" => job.id, "closure_reason" => "not_needed" }
       )
     end
 

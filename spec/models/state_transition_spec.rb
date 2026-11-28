@@ -117,15 +117,15 @@ RSpec.describe StateTransition do
     it "infers transition reasons from model state when no explicit reason is provided" do
       job.workflows.destroy_all
       job.runs.destroy_all
-      job.update!(state: "running", closure_reason: "no_changes")
+      job.update!(state: "running", closure_reason: "not_needed")
 
       job.close!
       job.save!
 
       transition = described_class.for_subject(job).recent.first
       expect(transition.metadata).to include(
-        "reason_key" => "no_changes",
-        "closure_reason" => "no_changes"
+        "reason_key" => "not_needed",
+        "closure_reason" => "not_needed"
       )
     end
 

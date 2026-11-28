@@ -53,7 +53,7 @@ RSpec.describe Mcp::Tools::SearchJobsTool do
   it "searches stored issue body text when present and filters by state" do
     matching = Factories.job(repository: repository, issue_title: "Unrelated title", issue_number: 20, issue_body: "Hidden forum marble")
     closed = Factories.job(repository: repository, issue_title: "Forum marble", issue_number: 21)
-    closed.close_with_reason!("no_changes")
+    closed.close_with_reason!("not_needed")
 
     response = call_tool(query: "marble", state: "queued")
     results = response_payload(response).fetch(:results)

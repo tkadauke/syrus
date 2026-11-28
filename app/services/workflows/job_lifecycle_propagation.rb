@@ -113,7 +113,7 @@ module Workflows
         return unless job.may_close?
 
         StateTransition.with_source("propagate") do
-          job.close_with_reason!("no_changes")
+          job.close_with_reason!("not_needed")
         end
       else
         StateTransition.with_source("propagate") do

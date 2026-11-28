@@ -55,7 +55,7 @@ RSpec.describe Workflows::Skill do
   end
 
   describe "no-diff closure" do
-    it "closes the Job with closure_reason=no_changes instead of :failed when run_skill produces no diff, without ever reaching the grader loop" do
+    it "closes the Job with closure_reason=not_needed instead of :failed when run_skill produces no diff, without ever reaching the grader loop" do
       job.update!(state: "running")
       workflow = described_class.instantiate(job: job)
       run_skill_step = workflow.steps.find_by!(kind: "run_skill")
@@ -65,7 +65,7 @@ RSpec.describe Workflows::Skill do
       expect { StepDispatcher.fail_from(run_skill_step) }
         .to change { job.reload.state }.from("running").to("closed")
 
-      expect(job.reload.closure_reason).to eq("no_changes")
+      expect(job.reload.closure_reason).to eq("not_needed")
       expect(workflow.reload).to be_failed
 
       grader_fanout_step = workflow.steps.find_by!(kind: "grader_fanout")

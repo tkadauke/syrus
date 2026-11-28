@@ -13,7 +13,7 @@ class JobDependency
         return false unless dependency.depends_on_job
 
         job = dependency.depends_on_job
-        return true if job.closed? && job.closure_reason == "no_changes"
+        return true if job.closed? && job.closure_reason == "not_needed"
 
         job.closed? && job.landed_sha.present? && LANDED_CLOSURE_REASONS.include?(job.closure_reason)
       end

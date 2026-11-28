@@ -5,6 +5,7 @@
 export type FilterOption = {
   value: string | number
   label: string
+  group?: string
 }
 
 export type FilterSchemaField = {

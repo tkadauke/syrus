@@ -1,11 +1,6 @@
 module App
   class SetupStatus
-    SUCCESSFUL_CLOSURE_REASONS = %w[
-      pr_merged
-      external_pr_merged
-      pr_approved
-      no_changes
-    ].freeze
+    SUCCESSFUL_CLOSURE_REASONS = Job::ClosureReason.successful_values
 
     def self.call(user:)
       new(user).as_json

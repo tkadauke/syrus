@@ -191,7 +191,7 @@ class PollMergeStateJob < ApplicationJob
   # Finalize a preempted Job whose tracked external PR has merged or
   # closed, retiring it from the polling scope. Returns true when it acted.
   def finalize_terminal_external_pr(pr)
-    return false unless @job.closed? && @job.closure_reason == "preempted"
+    return false unless @job.closed? && @job.closure_reason == "external_pr_superseded"
     return false if @job.external_pr_number.blank?
 
     if pr.merged

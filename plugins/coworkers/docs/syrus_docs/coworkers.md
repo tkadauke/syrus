@@ -352,7 +352,7 @@ repository its owner cannot write. An invalid target is returned as an
 authorization or validation error.
 
 Coworkers receive the ordinary chat-agent Job lifecycle tools, including
-`cancel_job` and `submit_chat_feedback`. Canonical `syrus.jobs` policy decides
+`close_job_successfully` and `submit_chat_feedback`. Canonical `syrus.jobs` policy decides
 whether each invocation runs, asks for confirmation, or is denied; sharing the
 tool registration does not bypass its Job-state or authorization checks.
 Cancellation requires a reason, and duplicate cancellations may link a

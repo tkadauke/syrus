@@ -426,6 +426,7 @@ module App
         last_feedback_addressed_at: iso8601(@job.last_feedback_addressed_at),
         last_ci_handled_sha: @job.last_ci_handled_sha,
         closure_reason: @job.closure_reason,
+        closure_details: closure_details_json,
         rollback_of: rollback_reference_json(@job.rollback_of),
         unlanded_by: rollback_reference_json(unland_audit[:successful]),
         unland: unland_json(@job),
@@ -1867,6 +1868,21 @@ module App
 
     def local_syrus_yml_config
       local_syrus_yml.config
+    end
+
+    def closure_details_json
+      return unless @job.closed?
+
+      transition = StateTransition.where(subject: @job, to_state: "closed").order(created_at: :desc, id: :desc).first
+      {
+        reason: @job.closure_reason,
+        category: Job::ClosureReason.by_reason[@job.closure_reason]&.category,
+        references: Array(@job.closure_references),
+        note: @job.closure_note,
+        actor: transition&.user&.then { |user| user_reference_json(user) },
+        actor_type: transition&.metadata.to_h["actor_type"],
+        via: transition&.source
+      }.compact
     end
   end
 end

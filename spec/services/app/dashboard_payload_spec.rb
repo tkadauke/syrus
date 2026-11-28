@@ -2388,13 +2388,13 @@ RSpec.describe App::DashboardPayload, :ci_only do
       Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user,
                            issue_number: 103, state: "closed", closure_reason: "external_pr_merged")
       Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user,
-                           issue_number: 104, state: "closed", closure_reason: "no_changes")
+                           issue_number: 104, state: "closed", closure_reason: "not_needed")
 
       result = call(subject: "job", scope: "mine")
       item = result[:items].find { |j| j[:id] == open_job.id }
 
       expect(item.dig(:epic, :jobs_count)).to eq(4)
-      # no_changes does not count as landed; only pr_merged and external_pr_merged do
+      # not_needed does not count as landed; only pr_merged and external_pr_merged do
       expect(item.dig(:epic, :landed_jobs_count)).to eq(2)
     end
   end

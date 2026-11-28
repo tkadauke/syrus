@@ -5,9 +5,11 @@ module Filters
         filter_name "closure_reason"
         label "Closure reason"
         column :closure_reason
-        values "pr_merged", "external_pr_merged", "pr_approved", "no_changes",
-               "emergency_landed", "issue_closed", "abandoned", "superseded",
-               "cancelled", "manual", "external_pr_superseded", "external_pr_stale"
+        values(*Job::ClosureReason.entries.map { |entry|
+          { value: entry.reason, label: entry.reason.humanize, group: entry.category.humanize }
+        })
+
+        def self.grouped_values = Job::ClosureReason.grouped_values
       end
     end
   end

@@ -212,7 +212,6 @@ module Api
             actor_type: "operator", actor: Current.user, origin: "job_page", reason: params[:reason]
           ) do
             ApplicationRecord.transaction do
-              job.cancel_active_runs_and_close!("replaced") if job.open?
               skip_prepare = job.sync_skip_prepare_from_source!
 
               attrs = {
@@ -245,6 +244,7 @@ module Api
               end
 
               new_job = Current.user.jobs.create!(attrs)
+              job.cancel_active_runs_and_close!("superseded", references: [ { type: "Job", id: new_job.id } ]) if job.open?
               new_job.advance_after_triage! if new_job.may_advance_after_triage?
 
               job.dependent_links.find_each do |dependency|
@@ -305,7 +305,9 @@ module Api
             return
           end
 
-          job.cancel_active_runs_and_close!("cancelled")
+          StateTransition.with_source("ui", user: Current.user, reason: "cancelled", metadata: { "actor_type" => "human" }) do
+            job.cancel_active_runs_and_close!("cancelled")
+          end
           render_job(job.reload, message: lifecycle_t("cancellation_requested"), changed: [ "state", "runs" ])
         end
 

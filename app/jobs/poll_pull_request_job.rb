@@ -111,8 +111,8 @@ class PollPullRequestJob < ApplicationJob
       return
     end
 
-    if reason == "no_changes"
-      close_with("no_changes")
+    if reason == "not_needed"
+      close_with("not_needed")
       return
     end
 
@@ -206,7 +206,7 @@ class PollPullRequestJob < ApplicationJob
   def notify_upstream_pr_closed(reason)
     recipient = @job.owner_user || @job.user
     body = "Upstream PR ##{@job.pr_number} for #{@job.slug} was closed without merge: #{@job.title.truncate(80)}"
-    body = "Upstream PR ##{@job.pr_number} for #{@job.slug} closed (no changes): #{@job.title.truncate(80)}" if reason == "no_changes"
+    body = "Upstream PR ##{@job.pr_number} for #{@job.slug} closed (no changes): #{@job.title.truncate(80)}" if reason == "not_needed"
 
     NotificationService.create_for(
       user: recipient,

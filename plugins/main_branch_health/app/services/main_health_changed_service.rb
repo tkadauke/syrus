@@ -30,7 +30,7 @@ class MainHealthChangedService
     new(repository).recovered!
   end
 
-  SUPERSEDED_PREFLIGHT_CLOSURE = "superseded".freeze
+  SUPERSEDED_PREFLIGHT_CLOSURE = "not_needed".freeze
 
   # A repair still in preflight diagnoses the commit it snapshotted. When main
   # advances before the repair starts implementing, that diagnosis is stale:

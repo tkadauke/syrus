@@ -598,7 +598,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
   it "uses external_pr_number when the Job has no Syrus-authored PR" do
     external = Factories.job(user: user, repository: repository, pr_number: nil)
-    external.update!(state: "closed", closure_reason: "preempted",
+    external.update!(state: "closed", closure_reason: "external_pr_superseded",
                      external_pr_number: 99, finished_at: Time.current)
     mark_workflows_succeeded_for_polling!(external)
     expect_any_instance_of(GithubClient)
@@ -764,7 +764,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
   describe "finalizing preempted Jobs whose external PR is terminal" do
     def preempted_job(external_pr_number: 99)
       job = Factories.job(user: user, repository: repository, pr_number: nil)
-      job.update!(state: "closed", closure_reason: "preempted",
+      job.update!(state: "closed", closure_reason: "external_pr_superseded",
                   external_pr_number: external_pr_number, finished_at: Time.current)
       mark_workflows_succeeded_for_polling!(job)
       job
@@ -795,7 +795,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
       described_class.perform_now(preempted.id)
 
-      expect(preempted.reload.closure_reason).to eq("preempted")
+      expect(preempted.reload.closure_reason).to eq("external_pr_superseded")
     end
 
     # Regression: a preempted (closed) Job whose tracked external PR is
@@ -817,7 +817,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
         }.to change(Workflow, :count).by(0).and change(WorkUnit, :count).by(0)
 
         expect(preempted.reload).to be_closed
-        expect(preempted.closure_reason).to eq("preempted")
+        expect(preempted.closure_reason).to eq("external_pr_superseded")
       end
     end
   end

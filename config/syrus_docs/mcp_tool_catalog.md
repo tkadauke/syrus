@@ -125,7 +125,6 @@ surface (see [Permission authority](permission_authority.md)):
 | `attach_repository` | chat | essential | write | no | - | - | - | - | essential |
 | `base_refresh_retry_job` | chat | essential | write | no | - | - | - | - | gated (operational) |
 | `cancel_coding_checkout` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (destructive) |
-| `cancel_job` | chat | essential | write | no | - | - | - | - | gated (operational, destructive) |
 | `cancel_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (destructive) |
 | `cancel_stale_work` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `clear_provider_circuit` | chat | essential | write | yes | - | - | - | - | gated (operational) |
@@ -312,7 +311,6 @@ surface (see [Permission authority](permission_authority.md)):
 | `ask_user_question` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `attach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `base_refresh_retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
-| `cancel_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational, destructive) |
 | `cancel_stale_work` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational, destructive) |
 | `clear_provider_circuit` | coworker | essential | write | yes | `chat:coworker`, `agent:coworker` | - | `syrus.admin_repair` | - | gated (operational) |
 | `close_job_successfully` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |

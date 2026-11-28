@@ -1029,7 +1029,7 @@ describe("JobDetailView", () => {
           ...baseJob(),
           state: "closed",
           summary_state: "closed",
-          closure_reason: "no_changes",
+          closure_reason: "not_needed",
           finished_at: "2026-07-31T06:00:00Z",
           no_pr_reason: {
             kind: "no_effective_changes",
@@ -1041,6 +1041,31 @@ describe("JobDetailView", () => {
     )
 
     expect(screen.getByText("No PR was opened because the workflow made no effective changes.")).toBeInTheDocument()
+  })
+
+  it("shows closure actor, path, reference, and note", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "closed",
+          summary_state: "closed",
+          closure_reason: "implemented_elsewhere",
+          closure_details: {
+            actor: { id: 9, display_name: "Ada" },
+            via: "tool",
+            references: [{ type: "PR", id: 42 }],
+            note: "Landed through the release branch."
+          },
+          finished_at: "2026-11-28T12:00:00Z"
+        }
+      })
+    )
+
+    expect(screen.getByText(/Closed by Ada/)).toBeInTheDocument()
+    expect(screen.getByText(/via tool/)).toBeInTheDocument()
+    expect(screen.getByText(/PR 42/)).toBeInTheDocument()
+    expect(screen.getByText(/Landed through the release branch/)).toBeInTheDocument()
   })
 
   it("renders first-time branch divergence recovery choices on failed workflows", () => {

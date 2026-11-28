@@ -58,6 +58,10 @@ module OperatorBriefing
         }
       ],
       job_kinds: [ { kind: "briefing_generate", infrastructure: true, issueless: true, investigable: true } ],
+      closure_reasons: [
+        { reason: "briefing_generate", category: "bookkeeping" },
+        { reason: "briefing_superseded", category: "bookkeeping" }
+      ],
       work_definitions: [ "OperatorBriefing::WorkDefinition", "OperatorBriefing::DiveWorkDefinition" ]
     )
     toolkit workflow_tools: "OperatorBriefing::McpToolSet", permissions: "OperatorBriefing::PermissionProvider"

@@ -165,6 +165,15 @@ export type JobRecord = {
   pr_mergeable_checked_at: string | null
   pr_checks: JobPrChecks | null
   closure_reason: string | null
+  closure_details?: {
+    reason?: string | null
+    category?: string | null
+    references?: Array<{ type?: string; id?: string | number }>
+    note?: string | null
+    actor?: { id: number; display_name?: string | null; email_address?: string | null }
+    actor_type?: string | null
+    via?: string | null
+  } | null
   rollback_of?: JobRollbackReference | null
   unlanded_by?: JobRollbackReference | null
   unland?: { available?: boolean; state: "landed" | "in_progress" | "failed" | "reverted" | null; rollback_job: JobRollbackReference | null }

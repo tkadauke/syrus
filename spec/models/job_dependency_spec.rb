@@ -405,7 +405,7 @@ RSpec.describe JobDependency do
     end
 
     it "accepts a genuine no-changes close without requiring a landed SHA" do
-      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "no_changes", landed_sha: nil)
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "not_needed", landed_sha: nil)
       dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
 
       dependency = described_class.create!(job: dependent, depends_on_job: prerequisite, source: "manual", satisfaction_mode: "landed")

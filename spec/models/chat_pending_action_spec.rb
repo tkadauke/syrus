@@ -205,7 +205,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     )
 
     expect(action).not_to be_valid
-    expect(action.errors[:payload]).to include("closure_reason must be one of #{Job::SUCCESSFUL_CLOSURE_REASONS.join(", ")}")
+    expect(action.errors[:payload]).to include("cancelled is reserved for a human close without a reason")
     expect(Job::SUCCESSFUL_CLOSURE_REASONS).not_to include("cancelled")
   end
 
@@ -230,7 +230,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(run.reload).to be_cancelled
   end
 
-  it "confirms a close_job_successfully action by closing with no_changes and satisfying dependents" do
+  it "confirms a close_job_successfully action by closing with not_needed and satisfying dependents" do
     prerequisite = Factories.job(repository: repository)
     dependent = Job.create!(
       user: user,
@@ -241,7 +241,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     run = prerequisite.current_run
     action = chat_session.pending_actions.create!(
       action: "close_job_successfully",
-      payload: { "job_id" => prerequisite.id, "closure_reason" => "no_changes" }
+      payload: { "job_id" => prerequisite.id, "closure_reason" => "not_needed" }
     )
 
     expect {
@@ -249,7 +249,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     }.to change { dependent.reload.dependencies_satisfied? }.from(false).to(true)
 
     expect(prerequisite.reload).to be_closed
-    expect(prerequisite.closure_reason).to eq("no_changes")
+    expect(prerequisite.closure_reason).to eq("not_needed")
     expect(run.reload).to be_cancelled
     expect(action.reload.result).to eq(prerequisite)
     expect(action.payload["github_result"]).to include("status" => "not_applicable")
@@ -262,7 +262,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     allow(GithubClient).to receive(:for).and_return(client)
     action = chat_session.pending_actions.create!(
       action: "close_job_successfully",
-      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "Branch is empty against its stack parent." }
+      payload: { "job_id" => job.id, "closure_reason" => "not_needed", "comment" => "Branch is empty against its stack parent." }
     )
 
     expect(action.confirm!).to be true
@@ -280,7 +280,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     allow(GithubClient).to receive(:for).and_return(client)
     action = chat_session.pending_actions.create!(
       action: "close_job_successfully",
-      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "External PR has no remaining changes." }
+      payload: { "job_id" => job.id, "closure_reason" => "not_needed", "comment" => "External PR has no remaining changes." }
     )
 
     expect(action.confirm!).to be true
@@ -300,7 +300,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     allow(GithubClient).to receive(:for).and_return(client)
     action = chat_session.pending_actions.create!(
       action: "close_job_successfully",
-      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "Closing as no changes." }
+      payload: { "job_id" => job.id, "closure_reason" => "not_needed", "comment" => "Closing as no changes." }
     )
 
     expect(action.confirm!).to be true
@@ -316,7 +316,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
     action = chat_session.pending_actions.create!(
       action: "close_job_successfully",
-      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "No changes remain." }
+      payload: { "job_id" => job.id, "closure_reason" => "not_needed", "comment" => "No changes remain." }
     )
 
     expect(action.confirm!).to be true

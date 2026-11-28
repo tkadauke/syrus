@@ -63,6 +63,7 @@ module Coworkers
         }
       ],
       job_kinds: [ { kind: "coworker_task", infrastructure: true, issueless: true } ],
+      closure_reasons: [ { reason: "coworker_task", category: "bookkeeping" } ],
       work_definitions: [ "Coworkers::WorkDefinition" ]
     )
     repository_configuration key: "coworkers.review", schema_version: 1, legacy_keys: [ "coworker_review" ],

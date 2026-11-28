@@ -84,8 +84,8 @@ pre-implementation setup step. Requests are recorded on
 (it correctly determined the requested work was already done), the step raises
 `Steps::Base::NoChangesProduced`. The workflow fails as normal for audit
 accuracy, but `propagate_fail_to_job!` detects this error class and closes the
-Job with `closure_reason: "no_changes"` instead of marking it failed.
-`no_changes` is a successful terminal outcome and satisfies downstream Job
+Job with `closure_reason: "not_needed"` instead of marking it failed.
+`not_needed` is a successful terminal outcome and satisfies downstream Job
 dependencies automatically. The failed Run records
 `agent_outcome: "no_changes_produced"` so the provider's own successful exit
 does not read as a successful effect-producing step.
@@ -95,7 +95,7 @@ agent backgrounded or scheduled work, then ended the turn expecting a later
 notification or `ScheduleWakeup` continuation — Syrus raises
 `Steps::Base::AgentGaveUpWaiting` instead. That failure is classified as
 `agent_gave_up_waiting` and retryable, and it does not close the Job as
-`no_changes`; it means the agent misunderstood Step Run execution rather than
+`not_needed`; it means the agent misunderstood Step Run execution rather than
 proving the requested work was already unnecessary.
 
 **Cannot-proceed outcome:** When an agent verifies a concrete blocker that
@@ -414,7 +414,7 @@ invoking the agent, so provenance is captured even for a no-diff run.
 
 **No-change outcome:** identical to `implement` — a successful run with no
 diff raises `Steps::Base::NoChangesProduced`, which `propagate_fail_to_job!`
-turns into a `closure_reason: "no_changes"` Job closure instead of `:failed`.
+turns into a `closure_reason: "not_needed"` Job closure instead of `:failed`.
 This is the intended outcome for read-only skills (an `investigate` skill) and
 purely operational skills that only report.
 

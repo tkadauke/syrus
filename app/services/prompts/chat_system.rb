@@ -111,7 +111,7 @@ module Prompts
             such as `pr_merged`.
           - `failed` — execution failed and may still be retried.
           - `no_change_needed` — a legacy no-change outcome; new no-change
-            outcomes use `closed` with `closure_reason: no_changes`.
+            outcomes use `closed` with `closure_reason: not_needed`.
           - `closed` — terminal; inspect `closure_reason` for the actual
             outcome (merged, duplicate, no changes, preempted, cancelled,
             exhausted retries, and so on).

@@ -12,6 +12,12 @@ class StateTransition < ApplicationRecord
     reconciler
     operator
     system
+    backfill
+    tool
+    ui
+    cli
+    automation_rule
+    github_event
   ].freeze
 
   validates :from_state, :to_state, :source, presence: true

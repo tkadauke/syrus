@@ -26,6 +26,7 @@ module ScheduledTasks
     lifecycle callback_providers: "ScheduledTasks::Callbacks",
               domain_subscribers: "ScheduledTasks::Subscribers"
     job_origin key: "scheduled_tasks", provider: "ScheduledTasks::JobOrigin"
+    workflow_kinds closure_reasons: [ { reason: "replaced_by_scheduled_task", category: "bookkeeping" } ]
     provides sidebar_pages: "ScheduledTasks::SidebarPages",
              repo_page_tabs: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",

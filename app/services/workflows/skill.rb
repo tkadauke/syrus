@@ -10,7 +10,7 @@ module Workflows
   # when the agent commits nothing (same as implement), which fails the
   # step before the grader retry loop (or summarize/pr_open) ever runs.
   # Workflow#propagate_fail_to_job! then closes the Job with
-  # closure_reason=no_changes — the same happy path cron Jobs already use
+  # closure_reason=not_needed — the same happy path cron Jobs already use
   # for a no-op survey.
   #
   # Grading is intentionally scoped to the same retry_until(agent_step →

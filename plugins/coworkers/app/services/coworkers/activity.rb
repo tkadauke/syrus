@@ -4,10 +4,7 @@ class Coworkers::Activity
   PAGE_SIZE = 50
   WORKFLOWS_PER_JOB_PAGE = 10
   FAILURE_STATES = %w[failed cancelled blocked].freeze
-  SUCCESSFUL_CLOSURE_REASONS = %w[
-    pr_merged external_pr_merged pr_approved no_changes promotion_landed
-    hotfix_sync_landed investigation_reported emergency_landed
-  ].freeze
+  SUCCESSFUL_CLOSURE_REASONS = Job::ClosureReason.successful_values
   class InvalidCursor < StandardError; end
 
   def self.weekly_spend_by_coworker(coworkers:, user:, now: Time.current)

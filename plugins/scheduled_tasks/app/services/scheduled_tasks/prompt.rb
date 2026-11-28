@@ -26,12 +26,11 @@ module ScheduledTasks
       nil         => "open",
       "pr_merged" => "merged",
       "pr_closed" => "closed",
-      "pr_approved" => "approved",
       "syrus_stop"  => "stopped",
       "too_many_failures" => "failed",
       "cancelled"         => "cancelled",
       "replaced_by_scheduled_task" => "replaced",
-      "no_changes"        => "no_changes"
+      "not_needed"        => "not_needed"
     }.freeze
 
     def initialize(scheduled_task:, fired_at: Time.current)

@@ -227,7 +227,7 @@ RSpec.describe "Mcp::Tools access control", :full_chat_access do
   end
 
   it "cannot request successful close for another user's job" do
-    response = call_tool(Mcp::Tools::CloseJobSuccessfullyTool, "close_job_successfully", job_id: other_user_job.id, closure_reason: "no_changes")
+    response = call_tool(Mcp::Tools::CloseJobSuccessfullyTool, "close_job_successfully", job_id: other_user_job.id, closure_reason: "not_needed")
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
@@ -399,7 +399,7 @@ RSpec.describe "Mcp::Tools access control", :full_chat_access do
     it "can request successful close for another user's job" do
       job = other_user_job
 
-      response = call_tool(Mcp::Tools::CloseJobSuccessfullyTool, "close_job_successfully", job_id: job.id, closure_reason: "no_changes")
+      response = call_tool(Mcp::Tools::CloseJobSuccessfullyTool, "close_job_successfully", job_id: job.id, closure_reason: "not_needed")
 
       expect(response.dig(:result, :isError)).to be_falsey
     end

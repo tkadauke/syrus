@@ -730,7 +730,7 @@ module App
             #{dependency_table}.satisfaction_mode = 'landed'
             AND #{dependency_job_table}.state = 'closed'
             AND (
-              (#{dependency_job_table}.closure_reason = 'no_changes')
+              (#{dependency_job_table}.closure_reason = 'not_needed')
               OR (
                 #{dependency_job_table}.landed_sha IS NOT NULL
                 AND #{dependency_job_table}.closure_reason IN (#{landed_closure_reasons})

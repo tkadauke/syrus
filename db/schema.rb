@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_184848) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -2330,6 +2330,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_160733) do
     t.integer "question_answer_timeout_seconds"
     t.text "question_eagerness_reason"
     t.json "external_pr_bot_recovery"
+    t.json "closure_references"
+    t.text "closure_note"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"

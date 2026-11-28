@@ -258,7 +258,9 @@ module Api
               next
             end
 
-            job.cancel_active_runs_and_close!("cancelled")
+            StateTransition.with_source("ui", user: Current.user, reason: "cancelled", metadata: { "actor_type" => "human" }) do
+              job.cancel_active_runs_and_close!("cancelled")
+            end
             closed_ids << job.id
           end
 

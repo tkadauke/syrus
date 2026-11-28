@@ -31,7 +31,7 @@ class PollAllMergeStatesJob < ApplicationJob
   def pollable_jobs
     Job.joins(:repository)
        .merge(Repository.active)
-       .where(<<~SQL.squish, closed: "closed", preempted: "preempted")
+       .where(<<~SQL.squish, closed: "closed", preempted: "external_pr_superseded")
          (
            jobs.state != :closed
            AND (jobs.pr_number IS NOT NULL OR jobs.external_pr_number IS NOT NULL)

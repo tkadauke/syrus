@@ -120,6 +120,8 @@ RSpec.describe "App API job visibility follows repository access", type: :reques
 
       expect(response).to have_http_status(:ok)
       expect(job.reload).to be_closed
+      expect(job.closure_reason).to eq("cancelled")
+      expect(StateTransition.where(subject: job, to_state: "closed").last).to have_attributes(source: "ui", user_id: owner.id)
     end
   end
 end

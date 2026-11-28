@@ -270,7 +270,7 @@ RSpec.describe InputSources::Github do
 
       job = Job.last
       expect(job).to be_closed
-      expect(job.closure_reason).to eq("preempted")
+      expect(job.closure_reason).to eq("external_pr_superseded")
       expect(job.external_ref).to eq("42")
       expect(job.input_source).to eq(source)
     end

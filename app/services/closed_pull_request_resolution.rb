@@ -20,7 +20,7 @@ class ClosedPullRequestResolution
     # real work as work that never happened.
     when BranchPatchPresence::ALL_LANDED then "pr_merged"
     # Nothing on the branch at all: the agent genuinely produced no changes.
-    when BranchPatchPresence::NO_COMMITS then "no_changes"
+    when BranchPatchPresence::NO_COMMITS then "not_needed"
     else "pr_closed"
     end
   end

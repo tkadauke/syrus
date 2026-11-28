@@ -12,7 +12,7 @@ RSpec.describe Workflows::JobLifecyclePropagation do
     end
   end
 
-  it "closes a failed workflow as no_changes when the failed run produced no changes" do
+  it "closes a failed workflow as not_needed when the failed run produced no changes" do
     job = Factories.job
     workflow = job.workflows.last
     run = job.initial_run
@@ -28,20 +28,20 @@ RSpec.describe Workflows::JobLifecyclePropagation do
     described_class.fail!(workflow.reload)
 
     expect(job.reload).to be_closed
-    expect(job.closure_reason).to eq("no_changes")
+    expect(job.closure_reason).to eq("not_needed")
   end
 
   it "fails the Job when a retried run fails for a reason other than no changes" do
     job = Factories.job
     workflow = job.workflows.last
     step = workflow.steps.first
-    no_changes_run = job.initial_run
+    not_needed_run = job.initial_run
 
     job.update_columns(state: "running")
     workflow.update_columns(state: "failed")
     step.update_columns(state: "failed")
-    no_changes_run.update_columns(state: "failed", created_at: 2.minutes.ago)
-    no_changes_run.create_run_diagnostic!(
+    not_needed_run.update_columns(state: "failed", created_at: 2.minutes.ago)
+    not_needed_run.create_run_diagnostic!(
       error_class: "Steps::Base::NoChangesProduced",
       error_message: "agent produced no changes"
     )
@@ -181,8 +181,8 @@ RSpec.describe Workflows::JobLifecyclePropagation, "ci_failure no-diff follow-up
   # Regression: a CI repair loop's agent that gives up without a diff, after a
   # grader in the same Workflow already reproduced the failure, fell past the
   # not-reproduced branch into the generic "no changes" rule, which closes the
-  # Job as `no_changes`. The Job had an open, unmerged PR; closing it threw
-  # that work away, and the `landed` dependency mode treats a `no_changes`
+  # Job as `not_needed`. The Job had an open, unmerged PR; closing it threw
+  # that work away, and the `landed` dependency mode treats a `not_needed`
   # closure as landed, so dependents went ahead as if it had merged. A repair
   # follow-up on a Job with a PR is never evidence that the Job's work is empty.
   it "fails, rather than closes, a Job with a PR when a repair gives up after a reproduced failure" do

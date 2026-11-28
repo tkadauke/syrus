@@ -44,6 +44,7 @@ module AgentInsights
         }
       ],
       job_kinds: [ { kind: "agent_insight", infrastructure: true, issueless: true } ],
+      closure_reasons: [ { reason: "agent_insight", category: "bookkeeping" } ],
       work_definitions: [ "AgentInsights::WorkDefinition" ]
     )
     slug_type prefix: "INSIGHT", display_label: "Insight", preview_available: true,

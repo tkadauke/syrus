@@ -11,9 +11,9 @@ normal workflow state propagation:
 - `force_fail_job(job_id:, reason:)` force-fails the
   active execution records after confirmation. Use it only when normal
   cancellation or failure propagation cannot finish.
-- `close_job_successfully(job_id:, closure_reason:, comment:)` closes an
+- `close_job(job_id:, closure_reason:, comment:)` closes an
   implemented Job without landing a PR. The usual recovery reason is
-  `no_changes`.
+  `not_needed`.
 - `explain_stuck_job(job_id:)` is read-only. It reports the blocking layer and
   recommended repair before an operator chooses a mutation.
 - `repair_queue_affinity` repairs eligible unclaimed queued Runs assigned to a

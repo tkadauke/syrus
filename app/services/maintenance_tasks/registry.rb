@@ -8,6 +8,7 @@ module MaintenanceTasks
           Definitions::ChatAttachmentBackfill.new,
           Definitions::GraderFanoutDetailsCompaction.new,
           Definitions::LandedCommitsBackfill.new,
+          Definitions::JobClosureReasonBackfill.new,
           Definitions::PreemptedExternalPrBackfill.new,
           Definitions::SearchDatabaseRebuild.new,
           Definitions::StaleInsightBacklogRetirement.new,

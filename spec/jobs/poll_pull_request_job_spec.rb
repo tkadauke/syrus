@@ -146,13 +146,13 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(reloaded.grace_period_expires_at).to be_present
     end
 
-    it "closes the Job with reason=no_changes when a closed PR has no unique patches left" do
-      allow(ClosedPullRequestResolution).to receive(:reason).and_return("no_changes")
+    it "closes the Job with reason=not_needed when a closed PR has no unique patches left" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("not_needed")
       stub_pr(state: "closed", merged: false)
 
       described_class.perform_now(job.id)
 
-      expect(job.reload.closure_reason).to eq("no_changes")
+      expect(job.reload.closure_reason).to eq("not_needed")
     end
 
     it "closes the Job with reason=syrus_stop when the PR carries the syrus-stop label" do
@@ -2224,8 +2224,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(fork_job.branch_deleted_at).to be_nil
     end
 
-    it "deletes the fork branch when the upstream PR closes with no_changes" do
-      allow(ClosedPullRequestResolution).to receive(:reason).and_return("no_changes")
+    it "deletes the fork branch when the upstream PR closes with not_needed" do
+      allow(ClosedPullRequestResolution).to receive(:reason).and_return("not_needed")
       stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
         status: 200, headers: { "Content-Type" => "application/json" },
         body: { number: 20, state: "closed", merged: false, labels: [],

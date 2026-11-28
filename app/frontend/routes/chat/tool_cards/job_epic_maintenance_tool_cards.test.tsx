@@ -1168,7 +1168,7 @@ describe("Job and Epic maintenance tool cards", () => {
       </>
     )
 
-    expect(screen.getByText("no_changes")).toBeInTheDocument()
+    expect(screen.getByText("not_needed")).toBeInTheDocument()
     expect(screen.getByText("PR comment")).toBeInTheDocument()
     expect(screen.getByText("Closing note")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()

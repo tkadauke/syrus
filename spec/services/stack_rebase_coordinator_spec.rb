@@ -192,7 +192,7 @@ RSpec.describe StackRebaseCoordinator do
     allow(GithubClient).to receive(:for).and_return(client)
 
     expect {
-      parent.close_with_reason!("no_changes")
+      parent.close_with_reason!("not_needed")
     }.to change { child.reload.parent_job_id }.from(parent.id).to(nil)
       .and change { child.workflows.where(trigger_kind: "rebase").count }.by(1)
       .and change { enqueued_jobs.count { |job| job[:job] == RunJob } }.by(1)

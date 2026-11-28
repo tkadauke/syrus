@@ -20,14 +20,14 @@ RSpec.describe JobClosure do
     it "ends the Workflow after that step and closes the Job when it finishes" do
       workflow, (first, second, third) = chain_workflow
       first.update_columns(state: "succeeded", finished_at: Time.current)
-      workflow.request_job_closure!(job, "no_changes")
+      workflow.request_job_closure!(job, "not_needed")
 
       StepDispatcher.advance_from(first.reload)
 
       expect([ second.reload.state, third.reload.state ]).to eq(%w[skipped skipped])
       expect(second.runs).to be_empty
       expect(workflow.reload).to be_succeeded
-      expect(job.reload).to have_attributes(state: "closed", closure_reason: "no_changes")
+      expect(job.reload).to have_attributes(state: "closed", closure_reason: "not_needed")
     end
 
     it "still closes the Job when the Workflow fails instead" do

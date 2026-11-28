@@ -55,6 +55,7 @@ module Syrus
       ].freeze
       STEP_REQUIRED = %i[kind handler label style agentic].freeze
       JOB_KEYS = %i[kind infrastructure issueless investigable classifiable].freeze
+      CLOSURE_REASON_KEYS = %i[reason category success requires_reference requires_note agent_allowed].freeze
       PROBLEM_KEYS = %i[code scope retryable default_remediation failure_codes issue_kinds label].freeze
       PROBLEM_REQUIRED = %i[code scope retryable default_remediation].freeze
       PROBE_KEYS = %i[dimension token diagnostic_key].freeze
@@ -130,11 +131,12 @@ module Syrus
       end
 
       def normalize_workflow_kinds(plugin, attrs)
-        reject_unknown!(plugin, :workflow_kinds, attrs, %i[trigger_kinds step_kinds job_kinds work_definitions])
+        reject_unknown!(plugin, :workflow_kinds, attrs, %i[trigger_kinds step_kinds job_kinds closure_reasons work_definitions])
         {
           trigger_kinds: kind_entries!(plugin, :trigger_kinds, attrs[:trigger_kinds], TRIGGER_KEYS, TRIGGER_REQUIRED),
           step_kinds: kind_entries!(plugin, :step_kinds, attrs[:step_kinds], STEP_KEYS, STEP_REQUIRED),
           job_kinds: kind_entries!(plugin, :job_kinds, attrs[:job_kinds], JOB_KEYS, %i[kind]),
+          closure_reasons: kind_entries!(plugin, :closure_reasons, attrs[:closure_reasons], CLOSURE_REASON_KEYS, %i[reason category], key: :reason),
           work_definitions: constant_names!(plugin, :workflow_kinds, :work_definitions, attrs[:work_definitions])
         }
       end

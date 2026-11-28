@@ -32,6 +32,7 @@ The Job owns the long-lived identifiers:
   repository when Syrus opens a cross-fork PR against an upstream
 - branch name, reused by follow-up attempts
 - closure reason, when the thread ends
+- closure provenance (actor and closing path), plus any explanatory note or replacement reference
 
 Issue Jobs usually start from a labeled GitHub issue. Scheduled Jobs
 start from a recurring or one-shot task. Direct Jobs start from an

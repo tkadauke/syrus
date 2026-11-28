@@ -293,7 +293,7 @@ With `trust_clean_rebase_grade`, a successful validation can carry forward acros
 
 ## Dependency gating
 
-A Job blocked on another Job will not enter the landing queue until the dependency closes with one of these reasons: `pr_merged`, `external_pr_merged`, `pr_approved`, or `no_changes`. Same-Epic dependencies are also satisfied once the upstream Job is `approved` or `landing`.
+A Job blocked on another Job will not enter the landing queue until the dependency closes with one of these reasons: `pr_merged`, `external_pr_merged`, or `not_needed`. Same-Epic dependencies are also satisfied once the upstream Job is `approved` or `landing`.
 
 If the prerequisite Job closes unsuccessfully, including `cancelled`, dependents remain blocked with `dependency_failed` until an operator removes or overrides the dependency. Syrus should not keep creating maintenance rebase workflows for a dependent while it is in this permanent dependency-failed state.
 
@@ -303,7 +303,7 @@ that mode a cancelled dependency is satisfied. Normal implementation
 dependencies default to `success`; use closed mode only when any terminal
 outcome is explicitly acceptable.
 
-Use `satisfaction_mode: "landed"` when the dependent must not execute until an upstream Job's change is actually on the landing branch. Implemented, approved, landing, and `pr_approved` states do not satisfy this gate. A successful landing closure requires durable evidence in `landed_sha`; `no_changes` is the exception and satisfies the gate only through that explicit successful closure, because it records that there was genuinely no change to land. Failed, cancelled, rejected, and other unsuccessful closures permanently produce `dependency_failed`. Landed dependencies accept only Job targets: an Epic's completion or atomic merge-train landing is not silently treated as proof that an individual Job change landed.
+Use `satisfaction_mode: "landed"` when the dependent must not execute until an upstream Job's change is actually on the landing branch. Implemented, approved, landing, states do not satisfy this gate. A successful landing closure requires durable evidence in `landed_sha`; `not_needed` is the exception and satisfies the gate only through that explicit successful closure, because it records that there was genuinely no change to land. Failed, cancelled, rejected, and other unsuccessful closures permanently produce `dependency_failed`. Landed dependencies accept only Job targets: an Epic's completion or atomic merge-train landing is not silently treated as proof that an individual Job change landed.
 
 Manual Job-to-Job dependencies can also use `satisfaction_mode: "deployment_stage"` with `required_deployment_stage_name` to wait until the upstream Job reaches a configured repository `deployment_stages` entry. Deployment-stage dependencies are valid only for resolved Job targets. Syrus rejects them when the upstream repository has no deployment stage tracking or when the named stage is unknown, because otherwise the dependency could never unblock. A successfully closed upstream Job that has not reached the required stage is still waiting, not failed; an unsuccessfully closed upstream Job is still a failed dependency.
 
@@ -316,10 +316,10 @@ Operators can add or remove manual dependencies from the Job detail page; admins
 When a PR is closed without GitHub marking it merged, Syrus inspects the branch against the PR base with `git cherry` and picks one of three outcomes:
 
 - **`pr_merged`** — every commit on the branch has a patch-equivalent commit on the base. The work landed, even though this PR was not the thing GitHub merged: a merge train landed a rebased copy, or someone cherry-picked it. This is a landing, and recording it as anything else files real work as work that never happened.
-- **`no_changes`** — the branch is not ahead of the base by a single commit. The agent genuinely produced nothing (the normal happy path for a survey-style cron Job).
+- **`not_needed`** — the branch is not ahead of the base by a single commit. The agent genuinely produced nothing (the normal happy path for a survey-style cron Job).
 - **`pr_closed`** — the branch still carries commits the base does not have.
 
-`no_changes` and `pr_merged` both count as successful resolutions for dependency gates and landing queue wakeups; the distinction matters for attribution, not for gating.
+`not_needed` and `pr_merged` both count as successful resolutions for dependency gates and landing queue wakeups; the distinction matters for attribution, not for gating.
 
 ## Advisory-only CI checks (`pr_check_gate: none`)
 

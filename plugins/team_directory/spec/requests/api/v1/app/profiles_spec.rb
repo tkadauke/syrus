@@ -114,7 +114,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     Factories.epic(user: teammate, repository: repository, title: "Active epic")
     Factories.epic(user: teammate, repository: repository, title: "Archived epic", state: Epic::ARCHIVED_STATE)
     Factories.job_record(user: teammate, repository: repository, issue_number: 1, state: "running")
-    Factories.job_record(user: teammate, repository: repository, issue_number: 2, state: "closed", closure_reason: "no_changes")
+    Factories.job_record(user: teammate, repository: repository, issue_number: 2, state: "closed", closure_reason: "not_needed")
     sign_in_as(viewer)
 
     queries = capture_sql { get "/api/v1/app/profiles" }

@@ -686,11 +686,11 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
           }}
           value={selected[0]}
         >
-          {options.map((option) => (
-            <option key={String(option.value)} value={String(option.value)}>
-              {option.label}
-            </option>
-          ))}
+          {Array.from(new Set(options.map((option) => option.group || ""))).map((group) => {
+            const groupOptions = options.filter((option) => (option.group || "") === group)
+            if (!group) return groupOptions.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)
+            return <optgroup key={group} label={group}>{groupOptions.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</optgroup>
+          })}
         </Select>
       </label>
     )
@@ -968,19 +968,23 @@ function MultiFilterValueEditor({
         />
         <div className="max-h-56 overflow-y-auto border-t border-gray-200 py-1 dark:border-gray-700">
           {filteredOptions.map((option, index) => (
-            <button
-              className={filterMenuItemClass(
-                "block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200",
-                navigation.highlightedIndex === index
-              )}
-              key={String(option.value)}
-              onClick={() => addValue(String(option.value))}
-              onMouseEnter={() => navigation.setHighlightedIndex(index)}
-              ref={navigation.registerItem(index)}
-              type="button"
-            >
-              {option.label}
-            </button>
+            <div key={String(option.value)}>
+              {option.group && filteredOptions[index - 1]?.group !== option.group ? (
+                <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{option.group}</div>
+              ) : null}
+              <button
+                className={filterMenuItemClass(
+                  "block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200",
+                  navigation.highlightedIndex === index
+                )}
+                onClick={() => addValue(String(option.value))}
+                onMouseEnter={() => navigation.setHighlightedIndex(index)}
+                ref={navigation.registerItem(index)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            </div>
           ))}
           {filteredOptions.length === 0 ? <div className="px-3 py-1.5 text-sm text-text-secondary">{t("filter_bar.no_matches")}</div> : null}
         </div>

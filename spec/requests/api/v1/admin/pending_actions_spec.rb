@@ -163,7 +163,7 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
              reason: "operator accepted the no-change result",
              payload: {
                job_id: closeable_job.id,
-               closure_reason: "no_changes"
+               closure_reason: "not_needed"
              }
            },
            headers: auth(admin_token)
@@ -171,7 +171,7 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(closeable_job.reload).to be_closed
-    expect(closeable_job.closure_reason).to eq("no_changes")
+    expect(closeable_job.closure_reason).to eq("not_needed")
 
     audit = AdminAction.order(:id).last
     expect(audit.action).to eq("pending_action_close_job_successfully")
@@ -181,7 +181,7 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
       "reason" => "operator accepted the no-change result",
       "payload" => include(
         "job_id" => closeable_job.id.to_s,
-        "closure_reason" => "no_changes",
+        "closure_reason" => "not_needed",
         "github_result" => include(
           "status" => "not_applicable",
           "message" => "Job has no tracked PR."

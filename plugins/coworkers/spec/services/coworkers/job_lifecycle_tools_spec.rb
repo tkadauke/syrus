@@ -31,7 +31,7 @@ RSpec.describe "coworker Job lifecycle tools" do
     end.map(&:tool_name)
 
     expect(coworker_tools).to match_array(eligible_chat_tools)
-    expect(coworker_tools).to include("cancel_job", "approve_job", "retry_job")
+    expect(coworker_tools).to include("close_job_successfully", "approve_job", "retry_job")
   end
 
   it "uses the shared lifecycle descriptor and mandatory cancellation pending action" do

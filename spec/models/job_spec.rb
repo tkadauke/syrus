@@ -2892,18 +2892,18 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.reload).to be_dependencies_satisfied
     end
 
-    it "treats no_changes as a successful dependency closure" do
+    it "treats not_needed as a successful dependency closure" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
       job = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
 
-      prerequisite.close_with_reason!("no_changes")
+      prerequisite.close_with_reason!("not_needed")
 
       expect(job.reload).to be_dependencies_satisfied
       expect(job).to be_stack_ready_for_execution
       expect(job.parent_job).to be_nil
     end
 
-    it "starts blocked dependent workflows when a prerequisite closes with no_changes" do
+    it "starts blocked dependent workflows when a prerequisite closes with not_needed" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
       dependent = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
       dependent.update!(state: "queued")
@@ -2911,7 +2911,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       expect(StepDispatcher).to receive(:start_workflow).with(workflow)
 
-      prerequisite.close_with_reason!("no_changes")
+      prerequisite.close_with_reason!("not_needed")
     end
 
     it "treats an approved same-epic dependency as satisfied for execution" do

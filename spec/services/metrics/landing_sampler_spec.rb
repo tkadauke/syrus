@@ -224,7 +224,7 @@ RSpec.describe Metrics::LandingSampler do
       travel_to(t0) { sample! }
 
       travel_to(t0 + 1.minute) do
-        job_record(state: "closed", closure_reason: "no_changes", finished_at: Time.current)
+        job_record(state: "closed", closure_reason: "not_needed", finished_at: Time.current)
       end
 
       travel_to(t0 + 2.minutes) { sample! }

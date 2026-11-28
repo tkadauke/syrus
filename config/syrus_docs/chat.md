@@ -105,7 +105,7 @@ satisfaction mode by default. Repository, cycle, and Epic-chain validation is
 applied to the final edge set, and dependency wakeups run only after commit.
 
 Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
-`retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
+`retry_job`, `close_job_successfully`, `force_landing_recheck`,
 `admin_kill_process`, `approve_job`, `unapprove_job`, and `archive_epic`.
 `archive_epic` always creates a single pending confirmation because confirming
 the archive cancels and closes every still-open child Job. The Job/process
@@ -205,7 +205,7 @@ group reports each member's success or failure.
 
 `hold_job` stops a Job that is executing before its turn without closing it.
 You may hold Jobs you own; admins may hold any Job (the same rule as
-`cancel_job`). On confirmation it cancels the Job's active Runs and Workflows, releases their
+`close_job_successfully`). On confirmation it cancels the Job's active Runs and Workflows, releases their
 work-unit locks, and returns the Job to waiting on its unsatisfied
 dependencies (or to backlog with `to_backlog`, for Jobs without a PR). The Job,
 its PR and its branch are kept. It requires a `reason` and refuses a Job with
@@ -775,7 +775,7 @@ before storing proposal dependency fields or materializing Job/Epic dependency
 rows. Dependencies on terminal targets that cannot satisfy the same runtime
 dependency gate are rejected with an operator-facing message, for example a Job
 closed as `cancelled` or an archived Epic. Successfully closed Job dependencies
-(`pr_merged`, `external_pr_merged`, `pr_approved`, `no_changes`) are valid and
+(`pr_merged`, `external_pr_merged`, `not_needed`) are valid and
 do not block the new Job from starting.
 
 The chat MCP `add_job_dependency` tool accepts `satisfaction_mode`. The default
@@ -783,9 +783,9 @@ The chat MCP `add_job_dependency` tool accepts `satisfaction_mode`. The default
 once an upstream Job has an implemented PR with a durable head, before landing,
 while final dependency satisfaction still requires a successful close.
 Use `landed` when execution must wait until an upstream Job closes through a
-genuine landing outcome with a recorded `landed_sha`. A genuine `no_changes`
+genuine landing outcome with a recorded `landed_sha`. A genuine `not_needed`
 close also satisfies `landed`, because there was no repository change to land;
-`pr_approved` does not. `landed` accepts only Job targets. Epic completion is not
+`landed` accepts only Job targets. Epic completion is not
 proof that one individual Job landed, so Epic targets are rejected for this mode.
 Use `closed` only for cleanup or teardown gates where the dependent Job should
 start once the target Job is terminal even if it was cancelled.

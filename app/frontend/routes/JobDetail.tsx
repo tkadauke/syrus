@@ -1207,6 +1207,14 @@ function SummaryTab({
               {payload.job.finished_at ? (
                 <KeyValue label={t("detail_closed")}>
                   <AbsoluteTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})
+                  {payload.job.closure_details ? (
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {t("detail_closed_by", { actor: payload.job.closure_details.actor?.display_name || payload.job.closure_details.actor?.email_address || payload.job.closure_details.actor_type || t("detail_system_actor") })}
+                      {payload.job.closure_details.via ? ` · ${t("detail_closed_via", { via: payload.job.closure_details.via })}` : ""}
+                      {payload.job.closure_details.references?.length ? ` · ${payload.job.closure_details.references.map((reference) => `${reference.type} ${reference.id}`).join(", ")}` : ""}
+                      {payload.job.closure_details.note ? ` · ${payload.job.closure_details.note}` : ""}
+                    </div>
+                  ) : null}
                 </KeyValue>
               ) : null}
               {payload.job.closure_reason === "emergency_landed" ? (

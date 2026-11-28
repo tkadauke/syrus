@@ -83,7 +83,7 @@ RSpec.describe SdlcPipeline::History do
   it "reconstructs no-change completion without inventing an extra timestamp" do
     job = Factories.job_record(repository: repository, user: user, state: "running", created_at: now - 2.days)
     job.update_columns(created_at: now - 2.days)
-    job.update!(closure_reason: "no_changes")
+    job.update!(closure_reason: "not_needed")
     travel_to(now - 1.hour) { job.close! }
 
     payload = described_class.new(

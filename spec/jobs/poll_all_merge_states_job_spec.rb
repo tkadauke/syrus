@@ -16,7 +16,7 @@ RSpec.describe PollAllMergeStatesJob do
 
   it "fans out to PollMergeStateJob for external PRs (preempted-Job ingest path)" do
     external = Factories.job
-    external.update!(state: "closed", closure_reason: "preempted",
+    external.update!(state: "closed", closure_reason: "external_pr_superseded",
                      external_pr_number: 99, finished_at: Time.current)
 
     expect {
