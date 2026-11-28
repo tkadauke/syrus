@@ -441,6 +441,10 @@ module WorkEngine
           when "rewrite_branch" then git_effects!(key).rewrite_branch!(value)
           when "force_push_branch" then git_effects!(key).force_push_branch!(value)
           when "delete_branch" then git_effects!(key).delete_branch!(value)
+          when "deploy_restart" then deploy_restart!(tick, value)
+          when "github_outage" then github_outage!(tick, value)
+          when "join_worker" then join_worker!(value)
+          when "leave_worker" then leave_worker!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
@@ -528,6 +532,81 @@ module WorkEngine
           "remaining" => 1
         }
         events << "rewrote stack parent #{parent.slug} under #{child.slug}"
+      end
+
+      # A deploy restarts every worker: each Run in flight dies with it, and
+      # the fleet comes back on a new revision. Runs execute within one tick
+      # here, so "in flight" is every active Run at the event's tick -- the
+      # ones the workers were running when the restart hit. Takes
+      # `{ revision: }` (optional).
+      def deploy_restart!(tick, value)
+        attrs = value.is_a?(Hash) ? value : {}
+        @worker_revision = attrs["revision"].presence || "simulation-deploy-#{tick}"
+        killed = active_runs.map do |run|
+          @outcome_overrides.unshift(
+            "job_id" => run.job_id, "step" => run.step&.kind.to_s, "outcome" => "worker_died", "remaining" => 1
+          )
+          run.slug
+        end
+        hosts = (Array(runtime["workers"]).presence || [ "simulation-worker" ]).map(&:to_s)
+        hosts.each { |hostname| ensure_worker_live!(hostname, worker_storage_key_for(hostname, nil), restarted: true) }
+        events << "deploy restarted #{hosts.join(", ")} on #{@worker_revision}; killed #{killed.join(", ").presence || "nothing"}"
+      end
+
+      # GitHub is down for `ticks` ticks: every Run of a GitHub-touching step
+      # in that window fails the way the real handler fails on a 502, with the
+      # declared github_api_transient problem.
+      GITHUB_STEP_KINDS = %w[
+        pr_open push push_after_rebase force_push stack_force_push auto_merge merge_train_land
+        merge_train_land_after_rebase mergeability_preflight refresh_job_metadata
+      ].freeze
+      GITHUB_OUTAGE_OUTCOME = {
+        "status" => "failure",
+        "problem_code" => "github_api_transient",
+        "error_class" => "Octokit::BadGateway",
+        "error_message" => "GET https://api.github.com/repos/simulation/repo/pulls: 502 - Server Error"
+      }.freeze
+
+      def github_outage!(tick, value)
+        attrs = value.is_a?(Hash) ? value : { "ticks" => value }
+        @github_outage_until = tick + [ attrs.fetch("ticks", 3).to_i, 1 ].max
+        events << "github outage until tick #{@github_outage_until}"
+      end
+
+      def github_outage_outcome(run)
+        return nil unless @github_outage_until && @current_tick < @github_outage_until
+        return nil unless run.step&.kind.to_s.in?(GITHUB_STEP_KINDS)
+
+        GITHUB_OUTAGE_OUTCOME
+      end
+
+      # A worker joins the fleet: it registers live and takes its share of
+      # new Runs. Every host's storage identity is declared alongside, so a
+      # Run of a workflow pinned to its storage still routes back to it.
+      def join_worker!(value)
+        hostname = (value.is_a?(Hash) ? value.fetch("hostname") : value).to_s
+        fleet = (Array(runtime["workers"]).presence || [ "simulation-worker" ]).map(&:to_s) | [ hostname ]
+        storage_keys = fleet.index_with { |host| worker_storage_key_for(host, nil) }
+        @runtime = runtime.merge("workers" => fleet, "worker_storage_keys" => storage_keys)
+        ensure_worker_live!(hostname, worker_storage_key_for(hostname, nil))
+        events << "worker #{hostname} joined the fleet"
+      end
+
+      # A worker leaves: its heartbeats stop (lose_worker) and it takes no new
+      # Runs. A workflow pinned to its storage still routes there, as the
+      # resume queue would, which brings it back for that work.
+      def leave_worker!(value)
+        hostname = (value.is_a?(Hash) ? value.fetch("hostname") : value).to_s
+        fleet = (Array(runtime["workers"]).presence || [ "simulation-worker" ]).map(&:to_s)
+        remaining = fleet - [ hostname ]
+        if remaining.empty?
+          events << "worker #{hostname} cannot leave: it is the last worker"
+          return
+        end
+
+        @runtime = runtime.merge("workers" => remaining)
+        lose_worker!("hostname" => hostname)
+        events << "worker #{hostname} left the fleet"
       end
 
       def approve_job!(job_id)
@@ -1575,6 +1654,9 @@ module WorkEngine
         overridden = take_outcome_override(run)
         return overridden unless overridden.nil?
 
+        outage = github_outage_outcome(run)
+        return outage if outage
+
         step_key = "#{run.job_id}:#{run.step&.kind}"
         named_step_key = "#{step_key}:#{run.step&.details.to_h["name"]}" if run.step&.details.to_h["name"].present?
         named_kind_key = "#{run.step&.kind}:#{run.step&.details.to_h["name"]}" if run.step&.details.to_h["name"].present?
@@ -1711,9 +1793,10 @@ module WorkEngine
         end
       end
 
-      def ensure_worker_live!(hostname, storage_key)
+      def ensure_worker_live!(hostname, storage_key, restarted: false)
         InstanceVersion.find_or_initialize_by(hostname: hostname, role: "worker").tap do |instance|
-          instance.version = "simulation"
+          instance.version = @worker_revision || "simulation"
+          instance.started_at = Time.current if restarted
           instance.started_at ||= Time.current
           instance.last_heartbeat_at = Time.current
           instance.finished_at = nil

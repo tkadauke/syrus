@@ -64,7 +64,14 @@ module WorkEngine
       class Catalog
         TRANSIENT_FAILURE_CODES = %w[provider_transient timeout git_transport_transient rate_limited run_job_crashed].freeze
         STEP_KINDS = [ nil, "prepare", "implement", "grader_fanout", "grader_collect", "grader", "pr_open", "push", "auto_merge", "merge_train_land" ].freeze
-        JOBLESS_KINDS = %w[advance_main main_break_heal provider_outage spurious_wake lose_worker].freeze
+        JOBLESS_KINDS = %w[
+          advance_main main_break_heal provider_outage spurious_wake lose_worker
+          deploy_restart github_outage main_churn fleet_churn
+        ].freeze
+        # Two operators acting on one Job in the same tick, in either order.
+        OPERATOR_RACES = [
+          %w[approve pause_work], %w[pause_work approve], %w[approve approve], %w[pause_work pause_work]
+        ].freeze
         Context = Data.define(:job_keys, :stack_children, :workers, :workspace, :ticks, :git)
 
         def self.context_for(data, ticks:)
@@ -93,7 +100,8 @@ module WorkEngine
               "advance_main" => 3, "approve" => 2, "transient_failure" => 3, "worker_died" => 3,
               "grader_killed_by_deploy" => 2, "main_break_heal" => 2, "provider_outage" => 2,
               "ci_flake" => 2, "report_ci_failure" => 1, "close_externally" => 1, "merge_externally" => 1,
-              "set_job_provider" => 1, "resume_deferred_phase" => 2, "spurious_wake" => 1, "pause_unpause" => 3
+              "set_job_provider" => 1, "resume_deferred_phase" => 2, "spurious_wake" => 1, "pause_unpause" => 3,
+              "deploy_restart" => 2, "github_outage" => 2, "main_churn" => 2, "operator_race" => 2, "fleet_churn" => 2
             }
             weighted["rewrite_stack_parent"] = 3 if context.stack_children.any?
             weighted["lose_worker"] = 2 if context.workers.any?
@@ -174,6 +182,25 @@ module WorkEngine
           when "rewrite_branch"
             key = job
             [ event(kind, index, at, { "rewrite_branch" => { "job" => key, "patch_equivalent" => rng.rand(2).zero? } }, key) ]
+          when "deploy_restart" then [ event(kind, index, at, "deploy_restart" => { "revision" => "fuzz-deploy-#{index}-#{at}" }) ]
+          when "github_outage" then [ event(kind, index, at, "github_outage" => { "ticks" => 1 + rng.rand(6) }) ]
+          when "main_churn"
+            # Main moves again and again while work (a merge train, say) is in
+            # flight, each push a few ticks after the last.
+            ticks = (2 + rng.rand(3)).times.each_with_object([ at ]) { |_, acc| acc << acc.last + 1 + rng.rand(3) }
+            ticks.each_with_index.map do |churn_at, push|
+              event("main_churn", index, churn_at, "advance_main" => { "nonce" => "fuzz-churn-#{index}-#{push}-#{churn_at}" })
+            end
+          when "operator_race"
+            key = job
+            first, second = OPERATOR_RACES.sample(random: rng)
+            race = [ event("operator_race #{first}", index, at, first => key), event("operator_race #{second}", index, at, second => key) ]
+            race << event("unpause", index, later(at), "unpause_work" => key) if [ first, second ].include?("pause_work")
+            race
+          when "fleet_churn"
+            hostname = "fuzz-worker-#{index}"
+            [ event("join_worker", index, at, "join_worker" => { "hostname" => hostname }),
+              event("leave_worker", index, later(at), "leave_worker" => { "hostname" => hostname }) ]
           else raise ArgumentError, "unknown fuzz perturbation #{kind}"
           end
         end
@@ -181,7 +208,7 @@ module WorkEngine
         def event(kind, index, at, actions, has_pr = nil)
           condition = { "tick" => { "at_least" => at } }
           condition = { "all" => [ condition, { "job" => { "id" => has_pr, "has_pr" => true } } ] } if has_pr
-          { "name" => "fuzz #{index + 1}: #{kind}", "once" => true, "fuzz" => kind, "when" => condition, "do" => actions }
+          { "name" => "fuzz #{index + 1}: #{kind}", "once" => true, "fuzz" => kind.split.first, "when" => condition, "do" => actions }
         end
       end
 

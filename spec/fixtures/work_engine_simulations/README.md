@@ -440,6 +440,13 @@ given) -- `worker_died` for a worker dying mid-step, or
 `rewrite_stack_parent: child` moves the stack parent's head and fails the
 child's next `pr_open` with `awaiting_stable_base`, the way the
 StackBaseFreshness barrier does when the parent was force-pushed mid-run.
+`deploy_restart: { revision: }` kills every Run in flight with `worker_died`
+and brings the fleet back on a new revision. `github_outage: { ticks: N }`
+fails every GitHub-touching step (`pr_open`, `push`, `auto_merge`,
+`merge_train_land`, ...) for N ticks with a declared `github_api_transient`
+502. `join_worker: { hostname: }` adds a live worker to the fleet's rotation;
+`leave_worker: { hostname: }` loses its heartbeats and takes it out of
+rotation (a workflow pinned to its storage still routes back to it).
 An event carrying `fuzz:` that cannot apply at its tick (storage loss for a
 workflow without a simulated workspace, say) is logged as inapplicable
 instead of aborting the scenario.
@@ -457,8 +464,11 @@ perturbations from a catalog -- worker death, transient failures, a grader
 killed by a deploy, operator pause and unpause, main moving, breaking and
 healing, provider outages, CI flakes, external merges and closes, a provider
 switch, spurious wakes and deferred-phase resumes, stack parent rewrites,
-worker and storage loss, and (for seeds with a `git:` block) a PR going
-dirty and a branch rewritten with or without patch equivalence -- scheduled at ticks inside the seed's own
+worker and storage loss, a deploy restarting the fleet, a GitHub outage
+window, main moving again and again, two operators approving or pausing
+one Job in the same tick, a worker joining and leaving the fleet, and (for
+seeds with a `git:` block) a PR going dirty and a branch rewritten with or
+without patch equivalence -- scheduled at ticks inside the seed's own
 timeline. Everything is derived from `--seed` and the iteration index, so
 an iteration replays exactly.
 
