@@ -30,7 +30,8 @@ class BaseRevisionRetry
     new(...).call
   end
 
-  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:, command: nil, require_candidate_pass: false)
+  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:, command: nil,
+    require_candidate_pass: false, candidate_files: [], require_failed_test_evidence: false)
     @workflow = workflow
     @grader_step = grader_step
     @base_sha = base_sha.to_s
@@ -38,6 +39,8 @@ class BaseRevisionRetry
     @log = log
     @command_override = command.to_s.strip.presence
     @require_candidate_pass = require_candidate_pass
+    @candidate_files = Array(candidate_files)
+    @require_failed_test_evidence = require_failed_test_evidence
   end
 
   def call
@@ -161,18 +164,29 @@ class BaseRevisionRetry
 
     output = +""
     execution = nil
+    parsed = nil
     Dir.mktmpdir("syrus-brr-", base_checkout_parent) do |dir|
       checkout_path = Pathname.new(dir).join("base")
       materialization = materialize_base_checkout!(checkout_path)
       begin
+        overlay_candidate_files!(checkout_path)
+        clear_parse_artifacts!(checkout_path) if @require_failed_test_evidence
         @log.call("[brr:#{grader_name}] running full grader at base #{@base_sha.first(9)} in a #{materialization} checkout: #{redacted_command(command)}")
         execution = run_command(command, checkout_path, output)
+        parsed = parse_result(output, checkout_path) if @require_failed_test_evidence && !execution.interrupted?
       ensure
         release_base_checkout!(checkout_path, materialization)
       end
     end
 
     return skipped(execution.skip_reason, command: command, output: output) if execution.interrupted?
+    if @require_failed_test_evidence && !failed_test_evidence?(parsed)
+      return Result.new(
+        ran: true, inherited: false, reason: "base_retry_missing_failed_test_evidence",
+        command: redacted_command(command), base_failed_identities: [], introduced_failed_identities: [],
+        output: output_tail(output), method: "full_command"
+      )
+    end
 
     candidate_fingerprint = output_fingerprint(@grader_step.details.to_h["output"])
     base_fingerprint = output_fingerprint(output)
@@ -214,6 +228,49 @@ class BaseRevisionRetry
       output: output_tail(output),
       method: "candidate_command"
     )
+  end
+
+  def overlay_candidate_files!(checkout_path)
+    return if @candidate_files.empty?
+
+    source_root = workspace_path.realpath
+    destination_root = checkout_path.realpath
+    @candidate_files.each do |path|
+      relative = Pathname.new(path.to_s).cleanpath
+      raise ArgumentError, "candidate file must be a relative workspace path" if relative.absolute? || relative.each_filename.first == ".."
+
+      source = source_root.join(relative)
+      raise ArgumentError, "candidate file is unavailable: #{relative}" unless source.file?
+      source = source.realpath
+      unless source.to_s.start_with?("#{source_root}#{File::SEPARATOR}")
+        raise ArgumentError, "candidate file must stay inside the workspace: #{relative}"
+      end
+
+      destination = destination_root.join(relative)
+      parent = destination_root
+      relative.dirname.each_filename do |component|
+        parent = parent.join(component)
+        raise ArgumentError, "candidate file destination cannot traverse a symlink: #{relative}" if parent.symlink?
+        Dir.mkdir(parent) unless parent.exist?
+      end
+      raise ArgumentError, "candidate file destination cannot be a symlink: #{relative}" if destination.symlink?
+      FileUtils.cp(source, destination)
+    end
+  end
+
+  def failed_test_evidence?(parsed)
+    expected_paths = @candidate_files.map { |path| Pathname.new(path.to_s).cleanpath.to_s }
+    parsed && parsed.cases.any? do |test_case|
+      test_case.status == "failed" && expected_paths.include?(Pathname.new(test_case.file_path.to_s).cleanpath.to_s)
+    end
+  end
+
+  def clear_parse_artifacts!(checkout_path)
+    junit_path = @grader_step.details.to_h["junit_output"].to_s.strip.presence
+    FileUtils.rm_f(checkout_path.join(junit_path)) if junit_path
+    JUNIT_SEARCH_GLOBS.each do |glob|
+      Dir.glob(checkout_path.join(glob).to_s).each { |path| FileUtils.rm_f(path) }
+    end
   end
 
   def skipped(reason, command: nil, output: nil)

@@ -651,6 +651,80 @@ RSpec.describe BaseRevisionRetry do
     expect(result).to have_attributes(ran: true, inherited: true)
   end
 
+  it "overlays a new candidate spec and requires its failed example as base evidence" do
+    spec_path = @workspace_path.join("spec/regression_spec.rb")
+    FileUtils.mkdir_p(spec_path.dirname)
+    spec_path.write("RSpec.describe('regression') { it('fails on base') { expect(fixed?).to be(true) } }\n")
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      require_candidate_pass: true, candidate_files: [ "spec/regression_spec.rb" ],
+      require_failed_test_evidence: true, log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:materialize_base_checkout!) do |checkout_path|
+      FileUtils.mkdir_p(checkout_path)
+      "linked"
+    end
+    calls = 0
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      calls += 1
+      if chdir == @workspace_path
+        command_execution
+      else
+        expect(chdir.join("spec/regression_spec.rb").read).to include("fails on base")
+        junit = chdir.join(".syrus/rspec-junit/regression.xml")
+        FileUtils.mkdir_p(junit.dirname)
+        junit.write(<<~XML)
+          <testsuite name="spec/regression_spec.rb">
+            <testcase classname="spec/regression_spec.rb" file="spec/regression_spec.rb" name="fails on base">
+              <failure message="expected fixed?">expected fixed?</failure>
+            </testcase>
+          </testsuite>
+        XML
+        output << "1 example, 1 failure"
+        command_execution(success: false)
+      end
+    end
+
+    result = retry_check.call
+
+    expect(calls).to eq(2)
+    expect(result).to have_attributes(ran: true, inherited: true)
+  end
+
+  it "refuses a base command failure without a failed test example" do
+    spec_path = @workspace_path.join("spec/regression_spec.rb")
+    FileUtils.mkdir_p(spec_path.dirname)
+    spec_path.write("RSpec.describe('regression') { it('runs') { expect(true).to be(true) } }\n")
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      candidate_files: [ "spec/regression_spec.rb" ], require_failed_test_evidence: true,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:materialize_base_checkout!) do |checkout_path|
+      FileUtils.mkdir_p(checkout_path)
+      stale_junit = checkout_path.join(".syrus/rspec-junit/stale.xml")
+      FileUtils.mkdir_p(stale_junit.dirname)
+      stale_junit.write(<<~XML)
+        <testsuite name="spec/regression_spec.rb">
+          <testcase classname="spec/regression_spec.rb" file="spec/regression_spec.rb" name="stale failure">
+            <failure message="stale">stale</failure>
+          </testcase>
+        </testsuite>
+      XML
+      "linked"
+    end
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "An error occurred while loading spec/regression_spec.rb: missing dependency"
+      command_execution(success: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true, inherited: false, reason: "base_retry_missing_failed_test_evidence"
+    )
+  end
+
   it "kills a hung base command when the timeout expires", :allow_host_execution do
     stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
     child_pid_path = @workspace_path.join("child.pid")

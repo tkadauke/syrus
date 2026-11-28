@@ -2552,6 +2552,19 @@ confirmation becomes a queued approval during unattended work. The defaults
 allow three requests per turn or background run and ten per calendar day, and
 owners can lower or raise both positive limits in the grant constraints.
 
+Repository-scoped coworker Job grants can let a coworker file a Job, approve
+its own implementation, submit feedback, cancel, or retry without a separate
+operator confirmation. Owners configure limits for open self-filed Jobs,
+daily self-approvals, and feedback rounds on each Job. Reaching a limit sends
+the action to the operator for confirmation with the reason instead of dropping
+it. Self-approval still requires every required review to approve the exact
+implementation revision. By default, migrations and schema changes,
+permission or security code, default-setting changes, grader configuration,
+and top-level JSON API version changes require operator approval. Owners may
+change that carve-out explicitly. A Job filed as a bug fix also needs a new
+regression spec that passes on the implementation revision and fails when the
+same spec is run against the base revision.
+
 Side chats are deliberately different from ordinary Syrus planner chats. With
 the repository-scoped `syrus.spawn_chat` grant, a coworker can ask the owner to
 open a regular engineering chat with an initial message. The owner sees one

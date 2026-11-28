@@ -23,7 +23,8 @@ module Coworkers
       return Result.new(false, "missing_regression_spec") if paths.empty? || grader.nil? || command.nil? || head.blank?
 
       retry_result = Syrus::Host::BaseRevisionRetry.call(workflow:, grader_step: grader, base_sha: version.base_sha,
-        command:, require_candidate_pass: true, log: ->(message) { Rails.logger.info(message) })
+        command:, require_candidate_pass: true, candidate_files: paths, require_failed_test_evidence: true,
+        log: ->(message) { Rails.logger.info(message) })
       proven = retry_result.ran && retry_result.inherited
       if retry_result.ran
         workflow.set_artifact!("coworker_regression_proof", {

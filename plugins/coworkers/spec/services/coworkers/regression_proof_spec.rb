@@ -30,7 +30,8 @@ RSpec.describe Coworkers::RegressionProof do
     expect(result).to be_proven
     expect(Syrus::Host::BaseRevisionRetry).to have_received(:call).with(hash_including(
       workflow:, grader_step: grader, base_sha: "base", command: "bundle exec rspec spec/services/fix_spec.rb",
-      require_candidate_pass: true
+      require_candidate_pass: true, candidate_files: [ "spec/services/fix_spec.rb" ],
+      require_failed_test_evidence: true
     ))
   end
 
