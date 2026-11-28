@@ -1082,6 +1082,9 @@ la:
       owner_not_found: "Usor possessor non inventus est."
   services:
     runtime_images:
+      revocation:
+        recovery_guidance: "Imaginem congruentem neque revocatam promove aut restitue antequam cursum iterum temptes."
+        termination_requested: "Revocatio gravis imaginis runtime terminationem processuum per classem postulavit."
       verifications:
         supply_chain_policy:
           blocked: "Regula catenae commeatus inventa vetuit: vulnerabilitates: %{vulnerability_count}; fasciculi vetiti: %{package_count}."

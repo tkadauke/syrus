@@ -1082,6 +1082,9 @@ de:
       owner_not_found: "Besitzer nicht gefunden."
   services:
     runtime_images:
+      revocation:
+        recovery_guidance: "Aktiviere ein kompatibles, nicht widerrufenes Image oder setze darauf zurück, bevor du den Lauf erneut versuchst."
+        termination_requested: "Ein schwerwiegender Widerruf eines Laufzeit-Images hat die Beendigung der betroffenen Prozesse in der Flotte angefordert."
       verifications:
         supply_chain_policy:
           blocked: "Die Lieferkettenrichtlinie hat Funde blockiert: Schwachstellen: %{vulnerability_count}; verbotene Pakete: %{package_count}."
