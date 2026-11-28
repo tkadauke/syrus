@@ -1140,5 +1140,11 @@
   "question_give_up": "Give up",
   "question_give_up_confirm": "Give up on this attempt and cancel the Job?",
   "question_give_up_consequence": "Cancels the active attempt and closes this Job as cancelled.",
-  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}})."
+  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}}).",
+  "question_policy_source": {
+    "job": "this Job",
+    "repository": "the repository",
+    "user": "your account",
+    "default": "the default"
+  }
 }

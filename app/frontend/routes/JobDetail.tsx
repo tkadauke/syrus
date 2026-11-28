@@ -298,7 +298,10 @@ export function JobQuestionPanel({
       <div>
         <h2 className="font-semibold">{t("question_panel_title")}</h2>
         <p className="text-sm text-text-secondary">{t("question_panel_consequence")}</p>
-        <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
+        <p className="text-xs text-text-muted">{t("question_policy_effective", {
+            level: t(`question_eagerness.levels.${job.question_eagerness}.label`, { ns: "settings", defaultValue: job.question_eagerness }),
+            source: t(`question_policy_source.${job.question_eagerness_source}`, { defaultValue: job.question_eagerness_source })
+          })}</p>
       </div>
       <AgentQuestions questions={questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
       <div className="grid gap-2 sm:grid-cols-2">

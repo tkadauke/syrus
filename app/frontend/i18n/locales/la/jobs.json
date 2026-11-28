@@ -1140,5 +1140,11 @@
   "question_give_up": "Desistere",
   "question_give_up_confirm": "Ab hoc conatu desistere et Opus cancellare?",
   "question_give_up_consequence": "Conatum activum cancellat et hoc Opus ut cancellatum claudit.",
-  "question_policy_effective": "Studium interrogandi: {{level}} (fons: {{source}})."
+  "question_policy_effective": "Studium interrogandi: {{level}} (fons: {{source}}).",
+  "question_policy_source": {
+    "job": "hoc opus",
+    "repository": "repositorium",
+    "user": "ratio tua",
+    "default": "praefinitio"
+  }
 }

@@ -1140,5 +1140,11 @@
   "question_give_up": "Aufgeben",
   "question_give_up_confirm": "Diesen Versuch aufgeben und den Job abbrechen?",
   "question_give_up_consequence": "Bricht den aktiven Versuch ab und schließt diesen Job als abgebrochen.",
-  "question_policy_effective": "Fragebereitschaft: {{level}} (Quelle: {{source}})."
+  "question_policy_effective": "Fragebereitschaft: {{level}} (Quelle: {{source}}).",
+  "question_policy_source": {
+    "job": "dieser Job",
+    "repository": "Repository",
+    "user": "dein Konto",
+    "default": "Standard"
+  }
 }

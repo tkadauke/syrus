@@ -31,7 +31,7 @@ describe("JobQuestionPanel", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Question eagerness: collaborative (set by repository).")).toBeInTheDocument()
+    expect(await screen.findByText("Question eagerness: Collaborative (set by the repository).")).toBeInTheDocument()
     expect(screen.getByText("Creates a repair Job and resumes this Job after the repair lands.")).toBeInTheDocument()
     expect(screen.getByText("Cancels the active attempt and closes this Job as cancelled.")).toBeInTheDocument()
     const recovery = screen.getByText("Other recovery options").closest("details")
