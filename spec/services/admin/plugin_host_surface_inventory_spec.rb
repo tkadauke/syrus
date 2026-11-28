@@ -52,4 +52,26 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
       expect(results.find { |result| result.constant == "SharedName" }.plugins).to eq({ "alpha" => 1 })
     end
   end
+
+  it "parses each source file once while building an inventory" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      write(root, "app/services/core_thing.rb", "class CoreThing; end\n")
+      write(root, "plugins/alpha/app/services/alpha/use_core.rb", "CoreThing.call\n")
+      parsed_paths = []
+      allow(Prism).to receive(:parse_file).and_wrap_original do |method, path|
+        parsed_paths << Pathname.new(path).expand_path
+        method.call(path)
+      end
+      surface = instance_double(Syrus::PluginHostSurface, public?: false, allowed_internal?: false)
+
+      described_class.new(root:, surface:).results
+
+      expect(parsed_paths.tally.values).to all(eq(1))
+      expect(parsed_paths).to contain_exactly(
+        root.join("app/services/core_thing.rb").expand_path,
+        root.join("plugins/alpha/app/services/alpha/use_core.rb").expand_path
+      )
+    end
+  end
 end
