@@ -33,6 +33,18 @@ RSpec.describe ContainerExecution::CoworkerCapabilityProbe do
     )
     expect(probe.fetch(:command).join(" ")).to include("1.1.1.1/443", "169.254.169.254/80")
 
+    ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE"] = "executable_scratch"
+    ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_SCRATCH"] = "512m"
+    expect(described_class.capability_probes.first.fetch(:command)).to include(
+      "--tmpfs", "/scratch:rw,nosuid,nodev,exec,size=512m"
+    )
+
+    ENV["SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE"] = "unknown"
+    probe = described_class.capability_probes.first
+    expect(probe.dig(:diagnostics, "confined_coworker_missing_settings")).to include("mount_profile")
+    expect(probe.fetch(:command).first).to eq(RbConfig.ruby)
+    ENV.delete("SYRUS_CONTAINER_EXECUTION_CHAT_AGENT_MOUNT_PROFILE")
+
     ENV.delete("SYRUS_CONTAINER_EXECUTION_CODEX_PROXY")
     probe = described_class.capability_probes.first
     expect(probe.dig(:diagnostics, "confined_coworker_configuration")).to eq("missing")
