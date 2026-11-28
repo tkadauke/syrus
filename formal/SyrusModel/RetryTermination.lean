@@ -48,6 +48,20 @@ Proved here:
   and `LandingQueueProcessor#land` relaunches. Production showed a direct Job
   relaunching its `auto_merge` every few minutes for hours with a prepare
   step failing as `provider_transient`/`timeout`.
+* **Counterexample, the two loops multiplied** (`before_identical_failures`):
+  the dispatcher's in-place rerun (`INFRASTRUCTURE_STEP_RETRY_LIMIT` = 2 per
+  Workflow) and the ladder (`MAX_ATTEMPTS` = 3 fresh Workflows) each had a
+  budget of its own, so a deterministic timeout failed `3 * 4 = 12` times,
+  past the `retry_storms` invariant's threshold of 5.
+* After the fix both loops consult `Runs::RepeatedFailure`, one budget per
+  (Job, step kind, failure fingerprint): neither retries once the Job has
+  failed that step that way `maxIdentical` times, and an in-place rerun also
+  stops once it repeated the Run before it. Under a fixed fingerprint every
+  performed retry adds one identical failure, so `identical_retries_bound`:
+  at most `maxIdentical` identical failures in total, without the fairness
+  assumption the ladder needs for exempt skips (a skip performs nothing and
+  adds no failure). `after_identical_below_storm`: that is below the storm
+  threshold.
 * After the fix (`LandingFailureHandler#runaway_retry_refused?`: a transient
   failure of a runaway-protected Job fails the landing back to `implemented`):
   `after_step_decreases` gives a ranking function, so `after_terminates`:
@@ -384,6 +398,44 @@ theorem consent_buys_one_attempt (s : T) (hl : s.landing = false) :
   simp only at hl
   subst hl
   simp [operatorApprove, trainIter, trainAuto, held]
+
+/-! ## The shared identical-failure budget -/
+
+/-- `Runs::RepeatedFailure::MAX_IDENTICAL_FAILURES`. -/
+def maxIdentical : Nat := 4
+/-- The `retry_storms` invariant's default `max_failures`: more is a storm. -/
+def stormThreshold : Nat := 5
+/-- `StepDispatcher::INFRASTRUCTURE_STEP_RETRY_LIMIT`, `AutoRetryAttempt::MAX_ATTEMPTS`. -/
+def inPlaceLimit : Nat := 2
+def ladderLimit : Nat := 3
+
+/-- Before: every Workflow attempt reran its Step in place to the limit, and
+    the ladder started a fresh Workflow to its own limit. -/
+def beforeIdenticalFailures : Nat := (inPlaceLimit + 1) * (ladderLimit + 1)
+
+theorem before_identical_failures :
+    beforeIdenticalFailures = 12 ∧ stormThreshold < beforeIdenticalFailures := by decide
+
+/-- `n` performed retries -- in place (`stop_in_place?` false) or a fresh
+    Workflow (`budget_exhausted?` false) -- from `f` identical failures. Each
+    is admitted only while `f < maxIdentical` and, the fingerprint being
+    fixed, ends in one more identical failure. -/
+def AdmittedRetries : Nat → Nat → Prop
+  | _, 0 => True
+  | f, n + 1 => f < maxIdentical ∧ AdmittedRetries (f + 1) n
+
+theorem identical_retries_bound : ∀ (n f : Nat), f ≤ maxIdentical → AdmittedRetries f n → f + n ≤ maxIdentical
+  | 0, _, hf, _ => by simpa using hf
+  | n + 1, f, _, ⟨hlt, hrest⟩ => by
+    have := identical_retries_bound n (f + 1) (by omega) hrest
+    omega
+
+/-- From the first failure, at most `maxIdentical` identical failures in all,
+    below the storm threshold. -/
+theorem after_identical_below_storm (n : Nat) (h : AdmittedRetries 1 n) :
+    1 + n ≤ maxIdentical ∧ 1 + n ≤ stormThreshold := by
+  have := identical_retries_bound n 1 (by decide) h
+  exact ⟨this, by simp [maxIdentical, stormThreshold] at this ⊢; omega⟩
 
 end RetryTermination
 end SyrusModel

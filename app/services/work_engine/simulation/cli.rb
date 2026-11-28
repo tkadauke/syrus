@@ -155,7 +155,7 @@ module WorkEngine
         stream = matched ? out : err
         expectation = expected_status.join("|")
         stream.puts "#{result.scenario}: #{result.status} after #{result.ticks} ticks (expected #{expectation})"
-        result.events.last(20).each { |event| stream.puts "  #{event}" }
+        (ENV["SIMULATOR_FULL_LOG"].present? ? result.events : result.events.last(20)).each { |event| stream.puts "  #{event}" }
         if result.waiting?
           stream.puts "waiting:"
           result.wait_reasons.each { |reason| stream.puts "  #{reason}" }

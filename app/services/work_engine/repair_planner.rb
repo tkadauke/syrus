@@ -233,14 +233,19 @@ module WorkEngine
           return false unless run
 
           attempt_number = attempt_number_for_retryable_failure(run)
-          attempt_number.present? && attempt_number <= retry_budget_limit(retry_classification_for(run))
+          attempt_number.present? && attempt_number <= retry_budget_limit(retry_classification_for(run)) &&
+            !Runs::RepeatedFailure.budget_exhausted?(run)
         end
 
         def retry_budget_exhausted_plan
           operator_plan(
             "operator_review_retry_budget_exhausted",
             "The retry classification has exhausted its automatic retry budget.",
-            preconditions: { retry_budget_available: false, classification: classification&.classification || primary_run&.agent_outcome }
+            preconditions: {
+              retry_budget_available: false,
+              classification: classification&.classification || primary_run&.agent_outcome,
+              identical_failures: (Runs::RepeatedFailure.identical_failures(primary_run) if primary_run&.step)
+            }.compact
           )
         end
 

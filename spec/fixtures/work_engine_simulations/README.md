@@ -11,6 +11,9 @@ Run one scenario:
 bin/simulator spec/fixtures/work_engine_simulations/single_initial_success.yml
 ```
 
+A result prints its last 20 events; set `SIMULATOR_FULL_LOG=1` to print all
+of them.
+
 Run the regression set:
 
 ```sh
@@ -118,6 +121,9 @@ run classifiers decide retryability from it before reading any text. Pin the
 declared answer with `expect.run_evidence` (`{ job:, step:, classification: }`):
 the simulator fails every Run with `agent_outcome: error`, which is itself
 retryable, so retry *behavior* alone does not prove which input decided it.
+A `run_evidence` entry may also take `state:` and bound how many Runs match
+with `count:`, `min_count:`, or `max_count:` -- how a scenario pins that a
+retry policy stopped where it should, not merely that it ran.
 Workflow event
 conditions accept `start_blocked:` alongside `state:` to match on the
 current start-block reason.

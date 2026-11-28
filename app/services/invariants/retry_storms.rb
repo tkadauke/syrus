@@ -1,5 +1,3 @@
-require "digest"
-
 module Invariants
   # A deterministic failure must not be retried as if it were transient.
   #
@@ -10,19 +8,15 @@ module Invariants
   # transient -- a native-gem build failure in a prepare step once failed
   # twenty times an hour classified as provider_transient.
   #
-  # The fingerprint is the recorded problem code, error class, and error
-  # message with volatile tokens (numbers, hex ids, workspace paths) masked, so
-  # two failures that differ only in a run id or a timestamp count as one
-  # failure repeated. The classification is deliberately not part of it when
-  # an error was recorded: the classifier can label the same error differently
-  # from run to run (the native-gem storm alternated between
-  # provider_transient and timeout), and splitting on that would hide the
-  # storm. It is reported instead, as a tally. Runs without a recorded error
-  # fall back to their classification.
+  # The fingerprint is Runs::FailureFingerprint -- the one
+  # Runs::RepeatedFailure stops retrying on -- so the policy and this check
+  # agree on what "the same failure" means. The classification is not part of
+  # it (the classifier can label one error differently from run to run); it is
+  # reported instead, as a tally.
   class RetryStorms < Base
     DEFAULTS = { max_failures: 5, window: 1.hour }.freeze
     SAMPLE_RUN_IDS = 10
-    MESSAGE_PREFIX = 300
+    MESSAGE_PREFIX = Runs::FailureFingerprint::MESSAGE_PREFIX
 
     def violations
       rows = failed_runs
@@ -90,19 +84,10 @@ module Invariants
     end
 
     def fingerprint_for(classification_row, diagnostic_row)
+      classification, = classification_row
       error_class, error_message, problem_code = diagnostic_row
-      if error_class.blank? && error_message.blank?
-        classification, = classification_row
-        return Digest::SHA256.hexdigest("classification\n#{classification}").first(16)
-      end
-
-      normalized = error_message.to_s
-                                .gsub(%r{/[^\s:'"]*/(?:workflows|runs|tmp)/[^\s:'"]*}, "<path>")
-                                .gsub(/\b[0-9a-f]{7,40}\b/i, "<hex>")
-                                .gsub(/\d+/, "<n>")
-                                .squish
-                                .first(MESSAGE_PREFIX)
-      Digest::SHA256.hexdigest([ problem_code, error_class, normalized ].join("\n")).first(16)
+      Runs::FailureFingerprint.digest(classification: classification, error_class: error_class,
+                                      error_message: error_message, problem_code: problem_code)
     end
   end
 end

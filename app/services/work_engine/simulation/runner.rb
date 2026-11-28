@@ -1871,12 +1871,25 @@ module WorkEngine
           scope = Run.where(job_id: attrs.fetch("job"))
           scope = scope.joins(:step).where(steps: { kind: attrs["step"] }) if attrs["step"].present?
           scope = scope.where(agent_outcome: attrs["agent_outcome"]) if attrs["agent_outcome"].present?
+          scope = scope.where(state: attrs["state"]) if attrs["state"].present?
           if attrs["classification"].present?
             scope = scope.joins(:run_failure_classification)
               .where(run_failure_classifications: { classification: attrs["classification"] })
           end
-          scope.exists?
+          run_evidence_count_matches?(scope, attrs)
         end
+      end
+
+      # `count`, `min_count`, and `max_count` bound how many Runs match --
+      # how a scenario pins that a retry policy stopped where it should, not
+      # merely that it ran. Without any of them one matching Run is enough.
+      def run_evidence_count_matches?(scope, attrs)
+        return scope.exists? unless %w[count min_count max_count].any? { |key| attrs.key?(key) }
+
+        count = scope.count
+        (!attrs.key?("count") || count == attrs["count"].to_i) &&
+          (!attrs.key?("min_count") || count >= attrs["min_count"].to_i) &&
+          (!attrs.key?("max_count") || count <= attrs["max_count"].to_i)
       end
 
       def expected_workflow_artifacts_match?

@@ -16,7 +16,11 @@ models:
   - path: app/services/step_dispatcher.rb
     owner: StepDispatcher
     method: retry_step_after_infrastructure_failure!
-    sha: 9df071daaad1a546
+    sha: 0e20017deb15bd15
+  - path: app/services/runs/repeated_failure.rb
+    owner: RepeatedFailure
+    method: stop_in_place?
+    sha: 5128092c8708814e
 - model: BranchBound.lean
   mirrors:
   - path: app/services/step_dispatcher.rb
@@ -287,6 +291,10 @@ models:
     sha: 6ca9a5286696ff0d
 - model: RetryTermination.lean
   mirrors:
+  - path: app/services/runs/repeated_failure.rb
+    owner: RepeatedFailure
+    method: budget_exhausted?
+    sha: f697838ad23ef0ef
   - path: app/models/auto_retry_attempt.rb
     owner: AutoRetryAttempt
     method: self.retry_budget_limit_for
@@ -294,7 +302,7 @@ models:
   - path: app/services/work_engine/repair_planner.rb
     owner: Base
     method: retry_budget_available?
-    sha: da0373bfd69ca7c2
+    sha: 29a963b970179447
   - path: app/services/work_engine/repair_executor.rb
     owner: Base
     method: schedule_auto_retry!

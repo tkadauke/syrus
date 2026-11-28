@@ -489,6 +489,9 @@ module WorkEngine
           if (existing = existing_unskipped_attempt_for_run(workflow, source_run, lock: lock))
             return "#{existing.retry_kind} auto-retry ##{existing.id} was already scheduled for this Run"
           end
+          if retry_kind != AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND && Runs::RepeatedFailure.budget_exhausted?(source_run)
+            return "the same failure repeated #{Runs::RepeatedFailure::MAX_IDENTICAL_FAILURES} times"
+          end
           return nil unless retry_kind == "retry_workflow"
 
           "retry_workflow already scheduled for workflow" if AutoRetryAttempt.retry_workflow_scheduled_for?(workflow, lock: lock)
