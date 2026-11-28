@@ -200,6 +200,18 @@ describe("startupDiagnostics", () => {
     expect(mark).toHaveBeenCalledWith("react_commit")
   })
 
+  it("exposes retained startup state and retry count before diagnostics subscribe", () => {
+    vi.useFakeTimers()
+    window.sessionStorage.setItem("syrus.startup.autoRetryAttempt", "2")
+    installStartupShell()
+
+    vi.advanceTimersByTime(8000)
+    const snapshot = window.SyrusStartupDiagnostics?.snapshot?.()
+
+    expect(snapshot).toMatchObject({ current_state: "watchdog", auto_retry_attempt: 2 })
+    expect(snapshot?.events).toEqual([])
+  })
+
   it("loads diagnostics and startup styles as digestible assets instead of shell-inline payloads", () => {
     const layout = readFileSync(SPA_LAYOUT_PATH, "utf-8")
 

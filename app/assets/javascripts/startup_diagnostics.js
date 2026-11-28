@@ -513,6 +513,7 @@
       lazy_chunks: startupAssets && startupAssets.lazy_chunks ? startupAssets.lazy_chunks : {},
       events: startupEvents ? startupEvents.slice() : [],
       revision: { page: currentRevision, previous: previousRevision, changed: revisionChanged },
+      current_state: pendingStartupState ? pendingStartupState.name || "unknown" : null,
       service_worker: {
         present: serviceWorkerContext().service_worker_present,
         controlled: serviceWorkerContext().service_worker_controlled,

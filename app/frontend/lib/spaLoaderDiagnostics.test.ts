@@ -25,6 +25,7 @@ function startupSnapshot() {
     milestones: [], assets: [], progress_samples: [], progress: null, budget: null,
     lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
     events: [], revision: { page: "current", previous: null, changed: false },
+    current_state: "ready",
     service_worker: { present: false, controlled: false, registration: null, worker_revision: null, counted_requests: [] },
     auto_retry_attempt: 0
   }

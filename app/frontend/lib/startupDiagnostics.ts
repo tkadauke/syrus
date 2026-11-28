@@ -17,6 +17,7 @@ export type StartupDiagnosticsSnapshot = {
   lazy_chunks?: Record<string, { file: string; size: number }>
   events: Array<{ kind: string; at_ms: number; attempt?: number; outcome?: string; revision?: string }>
   revision: { page: string; previous: string | null; changed: boolean }
+  current_state: string | null
   service_worker: { present: boolean; controlled: boolean; registration: { installing: string | null; waiting: string | null; active: string | null } | null; worker_revision: string | null; counted_requests: string[] }
   auto_retry_attempt: number
 }

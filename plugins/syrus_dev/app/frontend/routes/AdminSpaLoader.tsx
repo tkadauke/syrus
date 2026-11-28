@@ -42,6 +42,7 @@ export function AdminSpaLoader() {
   const entries = snapshot.warmup.entries.filter((entry) => (!filters.state || entry.state === filters.state) && (!filters.group || entry.group === filters.group))
   const startup = snapshot.startup
   const queuedEntries = snapshot.warmup.queue.map((id) => snapshot.warmup.entries.find((entry) => entry.id === id)).filter((entry) => entry !== undefined)
+  const diagnosticValue = (category: string, value: string) => t(`spa_loader.${category}.${value}`)
 
   return (
     <Page.Root gutter="responsive" size="wide">
@@ -85,17 +86,19 @@ export function AdminSpaLoader() {
           ...(startup?.milestones ?? []).map((item) => [item.name, `${Math.round(item.at_ms)} ms`]),
           ...(startup?.progress_samples ?? []).map((item) => [t("spa_loader.progress_sample"), `${Math.round(item.at)} ms · ${formatBytes(item.bytes)}`]),
           ...(startup?.progress?.speed ? [[t("spa_loader.speed"), `${formatBytes(startup.progress.speed)}/s`]] : []),
-          ...(startup?.revision.changed ? [[t("spa_loader.revision_change"), `${startup.revision.previous ?? t("spa_loader.none")} → ${startup.revision.page}`]] : [])
+          ...(startup?.revision.changed ? [[t("spa_loader.revision_change"), `${startup.revision.previous ?? t("spa_loader.none")} → ${startup.revision.page}`]] : []),
+          ...(startup?.current_state ? [[t("spa_loader.current_state"), diagnosticValue("event_kinds", startup.current_state)]] : []),
+          ...(startup ? [[t("spa_loader.retry_attempts"), String(startup.auto_retry_attempt)]] : [])
         ]} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.startup_assets")} rows={[
           ...(startup?.budget ? [[t("spa_loader.budget"), `${formatBytes(startup.assets.reduce((total, asset) => total + (asset.budget_size ?? 0), 0))} / ${formatBytes(startup.budget.bytes)}`]] : []),
           ...(startup?.assets ?? []).map((item) => {
             const timing = formatTiming(item.timing, { request: t("spa_loader.timing_request"), response: t("spa_loader.timing_response"), end: t("spa_loader.timing_end") })
-            return [item.path, `${formatBytes(item.bytes)} / ${formatBytes(item.wire_size)}${item.budget_size !== null && startup?.budget ? ` · ${Math.round((item.budget_size / startup.budget.bytes) * 100)}%` : ""} · ${item.source}${timing ? ` · ${timing}` : ""}`]
+            return [item.path, `${formatBytes(item.bytes)} / ${formatBytes(item.wire_size)}${item.budget_size !== null && startup?.budget ? ` · ${Math.round((item.budget_size / startup.budget.bytes) * 100)}%` : ""} · ${diagnosticValue("asset_sources", item.source)}${timing ? ` · ${timing}` : ""}`]
           })
         ]} empty={t("spa_loader.no_data")} />
-        <DiagnosticSection title={t("spa_loader.service_worker")} rows={startup ? [[t("spa_loader.present"), String(startup.service_worker.present)], [t("spa_loader.controlled"), String(startup.service_worker.controlled)], [t("spa_loader.registration"), startup.service_worker.registration?.active ?? startup.service_worker.registration?.waiting ?? startup.service_worker.registration?.installing ?? t("spa_loader.none")], [t("spa_loader.revision"), `${startup.service_worker.worker_revision ?? "?"} / ${startup.revision.page}`], [t("spa_loader.counted"), startup.service_worker.counted_requests.join(", ") || t("spa_loader.none")]] : []} empty={t("spa_loader.no_data")} />
-        <DiagnosticSection title={t("spa_loader.recovery")} rows={(startup?.events ?? []).map((item) => [item.kind, [item.outcome ? t(`spa_loader.outcomes.${item.outcome}`) : null, item.attempt ? `#${item.attempt}` : null, item.revision ?? null, `${Math.round(item.at_ms)} ms`].filter(Boolean).join(" · ")])} empty={t("spa_loader.no_events")} />
+        <DiagnosticSection title={t("spa_loader.service_worker")} rows={startup ? [[t("spa_loader.present"), diagnosticValue("booleans", String(startup.service_worker.present))], [t("spa_loader.controlled"), diagnosticValue("booleans", String(startup.service_worker.controlled))], [t("spa_loader.registration"), startup.service_worker.registration ? diagnosticValue("worker_states", startup.service_worker.registration.active ?? startup.service_worker.registration.waiting ?? startup.service_worker.registration.installing ?? "unknown") : t("spa_loader.none")], [t("spa_loader.revision"), `${startup.service_worker.worker_revision ?? "?"} / ${startup.revision.page}`], [t("spa_loader.counted"), startup.service_worker.counted_requests.join(", ") || t("spa_loader.none")]] : []} empty={t("spa_loader.no_data")} />
+        <DiagnosticSection title={t("spa_loader.recovery")} rows={(startup?.events ?? []).map((item) => [diagnosticValue("event_kinds", item.kind), [item.outcome ? t(`spa_loader.outcomes.${item.outcome}`) : null, item.attempt ? `#${item.attempt}` : null, item.revision ?? null, `${Math.round(item.at_ms)} ms`].filter(Boolean).join(" · ")])} empty={t("spa_loader.no_events")} />
       </div>
     </Page.Root>
   )
