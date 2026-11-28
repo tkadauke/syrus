@@ -66,7 +66,7 @@ Devices APNs reports as invalid (`410`, `BadDeviceToken`, `Unregistered`) are di
 
 1. Apple Developer Program membership and an App ID with the **Push
    Notifications** capability for the bundle id (`app.syrus.ios` by default;
-   change `PRODUCT_BUNDLE_IDENTIFIER` and set `DEVELOPMENT_TEAM` in `project.yml`).
+   override the bundle id and set your team as described in *Signing and TestFlight*).
 2. An APNs auth key (`.p8`) from *Certificates, Identifiers & Profiles → Keys*.
 3. Configure the Syrus server environment:
    `SYRUS_APNS_TEAM_ID`, `SYRUS_APNS_KEY_ID`, and either `SYRUS_APNS_AUTH_KEY`
@@ -78,3 +78,38 @@ Devices APNs reports as invalid (`410`, `BadDeviceToken`, `Unregistered`) are di
 Covered locally: Swift unit tests for registration logic and routing, and Rails
 specs for the device API, APNs client (fake transport) and delivery job.
 Not covered: real delivery to Apple.
+
+## Signing and TestFlight
+
+No signing material is committed. The bundle id defaults to `app.syrus.ios`;
+the team, bundle-id override, and API key come from your environment.
+
+- `Config/Shared.xcconfig` holds defaults; copy `Config/Local.xcconfig.example`
+  to the git-ignored `Config/Local.xcconfig` to set `DEVELOPMENT_TEAM` for
+  Xcode device builds.
+- Debug uses `Syrus.Debug.entitlements` (`aps-environment: development`);
+  Release uses `Syrus.Release.entitlements` (`production`). Both are
+  automatically signed. Simulator builds/tests stay unsigned (`make test`).
+- `PrivacyInfo.xcprivacy` declares no tracking, the push token as app-functionality
+  device ID, and `UserDefaults` access (reason `CA92.1`);
+  `ITSAppUsesNonExemptEncryption` is `false`. Review these before submitting if
+  you add SDKs or data collection.
+- The 1024px `AppIcon.png` is required by App Store Connect and must have no
+  alpha channel; the launch screen uses the `LaunchBackground` color set.
+
+Create an App Store Connect API key (.p8) with App Manager access, then:
+
+```sh
+export SYRUS_IOS_TEAM_ID=ABCDE12345
+export ASC_KEY_PATH=$HOME/.appstoreconnect/AuthKey_XXXX.p8
+export ASC_KEY_ID=XXXXXXXXXX
+export ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
+# optional: SYRUS_IOS_BUNDLE_ID, SYRUS_IOS_BUILD_NUMBER (default: timestamp)
+make archive   # build/release/Syrus.xcarchive (Release, generic iOS device)
+make export    # signed .ipa in build/release/export (from ExportOptions.plist.template)
+make upload    # export with destination=upload: sends the build to TestFlight
+```
+
+Without the ASC variables, `archive`/`export` use the signing identities and
+profiles in your login keychain/Xcode account. Each upload needs a unique
+build number. `make upload` requires the app record to exist in App Store Connect.

@@ -10,9 +10,9 @@ settings:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    PRODUCT_BUNDLE_IDENTIFIER: app.syrus.ios
-    # Set your own Team ID for device builds (see ios/README.md).
-    DEVELOPMENT_TEAM: ""
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
 targets:
   Syrus:
     type: application
@@ -34,7 +34,9 @@ targets:
       path: Syrus/Resources/Info.plist
       properties:
         CFBundleDisplayName: Syrus
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        ITSAppUsesNonExemptEncryption: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations:

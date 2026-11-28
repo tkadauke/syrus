@@ -1,0 +1,8 @@
+// Shared build settings. No credentials live here: the Apple team and any
+// bundle-id override come from the git-ignored Config/Local.xcconfig (copy
+// Local.xcconfig.example) or from the environment via scripts/release.sh.
+PRODUCT_BUNDLE_IDENTIFIER = app.syrus.ios
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+#include? "Local.xcconfig"
