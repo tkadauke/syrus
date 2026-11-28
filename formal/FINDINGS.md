@@ -5209,7 +5209,7 @@ it refuses with a retryable message.
 Two parts of the engine assumed every unit has a Workflow. The registry
 validator now accepts definitions that declare themselves workflow-less. The
 reconciler, which cancels an active unit without a Workflow as an orphan,
-leaves a workflow-less unit alone for `EmergencyLand::STALE_AFTER` (ten
+leaves a workflow-less unit alone for `EmergencyLand::STALE_AFTER` (the merge-lock wait plus ten
 minutes), so its merge is not interrupted, and cancels it after that, so a
 crash cannot hold the lock forever.
 

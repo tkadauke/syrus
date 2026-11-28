@@ -256,9 +256,11 @@ module WorkDefinitions
   # the per-branch merge lock for the one merge call, so a landing lane cannot
   # merge between its head check and the emergency merge, and it finishes when
   # the merge returns. One left running by a crash is released by the
-  # reconciler once it is older than STALE_AFTER.
+  # reconciler once it is older than STALE_AFTER. The unit may first wait the
+  # whole merge-lock budget for a landing lane before it merges, so it is only
+  # stale once it has outlived that wait plus the merge call.
   class EmergencyLand < Base
-    STALE_AFTER = 10.minutes
+    STALE_AFTER = Steps::MergeLockControl::MERGE_LOCK_WAIT + 10.minutes
 
     self.kind = "emergency_land"
     self.workflowless = true

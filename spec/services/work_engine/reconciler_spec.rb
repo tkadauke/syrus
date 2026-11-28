@@ -2471,6 +2471,18 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       expect(lock.reload).to be_active
     end
 
+    # The lander may wait the whole merge-lock budget before it even merges;
+    # cancelling it then releases the merge lock while its merge is in flight.
+    it "is left alone while it may still be waiting out the merge-lock budget and merging" do
+      unit, lock = emergency_unit(started_at: (Steps::MergeLockControl::MERGE_LOCK_WAIT + 30.seconds).ago)
+
+      result = reconcile_and_execute
+
+      expect(kind(result, :active_work_unit_without_workflow)).to be_nil
+      expect(unit.reload).to be_running
+      expect(lock.reload).to be_active
+    end
+
     it "is cancelled, releasing its merge lock, once it has outlived its merge" do
       unit, lock = emergency_unit(started_at: (WorkDefinitions::EmergencyLand::STALE_AFTER + 1.minute).ago)
 
