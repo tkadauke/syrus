@@ -25,8 +25,15 @@ module RuntimeImages
         end
       end
 
-      def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new, base_verifier: ConformanceProbe.method(:verify_published!))
+      def initialize(orchestrator: Orchestrator.new, service: Service.new, builder: nil, recorder: EvidenceRecorder.new,
+                     base_verifier: ConformanceProbe.method(:verify_published!), candidate_probe: Verifications::CandidateProbe.new,
+                     supply_chain_verifier: Verifications::SupplyChainVerifier.new, image_policy_verifier: nil)
         @base_verifier = base_verifier
+        @candidate_probe = candidate_probe
+        @supply_chain_verifier = supply_chain_verifier
+        @image_policy_verifier = image_policy_verifier || Verifications::ImagePolicyVerifier.new(
+          scanner: Verifications::ImagePolicyScanner.new(built_images: BuiltImages.new(service: service))
+        )
         @orchestrator = orchestrator
         @service = service
         @builder = builder
@@ -107,27 +114,49 @@ module RuntimeImages
         image = publisher.publish(
           source_kind: request.source_kind, source_ref: request.source_ref,
           source_digest: request.source_digest, platform: request.platform,
-          provenance: provenance_for(request, output, evidence), payload: output.payload
+          provenance: provenance_for(request, output, evidence), payload: output.payload, verification_state: "unverified"
         )
         evidence.image_digest = image.digest
-        inspection = publisher.inspect_image(image)
-        raise BuildFailed.new("published image #{image.digest} could not be verified", code: "verification_failed", retryable: true) unless inspection.present
-
-        verify_conformance!(request, image)
+        verification = verify_candidate(request, image, evidence)
+        unless verification.accepted?
+          retryable = verification.state == "blocked"
+          raise BuildFailed.new(verification.message || "image verification #{verification.state}",
+                                code: verification.failure_code || "verification_failed", retryable: retryable)
+        end
         register_base_release(request, image)
         image
       end
 
-      # The standard coworker base must pass the full confined provider and
-      # confinement probe before it can be used. A non-conformant image is
-      # revoked so lookup never returns it, and the build fails permanently.
-      def verify_conformance!(request, image)
-        return unless request.source_kind == CoworkerBase::SOURCE_KIND
+      def verify_candidate(request, image, evidence, policy: Verifications::Policy.current)
+        registry = Verifications::Registry.new
+        registry.register("manifest", Verifications::ManifestVerifier.new(service: @service))
+        registry.register("supply_chain", @supply_chain_verifier)
+        policy = verification_policy(request, base_policy: policy)
+        if request.source_kind == CoworkerBase::SOURCE_KIND
+          registry.register("base_conformance", Verifications::CallableVerifier.new(@base_verifier, evidence_kind: "confined_conformance_probe"))
+        end
+        verification = Hash(request.recipe.dig("input_policy"))
+        if verification["base_digest"].present? && verification["smoke_test"].present?
+          suite = Verifications::CandidateSuite.new(@candidate_probe)
+          Verifications::CandidateSuite.check_keys.each do |key|
+            registry.register(key, Verifications::CandidateVerifier.new(suite, key))
+          end
+        end
+        registry.register("image_policy", @image_policy_verifier)
+        Verifications::Orchestrator.new(registry: registry, service: @service).verify(
+          image, policy: policy, context: { build_request_id: request.id, build_evidence: evidence }
+        )
+      end
 
-        @base_verifier.call(image)
-      rescue ConformanceProbe::NonConformant, RuntimeAbi::Incompatible => e
-        @service.revoke(image, reason: "conformance probe failed: #{e.message}".truncate(500))
-        raise BuildFailed.new("coworker base failed conformance: #{e.message}".truncate(1000), code: "conformance_failed", retryable: false)
+      def verification_policy(request, base_policy: Verifications::Policy.current)
+        policy = base_policy.deep_dup
+        policy["checks"] << { "key" => "image_policy", "required" => true }
+        policy["checks"] << { "key" => "base_conformance", "required" => true } if request.source_kind == CoworkerBase::SOURCE_KIND
+        verification = Hash(request.recipe.dig("input_policy"))
+        if verification["base_digest"].present? && verification["smoke_test"].present?
+          Verifications::CandidateSuite.check_keys.each { |key| policy["checks"] << { "key" => key, "required" => true } }
+        end
+        policy
       end
 
       # A verified standard base becomes a promotion candidate. It is never
@@ -149,7 +178,8 @@ module RuntimeImages
         ).compact
         # Syrus (never the isolated builder, which holds no key) signs the
         # runtime ABI contract the standard base was built against.
-        if request.source_kind == CoworkerBase::SOURCE_KIND
+        input_policy = Hash(request.recipe.dig("input_policy"))
+        if request.source_kind == CoworkerBase::SOURCE_KIND || input_policy["runtime_abi"].present?
           provenance[RuntimeAbi::ATTESTATION_KEY] = RuntimeAbi.attest(
             source_digest: request.source_digest, recipe_digest: request.recipe_digest, build_request_id: request.id
           )

@@ -6,6 +6,7 @@ class RuntimeImage < ApplicationRecord
 
   AVAILABILITIES = %w[pending available revoked deleted].freeze
   RETENTION_STATES = %w[default retained expired].freeze
+  VERIFICATION_STATES = %w[unverified candidate rejected blocked].freeze
   # An image can only move forward: pending -> available -> revoked -> deleted.
   AVAILABILITY_TRANSITIONS = {
     "pending" => %w[available deleted],
@@ -17,6 +18,9 @@ class RuntimeImage < ApplicationRecord
   class InvalidTransition < StandardError; end
 
   belongs_to :runtime_image_namespace
+  has_many :runtime_image_verification_attempts, dependent: :destroy
+  has_many :runtime_image_verification_attestations, dependent: :destroy
+  has_many :runtime_image_revocation_candidates, dependent: :destroy
   attr_readonly :runtime_image_namespace_id, :digest, :platform, :source_kind, :source_ref, :source_digest
 
   validates :digest, presence: true, format: { with: DIGEST_FORMAT }
@@ -24,6 +28,7 @@ class RuntimeImage < ApplicationRecord
   validates :source_digest, format: { with: DIGEST_FORMAT }, allow_blank: true
   validates :availability, inclusion: { in: AVAILABILITIES }
   validates :retention_state, inclusion: { in: RETENTION_STATES }
+  validates :verification_state, inclusion: { in: VERIFICATION_STATES }
   validates :digest, uniqueness: { scope: %i[runtime_image_namespace_id platform] }
   validate :provenance_must_be_hash
 
@@ -31,7 +36,7 @@ class RuntimeImage < ApplicationRecord
 
   scope :available, -> { where(availability: "available") }
   scope :revoked, -> { where(availability: "revoked") }
-  scope :pullable, -> { available.where(revoked_at: nil) }
+  scope :pullable, -> { available.where(revoked_at: nil, verification_state: "candidate") }
   # Garbage-collection candidates before age is applied: stored images that
   # no retention hold protects. Age, namespace overrides, and the "keep the
   # newest image" rule are applied by RuntimeImages::Collector.
@@ -46,7 +51,12 @@ class RuntimeImage < ApplicationRecord
     define_method(:"#{name}?") { availability == name }
   end
 
-  def pullable? = available? && revoked_at.nil?
+  def pullable? = available? && revoked_at.nil? && verification_state == "candidate"
+  def candidate? = verification_state == "candidate"
+  def verified_candidate?
+    latest_attempt = runtime_image_verification_attempts.where(image_digest: digest).order(number: :desc).first
+    candidate? && latest_attempt&.accepted?
+  end
   def retained?(now = Time.current) = retention_state == "retained" && (retain_until.nil? || retain_until > now)
 
   def mark_available!(locator: nil, now: Time.current)

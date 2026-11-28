@@ -20,9 +20,14 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
   end
 
   def image_for(request)
-    RuntimeImages::Service.new(provider: provider).publish(
+    service = RuntimeImages::Service.new(provider: provider)
+    image = service.publish(
       namespace: namespace, source_kind: "git", source_ref: "r#{request.id}", platform: "linux/amd64", payload: "p#{request.id}"
     )
+    RuntimeImages::Verifications::Orchestrator.new(service: service).verify(
+      image, policy: { "checks" => [ { "key" => "manifest", "required" => true } ] }
+    )
+    image
   end
 
   describe "submit" do
@@ -173,6 +178,37 @@ RSpec.describe RuntimeImages::Builds::Orchestrator do
       expect(attempt.reload.state).to eq("succeeded")
       expect(result).to have_attributes(outcome: "succeeded", attempts_used: 1)
       expect(result.runtime_image).to be_present
+    end
+
+    it "does not trust candidate state without an accepted digest-bound verification attempt" do
+      request = submit
+      _, attempt = orchestrator.claim_next
+      orchestrator.begin_verifying(attempt)
+      image = RuntimeImages::Service.new(provider: provider).publish(
+        namespace: namespace, source_kind: "git", source_ref: "unverified-#{request.id}", platform: "linux/amd64",
+        payload: "unverified-#{request.id}", verification_state: "candidate"
+      )
+
+      expect { orchestrator.succeed(attempt, image: image) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |error| expect(error.code).to eq("verification_incomplete") }
+    end
+
+    it "does not trust a stale candidate after a newer verification attempt fails" do
+      request = submit
+      _, attempt = orchestrator.claim_next
+      orchestrator.begin_verifying(attempt)
+      image = image_for(request)
+      stale_image = RuntimeImage.find(image.id)
+
+      RuntimeImages::Verifications::Orchestrator.new(service: RuntimeImages::Service.new(provider: provider)).verify(
+        RuntimeImage.find(image.id), policy: { "checks" => [ { "key" => "unavailable", "required" => true } ] }
+      )
+
+      expect(stale_image).to be_candidate
+      expect(stale_image.runtime_image_verification_attempts.where(state: "accepted")).to exist
+      expect { orchestrator.succeed(attempt, image: stale_image) }
+        .to raise_error(RuntimeImages::Builds::BuildFailed) { |error| expect(error.code).to eq("verification_incomplete") }
+      expect(request.reload).to be_verifying
     end
 
     it "gives cancellation precedence when it lands just before success" do

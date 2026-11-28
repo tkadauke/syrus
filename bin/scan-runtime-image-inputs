@@ -1,0 +1,34 @@
+#!/usr/bin/env ruby
+# Runs after the caller has mounted a size- and inode-bounded tmpfs at WORK.
+# Only bounded auxiliary files remain on the host; source extraction and the
+# secret scanner both operate inside the kernel-enforced filesystem ceiling.
+require "fileutils"
+
+module RuntimeImages
+  module Builds
+    class Error < StandardError; end
+
+    class Rejected < Error
+      attr_reader :code
+
+      def initialize(code, message = code.to_s)
+        @code = code.to_s
+        super(message)
+      end
+    end
+  end
+end
+
+dir = File.expand_path("../app/services/runtime_images/builds", __dir__)
+load File.join(dir, "build_paths.rb")
+load File.join(dir, "source_extractor.rb")
+
+input, work, archive, max_bytes, max_entries = ARGV
+%w[build.log image-history.jsonl image-metadata.json].each do |name|
+  FileUtils.cp(File.join(input, name), File.join(work, name))
+end
+unless archive == "-"
+  extractor = RuntimeImages::Builds::SourceExtractor.new(max_bytes: Integer(max_bytes), max_entries: Integer(max_entries))
+  extractor.extract(archive, File.join(work, "source"))
+end
+exec("trivy", "fs", "--quiet", "--format", "json", "--scanners", "secret", work)

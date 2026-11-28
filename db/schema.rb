@@ -4248,6 +4248,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.index ["owner_kind", "owner_ref"], name: "idx_runtime_image_namespaces_owner"
   end
 
+  create_table "runtime_image_policy_evidences", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.json "safe_summary", null: false
+    t.string "report_digest", limit: 71, null: false
+    t.datetime "scanned_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_verification_attempt_id"], name: "idx_ri_policy_evidence_attempt", unique: true
+  end
+
   create_table "runtime_image_pull_events", force: :cascade do |t|
     t.string "hostname", limit: 191, null: false
     t.bigint "runtime_image_id"
@@ -4261,6 +4272,98 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.datetime "created_at", null: false
     t.index ["hostname", "created_at"], name: "idx_ri_pull_events_host_time"
     t.index ["outcome", "created_at"], name: "idx_ri_pull_events_outcome_time"
+  end
+
+  create_table "runtime_image_revocation_candidates", force: :cascade do |t|
+    t.integer "runtime_image_id", null: false
+    t.integer "prior_attestation_id", null: false
+    t.integer "triggering_attestation_id", null: false
+    t.string "reason_code", limit: 100, null: false
+    t.json "safe_summary"
+    t.string "state", limit: 24, default: "pending", null: false
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["prior_attestation_id"], name: "idx_runtime_image_revocations_prior"
+    t.index ["runtime_image_id", "state"], name: "idx_runtime_image_revocation_candidates_state"
+    t.index ["triggering_attestation_id"], name: "idx_runtime_image_revocations_trigger", unique: true
+  end
+
+  create_table "runtime_image_scan_evidences", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.string "scanner_name", limit: 100, null: false
+    t.string "scanner_version", limit: 100, null: false
+    t.string "database_version", limit: 191, null: false
+    t.string "sbom_format", limit: 64, null: false
+    t.string "sbom_digest", limit: 71, null: false
+    t.string "report_digest", limit: 71, null: false
+    t.json "finding_summary"
+    t.json "exemptions"
+    t.json "decision_evidence"
+    t.datetime "scanned_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["image_digest"], name: "idx_ri_scan_evidence_digest"
+    t.index ["runtime_image_verification_attempt_id"], name: "idx_ri_scan_evidence_attempt", unique: true
+  end
+
+  create_table "runtime_image_verification_attempts", force: :cascade do |t|
+    t.integer "runtime_image_id", null: false
+    t.integer "number", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.string "state", limit: 24, default: "running", null: false
+    t.string "decision", limit: 24
+    t.string "failure_class", limit: 64
+    t.string "failure_code", limit: 64
+    t.string "message", limit: 500
+    t.json "policy_snapshot"
+    t.string "policy_digest", limit: 71, null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_id", "number"], name: "idx_ri_verification_attempt_number", unique: true
+    t.index ["state", "started_at"], name: "idx_ri_verification_attempt_state"
+  end
+
+  create_table "runtime_image_verification_attestations", force: :cascade do |t|
+    t.integer "runtime_image_id", null: false
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.string "image_digest", limit: 71, null: false
+    t.string "policy_digest", limit: 71, null: false
+    t.string "evidence_digest", limit: 71, null: false
+    t.string "outcome", limit: 24, null: false
+    t.json "safe_summary"
+    t.string "vulnerability_database_version", limit: 191
+    t.datetime "issued_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "invalidated_at"
+    t.datetime "exact_evidence_purged_at"
+    t.string "invalidation_reason", limit: 100
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["outcome", "invalidated_at", "expires_at"], name: "idx_runtime_image_attestations_validity"
+    t.index ["runtime_image_id", "issued_at"], name: "idx_runtime_image_attestations_image_issued"
+    t.index ["runtime_image_verification_attempt_id"], name: "idx_runtime_image_attestations_attempt", unique: true
+  end
+
+  create_table "runtime_image_verification_checks", force: :cascade do |t|
+    t.integer "runtime_image_verification_attempt_id", null: false
+    t.integer "position", null: false
+    t.string "verifier_key", limit: 100, null: false
+    t.boolean "required", default: true, null: false
+    t.string "state", limit: 24, default: "pending", null: false
+    t.string "failure_class", limit: 64
+    t.string "failure_code", limit: 64
+    t.string "message", limit: 500
+    t.json "evidence_references"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_image_verification_attempt_id", "position"], name: "idx_ri_verification_check_order", unique: true
   end
 
   create_table "runtime_images", force: :cascade do |t|
@@ -4285,6 +4388,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_044919) do
     t.integer "cleanup_failure_count", default: 0, null: false
     t.datetime "cleanup_failed_at"
     t.string "cleanup_last_error", limit: 500
+    t.string "verification_state", limit: 24, default: "unverified", null: false
     t.index ["availability", "retention_state"], name: "idx_runtime_images_state"
     t.index ["runtime_image_namespace_id", "digest", "platform"], name: "idx_runtime_images_identity", unique: true
     t.index ["source_kind", "source_ref"], name: "idx_runtime_images_source"

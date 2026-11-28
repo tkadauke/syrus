@@ -7,14 +7,14 @@ module RuntimeImages
       @provider_override = provider
     end
 
-    def publish(namespace:, source_kind:, source_ref:, platform:, source_digest: nil, provenance: {}, payload: nil)
+    def publish(namespace:, source_kind:, source_ref:, platform:, source_digest: nil, provenance: {}, payload: nil, verification_state: "unverified")
       audited("publish", namespace: namespace) do
         publish_image(namespace: namespace, source_kind: source_kind, source_ref: source_ref, platform: platform,
-                      source_digest: source_digest, provenance: provenance, payload: payload)
+                      source_digest: source_digest, provenance: provenance, payload: payload, verification_state: verification_state)
       end
     end
 
-    def publish_image(namespace:, source_kind:, source_ref:, platform:, source_digest:, provenance:, payload:)
+    def publish_image(namespace:, source_kind:, source_ref:, platform:, source_digest:, provenance:, payload:, verification_state:)
       result = provider_for(namespace).publish(
         PublishRequest.new(namespace: namespace, source_kind: source_kind, source_ref: source_ref,
                            source_digest: source_digest, platform: platform, provenance: provenance, payload: payload)
@@ -22,7 +22,7 @@ module RuntimeImages
       image = RuntimeImage.find_or_initialize_by(runtime_image_namespace: namespace, digest: result.digest, platform: result.platform)
       if image.new_record?
         image.assign_attributes(source_kind: source_kind, source_ref: source_ref, source_digest: source_digest,
-                                provenance: provenance, locator: result.locator)
+                                provenance: provenance, locator: result.locator, verification_state: verification_state)
         image.save!
       end
       if image.revoked? || image.deleted?
@@ -53,10 +53,25 @@ module RuntimeImages
 
     def pull(image)
       raise NotPullable, "runtime image #{image.digest} is #{image.availability}" unless image.pullable?
+      pull_from_provider(image)
+    end
+
+    # Verification is the sole pre-candidate consumer. Revoked and removed
+    # images remain inaccessible, while the provider still validates the
+    # requested namespace, locator, platform, and immutable digest.
+    def pull_for_verification(image)
+      unless image.available? && image.revoked_at.nil? && image.verification_state == "unverified"
+        raise NotPullable, "runtime image #{image.digest} is #{image.availability}"
+      end
+      pull_from_provider(image)
+    end
+
+    def pull_from_provider(image)
       provider_for(image.runtime_image_namespace).pull(
         PullRequest.new(namespace: image.runtime_image_namespace, digest: image.digest, platform: image.platform, locator: image.locator)
       )
     end
+    private :pull_from_provider
 
     # Revocation is recorded before the provider is told, so a provider outage
     # can never leave a revoked image pullable.

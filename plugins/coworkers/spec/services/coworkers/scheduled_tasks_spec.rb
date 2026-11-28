@@ -290,10 +290,10 @@ RSpec.describe "Coworker scheduled tasks" do
   it "stays scheduled and stops retrying after three failures until the next daily window" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
     journaling.update_columns(last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9))
-    allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise("workspace locked")
+    allow(Coworkers::JournalingFailureAlert).to receive(:call)
 
     [ Time.utc(2026, 11, 4, 1, 15), Time.utc(2026, 11, 4, 2, 15), Time.utc(2026, 11, 4, 3, 15) ].each do |time|
-      travel_to(time) { perform_poll }
+      journaling.record_fire_failure!(RuntimeError.new("workspace locked"), at: time)
     end
 
     expect(journaling.reload).to have_attributes(state: "scheduled", consecutive_failure_count: 3)

@@ -26,7 +26,7 @@ groups:
           or syrus_recurring_job_last_success_seconds{job=~"poll_repositories|poll_input_sources|poll_pull_requests|poll_external_open_prs|poll_merge_states|poll_hotfix_syncs|poll_deployment_stages|sync_github_permissions|watch_platform_connectors|discover_maintenance_tasks|refresh_connected_accounts|retry_failed_chat_scoped_event_evaluators|check_worker_host_health_telemetry_gap|check_polling_queue_coverage"} > 600
           or syrus_recurring_job_last_success_seconds{job=~"prune_auto_retry_attempts|database_retention_sweep"} > 1200
           or syrus_recurring_job_last_success_seconds{job=~"sync_enabled_forks|monitor_invariants"} > 1800
-          or syrus_recurring_job_last_success_seconds{job=~"refresh_workflow_step_resource_profiles|refresh_retention_size_snapshot|reconcile_runtime_images"} > 7200
+          or syrus_recurring_job_last_success_seconds{job=~"refresh_workflow_step_resource_profiles|refresh_retention_size_snapshot|reconcile_runtime_images|reevaluate_runtime_image_verifications"} > 7200
           or syrus_recurring_job_last_success_seconds{job="prune_workflow_workspaces"} > 14400
           or syrus_recurring_job_last_success_seconds{job="refresh_cognitive_debt_snapshots"} > 28800
           or syrus_recurring_job_last_success_seconds{job=~"prune_ui_engagement_samples|prune_branch_publications|database_retention_archive_sweep|reap_stale_branches|reconcile_integration_branches|purge_expired_passkey_challenges"} > 172800
