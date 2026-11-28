@@ -10,6 +10,8 @@ Syrus uses feature flags to gate experimental and operational behaviors. Flags a
 
 `coworker_custom_environments` is off by default and gates every coworker environment behavior: seeding `environment/Dockerfile`, `environment/environment.yml`, and `environment/smoke-test` in a coworker's persistent workspace, validating that source, capturing immutable source snapshots for builds, and selecting a published custom image for a new turn. At admission, each turn records one immutable image digest and runtime ABI and keeps that binding for the turn; later publication cannot switch it. With the flag off, new turns use the active standard Syrus base while custom revisions remain preserved. The seeded Dockerfile installs the smoke test on the image's executable path so candidate verification can run it while the production workspace mount is in place. Edits to those files use the ordinary coworker workspace file tools.
 
+When enabled, coworkers use `inspect_coworker_environment`, `request_coworker_environment_build`, `request_coworker_environment_publication`, and `request_coworker_environment_rollback` for audited lifecycle transitions. Build, publication, and rollback remain permission-governed. Inspection and lifecycle results expose safe summaries rather than restricted build logs or scanner evidence, and durable chat events report build, verification, approval, publication, rollback, incompatibility, and revocation outcomes.
+
 All flags are typed booleans. A declaration can also set `experimental: true`
 to mark a beta/experimental capability. Those flags stay visible in Admin →
 Features and carry a Beta/Experimental badge, but admins cannot enable them

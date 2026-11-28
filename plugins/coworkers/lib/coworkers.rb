@@ -20,9 +20,14 @@ module Coworkers
     depends_on [ "scheduled_tasks" ]
     optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
     events "coworker_environment.candidate" => :async,
+           "coworker_environment.build_requested" => :async,
            "coworker_environment.build_failed" => :async,
            "coworker_environment.rejected" => :async,
+           "coworker_environment.approval_required" => :async,
+           "coworker_environment.approval_denied" => :async,
            "coworker_environment.activated" => :async,
+           "coworker_environment.rolled_back" => :async,
+           "coworker_environment.incompatible" => :async,
            "coworker_environment.revoked" => :async
     lifecycle callback_providers: "Coworkers::Callbacks", domain_subscribers: "Coworkers::Subscribers"
     data_policy retention_policies: "Coworkers::ReviewContextRetentionPolicy"

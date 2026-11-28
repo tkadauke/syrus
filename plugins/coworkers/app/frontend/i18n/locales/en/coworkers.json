@@ -93,7 +93,12 @@
     "about_saved": "About text saved",
     "open_coworker": "Open coworker",
     "open_chat": "Open main chat",
-    "no_schedules": "No schedules."
+    "no_schedules": "No schedules.",
+    "environment_state": "State",
+    "environment_build": "Build",
+    "environment_compatibility": "Compatibility",
+    "environment_active_image": "Active image",
+    "environment_failure": "Failure"
   },
   "fields": {
     "name": "Name",
