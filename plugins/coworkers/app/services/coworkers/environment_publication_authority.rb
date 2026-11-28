@@ -64,7 +64,7 @@ module Coworkers
       return unless current_verification_attestation
 
       environment.activations.where(source_digest: revision.source_digest)
-        .order(activated_at: :desc, id: :desc).first
+        .reorder(activated_at: :desc, id: :desc).first
     end
 
     def current_verification_attestation
