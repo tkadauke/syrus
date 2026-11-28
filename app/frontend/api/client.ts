@@ -1,4 +1,4 @@
-import { reloadPage } from "../lib/pageReload"
+import { announceAppUpdate } from "../lib/appUpdate"
 import { registerApiClientStateResetForTests } from "./clientTestState"
 import { checkApiVersion, type ApiEnvelope } from "./version"
 
@@ -50,7 +50,6 @@ function redirectToSignIn() {
 }
 
 const REVISION_HEADER = "X-Syrus-Revision"
-const RELOAD_STORAGE_KEY = "syrus:revision-reload"
 const MAX_RECENT_API_REQUESTS = 20
 const MAX_ETAG_JSON_READS = 20
 const REDACTED = "[FILTERED]"
@@ -355,16 +354,7 @@ function reloadIfBackendRevisionChanged(response: Response): void {
   if (!frontendRevision || frontendRevision === "dev" || frontendRevision === backendRevision) return
   if (typeof window === "undefined") return
 
-  const key = `${frontendRevision}->${backendRevision}`
-  try {
-    if (window.sessionStorage.getItem(RELOAD_STORAGE_KEY) === key) return
-    window.sessionStorage.setItem(RELOAD_STORAGE_KEY, key)
-  } catch {
-    // Storage can be unavailable in private or locked-down contexts. Reloading
-    // once is still better than keeping an old module graph alive indefinitely.
-  }
-
-  reloadPage("backend_revision_changed")
+  announceAppUpdate("compatible", `revision:${backendRevision}`)
 }
 
 function initialEmbeddedRevision(): string | null {

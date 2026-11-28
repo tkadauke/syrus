@@ -1,20 +1,17 @@
-import { reloadPage } from "../lib/pageReload"
+import { announceAppUpdate } from "../lib/appUpdate"
 
 export const EXPECTED_API_VERSION = 1
 export const API_VERSION_MISMATCH_EVENT = "syrus:api-version-mismatch"
 
 const MISMATCH_STORAGE_KEY = "syrus:api-version-mismatch"
-const RELOAD_STORAGE_KEY = "syrus:api-version-reload"
 
 export type ApiEnvelope = {
   v?: number
 }
-
 export type ApiVersionMismatch = {
   actual: number
   expected: number
 }
-
 export function checkApiVersion(payload: unknown): boolean {
   if (!payload || typeof payload !== "object" || !("v" in payload)) return true
 
@@ -30,7 +27,7 @@ export function checkApiVersion(payload: unknown): boolean {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent<ApiVersionMismatch>(API_VERSION_MISMATCH_EVENT, { detail: mismatch }))
   }
-  triggerVersionReloadOnce(mismatch)
+  announceAppUpdate("breaking", `api:${mismatch.expected}->${mismatch.actual}`)
   return false
 }
 
@@ -63,22 +60,4 @@ function persistMismatch(mismatch: ApiVersionMismatch) {
   } catch {
     // The in-page event still displays the warning when storage is unavailable.
   }
-}
-
-function triggerVersionReloadOnce(mismatch: ApiVersionMismatch) {
-  if (typeof window === "undefined") return
-
-  const key = `${mismatch.expected}->${mismatch.actual}`
-  try {
-    if (window.sessionStorage.getItem(RELOAD_STORAGE_KEY) === key) return
-    window.sessionStorage.setItem(RELOAD_STORAGE_KEY, key)
-  } catch {
-    // Continue with one best-effort reload when storage cannot provide a guard.
-  }
-
-  const updateWorker =
-    typeof navigator !== "undefined" && "serviceWorker" in navigator
-      ? navigator.serviceWorker.getRegistration().then((registration) => registration?.update())
-      : Promise.resolve()
-  void updateWorker.catch(() => undefined).finally(() => reloadPage("api_version_mismatch"))
 }

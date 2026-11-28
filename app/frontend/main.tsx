@@ -11,7 +11,8 @@ import { I18nStartupGate } from "./i18n/I18nStartupGate"
 import { initErrorRingBuffer } from "./lib/errorRingBuffer"
 import { startBrowserPerformanceObservers } from "./lib/performanceTrace"
 import { markStartupMilestone, reportStartupFailure } from "./lib/startupDiagnostics"
-import { installStaleChunkRecovery } from "./lib/staleChunkRecovery"
+import { installChunkNavigationTracking, installStaleChunkRecovery } from "./lib/staleChunkRecovery"
+import { installReloadOnNavigation } from "./lib/appUpdate"
 import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 import { StartupRenderMarker } from "./lib/StartupRenderMarker"
 import { createQueryClient } from "./queryClient"
@@ -20,6 +21,8 @@ import { loadExternalPluginFrontends } from "./externalPluginFrontends"
 import { installRecoverableErrorInteractionCapture, reportRecoverableError } from "./lib/recoverableErrorDiagnostics"
 
 installStaleChunkRecovery()
+installChunkNavigationTracking()
+installReloadOnNavigation()
 configureExcalidrawAssets()
 initErrorRingBuffer()
 installRecoverableErrorInteractionCapture()

@@ -1,13 +1,12 @@
 import { chunkWarmup } from "./chunkWarmup"
-import { reloadPage } from "./pageReload"
+import { announceAppUpdate, reloadForAppUpdate } from "./appUpdate"
 
 // A deploy replaces every content-hashed chunk, so a tab opened before it
 // still points its lazy routes at chunk URLs the new image no longer has.
-// Vite reports that as `vite:preloadError`; reloading picks up the current
-// shell and its chunk graph. The sessionStorage marker, keyed by the asset
-// revision the shell was rendered with, allows one reload per revision so a
-// chunk that is genuinely missing from the current build surfaces in the
-// error boundary instead of reloading forever.
+// Vite reports that as `vite:preloadError`. A failed route navigation can
+// safely full-load its destination; an in-page lazy component instead keeps
+// the page alive and announces the available update. The session marker keeps
+// a genuinely missing chunk from repeatedly intercepting the error boundary.
 const RELOAD_MARKER_KEY = "syrus:stale-chunk-reload"
 
 function assetRevision() {
@@ -37,7 +36,7 @@ function writeMarker(value: string) {
 // the operator: the queue stops instead, and the next on-demand load of that
 // chunk fails here with a real reason to reload.
 export function installStaleChunkRecovery(
-  reload: (reason?: string) => void = reloadPage,
+  reload: (target?: string) => void = reloadForAppUpdate,
   warmup: Pick<typeof chunkWarmup, "backgroundOnlyInFlight"> = chunkWarmup
 ) {
   const handler = (event: Event) => {
@@ -49,9 +48,30 @@ export function installStaleChunkRecovery(
     if (!writeMarker(revision)) return
 
     event.preventDefault()
-    reload("stale_chunk_recovery")
+    const navigationTarget = recentNavigationTarget()
+    if (navigationTarget) reload(navigationTarget)
+    else announceAppUpdate("stale_chunk", `chunk:${revision}`)
   }
 
   window.addEventListener("vite:preloadError", handler)
   return () => window.removeEventListener("vite:preloadError", handler)
+}
+
+let navigationTarget: { href: string; at: number } | null = null
+
+export function installChunkNavigationTracking() {
+  const remember = (event: MouseEvent) => {
+    const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]")
+    if (!anchor || anchor.origin !== window.location.origin) return
+    navigationTarget = { href: anchor.href, at: Date.now() }
+  }
+  document.addEventListener("click", remember, true)
+  return () => document.removeEventListener("click", remember, true)
+}
+
+function recentNavigationTarget() {
+  if (!navigationTarget || Date.now() - navigationTarget.at > 10_000) return null
+  const target = navigationTarget.href
+  navigationTarget = null
+  return target
 }

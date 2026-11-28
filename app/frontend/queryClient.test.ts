@@ -8,21 +8,28 @@ vi.mock("./api/browserErrors", async (importOriginal) => {
 import { recordBrowserError } from "./api/browserErrors"
 import { reportHandledError } from "./lib/handledErrorReporting"
 import { createQueryClient } from "./queryClient"
+import { announceAppUpdate, resetAppUpdateForTests } from "./lib/appUpdate"
 
 const mockRecordBrowserError = vi.mocked(recordBrowserError)
 
 afterEach(() => {
   vi.useRealTimers()
   mockRecordBrowserError.mockClear()
+  resetAppUpdateForTests()
 })
 
 describe("createQueryClient", () => {
   it("uses network-friendly defaults for queries", () => {
-    expect(createQueryClient().getDefaultOptions().queries).toMatchObject({
+    const options = createQueryClient().getDefaultOptions().queries
+    expect(options).toMatchObject({
       staleTime: 30_000,
-      refetchOnWindowFocus: false,
-      retry: 1
+      refetchOnWindowFocus: false
     })
+    expect(options?.retry).toBeTypeOf("function")
+    expect((options?.retry as (count: number, error: Error) => boolean)(0, new Error("failed"))).toBe(true)
+
+    announceAppUpdate("breaking", "api:1->2")
+    expect((options?.retry as (count: number, error: Error) => boolean)(0, new Error("failed"))).toBe(false)
   })
 
   it("reports terminal query and mutation failures with central fallback context", async () => {

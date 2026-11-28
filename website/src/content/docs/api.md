@@ -32,9 +32,11 @@ Every JSON response includes a top-level `v` field. The current value is `1`:
 Syrus has one current payload version and does not serve compatibility
 variants. The version changes only when a breaking payload change requires
 clients to update; the server, browser app, desktop app, and CLI ship together.
-Browser clients prompt for a reload when versions differ, while packaged
-clients ask the user to update. Additive fields do not require a version bump,
-and clients continue to ignore fields they do not recognize.
+Browser, installed PWA, and desktop-shell clients save drafts and show a
+visible countdown when versions differ. For compatible application revisions,
+they announce the update without interrupting the current page and pick it up
+when the user reloads or next navigates. Additive fields do not require a
+version bump, and clients continue to ignore fields they do not recognize.
 
 The generated [user API catalog](/docs/generated/user-api-catalog) lists every
 registered `/api/v1/app/*` endpoint. Operator/admin endpoint inventory lives

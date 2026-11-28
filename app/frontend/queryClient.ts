@@ -1,12 +1,13 @@
 import { MutationCache, QueryCache, QueryClient, type QueryClientConfig } from "@tanstack/react-query"
 import { reportHandledError, wasExplicitlyReported, type HandledErrorContext } from "./lib/handledErrorReporting"
+import { appUpdateBlocksRetries } from "./lib/appUpdate"
 
 export const queryClientConfig = {
   defaultOptions: {
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: false,
-      retry: 1
+      retry: (failureCount: number) => !appUpdateBlocksRetries() && failureCount < 1
     }
   }
 } satisfies QueryClientConfig

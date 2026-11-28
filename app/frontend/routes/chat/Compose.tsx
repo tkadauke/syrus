@@ -117,6 +117,7 @@ import i18n from "../../i18n"
 import { errorMessage } from "../../lib/errorMessage"
 import { reportHandledError } from "../../lib/handledErrorReporting"
 import { syrusShellBridge } from "../../lib/desktopShell"
+import { SAVE_DRAFTS_EVENT } from "../../lib/appUpdate"
 import {
   type ChatDraftAttachmentsChangedDetail,
   CHAT_COMPOSER_DRAFT_RESTORED_EVENT,
@@ -547,6 +548,16 @@ export function Compose({
       // Local storage can be unavailable in hardened browser modes.
     }
   }, [chatId, historyMode, text])
+
+  useEffect(() => {
+    const saveDraft = () => {
+      const draft = currentDraftRef.current
+      if (draft.composerText.length > 0) storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, draft.composerText)
+      setDraftAttachments(chatId, draft.attachments)
+    }
+    window.addEventListener(SAVE_DRAFTS_EVENT, saveDraft)
+    return () => window.removeEventListener(SAVE_DRAFTS_EVENT, saveDraft)
+  }, [chatId])
 
   useEffect(() => {
     setComposerHistory(readComposerHistory(chatId))

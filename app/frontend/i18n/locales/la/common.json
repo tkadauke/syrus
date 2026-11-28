@@ -269,6 +269,12 @@
   "notice_toast": {
     "dismiss": "Dimitte nuntium"
   },
+  "app_update": {
+    "available": "Nova Syrus versio praesto est.",
+    "breaking": "Syrus denuo onerandus est quia API mutata est. Rudimenta servata sunt. Post {{count}} secunda denuo onerabitur.",
+    "reload": "Denuo onera",
+    "reload_now": "Nunc denuo onera"
+  },
   "email_validity": {
     "valid": "Bene habet",
     "invalid": "Nondum similis inscriptioni electronicae"

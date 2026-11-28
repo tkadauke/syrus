@@ -269,6 +269,12 @@
   "notice_toast": {
     "dismiss": "Dismiss notification"
   },
+  "app_update": {
+    "available": "A new version of Syrus is available.",
+    "breaking": "Syrus must reload because the API changed. Drafts are saved. Reloading in {{count}} seconds.",
+    "reload": "Reload",
+    "reload_now": "Reload now"
+  },
   "email_validity": {
     "valid": "Looks good",
     "invalid": "Doesn't look like an email address yet"

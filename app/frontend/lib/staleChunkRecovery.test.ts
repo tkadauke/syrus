@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { installStaleChunkRecovery } from "./staleChunkRecovery"
+import { APP_UPDATE_EVENT, resetAppUpdateForTests } from "./appUpdate"
+import { installChunkNavigationTracking, installStaleChunkRecovery } from "./staleChunkRecovery"
 
 function setRevision(revision: string) {
   document.head.querySelector('meta[name="syrus-asset-revision"]')?.remove()
@@ -20,6 +21,7 @@ describe("installStaleChunkRecovery", () => {
 
   beforeEach(() => {
     window.sessionStorage.clear()
+    resetAppUpdateForTests()
     setRevision("rev-1")
   })
 
@@ -27,13 +29,16 @@ describe("installStaleChunkRecovery", () => {
     uninstall()
   })
 
-  it("reloads once when a chunk from a previous deploy fails to load", () => {
+  it("announces a stale chunk without reloading an in-page component", () => {
     const reload = vi.fn()
+    const announced = vi.fn()
+    window.addEventListener(APP_UPDATE_EVENT, announced, { once: true })
     uninstall = installStaleChunkRecovery(reload)
 
     const event = dispatchPreloadError()
 
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(reload).not.toHaveBeenCalled()
+    expect(announced).toHaveBeenCalledTimes(1)
     expect(event.defaultPrevented).toBe(true)
   })
 
@@ -44,7 +49,7 @@ describe("installStaleChunkRecovery", () => {
     dispatchPreloadError()
     const second = dispatchPreloadError()
 
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(reload).not.toHaveBeenCalled()
     expect(second.defaultPrevented).toBe(false)
   })
 
@@ -56,7 +61,7 @@ describe("installStaleChunkRecovery", () => {
     setRevision("rev-2")
     dispatchPreloadError()
 
-    expect(reload).toHaveBeenCalledTimes(2)
+    expect(reload).not.toHaveBeenCalled()
   })
 
   it("does not reload when sessionStorage is unavailable, so it cannot loop", () => {
@@ -84,7 +89,26 @@ describe("installStaleChunkRecovery", () => {
 
     backgroundOnly = false
     const onDemand = dispatchPreloadError()
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(reload).not.toHaveBeenCalled()
     expect(onDemand.defaultPrevented).toBe(true)
+  })
+
+  it("turns a stale chunk during navigation into a full load of the target", () => {
+    const reload = vi.fn()
+    const stopTracking = installChunkNavigationTracking()
+    const stopRecovery = installStaleChunkRecovery(reload)
+    uninstall = () => {
+      stopTracking()
+      stopRecovery()
+    }
+    const anchor = document.createElement("a")
+    anchor.href = "/jobs/42"
+    document.body.appendChild(anchor)
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }))
+
+    dispatchPreloadError()
+
+    expect(reload).toHaveBeenCalledWith(`${window.location.origin}/jobs/42`)
+    anchor.remove()
   })
 })
