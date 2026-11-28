@@ -406,6 +406,7 @@ archive, pruning, and extension-point mechanics live in the
 | `runtime_image_retention_days` | 30 days |
 | `runtime_image_pull_event_retention_days` | 30 days |
 | `runtime_image_audit_event_retention_days` | 180 days |
+| `runtime_image_verification_evidence_retention_days` | 90 days |
 
 `job_log_retention_days` controls the detailed output shown for a Run. After
 the default 30-day window, stdout, stderr, tool-call, and system chunks are

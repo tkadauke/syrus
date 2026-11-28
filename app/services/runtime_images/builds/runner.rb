@@ -127,28 +127,36 @@ module RuntimeImages
         image
       end
 
-      def verify_candidate(request, image, evidence)
+      def verify_candidate(request, image, evidence, policy: Verifications::Policy.current)
         registry = Verifications::Registry.new
         registry.register("manifest", Verifications::ManifestVerifier.new(service: @service))
         registry.register("supply_chain", @supply_chain_verifier)
-        policy = Verifications::Policy.current
-        policy["checks"] << { "key" => "image_policy", "required" => true }
+        policy = verification_policy(request, base_policy: policy)
         if request.source_kind == CoworkerBase::SOURCE_KIND
           registry.register("base_conformance", Verifications::CallableVerifier.new(@base_verifier, evidence_kind: "confined_conformance_probe"))
-          policy["checks"] << { "key" => "base_conformance", "required" => true }
         end
         verification = Hash(request.recipe.dig("input_policy"))
         if verification["base_digest"].present? && verification["smoke_test"].present?
           suite = Verifications::CandidateSuite.new(@candidate_probe)
           Verifications::CandidateSuite.check_keys.each do |key|
             registry.register(key, Verifications::CandidateVerifier.new(suite, key))
-            policy["checks"] << { "key" => key, "required" => true }
           end
         end
         registry.register("image_policy", @image_policy_verifier)
         Verifications::Orchestrator.new(registry: registry, service: @service).verify(
           image, policy: policy, context: { build_request_id: request.id, build_evidence: evidence }
         )
+      end
+
+      def verification_policy(request, base_policy: Verifications::Policy.current)
+        policy = base_policy.deep_dup
+        policy["checks"] << { "key" => "image_policy", "required" => true }
+        policy["checks"] << { "key" => "base_conformance", "required" => true } if request.source_kind == CoworkerBase::SOURCE_KIND
+        verification = Hash(request.recipe.dig("input_policy"))
+        if verification["base_digest"].present? && verification["smoke_test"].present?
+          Verifications::CandidateSuite.check_keys.each { |key| policy["checks"] << { "key" => key, "required" => true } }
+        end
+        policy
       end
 
       # A verified standard base becomes a promotion candidate. It is never

@@ -320,6 +320,20 @@ class RetentionPolicyRegistry
       description: "Audit trail of runtime image publish, revoke, retain, delete, garbage-collection, and reconciliation decisions.",
       category: "Diagnostics",
       archivable: false
+    ),
+    Definition.new(
+      key: :runtime_image_verification_evidence,
+      model: "RuntimeImageVerificationAttestation",
+      table_name: "runtime_image_verification_attestations",
+      age_column: :issued_at,
+      scope_name: :exact_evidence_retention_candidates,
+      setting_key: :runtime_image_verification_evidence_retention_days,
+      default_value: 90,
+      unit: :days,
+      executor_class: "RetentionPolicyExecutors::RuntimeImageVerificationEvidence",
+      description: "Restricted SBOM, vulnerability, and image-policy reports. Safe summaries, digests, attestations, and revocation history remain after exact evidence is purged.",
+      category: "Security",
+      archivable: false
     )
   ].freeze
 
