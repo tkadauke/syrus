@@ -104,7 +104,9 @@ module Steps
         )
         raise Steps::Base::StepFailed, message unless problem
 
-        fail_with!(problem.code, message, evidence: problem.evidence)
+        # Tagged with the target, so the gap it records holds only work that
+        # runs this target -- not every step of the repository on the worker.
+        fail_with!(problem.code, message, evidence: problem.evidence.merge("prepare_target" => label))
       end
 
       record_prepare_target_mutation_warning!(

@@ -57,7 +57,13 @@ class WorkerEnvironmentGap < ApplicationRecord
 
     # check name => reason for every gap that keeps `hostname` off this
     # repository's work, in the vocabulary of WorkerEnvironmentSmoke checks.
-    def failed_checks(hostname:, repository_id:, smoke_report: nil, now: Time.current)
+    #
+    # A gap found while preparing one grader target (`xcodegen` missing for
+    # an iOS target) says nothing about the rest of the repository: it only
+    # holds work that runs that same target, named in `prepare_targets`.
+    # Counting it everywhere once kept a worker off every step of the
+    # repository, including landing trains that never run the target.
+    def failed_checks(hostname:, repository_id:, smoke_report: nil, prepare_targets: [], now: Time.current)
       return {} if hostname.blank? || repository_id.blank?
 
       gaps = uncleared.unexpired(now).where(hostname: hostname, repository_id: repository_id).to_a
@@ -67,6 +73,7 @@ class WorkerEnvironmentGap < ApplicationRecord
       gaps.each_with_object({}) do |gap, failed|
         next if restarted_at && restarted_at > gap.detected_at
         next if gap.passed_since?(smoke_report)
+        next unless gap.applies_to_prepare_targets?(prepare_targets)
 
         failed[gap.check_name] ||= gap.reason
       end
@@ -95,7 +102,7 @@ class WorkerEnvironmentGap < ApplicationRecord
         repository_id: run.job.repository_id,
         run_id: run.id
       }
-      kept = evidence.slice("command", "exit_status", "error_line", "failed_package")
+      kept = evidence.slice("command", "exit_status", "error_line", "failed_package", "prepare_target")
       if (checks = Array(evidence["failed_checks"]).map(&:to_s).compact_blank).any?
         return checks.map do |check|
           record!(**common, missing_kind: "executable", missing_name: check, evidence: kept.merge("check_name" => check))
@@ -114,6 +121,14 @@ class WorkerEnvironmentGap < ApplicationRecord
       run.spawned_processes.where.not(hostname: [ nil, "" ]).order(:id).last&.hostname.presence ||
         (run.workflow&.worker_hostname.presence unless run.distributed_parallel_run?)
     end
+  end
+
+  def prepare_target
+    evidence.to_h["prepare_target"].presence
+  end
+
+  def applies_to_prepare_targets?(labels)
+    prepare_target.nil? || Array(labels).map(&:to_s).include?(prepare_target)
   end
 
   def check_name

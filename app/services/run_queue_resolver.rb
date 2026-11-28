@@ -209,7 +209,9 @@ class RunQueueResolver
 
     @observed_environment_gaps ||= {}
     @observed_environment_gaps[[ hostname, report.is_a?(Hash) ? report["observed_at"] : nil ]] ||=
-      WorkerEnvironmentGap.failed_checks(hostname: hostname, repository_id: repository_id, smoke_report: report)
+      WorkerEnvironmentGap.failed_checks(
+        hostname: hostname, repository_id: repository_id, smoke_report: report, prepare_targets: step_prepare_targets
+      )
   rescue ActiveRecord::ActiveRecordError => e
     Rails.logger.warn("[RunQueueResolver] could not read worker environment gaps: #{e.class}: #{e.message}")
     {}
@@ -217,6 +219,10 @@ class RunQueueResolver
 
   def repository_id
     workflow&.job&.repository_id
+  end
+
+  def step_prepare_targets
+    Array(step&.details.to_h["prepare_targets"]).filter_map { |target| target.to_h["target_label"].presence }
   end
 
   def smoke_report_for(payload)
