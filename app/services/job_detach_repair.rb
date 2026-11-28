@@ -13,7 +13,9 @@ class JobDetachRepair
     client.update_pull_request_base(job.repository.slug, job.pr_number, base: destination_base)
     ApplicationRecord.transaction do
       job.lock!
-      job.dependencies.where(depends_on_job_id: old_parent&.id).destroy_all
+      # Without a parent this would match depends_on_job_id IS NULL: every
+      # Epic and pending dependency.
+      job.dependencies.where(depends_on_job_id: old_parent.id).destroy_all if old_parent
       job.update!(parent_job: nil)
     end
     [ old_parent, job, *job.stack_children ].compact.uniq.each { |member| PrStackFooter.refresh!(member, client: client) }
