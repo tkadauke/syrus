@@ -17,7 +17,7 @@ RSpec.describe SimulatorSchemaReconciler do
     allow(ActiveRecord::Base).to receive(:establish_connection)
     allow(ActiveRecord::Base).to receive(:clear_cache!)
 
-    expect(described_class.call!(log: ->(_message) {})).to be(true)
+    expect(described_class.call!(log: ->(_message) { })).to be(true)
     expect(calls).to eq(%i[purge load_schema])
   end
 
@@ -25,6 +25,6 @@ RSpec.describe SimulatorSchemaReconciler do
     allow(described_class).to receive(:stale_configs).and_return([])
     expect(ActiveRecord::Tasks::DatabaseTasks).not_to receive(:load_schema)
 
-    expect(described_class.call!(log: ->(_message) {})).to be(false)
+    expect(described_class.call!(log: ->(_message) { })).to be(false)
   end
 end

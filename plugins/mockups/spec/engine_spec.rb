@@ -23,5 +23,4 @@ RSpec.describe Mockups::Engine do
     expect(manifest).not_to be_nil
     expect(manifest.version).to eq(Syrus::Host::PluginApi.default_version)
   end
-
 end
