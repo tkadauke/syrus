@@ -5,6 +5,66 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "shows only the owner's safe coworker environment history and gate fallback" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-environment-ui", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Maya")
+    Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    environment = Coworkers::Environment.create!(coworker:, state: "draft")
+    environment.revisions.create!(number: 1, source_digest: "sha256:#{'a' * 64}")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      "feature_enabled" => false,
+      "source" => { "repository" => coworker.workspace_repo, "branch" => "coworkers/#{coworker.handle}", "path" => "environment/" }
+    )
+    expect(response.parsed_body.dig("environment", "revisions", 0)).to include(
+      "number" => 1, "source_digest" => "sha256:#{'a' * 64}", "rollback_eligible" => false
+    )
+    expect(response.parsed_body.dig("environment", "main_chat_path")).to eq("/chats/#{chat.id}")
+
+    sign_in_as(Factories.user)
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns an empty environment for an owned coworker that has not configured one" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "New", handle: "new-environment-ui",
+                                            workspace_repo: "https://github.com/acme/new-workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      "environment" => nil,
+      "source" => { "repository" => coworker.workspace_repo, "branch" => "coworkers/#{coworker.handle}",
+                    "path" => "environment/" }
+    )
+  end
+
+  it "bounds environment history while retaining an older eligible rollback revision" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "History", handle: "bounded-environment-ui",
+                                            workspace_repo: "https://github.com/acme/history.git")
+    environment = Coworkers::Environment.create!(coworker:, state: "draft")
+    revisions = 51.times.map do |index|
+      environment.revisions.create!(number: index + 1,
+                                    source_digest: "sha256:#{(index + 1).to_s(16).rjust(64, '0')}")
+    end
+    allow_any_instance_of(Coworkers::EnvironmentRecovery).to receive(:eligible_rollback_revision)
+      .and_return(revisions.first)
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/environment"
+
+    revisions = response.parsed_body.dig("environment", "revisions")
+    expect(revisions.size).to eq(Coworkers::EnvironmentInspection::HISTORY_LIMIT)
+    expect(revisions.pluck("number")).to eq((3..51).to_a.reverse + [ 1 ])
+    expect(revisions.last).to include("number" => 1, "rollback_eligible" => true)
+  end
+
   it "keeps coworker provenance out of slim navigation rows" do
     chat = ChatSession.create!(
       user: owner,
