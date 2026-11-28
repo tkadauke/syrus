@@ -3,6 +3,12 @@ class ReconcileJobStatesJob < ApplicationJob
 
   # States the reconciler will TRY to fix. Referenced by WorkEngine::Reconciler.
   RECONCILABLE_STATES = %w[ queued running implemented failed ].freeze
+  # How long a Job may read :running while its latest Workflow sits blocked
+  # (an agent cannot-proceed report or an unanswered question) before the
+  # reconciler moves it to :failed with needs-attention. Matches the
+  # zombie_workflows invariant's blocked_threshold.
+  BLOCKED_WORKFLOW_PARK_THRESHOLD = ENV.fetch("SYRUS_BLOCKED_WORKFLOW_PARK_HOURS", "72").to_f.hours
+  BLOCKED_WORKFLOW_ATTENTION_REASON = "agent_cannot_proceed".freeze
 
   def perform
     WorkEngine::Reconciler.request(source: self.class.name)
@@ -134,6 +140,22 @@ class ReconcileJobStatesJob < ApplicationJob
                   reason: "latest workflow :failed but Job stuck at :running",
                   steps: %i[ mark_failed! ])
 
+      when [ "running", "blocked" ]
+        # The Workflow stopped for a person -- an agent cannot-proceed report
+        # or an unanswered question -- and nobody has come. Its WorkUnit keeps
+        # the Job lock on purpose (the hold), but the Job reading :running for
+        # weeks claims work that is not happening. Past the threshold, with
+        # nothing else runnable on the Job, surface it as :failed with
+        # needs-attention, the state operator surfaces list as waiting on a
+        # person. The blocked Workflow stays as it is: answering it resumes it
+        # (JobLifecyclePropagation lifts the Job back), Retry retires it.
+        return nil unless parkable_blocked_workflow?(job, latest_wf)
+
+        new(job, target_state: "failed",
+                  reason: "latest workflow :blocked #{blocked_hours(latest_wf)}h (#{blocked_reason_for(latest_wf)}) but Job still :running",
+                  steps: %i[ mark_failed! ],
+                  after_apply: ->(parked) { parked.set_needs_attention!(reason: BLOCKED_WORKFLOW_ATTENTION_REASON) unless parked.needs_attention? })
+
       when [ "running", "cancelled" ]
         # Workflow was cancelled (operator stop, deploy interruption,
         # or workflow cascade), but the Job missed the terminal
@@ -199,6 +221,28 @@ class ReconcileJobStatesJob < ApplicationJob
                   reason: "latest workflow :cancelled but ready PR publication shows Job should be :implemented",
                   steps: %i[ start_running! mark_implemented! ])
       end
+    end
+
+    def self.parkable_blocked_workflow?(job, workflow)
+      blocked_at = workflow.finished_at || workflow.updated_at
+      return false unless blocked_at && blocked_at <= Time.current - BLOCKED_WORKFLOW_PARK_THRESHOLD
+      return false if job.any_active_run?
+      # The blocked Workflow's own WorkUnit is active (blocked) by design; it
+      # is not progress. Anything queued or running on the Job is.
+      return false if WorkUnits::Ownership.runnable_job_ids([ job.id ]).include?(job.id)
+
+      !job.workflows.where(state: Workflow::TriggerKind::ACTIVE_STATES).exists?
+    end
+
+    def self.blocked_hours(workflow)
+      ((Time.current - (workflow.finished_at || workflow.updated_at)) / 1.hour).round
+    end
+
+    def self.blocked_reason_for(workflow)
+      cannot_proceed = workflow.artifact("cannot_proceed")
+      reason = cannot_proceed["reason"] if cannot_proceed.is_a?(Hash)
+      reason ||= workflow.work_unit&.blocked_reason
+      reason.to_s.squish.truncate(160).presence || "no reason recorded"
     end
 
     def self.active_runtime_work?(job)
@@ -307,12 +351,13 @@ class ReconcileJobStatesJob < ApplicationJob
       current_head == remote_sha
     end
 
-    def initialize(job, target_state:, reason:, steps:)
+    def initialize(job, target_state:, reason:, steps:, after_apply: nil)
       @job = job
       @from_state = job.state
       @target_state = target_state
       @reason = reason
       @steps = steps
+      @after_apply = after_apply
     end
 
     def apply!
@@ -344,6 +389,7 @@ class ReconcileJobStatesJob < ApplicationJob
             job.public_send(event)
             job.save!
           end
+          @after_apply&.call(job) if job.state == target_state
         end
       end
     ensure

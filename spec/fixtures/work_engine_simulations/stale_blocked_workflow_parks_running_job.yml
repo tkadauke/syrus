@@ -1,0 +1,60 @@
+# A direct Job's only Workflow stopped on an agent cannot-proceed report
+# (a macOS-only smoke test routed to a Linux worker) and nobody answered it.
+# The blocked Workflow's WorkUnit keeps the Job lock on purpose -- that is the
+# hold -- so no reconciler detector touched the Job, and it read `running` for
+# weeks while nothing ran (zombie_workflows: job_running_workflow_blocked).
+#
+# Past the park threshold, with nothing else runnable on the Job, the
+# reconciler moves it to `failed` with needs-attention (agent_cannot_proceed),
+# where operator surfaces list it as waiting on a person. The blocked Workflow
+# and its unit are left as they are, so answering or retrying still works: the
+# simulator's operator retry (SmartRetryEnqueuer) retires the blocked hold and
+# the retry runs the Job to implemented.
+name: stale blocked workflow parks its running job
+repository:
+  owner: simulation
+  name: stale-blocked-workflow-parks-running-job
+jobs:
+  stalled:
+    kind: direct
+    issue_number: null
+    title: Run the macOS smoke test
+    state: running
+    workflow:
+      kind: initial
+      state: blocked
+      started_at: "2026-01-01 00:00:00 UTC"
+      finished_at: "2026-01-01 01:00:00 UTC"
+      artifacts:
+        cannot_proceed:
+          reason: The macOS-only smoke test was routed to a Linux worker.
+      work_unit:
+        state: blocked
+        blocked_reason: agent_cannot_proceed
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+            started_at: "2026-01-01 00:00:00 UTC"
+            finished_at: "2026-01-01 00:01:00 UTC"
+        - kind: implement
+          state: blocked
+          run:
+            state: blocked
+            started_at: "2026-01-01 00:02:00 UTC"
+            finished_at: "2026-01-01 01:00:00 UTC"
+        - kind: pr_open
+          state: cancelled
+outcomes:
+  default: success
+success_states:
+  stalled:
+    - implemented
+expect:
+  jobs:
+    stalled:
+      - implemented
+  events:
+    - "repair reconcile_job_state -> applied reconciled JOB-1 from running to failed"
+    - "retry JOB-1 via implementation"

@@ -2325,7 +2325,9 @@ module WorkEngine
       jobs.filter_map do |job|
         next unless ReconcileJobStatesJob::RECONCILABLE_STATES.include?(job.state)
         latest = latest_workflow_for_job(job)
-        next if latest&.terminal? && active_runtime_work_for_job?(job)
+        # A blocked Workflow's own WorkUnit stays active by design; the Plan
+        # decides for itself whether anything else is progressing.
+        next if latest&.terminal? && !latest.blocked? && active_runtime_work_for_job?(job)
 
         plan = ReconcileJobStatesJob::Plan.for(job)
         next unless plan

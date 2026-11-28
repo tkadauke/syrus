@@ -3181,7 +3181,10 @@ the answer arrives. Operators can also list and answer these questions through
 Syrus chat and coworker tools.
 Write-authorized operators can also answer a workflow's existing
 cannot-proceed block as a free-text question, resuming that run and provider
-session. Waiting for an answer does not delay patient automatic rebases.
+session. Waiting for an answer does not delay patient automatic rebases. A
+cannot-proceed block nobody acts on for three days moves its Job from running to
+failed, still marked as needing attention, so it appears with the other Jobs
+waiting on an operator; answering the block brings the Job back to running.
 
 Syrus notifies the Job owner when a question is asked and links directly to
 the waiting question. Notification preferences can disable that notification.

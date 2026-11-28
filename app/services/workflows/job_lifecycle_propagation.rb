@@ -28,9 +28,18 @@ module Workflows
 
     def start!
       return unless self.class.lifts_job_on_start?(workflow, job)
-      return unless job.may_start_running?
 
       StateTransition.with_source("propagate") do
+        # A blocked Workflow that sat unanswered long enough had its Job parked
+        # at :failed (ReconcileJobStatesJob::Plan, running/blocked). Answering
+        # it resumes that same attempt, so the Job comes back with it, as a
+        # reopened Workflow's does.
+        if job.failed? && resuming_from_block? && job.may_retry_after_failure?
+          job.retry_after_failure!
+          job.save!
+        end
+        next unless job.may_start_running?
+
         job.start_running!
         job.save!
       end
@@ -192,6 +201,10 @@ module Workflows
     private
 
     attr_reader :workflow
+
+    def resuming_from_block?
+      workflow.aasm.from_state == :blocked
+    end
 
     # Auto-approval declines while a Job has no PR, and the initial Workflow
     # grades before opening one. Re-evaluate the rule from the Workflow's

@@ -60,6 +60,70 @@ RSpec.describe ReconcileJobStatesJob do
     end
   end
 
+  # Regression: a direct Job read :running for weeks while its only Workflow
+  # sat blocked on an agent cannot-proceed report nobody answered. The blocked
+  # Workflow's WorkUnit holds the Job on purpose, so nothing reconciled it.
+  describe "a running Job whose latest Workflow has been blocked for days" do
+    def blocked_workflow(blocked_at: 4.days.ago)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "blocked", started_at: blocked_at - 1.hour, finished_at: blocked_at)
+      workflow.set_artifact!("cannot_proceed", { "reason" => "The macOS smoke test was routed to a Linux worker." })
+      finish_work_units!
+      WorkUnit.where(id: WorkUnitMember.where(job_id: job.id).select(:work_unit_id)).update_all(active_dedup_key: nil)
+      attach_work_unit(workflow, state: "blocked", blocked_reason: "agent_cannot_proceed")
+      job.update!(state: "running")
+      workflow
+    end
+
+    it "moves the Job to failed with needs-attention and names the blocked reason" do
+      workflow = blocked_workflow
+
+      plan = ReconcileJobStatesJob::Plan.for(job.reload)
+      expect(plan).to have_attributes(target_state: "failed")
+      expect(plan.reason).to include("blocked", "routed to a Linux worker")
+
+      plan.apply!
+
+      expect(job.reload).to be_failed
+      expect(job).to have_attributes(needs_attention: true, needs_attention_reason: "agent_cannot_proceed")
+      expect(workflow.reload).to be_blocked
+      expect(StateTransition.where(subject: job).last.metadata).to include("repair_reason" => plan.reason)
+    end
+
+    it "leaves the Job running while the block is recent" do
+      blocked_workflow(blocked_at: 2.hours.ago)
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+    end
+
+    it "leaves the Job running while other work on it is runnable" do
+      blocked_workflow
+      other = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued", created_at: 10.days.ago)
+      attach_work_unit(other, state: "queued")
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+    end
+
+    it "is repaired by the work-engine reconciler" do
+      blocked_workflow
+
+      WorkEngine::Reconciler.call(source: "spec", job_id: job.id, execute_repairs: true)
+
+      expect(job.reload).to be_failed
+      expect(job.needs_attention_reason).to eq("agent_cannot_proceed")
+    end
+
+    it "comes back to running when the blocked Workflow is answered" do
+      workflow = blocked_workflow
+      ReconcileJobStatesJob::Plan.for(job.reload).apply!
+
+      workflow.reload.resume_from_answer!
+      workflow.save!
+
+      expect(job.reload).to be_running
+      expect(job.needs_attention?).to be(false)
+    end
+  end
+
   describe "lifting a Job to :running" do
     it "leaves a lifecycle-owning Workflow's Job where its start left it" do
       build_workflow(state: "running", trigger_kind: "main_branch_repair", finished_at: nil)
