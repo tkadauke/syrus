@@ -1,0 +1,55 @@
+# pr_open found the PR branch holding different work than the workflow (the
+# genuinely ambiguous BranchTruth outcome) and failed with "PR branch changed
+# before Syrus could push", naming retry-from-current-branch as the recovery.
+# Before the reconciler acted, the branch moved again (a second stack rebase),
+# so the PR head no longer equalled the head recorded at failure. The
+# reconciler required that equality, skipped the retry, and reported a
+# non-retryable failure for a human; the retry starts from the current PR
+# branch anyway, so it now runs.
+name: pr_open branch diverged retries after the branch moved again
+repository:
+  owner: simulation
+  name: pr-open-branch-diverged-moved-again
+jobs:
+  diverged:
+    title: PR branch moved before pr_open could push
+    state: failed
+    agent_provider: codex
+    branch_name: syrus/direct-diverged-again
+    pr_number: 7151
+    mergeability_head_sha: rewritten-again-head
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      artifacts:
+        branch_divergence:
+          branch: syrus/direct-diverged-again
+          remote_sha: rewritten-remote-head
+          local_sha: stale-local-output
+          recommended_recovery: retry_from_current_pr_branch
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: pr_open
+          state: failed
+          run:
+            state: failed
+            agent_provider: codex
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "PR branch changed before Syrus could push WF-1; choose whether to retry from the current PR branch or replace it with this workflow's output."
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+success_states:
+  diverged:
+    - implemented

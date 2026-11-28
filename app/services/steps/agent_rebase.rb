@@ -7,12 +7,18 @@ module Steps
   # this step on a clean rebase, so the dispatcher advances to
   # ForcePush in that case and we never get here.
   class AgentRebase < Base
+    # The branch head the agent rewrote: force_push's protected head when
+    # auto_rebase could not record one, so it never leases on an unclassified
+    # live remote head.
+    PRE_SHA_ARTIFACT = "agent_rebase_pre_sha".freeze
+
     def call
       workspace.setup
       run.update!(prompt: compose_prompt) if run.prompt.blank?
 
       log("invoking agent for agent_rebase step (#{workflow.slug})")
       pre_sha = head_sha
+      workflow.set_artifact!(PRE_SHA_ARTIFACT, pre_sha) if pre_sha.present?
       run_agent(prompt: run.prompt)
 
       post_sha = head_sha

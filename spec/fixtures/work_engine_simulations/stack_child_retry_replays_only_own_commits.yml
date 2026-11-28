@@ -1,0 +1,94 @@
+name: stack child retry replays only its own commits onto a rewritten parent
+# Regression: an Epic-wide stack rebase rewrote the parent onto main with
+# edits to the parent's own file. The child's retry inherited a prepared SHA
+# naming the parent's *rewritten* head while its workspace still held work
+# built on the old head. HEAD did not descend from that SHA, so
+# StackBaseFreshness fell back to a plain rebase that replayed the parent's
+# superseded commit too; it collided add/add with its rewritten version on
+# every retry. The old head was still on record in the earlier attempt's
+# conflict evidence.
+#
+# pr_open runs the real StackBaseFreshness over the git world's checkout: the
+# fixed barrier replays only the child's own commits (rebase --onto the live
+# parent from the old parent head) and publishes without the agent.
+repository:
+  owner: simulation
+  name: stack-child-retry-replays-own-commits
+git:
+  commits:
+    base: {}
+    parent_old: { parents: [ base ], paths: [ lib/parent.rb ] }
+    child_1: { parents: [ parent_old ], paths: [ lib/child.rb ] }
+    main_1: { parents: [ base ], paths: [ lib/other.rb ] }
+    # The parent rewritten onto main_1 *with its own file edited*: same path,
+    # different patch, so replaying parent_old onto it conflicts.
+    parent_new: { parents: [ main_1 ], paths: [ lib/parent.rb ], patch: parent-edited }
+  branches:
+    main: main_1
+    syrus/parent: parent_new
+  checkouts:
+    child: child_1
+jobs:
+  parent:
+    title: Parent rewritten by a stack rebase
+    state: implemented
+    branch_name: syrus/parent
+    pr_number: 901
+    pr_checks_state: passing
+  child:
+    title: Child retried after its parent was rewritten
+    state: queued
+    parent_job: parent
+    branch_name: syrus/child
+    workflows:
+      - kind: initial
+        state: failed
+        steps:
+          - kind: pr_open
+            state: failed
+            run:
+              state: failed
+              agent_outcome: error
+        artifacts:
+          stack_base_prepared:
+            ref: syrus/parent
+            sha: git:parent_old
+          stack_base_rebase_conflict:
+            parent_ref: syrus/parent
+            prepared_sha: git:parent_old
+        work_unit:
+          state: failed
+        intent:
+          state: failed
+      - template: true
+        kind: retry
+        artifacts:
+          stack_base_prepared:
+            ref: syrus/parent
+            sha: git:parent_new
+outcomes:
+  default: success
+  steps:
+    # The agent could not untangle the superseded parent commit from its
+    # rewritten version; only a replay of the child's own commits avoids it.
+    stack_base_agent_rebase:
+      status: failure
+      failure_code: stack_base_rebase_conflict
+      error_message: add/add conflict in lib/parent.rb
+max_ticks: 60
+expect:
+  jobs:
+    child:
+      - implemented
+    parent:
+      - implemented
+  git:
+    branches:
+      syrus/child:
+        descends_from: [ syrus/parent ]
+        excludes: [ parent_old ]
+  events:
+    - stack base syrus/parent confirmed for
+  absent_events:
+    - stack base rebase conflict
+    - stack_base_agent_rebase

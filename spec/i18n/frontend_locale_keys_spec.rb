@@ -551,6 +551,20 @@ RSpec.describe "Frontend locale keys", type: :unit do
     expect(locales.dig("de", "nav", "filter_fields", "job_class")).to eq("Jobklasse")
   end
 
+  it "translates every built-in smart folder name the sidebar renders by key" do
+    locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
+    # Repository folders render through nav.smart_folder_names instead.
+    builtins = SmartFolder::JOB_BUILTINS + SmartFolder::EPIC_BUILTINS + SmartFolder::WORKFLOW_BUILTINS +
+      SmartFolder::ADMIN_USER_BUILTINS + SmartFolder::SPAWNED_PROCESS_BUILTINS + SmartFolder::ADMIN_QUEUE_BUILTINS
+
+    missing = %w[en de la].flat_map do |locale|
+      builtins.map { |folder| folder.fetch(:key) }
+        .reject { |key| locales.dig(locale, "nav", "smart_folder", "names", key).present? }
+        .map { |key| "#{locale}: nav.smart_folder.names.#{key}" }
+    end
+    expect(missing).to be_empty
+  end
+
   it "uses count-driven keys for the remaining manually pluralized copy" do
     locales = locale_namespaces(Rails.root.join("app/frontend/i18n/locales"))
 

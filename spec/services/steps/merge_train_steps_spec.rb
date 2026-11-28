@@ -1287,6 +1287,51 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         )
       end
 
+      it "leases on the train's recorded head without classifying it" do
+        a = member_job(issue_number: 53)
+        train = build_train([ a ])
+        train.update!(integration_sha: "recorded123")
+        record_landed_commit!(a, sha: "a-landed-1")
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(git).to receive(:run)
+          .with("ls-remote", "--heads", anything, "refs/heads/#{train.integration_branch}", hash_including(:chdir))
+          .and_return("recorded123\trefs/heads/#{train.integration_branch}\n")
+        expect(BranchTruth).not_to receive(:classify)
+
+        handler.call
+
+        expect(git).to have_received(:run).with(
+          "push", "--force-with-lease=refs/heads/#{train.integration_branch}:recorded123",
+          anything, "HEAD:refs/heads/#{train.integration_branch}", hash_including(:chdir)
+        )
+      end
+
+      # Regression: the lease used to name whatever the remote held when the
+      # step looked, so a head nobody in Syrus recorded or published was
+      # force-pushed over without ever being classified.
+      it "refuses to overwrite an unrecorded remote head that carries other work" do
+        a = member_job(issue_number: 54)
+        train = build_train([ a ])
+        record_landed_commit!(a, sha: "a-landed-1")
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(git).to receive(:run)
+          .with("ls-remote", "--heads", anything, "refs/heads/#{train.integration_branch}", hash_including(:chdir))
+          .and_return("strangertip\trefs/heads/#{train.integration_branch}\n")
+        allow(BranchTruth).to receive(:classify).and_return(
+          BranchTruth::Result.new(relation: :diverged, outcome: :ambiguous, local_sha: "local", remote_sha: "strangertip",
+                                  base_sha: nil, local_fresh: nil, remote_fresh: nil, evidence: {})
+        )
+
+        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /rebuild required/) { |e|
+          expect(e.problem.code).to eq("merge_train_rebuild_required")
+        }
+        expect(git).not_to have_received(:run).with("push", any_args)
+      end
+
       it "pushes without a lease when the branch is not on the remote yet" do
         a = member_job(issue_number: 52)
         train = build_train([ a ])

@@ -84,6 +84,34 @@ class RebaseWorkflowSelector
     Workflow.where(id: unit_ids.uniq)
   end
 
+  # The subset of active_for_jobs whose WorkUnit an operator paused. Such a
+  # rebase still blocks a merge train or bundle for its stack -- it can resume
+  # and force-push the member branches the train is integrating -- but it will
+  # not finish on its own, so callers name it instead of reporting a rebase
+  # that "must finish".
+  def self.paused_for_jobs(jobs)
+    job_ids = related_job_ids_for(jobs)
+    return Workflow.none if job_ids.empty?
+
+    workflow_ids = WorkUnits::Ownership
+      .active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS)
+      .joins(:work_unit)
+      .where(work_units: { state: "blocked", blocked_reason: WorkUnits::Gates::ManualPause::REASON })
+      .where.not(work_units: { workflow_id: nil })
+      .distinct
+      .pluck("work_units.workflow_id")
+
+    Workflow.where(id: workflow_ids.uniq)
+  end
+
+  PAUSED_REBASE_REASON_PREFIX = "paused rebase workflow".freeze
+
+  def self.paused_rebase_reason(workflow, landing_label)
+    job = workflow.job
+    "#{PAUSED_REBASE_REASON_PREFIX} #{workflow.slug} (#{job&.slug}) is paused and needs an operator: " \
+      "resume or cancel it before the #{landing_label} starts"
+  end
+
   def self.active_workflows_for_job_ids(job_ids)
     unit_ids = WorkUnits::Ownership
       .active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS)

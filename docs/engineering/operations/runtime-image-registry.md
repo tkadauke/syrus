@@ -94,6 +94,17 @@ and stop after `RUNTIME_IMAGE_BUILD_MAX_ATTEMPTS` (default 3). Nothing is
 claimed until an executor is registered via `RuntimeImages::Builds.builder=`,
 so the plane is inert by default.
 
+Publishing bytes creates an `unverified` image, not a launch candidate. The
+build runner snapshots the verification policy and executes its required
+verifiers in order against the immutable digest. Each re-verification creates
+a new `RuntimeImageVerificationAttempt`; its ordered check rows retain safe
+evidence references and a failure class without replacing prior attempts. An
+image becomes `candidate` only when every required check has durable evidence
+and passes. Policy or integrity findings reject it, while an unavailable
+verifier, registry, or evidence store blocks it. Both outcomes are fail-closed:
+the image is not pullable. A newer attempt owns candidate eligibility, so a
+slower older attempt cannot overwrite a later decision.
+
 ### Isolated builder
 
 `RuntimeImages::Builds::IsolatedBuilder` is the executor registered through
@@ -195,6 +206,16 @@ a failure to record is logged and never changes the build's outcome.
 
 `ScopedPublisher` is the only registry authority a build has: publish and
 inspect inside the request's namespace, nothing else.
+
+Candidate verification invokes the checksum-pinned Trivy binary in the worker
+image to generate a CycloneDX SBOM and a package-and-layer vulnerability report.
+`SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` accepts a JSON object containing
+`vulnerabilities.blocked_severities`, `prohibited_packages`, and `exemptions`;
+required checks cannot be overridden. Scanner/database identity, full artifacts,
+hashes, effective exemptions, and bounded decision evidence are retained on the
+digest-bound verification attempt. Scanner or database failure is an
+infrastructure block, while a matching vulnerability or package is a policy
+rejection.
 
 
 ## Build recovery and diagnostics

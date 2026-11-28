@@ -99,6 +99,10 @@ class GraderResourceGrant
   # here anyway ran its rspec shard at a fraction of the host for 40+ minutes
   # beside five peers while 12-core workers each ran a single shard -- the
   # merge train waited on the slowest shard.
+  #
+  # A declared `cpu_min` raises that floor, both for this grader and for the
+  # whole-host peers already counted, so a host that could only give a shard
+  # less than its minimum reads as booked and the shard is rerouted.
   def cpu_booked?
     return false unless request.unbounded_cpu?
 
@@ -106,16 +110,33 @@ class GraderResourceGrant
   end
 
   def booked_cpu_cores
-    fixed_claim_cores + (unbounded_claimant_count * whole_host_floor)
+    fixed_claim_cores + concurrent_claims.select(&:unbounded_cpu?).sum { |claim| floor_for(claim) }
   end
 
   def whole_host_floor
-    (host_capacity / 2.0).ceil
+    floor_for(request)
+  end
+
+  # Whether a whole-host grader that declared a `cpu_min` would be granted
+  # less than it here -- the host is smaller than the minimum, or free memory
+  # bounds the parallel width below it. Eight static RSpec shards are close in
+  # work, so their wall time is set by the cores each is granted: production
+  # shards ran `-n 12` beside `-n 3` peers and took 3 and 17 minutes, and the
+  # round waited for the 17. Only graders that declared a minimum above one
+  # are held to it.
+  def below_cpu_min?
+    return false unless request.unbounded_cpu? && request.cpu_min.to_i > 1
+
+    resolve_cpu_cores < request.cpu_min
   end
 
   private
 
   attr_reader :run, :request, :hostname
+
+  def floor_for(claim)
+    [ (host_capacity / 2.0).ceil, claim.cpu_min.to_i ].max
+  end
 
   def resolve_cpu_cores
     remainder = [ host_capacity - fixed_claim_cores, 1 ].max

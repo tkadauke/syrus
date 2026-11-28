@@ -312,6 +312,9 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
       expect(TestInsights::TestCase.where(name: "is flaky", suite_name: "MySpec").pluck(:status))
         .to contain_exactly("passed", "failed")
 
+      # The identity summaries this ranking reads are refreshed by a
+      # plugin-queue job, after the grader Step, not inside it.
+      perform_enqueued_jobs(only: RefreshTestIdentitiesJob)
       flaky = TestInsights::TestCase.top_flaky_tests(repository: job.repository)
       entry = flaky.find { |t| t[:suite_name] == "MySpec" && t[:name] == "is flaky" }
 

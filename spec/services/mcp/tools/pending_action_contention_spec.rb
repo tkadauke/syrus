@@ -63,6 +63,18 @@ RSpec.describe Mcp::Tools::ProposalToolSupport do
     expect(create_pending_action).to eq(existing)
   end
 
+  it "creates a fresh request when the anchored pending action was already resolved" do
+    existing = chat_session.pending_actions.create!(**attributes)
+    existing.update_columns(state: "rejected")
+    message.update_columns(pending_action_id: existing.id)
+
+    pending_action = create_pending_action
+
+    expect(pending_action).not_to eq(existing)
+    expect(pending_action).to be_persisted
+    expect(message.reload.pending_action).to eq(pending_action)
+  end
+
   it "does not retry non-transient failures" do
     allow(chat_session.pending_actions).to receive(:create!).and_raise(ArgumentError, "bad application state")
 

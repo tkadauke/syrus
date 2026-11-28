@@ -24,13 +24,12 @@ RSpec.describe "workflow agent questions API", type: :request do
 
   it "answers through AgentQuestion and resumes its workflow" do
     question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Ship it?", "options" => [ "Yes", "No" ], "multiple" => false } ])
-    allow(AgentQuestions::Resume).to receive(:call)
+    expect_any_instance_of(AgentQuestions::Resume).to receive(:transition!).and_return(false)
 
     post "/api/v1/app/agent_questions/#{question.id}/answer", params: { answers: [ "Yes" ] }
 
     expect(response).to have_http_status(:ok)
     expect(question.reload.answers).to eq([ "Yes" ])
-    expect(AgentQuestions::Resume).to have_received(:call).with(question)
   end
 
   it "normalizes nested multi-select answers from form parameters" do
@@ -70,6 +69,29 @@ RSpec.describe "workflow agent questions API", type: :request do
     expect(question.reload.withdrawn_at).to be_present
     expect(workflow.reload).to be_cancelled
     expect(job.workflows.where(trigger_kind: "retry")).to exist
+  end
+
+  it "retires the waiting step and question when the Job is cancelled, and a later answer does not resume it" do
+    question = AgentQuestion.create!(run:, asked_at: Time.current, questions: [ { "question" => "Ship it?", "options" => [ "Yes", "No" ], "multiple" => false } ])
+    workflow = run.workflow
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 2.minutes.ago)
+    run.step.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    run.update_columns(state: "awaiting_answer", started_at: 2.minutes.ago)
+    attach_work_unit(workflow, state: "running") unless workflow.work_unit
+
+    post "/api/v1/app/jobs/#{job.id}/cancel"
+
+    expect(response).to have_http_status(:ok), response.body
+    expect(workflow.reload).to be_cancelled
+    expect(run.reload).to be_cancelled
+    expect(run.step.reload).to be_cancelled
+    expect(question.reload.withdrawn_at).to be_present
+    expect(workflow.active_agent_questions?).to be(false)
+
+    question.update_columns(withdrawn_at: nil)
+    expect(AgentQuestions::Resume.call(question.reload)).to be(false)
+    expect(run.reload).to be_cancelled
   end
 
   it "does not expose questions on jobs the user cannot see" do

@@ -321,7 +321,17 @@ class RunJob < ApplicationJob
     return false if RunQueueResolver.locally_satisfied?(run: @run)
 
     Rails.logger.info("[RunJob] this worker does not satisfy Run ##{@run.id}'s placement requirements - handing it back")
-    defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
+    # No live worker satisfies it either (the last capable one failed a smoke
+    # check after the Run was enqueued): block it with the resolver's reason
+    # and a recheck, as the first enqueue does. Re-enqueueing it onto the same
+    # queue let this worker claim and hand it back every few seconds with no
+    # reason recorded (F150).
+    decision = RunQueueResolver.resolve(run: @run)
+    if decision.blocked?
+      @run.send(:block_for_missing_capable_worker!, decision)
+    else
+      defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
+    end
     true
   rescue StandardError => e
     Rails.logger.warn("[RunJob] capability check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
@@ -803,6 +813,13 @@ class RunJob < ApplicationJob
   # chain advance among them -- would then never fire.
   def commit_run_and_step_success!
     ActiveRecord::Base.transaction do
+      # The callers check the states before this lock; a cancel can commit in
+      # between. Under the lock the committed states decide: neither row is
+      # written from attributes the cancel has since replaced. Captured before
+      # the lock, because Lineage.lock! refreshes the in-memory records from
+      # the rows it locks.
+      expected_run_state = @run.state
+      expected_step_state = @step.state
       # The Step is written after the Run, so the ancestry is locked first,
       # top down (NY40). Locking queries keep the Run's unsaved outcome.
       Lineage.lock!(@run)
@@ -812,6 +829,13 @@ class RunJob < ApplicationJob
       # created two Runs for the next Step. A locking read sees the first
       # success (see #reload_lineage_for_update!).
       @step = Step.lock.find(@step.id)
+      # A locking read: a plain one answers from the snapshot Lineage.lock!
+      # took before waiting on a concurrent cancel's locks (F152).
+      next unless Run.lock.where(id: @run.id).pick(:state) == expected_run_state
+      # A cancel of the Step wins too; another Run of the same Step having
+      # succeeded it does not -- this Run still records its own success.
+      next if @step.cancelled? && expected_step_state != "cancelled"
+
       unless @run.succeeded?
         @run.agent_outcome = nil if @run.agent_outcome == "worker_died"
         @run.succeed!
@@ -840,6 +864,7 @@ class RunJob < ApplicationJob
       @run&.reload
       @step&.reload
       @workflow&.reload
+      @job&.reload
       retry
     end
   end
@@ -1167,7 +1192,7 @@ class RunJob < ApplicationJob
       with_lifecycle_lock_retry("fail_run") { fail_run_tolerating_duplicate_diagnostic! if @run.may_fail? }
     end
 
-    record_landing_failure!(exception)
+    with_lifecycle_lock_retry("record_landing_failure") { record_landing_failure!(exception) }
     if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
       with_lifecycle_lock_retry("record_failure") do
         @workflow.record_run_failure!
@@ -1185,10 +1210,23 @@ class RunJob < ApplicationJob
     @step&.reload&.cancelled? || @workflow&.reload&.cancelled?
   end
 
+  # Only a cancelled Workflow takes the normal cancel cascade (a no-op by then).
+  # A Step cancelled on its own -- review evidence superseded by a new HEAD,
+  # say -- was cancelled with its cascade suppressed so the Workflow goes on;
+  # cascading this Run's cancel would cancel that Workflow after all. The
+  # canceller may also have cancelled the Run already, which the in-memory
+  # copy does not show.
   def cancel_run_after_external_cancellation!
     log("step #{@step&.kind} ended because its #{@step&.cancelled? ? "step" : "workflow"} was cancelled", kind: "system")
-    @run.cancel!
-    @run.save!
+    @run.reload
+    return if @run.terminal?
+
+    if @workflow&.cancelled?
+      @run.cancel!
+      @run.save!
+    else
+      @run.cancel_without_step_cascade!
+    end
   end
 
   # A duplicate run_diagnostics.run_id insert (an unsaved diagnostic left

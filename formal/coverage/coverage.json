@@ -1605,8 +1605,8 @@
         "stale_pr_check_base"
       ],
       "status": "partial",
-      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35) · LandingUnitCycle.lean (M50), F107 · LandingOrder.lean (M80)",
-      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). M80: the order computation is modelled (LandingOrder.lean mirrors ordered_landing_units and dependency_order): always a permutation; with no cycle the lexicographically least dependency-respecting order; queue order without dependencies; with a cycle the Kahn prefix still respects every edge. Not modelled: the merge-train and bundle dispatchers' own member selection (priority tier, owner grouping); Lead L16: the bundle dispatcher locked its members in bundle order rather than ids ascending, so it could deadlock against Lineage.lock_all!; fixed as F139. M50: the unit order is a topological sort of the Epic-contracted graph; LandingUnitCycle.lean proves an acyclic contracted graph always leaves a landable unit, and that Job-level acyclicity (all JobDependency#no_cycle checks) does not imply it: Epic child <- outside Job <- Epic child deadlocks both units. Latent (never in production); NY28. F107 (NY28): JobDependency rejects a cycle in the Epic-contracted graph when it is created, the condition LandingUnitCycle.lean proves sufficient for progress."
+      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35) · LandingUnitCycle.lean (M50), F107 · LandingOrder.lean (M81)",
+      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). M81: the order computation is modelled (LandingOrder.lean mirrors ordered_landing_units and dependency_order): always a permutation; with no cycle the lexicographically least dependency-respecting order; queue order without dependencies; with a cycle the Kahn prefix still respects every edge. Not modelled: the merge-train and bundle dispatchers' own member selection (priority tier, owner grouping); Lead L16: the bundle dispatcher locked its members in bundle order rather than ids ascending, so it could deadlock against Lineage.lock_all!; fixed as F139. M50: the unit order is a topological sort of the Epic-contracted graph; LandingUnitCycle.lean proves an acyclic contracted graph always leaves a landable unit, and that Job-level acyclicity (all JobDependency#no_cycle checks) does not imply it: Epic child <- outside Job <- Epic child deadlocks both units. Latent (never in production); NY28. F107 (NY28): JobDependency rejects a cycle in the Epic-contracted graph when it is created, the condition LandingUnitCycle.lean proves sufficient for progress."
     },
     {
       "id": "externally-blocked-landing-slot",
@@ -3363,11 +3363,12 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [
-        "blocked_no_capable_worker_does_not_hold_landing_slot"
+        "blocked_no_capable_worker_does_not_hold_landing_slot",
+        "paused_stack_rebase_holds_merge_train_named"
       ],
       "status": "done",
-      "done_by": "SlotCapacity.rebase_holder_runnable, demote_frees_rebase, paused_never_starve, lane_holder_sound",
-      "notes": "Rebase slots count RUNNABLE_STATES only: every holder is queued or running and blocking or finishing a unit never makes a slot less available; the old ACTIVE_STATES count let three paused rebases fill all three slots (before_paused_starve). Landing lanes are held by runnable units or by in-flight landings blocked for a reason that is not externally cleared (inflight_blocked_holds_lane); that is by design and live only if every lane-holding block reason has a wake-up (LaneHoldingReasonsClear, assumed)."
+      "done_by": "SlotCapacity.rebase_holder_runnable, demote_frees_rebase, paused_never_starve, lane_holder_sound, paused_blocks_train, paused_named, must_finish_clears",
+      "notes": "Rebase slots count RUNNABLE_STATES only: every holder is queued or running and blocking or finishing a unit never makes a slot less available; the old ACTIVE_STATES count let three paused rebases fill all three slots (before_paused_starve). Landing lanes are held by runnable units or by in-flight landings blocked for a reason that is not externally cleared (inflight_blocked_holds_lane); that is by design and live only if every lane-holding block reason has a wake-up (LaneHoldingReasonsClear, assumed). A paused rebase gives its slot back but still blocks a merge train or job bundle for its stack (it could resume and force-push); the dispatchers name it as paused and needing an operator (paused_named), and report \"must finish\" only when no blocking rebase is paused (must_finish_clears); before_paused_must_finish is the old reason. The invariant monitor reports it as paused_rebase_holds."
     },
     {
       "id": "approved-work-progress",
@@ -3382,11 +3383,13 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [
-        "pr_open_branch_diverged_retries_from_current_branch"
+        "pr_open_branch_diverged_retries_from_current_branch",
+        "approved_job_waits_named_for_rebase_slot",
+        "runaway_protected_member_merge_train_not_relaunched"
       ],
       "status": "partial",
-      "done_by": "ApprovedProgress.no_silent_stall, eventually_lands_or_named, planned_retry_not_rechecked_away",
-      "notes": "Modelled: one approved Job, its blocker, mergeability needing a rebase, its own rebase, the repository's rebase slots and its landing lanes. Every unnamed approved state has a step and a ranking function bounds every run, under fairness: enabled steps are taken, no competing work is admitted ahead of the Job, and lane-holding blocks wake up. Counterexample before the slot fix: before_silent_stall. Gap: a Job waiting for a rebase slot shows no blocked_reason (the wait is explained only by the runnable slot holders). Merge-train dispatch (MergeTrainDispatcher#try_dispatch!) is not modelled beyond its blocker_reason."
+      "done_by": "ApprovedProgress.no_silent_stall, eventually_lands_or_named, slot_wait_named, planned_retry_not_rechecked_away · RetryTermination.after_train_stops, consent_buys_one_attempt",
+      "notes": "Modelled: one approved Job, its blocker, mergeability needing a rebase, its own rebase, the repository's rebase slots and its landing lanes. Every unnamed approved state has a step and a ranking function bounds every run, under fairness: enabled steps are taken, no competing work is admitted ahead of the Job, and lane-holding blocks wake up. Counterexample before the slot fix: before_silent_stall. A Job waiting for a rebase slot used to show no blocked_reason (before_slot_wait_unnamed); it now carries waiting_rebase_slot (slot_wait_named). Merge-train dispatch is modelled only for runaway protection (RetryTermination.before_train_loops / after_train_stops: one automatic train attempt per operator consent, MergeTrains::RunawayHold); the rest of MergeTrainDispatcher#try_dispatch! is not modelled beyond its blocker_reason."
     }
   ],
   "needs_you": [
@@ -3949,6 +3952,32 @@
       ],
       "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing.",
       "decision": "A (2026-11-24, answered on the lean-plan site): a short-lived WorkUnit under a new emergency_land work definition holds the merge lock for the emergency merge. Implemented on the branch (F133, 2026-11-25)."
+    },
+    {
+      "id": "NY44",
+      "item": "landing-queue-order",
+      "title": "Should an approval be cleared when a feedback Workflow advances HEAD after it?",
+      "context": "Approving an implemented Job during active work is now allowed by design (main's 103787e46f). A PR comment that arrives while, say, a rebase runs queues a pr_comment Workflow behind it without clearing an approval that does not exist yet. If the operator then approves (or a GitHub approval on the old HEAD is recorded), the Job stays approved while the feedback Workflow runs and pushes a new HEAD, and nothing un-approves it: the Job lands a response the approver never saw. Graders and required reviews still gate that exact SHA; only the human approval is stale. auto_merge copies the Syrus approval onto the new HEAD on GitHub.",
+      "options": [
+        "A. Clear the approval (and stop landing) when a feedback Workflow that started after the approval advances HEAD, as feedback creation already does; the operator re-approves the new HEAD.",
+        "B. Refuse an approval while a feedback Workflow is queued or running for the Job, so an approval always follows the last feedback round.",
+        "C. Keep it: an approval given with feedback pending means 'land whatever the agent does with it', and graders plus required reviews are the gate for the new HEAD."
+      ],
+      "recommendation": "A. It keeps approval-during-work (the point of 103787e46f) and restores the rule that an approval covers the HEAD the approver saw, using the path feedback creation already has (ApprovalUnapprover under the Job lock).",
+      "decision": "No (2026-11-28, operator): an approval given while a feedback Workflow is queued stands when that Workflow advances HEAD; graders and required reviews gate the new HEAD."
+    },
+    {
+      "id": "NY45",
+      "item": "terminal-states-absorbing",
+      "title": "Should Syrus's MySQL sessions run at READ COMMITTED?",
+      "context": "Under MySQL's default REPEATABLE READ every plain read in a transaction answers from the snapshot fixed by its first plain read. Lineage.lock! makes plain reads to collect a record's ancestry before it waits on the row locks, so anything read plainly after the lock can miss a transaction that committed meanwhile. That produced a production double execution of one Run (fixed on main in 0fe5a73b5b) and the same shape was in 39 places (F149, fixed by making the re-read right after a lock a locking read, with an architecture spec guarding it). Association loads and exists? checks after a lock are still stale under REPEATABLE READ.",
+      "options": [
+        "A. Run the application's sessions at READ COMMITTED (variables: { transaction_isolation: 'READ-COMMITTED' } in config/database.yml for production). Every statement then reads the latest committed rows, so a check after a lock sees the committed state, and InnoDB takes fewer gap locks (fewer deadlocks). Needs row-based binlogs, MySQL 8's default. One configuration change plus a deploy.",
+        "B. Stay on REPEATABLE READ and keep converting reads after locks to locking reads case by case, guarded by architecture specs. No configuration change, but every new check-after-lock must remember it.",
+        "C. Have Lineage.lock! collect the ancestry outside the transaction (or with locking reads only) so the snapshot is taken after the locks. Narrower than A, but any plain read before Lineage.lock! in the same transaction still fixes the snapshot early."
+      ],
+      "recommendation": "A, keeping F149's locking reads as belt and braces. READ COMMITTED is the usual setting for Rails on MySQL, and it removes the whole class instead of one site at a time.",
+      "decision": "Yes (2026-11-28, operator): the primary and cache MySQL connections run at READ COMMITTED, as queue and cable already did; F149's locking reads stay as belt and braces."
     }
   ]
 }

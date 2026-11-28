@@ -1772,6 +1772,23 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(dependent["job"]).to include("id" => target.id, "issue_number" => 42)
   end
 
+  # Rebuilding a cold landing snapshot inline rewrote every one of the
+  # user's Jobs from a GET (seconds, hundreds of queries, row-lock contention
+  # with the processor). The page wakes the processor instead.
+  it "wakes the landing queue processor instead of rebuilding a cold snapshot inline" do
+    job.update!(state: "approved", approved_at: Time.current, approved_via: "operator")
+    job.workflows.update_all(state: "succeeded")
+    expect(LandingQueueProcessor).not_to receive(:refresh_snapshot!)
+
+    expect {
+      get "/api/v1/app/jobs/#{job.id}"
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["landing_queue_entry"]).to be_nil
+    expect(job.reload.landing_queue_cached_at).to be_nil
+  end
+
   it "returns landing queue sibling blockers as clickable job targets" do
     repo.update!(auto_merge_enabled: true)
     epic = Factories.epic(user: user, repository: repo, state: "in_progress")
@@ -1791,6 +1808,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       pr_number: 8,
       state: "implemented"
     )
+    LandingQueueProcessor.refresh_snapshot!
 
     get "/api/v1/app/jobs/#{job.id}"
 

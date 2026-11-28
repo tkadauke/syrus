@@ -1,0 +1,73 @@
+# An operator approved an Epic child that runaway protection had already
+# stopped, so its approval buys one landing attempt. The Epic's merge train
+# fails the same way every time with a reason that defers its members back to
+# :approved (the base moved; rebuild required), and MergeTrainDispatcher
+# launched trains through WorkUnits::Launcher.instantiate without consulting
+# runaway protection, so the train was relaunched at once, forever: the
+# protected Job's runaway limits had stopped counting. The dispatcher now
+# holds the train with a named reason once a runaway-protected member's
+# approval has been spent on a failed train (MergeTrains::RunawayHold).
+name: runaway protected member's merge train is not relaunched
+max_ticks: 80
+runner:
+  auto_retry_failed_jobs: false
+repository:
+  owner: simulation
+  name: runaway-protected-member-merge-train-not-relaunched
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Epic with a runaway-protected child
+    state: in_progress
+jobs:
+  alpha:
+    title: First Epic child
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-alpha
+    pr_number: 7301
+    pr_checks_state: passing
+    approved_at: "2026-11-27 16:00:00"
+    approved_via: operator
+  beta:
+    title: Runaway-protected Epic child, approved by an operator
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-beta
+    pr_number: 7302
+    pr_checks_state: passing
+    approved_at: "2026-11-27 16:15:00"
+    approved_via: operator
+    runaway_protection: too_many_failed_workflows
+events:
+  # Keeps the scenario running long past the first failure, so a relaunch
+  # would have every chance to happen before the expectations are checked.
+  - name: quiet period elapsed
+    once: true
+    when: { tick: { at_least: 20 } }
+    do: {}
+outcomes:
+  default: success
+  steps:
+    merge_train_build:
+      status: failure
+      error_class: Steps::Base::StepFailed
+      error_message: "merge_train: base moved from 1111111 to 2222222 during build; rebuild required"
+expect:
+  jobs:
+    alpha:
+      - approved
+    beta:
+      - approved
+  merge_train_counts:
+    feature: 1
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - merge_train_build
+    - "event quiet period elapsed"
+  # The reconciler hands the held train to the operator instead of planning a
+  # rebuild the dispatcher would refuse on every pass.
+  absent_events:
+    - "rebuild_merge_train -> skipped"

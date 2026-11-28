@@ -393,6 +393,7 @@ syrus job check-mergeability 456
 syrus job recheck-pr-checks 456
 syrus job resume 456 --source-run 789
 syrus job retry-step 456 --workflow 321
+syrus job retry-step 456 --workflow 321 --guidance "Regenerate the fixture first"
 syrus job push-commits 456 --workflow 321
 syrus job stop-run 456 --run 789
 syrus job diagnose 456 --run 789

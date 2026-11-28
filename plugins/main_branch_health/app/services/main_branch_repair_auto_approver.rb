@@ -19,7 +19,7 @@ class MainBranchRepairAutoApprover
     reason = nil
 
     @job.with_lock do
-      @job.reload
+      @job.reload(lock: true)
       if !@job.implemented?
         reason = "not_implemented"
       elsif !@job.may_approve?

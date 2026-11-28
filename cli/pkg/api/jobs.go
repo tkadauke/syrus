@@ -323,6 +323,10 @@ func (c *Client) RunJobWorkflowAction(ctx context.Context, id string, workflowID
 	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/workflows/"+url.PathEscape(workflowID)+"/"+url.PathEscape(action), nil, nil)
 }
 
+func (c *Client) RunJobWorkflowActionWithPayload(ctx context.Context, id string, workflowID string, action string, payload any) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/workflows/"+url.PathEscape(workflowID)+"/"+url.PathEscape(action), payload, nil)
+}
+
 func (c *Client) RunJobRunAction(ctx context.Context, id string, runID string, action string) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/runs/"+url.PathEscape(runID)+"/"+url.PathEscape(action), nil, nil)
 }

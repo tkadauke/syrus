@@ -38,6 +38,13 @@ module WorkflowOutcomeOverrides
           # loop Steps and Runs are re-read prevents a queued repair from
           # starting between validation and supersession.
           Lineage.lock!(step)
+          # Only a live Workflow's loop is rewired (F146): on a blocked or
+          # cancelled one, rewriting its repair to skipped past AASM left a
+          # blocked attempt that an answer could no longer resume, and the
+          # continuation's Run was queued under a terminal Workflow.
+          if workflow.reload(lock: true).terminal?
+            raise Resumer::ResumeFailed, "Workflow ##{workflow.id} is #{workflow.state}; its review loop can no longer be resumed"
+          end
           source, descendants, loop_continuation, active_runs = locked_loop_segment
           ensure_loop_can_be_superseded!(descendants, active_runs)
 

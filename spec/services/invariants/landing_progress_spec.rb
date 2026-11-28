@@ -55,6 +55,43 @@ RSpec.describe Invariants::LandingProgress do
     expect(described_class.call(now: later)).to be_empty
   end
 
+  # Regression: a Job whose PR needs a rebase while every rebase slot is held
+  # by runnable work had no landing-queue reason, so this check reported it as
+  # stranded although it was only waiting its turn.
+  it "treats a wait for a rebase slot as a named landing reason" do
+    job = approved_job
+    job.repository.update!(auto_merge_enabled: true)
+    job.update_columns(pr_number: 77, github_mergeable_state: "behind", mergeability_checked_at: Time.current)
+    PollRebaseJob::CONCURRENT_REBASES_PER_REPO.times do |index|
+      other = Factories.job_record(user: job.user, repository: job.repository, state: "implemented",
+                                   pr_number: 300 + index, branch_name: "syrus/slot-holder-#{index}")
+      RebaseWorkflowSelector.instantiate(job: other)
+    end
+    LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
+
+    expect(job.reload.landing_queue_blocked_reason).to include("key" => "waiting_rebase_slot")
+    expect(described_class.call(now: later)).to be_empty
+  end
+
+  # Regression: the landing queue holds a Job whose PR has requested changes
+  # without ever listing it (queue_candidates drops it, so its snapshot stays
+  # empty), and this check reported an approved Job held for months on a review
+  # as having "no named landing blocker".
+  it "treats a requested-changes hold as the named landing blocker the queue computes" do
+    job = approved_job
+    job.update_columns(needs_attention: true, needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+    LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
+
+    expect(job.reload.landing_queue_blocked_reason).to be_nil
+    expect(described_class.call(now: later)).to be_empty
+
+    job.update_columns(needs_attention_reason: Job::UNAPPLIED_FEEDBACK_ATTENTION_REASON)
+    expect(described_class.call(now: later)).to be_empty
+
+    job.update_columns(needs_attention: false, needs_attention_reason: nil)
+    expect(described_class.call(now: later).size).to eq(1)
+  end
+
   it "does not report a Job waiting behind other Jobs in the landing queue" do
     job = approved_job
     job.update_columns(landing_queue_blocker_job_ids: [ job.id + 1000 ])

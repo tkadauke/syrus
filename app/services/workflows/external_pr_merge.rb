@@ -92,8 +92,12 @@ module Workflows
       workflow.runs.where(state: "failed").includes(:run_diagnostic).reorder(created_at: :desc).first
     end
 
+    # The landing failed on graders only when the last grading pass did. A
+    # same-repository PR's first pass can fail and its landing_fix repair pass
+    # succeed; reporting the repaired pass asked the author to fix checks that
+    # were already green (and a bot author never would).
     def self.grader_failure?(workflow)
-      workflow.steps.where(kind: "grader_collect", state: "failed").exists?
+      Workflows::StepPreloader.sorted(workflow.steps.where(kind: "grader_collect"), descending: true).first&.failed? || false
     end
 
     def self.same_repository_external_pr?(job)
@@ -129,7 +133,7 @@ module Workflows
     end
 
     def self.build_grader_failure_body(failed_names, is_fork)
-      lines = [ "Syrus ran required checks on this pull request before landing and the following failed:" ]
+      lines = [ ExternalPrReviewRecovery::SYRUS_GRADER_FAILURE_PREFIXES.last ]
       lines << ""
       failed_names.each { |name| lines << "- **#{name}**" }
       lines << ""

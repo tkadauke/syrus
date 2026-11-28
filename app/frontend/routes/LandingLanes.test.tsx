@@ -12,6 +12,7 @@ const payload: LandingLanesPayload = {
     {
       id: 1,
       slug: "acme/rocket",
+      default_branch: "main",
       landing_concurrency: 2,
       busy_lane_count: 1,
       approved_backlog: [{ id: 13, slug: "JOB-13", app_path: "/jobs/13", position: 1 }],
@@ -41,15 +42,18 @@ const payload: LandingLanesPayload = {
           }
         },
         { number: 2, empty: true, draining: false }
-      ]
+      ],
+      additional_branches: []
     },
     {
       id: 2,
       slug: "acme/anvil",
+      default_branch: "main",
       landing_concurrency: 1,
       busy_lane_count: 1,
       approved_backlog: [],
-      lanes: [{ number: 1, empty: false, draining: false, phase: "reconcile", rebasing: true, progress: 0.5, best_case_remaining_seconds: 60 }]
+      lanes: [{ number: 1, empty: false, draining: false, phase: "reconcile", rebasing: true, progress: 0.5, best_case_remaining_seconds: 60 }],
+      additional_branches: []
     }
   ]
 }
@@ -66,6 +70,69 @@ function wrapper(client = new QueryClient({ defaultOptions: { queries: { retry: 
 }
 
 describe("landing lanes", () => {
+  it("groups lanes by landing branch when another branch has an active landing", () => {
+    const branched: LandingLanesPayload = {
+      estimate_kind: "best_case",
+      repositories: [
+        {
+          id: 3,
+          slug: "acme/branchy",
+          default_branch: "main",
+          landing_concurrency: 1,
+          busy_lane_count: 1,
+          approved_backlog: [],
+          lanes: [{ number: 1, empty: true, draining: false }],
+          additional_branches: [
+            {
+              branch: "release",
+              busy_lane_count: 1,
+              lanes: [
+                {
+                  number: 1,
+                  empty: false,
+                  draining: false,
+                  anchor_job: { id: 21, slug: "JOB-21", app_path: "/jobs/21" },
+                  phase: "grade",
+                  progress: 0.5,
+                  best_case_remaining_seconds: 60
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<LandingLanesPage payload={branched} />, { wrapper: wrapper() })
+
+    expect(screen.getByText("Branch main")).toBeInTheDocument()
+    expect(screen.getByText("Branch release")).toBeInTheDocument()
+    expect(screen.getByText("1 of 2 lanes busy · 0 approved waiting")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-21" })).toHaveAttribute("href", "/jobs/21")
+  })
+
+  it("does not label the lanes of a repository landing only to its default branch", () => {
+    render(<LandingLanesPage payload={payload} />, { wrapper: wrapper() })
+
+    expect(screen.queryByText(/^Branch /)).not.toBeInTheDocument()
+  })
+
+  it("keeps the desktop app-shell route prefix on job and workflow links", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/landing_lanes"]}>
+          <LandingLanesPage payload={payload} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-10" })).toHaveAttribute("href", "/app-shell/jobs/10")
+    expect(screen.getByRole("link", { name: "JOB-11" })).toHaveAttribute("href", "/app-shell/jobs/11")
+    expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/app-shell/jobs/10?tab=workflows#workflow-12")
+    expect(screen.getByRole("link", { name: "1. JOB-13" })).toHaveAttribute("href", "/app-shell/jobs/13")
+  })
+
   it("does not render or fetch the dashboard strip while the feature is disabled", () => {
     const fetchSpy = vi.spyOn(window, "fetch")
 

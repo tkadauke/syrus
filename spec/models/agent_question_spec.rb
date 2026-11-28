@@ -44,6 +44,23 @@ RSpec.describe AgentQuestion do
     expect(run.step.reload.state).to eq("running")
   end
 
+  # awaiting_answer is neither active nor cancellable, so cancelling the
+  # Workflow left the parked Run and Step behind with the question open, and
+  # answering it put the Run back in the queue under the cancelled Workflow.
+  it "does not resume a Run whose Workflow was cancelled while it awaited the answer" do
+    record = question
+    workflow = run.workflow
+    run.update!(state: "awaiting_answer")
+    run.step.update!(state: "awaiting_answer")
+
+    WorkUnits::WorkflowCancellation.cancel!(workflow, reason: "operator_cancelled")
+    record.reload.answer!(answers: [ "Careful", [ "Web" ], "None" ], answered_by: user, source: "web")
+
+    expect(workflow.reload).to be_cancelled
+    expect(run.reload.state).not_to eq("queued")
+    expect(run.step.reload.state).not_to eq("running")
+  end
+
   it "falls back to a fresh prompt when no provider session is available" do
     record = question
     run.update!(state: "awaiting_answer")

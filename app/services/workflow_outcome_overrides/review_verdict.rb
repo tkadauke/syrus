@@ -22,6 +22,11 @@ module WorkflowOutcomeOverrides
       return vote unless vote["verdict"].in?(%w[needs_work skipped])
       return vote if reviewed_head_sha.blank?
 
+      # A consumed override still applies to the identical vote: a panel
+      # collector rerun (another member's override resuming the gate, or a
+      # retried collect Run) re-reads the member votes, which never record the
+      # override themselves. The evidence digest covers the whole vote, so a
+      # consumed match is the same decision about this exact reviewed HEAD.
       override = WorkflowOutcomeOverride.where(
         job_id: workflow.job_id,
         workflow_id: workflow.id,
@@ -29,9 +34,8 @@ module WorkflowOutcomeOverrides
         gate_identity: gate_identity,
         candidate_head_sha: reviewed_head_sha,
         evidence_digest: evidence_digest,
-        consumed_at: nil,
         invalidation_cause: nil
-      ).order(:id).first
+      ).order(Arel.sql("consumed_at IS NULL"), :id).first
       return vote unless override
 
       override.consume!(override.fingerprint)

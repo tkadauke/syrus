@@ -66,17 +66,35 @@ module WorkDefinitions
   def landing_lock_key_for(job, policy: nil, lane: nil)
     return nil unless job&.repository_id
 
-    bare_key = "landing:repository:#{job.repository_id}"
-    # Lane 1 is the original slot and keeps its key byte for byte; further
-    # lanes insert `:lane:<k>` before the branch suffix.
-    bare_key = "#{bare_key}:lane:#{lane.to_i}" if lane.to_i > 1
     repository = job.repository
-    return bare_key unless repository
+    return landing_branch_lock_key(job.repository_id, nil, lane:) unless repository
 
     branch = (policy || DeliveryPolicy.for(repository: repository, job: job)).job_landing_branch(job)
-    return bare_key if branch.blank? || branch == repository.default_branch
+    branch = nil if branch.blank? || branch == repository.default_branch
+    landing_branch_lock_key(job.repository_id, branch, lane:)
+  end
 
-    "#{bare_key}:branch:#{branch}"
+  # The lane lock key for a repository's landing branch; `branch` nil (or
+  # the default branch) is the repository's own unsuffixed slot.
+  def landing_branch_lock_key(repository_id, branch, lane: nil)
+    # Lane 1 is the original slot and keeps its key byte for byte; further
+    # lanes insert `:lane:<k>` before the branch suffix.
+    key = "landing:repository:#{repository_id}"
+    key = "#{key}:lane:#{lane.to_i}" if lane.to_i > 1
+    branch.present? ? "#{key}:branch:#{branch}" : key
+  end
+
+  # Non-default landing branches of a repository that currently hold an
+  # active landing unit in any lane.
+  def active_landing_branches(repository)
+    prefix = "landing:repository:#{repository.id}"
+    WorkUnitLock.active
+      .joins(:work_unit)
+      .where(work_units: { state: WorkUnits::Ownership::ACTIVE_STATES, kind: landing_lock_kinds })
+      .where("work_unit_locks.lock_key LIKE ?", "#{WorkUnitLock.sanitize_sql_like(prefix)}%:branch:%")
+      .pluck(:lock_key)
+      .filter_map { |key| key.match(/\A#{Regexp.escape(prefix)}(?::lane:\d+)?:branch:(.+)\z/)&.captures&.first }
+      .uniq.sort
   end
 
   # Artifact on a landing Workflow naming the lane it landed in. Written only
@@ -152,8 +170,19 @@ module WorkDefinitions
   # Occupancy of every lane on the Job's landing branch, for the reconciler,
   # stuck-Job explainer and admin views: which lanes are held and by which unit.
   def landing_lane_status_for(job, policy: nil)
-    configured = landing_lane_count(job&.repository)
-    landing_all_lane_keys_for(job, policy: policy).each_with_index.filter_map do |key, index|
+    lane_status_for_keys(job&.repository, landing_all_lane_keys_for(job, policy: policy))
+  end
+
+  # The same lane occupancy for a repository branch without a sample Job;
+  # `branch` nil is the default branch.
+  def landing_branch_lane_status(repository, branch)
+    keys = Repository::LANDING_CONCURRENCY_RANGE.map { |lane| landing_branch_lock_key(repository.id, branch, lane:) }
+    lane_status_for_keys(repository, keys)
+  end
+
+  def lane_status_for_keys(repository, keys)
+    configured = landing_lane_count(repository)
+    keys.each_with_index.filter_map do |key, index|
       unit = WorkUnits::Ownership.active_unit_for_lock_key(key, kinds: landing_lock_kinds)
       next if unit.nil? && index >= configured
 

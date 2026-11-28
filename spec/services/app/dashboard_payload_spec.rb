@@ -1218,6 +1218,28 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:landing_queue_wait_reason]).to eq({ key: "waiting_active_epic_merge_train" })
     end
 
+    it "reports a wait for a rebase slot as neutral queue status" do
+      repo.update!(auto_merge_enabled: true)
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
+      job.approve!(via: "github_review")
+      job.update!(github_mergeable_state: "behind", mergeability_checked_at: Time.current)
+      PollRebaseJob::CONCURRENT_REBASES_PER_REPO.times do |index|
+        other = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 200 + index,
+                                     branch_name: "syrus/other-#{index}")
+        RebaseWorkflowSelector.instantiate(job: other)
+      end
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      cap = PollRebaseJob::CONCURRENT_REBASES_PER_REPO
+      expect(item[:landing_queue_blocked_reason]).to be_nil
+      expect(item[:landing_queue_wait_reason]).to eq({ "key" => "waiting_rebase_slot", "params" => { "held" => cap, "cap" => cap } })
+      expect(result.dig(:landing_queue, :status, :title)).to eq("Landing queue is waiting for a rebase slot.")
+      expect(result.dig(:landing_queue, :status, :summary)).to include("every rebase slot in the repository is in use (#{cap}/#{cap})")
+    end
+
     it "reports ordinary epicless job-bundle participation as neutral queue status" do
       Feature.create!(slug: "epicless_job_bundling", category: "Labs", name: "Epicless Job bundling", enabled: true)
       repo.update!(auto_merge_enabled: true)

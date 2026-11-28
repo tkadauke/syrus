@@ -27,6 +27,7 @@ module Permissions
       "approve_job" => Operation.new(JOBS, "approve", STATE_CHANGE, :medium),
       "unapprove_job" => Operation.new(JOBS, "unapprove", STATE_CHANGE, :medium),
       "cancel_job" => Operation.new(JOBS, "cancel", DESTRUCTIVE_CONTROL, :high),
+      "hold_job" => Operation.new(JOBS, "hold", DESTRUCTIVE_CONTROL, :high),
       "reset_job" => Operation.new(JOBS, "reset", DESTRUCTIVE_CONTROL, :critical),
       "retry_job" => Operation.new(JOBS, "retry", WORK_CONTROL, :medium),
       "base_refresh_retry_job" => Operation.new(JOBS, "retry_base_refresh", WORK_CONTROL, :medium),

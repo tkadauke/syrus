@@ -42,13 +42,16 @@ class WorkflowPatch
   end
 
   def apply!
-    validate!
-
-    patched = patched_graph
+    patched = nil
     Step.transaction do
       # Ancestry first, top down (NY40): materializing writes Steps, then the
-      # Workflow records the patch.
+      # Workflow records the patch. The graph, history and state are then
+      # read under the lock: a patch that committed while this one waited
+      # would otherwise be overwritten by a graph computed before it.
       Lineage.lock!(@workflow)
+      @workflow.reload(lock: true)
+      validate!
+      patched = patched_graph
       materialize_live_steps!
       @workflow.update!(
         chain_template: patched,

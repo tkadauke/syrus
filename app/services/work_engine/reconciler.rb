@@ -43,6 +43,15 @@ module WorkEngine
     # was pinned to that worker's storage-affinity resume queue no other worker
     # was eligible either. Five idle workers, two starved Jobs, no detection.
     WEDGED_QUEUE_CLAIM_AFTER = 3.hours
+    # The running-Run counterpart. A live queue claim proves the worker
+    # process is alive, not that the thread running this Run is: a grader
+    # thread once hung inside its worker for hours after its last command,
+    # with no child process and no heartbeat, while the worker kept the claim
+    # and heartbeated to SolidQueue. Long Ruby-side operations heartbeat
+    # through RunHeartbeat.during and commands heartbeat through their output,
+    # so this long without either, and with no live spawned process, is a
+    # wedged thread rather than slow work.
+    WEDGED_RUNNING_RUN_AFTER = 1.hour
     RESOURCE_CONGESTION_CHECK_AFTER = 5.minutes
     RATE_LIMIT_CHECK_AFTER = 10.minutes
 
@@ -991,7 +1000,9 @@ module WorkEngine
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
         non_agentic_no_process = non_agentic_run_without_live_process?(run, live_process)
         non_agentic_no_process_ready = non_agentic_no_process && older_than?(last_activity_at, NON_AGENTIC_NO_PROCESS_GRACE)
-        repair_ready = terminal_orphan_ready || (!heartbeat_fresh && (
+        wedged_in_live_worker = queue_execution_live && !live_process &&
+          older_than?(last_activity_at, WEDGED_RUNNING_RUN_AFTER)
+        repair_ready = terminal_orphan_ready || wedged_in_live_worker || (!heartbeat_fresh && (
           (heartbeat_stale && !live_process && !queue_execution_live) ||
           detached_ready ||
           (non_agentic_no_process_ready && !queue_execution_live)
@@ -1025,7 +1036,8 @@ module WorkEngine
             live_spawned_process: live_process&.id,
             terminal_spawned_process: terminal_process&.id,
             terminal_spawned_process_outcome: terminal_process&.outcome,
-            terminal_orphan_process_ready: terminal_orphan_ready
+            terminal_orphan_process_ready: terminal_orphan_ready,
+            wedged_in_live_worker: wedged_in_live_worker
           ),
           explanation: "Run ##{run.id} is running without enough evidence of a live worker continuing it."
         )
@@ -2325,7 +2337,9 @@ module WorkEngine
       jobs.filter_map do |job|
         next unless ReconcileJobStatesJob::RECONCILABLE_STATES.include?(job.state)
         latest = latest_workflow_for_job(job)
-        next if latest&.terminal? && active_runtime_work_for_job?(job)
+        # A blocked Workflow's own WorkUnit stays active by design; the Plan
+        # decides for itself whether anything else is progressing.
+        next if latest&.terminal? && !latest.blocked? && active_runtime_work_for_job?(job)
 
         plan = ReconcileJobStatesJob::Plan.for(job)
         next unless plan
@@ -3273,6 +3287,12 @@ module WorkEngine
         classification = effective_failure_classification(run)
         next if classification.nil?
         next unless classification.retryable || provider_quota_classification?(classification)
+        # The retry this failure called for already ran. Every plan the issue
+        # can make is refused for a Run that has a performed attempt, so
+        # planning one each pass is pure churn: a failed repair Workflow whose
+        # retry was still being worked by a newer Workflow was planned and
+        # skipped every minute for a night.
+        next if retry_already_performed_for_run?(run)
 
         issue(
           kind: :retryable_run_failure,
@@ -3348,10 +3368,12 @@ module WorkEngine
         # or failure), so a genuinely failed recovery attempt still leaves
         # retry_workflow free to run on the next pass.
         next if workflow&.artifact("branch_divergence_recovery_pending").present?
-        next unless divergence_current_pr_head?(job, divergence)
 
         latest = latest_workflow_for_job(job)
-        if workflow == latest && job.failed? && !active_runtime_work_for_job?(job)
+        retryable = retry_from_current_pr_branch_applies?(job, workflow, divergence, latest: latest)
+        next unless retryable || divergence_current_pr_head?(job, divergence)
+
+        if retryable
           issue(
             kind: :branch_diverged_pr_open,
             severity: :warning,
@@ -4449,9 +4471,25 @@ module WorkEngine
     end
 
     def recoverable_branch_divergence?(run)
-      branch_diverged_pr_open_run?(run) &&
-        run.workflow&.artifact("branch_divergence_recovery").blank? &&
-        divergence_current_pr_head?(run.job, run.workflow&.artifact("branch_divergence"))
+      return false unless branch_diverged_pr_open_run?(run)
+      return false if run.workflow&.artifact("branch_divergence_recovery").present?
+
+      divergence = run.workflow&.artifact("branch_divergence")
+      divergence_current_pr_head?(run.job, divergence) ||
+        retry_from_current_pr_branch_applies?(run.job, run.workflow, divergence, latest: latest_workflow_for_job(run.job))
+    end
+
+    # The genuinely ambiguous branch divergence (BranchTruth) is repaired by
+    # retrying from the *current* PR branch, whatever head it has reached.
+    # Requiring it to still equal the head recorded at failure skipped the
+    # repair whenever the branch moved again -- a second stack rebase -- and
+    # left the Job failed for a human. Only the latest failed workflow with no
+    # runtime work in flight qualifies, and the PR head must be known.
+    def retry_from_current_pr_branch_applies?(job, workflow, divergence, latest:)
+      return false unless job&.pr_number.present? && divergence.is_a?(Hash)
+      return false if current_pr_head_sha(job).blank?
+
+      workflow == latest && job.failed? && !active_runtime_work_for_job?(job)
     end
 
     def branch_divergence_recovered_by_current_pr_branch?(workflow)
@@ -4484,6 +4522,10 @@ module WorkEngine
       workflow = run.workflow
       job = run.job
       workflow && job && workflow == latest_workflow_for_job(job)
+    end
+
+    def retry_already_performed_for_run?(run)
+      AutoRetryAttempt.unskipped.where(run_id: run.id).where.not(performed_at: nil).exists?
     end
 
     def repair_failure_still_needs_validation?(run)

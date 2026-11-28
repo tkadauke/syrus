@@ -80,6 +80,31 @@ RSpec.describe WorkflowOutcomeOverrides::Resumer do
     expect(continuation.runs.count).to eq(1)
   end
 
+  # Only the failed-collector path checked the Workflow's state. On a blocked
+  # Workflow the active-loop path rewrote its blocked repair to skipped past
+  # AASM (so an answer could no longer resume it) and queued a Run under the
+  # terminal Workflow (F146).
+  it "refuses an override on a Workflow that is no longer active" do
+    reviewed_sha = "f" * 40
+    vote = panel_vote.except("panel_id").merge("step_id" => 48)
+    workflow.set_artifact!("adversarial_review_iterations", [ vote ])
+    review = Step.create!(workflow:, kind: "adversarial_review", position: 60, state: "succeeded",
+      iteration: 1, loop_id: "blocked-review", details: { "reviewed_head_sha" => reviewed_sha })
+    repair = Step.create!(workflow:, kind: "implement", position: 61, state: "blocked",
+      iteration: 2, loop_id: "blocked-review")
+    continuation = Step.create!(workflow:, kind: "summarize", position: 62)
+    review.update!(next_step_id: repair.id)
+    repair.update!(next_step_id: continuation.id)
+    override = record_review_override(step: review, vote:, reviewed_sha:, review_kind: "adversarial_review")
+    workflow.update_columns(state: "blocked", finished_at: Time.current)
+
+    expect { described_class.call(override:) }
+      .to raise_error(described_class::ResumeFailed, /blocked/)
+    expect(repair.reload.state).to eq("blocked")
+    expect(continuation.runs).to be_empty
+    expect(override.reload).not_to be_consumed
+  end
+
   it "refuses and invalidates an override after review repair has started" do
     reviewed_sha = "c" * 40
     vote = panel_vote.except("panel_id").merge("step_id" => 45)

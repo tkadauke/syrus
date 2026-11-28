@@ -170,13 +170,15 @@ RSpec.describe "macOS worker installer" do
         # The pinned toolchain, then only the system's own directories. The
         # private MySQL client's bin is on it so a job's own mysql2 build finds
         # that mysql_config before mysql2's built-in Homebrew locations, and
-        # the browser tools' bin for playwright-mcp.
+        # XcodeGen's, and the browser tools' bin for playwright-mcp.
         playwright = File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^PLAYWRIGHT_VERSION=(.+)$/, 1]
         playwright_mcp = File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^PLAYWRIGHT_MCP_VERSION=(.+)$/, 1]
+        xcodegen = File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^XCODEGEN_VERSION=(.+)$/, 1]
         expect(stdout).to include(
           "PATH=#{install_root}/rubies/#{pinned_ruby}/bin:#{install_root}/nodes/#{pinned_node}/bin:" \
           "#{install_root}/agent-clis/bin:#{install_root}/tools/mise/#{mise_version}/bin:" \
           "#{install_root}/tools/mysql-client/#{mysql_version}/bin:" \
+          "#{install_root}/tools/xcodegen/#{xcodegen}/bin:" \
           "#{install_root}/tools/playwright/#{playwright}-mcp-#{playwright_mcp}/bin:/usr/bin:/bin:/usr/sbin:/sbin "
         )
         expect(stdout).not_to include("/opt/homebrew")

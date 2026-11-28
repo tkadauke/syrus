@@ -128,6 +128,7 @@ en:
         label: "Hold %{job}"
         detail_waiting: "Cancel active Runs and Workflows, return the Job to waiting on dependencies, and keep its PR and branch."
         detail_backlog: "Cancel active Runs and Workflows, move the Job to backlog, and keep its PR and branch."
+        detail_dependency_edit: "Applies the requested %{tool} edit first."
       bulk_confirmation:
         cleanup_workspaces: "Delete %{count} workflow workspaces?"
         cancel_stale_work: "Cancel stale work for %{count} Jobs?"
@@ -163,6 +164,40 @@ en:
         terminal_states_mutually_exclusive: "an override cannot be both consumed and invalidated"
 
   services:
+    force_push:
+      remote_holds_unrebased_work: "force_push: remote branch holds work this rebase does not carry"
+    recovery_decision:
+      no_progress:
+        headline: "Repair stopped without progress"
+        explanation: "The grader loop stopped because measured failures did not improve."
+        guidance: "Diagnose the repeated measured failures and give the repair agent specific corrective guidance."
+      workspace_unavailable:
+        headline: "Recovery workspace is unavailable"
+        explanation: "The failed workflow workspace is unavailable, so work cannot safely resume in place."
+      fresh_implementation:
+        headline: "A fresh implementation is required"
+        explanation: "The failed workflow cannot be repaired safely in place; restart implementation from the effective base."
+      infrastructure_only:
+        headline: "Infrastructure produced no verdict"
+        explanation: "Execution ended without a trustworthy implementation or test verdict."
+      interrupted_resumable:
+        headline: "Interrupted work can resume"
+        explanation: "The work was interrupted and retains resumable execution state."
+      measured_failure:
+        headline: "A measured failure needs repair"
+        explanation: "Execution produced a measured implementation or test failure."
+        guidance: "Repair the measured failure; an unchanged rerun is not expected to change the verdict."
+      restart_from_base:
+        headline: "Restart from the effective base"
+        explanation: "No trustworthy resumable recovery target remains; restart from the effective base."
+    runtime_images:
+      verifications:
+        reevaluator:
+          abandoned: "Verification attempt was abandoned."
+        orchestrator:
+          check_missing: "Required check %{check} has no recorded result."
+        supply_chain_policy:
+          blocked: "Supply-chain policy blocked vulnerability findings: %{vulnerability_count}; prohibited packages: %{package_count}."
     workflow_outcome_overrides:
       telemetry:
         message: "Workflow outcome failed, overridden"
@@ -189,6 +224,9 @@ en:
       wait_cycles:
         title: "Blocked work does not wait on itself"
         violation: "%{units} wait on each other in a cycle (%{reasons}); none of them can start."
+      paused_rebase_holds:
+        title: "A paused rebase does not silently hold approved work"
+        violation: "%{workflow} (%{job}) has been paused for %{hours}h and holds the landing of %{count} approved Job(s): %{held}. An operator must resume or cancel it."
       alert:
         title: "Syrus invariants are violated."
         message: "%{count} invariant violation(s) are open: %{summary}."
@@ -258,6 +296,7 @@ en:
       required_for_file_anchor: "must be present for file anchors"
       blank_for_file_anchor: "must be blank for file anchors"
       not_a_dns_host_name: "must be a DNS host name, not an IP address"
+      runtime_image_digest_mismatch: "must match the immutable runtime image"
       blank_for_repository_anchor: "must be blank for repository anchors"
       repository_mismatch: "must belong to the same repository"
       same_user_required: "must belong to the same user"

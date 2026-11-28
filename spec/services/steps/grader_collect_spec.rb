@@ -229,6 +229,57 @@ RSpec.describe Steps::GraderCollect do
     expect(override.reload).to be_consumed
   end
 
+  it "keeps an exact-evidence override accepted when the collector reruns for another overridden grader" do
+    # Regression: two required graders fail and the operator overrides them one
+    # at a time. The first rerun consumes the first override and still fails on
+    # the second grader; the rerun after the second override must keep
+    # accepting the first grader's already-consumed exact evidence, or the gate
+    # can never advance (the first grader is no longer an override candidate).
+    first = workflow.steps.find_by!(kind: "grader")
+    first.update!(state: "failed", details: first.details.merge(
+      "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true,
+      "technically_overridable" => true, "command" => "bin/rspec", "exit_code" => 1,
+      "output" => "1 example, 1 failure"
+    ))
+    second = Step.create!(workflow:, kind: "grader", position: 99, iteration: 1, loop_id:, state: "failed",
+      details: first.details.merge(
+        "name" => "lint", "target_label" => "//:grade/lint", "command" => "bin/lint",
+        "output" => "1 offense"
+      ))
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "grade-plan-v1")
+    required_plan = [ first, second ].map do |grader|
+      { "grader_key" => grader.details["target_label"],
+        "command_fingerprint" => grader.details.dig("target_fingerprints", "command_fingerprint"),
+        "required" => true }
+    end.sort_by { |entry| entry["grader_key"] }
+    record_override = lambda do |grader|
+      result = WorkflowOutcomeOverrides::GraderResult.new(
+        workflow:, grader_step: grader, candidate_head_sha: "abc123", candidate_tree_sha: "abc123",
+        candidate_base_sha: "abc123", grader_plan_digest: "grade-plan-v1", required_grader_plan: required_plan
+      )
+      WorkflowOutcomeOverride.record!(
+        gate_failure: result.failure, job:, workflow:, step: grader, actor: Factories.user,
+        gate_kind: result.gate_kind, gate_identity: result.gate_identity,
+        candidate_head_sha: "abc123", candidate_tree_sha: "abc123", candidate_base_sha: "abc123",
+        plan_version: result.plan_version, evidence_digest: result.evidence_digest,
+        channel: "ui", reason: "Confirmed false positive", permission_decision: { "state" => "allow" }
+      )
+    end
+
+    first_override = record_override.call(first)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: lint")
+    expect(first_override.reload).to be_consumed
+
+    record_override.call(second.reload)
+    rerun = step.runs.create!(job:, trigger_kind: workflow.trigger_kind, state: "running", iteration: step.iteration)
+    rerun_handler = described_class.new(rerun)
+    allow(rerun_handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, path: @ws_path, base_ref: "origin/main"))
+
+    expect { rerun_handler.call }.not_to raise_error
+    expect(first_override.reload).to be_consumed
+    expect(first_override.invalidation_cause).to be_nil
+  end
+
   it "allows a committed CI repair through when its explicitly mapped pass is carried forward and an unrelated grader has an infrastructure failure" do
     workflow.update_columns(trigger_kind: "ci_failure")
     workflow.set_artifact!("head_sha", "original123")

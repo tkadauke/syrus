@@ -11,7 +11,7 @@ class ChatFeedbackSubmission
 
     workflow = nil
     job.with_lock do
-      job.reload
+      job.reload(lock: true)
       acceptable_states = allowed_states | [ "landing" ]
       unless acceptable_states.include?(job.state)
         states = allowed_states.map { |state| state.tr("_", " ") }.to_sentence
@@ -28,7 +28,7 @@ class ChatFeedbackSubmission
       # revision. Serialize them on the Job row; if landing already won the
       # race, preempt its active workflow before recording the feedback work.
       job.stop_landing! if job.landing?
-      job.reload
+      job.reload(lock: true)
       Job::ApprovalUnapprover.call(job: job, user: job.user) if job.may_unapprove?
 
       iteration = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1

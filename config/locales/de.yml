@@ -97,6 +97,7 @@ de:
         label: "%{job} anhalten"
         detail_waiting: "Aktive Läufe und Workflows abbrechen, den Job zum Warten auf Abhängigkeiten zurücksetzen und PR sowie Branch behalten."
         detail_backlog: "Aktive Läufe und Workflows abbrechen, den Job ins Backlog verschieben und PR sowie Branch behalten."
+        detail_dependency_edit: "Wendet zuerst die angeforderte %{tool}-Änderung an."
       bulk_confirmation:
         cleanup_workspaces: "%{count} Workflow-Arbeitsbereiche löschen?"
         cancel_stale_work: "Veraltete Arbeit für %{count} Jobs abbrechen?"
@@ -133,6 +134,40 @@ de:
         terminal_states_mutually_exclusive: "Eine Außerkraftsetzung kann nicht zugleich verbraucht und ungültig gemacht sein"
 
   services:
+    force_push:
+      remote_holds_unrebased_work: "force_push: Der Remote-Branch enthält Arbeit, die dieses Rebase nicht mitbringt"
+    recovery_decision:
+      no_progress:
+        headline: "Reparatur ohne Fortschritt beendet"
+        explanation: "Die Grader-Schleife wurde beendet, weil sich die gemessenen Fehler nicht verbessert haben."
+        guidance: "Analysiere die wiederholten gemessenen Fehler und gib dem Reparatur-Agenten konkrete Hinweise zur Korrektur."
+      workspace_unavailable:
+        headline: "Wiederherstellungs-Arbeitsbereich ist nicht verfügbar"
+        explanation: "Der Arbeitsbereich des fehlgeschlagenen Workflows ist nicht verfügbar, daher kann die Arbeit nicht sicher an Ort und Stelle fortgesetzt werden."
+      fresh_implementation:
+        headline: "Eine neue Implementierung ist erforderlich"
+        explanation: "Der fehlgeschlagene Workflow kann nicht sicher an Ort und Stelle repariert werden; starte die Implementierung neu von der effektiven Basis."
+      infrastructure_only:
+        headline: "Die Infrastruktur hat kein Urteil geliefert"
+        explanation: "Die Ausführung endete ohne verlässliches Implementierungs- oder Testurteil."
+      interrupted_resumable:
+        headline: "Unterbrochene Arbeit kann fortgesetzt werden"
+        explanation: "Die Arbeit wurde unterbrochen und hat einen fortsetzbaren Ausführungszustand behalten."
+      measured_failure:
+        headline: "Ein gemessener Fehler muss repariert werden"
+        explanation: "Die Ausführung hat einen gemessenen Implementierungs- oder Testfehler ergeben."
+        guidance: "Repariere den gemessenen Fehler; ein unveränderter erneuter Lauf wird das Urteil voraussichtlich nicht ändern."
+      restart_from_base:
+        headline: "Neustart von der effektiven Basis"
+        explanation: "Es gibt kein verlässliches fortsetzbares Wiederherstellungsziel mehr; starte neu von der effektiven Basis."
+    runtime_images:
+      verifications:
+        reevaluator:
+          abandoned: "Der Verifizierungsversuch wurde abgebrochen."
+        orchestrator:
+          check_missing: "Für die erforderliche Prüfung %{check} ist kein Ergebnis gespeichert."
+        supply_chain_policy:
+          blocked: "Die Lieferkettenrichtlinie hat Funde blockiert: Schwachstellen: %{vulnerability_count}; verbotene Pakete: %{package_count}."
     workflow_outcome_overrides:
       telemetry:
         message: "Workflow-Ergebnis fehlgeschlagen, übersteuert"
@@ -159,6 +194,9 @@ de:
       wait_cycles:
         title: "Blockierte Arbeit wartet nicht auf sich selbst"
         violation: "%{units} warten im Kreis aufeinander (%{reasons}); keine davon kann starten."
+      paused_rebase_holds:
+        title: "Ein pausierter Rebase hält genehmigte Arbeit nicht stillschweigend auf"
+        violation: "%{workflow} (%{job}) ist seit %{hours} h pausiert und hält das Landen von %{count} genehmigten Job(s) auf: %{held}. Ein Operator muss ihn fortsetzen oder abbrechen."
       alert:
         title: "Syrus-Invarianten sind verletzt."
         message: "%{count} offene Invariantenverletzung(en): %{summary}."
@@ -228,6 +266,7 @@ de:
       required_for_file_anchor: "muss bei Dateiverankerungen vorhanden sein"
       blank_for_file_anchor: "muss bei Dateiverankerungen leer sein"
       not_a_dns_host_name: "muss ein DNS-Hostname sein, keine IP-Adresse"
+      runtime_image_digest_mismatch: "muss mit dem unveränderlichen Laufzeit-Image übereinstimmen"
       blank_for_repository_anchor: "muss bei Repository-Verankerungen leer sein"
       repository_mismatch: "muss zum selben Repository gehören"
       same_user_required: "muss zum selben Benutzer gehören"

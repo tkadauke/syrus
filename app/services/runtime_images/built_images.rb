@@ -9,11 +9,13 @@ module RuntimeImages
   class BuiltImages
     DEFAULT_PLATFORM = "linux/amd64".freeze
 
-    def initialize(service: Service.new, engine: WorkerCache::CliEngine.new, cache: nil, provider_key: OciRegistry::Provider::KEY)
+    def initialize(service: Service.new, engine: WorkerCache::CliEngine.new, cache: nil, provider_key: OciRegistry::Provider::KEY,
+                   supply_chain_scanner: nil)
       @service = service
       @engine = engine
       @cache = cache
       @provider_key = provider_key
+      @supply_chain_scanner = supply_chain_scanner
     end
 
     # True when the provider can store images. Callers that can run without
@@ -32,10 +34,15 @@ module RuntimeImages
     # record. The digest is whatever the provider verified, not a local tag.
     def publish_local(local_reference:, owner_kind:, owner_ref:, source_kind:, source_ref:, source_digest: nil, platform: DEFAULT_PLATFORM, provenance: {})
       payload = @engine.export_oci(local_reference, platform: platform)
-      @service.publish(
+      image = @service.publish(
         namespace: namespace_for(owner_kind, owner_ref), source_kind: source_kind.to_s, source_ref: source_ref.to_s,
         source_digest: source_digest, platform: platform, provenance: provenance, payload: payload
       )
+      scanner = @supply_chain_scanner || Verifications::SupplyChainScanner.new(built_images: self)
+      attempt = Verifications::Orchestrator.new(service: @service, supply_chain_scanner: scanner).verify(image)
+      raise Error, "published runtime image #{image.digest} failed verification: #{attempt.failure_code}" unless attempt.accepted?
+
+      image
     end
 
     # Makes the image local (pulling by digest when this worker lacks it),
@@ -43,6 +50,12 @@ module RuntimeImages
     # reference to run.
     def acquire(image, &block)
       worker_cache.acquire(image, &block)
+    end
+
+    # Supplies an available image to verification before it is eligible for
+    # normal acquisition. WorkerCache still proves the immutable digest.
+    def acquire_for_verification(image, &block)
+      worker_cache.acquire_for_verification(image, &block)
     end
 
     # The namespace for an owner identity, created on first use. Callers that

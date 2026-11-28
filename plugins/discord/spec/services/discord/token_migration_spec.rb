@@ -18,6 +18,46 @@ RSpec.describe Discord::TokenMigration do
     expect(account).to be_nil
   end
 
+  describe ".retire_legacy_once" do
+    def update_statements
+      statements = []
+      callback = ->(*, payload) { statements << payload[:sql] if payload[:sql].match?(/\AUPDATE/i) }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+      statements
+    end
+
+    # Read paths (the chat index) call this. An unconditional UPDATE of the
+    # settings row queued behind admission locks held on it and failed GETs
+    # with a lock-wait timeout, so with nothing to retire it must only read.
+    it "issues no write when no legacy value is left" do
+      AppSetting.current
+
+      expect(update_statements { described_class.retire_legacy_once }).to be_empty
+      expect(update_statements { described_class.retire_legacy_once }).to be_empty
+    end
+
+    it "clears a leftover value once" do
+      AppSetting.current.update!(discord_bot_token: token)
+
+      expect(update_statements { described_class.retire_legacy_once }.size).to eq(1)
+      expect(AppSetting.current.reload.discord_bot_token).to be_nil
+      expect(update_statements { described_class.retire_legacy_once }).to be_empty
+    end
+
+    it "gives up without raising when the row is busy and retries on a later call" do
+      AppSetting.current.update!(discord_bot_token: token)
+      allow(described_class).to receive(:legacy_rows_without_waiting)
+        .and_raise(ActiveRecord::StatementInvalid, "Statement aborted because lock(s) could not be acquired immediately and NOWAIT is set")
+
+      expect { described_class.retire_legacy_once }.not_to raise_error
+      expect(AppSetting.current.reload.discord_bot_token).to eq(token)
+
+      allow(described_class).to receive(:legacy_rows_without_waiting).and_call_original
+      described_class.retire_legacy_once
+      expect(AppSetting.current.reload.discord_bot_token).to be_nil
+    end
+  end
+
   context "with an existing token" do
     before { AppSetting.current.update!(discord_bot_token: token) }
 

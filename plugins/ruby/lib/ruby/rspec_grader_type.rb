@@ -285,13 +285,32 @@ module Ruby
     # the `display_name` precedence.
     #
     # `cpu_min: 2` records that parallelism below two processes buys nothing
-    # beyond the serial path -- advisory today, an admission input later.
-    def resource_request_for(mode)
+    # beyond the serial path.
+    #
+    # Shards are different: they split one suite by recorded runtime, so the
+    # round waits for whichever was granted the fewest cores.
+    # `parallel_rspec.shard_cpu_min: N` makes N an admission input for the
+    # shards only -- a host that cannot grant N reroutes the shard (for a
+    # bounded wait) instead of running it narrow.
+    def resource_request_for(mode, shard: nil)
       explicit = Syrus::Host::GraderResourceRequest.parse(config["resources"])
       return explicit if explicit
       return nil unless parallel_rspec_enabled_for?(mode)
 
-      Syrus::Host::GraderResourceRequest.new(cpu: Syrus::Host::GraderResourceRequest::ALL, cpu_min: 2)
+      cpu_min = shard ? [ shard_cpu_min, 2 ].max : 2
+      Syrus::Host::GraderResourceRequest.new(cpu: Syrus::Host::GraderResourceRequest::ALL, cpu_min: cpu_min)
+    end
+
+    def shard_cpu_min
+      raw = parallel_config["shard_cpu_min"]
+      return 2 if raw.blank?
+
+      value = Integer(raw.to_s, 10)
+      raise ArgumentError, "parallel_rspec.shard_cpu_min must be a positive integer" unless value.positive?
+
+      value
+    rescue TypeError
+      raise ArgumentError, "parallel_rspec.shard_cpu_min must be a positive integer"
     end
 
     def coverage?
@@ -1117,7 +1136,7 @@ module Ruby
         failures: failures,
         base_retry: base_retry,
         deps: configured_deps,
-        resources: resource_request_for(mode),
+        resources: resource_request_for(mode, shard: shard),
         metadata: {
           "grader_type" => self.class.type_name,
           "grader_framework" => "rspec",

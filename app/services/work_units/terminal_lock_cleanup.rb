@@ -13,7 +13,7 @@ module WorkUnits
       WorkUnit.transaction do
         # Ancestry first, top down (NY40): retiring rolls up to the Job.
         Lineage.lock!(work_unit)
-        work_unit.reload
+        work_unit.reload(lock: true)
         eligibility = RepairPreflight.terminal_work_unit(work_unit: work_unit)
         return Result.new(status: eligibility.status, work_unit: work_unit, eligibility: eligibility, mutation_count: 0) if dry_run || eligibility.noop?
         eligibility.ensure_eligible!

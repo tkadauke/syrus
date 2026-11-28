@@ -10,6 +10,17 @@ RSpec.describe Steps::Push do
 
   before do
     allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+    # The rejected-push examples script GitRunner; BranchTruth's own git reads
+    # are covered on real repositories in spec/services/branch_truth_spec.rb.
+    allow_any_instance_of(described_class).to receive(:push_base_ref).and_return(nil)
+    stub_branch_truth(:diverged, :ambiguous)
+  end
+
+  def stub_branch_truth(relation, outcome)
+    allow(BranchTruth).to receive(:classify) do |remote:, **|
+      BranchTruth::Result.new(relation: relation, outcome: outcome, local_sha: "local123", remote_sha: remote,
+                              base_sha: nil, local_fresh: nil, remote_fresh: nil, evidence: {})
+    end
   end
 
   it "replaces the managed PR cost footer after follow-up pushes" do
@@ -257,9 +268,7 @@ RSpec.describe Steps::Push do
     expect(git).to receive(:run).with(
       "rev-parse", "refs/remotes/origin/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
     ).ordered.and_return("remote123\n")
-    expect(git).to receive(:run).with(
-      "cherry", "HEAD", "refs/remotes/origin/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
-    ).ordered.and_return("- abc123\n")
+    stub_branch_truth(:local_contains_remote, :publish)
     expect(git).to receive(:run).with(
       "push", "--force-with-lease=refs/heads/dependabot/bundler/rack-3.1.1:remote123",
       push_url, "HEAD:refs/heads/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
@@ -268,5 +277,36 @@ RSpec.describe Steps::Push do
     handler.call
 
     expect(ext_run.job_logs.pluck(:chunk).join("\n")).to include("preserves the remote patches")
+  end
+
+  # Regression: a stack rebase rewrote the PR branch onto the moved parent and
+  # already carried this workflow's commits. Replaying them onto it only
+  # re-applied patches that were there; the remote is the published result.
+  it "adopts the remote instead of pushing when it already holds the workflow's work" do
+    job.update!(branch_name: "syrus/issue-42")
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, setup: nil, branch_name: "syrus/issue-42", path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    push_url = "https://push.example/repo.git"
+    push_error = GitRunner::GitError.new([ "push" ], 1, "! [rejected] HEAD -> syrus/issue-42 (non-fast-forward)")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(handler).to receive(:update_managed_pr_footers)
+    stub_branch_truth(:equivalent, :adopt_remote)
+
+    expect(git).to receive(:run).with("push", push_url, "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/workspace").ordered.and_raise(push_error)
+    expect(git).to receive(:run).with("fetch", push_url, "+refs/heads/syrus/issue-42:refs/remotes/origin/syrus/issue-42", chdir: "/tmp/workspace").ordered
+    expect(git).to receive(:run).with("rev-parse", "refs/remotes/origin/syrus/issue-42", chdir: "/tmp/workspace").ordered.and_return("remote123\n")
+    expect(git).to receive(:run).with("reset", "--hard", "remote123", chdir: "/tmp/workspace").ordered
+    expect(git).not_to receive(:run).with("rebase", any_args)
+
+    handler.call
+
+    expect(workflow.reload.artifact(BranchTruth::ADOPTED_ARTIFACT)).to include("relation" => "equivalent", "context" => "push")
+    expect(workflow.artifact("push_branch_truth")).to include("outcome" => "adopt_remote")
   end
 end

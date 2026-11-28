@@ -16,7 +16,8 @@
 #                                    mise itself and the MySQL client library
 #                                    mysql2 links against, downloaded from
 #                                    their publishers and checked against the
-#                                    SHA-256 pinned there; and the Playwright
+#                                    SHA-256 pinned there; XcodeGen, likewise;
+#                                    and the Playwright
 #                                    and @playwright/mcp versions (the Linux
 #                                    image's) behind the browser tools,
 #                                    installed from npm with the pinned Node
@@ -79,6 +80,7 @@ syrus_macos_node_prefix() { printf '%s/%s\n' "$SYRUS_MACOS_NODES_ROOT" "$1"; }
 syrus_macos_mise_prefix() { printf '%s/mise/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
 syrus_macos_browser_tools_prefix() { printf '%s/playwright/%s-mcp-%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1" "$2"; }
 syrus_macos_mysql_client_prefix() { printf '%s/mysql-client/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
+syrus_macos_xcodegen_prefix() { printf '%s/xcodegen/%s\n' "$SYRUS_MACOS_TOOLS_ROOT" "$1"; }
 
 # Gem bundle for one Ruby + MySQL client pair:
 # <shared dir>/bundles/ruby-<ruby>-mysql-<client>.
@@ -111,6 +113,13 @@ syrus_macos_mise_installed() {
   prefix="$(syrus_macos_mise_prefix "$1")"
   [[ -x "$prefix/bin/mise" ]] &&
     [[ "$("$prefix/bin/mise" --version 2>/dev/null)" == "$1"* ]]
+}
+
+syrus_macos_xcodegen_installed() {
+  local prefix
+  prefix="$(syrus_macos_xcodegen_prefix "$1")"
+  [[ -x "$prefix/bin/xcodegen" && -d "$prefix/share/xcodegen" ]] &&
+    [[ "$("$prefix/bin/xcodegen" --version 2>/dev/null)" == *"$1"* ]]
 }
 
 syrus_macos_mysql_client_installed() {
@@ -213,6 +222,35 @@ syrus_macos_mysql_client_install() {
     { echo "macos-runtime: MySQL client $version is not usable" >&2; return 1; }
 }
 
+# XcodeGen's release archive as published: bin/xcodegen and the
+# share/xcodegen/SettingPresets it reads relative to itself, so the layout is
+# kept as is. The binary links only system frameworks.
+syrus_macos_xcodegen_install() {
+  local release_root="$1" version url sha256 work
+  version="$(syrus_macos_toolchain_value "$release_root" XCODEGEN_VERSION)" || return 1
+  syrus_macos_xcodegen_installed "$version" && return 0
+  url="$(syrus_macos_toolchain_value "$release_root" XCODEGEN_URL)" || return 1
+  sha256="$(syrus_macos_toolchain_value "$release_root" XCODEGEN_SHA256)" || return 1
+
+  work="$(mktemp -d "${TMPDIR:-/tmp}/syrus-macos-xcodegen.XXXXXX")"
+  if ! _syrus_macos_fetch "$url" "$sha256" "$work/xcodegen.zip"; then
+    rm -rf "$work"
+    return 1
+  fi
+  if ! unzip -q "$work/xcodegen.zip" -d "$work/extract" ||
+      [[ ! -x "$work/extract/xcodegen/bin/xcodegen" || ! -d "$work/extract/xcodegen/share/xcodegen" ]]; then
+    rm -rf "$work"
+    echo "macos-runtime: $url is not an XcodeGen release archive" >&2
+    return 1
+  fi
+  mkdir -p "$work/install"
+  mv "$work/extract/xcodegen/bin" "$work/extract/xcodegen/share" "$work/install/"
+  _syrus_macos_place "$work/install" "$(syrus_macos_xcodegen_prefix "$version")"
+  rm -rf "$work"
+  syrus_macos_xcodegen_installed "$version" ||
+    { echo "macos-runtime: XcodeGen $version does not run" >&2; return 1; }
+}
+
 # Installs one tool version with the release's pinned mise. mise runs against
 # throwaway data/config dirs from / so no user or project mise configuration
 # can influence what gets installed, and the finished install is moved into
@@ -304,7 +342,7 @@ syrus_macos_browser_tools_install() {
     return 1
   fi
   executable="$(find "$install/ms-playwright" -path '*/chromium_headless_shell-*/chrome-headless-shell-mac*/chrome-headless-shell' \
-    -type f -perm +111 2>/dev/null | sort | tail -n 1)"
+    -type f -perm -u+x 2>/dev/null | sort | tail -n 1)"
   if [[ -z "$executable" ]]; then
     rm -rf "$work"
     echo "macos-runtime: Playwright $playwright installed no headless Chromium shell under $install/ms-playwright" >&2
@@ -326,6 +364,7 @@ syrus_macos_runtimes_install() {
     syrus_macos_mysql_client_install "$release_root" &&
     syrus_macos_ruby_install "$release_root" &&
     syrus_macos_node_install "$release_root" &&
+    syrus_macos_xcodegen_install "$release_root" &&
     syrus_macos_browser_tools_install "$release_root"
 }
 
@@ -336,17 +375,20 @@ syrus_macos_runtimes_install() {
 # client's mysql_config. Workflow steps inherit this PATH, and mysql2's
 # extconf looks for mysql_config on PATH before its built-in list of Homebrew
 # locations -- so a job's own `bundle install` builds mysql2 against the
-# private client too, not a shared Homebrew one it cannot link. Last come the
-# browser tools, for `playwright-mcp`.
+# private client too, not a shared Homebrew one it cannot link. Then XcodeGen,
+# for iOS projects that generate their .xcodeproj, and the browser tools, for
+# `playwright-mcp`.
 syrus_macos_runtime_path() {
-  local release_root="$1" ruby node mise mysql browser
+  local release_root="$1" ruby node mise mysql xcodegen browser
   ruby="$(syrus_macos_ruby_version "$release_root")" || return 1
   node="$(syrus_macos_node_version "$release_root")" || return 1
   mise="$(syrus_macos_toolchain_value "$release_root" MISE_VERSION)" || return 1
   mysql="$(syrus_macos_toolchain_value "$release_root" MYSQL_CLIENT_VERSION)" || return 1
+  xcodegen="$(syrus_macos_toolchain_value "$release_root" XCODEGEN_VERSION)" || return 1
   browser="$(syrus_macos_browser_tools_prefix_for "$release_root")" || return 1
-  printf '%s/bin:%s/bin:%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
-    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")" "$(syrus_macos_mysql_client_prefix "$mysql")" "$browser"
+  printf '%s/bin:%s/bin:%s/bin:%s/bin:%s/bin:%s/bin:%s/bin\n' "$(syrus_macos_ruby_prefix "$ruby")" "$(syrus_macos_node_prefix "$node")" \
+    "$SYRUS_MACOS_AGENT_CLI_PREFIX" "$(syrus_macos_mise_prefix "$mise")" "$(syrus_macos_mysql_client_prefix "$mysql")" \
+    "$(syrus_macos_xcodegen_prefix "$xcodegen")" "$browser"
 }
 
 syrus_macos_browser_tools_prefix_for() {

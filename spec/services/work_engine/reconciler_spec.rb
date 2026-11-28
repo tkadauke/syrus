@@ -1378,6 +1378,43 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       expect(workflow.reload).to be_running
     end
 
+    # A worker can claim the grader between the repair's checks and its
+    # cancel. The checks must be repeated under the lineage lock, or the
+    # claimed grader's process keeps running under a cancelled Run.
+    it "leaves a grader a worker claimed after the checks running" do
+      allow(StepDispatcher).to receive(:advance_from)
+      allow(Step).to receive(:suppress_cancel_cascade).and_wrap_original do |original, &block|
+        starved_run.update_columns(state: "running", started_at: Time.current)
+        starved_grader.update_columns(state: "running")
+        original.call(&block)
+      end
+
+      reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(starved_run.reload).to be_running
+      expect(starved_grader.reload).to be_running
+      expect(StepDispatcher).not_to have_received(:advance_from)
+    end
+
+    # Under MySQL's REPEATABLE READ the recheck's plain reload answered from
+    # the snapshot Lineage.lock! took before waiting on the claim's locks, so
+    # it still saw the Run queued; the recheck reads with locking reads.
+    it "sees the claim even when plain re-reads answer from a snapshot" do
+      allow(StepDispatcher).to receive(:advance_from)
+      stage_repeatable_read_snapshot!(Run, Step, Workflow)
+      allow(Step).to receive(:suppress_cancel_cascade).and_wrap_original do |original, &block|
+        Run.where(id: starved_run.id).update_all(state: "running", started_at: Time.current)
+        Step.where(id: starved_grader.id).update_all(state: "running")
+        original.call(&block)
+      end
+
+      reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(Run.find(starved_run.id)).to be_running
+      expect(Step.find(starved_grader.id)).to be_running
+      expect(StepDispatcher).not_to have_received(:advance_from)
+    end
+
     it "hands the settled grader_collect to the dispatcher" do
       # A running train has finished everything before its graders.
       workflow.steps.where("position < ?", failed_grader.position).update_all(state: "succeeded", finished_at: 1.hour.ago)
@@ -2463,6 +2500,18 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
     it "is left alone while its merge can still be in flight" do
       unit, lock = emergency_unit(started_at: 1.minute.ago)
+
+      result = reconcile_and_execute
+
+      expect(kind(result, :active_work_unit_without_workflow)).to be_nil
+      expect(unit.reload).to be_running
+      expect(lock.reload).to be_active
+    end
+
+    # The lander may wait the whole merge-lock budget before it even merges;
+    # cancelling it then releases the merge lock while its merge is in flight.
+    it "is left alone while it may still be waiting out the merge-lock budget and merging" do
+      unit, lock = emergency_unit(started_at: (Steps::MergeLockControl::MERGE_LOCK_WAIT + 30.seconds).ago)
 
       result = reconcile_and_execute
 
@@ -4929,6 +4978,54 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       "solid_queue_execution_live" => true
     )
     expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
+  end
+
+  # A live claim proves the worker process is alive, not the thread running
+  # this Run: a grader thread hung for hours after its last command while its
+  # worker kept the claim, so nothing ever repaired it.
+  it "repairs a Run wedged inside a live worker once it has gone an hour without activity" do
+    ensure_solid_queue_test_tables!
+    heartbeat_at = (described_class::WEDGED_RUNNING_RUN_AFTER + 5.minutes).ago
+    live_worker = SolidQueue::Process.create!(
+      hostname: "worker-1", kind: "worker", last_heartbeat_at: 10.seconds.ago, metadata: {},
+      name: "worker-1:1", pid: 123, created_at: heartbeat_at - 2.minutes
+    )
+    solid_queue_run_job(run, claimed: true, process_id: live_worker.id, created_at: heartbeat_at - 2.minutes)
+    step.update_columns(kind: "grader", state: "running", started_at: heartbeat_at - 2.minutes)
+    workflow.update_columns(state: "running", started_at: heartbeat_at - 2.minutes)
+    run.update_columns(state: "running", created_at: heartbeat_at - 3.minutes, started_at: heartbeat_at - 2.minutes, last_heartbeat_at: heartbeat_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(issue.evidence).to include("solid_queue_execution_live" => true, "wedged_in_live_worker" => true)
+  end
+
+  it "keeps a quiet Run inside a live worker while it is short of the wedged threshold" do
+    ensure_solid_queue_test_tables!
+    heartbeat_at = (described_class::WEDGED_RUNNING_RUN_AFTER - 5.minutes).ago
+    live_worker = SolidQueue::Process.create!(
+      hostname: "worker-1", kind: "worker", last_heartbeat_at: 10.seconds.ago, metadata: {},
+      name: "worker-1:1", pid: 123, created_at: heartbeat_at - 2.minutes
+    )
+    solid_queue_run_job(run, claimed: true, process_id: live_worker.id, created_at: heartbeat_at - 2.minutes)
+    step.update_columns(kind: "grader", state: "running", started_at: heartbeat_at - 2.minutes)
+    workflow.update_columns(state: "running", started_at: heartbeat_at - 2.minutes)
+    run.update_columns(state: "running", created_at: heartbeat_at - 3.minutes, started_at: heartbeat_at - 2.minutes, last_heartbeat_at: heartbeat_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    issue = kind(reconcile(run_id: run.id), :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(safe_to_auto_repair: false, recommended_repair_action: "capture_diagnostics")
+    expect(issue.evidence).to include("wedged_in_live_worker" => false)
   end
 
   it "cancels a stale running Run left behind under an already-cancelled Workflow" do
@@ -8321,6 +8418,71 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_plans.map(&:action)).not_to include("retry_workflow", "retry_failed_step", "resume_failed_step")
   end
 
+  # Regression: a failed retry Workflow whose own retry had already run (a
+  # newer retry Workflow was working on the Job) still read as a repair
+  # failure needing validation, so every reconcile pass planned a retry for it
+  # and the executor skipped it as "already scheduled for this Run" -- about
+  # nine hundred futile repairs over one production night.
+  describe "a failed repair workflow whose retry has already been performed" do
+    let(:failed_attempt) do
+      workflow.update_columns(state: "failed", finished_at: 1.hour.ago)
+      failed_workflow_attempt_with_diagnostic(
+        job: job,
+        finished_at: 10.minutes.ago,
+        step_kind: "adversarial_review",
+        error_class: "Steps::Base::StepFailed",
+        error_message: "Selected model is at capacity. Please try a different model."
+      )
+    end
+    let(:failed_retry) { failed_attempt.first }
+    let(:failed_retry_run) { failed_attempt.last }
+
+    before do
+      replace_failure_classification!(
+        failed_retry_run,
+        classification: "provider_transient",
+        retryable: true,
+        confidence: 0.9,
+        reason: "provider capacity",
+        classified_at: 10.minutes.ago
+      )
+      newer = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        agent_provider: job.agent_provider,
+        state: "running",
+        started_at: 5.minutes.ago,
+        chain_template: []
+      )
+      newer.steps.create!(kind: "prepare", position: 0, state: "running")
+      job.update_columns(state: "running")
+    end
+
+    it "is still planned while no retry was scheduled for the Run" do
+      result = reconcile(job_id: job.id)
+
+      expect(kind(result, :retryable_run_failure)).to be_present
+    end
+
+    it "is not planned again once that retry has run" do
+      AutoRetryAttempt.create!(
+        job: job,
+        workflow: failed_retry,
+        run: failed_retry_run,
+        agent_provider: "claude",
+        failure_classification: "provider_transient",
+        retry_kind: "retry_workflow",
+        attempt_number: 1,
+        scheduled_at: 6.minutes.ago,
+        performed_at: 5.minutes.ago
+      )
+
+      result = reconcile(job_id: job.id)
+
+      expect(kind(result, :retryable_run_failure)).to be_nil
+    end
+  end
+
   it "plans provider usage-limit failures for the provider reset time" do
     run.update_columns(
       state: "failed",
@@ -9155,6 +9317,39 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       "trigger_kind" => "merge_train",
       "rebuild_path_available" => true
     )
+  end
+
+  # Regression: the rebuild repair relaunched a failed train whose
+  # runaway-protected member had already spent its operator consent; with the
+  # dispatcher now refusing it, planning it would be skipped on every pass.
+  it "hands a train held by runaway protection to the operator instead of planning a rebuild" do
+    train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium",
+                               state: "failed", finished_at: Time.current)
+    MergeTrainMember.create!(merge_train: train, job: job, position: 0, state: "failed")
+    job.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 1.hour.ago)
+    update_columns_with_artifacts(workflow, trigger_kind: "merge_train",
+      state: "failed",
+      finished_at: Time.current,
+      artifacts: { "merge_train_id" => train.id }
+    )
+    step.update_columns(kind: "merge_train_build", state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    attach_work_unit(workflow, kind: "job_bundle", state: "failed", member_jobs: [ job ])
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_conflict",
+      retryable: false,
+      confidence: 0.9,
+      reason: "bundle integration conflict",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(plan(result, :rebuild_merge_train)).to be_nil
+    held = plan(result, :operator_review_runaway_protected_train)
+    expect(held.auto_executable).to eq(false)
+    expect(held.reason).to start_with("runaway protection holds #{job.slug}")
   end
 
   it "does not keep alarming on a nonretryable failure once a newer workflow has superseded it" do

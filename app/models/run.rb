@@ -190,7 +190,7 @@ class Run < ApplicationRecord
     end
 
     event :cancel do
-      transitions from: [ :queued, :running ], to: :cancelled, after: -> { self.finished_at = Time.current }
+      transitions from: [ :queued, :running, :awaiting_answer ], to: :cancelled, after: -> { self.finished_at = Time.current }
     end
 
     event :skip do
@@ -364,7 +364,7 @@ class Run < ApplicationRecord
     return false unless state.in?(ACTIVE_STATES)
 
     from = state
-    update_columns(state: "cancelled", finished_at: Time.current)
+    return false unless cancel_columns_if_active!
     metadata = StateTransition.transition_metadata_for(self)
     reason_key = StateTransition.reason_key_for(self)
     metadata["reason_key"] = reason_key if reason_key.present?
@@ -374,6 +374,23 @@ class Run < ApplicationRecord
       run_id: StateTransition.current_run_id, metadata: metadata
     )
     RunResourceSummary.refresh_for(reload)
+    true
+  end
+
+  # Writes the cancellation straight to the row, without callbacks, and only
+  # while the row is still queued or running: a compare-and-set. Callers find
+  # these Runs with plain reads after taking row locks, which under MySQL's
+  # REPEATABLE READ can return a Run as running after it finished, so a blind
+  # update_columns would overwrite a succeeded Run with cancelled. Returns
+  # whether this call cancelled it; the in-memory copy is updated only then.
+  def cancel_columns_if_active!(finished_at: Time.current, **columns)
+    raise ActiveRecord::ActiveRecordError, "cannot update a new record" if new_record?
+
+    attributes = { state: "cancelled", finished_at: finished_at, **columns }
+    return false unless self.class.unscoped.where(id: id, state: ACTIVE_STATES).update_all(attributes) == 1
+
+    attributes.each { |name, value| self[name] = value }
+    clear_attribute_changes(attributes.keys)
     true
   end
 

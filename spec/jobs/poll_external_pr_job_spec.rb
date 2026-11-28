@@ -844,4 +844,126 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(fork_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
     end
   end
+
+  describe "bot-authored same-repository PRs" do
+    let(:reviews_url) { "https://api.github.com/repos/acme/widgets/pulls/9/reviews" }
+    let(:external_pr_job) do
+      Job.create!(
+        user: user, repository: repository, kind: "external_pr", external_pr_number: 9,
+        external_pr_fork: false, external_pr_author: "dependabot[bot]",
+        branch_name: "dependabot/github_actions/actions/deploy-pages-5", state: "implemented"
+      )
+    end
+    let(:landing_review_body) do
+      "Syrus ran required checks on this pull request before landing and the following failed:\n\n- **rspec**"
+    end
+
+    def stub_bot_pr(created_at: 2.days.ago, head_sha: "abc123")
+      stub_request(:get, external_pr_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: {
+          number: 9, state: "open", merged: false, created_at: created_at.iso8601,
+          user: { login: "dependabot[bot]", type: "Bot" },
+          head: { sha: head_sha, ref: external_pr_job.branch_name, repo: { full_name: "acme/widgets" } }
+        }.to_json
+      )
+    end
+
+    def stub_reviews(reviews)
+      stub_request(:get, reviews_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" }, body: reviews.to_json
+      )
+    end
+
+    before do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      stub_issue_comments([])
+      stub_review_comments([])
+      external_pr_job.approve!(via: "operator")
+      external_pr_job.update!(needs_attention: true, needs_attention_reason: "upstream_pr_changes_requested")
+    end
+
+    # Regression: an approved Dependabot PR sat for months behind Syrus's own
+    # landing grader review. The review's wording was not recognised as
+    # Syrus's, so it was never dismissed even after the head went green.
+    it "dismisses Syrus's own landing grader review once the current head passes" do
+      external_pr_job.update!(pr_checks_sha: "abc123", pr_checks_state: "passing")
+      stub_bot_pr
+      stub_reviews([
+        { id: 21, state: "CHANGES_REQUESTED", submitted_at: 1.hour.ago.iso8601, body: landing_review_body,
+          user: { login: "syrus-local[bot]", type: "Bot" } }
+      ])
+      stub_request(:put, "#{reviews_url}/21/dismissals").to_return(
+        status: 200, headers: { "Content-Type" => "application/json" }, body: { id: 21, state: "DISMISSED" }.to_json
+      )
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(WebMock).to have_requested(:put, "#{reviews_url}/21/dismissals")
+      expect(external_pr_job.reload.needs_attention_reason).to be_nil
+      expect(external_pr_job).to be_approved
+    end
+
+    it "routes requested changes to Syrus's repair instead of waiting for the bot" do
+      stub_bot_pr
+      stub_reviews([
+        { id: 22, state: "CHANGES_REQUESTED", submitted_at: 1.hour.ago.iso8601, body: "Pin the action to a SHA.",
+          user: { login: "maintainer", type: "User" } }
+      ])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }.by(1)
+
+      workflow = external_pr_job.workflows.find_by!(trigger_kind: "external_pr_feedback")
+      expect(workflow.artifact("pr_comments").map { |comment| comment["body"] }).to eq([ "Pin the action to a SHA." ])
+      expect(external_pr_job.reload).not_to be_approved
+    end
+
+    it "asks Dependabot to recreate a stale PR instead of repairing it" do
+      stub_bot_pr(created_at: 90.days.ago)
+      stub_reviews([
+        { id: 23, state: "CHANGES_REQUESTED", submitted_at: 1.hour.ago.iso8601, body: landing_review_body,
+          user: { login: "syrus-local[bot]", type: "Bot" } }
+      ])
+      comment = stub_request(:post, issue_comments_url)
+        .with(body: hash_including(body: ExternalPrBotPolicy::RECREATE_COMMENT))
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: { id: 99 }.to_json)
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(comment).to have_been_requested.once
+      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
+      expect(external_pr_job.reload.external_pr_bot_recovery).to include("refresh_count" => 1)
+    end
+
+    it "keeps a human-authored same-repository PR waiting for its author" do
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([
+        { id: 24, state: "CHANGES_REQUESTED", submitted_at: 1.hour.ago.iso8601, body: "Please rename this.",
+          user: { login: "maintainer", type: "User" } }
+      ])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
+      expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+    end
+
+    it "does not treat a dependency-bot command comment as agent feedback" do
+      user.update!(github_handle: "owner-handle")
+      external_pr_job.update!(needs_attention: false, needs_attention_reason: nil)
+      stub_bot_pr
+      stub_reviews([])
+      stub_issue_comments([
+        { id: 31, body: ExternalPrBotPolicy::RECREATE_COMMENT, user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
+    end
+  end
 end

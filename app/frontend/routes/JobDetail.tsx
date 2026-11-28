@@ -282,7 +282,9 @@ export function JobQuestionPanel({
     enabled: job.has_open_agent_question === true,
     refetchInterval: 15_000
   })
-  const questions = query.data?.questions ?? []
+  // A disabled query keeps its cached data, so a question answered or
+  // withdrawn elsewhere must not linger once the Job reports none open.
+  const questions = job.has_open_agent_question === true ? (query.data?.questions ?? []) : []
   if (questions.length === 0) return null
 
   async function answer(question: WorkflowAgentQuestion, answers: import("../api/chats").ChatAgentQuestionAnswer[]) {
@@ -296,7 +298,10 @@ export function JobQuestionPanel({
       <div>
         <h2 className="font-semibold">{t("question_panel_title")}</h2>
         <p className="text-sm text-text-secondary">{t("question_panel_consequence")}</p>
-        <p className="text-xs text-text-muted">{t("question_policy_effective", { level: job.question_eagerness, source: job.question_eagerness_source })}</p>
+        <p className="text-xs text-text-muted">{t("question_policy_effective", {
+            level: t(`question_eagerness.levels.${job.question_eagerness}.label`, { ns: "settings", defaultValue: job.question_eagerness }),
+            source: t(`question_policy_source.${job.question_eagerness_source}`, { defaultValue: job.question_eagerness_source })
+          })}</p>
       </div>
       <AgentQuestions questions={questions} onAnswered={(item, answers) => answer(item as WorkflowAgentQuestion, answers)} onNotice={onNotice} />
       <div className="grid gap-2 sm:grid-cols-2">

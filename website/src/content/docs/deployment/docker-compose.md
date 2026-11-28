@@ -405,6 +405,10 @@ missing-row repairs remain separate signals.
   `SYRUS_RUNTIME_IMAGE_REGISTRY_{BUILDER,WORKER,ADMIN}_{USERNAME,PASSWORD}`;
   optionally `_REPOSITORY_PREFIX` (default `syrus`) and `_TIMEOUT`. Use https.
   Run `bin/rails runtime_images:diagnose` to check each credential.
+- `SYRUS_RUNTIME_IMAGE_VERIFICATION_POLICY` — optional JSON policy overriding
+  blocked vulnerability severities, prohibited package names, and exact
+  reasoned exemptions with ISO 8601 expiry times. Required verification checks
+  cannot be disabled through this setting.
 - `SECRET_KEY_BASE`, `ACTIVE_RECORD_ENCRYPTION_*` — generated; keep them
   stable across restarts or stored GitHub/agent credentials can't be
   decrypted. Regenerate a key by hand with `openssl rand -hex 32`.

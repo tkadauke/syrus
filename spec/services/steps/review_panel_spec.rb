@@ -305,6 +305,52 @@ RSpec.describe "serial review panels" do
     expect(override.reload).to be_consumed
   end
 
+  it "keeps an already-consumed member override when the collector reruns for another member's override" do
+    # Regression: two members of a required panel were skipped and the
+    # operator overrides them one at a time. The collector rerun after the
+    # second override must still count the first member's consumed override;
+    # the member vote itself never records it, so the panel could otherwise
+    # never reach its minimum.
+    reviewed_sha = "d" * 40
+    votes = %w[claude codex].each_with_index.map do |provider, index|
+      { "iteration" => 1, "step_id" => 191 + index, "run_id" => 291 + index,
+        "panel_id" => "routing-rule-44", "provider" => provider, "model" => "m-#{provider}",
+        "verdict" => "skipped", "skip_reason" => "provider_policy_refusal", "reviewed_head_sha" => reviewed_sha }
+    end
+    workflow.set_artifact!("security_review_iterations", votes)
+    collect = Step.create!(
+      workflow: workflow, kind: "review_panel_collect", position: 100, iteration: 1,
+      details: { "panel_review_kind" => "security_review", "panel_id" => "routing-rule-44",
+                 "consensus" => "majority", "min_members" => 2, "dropped_members" => [],
+                 "required" => true, "reviewed_head_sha" => reviewed_sha }
+    )
+    record_override = lambda do |vote|
+      identity = WorkflowOutcomeOverrides::ReviewVerdict.gate_identity(
+        review_kind: "security_review", panel_id: "routing-rule-44", vote:
+      )
+      digest = WorkflowOutcomeOverrides::ReviewVerdict.evidence_digest(vote)
+      WorkflowOutcomeOverride.record!(
+        gate_failure: { outcome: "failed", technically_overridable: true, structural: false,
+                        gate_identity: identity, evidence_digest: digest },
+        job:, workflow:, step: collect, actor: user, gate_kind: "reviewer_infrastructure", gate_identity: identity,
+        candidate_head_sha: reviewed_sha, prompt_version: "security_review", evidence_digest: digest,
+        channel: "ui", reason: "Provider outage", permission_decision: { "state" => "allow" }
+      )
+    end
+    collect_run = -> { Steps::ReviewPanelCollect.new(Run.create!(job: job, step: collect, trigger_kind: workflow.trigger_kind)).call }
+
+    first = record_override.call(votes.first)
+    expect { collect_run.call }.to raise_error(Steps::Base::StepFailed, /minimum member count/)
+    expect(first.reload).to be_consumed
+
+    record_override.call(votes.last)
+    expect { collect_run.call }.not_to raise_error
+
+    aggregate = workflow.reload.artifact("security_review_iterations").last
+    expect(aggregate).to include("verdict" => "approved")
+    expect(aggregate.fetch("votes").map { |vote| vote["effective_verdict"] }).to eq(%w[approved approved])
+  end
+
   it "resumes only the same panel member's prior provider session" do
     prior_steps = %w[claude codex].map.with_index do |provider, index|
       step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 100 + index, iteration: 1, loop_id: "review-loop",

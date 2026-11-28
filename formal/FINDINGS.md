@@ -4965,15 +4965,475 @@ landing blocked for a reason that is not externally cleared keeps its lane
 (`LaneHoldingReasonsClear`, assumed). A new lane-holding block reason without
 a wake-up would repeat the rebase-slot bug.
 
-**Gap (open, low).** An approved Job whose PR needs a rebase while every rebase
-slot is held by runnable work has no `blocked_reason` in the landing queue:
-`mergeability_admits_landing?` refuses, `land` rolls back, and the merge-state
-poll declines at the cap with only a log line. It progresses (the holders are
-runnable) but cannot say why it waits. Rebase slots are not allocated in FIFO
-order either, so the progress theorem assumes no competing work is admitted
-ahead of the Job.
+**Gap (closed by F142).** An approved Job whose PR needs a rebase while every
+rebase slot is held by runnable work had no `blocked_reason` in the landing
+queue: `mergeability_admits_landing?` refuses, `land` rolls back, and the
+merge-state poll declined at the cap with only a log line. It progresses (the
+holders are runnable) but could not say why it waits. Rebase slots are not
+allocated in FIFO order either, so the progress theorem assumes no competing
+work is admitted ahead of the Job.
 
 ---
+
+## F142. An approved Job waiting for a rebase slot had no reason — fixed
+
+**Property.** An approved Job lands or carries a named reason
+(`ApprovedProgress`). `before_slot_wait_unnamed`: a Job whose PR is behind,
+with every rebase slot held by running rebases of other Jobs, was named by
+nothing although none of its own steps was enabled.
+
+**Fix.** `LandingQueueProcessor#rebase_slot_wait_reason` names the wait
+(`waiting_rebase_slot`, with the held count and the cap) as the last landing
+blocker; the dashboard shows it as a neutral queue status and
+`PollMergeStateJob#repo_rebase_concurrency_reached?` logs the decline to the
+Job. `slot_wait_named` proves every such state named. The slot wait is a
+name, not a gate: the poller still dispatches the rebase once a slot frees.
+
+**Spec.** `spec/services/landing_queue_processor_spec.rb` ("waiting for a
+rebase slot"), `spec/services/invariants/landing_progress_spec.rb`, and the
+simulator scenario `approved_job_waits_named_for_rebase_slot.yml`, whose named
+wait never appears without the fix.
+
+---
+
+## F143. Merge-train dispatch bypassed runaway protection — fixed
+
+**Property.** Under a fixed failure, automatic landing retries of a
+runaway-protected Job stop (`RetryTermination`). F140 closed the single-Job
+loop; the train loop stayed open.
+
+**Counterexample.** `RetryTermination.before_train_loops`:
+`MergeTrainDispatcher.try_dispatch!` and `JobBundleDispatcher` launch through
+`WorkUnits::Launcher.instantiate`, which never consults the
+`RunawayProtection` intent gate, and a failed train defers its members back to
+`approved` on paths `LandingFailureHandler#runaway_retry_refused?` never sees
+(a rebuild-required base move, a teardown, an agent withdrawing a member). The
+reconciler's `rebuild_merge_train` repair relaunched the train at once and the
+landing queue after the cooldown; the simulator showed six trains in ten ticks
+and a retry storm.
+
+**Decision.** Hold the train, do not exclude the member: an Epic lands
+all-or-nothing, and an epicless bundle would only relaunch the protected Job
+in its next bundle. The rule is single-Job landing's: one automatic attempt
+per operator consent (`MergeTrains::RunawayHold`). Consent is an approval by a
+named operator, else the moment runaway protection was set; an approval nobody
+made (auto-approval, review ingestion, the rebuild repair's own re-approval)
+buys nothing. The hold applies to rebuilds too (`bypass_cooldown` is passed by
+the reconciler as well as by operators). The intent gate itself is not used:
+it refuses while the flag is set at all, which would make an operator's
+approval of a runaway-protected Epic child worthless while the same approval
+lands a single Job. `after_train_stops` and `consent_buys_one_attempt`.
+
+**Spec.** `spec/services/merge_train_dispatcher_spec.rb` and
+`spec/services/job_bundle_dispatcher_spec.rb` ("runaway protection"), and the
+simulator scenario `runaway_protected_member_merge_train_not_relaunched.yml`.
+
+---
+
+## F144. A paused rebase blocked merge trains as "must finish" — fixed
+
+**Property.** A held approved Job carries a reason that says what clears it.
+A paused rebase gives its slot back (F141) but still blocks a merge train or
+job bundle for its stack, reported as "active rebase workflow must finish",
+which it never does without an operator (`SlotCapacity.before_paused_must_finish`).
+
+**Decision.** Keep blocking: resumed, the rebase would force-push member
+branches under the integration build, so the train must not race it. Name it
+instead: `RebaseWorkflowSelector.paused_for_jobs` comes first, and the
+dispatchers report "paused rebase workflow ... is paused and needs an
+operator" (`paused_named`); "must finish" is left for rebases that are
+runnable or blocked on a reason that clears by itself (`must_finish_clears`).
+The invariant monitor reports a paused rebase holding approved or landing
+Jobs of its stack as `paused_rebase_holds`.
+
+**Spec.** `spec/services/merge_train_dispatcher_spec.rb`,
+`spec/services/invariants/paused_rebase_holds_spec.rb`, and the simulator
+scenario `paused_stack_rebase_holds_merge_train_named.yml`. That scenario also
+found `Workflows::StackRebase.after_success` launching the stack's landing
+inside the rebase's success transition, out of the row-lock order -- the bug
+`Workflows::Rebase.after_success` already had fixed; it now runs after commit
+too.
+
+---
+## F155. The candidate probe asked for a launch-only image and was always refused — fixed
+
+**Invariant.** A verification check can reach the image it verifies.
+
+**Counterexample.** `Verifications::CandidateProbe` acquired the candidate
+through `BuiltImages#acquire`, whose admission is `pullable?` (verification
+state `candidate`), right after `create_attempt` set the image to
+`unverified`. The worker cache refused it with `NotPullable`, every probe
+check came back `infrastructure`, and every extension build with a base digest
+and a smoke test ended `blocked` and retryable, forever. The spec stubbed
+`acquire` to succeed. The two scanners already use `acquire_for_verification`.
+
+**Fix.** The probe uses `acquire_for_verification` (it runs its own ABI
+check). Spec first: the probe spec now stubs acquisition as the real admission
+behaves (launch path refused for an unverified image); six examples failed
+before the change.
+
+## F154. A verification attempt could be accepted without a required check, or decide after being reaped — fixed
+
+**Invariant.** An image becomes a candidate only when every required check of
+its policy snapshot passed, decided by a live attempt.
+
+**Counterexample.** `Verifications::Orchestrator#finish` judged only the check
+rows that exist. When a required check's insert failed (deadlock, lost
+connection), `run_check`'s rescue had no row to update, so no row recorded the
+check and the attempt was accepted with it never run. `finish` also never
+re-checked that the attempt was still running, so an attempt the re-evaluator
+reaped as abandoned (after an hour; scanner timeouts alone allow about 70
+minutes) later set the image to candidate and issued an attestation.
+
+**Fix.** Under the image lock `finish` re-reads the attempt with a locking
+read and stops unless it is running, and blocks it (`check_missing`) when a
+required check of the snapshot has no row. Spec first: "does not accept an
+attempt missing a required check's row" and "does not let an attempt reaped
+while it ran decide the image's state" failed before the change.
+
+## F153. Runtime image re-evaluation re-verified an invalidated attestation — fixed
+
+**Invariant.** A revoked or superseded attestation is never re-verified into
+a fresh candidate.
+
+**Counterexample.** `Verifications::Reevaluator#claim` (main's runtime image
+verification Epic) locked the image row, then re-read the attestation and the
+latest attempt with plain reads. Under REPEATABLE READ those answer from the
+snapshot taken before the lock was granted: a revocation, supersession or newer
+attempt committed while the claim waited was invisible, so the claim reset the
+image to unverified and re-verified it. Main's own architecture spec
+(`locked_plain_reread_spec.rb`) flagged the site; the Epic merged with it red.
+
+**Fix.** Locking reads for the attestation and the latest attempt. Spec first:
+"does not re-verify an attestation invalidated while it waited, even when
+plain reads are stale" failed with `verify` called.
+
+## F152. A Run cancel committed during RunJob's success was read from the old snapshot — fixed
+
+**Invariant.** A committed cancel wins over a success recorded after it: a
+Step never succeeds from a cancelled Run.
+
+**Counterexample.** Main's `e50aec7fa3`/`e4e766f411` made
+`RunJob#commit_run_and_step_success!` compare the Run's committed state with
+the state it saw before the lock, but read it with a plain
+`Run.where(id:).pick(:state)`. Under REPEATABLE READ that answers from the
+snapshot Lineage's discovery reads took before waiting on the locks.
+Terminal cleanup (`cancel_stale_terminal_descendants!`) cancels a Run before
+its Step, outside one transaction: when the Run's cancel commits while the
+success waits, the plain read still says running, `@run.succeed!` no-ops from
+cancelled, and `@step.succeed!` succeeds the still-running Step and advances
+the chain from a cancelled Run.
+
+**Fix.** The guard is a locking read (`Run.lock.where(id:).pick(:state)`) of a
+row the transaction already holds. Spec first: "keeps a Run cancel that
+committed while the success waited, even when plain reads are stale" (plain
+Run state reads staged to answer from the snapshot) failed with the Step
+succeeded.
+
+## F151. A stack publish that adopted another writer's head could roll it back — fixed
+
+**Invariant.** Publishing never loses work on the remote: a force push only
+replaces what this workflow published itself.
+
+**Counterexample.** Main's `ae5c88ba1a` (one BranchTruth rule before every
+publish) adopts the remote when a leased stack-rebase push is rejected because
+a parallel writer published the same work (`reclassify_rejected_publication!`
+then `reset --hard` to the new remote). It left `@pre_push_remote_sha` at the
+tip seen before the rejected push. When the parent then moved,
+`confirm_published_stack_base!` called `rollback_stale_publication!`, which
+pushed that old tip back, leased on the adopted head: the lease matched, and
+the other writer's publication (and anything pushed on top, such as a human
+commit) was erased although this workflow had pushed nothing. The adoption on
+a rejected lease was new in that commit.
+
+**Fix.** Adopting a remote head marks the publication as adopted and records
+the adopted head as the pre-push tip; the rollback does nothing for an adopted
+head. Spec first: "does not roll an adopted remote back when the parent then
+moves" failed with the rollback push issued.
+
+Notes from the same sweep, not fixed: `auto_rebase.rb`, `external_pr_merge.rb`,
+`force_push.rb` and the operator divergence override still lease without
+`BranchTruth`, each on a protected or observed head (the `:rewrite` case);
+no loss was found through them. `RetryFailedStepEnqueuer` keeps two plain
+reads after its lock (`Step.find`, `runs.active.exists?`), masked because its
+`workflow.failed?` guard is a locking read; `Resume` reads
+`workflow.job&.closed?` plainly, which matters only on the blocked path. Main's
+`ee34188080` extends Lead L20 to grader prepare targets: a change that drops
+the devDependency providing a tool its target runs is declared a worker
+environment gap there too.
+
+## F150. A handed-back Run no worker could take spun on its queue — fixed
+
+**Invariant.** A Run that no live worker can satisfy waits visibly: it is
+blocked with a named reason and a recheck (`no_capable_worker`,
+`worker_environment_check_failed`), never left cycling through the queue.
+
+**Counterexample.** `Run#enqueue` blocks such a Run, but main's hand-back of
+Runs a worker does not satisfy (`48e88782fb`, extended to smoke-check failures
+by `7fb08f5894`) re-enqueued it through `defer_run`, which takes the
+resolver's queue name and ignores whether the resolver blocked it. A
+macOS-only Run enqueued while the only Mac worker was healthy, after which that
+worker's heartbeat smoke check failed a check the Run needs: the worker claims
+the Run, hands it back onto the same queue five seconds later, claims it again,
+indefinitely. The Run stays queued with no `run_queue_blocked` artifact and no
+blocked WorkUnit; the same holds for Linux work once every worker on the
+shared queue fails a check.
+
+**Fix.** The hand-back resolves the Run's queue and, when the resolver blocks
+it, records the block and its recheck exactly as the first enqueue does.
+Spec first: "blocks the Run with the resolver's reason instead of
+re-enqueueing it" failed with a RunJob re-enqueued onto the Mac queue.
+
+Lead L20 (not fixed, recommendation below). The new environment-gap
+classification (`FailureProblems::Prepare`) reads some of a change's own
+mistakes in prepare as missing worker dependencies: a bare `jest: not found`
+after the change drops a devDependency, exit 127 on a bare program name, a
+`fatal error: foo.h: No such file or directory` after the change deletes its
+own header. Each becomes a retryable `worker_environment_missing` and records a
+gap on that host for the whole repository, and a gap holds every Step of every
+Job in the repository off that host until the six-hour expiry (no smoke check
+clears a gap like `missing_executable:jest`). One bad change can move its
+failure across up to three workers and then hold the repository's other work
+off them. Recommendation: record a repository-wide gap only when the same
+failure also reproduces on the default branch or in another Job, and scope it
+to the Job until then.
+
+## F149. Re-reads after a lineage lock answered from a stale snapshot — fixed (NY45)
+
+**Invariant.** A check made under a row lock sees the row as the last
+committer left it: that is what the lock is for.
+
+**Counterexample.** `Lineage.lock!` (and `lock_all!`, `lock_subtree!`,
+`Job#lock_active_work!`) collects a record's ancestry with plain reads, then
+takes the row locks top down. Under MySQL's REPEATABLE READ the first plain
+read fixes the transaction's snapshot, before the lock waits. The NY40
+conversion replaced `record.with_lock` (whose re-read is a locking read) with
+`Lineage.lock!(record); record.reload`, and a plain `reload` answers from
+that snapshot: a concurrent transaction that committed while this one waited
+for the locks is invisible. Main found one instance in production, a grader
+fan-out Run executed twice, and fixed `RunJob`'s claim with locking reads and
+a compare-and-set (`0fe5a73b5b`). The same shape was in 39 places, among them
+`StepDispatcher.create_run_and_enqueue` (one Run per Step), the loop and Try
+funnels, `RetryFailedStepEnqueuer`, `WorkflowCancellation`,
+`TerminalWorkflowSync`, `ImmutableReviewHeadBarrier.refresh_required_reviews!`,
+`ResetJobs` and a dozen repair actions, and in this branch's own F142, F143 and
+F146 rechecks, which on MySQL would not have seen the claim, cancellation or
+retry they were written to catch.
+
+**Fix.** Every re-read right after a lineage lock is a locking read
+(`reload(lock: true)`, `Model.lock.find`); the rows are already held, so the
+lock order is unchanged and the checker counts them as re-locks. A new
+architecture spec (`lineage_locking_reads_spec.rb`) fails on a plain
+`reload` within three lines of a lineage lock. Spec first: the starved-grader
+recheck, with plain reloads staged to answer from the snapshot
+(`spec/support/repeatable_read_snapshot.rb`), failed with the claimed Run
+cancelled.
+
+The full suite on this branch also showed a dozen RunJob examples failing
+only on a macOS machine: main's hand-back of Runs the worker does not satisfy
+(`48e88782fb`) saw the test worker's probed `macos` against the default Linux
+placement. The suite's worker now reports Linux, as in CI, unless a spec stubs
+the probe. Main's own CI is red on three examples independent of this branch
+(the coworker scheduled-task retry count and two browser runtime contract
+examples).
+
+**Not fixed by this.** Other plain reads after the lock (association loads,
+`exists?` queries) still answer from the snapshot. NY45 asks whether to run
+the application's MySQL sessions at READ COMMITTED, where each statement
+reads the latest committed rows and the whole class goes away.
+
+## F148. A Job detach rewrote the branch under the Job's running work — fixed
+
+**Invariant.** Nothing rewrites a Job's branch while work holding the Job's
+WorkUnit lock runs on it.
+
+**Counterexample.** The new detach repair (`PendingActions::DetachJob`, then
+`JobDetachRepair`) force-pushes the Job's branch through `AutoRebase` and moves
+its PR base without a WorkUnit, and refused only an active rebase or merge
+train for the stack. With a feedback or auto-merge Workflow running on the Job,
+detach rewrote the branch under it; that Workflow then failed on its push lease
+or merge SHA and its work was lost instead of the detach being refused up
+front.
+
+**Fix.** Detach refuses while the Job has an active runtime Workflow. Spec
+first: "refuses while the Job has active work" failed with the repair called.
+The check is not taken under the Job lock, so work launched between it and the
+push still fails closed on the lease; running detach itself under a
+workflowless WorkUnit (as emergency land does, F133) would close that.
+
+
+## F147. A runtime session's provider could be started twice — fixed
+
+**Invariant.** A runtime session has at most one provider operation in flight
+and one provider process per started session.
+
+**Counterexample.** `runtime_start` reused any session that was not stopped, a
+running one included, and started its provider again. Two concurrent starts
+both read "no active operation" (unlocked, through `reconcile_expired!`), and
+`Operation#begin_operation!` overwrote whatever operation was recorded: the
+second start replaced the first's operation id, so the first's result was
+dropped by `require_current` while its provider process kept running
+unrecorded. `runtime_build_or_reload` had the same unlocked check.
+
+**Fix.** Beginning an operation is checked under the session lock and refused
+while another is within its deadline (`Operation::AlreadyActive`, answered
+with the session's current payload by both tools), and `runtime_start`
+reports a running session instead of starting it again. Spec first: "reports a
+running session instead of starting its provider again" and "does not begin a
+second startup while one is active" failed with the provider started again.
+
+
+## F146. A review override could rewrite a blocked Workflow's loop — fixed
+
+**Invariant.** Only a live Workflow's Steps change state, and only through
+their state machines; a blocked attempt stays resumable by its answer.
+
+**Counterexample.** `WorkflowOutcomeOverrides::Resumers::Review` checked the
+Workflow's state only for the failed-collector path. For any other Workflow
+it rewired the review loop: on a blocked Workflow (its repair blocked on
+`no_capable_worker` or a pending answer) it rewrote the blocked repair Steps
+to `skipped` with `update_columns`, past AASM, so `resume_from_answer` could no
+longer resume them, and it created a Run for the continuation under the
+terminal Workflow (which RunJob then refuses).
+
+**Fix.** Under the lineage lock the resumer reloads the Workflow and refuses a
+terminal one. Spec first: "refuses an override on a Workflow that is no longer
+active" (the blocked repair became skipped and the continuation got a Run)
+failed before the change.
+
+Two leads from the same sweep (L18, not fixed, fail closed): the override
+fingerprint index is not unique and `Recorder` finds then creates, so a UI
+submit racing a pending-action execution can record two consumable overrides
+for the same evidence; and `ReviewPanelCollect` reads its artifact unlocked
+and writes it back whole, so an override the resumer applied between the read
+and the write is consumed but lost, and the collector never writes
+`effective_verdict` back to member votes, so re-running it recomputes from the
+original vote.
+
+
+## F145. Break-glass GitHub access could move a branch without destructive authority — fixed
+
+**Invariant.** In scoped break-glass mode, any write to a branch needs the
+separately confirmed destructive authority: the Git wrapper refuses every
+`git push` without it, and the credential proxy treats `git-receive-pack` as
+destructive.
+
+**Counterexample.** The REST routes that do the same thing were not covered.
+The proxy's `destructive_request?` and the `gh` wrapper's `DESTRUCTIVE_GH`
+looked only at DELETE and PUT (plus a few closes and locks), so
+`gh api -X PATCH repos/o/r/git/refs/heads/main -F force=true -f sha=<old>`
+rewound `main` through a non-destructive grant, and `POST .../git/refs` and
+`POST .../merges` created or advanced branches. `gh api` with fields sends a
+POST without naming a method, so a method-only check cannot see it.
+
+**Fix.** Any non-GET to `git/refs`, `merges` or `merge-upstream` is
+destructive at the proxy, and the wrapper infers `gh api`'s method (named, or
+POST when fields are given) before checking the same routes. Spec first: the
+proxy and wrapper examples for force PATCH, ref creation and merges failed
+before the change; reads and issue comments stay allowed.
+
+The same spec file stubbed the real commands as `/bin/true`, which macOS does
+not have (it is `/usr/bin/true`), so one example failed off Linux; the stub now
+uses whichever exists.
+
+
+
+**Superseded on main.** Main's `e2c6d45eb2` (canonical proxy paths and verbs)
+made a forced ref update destructive at the proxy, which closes the rewind
+this finding showed, and deliberately left a fast-forward ref update, ref
+creation and merges allowed under a non-destructive grant: destructive means
+losing history. This branch's broader rule was dropped in favour of main's.
+The wrapper still refuses every `git push` without destructive authority, so a
+fast-forward is refused through Git and allowed through REST; whether those
+should agree is main's call.
+
+## F144. Two Epic splices after the same Job could fork the chain — fixed
+
+**Invariant.** An Epic's children form one chain and never run in parallel.
+
+**Counterexample.** `EpicChainSplice.apply!` (new on main: proposals that
+insert Jobs into the middle of a chain) re-planned and rewrote the chain with
+no Epic or Job lock; its callers lock only their proposal rows. Under MySQL's
+REPEATABLE READ two confirmations inserting after the same anchor A (whose
+next Job is B) both read B→A from their snapshots. The first re-points B at
+its tail T1 and chains T1→A; the second waits on the edge row, then
+overwrites it to B→T2 and chains T2→A, and its per-edge linear-chain check
+reads the old snapshot and misses T1→A. A ends with two dependents, T1 and
+T2, which run in parallel. Separately, `not_started?` let a queued downstream
+Job with a queued Run through (one only waiting for a worker): it starts on top
+of A without the inserted Jobs, beside them.
+
+**Fix.** `apply!` locks the Epic row first, so splices of one Epic serialize
+and a Run claim (which locks the Job's Epic first) cannot start the
+downstream Job meanwhile; it re-reads the anchor's edges, the downstream Job
+and its Runs with locking reads, which see the latest committed rows. A
+downstream Job with any queued or running Run counts as started. Spec first:
+"rejects when the downstream Job has a queued Run" and "locks the Epic before
+it re-reads the chain" failed before the change. The interleaving itself
+needs MySQL; SQLite serializes the writers.
+
+
+## F143. An answered question could resume an attempt a retry had replaced — fixed
+
+**Invariant.** A Job has at most one live implementation attempt: a Workflow
+whose WorkUnit was retired, or whose Workflow ended, never runs again.
+
+**Counterexample.** Main made two changes that meet here. A retry of an
+agent-blocked Job retires the blocked Workflow's WorkUnit but leaves the
+Workflow `blocked` as history, an argument that relied on `blocked` only ever
+leaving to `cancelled`. Workflow questions then added `resume_from_answer`
+(blocked to running) and made a cannot-proceed block file an operator question
+on the blocked Run. The retry did not close that question. Answering it after
+the retry finished passed every check in `AgentQuestions::Resume` (Run, Step
+and Workflow all blocked), and `WorkflowLifecycle#started!` reactivated the
+cancelled WorkUnit, its intent and the job lock: the replaced attempt ran
+again, possibly after the Job had been implemented or landed. While the retry
+still ran, the same answer failed on a `LockConflict` after the answer was
+already saved. A second path reached the same state: `awaiting_answer` is
+neither active nor cancellable for Runs and Steps, so cancelling a Workflow
+left its parked Run behind with the question open, and answering it queued the
+Run again under the cancelled Workflow.
+
+**Fix.** The retry withdraws the blocked Workflow's open questions when it
+retires its unit, and `Resume` resumes only a live attempt: a parked Run only
+while its Workflow is not terminal, and never under a terminal WorkUnit.
+Spec first: "closes the blocked Workflow's open question so a later answer
+cannot resume it" (the replaced Workflow came back running) and "does not
+resume a Run whose Workflow was cancelled while it awaited the answer" (the
+Run was queued again) both failed before the change.
+
+Main later made resume reactivate a released unit when it can (and raise,
+keeping the question answerable, on a lock conflict). The resume guard against
+a terminal WorkUnit was therefore dropped; the replaced attempt stays closed
+because the retry withdraws its open questions, so a later answer is refused.
+
+Lead L17 (not fixed). A Run or Step parked in `awaiting_answer` under a
+Workflow that is cancelled stays parked, and its question stays open in the
+inbox; answering it is now refused. Whether cancellation should withdraw the
+question and close the parked Run is a design choice of the questions feature.
+
+
+## F142. The starved-grader repair could cancel a grader a worker had just claimed — fixed
+
+**Invariant.** `CancelStarvedGrader` cancels only a grader Run that never
+started (queued, no `started_at`), so no grader process ever runs under a
+cancelled Run or Step.
+
+**Counterexample.** The repair checked the Run and Step unlocked, then wrote
+`cancelled` with `cancel_without_step_cascade!` (an `update_columns` past the
+AASM guard, added on main so the cancel no longer cascades to the Workflow). A
+worker whose capacity freed up in that gap claims the Run (RunJob's claim takes
+the lineage lock and flips it to running); the repair then overwrites the
+running Run and its Step as cancelled. The grader process keeps running,
+`grader_collect` settles on the cancellation, and the process's result arrives
+for a Run that is already terminal. The old `run.cancel!` had the same unlocked
+check, but its event at least took the lineage lock; the new write takes none.
+
+**Fix.** The checks are repeated under `Lineage.lock!(run)` with the Run and
+Step reloaded, and the repair reports `skipped` when the Run was claimed.
+Spec first: "leaves a grader a worker claimed after the checks running"
+(the claim lands just before the cancel) failed with the Run cancelled.
+
 
 ## F138. A coworker base revoked during a promotion could be made active again — fixed
 
@@ -5128,7 +5588,7 @@ it refuses with a retryable message.
 Two parts of the engine assumed every unit has a Workflow. The registry
 validator now accepts definitions that declare themselves workflow-less. The
 reconciler, which cancels an active unit without a Workflow as an orphan,
-leaves a workflow-less unit alone for `EmergencyLand::STALE_AFTER` (ten
+leaves a workflow-less unit alone for `EmergencyLand::STALE_AFTER` (the merge-lock wait plus ten
 minutes), so its merge is not interrupted, and cancels it after that, so a
 crash cannot hold the lock forever.
 
@@ -6021,7 +6481,7 @@ after the rebase (1,901 examples). A first run showed 1,529 failures from a
 test database that lacked the Epic's new plugin tables; it was green once
 `db:test:prepare` rebuilt the database.
 
-## M80. The landing queue's order computation — proved, no bug (Lead L16, fixed as F139)
+## M81. The landing queue's order computation — proved, no bug (Lead L16, fixed as F139)
 
 `LandingQueueProcessor#ordered_landing_units` and `#dependency_order` are
 Kahn's algorithm with the ready set sorted by queue position (priority, then
@@ -8188,7 +8648,108 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   transaction, so the bounded backoff (at most three sleeps, about 10.5 s in
   all) holds no row or landing lock. Holds.
 
-Checked through main `0db71863d9`. Each loop iteration continues from there:
+- Main through `b012a2308c`: the starved-grader repair now cancels without
+  the cascade, so `grader_collect` judges the failure (F142 fixes the unlocked
+  check it relies on); a cancelled grader is terminal, so collector gating
+  holds, and advancing from it is a legal cursor because the fan-out before it
+  is finished. The base-revision retry refuses to call a failure inherited
+  when the base is the revision under test, which is what makes "inherited"
+  mean anything. Slab accounting in host admission, Vitest sizing,
+  translations and a structural hot-path spec carry no engine invariant.
+- Main through `7399234a66`: smart-folder count invalidation, cache-only
+  `after_commit` hooks. No engine invariant.
+
+- Main through `4b70b2c635` (313 commits; the 45 touching the engine read
+  with three read-only sweeps, every candidate re-checked by hand). Fixed:
+  F142 (starved grader), F143 (question resumes a replaced attempt), F144
+  (Epic splice fork), F145 (break-glass REST branch writes), F146 (override on
+  a blocked Workflow), F147 (runtime provider started twice), F148 (detach
+  under running work). Holds, with the reason checked:
+  - outcome overrides are bound to the exact HEAD, tree, base and evidence
+    digest, single use under a row lock, and cannot satisfy the review barrier
+    for another HEAD (`terminal_evidence` and `approved_evidence?` both key on
+    the current HEAD); MCP requests only create pending actions that re-resolve
+    the evidence server side;
+  - scheduled-task occurrences are claimed under the task row lock with a
+    unique `(task, due_at)` key; failed ones roll back and stay retryable;
+  - handing back a Run a worker cannot satisfy only re-enqueues it; the claim
+    is still the single locked transition;
+  - disabling recovery behind active work locks is a read-only preflight; the
+    real check still runs under the Job lock;
+  - stacked-child replay only uses a base the HEAD descends from;
+  - landing lanes keep one WorkUnit lock per lane and serialize the merge
+    itself through `MergeLock`; dependents wait on `unmerged_dependency`;
+  - retrying a lock wait while failing a Run is bounded and rolls back its
+    transition record.
+  Leads (not fixed): L17 (F143), L18 (F146), and L19:
+  - an emergency-land direct capture is force-failed on any `StandardError`
+    after GitHub merged (an audit write failing, a timeout after the merge was
+    accepted), leaving a merged PR's Job failed instead of emergency-landed;
+  - a lock wait raised from the after-commit `propagate_failed_run!` leaves the
+    Step running until the reconciler sees it (the Run already committed);
+  - admission on measured load does not book bounded graders in flight, so a
+    burst of claims can all see zero load: a soft target, not a cap, as the
+    code's own comment says;
+  - two Jobs created at once with a fresh base slug both pick it and one fails
+    on the unique index;
+  - resumed paused rebases are not re-counted against
+    `CONCURRENT_REBASES_PER_REPO`;
+  - inline successors skip the worker capability check that queued Runs get;
+  - reused frozen review evidence leaves `run.review_evidence` nil, so review
+    context recording is skipped;
+  - the landing-lanes flag gates only the UI and API; lane behaviour follows
+    `Repository#landing_concurrency` whatever the flag says.
+  NY44 (operator): approving an implemented Job during active work is now
+  allowed (by design). An approval given while a PR-comment Workflow is
+  queued (for example behind a rebase) survives the HEAD that Workflow then
+  pushes, and the Job lands a response the approver never saw; graders still
+  gate that exact SHA. Should an approval be cleared when a feedback Workflow
+  advances HEAD after it?
+  Decided (2026-11-28): no. The approval stands; graders and required reviews
+  gate the new HEAD.
+
+- Main through `9d514f82d0`: main added three Lean models (slot capacity,
+  approved-work progress, retry termination) with its own F140 and F141, so
+  this branch's findings from the previous sweep are F142 to F148. Main's
+  `0fe5a73b5b` (a Run executed twice through a stale snapshot) generalizes to
+  F149. The Epic-member landing move now locks its lineage top down
+  (`d2fbf1472a`, its re-read now a locking read); a rebase's landing
+  re-dispatch runs after commit, outside the rebase's locks (`1a20b6c1ed`).
+  Both hold.
+  NY45 (operator): should Syrus's MySQL sessions run at READ COMMITTED?
+  Under the default REPEATABLE READ every plain read in a transaction answers
+  from the snapshot taken at its first read, which `Lineage.lock!` takes
+  before waiting on the row locks. F149 makes the re-reads right after a lock
+  locking reads, but association loads and `exists?` checks after a lock are
+  still stale. READ COMMITTED (`variables: { transaction_isolation:
+  "READ-COMMITTED" }` in `config/database.yml`) makes every statement read the
+  latest committed rows, needs row-based binlogs (MySQL 8's default), and
+  takes fewer gap locks. Recommended: yes.
+  Decided (2026-11-28): yes. `config/database.yml` pins the primary (and the
+  cache, which inherits it) to READ COMMITTED, as queue and cable already were.
+
+- Main through `fb30ed3e65` (60 commits, about twenty of them engine
+  commits read by a sweep and re-checked by hand). Main independently closed
+  several of this branch's leads and findings: L17 (awaiting-answer work
+  retired when its Workflow ends, awaiting Runs cancellable), L18 (consumed
+  overrides kept on collector reruns), the break-glass rewind (forced ref
+  updates destructive, canonical paths), atomic question resume, and the
+  REPEATABLE READ class (`64029a2f2b`: `Lineage.lock_all!` refreshes the held
+  records from the locked rows). Fixed here: F151 (an adopted stack
+  publication rolled back) and F152 (a cancel read from the old snapshot in
+  RunJob's success). Holds, each with its reason checked: the workflow patch
+  reads its graph under a locking reload; keeping a Workflow running when only
+  its running Step was cancelled cascades only on a Workflow cancel; the
+  emergency-land unit's stale threshold covers the merge-lock wait; detach
+  with no former parent deletes no dependency; skipping landed stack members
+  only skips closed PRs; "retry already ran" keys on a successful perform; the
+  landing backoff counts since approval (bounded per hour, not terminating);
+  the no-op recovery rebase skips only a succeeded rebase onto the same SHA;
+  runaway trains are held under the dispatch transaction; hold and cancel
+  authority is checked on every path; idle connection reaping only takes
+  checked-in connections.
+
+Checked through main `fb30ed3e65`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

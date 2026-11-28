@@ -338,9 +338,15 @@ class PollMergeStateJob < ApplicationJob
     true
   end
 
+  # The landing queue names this wait (`waiting_rebase_slot`,
+  # LandingQueueProcessor#rebase_slot_wait_reason); the Job's log says it too.
   def repo_rebase_concurrency_reached?
     active = RebaseWorkflowSelector.active_in_repository(@job.repository).count
-    active >= PollRebaseJob::CONCURRENT_REBASES_PER_REPO
+    return false if active < PollRebaseJob::CONCURRENT_REBASES_PER_REPO
+
+    audit("auto_merge: PR ##{@job.pr_number} needs rebase but every rebase slot in #{@job.repository.slug} is held (#{active}/#{PollRebaseJob::CONCURRENT_REBASES_PER_REPO}); waiting for one to free up")
+    Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} needs rebase but repo is at the concurrent-rebase cap (#{active}/#{PollRebaseJob::CONCURRENT_REBASES_PER_REPO}); skipping dispatch")
+    true
   end
 
   def merge_train_active_for_stack?

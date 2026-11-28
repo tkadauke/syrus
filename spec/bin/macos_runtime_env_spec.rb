@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "open3"
 require "tmpdir"
 require "spec_helper"
@@ -118,6 +119,99 @@ RSpec.describe "macOS worker browser tools" do
       expect(status).not_to be_success
       expect(stderr).to include("installed no headless Chromium shell")
       expect(Dir.exist?(File.join(dir, "tools", "playwright"))).to be(false)
+    end
+  end
+
+  # XcodeGen comes from its GitHub release archive, pinned by URL and SHA-256.
+  # A fake curl serves a fake archive, and the release under test pins that
+  # archive's checksum.
+  def xcodegen_release(dir, archive_sha256:)
+    release = File.join(dir, "release")
+    FileUtils.mkdir_p(File.join(release, "config"))
+    FileUtils.cp([ File.join(root, ".ruby-version"), File.join(root, ".node-version") ], release)
+    File.write(File.join(release, "config/macos_worker_toolchain.env"), <<~ENV)
+      XCODEGEN_VERSION=9.9.9
+      XCODEGEN_URL=https://github.com/yonaskolb/XcodeGen/releases/download/9.9.9/xcodegen.zip
+      XCODEGEN_SHA256=#{archive_sha256}
+    ENV
+    release
+  end
+
+  def fake_xcodegen_archive(dir)
+    staging = File.join(dir, "archive")
+    write_executable(File.join(staging, "xcodegen", "bin", "xcodegen"), "#!/usr/bin/env bash\necho Version: 9.9.9\n")
+    FileUtils.mkdir_p(File.join(staging, "xcodegen", "share", "xcodegen", "SettingPresets"))
+    archive = File.join(dir, "xcodegen.zip")
+    _out, err, status = Open3.capture3("zip", "-qr", archive, "xcodegen", chdir: staging)
+    raise err unless status.success?
+    archive
+  end
+
+  def fake_curl(dir, archive)
+    log = File.join(dir, "curl.log")
+    write_executable(File.join(dir, "fake-bin", "curl"), <<~BASH)
+      #!/usr/bin/env bash
+      dest=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in -o) dest="$2"; shift 2 ;; *) url="$1"; shift ;; esac
+      done
+      printf '%s\n' "$url" >> #{log.inspect}
+      cp #{archive.inspect} "$dest"
+    BASH
+    log
+  end
+
+  def install_xcodegen(dir, release)
+    Open3.capture3(
+      { "PATH" => "#{File.join(dir, "fake-bin")}:/usr/bin:/bin:/usr/sbin:/sbin", "HOME" => dir,
+        "SYRUS_MACOS_TOOLS_ROOT" => File.join(dir, "tools") },
+      "bash", "-c", "source #{helper.inspect} && syrus_macos_xcodegen_install \"$1\"", "bash", release,
+      unsetenv_others: true
+    )
+  end
+
+  it "installs XcodeGen from its pinned release archive with the presets it reads, once" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      archive = fake_xcodegen_archive(dir)
+      curl_log = fake_curl(dir, archive)
+      release = xcodegen_release(dir, archive_sha256: Digest::SHA256.file(archive).hexdigest)
+
+      2.times do
+        stdout, stderr, status = install_xcodegen(dir, release)
+        expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      end
+
+      prefix = File.join(dir, "tools", "xcodegen", "9.9.9")
+      expect(File).to be_executable(File.join(prefix, "bin", "xcodegen"))
+      # XcodeGen finds its SettingPresets relative to its own binary.
+      expect(Dir.exist?(File.join(prefix, "share", "xcodegen", "SettingPresets"))).to be(true)
+      expect(File.readlines(curl_log, chomp: true))
+        .to eq([ "https://github.com/yonaskolb/XcodeGen/releases/download/9.9.9/xcodegen.zip" ])
+    end
+  end
+
+  it "installs nothing from an XcodeGen archive that does not match its pinned checksum" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      fake_curl(dir, fake_xcodegen_archive(dir))
+      release = xcodegen_release(dir, archive_sha256: "0" * 64)
+
+      _stdout, stderr, status = install_xcodegen(dir, release)
+
+      expect(status).not_to be_success
+      expect(stderr).to include("expected #{"0" * 64}")
+      expect(Dir.exist?(File.join(dir, "tools", "xcodegen"))).to be(false)
+    end
+  end
+
+  it "puts XcodeGen on the runtime PATH that workflow steps inherit" do
+    Dir.mktmpdir do |dir|
+      stdout, _stderr, status = run_helper(dir, 'syrus_macos_runtime_path "$1"')
+
+      expect(status).to be_success
+      expect(stdout.strip.split(":"))
+        .to include(File.join(dir, "tools", "xcodegen", toolchain[/^XCODEGEN_VERSION=(.+)$/, 1], "bin"))
     end
   end
 

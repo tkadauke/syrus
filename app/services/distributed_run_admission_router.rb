@@ -106,7 +106,8 @@ class DistributedRunAdmissionRouter
       queues = processes.flat_map { |worker| Array(worker["queues"]) }.uniq
       next unless queues.include?(dispatch_queue)
 
-      eligible.merge("queues" => queues)
+      diagnostics = processes.map { |worker| worker["capability_diagnostics"] }.find(&:present?)
+      eligible.merge("queues" => queues, "capability_diagnostics" => diagnostics).compact
     end
   end
 
@@ -133,7 +134,19 @@ class DistributedRunAdmissionRouter
     return false unless sample
     return false unless WorkerHealthSampleAnalysis.health_for(sample).fetch(:level).to_s == "ok"
 
-    committed_load(candidate.fetch("hostname")) < RunHostAdmissionCapacity.host_compute_capacity * RunHostAdmissionCapacity::FANOUT_RUNS_PER_CPU
+    committed_load(candidate.fetch("hostname")) < compute_capacity(candidate) * RunHostAdmissionCapacity::FANOUT_RUNS_PER_CPU
+  end
+
+  # The candidate's own CPU count, as it publishes it. The deciding process
+  # runs on the host that refused the Run, so its own count says nothing about
+  # the candidate: a small host judged a large one full, and a large one
+  # stacked a burst onto a small one. Falls back to the local count only when
+  # the candidate has published nothing.
+  def compute_capacity(candidate)
+    diagnostics = candidate["capability_diagnostics"].presence ||
+      latest_sample(candidate.fetch("hostname"))&.capability_diagnostics
+    capacity = diagnostics.to_h.dig("admission_capacity", "host_compute_capacity").to_i
+    capacity.positive? ? capacity : RunHostAdmissionCapacity.host_compute_capacity
   end
 
   # Everything already committed to a host: what is running on it, plus what
@@ -191,7 +204,7 @@ class DistributedRunAdmissionRouter
       "active_compute_runs" => active_compute_runs(hostname),
       "pending_dispatch_depth" => pending_dispatch_depth(hostname),
       "committed_load" => committed_load(hostname),
-      "host_compute_capacity" => RunHostAdmissionCapacity.host_compute_capacity,
+      "host_compute_capacity" => compute_capacity(candidate),
       "excluded" => exclusions.include?(hostname),
       "healthy_headroom" => !exclusions.include?(hostname) && healthy_with_headroom?(candidate)
     }

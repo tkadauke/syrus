@@ -56,7 +56,7 @@ class BaseRevisionRetry
     output = +""
     parsed = nil
     execution = nil
-    Dir.mktmpdir("syrus-brr-") do |dir|
+    Dir.mktmpdir("syrus-brr-", base_checkout_parent) do |dir|
       checkout_path = Pathname.new(dir).join("base")
       materialization = materialize_base_checkout!(checkout_path)
       begin
@@ -132,6 +132,18 @@ class BaseRevisionRetry
     "linked"
   end
 
+  # The link tree is made of hard links, which cannot cross filesystems. The
+  # system temp directory is a different filesystem from the workflow scratch
+  # volume on production workers, so a base checkout under it never linked:
+  # every base retry fell back to a dependency-less worktree and spent its
+  # timeout reinstalling the bundle. A sibling of the prepared checkout is on
+  # the same volume by construction.
+  def base_checkout_parent
+    parent = Pathname.new(workspace_path.to_s).dirname
+    FileUtils.mkdir_p(parent)
+    parent.to_s
+  end
+
   def release_base_checkout!(checkout_path, materialization)
     return git("worktree", "remove", "--force", checkout_path.to_s) if materialization == "worktree"
 
@@ -144,7 +156,7 @@ class BaseRevisionRetry
 
     output = +""
     execution = nil
-    Dir.mktmpdir("syrus-brr-") do |dir|
+    Dir.mktmpdir("syrus-brr-", base_checkout_parent) do |dir|
       checkout_path = Pathname.new(dir).join("base")
       materialization = materialize_base_checkout!(checkout_path)
       begin

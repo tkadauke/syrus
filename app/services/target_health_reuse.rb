@@ -68,10 +68,15 @@ class TargetHealthReuse
     end
   end
 
-  def initialize(repository:, graph:, workspace_path:)
+  # Results are memoized per instance, so an instance already assumes the
+  # workspace does not change under it; its targets share one set of file
+  # digests on the same assumption. A caller that also fingerprints the same
+  # workspace passes its own `file_digests` so the tree is hashed once.
+  def initialize(repository:, graph:, workspace_path:, file_digests: nil)
     @repository = repository
     @graph = graph
     @workspace_path = workspace_path
+    @file_digests = file_digests || TargetGraph::FileDigests.new(workspace_path)
     @results = {}
   end
 
@@ -84,14 +89,15 @@ class TargetHealthReuse
 
   private
 
-  attr_reader :repository, :graph, :workspace_path
+  attr_reader :repository, :graph, :workspace_path, :file_digests
 
   def result_for(target)
     @results[target.label.to_s] ||= begin
       fingerprints = TargetGraph::Fingerprints.for_target(
         workspace_path: workspace_path,
         graph: graph,
-        label: target.label
+        label: target.label,
+        file_digests: file_digests
       )
       Result.new(
         target: target,

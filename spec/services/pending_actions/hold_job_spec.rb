@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe PendingActions::HoldJob do
-  let(:admin) { Factories.user(admin: true) }
+  let!(:admin) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: admin) }
   let(:job) { Factories.job_record(state: "running", repository: repository, user: admin, pr_number: 77) }
   let(:prerequisite) { Factories.job_record(state: "running", repository: repository, user: admin, issue_number: 900) }
@@ -72,21 +72,6 @@ RSpec.describe PendingActions::HoldJob do
     end.to raise_error(ActiveRecord::RecordInvalid, /reason/i)
   end
 
-  it "requires the acting user to be an admin" do
-    member = Factories.user
-    member_repository = Factories.repository(user: member)
-    member_job = Factories.job_record(state: "running", repository: member_repository, user: member, issue_number: 910)
-    dependency = Factories.job_record(state: "running", repository: member_repository, user: member, issue_number: 911)
-    JobDependency.create!(job: member_job, depends_on_job: dependency, source: "manual")
-    workflow = Workflow.create!(job: member_job, trigger_kind: "initial", agent_provider: "claude", state: "running")
-    attach_work_unit(workflow, state: "running")
-    action = ChatSession.create!(user: member, repository: member_repository).pending_actions.create!(
-      action: "hold_job", requested_by: "agent", reason: "out of turn", payload: { "job_id" => member_job.id }
-    )
-
-    expect { action.confirm!(user: member) }.to raise_error(ArgumentError, /Admin access required/)
-  end
-
   it "writes an audit entry on the Job's latest Run" do
     add_unsatisfied_dependency
     action = pending_action_for("job_id" => job.id)
@@ -94,5 +79,62 @@ RSpec.describe PendingActions::HoldJob do
     action.confirm!(user: admin)
 
     expect(JobLog.where(run: run).pluck(:chunk).join).to include("[operator repair] held job").and include("running before its turn")
+  end
+
+  describe "owner authority" do
+    let(:owner) { Factories.user }
+    let(:owner_repository) { Factories.repository(user: owner) }
+    let(:owned_job) { Factories.job_record(state: "running", repository: owner_repository, user: owner, pr_number: 78, issue_number: 910) }
+    let(:owned_prerequisite) { Factories.job_record(state: "running", repository: owner_repository, user: owner, issue_number: 911) }
+    let!(:owned_run) do
+      Workflow.create!(job: owned_job, trigger_kind: "initial", agent_provider: "claude", state: "running").tap do |record|
+        attach_work_unit(record, state: "running")
+      end
+      Run.create!(job: owned_job, user: owner, trigger_kind: "initial", agent_provider: "claude", state: "running")
+    end
+
+    def owner_hold(by:, **payload)
+      ChatSession.create!(user: by, repository: owner_repository).pending_actions.create!(
+        action: "hold_job", requested_by: "agent", reason: "running before its turn",
+        payload: { "job_id" => owned_job.id }.merge(payload)
+      )
+    end
+
+    it "lets a non-admin owner hold their own Job" do
+      JobDependency.create!(job: owned_job, depends_on_job: owned_prerequisite, source: "manual")
+      action = owner_hold(by: owner)
+
+      action.confirm!(user: owner)
+
+      expect(action.reload).to be_confirmed
+      expect(owned_run.reload).to be_cancelled
+      expect(owned_job.reload.state).to eq("queued")
+    end
+
+    it "refuses a non-admin who does not own the Job" do
+      JobDependency.create!(job: owned_job, depends_on_job: owned_prerequisite, source: "manual")
+      other = Factories.user
+      owner_repository.repository_memberships.create!(user: other, role: "write")
+      action = owner_hold(by: other)
+
+      action.confirm!(user: other) rescue nil
+
+      expect(action.reload).not_to be_confirmed
+      expect(owned_run.reload).to be_running
+    end
+
+    it "applies a carried dependency edit and holds the Job in one confirmation" do
+      action = owner_hold(by: owner, "dependency_edit" => {
+        "tool" => "add_job_dependency", "arguments" => { "job_id" => owned_job.id, "depends_on_job_id" => owned_prerequisite.id }
+      })
+      expect(action).to be_valid
+
+      action.confirm!(user: owner)
+
+      expect(action.reload).to be_confirmed
+      expect(owned_job.reload.depends_on_jobs).to contain_exactly(owned_prerequisite)
+      expect(owned_run.reload).to be_cancelled
+      expect(owned_job.state).to eq("queued")
+    end
   end
 end

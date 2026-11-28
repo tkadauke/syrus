@@ -74,6 +74,35 @@ RSpec.describe Steps::StackForcePush do
     expect(workflow.reload.artifact("stack_publication_failure")).to include("category" => "lease_rejected")
   end
 
+  # Regression: two stack rebases of the same Epic rewrote this branch; the
+  # other one published first. Its head holds exactly this rewrite, so the
+  # lease rejection is not "newer remote work" and must not fail the stack.
+  it "adopts a moved remote that already holds this rewrite" do
+    workflow.set_artifact!(StackRebasePlan::AGENT_PUSHES_ARTIFACT, [
+      { "job_id" => job.id, "branch_name" => "syrus/direct-5004", "pre_sha" => "abc123", "post_sha" => "def456" }
+    ])
+    rejection = GitRunner::GitError.new([ "push" ], 1, "! [rejected]        HEAD -> syrus/direct-5004 (stale info)")
+    allow(git).to receive(:run).with("push", any_args).and_raise(rejection)
+    allow(git).to receive(:run).with("fetch", any_args).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/syrus/direct-5004", chdir: "/tmp/workspace").and_return("fff999\n")
+    allow(BranchTruth).to receive(:classify).and_return(
+      BranchTruth::Result.new(relation: :equivalent, outcome: :adopt_remote, local_sha: "def456", remote_sha: "fff999",
+                              base_sha: nil, local_fresh: nil, remote_fresh: nil, evidence: {})
+    )
+    verifier = instance_double(StackPublicationVerifier)
+    allow(StackPublicationVerifier).to receive(:new).and_return(verifier)
+    allow(verifier).to receive(:verify!)
+
+    handler.call
+
+    expect(BranchTruth).to have_received(:classify).with(hash_including(local: "def456", remote: "fff999", rewritten_from: [ "abc123" ]))
+    expect(verifier).to have_received(:verify!).with(hash_including(expected_heads: { job.id => "fff999" }))
+    expect(workflow.reload.artifact(StackRebasePlan::AGENT_PUSHES_ARTIFACT).first).to include(
+      "post_sha" => "fff999", "rebased_sha" => "def456"
+    )
+    expect(workflow.artifact("stack_publication_failure")).to be_nil
+  end
+
   context "with a deterministic no-op stack rebase" do
     let(:parent) do
       Factories.job_record(
@@ -216,6 +245,31 @@ RSpec.describe Steps::StackForcePush do
         "members" => [ a_hash_including("remote_head_sha" => head_sha, "live_base" => "main", "live_parent_job_id" => nil) ]
       )
       expect(LandingQueueProcessor).to have_received(:refresh_snapshot!)
+    end
+
+    # stack_auto_rebase found this member's work already on the base: it
+    # closed the PR and requested the Job's closure, which applies only when
+    # the workflow finishes. Its "post_sha" is the unpublished local rebase
+    # (the base tip), so it must not be treated as an intended publication.
+    it "does not verify or retarget a member whose work stack_auto_rebase found already landed" do
+      workflow.set_artifact!(StackRebasePlan::RESULTS_ARTIFACT, [
+        {
+          "job_id" => child.id,
+          "result" => { "succeeded" => true, "reason" => AutoRebase::ALREADY_LANDED_REASON, "changed" => false,
+                        "pre_sha" => head_sha, "post_sha" => base_sha }
+        }
+      ])
+      workflow.request_job_closure!(child, "pr_merged")
+      allow(client).to receive(:branch_head_sha).and_return(head_sha)
+      allow(client).to receive(:pull_request).and_return(OpenStruct.new(
+        state: "closed", head: OpenStruct.new(sha: head_sha), base: OpenStruct.new(ref: "main", sha: base_sha)
+      ))
+      allow(CommitsBehindCalculator).to receive(:call).and_return(0)
+
+      handler.call
+
+      expect(client).not_to have_received(:update_pull_request_base)
+      expect(workflow.reload.artifact("stack_publication")).to include("status" => "verified", "members" => [])
     end
   end
 end

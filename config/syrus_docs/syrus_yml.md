@@ -98,6 +98,7 @@ the rest of the tree.
 | `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
 | `deploy:` | Repository deploy command. | Parsed as ordinary config, but deploy workflows are repository-level; keep deploy config in the root file. |
 | `merge_train:` | Repository merge-train escalation semantics. | Parsed as ordinary config, but merge trains are repository-level; keep escalation policy in the root file. |
+| `external_prs:` | Ingest classification and the bot-authored PR policy (`external_prs.bot_prs`, see `external_pr_ingestion.md`). | Parsed, but only the root file's policy is read. |
 | `target_graph.imports:` | Explicit build-system graph imports. | Not imported from nested files; declare imports at the root. |
 
 ### merge_train
@@ -684,6 +685,14 @@ grader of its own, `rspec-ci-serial`, beside the shards instead of after the
 last shard's parallel pass. That keeps the last shard from being the slowest
 CI grader whenever the serial paths take a while. The serial grader is
 required and supersedes the plain RSpec grader like the shards do.
+
+Set `parallel_rspec.shard_cpu_min: N` to keep shards from starting narrow. The
+shards are split to take equal work, so the round waits for whichever shard
+got the fewest CPUs; with a minimum, a worker that can only give a shard fewer
+than N CPUs (it is too small, already running other whole-worker graders, or
+short of memory for N test processes) passes it to another worker. After about
+ten minutes of waiting a shard starts wherever it can, so a busy fleet makes
+shards slower rather than stuck. The default minimum is 2.
 
 Sharding needs the combined CI pass: `serial_paths`, CI tags, and `exec_args`
 must be set, and Syrus rejects `shards` on any other CI shape. Shards run

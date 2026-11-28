@@ -7,7 +7,7 @@ module Filters
         column :closure_reason
         values "pr_merged", "external_pr_merged", "pr_approved", "no_changes",
                "emergency_landed", "issue_closed", "abandoned", "superseded",
-               "cancelled", "manual"
+               "cancelled", "manual", "external_pr_superseded", "external_pr_stale"
       end
     end
   end

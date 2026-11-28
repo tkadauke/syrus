@@ -458,6 +458,7 @@
     "waiting_epic_siblings": "Waiting for Epic siblings to be approved",
     "waiting_github_mergeability": "Waiting for GitHub mergeability",
     "waiting_github_mergeability_noop": "Waiting for GitHub mergeability after no-op rebase",
+    "waiting_rebase_slot": "Waiting for a rebase slot ({{held}}/{{cap}} rebases running in this repository)",
     "landing_start_blocked_retrying": "Landing retry scheduled",
     "waiting_for_capable_worker": "Waiting for a worker that can run this landing",
     "urgent_job_active": "Urgent job active",

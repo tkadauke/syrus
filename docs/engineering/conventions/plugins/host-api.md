@@ -2286,6 +2286,16 @@ Supported members:
 
 - `fresh`
 
+### `Syrus::Host::Invariants`
+
+Since: `0.1.16`
+
+Builds the system alert summarizing open invariant violations recorded by the invariant monitor, or nil when none are open; detection, persistence, and thresholds are not promised.
+
+Supported members:
+
+- `open_violations_alert`
+
 ### `Syrus::Host::InvestigationJobCreator`
 
 Since: `0.1.16`
@@ -4223,7 +4233,7 @@ Supported members:
 
 Since: `0.1.16`
 
-Audits rejected agent input against a runtime session (audit_input_rejected!) and runs a block under agent input control (with_agent_input_control); lease acquisition and expiry are not promised. Only the listed members are supported.
+Audits rejected agent input against a runtime session (audit_input_rejected!; typed text that is or may be a secret is recorded as a redaction marker and length, and sensitive: true forces that) and runs a block under agent input control (with_agent_input_control); lease acquisition and expiry are not promised. Only the listed members are supported.
 
 Supported members:
 

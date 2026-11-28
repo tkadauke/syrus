@@ -123,7 +123,11 @@ After the agent turn returns, Syrus marks the Run, Step, and Workflow
 dashboard grouping, but they do not trigger the failed-workflow auto-retry
 path. The Job remains open and attention-marked so an operator can review the
 warning, answer the generated free-text question to resume the same run, file
-follow-up work from it, or dismiss it. This preserves the
+follow-up work from it, or dismiss it. If nobody acts for three days and
+nothing else is running on the Job, the Job moves from running to failed (still
+marked `agent_cannot_proceed`), so it is listed with other Jobs that need an
+operator instead of claiming to run; answering the question brings it back to
+running, and Retry starts a fresh attempt. This preserves the
 surface-then-promote discipline used by `workflow_warnings`: workflow agents
 can surface the blocker and suggested fix, but they do not directly create
 Jobs or GitHub issues.
@@ -1020,6 +1024,21 @@ force push leased on the observed head) and records
 `pr_open_replaced_own_publication` instead of asking. A branch head Syrus never
 pushed, such as a commit a person pushed, still stops for branch divergence
 review.
+
+Before any publication (`pr_open`, `push`, `force_push`, `stack_force_push`,
+and merge-train integration pushes), Syrus compares the branch it is about to
+publish with the remote branch by commits and patch content. When the remote
+already holds the workflow's work -- someone pushed on top of it, or a stack
+rebase republished the same commits onto a moved parent -- Syrus takes the
+remote branch as the result and pushes nothing. When the workflow's branch
+holds every remote commit's change on a base at least as fresh, it replaces
+the remote under a lease. Only when the two sides hold different work does
+publication stop; the recorded divergence then names *retry from the current
+PR branch* as the recovery, and Syrus performs that retry automatically for
+the latest failed workflow even if the PR branch moved again in the meantime.
+A rebase workflow never force-pushes over a remote head it has not
+classified, and a merge-train integration branch holding work the train did
+not build fails with "rebuild required" instead of being overwritten.
 
 **Branch divergence review.** When the remote PR branch moved and no newer
 workflow published it, `pr_open` records a `branch_divergence` artifact and the

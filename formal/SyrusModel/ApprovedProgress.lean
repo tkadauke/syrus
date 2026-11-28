@@ -27,8 +27,13 @@ Steps (all automatic): `land` (the queue launches `J`), `dispatch`
 its own -- clearing a pause is an operator action and clearing any other block
 reason is a wake-up outside this model.
 
-`Named s`: `J` has a blocker, an own rebase unit, or a full lane held by a
-*blocked* unit (which carries its reason, SlotCapacity.lean).
+`Named s`: `J` has a blocker, an own rebase unit, a full lane held by a
+*blocked* unit (which carries its reason, SlotCapacity.lean), or it waits for a
+rebase slot: it needs a rebase, has none of its own, and every slot is held by
+runnable work (`slotWait`, `LandingQueueProcessor#rebase_slot_wait_reason`, the
+`waiting_rebase_slot` landing-queue reason). The slot wait is a name, not a
+gate: `PollMergeStateJob` still dispatches `J`'s rebase the moment a slot
+frees, so it does not disable any step.
 
 Proved here:
 
@@ -60,10 +65,13 @@ A second, smaller property covers the retry that was planned and then dropped:
   `branch_diverged` was planned by `BranchDivergedPrOpen` and skipped on every
   attempt, leaving the Job failed with no repair in flight.
 
-Known gap, reported rather than fixed: `needsRebase` without a free rebase slot
-is not `Named` from `J`'s side: its queue entry shows no reason while it waits
-for a slot (F2). The theorems hold because the slot holders are runnable and
-will finish; the UI cannot say so.
+The gap this model first reported is closed: `needsRebase` without a free
+rebase slot used to be unnamed from `J`'s side -- its queue entry showed no
+reason while it waited (`before_slot_wait_unnamed`, under `NamedBefore`). It is
+now named (`slot_wait_named`). The progress theorems never depended on it (the
+slot holders are runnable and finish); what changed is that the UI, operators
+and the invariant monitor can say why `J` waits. F2 still stands: slots are not
+allocated in FIFO order.
 -/
 
 namespace SyrusModel
@@ -97,8 +105,16 @@ def capReachedBefore (s : S) : Bool := decide (cap ≤ activeCount s.others)
 /-- Lane holders are active by construction (SlotCapacity.lean). -/
 def lanesFull (s : S) : Bool := decide (laneCount ≤ s.lanes.length)
 
-def Named (s : S) : Prop :=
+/-- `LandingQueueProcessor#rebase_slot_wait_reason`: `J`'s PR needs a rebase,
+    `J` has no rebase of its own, and every rebase slot is held by runnable
+    work. -/
+def slotWait (s : S) : Bool := s.needsRebase && s.own.isNone && capReached s
+
+/-- What named an approved Job before `waiting_rebase_slot`. -/
+def NamedBefore (s : S) : Prop :=
   s.blocker = true ∨ s.own.isSome = true ∨ (lanesFull s = true ∧ ∃ u ∈ s.lanes, runnable u = false)
+
+def Named (s : S) : Prop := NamedBefore s ∨ slotWait s = true
 
 /-- Remove the first runnable entry (a runnable unit finishes). -/
 def finishFirst : List UState → Option (List UState)
@@ -140,11 +156,11 @@ theorem exists_runnable_of_count {us : List UState} {k : Nat} (h : k < runnableC
 
 /-- After the fix: an approved Job that nothing names always has a step. -/
 theorem no_silent_stall (s : S) (hl : s.landing = false) (hn : ¬ Named s) : next capReached s ≠ [] := by
-  have hb : s.blocker = false := by cases h : s.blocker <;> simp_all [Named]
+  have hb : s.blocker = false := by cases h : s.blocker <;> simp_all [Named, NamedBefore]
   have ho : s.own = none := by
     cases h : s.own with
     | none => rfl
-    | some _ => exact absurd (Or.inr (Or.inl (by simp [h]))) hn
+    | some _ => exact absurd (Or.inl (Or.inr (Or.inl (by simp [h])))) hn
   unfold next
   simp only [hl, hb, ho, Bool.false_eq_true, ite_false, Bool.not_false, Bool.true_and, Option.isNone_none]
   intro hnil
@@ -167,7 +183,7 @@ theorem no_silent_stall (s : S) (hl : s.landing = false) (hn : ¬ Named s) : nex
       have hall : ∀ u ∈ s.lanes, runnable u = true := by
         intro u hu
         cases hru : runnable u
-        · exact absurd (Or.inr (Or.inr ⟨hf, u, hu, hru⟩)) hn
+        · exact absurd (Or.inl (Or.inr (Or.inr ⟨hf, u, hu, hru⟩))) hn
         · rfl
       obtain ⟨u, us, hu⟩ := List.exists_cons_of_ne_nil hne
       have hmem : u ∈ s.lanes := by rw [hu]; exact List.mem_cons_self
@@ -185,7 +201,24 @@ theorem before_silent_stall :
                    others := [.blocked, .blocked, .blocked], lanes := [] }
     next capReachedBefore s = [] ∧ ¬ Named s ∧ next capReached s = [{ s with own := some .running }] := by
   refine ⟨by decide, ?_, by decide⟩
-  simp [Named, lanesFull, laneCount]
+  simp [Named, NamedBefore, slotWait, capReached, runnableCount, cap, runnable, lanesFull, laneCount]
+
+/-- A Job that needs a rebase while every slot is held by runnable work is
+    named: the `waiting_rebase_slot` reason. -/
+theorem slot_wait_named (s : S) (hr : s.needsRebase = true) (ho : s.own = none) (hc : capReached s = true) :
+    Named s :=
+  Or.inr (by simp [slotWait, hr, ho, hc])
+
+/-- The gap, before `waiting_rebase_slot`: `J` needs a rebase and three other
+    rebases are running. Nothing named it, and none of `J`'s own steps was
+    enabled -- only the other rebases could move. It is named now, and still
+    makes progress through the slot holders. -/
+theorem before_slot_wait_unnamed :
+    let s : S := { landing := false, blocker := false, needsRebase := true, own := none,
+                   others := [.running, .running, .running], lanes := [] }
+    ¬ NamedBefore s ∧ Named s ∧ next capReached s = [{ s with others := [.running, .running] }] := by
+  refine ⟨?_, slot_wait_named _ rfl rfl (by decide), by decide⟩
+  simp [NamedBefore, lanesFull, laneCount]
 
 /-- The ranking function. -/
 def rank (s : S) : Nat :=

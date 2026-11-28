@@ -140,6 +140,27 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       expect(parse_body["page"]).to eq(2)
       expect(parse_body["runs"].size).to be <= 1
     end
+
+    # OFFSET over whole runs rows hauled every skipped row's prompt and diff
+    # through MySQL (111 s for a deep page in production). The offset runs
+    # over ids only; full rows are loaded for the returned page by id.
+    it "pages over ids and loads full rows only for the returned page" do
+      ids = Run.order(id: :desc).pluck(:id)
+
+      queries = capture_sql { get "/api/v1/admin/runs", params: { per: 1, page: 2 }, headers: auth }
+
+      expect(parse_body["runs"].map { |row| row["id"] }).to eq([ ids.second ])
+      offset_queries = queries.select { |sql| sql.match?(/\bFROM\s+.?runs.?\b/i) && sql.match?(/\bOFFSET\b/i) }
+      expect(offset_queries).to be_present
+      expect(offset_queries).to all(match(/SELECT\s+.?runs.?\..?id.?\s+FROM/i))
+    end
+
+    it "keeps newest-first order across a filtered page" do
+      get "/api/v1/admin/runs", params: { per: 100 }, headers: auth
+
+      ids = parse_body["runs"].map { |row| row["id"] }
+      expect(ids).to eq(ids.sort.reverse)
+    end
   end
 
   describe "GET /api/v1/admin/runs/:run_id/artifacts" do

@@ -32,7 +32,7 @@ class Coworkers::UnsavedWorkspace
 
   def begin_retry!(token)
     @link.with_lock do
-      @link.reload
+      @link.reload(lock: true)
       return false unless @link.unsaved_workspace? && ActiveSupport::SecurityUtils.secure_compare(@link.unsaved_workspace_retry_token.to_s, token.to_s)
       @link.update!(unsaved_workspace_retry_scheduled_at: nil)
       true
@@ -48,7 +48,7 @@ class Coworkers::UnsavedWorkspace
         .increment(tags: { coworker: @link.coworker.handle, kind: failure.kind })
     end
     @link.with_lock do
-      @link.reload
+      @link.reload(lock: true)
       attempts = @link.unsaved_workspace_attempt_count.to_i + 1
       @link.update!(unsaved_workspace_branch: branch, unsaved_workspace_path: path.to_s,
         unsaved_workspace_error: failure.error.message.last(2_000), unsaved_workspace_failure_kind: failure.kind,
@@ -63,7 +63,7 @@ class Coworkers::UnsavedWorkspace
     token = SecureRandom.uuid
     scheduled = false
     @link.with_lock do
-      @link.reload
+      @link.reload(lock: true)
       return if @link.unsaved_workspace_retry_scheduled_at.present? && !replace
       @link.update!(unsaved_workspace_retry_scheduled_at: Time.current, unsaved_workspace_retry_token: token)
       scheduled = true

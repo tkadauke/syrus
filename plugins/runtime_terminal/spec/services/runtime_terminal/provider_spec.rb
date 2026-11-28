@@ -453,6 +453,41 @@ RSpec.describe RuntimeTerminal::Provider do
       relay&.stop
     end
 
+    def recorded_input_details(replay:, events:)
+      relay = RuntimeTerminalFakeRelay.new(replay: replay)
+      terminal_session = Terminal::Session.create!(
+        user: user, workflow: nil, name: "Runtime Terminal", working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address, started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "sign in")
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast) { |_stream, payload| broadcasts << payload }
+
+      events.each { |event| expect(provider.input(runtime_session.id, event)).to eq(delivered: true) }
+      events.size.times.map { relay.next_control }
+      broadcasts.select { |payload| payload[:type] == "input" }.map { |payload| payload[:details] }
+    ensure
+      relay&.stop
+    end
+
+    it "records stdin typed at a password prompt as a redaction marker and length" do
+      details = recorded_input_details(replay: "Password: ", events: [ { type: "stdin", data: "hunter2\n" } ])
+
+      expect(details.sole).to include("data" => "[redacted]", "data_length" => 8, "type" => "stdin")
+      expect(details.to_json).not_to include("hunter2")
+    end
+
+    it "redacts secret-looking stdin and keeps ordinary stdin readable" do
+      token = "ghp_#{'b' * 36}"
+      details = recorded_input_details(replay: "$ ", events: [ { type: "stdin", data: "export GITHUB_TOKEN=#{token}\n" },
+                                                                { type: "stdin", data: "whoami\n" } ])
+
+      expect(details.to_json).not_to include(token)
+      expect(details.first).to include("data" => "[redacted]")
+      expect(details.last).to include("data" => "whoami\n")
+    end
+
     it "serializes relay delivery with operator takeover" do
       relay = RuntimeTerminalFakeRelay.new
       terminal_session = Terminal::Session.create!(

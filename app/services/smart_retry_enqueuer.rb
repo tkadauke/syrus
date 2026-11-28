@@ -75,7 +75,7 @@ class SmartRetryEnqueuer
     return skipped(:closed, closed_job_message) if job.closed?
     return skipped(:no_change_needed, "Job has no changes to retry.") if job.no_change_needed?
     return skipped(:pr_ready, "PR is already current and checks are passing.") if pr_ready?
-    return skipped(:active_run, "A Run is already in progress - wait for it to finish.") if job.active_runtime_work?
+    return skipped(:active_run, "A Run is already in progress - wait for it to finish.") if job.active_runtime_work? && !held_only_by_blocked_workflow?
     return skipped(:duplicate_retry, "A retry workflow is already queued or running for this Job.") if duplicate_active_retry_workflow?
     return provider_circuit_skip if automatic? && provider_circuit.open?
 
@@ -130,6 +130,16 @@ class SmartRetryEnqueuer
     label = App::Presentation.agent_provider_label(provider_circuit.provider)
     until_text = provider_circuit.retry_after ? " until #{provider_circuit.retry_after.to_fs(:db)}" : ""
     skipped(:provider_circuit, "#{label} appears degraded#{until_text}; automatic retries are paused.", circuit: provider_circuit)
+  end
+
+  # A blocked Workflow keeps its WorkUnit active while it waits for a person,
+  # which reads as active work. Retrying is that person's answer:
+  # RetryWorkflowEnqueuer retires the blocked hold before launching the retry.
+  def held_only_by_blocked_workflow?
+    return false unless latest_workflow&.blocked?
+    return false if job.any_active_run?
+
+    !WorkUnits::Ownership.runnable_job_ids([ job.id ]).include?(job.id)
   end
 
   def duplicate_active_retry_workflow?

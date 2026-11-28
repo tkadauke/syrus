@@ -44,6 +44,22 @@ RSpec.describe PendingActions::WorkflowOutcomeOverride do
     expect(WorkflowOutcomeOverrides::Resumer).to have_received(:call).with(override:)
   end
 
+  it "refuses a chat owned by a collaborator with only read access to the Job" do
+    reader = Factories.user
+    repository.repository_memberships.create!(user: reader, role: "read")
+    reader_chat = ChatSession.create!(user: reader, repository:)
+    action = reader_chat.pending_actions.create!(
+      action: "workflow_outcome_override", requested_by: "agent", reason: "Known false positive",
+      payload: pending_action.payload
+    )
+    allow(WorkflowOutcomeOverrides::Authority).to receive(:call)
+    allow(WorkflowOutcomeOverrides::Recorder).to receive(:call)
+
+    expect { PendingActions::WorkflowOutcomeOverride.new(action).execute }
+      .to raise_error(Mcp::Tools::AuthorizationSupport::AuthorizationError, /write access/)
+    expect(WorkflowOutcomeOverrides::Recorder).not_to have_received(:call)
+  end
+
   it "rejects an agent selector without its exact identity" do
     action = pending_action
     action.payload = action.payload.merge(

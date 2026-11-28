@@ -55,11 +55,31 @@ module Discord
     # it, and a leftover value (a crash between copy and clear, or an operator
     # who connected an account by hand) is an unaudited second copy of the
     # secret. Wipe it without reading it, at most once per process.
+    #
+    # This runs on read paths (the chat index asks whether Discord is
+    # configured), so it must never wait on a row lock. The singleton settings
+    # row is held FOR UPDATE by instance-wide admission locks for seconds at a
+    # time; an unconditional UPDATE here queued behind them and failed GET
+    # requests with a lock-wait timeout. Check with a plain consistent read
+    # first (no lock in REPEATABLE READ), and only when a leftover exists take
+    # the row without waiting; a busy row is retried on a later call.
     def retire_legacy_once
       return if @retired
+      return @retired = true unless AppSetting.where.not(discord_bot_token: nil).exists?
 
+      AppSetting.transaction do
+        ids = legacy_rows_without_waiting
+        AppSetting.where(id: ids).update_all(discord_bot_token: nil) if ids.any?
+      end
       @retired = true
-      AppSetting.where.not(discord_bot_token: nil).update_all(discord_bot_token: nil)
+    rescue ActiveRecord::StatementInvalid => error
+      Rails.logger.warn("Discord::TokenMigration: leftover legacy token not retired yet (#{error.class}); retrying later")
+    end
+
+    def legacy_rows_without_waiting
+      scope = AppSetting.where.not(discord_bot_token: nil)
+      scope = scope.lock("FOR UPDATE NOWAIT") if AppSetting.connection.adapter_name.match?(/mysql|trilogy/i)
+      scope.pluck(:id)
     end
 
     def reset!

@@ -61,6 +61,7 @@ class RunHostAdmission
     return busy("memory_pressure") if memory_pressure_exceeded?
     return busy("memory_headroom") if memory_headroom_low?
     return busy("grader_cpu_booked") if grader_cpu_booked?
+    return busy("grader_cpu_min_unavailable") if grader_below_cpu_min?
     return admit("provider_bound_step") if provider_bound_candidate?
     return busy("concurrency_target") if active_compute_run_count >= concurrency_target
 
@@ -77,6 +78,21 @@ class RunHostAdmission
   # healthy worker instead of stacking it on a host whose CPUs are taken.
   def grader_cpu_booked?
     whole_host_grader_grant&.cpu_booked? || false
+  end
+
+  # A whole-host grader that declared a `cpu_min` waits for a host that can
+  # grant it, rather than starting narrow and setting the round's wall time
+  # (see GraderResourceGrant#below_cpu_min?). The refusal is reroutable, so it
+  # moves to a worker that can. It is a preference, not a gate: once a Run has
+  # waited CPU_MIN_PATIENCE it starts on whatever this host can give, so a
+  # fleet with no large-enough free host is slower, never stuck.
+  CPU_MIN_PATIENCE = 10.minutes
+
+  def grader_below_cpu_min?
+    grant = whole_host_grader_grant
+    return false unless grant&.below_cpu_min?
+
+    run.created_at.nil? || run.created_at > now - CPU_MIN_PATIENCE
   end
 
   # Shards of one fan-out are claimed within seconds of each other, minutes

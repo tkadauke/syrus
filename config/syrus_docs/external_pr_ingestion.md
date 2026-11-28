@@ -48,6 +48,42 @@ feedback workflow runs at a time, and its response sees the full outstanding
 thread. Qualifying feedback clears an existing approval before either path can
 continue.
 
+## Bot-authored pull requests
+
+A review that requests changes normally holds an external PR Job until its
+author pushes a fix. Dependency bots (Dependabot, Renovate, any author GitHub
+reports as a Bot or whose login ends in `[bot]`) never do, so when such a PR's
+branch lives in the tracked repository Syrus does not wait for them:
+
+- **Superseded** — if the same bot opened a newer PR for the same dependency
+  (or one already merged), the Job closes as `external_pr_superseded`.
+- **Stale** — a PR older than `max_age_days`, more than `max_commits_behind`
+  commits behind its base, or whose Syrus repair failed applies
+  `stale_action`. `refresh` (the default) posts `@dependabot recreate` once per
+  Job and waits up to a day for the new head; an unanswered request, a
+  recreated PR that goes stale again, or a non-Dependabot bot closes the Job as
+  `external_pr_stale`. `close` closes it directly; `wait` keeps the hold.
+- **Otherwise** — Syrus addresses the requested changes itself with the
+  same-repository feedback chain (respond, review, graders, push), once per
+  review, clearing any approval first. Syrus's own grader review is dismissed
+  once the new head's checks pass; a person's review still needs that person.
+
+Closing such a Job closes the GitHub PR with a comment. Comments addressed to a
+dependency bot (`@dependabot …`, `@renovate …`) are never treated as feedback.
+Human-authored PRs and fork PRs keep waiting for their author.
+
+```yaml
+external_prs:
+  bot_prs:
+    review_feedback: repair   # repair (default) | wait
+    stale_action: refresh     # refresh (default) | close | wait
+    max_age_days: 30          # default 30; 0 disables
+    max_commits_behind: 500   # default off; 0 disables
+```
+
+Syrus reads this from the default branch's `.syrus.yml`; when that file cannot
+be read it keeps waiting.
+
 ## Dashboard display
 
 Dashboard lists mark externally authored pull requests with an **External**

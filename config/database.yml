@@ -113,6 +113,13 @@ production:
     <% require "etc" %>
     <% run_threads_bound = [ Etc.nprocessors, ENV["SYRUS_WORKER_CPU_LIMIT"].to_f.ceil, ENV["JOB_CONCURRENCY"].to_i ].max %>
     pool: <%= ENV.fetch("DB_POOL") { [ 9, run_threads_bound + 3 ].max } %>
+    # Pools grow lazily but keep what they open: at Rails' default 300s idle
+    # timeout, every burst left its connections parked, and the fleet's idle
+    # connections across primary/queue/cache/cable reached MySQL's
+    # max_connections ("Too many connections" failed graders and enqueues).
+    # Return idle connections after a minute instead.
+    idle_timeout: <%= ENV.fetch("DB_IDLE_TIMEOUT", 60).to_i %>
+    reaping_frequency: <%= ENV.fetch("DB_REAPING_FREQUENCY", 20).to_i %>
     host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
     database: syrus_production
     username: syrus
@@ -135,9 +142,19 @@ production:
     # UTC_TIMESTAMP() while runs/solid_queue_jobs were correct, and Syrus's own
     # ChatMessage.insert_all! and Observability::EventStream writes take the
     # same path. Pin every session to UTC so both paths agree.
+    #
+    # READ COMMITTED (NY45): under MySQL's default REPEATABLE READ every plain
+    # read in a transaction answers from the snapshot fixed by its first read.
+    # Lineage.lock! makes plain reads to find a record's ancestry before it
+    # waits on the row locks, so a check made after the lock could miss a
+    # transaction that committed while this one waited: one grader fan-out
+    # Run executed twice that way. READ COMMITTED gives every statement the
+    # latest committed rows, and takes fewer gap locks. Needs row-based binary
+    # logging, MySQL 8's default.
     variables:
       innodb_lock_wait_timeout: 10
       time_zone: "+00:00"
+      transaction_isolation: "READ-COMMITTED"
     # Socket timeouts, off unless set. A worker that reaches MySQL through a
     # tunnel (the macOS worker's `kubectl port-forward`) can be left holding a
     # connection whose far end is gone without the local socket ever being

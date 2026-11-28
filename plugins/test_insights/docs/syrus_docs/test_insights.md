@@ -405,6 +405,13 @@ database (`config/queue.compute.yml`). Writing `test_identity_fts` inline from
 swallowed as an enrichment warning, so search results simply went missing
 rather than anything erroring loudly.
 
+A grader's test cases are stored before its Step finishes. The per-test
+summaries shown in test lists and the flakiest-tests ranking (last status,
+last pass and failure, recent counts and durations) are refreshed by a
+background job afterwards, so they can trail a just-finished grader by a few
+moments. Flakiness adjudication reads the stored test cases, not those
+summaries, and is unaffected.
+
 ## Plugin ownership
 
 Test Insights is the `test_insights` plugin. It owns the four primary tables

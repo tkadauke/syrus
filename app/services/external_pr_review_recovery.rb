@@ -1,5 +1,12 @@
 class ExternalPrReviewRecovery
   SYRUS_GRADER_FAILURE_PREFIX = "Syrus ran the repository graders against this pull request and found failures:".freeze
+  # The ingest grader review and the landing grader review
+  # (Workflows::ExternalPrMerge) word their opening line differently; both are
+  # Syrus's own and both go stale once the current head passes.
+  SYRUS_GRADER_FAILURE_PREFIXES = [
+    SYRUS_GRADER_FAILURE_PREFIX,
+    "Syrus ran required checks on this pull request before landing and the following failed:"
+  ].freeze
 
   def self.call(job:, pr:, client:, reviews:)
     new(job:, pr:, client:, reviews:).call
@@ -46,7 +53,7 @@ class ExternalPrReviewRecovery
   end
 
   def syrus_grader_failure_review?(review)
-    syrus_authored_review?(review) && review_value(review, :body).to_s.start_with?(SYRUS_GRADER_FAILURE_PREFIX)
+    syrus_authored_review?(review) && review_value(review, :body).to_s.start_with?(*SYRUS_GRADER_FAILURE_PREFIXES)
   end
 
   def syrus_authored_review?(review)

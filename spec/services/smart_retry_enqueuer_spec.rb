@@ -228,6 +228,23 @@ RSpec.describe SmartRetryEnqueuer do
     expect(result.skip_summary).to eq("active run" => 1, "provider circuit" => 1)
   end
 
+  # A Job parked at failed on a long-blocked Workflow still has that
+  # Workflow's blocked WorkUnit active; the bulk retry is the operator's
+  # answer to the block, not a collision with running work.
+  it "retries a failed Job held only by its blocked Workflow" do
+    job = Factories.job_record(user: user, repository: repository, state: "failed", issue_number: 4242, agent_provider: "claude")
+    blocked = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "blocked",
+                               started_at: 5.days.ago, finished_at: 4.days.ago)
+    attach_work_unit(blocked, state: "blocked", blocked_reason: "agent_cannot_proceed")
+    expect(job.reload.active_runtime_work?).to be(true)
+
+    result = described_class.call(job: job, automatic: true, by_user: user)
+
+    expect(result).to be_success
+    expect(result.action).to eq(:implementation)
+    expect(blocked.work_unit.reload).not_to be_active
+  end
+
   it "skips closed, approved, and no-change-needed jobs" do
     closed = Factories.job_record(user: user, repository: repository, state: "closed")
     approved = Factories.job_record(user: user, repository: repository, state: "approved", pr_number: 10)

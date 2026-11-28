@@ -5,7 +5,7 @@ require "digest/sha1"
 module WorkEngine
   module Simulation
     class ScenarioLoader
-      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime, :max_ticks, :invariants)
+      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime, :max_ticks, :invariants, :git_world)
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
         main_branch_repair_blocks_work landing_paused pr_check_gate
@@ -19,6 +19,7 @@ module WorkEngine
         mergeability_head_sha mergeability_checked_at github_mergeable github_mergeable_state
         local_mergeable local_mergeable_state
         triaging_reason classifier_attempts created_at updated_at runaway_protection
+        needs_attention needs_attention_reason
       ].freeze
       WORKFLOW_UPDATE_KEYS = %w[
         worker_hostname worker_storage_key started_at finished_at cleaned_up_at
@@ -35,6 +36,8 @@ module WorkEngine
 
         data = YAML.safe_load(path.read, permitted_classes: [ Symbol ], aliases: false).to_h
         validate_acyclic_dependencies!(data)
+        git_world = build_git_world(data["git"], default_branch: data.dig("repository", "default_branch") || "main")
+        data = substitute_git_refs(data.except("git"), git_world) if git_world
 
         ActiveRecord::Base.transaction(requires_new: true) do
           user = create_user!(data.fetch("user", {}))
@@ -55,6 +58,7 @@ module WorkEngine
           create_auto_retry_attempts!(jobs, data.fetch("auto_retry_attempts", {}))
           create_merge_trains!(repository, epics, jobs, data.fetch("merge_trains", {}))
           work_intents = create_standalone_work!(repository, user, jobs, data.fetch("work_intents", {}), data.fetch("work_units", {}))
+          seed_git_world_pull_requests!(git_world, jobs, data.fetch("jobs", {})) if git_world
 
           World.new(
             name: data.fetch("name", path.basename(".yml").to_s),
@@ -72,7 +76,8 @@ module WorkEngine
             runner: data.fetch("runner", {}),
             runtime: data.fetch("runtime", {}),
             max_ticks: data["max_ticks"],
-            invariants: data.fetch("invariants", {})
+            invariants: data.fetch("invariants", {}),
+            git_world: git_world
           )
         end
       end
@@ -285,20 +290,25 @@ module WorkEngine
       end
 
       def create_workflows!(jobs, definitions)
+        # `workflows:` seeds a Job's history in order (an earlier failed
+        # attempt, then the current one); `workflow:` is the one-workflow form.
         definitions.each do |key, attrs|
-          workflow_config = attrs["workflow"]
-          next unless workflow_config
-
-          job = jobs.fetch(key.to_s)
-          workflow = if workflow_config["template"] == true
-            WorkUnits::Launcher.instantiate(kind: workflow_config.fetch("kind", "initial"), job: job)
-          else
-            create_manual_workflow!(job, workflow_config)
-          end
-
-          workflow.update_columns(workflow_updates(workflow, workflow_config))
-          sync_work_unit_state!(workflow, workflow_config)
+          configs = Array(attrs["workflows"]) + [ attrs["workflow"] ].compact
+          configs.each { |workflow_config| create_workflow!(jobs.fetch(key.to_s), workflow_config) }
         end
+      end
+
+      def create_workflow!(job, workflow_config)
+        workflow = if workflow_config["template"] == true
+          WorkUnits::Launcher.instantiate(kind: workflow_config.fetch("kind", "initial"), job: job).tap do |instantiated|
+            workflow_config.fetch("artifacts", {}).each { |key, value| instantiated.set_artifact!(key, value) }
+          end
+        else
+          create_manual_workflow!(job, workflow_config)
+        end
+
+        workflow.update_columns(workflow_updates(workflow, workflow_config))
+        sync_work_unit_state!(workflow, workflow_config)
       end
 
       def workflow_updates(workflow, attrs)
@@ -548,6 +558,9 @@ module WorkEngine
             )
           end
           create_solid_queue_state!(run, config["solid_queue"]) if config["solid_queue"].present?
+          # The Run's executing thread is hung: the simulator never drives it,
+          # so only the reconciler can notice and recover it.
+          run.update_columns(artifacts: run.artifacts.to_h.merge(Runner::WEDGED_RUN_ARTIFACT => true)) if config["wedged"] == true
         end
       end
 
@@ -728,6 +741,7 @@ module WorkEngine
           blocked_reason: config.dig("work_unit", "blocked_reason"),
           blocked_details: config.dig("work_unit", "blocked_details") || {},
           blocked_until: parse_optional_time(config.dig("work_unit", "blocked_until")),
+          pause_requested: config.dig("work_unit", "pause_requested") == true,
           repository: job.repository,
           scope_type: intent.scope_type,
           scope_id: intent.scope_id
@@ -749,7 +763,14 @@ module WorkEngine
         unit = workflow.work_unit
         return unless unit
 
-        unit.update_columns(state: config.dig("work_unit", "state") || workflow.state)
+        updates = { state: config.dig("work_unit", "state") || workflow.state }
+        # A template's unit can be seeded blocked, e.g. an operator-paused
+        # rebase (`blocked_reason: manual_pause`, `pause_requested: true`).
+        if (reason = config.dig("work_unit", "blocked_reason")).present?
+          updates.merge!(blocked_reason: reason, blocked_at: Time.current)
+        end
+        updates[:pause_requested] = true if config.dig("work_unit", "pause_requested") == true
+        unit.update_columns(updates)
       end
 
       def create_standalone_work!(repository, user, jobs, intent_definitions, unit_definitions)
@@ -819,6 +840,82 @@ module WorkEngine
         end
 
         token
+      end
+
+      # The scenario's `git:` block: a commit DAG, branch tips, and options
+      # (see README "Git topology and pull requests"). Commits are created in
+      # parent order; ids are derived from the scenario's file name and the
+      # label, so they are stable across checkouts and processes.
+      def build_git_world(config, default_branch:)
+        return nil if config.nil?
+
+        config = config.to_h
+        world = GitWorld.new(
+          seed: path.basename(".yml").to_s,
+          default_branch: default_branch,
+          delete_branch_on_merge: config.fetch("delete_branch_on_merge", true),
+          merge_method: config.fetch("merge_method", "rebase")
+        )
+        pending = config.fetch("commits", {}).to_h.presence&.to_a || [ [ "root", {} ] ]
+        until pending.empty?
+          created = pending.select { |_label, attrs| Array(attrs.to_h["parents"]).all? { |parent| world.label_sha(parent) } }
+          raise ArgumentError, "git commits with unknown or cyclic parents: #{pending.map(&:first).join(", ")}" if created.empty?
+
+          created.each do |label, attrs|
+            attrs = attrs.to_h
+            world.commit!(label: label, parents: Array(attrs["parents"]), patch: attrs["patch"], paths: attrs["paths"])
+          end
+          pending -= created
+        end
+        config.fetch("branches", {}).each { |branch, ref| world.set_branch!(branch, ref) }
+        world.set_branch!(default_branch, world.labels.values.first) unless world.branch?(default_branch)
+        @git_config = config
+        world
+      end
+
+      # `git:<label>` anywhere else in the scenario names that commit's id.
+      def substitute_git_refs(value, world)
+        case value
+        when Hash then value.transform_values { |entry| substitute_git_refs(entry, world) }
+        when Array then value.map { |entry| substitute_git_refs(entry, world) }
+        when /\Agit:(.+)\z/
+          label = Regexp.last_match(1)
+          world.label_sha(label) || raise(ArgumentError, "unknown git commit label #{label.inspect}")
+        else value
+        end
+      end
+
+      # Every seeded Job with a PR number and a branch the git world knows
+      # gets an open PR. Its base is `git.pull_requests.<job>.base`, else the
+      # open stack parent's branch, else the default branch. A Job's local
+      # workspace starts at `git.checkouts.<job>` (unpublished work), else at
+      # its branch tip.
+      def seed_git_world_pull_requests!(world, jobs, definitions)
+        pull_requests = @git_config.fetch("pull_requests", {}).to_h
+        definitions.each_key do |key|
+          job = jobs.fetch(key.to_s).reload
+          next if job.pr_number.blank? || job.branch_name.blank? || !world.branch?(job.branch_name)
+
+          attrs = pull_requests.fetch(key.to_s, {}).to_h
+          parent = job.parent_job
+          base = attrs["base"].presence ||
+            (parent.branch_name if parent&.open? && parent.branch_name.present? && world.branch?(parent.branch_name)) ||
+            job.repository.default_branch
+          pr = world.open_pull_request!(
+            number: job.pr_number, head_branch: job.branch_name, base_branch: base, job_key: job.id,
+            checks: attrs["checks"] || job.pr_checks_state.presence || "passing"
+          )
+          pr.unknown_reads = attrs.fetch("unknown_reads", 0).to_i
+          pr.blocked = attrs.fetch("blocked", false)
+          case attrs["state"].to_s
+          when "closed" then world.close_pull_request!(pr.number)
+          when "merged" then world.merge_pull_request!(pr.number, force: true)
+          end
+        end
+        @git_config.fetch("checkouts", {}).to_h.each do |key, ref|
+          job = jobs.fetch(key.to_s)
+          world.checkout(job.id, branch: job.branch_name).head = world.resolve!(ref)
+        end
       end
 
       def validate_acyclic_dependencies!(data)

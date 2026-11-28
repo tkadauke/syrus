@@ -34,7 +34,14 @@ drop, and upload events to these same Playwright-backed tools and recognizes
 the same Runtime Control Lease. Stable refs come from semantic inspection.
 Text entry consequently uses Playwright's native input behavior for text,
 email, password, textarea, contenteditable, and framework-controlled fields.
-Coordinate-only synthetic DOM dispatch is intentionally unsupported.
+Synthetic DOM dispatch is never used. Input without a snapshot ref (an
+operator clicking the streamed frame in the Runtime panel, or pasting with
+nothing targeted) is also native: a click at viewport coordinates goes
+through Playwright's mouse (or touchscreen for touch), with held Ctrl, Alt,
+Shift, and Meta pressed around it, and a target-less paste is inserted into
+the focused element through Playwright's keyboard. Keyboard events carry held
+modifiers as a Playwright chord such as `Control+Shift+S`. These paths check
+and record the same input lease as the target-based tools.
 
 **Protocol: streamable HTTP MCP, spoken by the same binary.** `@playwright/mcp`
 already ships two transports for the identical tool surface: stdio (the
@@ -158,6 +165,13 @@ These descriptors do not replace the hard boundaries: navigation remains
 loopback-only, upload authority fingerprints exact paths without exposing
 them in approval copy, and page-affecting Coding Mode calls still require the
 active Runtime input lease.
+
+Each leased interaction is recorded in the run's input audit. `browser_fill`
+text typed into a password field, a field whose autocomplete is
+`current-password`, `new-password`, or `one-time-code`, or a field that cannot
+be inspected is recorded only as a redaction marker and its length, as is any
+typed text that looks like a token or other secret. The page still receives
+the real text.
 
 Browser navigation is scoped to loopback preview URLs regardless of
 transport (`LoopbackGuard`, enforced by `NavigateTool` before any tool call

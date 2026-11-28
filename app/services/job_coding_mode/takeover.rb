@@ -34,7 +34,7 @@ module JobCodingMode
 
         if @job.approved?
           Job::ApprovalUnapprover.call(job: @job, user: @user)
-          @job.reload
+          @job.reload(lock: true)
         end
 
         unless @job.coding?

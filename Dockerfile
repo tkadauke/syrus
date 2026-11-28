@@ -50,6 +50,9 @@ ARG ANTIGRAVITY_CLI_VERSION=1.2.1
 ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
 ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38
 ARG ANTIGRAVITY_CLI_LINUX_ARM64_SHA512=f6dd6057a82dcbc4ab0878d99c4b84cfc45c3e2f12647eaf435322ecdd18d0190620bca943185f542431b93f34f5ea19cf84e8fdb902e64529e110bfa0a5a46f
+ARG TRIVY_VERSION=0.76.2
+ARG TRIVY_LINUX_AMD64_SHA256=bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+ARG TRIVY_LINUX_ARM64_SHA256=ab9d51f86e6a5fb936f605faff6b593ac51bc378fff4d3e8b9d58358b9c367c3
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eu; \
@@ -77,6 +80,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     tar -xzf "${antigravity_tarball}" -C /tmp antigravity && \
     install -m 0755 /tmp/antigravity /usr/local/bin/agy && \
     rm -f "${antigravity_tarball}" /tmp/antigravity && \
+    case "$(dpkg --print-architecture)" in \
+      amd64) trivy_arch=64bit; trivy_sha256="${TRIVY_LINUX_AMD64_SHA256}" ;; \
+      arm64) trivy_arch=ARM64; trivy_sha256="${TRIVY_LINUX_ARM64_SHA256}" ;; \
+      *) echo "unsupported architecture for Trivy: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac && \
+    trivy_tarball=/tmp/trivy.tar.gz && \
+    curl -fsSL -o "${trivy_tarball}" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${trivy_arch}.tar.gz" && \
+    echo "${trivy_sha256}  ${trivy_tarball}" | sha256sum -c - && \
+    tar -xzf "${trivy_tarball}" -C /usr/local/bin trivy && \
+    rm -f "${trivy_tarball}" && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

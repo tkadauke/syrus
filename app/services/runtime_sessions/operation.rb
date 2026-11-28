@@ -28,7 +28,7 @@ module RuntimeSessions
       lease_id = nil
 
       session.with_lock do
-        session.reload
+        session.reload(lock: true)
         operation = current(session)
         next unless operation&.fetch("state", nil) == "active" && deadline_elapsed?(operation)
 
@@ -75,6 +75,9 @@ module RuntimeSessions
       @lease = lease
     end
 
+    # Another operation on the session is still within its deadline (F147).
+    class AlreadyActive < StandardError; end
+
     def call(&provider_call)
       operation = begin_operation!
       queue = Queue.new
@@ -114,7 +117,13 @@ module RuntimeSessions
         "deadline_at" => (now + @timeout).iso8601,
         "lease_id" => @lease&.id
       }.compact
-      persist(operation, "#{@kind} provider operation started")
+      # Checked under the session lock, not only by the caller beforehand:
+      # two callers that both saw no active operation would otherwise both
+      # begin one, the second overwriting the first, and run the provider
+      # twice (F147).
+      began = persist(operation, "#{@kind} provider operation started", require_idle: true)
+      raise AlreadyActive, "a #{@kind} provider operation is already running for this session" unless began
+
       operation
     end
 
@@ -152,11 +161,15 @@ module RuntimeSessions
       Result.new(status: status, value: value, error: status == :failed ? value : nil)
     end
 
-    def persist(operation, log_message, state: nil, error: :unchanged, result: nil, require_current: false)
+    def persist(operation, log_message, state: nil, error: :unchanged, result: nil, require_current: false, require_idle: false)
       @session.with_lock do
-        @session.reload
+        @session.reload(lock: true)
         metadata = @session.metadata.deep_dup
         next false if require_current && metadata.dig("runtime_operation", "id") != operation.fetch("id")
+        if require_idle
+          existing = metadata["runtime_operation"]
+          next false if existing&.fetch("state", nil) == "active" && !self.class.send(:deadline_elapsed?, existing)
+        end
 
         logs = Array(metadata["runtime_operation_logs"]).last(LOG_LIMIT - 1)
         logs << { "at" => Time.current.iso8601, "operation_id" => operation.fetch("id"), "message" => log_message }

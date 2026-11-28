@@ -370,7 +370,7 @@ module Api
           return if reject_stale_job_revision?(job)
 
           approved = job.with_lock do
-            job.reload
+            job.reload(lock: true)
             unless job.auto_merge_enabled?
               render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
               return

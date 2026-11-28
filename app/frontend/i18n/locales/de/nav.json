@@ -93,6 +93,8 @@
       "backlogged_jobs": "Backlog",
       "pinned": "Angeheftet",
       "in_progress": "In Bearbeitung",
+      "waiting_for_answer": "Wartet auf deine Antwort",
+      "investigations": "Untersuchungen",
       "paused": "Pausiert",
       "queued": "In Warteschlange",
       "triaging": "In Triage",
@@ -401,6 +403,7 @@
     "title": "Fragen",
     "close": "Schließen",
     "empty": "Keine Frage wartet auf eine Antwort.",
-    "arrived": "{{count}} neue Frage ist eingetroffen."
+    "arrived_one": "{{count}} neue Frage ist eingetroffen.",
+    "arrived_other": "{{count}} neue Fragen sind eingetroffen."
   }
 }

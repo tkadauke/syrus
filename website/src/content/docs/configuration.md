@@ -156,6 +156,10 @@ grade:
     timeout_minutes: 20
 ```
 
+macOS workers provide XcodeGen alongside Xcode, so a project that generates
+its `.xcodeproj` from a `project.yml` can run `xcodegen generate` in
+`prepare` without installing anything itself.
+
 When proposing an iOS-only Job or mixed iOS/backend Job whose implementation
 needs Xcode feedback, set primary planned execution to
 `{"capabilities":{"os":["macos"]}}`; Xcode, architecture, and simulator
@@ -496,6 +500,40 @@ repository. Nested project hooks run only when the checked-out Job diff
 touches files under that project directory; if the CLI cannot
 compute the diff, it runs all discovered project hooks and logs the
 fallback.
+
+### `external_prs.bot_prs`
+
+Controls what Syrus does when a review requests changes on an externally filed
+pull request opened by a bot (Dependabot, Renovate, or any other GitHub App
+account) whose branch lives in the tracked repository. Bots never act on review
+feedback, so instead of waiting for the author Syrus:
+
+1. closes the Job when the same bot has opened a newer PR for the same
+   dependency (closure reason `external_pr_superseded`);
+2. treats the PR as stale when it is older than `max_age_days`, more than
+   `max_commits_behind` commits behind its base, or Syrus's own repair of the
+   review failed, and then applies `stale_action`;
+3. otherwise addresses the requested changes itself with the same
+   respond, review, grader, and push chain a maintainer comment starts, once
+   per review. The repair clears the Job's approval, as any new commit does.
+
+```yaml
+external_prs:
+  bot_prs:
+    review_feedback: repair   # repair (default) or wait
+    stale_action: refresh     # refresh (default), close, or wait
+    max_age_days: 30          # 0 turns the age limit off
+    max_commits_behind: 500   # optional; unset or 0 turns it off
+```
+
+`stale_action: refresh` asks Dependabot to recreate the PR with an
+`@dependabot recreate` comment, once per Job; if Dependabot does not answer
+within a day, or the recreated PR goes stale again, the Job closes as
+`external_pr_stale`. Bots that cannot be asked to recreate a PR are closed
+right away. Closing the Job closes the GitHub PR with a comment. `close` skips
+the recreate request; `wait` keeps today's hold. Human-authored PRs and PRs
+from forks always wait for their author. While `.syrus.yml` cannot be read,
+Syrus keeps waiting rather than guess.
 
 ## Worked Examples
 

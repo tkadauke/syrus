@@ -31,20 +31,18 @@ class AgentQuestion < ApplicationRecord
     normalized = normalize_answers(answers)
     return false unless normalized && source.to_s.strip.present?
 
-    with_lock do
-      return false unless active?
+    resolve_and_resume! do
+      next false unless active?
       update!(answers: normalized, answered_at: Time.current, answered_by: answered_by, answer_source: source.to_s)
     end
-    AgentQuestions::Resume.call(self) if run_id
-    true
   end
 
   def timeout!
-    with_lock do
-      return false unless active? && times_out_at&.past?
+    resolve_and_resume! do
+      next false unless active? && times_out_at&.past?
 
       normalized = normalize_answers(defaults)
-      return false unless normalized
+      next false unless normalized
 
       update!(
         answers: normalized,
@@ -54,8 +52,6 @@ class AgentQuestion < ApplicationRecord
         timed_out_at: Time.current
       )
     end
-    AgentQuestions::Resume.call(self) if run_id
-    true
   end
 
   def questions_payload
@@ -76,6 +72,27 @@ class AgentQuestion < ApplicationRecord
   end
 
   private
+
+  # Records the resolution and resumes the parked Run in one transaction: a
+  # resume that raises rolls the answer back, so the question stays active
+  # instead of being consumed by a Run that never resumed. The Run's ancestry
+  # is locked before the question (parents before children, NY40).
+  def resolve_and_resume!
+    resume = nil
+    resolved = self.class.transaction do
+      Lineage.lock!(run) if run
+      lock!
+      next false unless yield
+
+      resume = AgentQuestions::Resume.new(self) if run_id
+      resume = nil if resume && !resume.transition!
+      true
+    end
+    return false unless resolved
+
+    resume&.reenqueue!
+    true
+  end
 
   def record_event!(event_type, source:)
     events.create!(event_type: event_type, source: source.presence || @withdraw_source || "unknown", occurred_at: Time.current,

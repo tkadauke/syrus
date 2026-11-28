@@ -97,6 +97,7 @@ la:
         label: "%{job} retinere"
         detail_waiting: "Run et Workflow actuosos cancella, Job ad dependentias exspectandas redde, atque PR ramumque serva."
         detail_backlog: "Run et Workflow actuosos cancella, Job in acervum move, atque PR ramumque serva."
+        detail_dependency_edit: "Mutationem %{tool} petitam prius adhibet."
       bulk_confirmation:
         cleanup_workspaces: "%{count} spatia laboris workflow delere?"
         cancel_stale_work: "Opera obsoleta pro %{count} Job abrogare?"
@@ -133,6 +134,40 @@ la:
         terminal_states_mutually_exclusive: "exceptio simul consumpta et infirmata esse non potest"
 
   services:
+    force_push:
+      remote_holds_unrebased_work: "force_push: ramus remotus opus continet quod haec rebasis non fert"
+    recovery_decision:
+      no_progress:
+        headline: "Reparatio sine progressu cessavit"
+        explanation: "Circulus aestimatorum cessavit, quia errores mensi non meliores facti sunt."
+        guidance: "Errores mensos iteratos examina et agenti reparanti certa consilia corrigendi da."
+      workspace_unavailable:
+        headline: "Spatium restitutionis non praesto est"
+        explanation: "Spatium operis Workflow deficientis non praesto est, itaque opus in loco tuto resumi non potest."
+      fresh_implementation:
+        headline: "Nova exsecutio requiritur"
+        explanation: "Workflow deficiens in loco tuto reparari non potest; exsecutionem a basi efficaci denuo incipe."
+      infrastructure_only:
+        headline: "Infrastructura nullum iudicium dedit"
+        explanation: "Exsecutio sine certo iudicio exsecutionis aut probationis finita est."
+      interrupted_resumable:
+        headline: "Opus interruptum resumi potest"
+        explanation: "Opus interruptum est et statum exsecutionis resumendum servat."
+      measured_failure:
+        headline: "Error mensus reparationem requirit"
+        explanation: "Exsecutio errorem mensum exsecutionis aut probationis protulit."
+        guidance: "Errorem mensum repara; cursus iteratus immutatus iudicium mutare non exspectatur."
+      restart_from_base:
+        headline: "Denuo incipe a basi efficaci"
+        explanation: "Nullum certum restitutionis propositum resumendum manet; a basi efficaci denuo incipe."
+    runtime_images:
+      verifications:
+        reevaluator:
+          abandoned: "Conatus verificationis desertus est."
+        orchestrator:
+          check_missing: "Probationis necessariae %{check} nullus exitus servatus est."
+        supply_chain_policy:
+          blocked: "Regula catenae commeatus inventa vetuit: vulnerabilitates: %{vulnerability_count}; fasciculi vetiti: %{package_count}."
     workflow_outcome_overrides:
       telemetry:
         message: "Exitus Workflow defecit, superatus"
@@ -159,6 +194,9 @@ la:
       wait_cycles:
         title: "Opus impeditum se ipsum non exspectat"
         violation: "%{units} in circulo inter se exspectant (%{reasons}); nullum incipere potest."
+      paused_rebase_holds:
+        title: "Rebase suspensum opus approbatum tacite non retinet"
+        violation: "%{workflow} (%{job}) per %{hours} h suspensum est et appulsum %{count} operum approbatorum retinet: %{held}. Operator id resumere aut abrogare debet."
       alert:
         title: "Invariantia Syrus violata sunt."
         message: "%{count} violationes invariantium apertae: %{summary}."
@@ -228,6 +266,7 @@ la:
       required_for_file_anchor: "ancoris fasciculi adesse debet"
       blank_for_file_anchor: "ancoris fasciculi vacuum esse debet"
       not_a_dns_host_name: "nomen hospitis DNS esse debet, non inscriptio IP"
+      runtime_image_digest_mismatch: "imagini immutabili temporis executionis congruere debet"
       blank_for_repository_anchor: "ancoris Repository vacuum esse debet"
       repository_mismatch: "ad idem Repository pertinere debet"
       same_user_required: "ad eundem usorem pertinere debet"

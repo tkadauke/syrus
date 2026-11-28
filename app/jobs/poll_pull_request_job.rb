@@ -350,7 +350,7 @@ class PollPullRequestJob < ApplicationJob
       ) do |retry_number|
         @job.reload if retry_number.positive?
         @job.with_lock do
-          @job.reload
+          @job.reload(lock: true)
           fresh_cutoff = feedback_cutoff
           still_new = new_comments.select do |comment|
             fresh_cutoff.nil? || (comment.created_at && comment.created_at > fresh_cutoff)

@@ -24,8 +24,9 @@ class ChatJobSummary
 
     read_at = participant_read_times
     jobs = Job.where(id: associations.values.flatten.uniq)
-      .includes(:auto_retry_attempts, :epic)
+      .includes(:epic)
       .index_by(&:id)
+    @pending_retry_job_ids = pending_retry_job_ids(jobs.keys)
     workflows_by_job = summary_workflows_by_job(jobs.keys)
     steps_by_workflow = summary_steps_by_workflow(workflows_by_job.values.flatten.map(&:id))
     transition_times = outcome_transition_times(jobs.keys)
@@ -78,16 +79,32 @@ class ChatJobSummary
   WORKFLOW_SUMMARY_COLUMNS = %i[ id job_id state trigger_kind created_at started_at ].freeze
   STEP_SUMMARY_COLUMNS = %i[ id workflow_id state kind ].freeze
 
+  #
+  # Only queued/running workflows and steps can change a row (row_for picks
+  # the newest active workflow, then its first active step), so the terminal
+  # history is never loaded. A long-lived chat links hundreds of Jobs; loading
+  # every workflow and step of them built about 36,000 Step objects per
+  # sidebar load in production -- over a second of Ruby and GC per request.
   def summary_workflows_by_job(job_ids)
     return {} if job_ids.empty?
 
-    Workflow.where(job_id: job_ids).select(*WORKFLOW_SUMMARY_COLUMNS).group_by(&:job_id)
+    Workflow.where(job_id: job_ids, state: Workflow::TriggerKind::ACTIVE_STATES)
+      .select(*WORKFLOW_SUMMARY_COLUMNS).group_by(&:job_id)
   end
 
   def summary_steps_by_workflow(workflow_ids)
     return {} if workflow_ids.empty?
 
-    Step.where(workflow_id: workflow_ids).select(*STEP_SUMMARY_COLUMNS).group_by(&:workflow_id)
+    Step.where(workflow_id: workflow_ids, state: Workflow::TriggerKind::ACTIVE_STATES)
+      .select(*STEP_SUMMARY_COLUMNS).order(:workflow_id, :id).group_by(&:workflow_id)
+  end
+
+  # Only whether an unperformed, unskipped retry exists matters, so ask the
+  # database for those Job ids instead of loading every attempt row.
+  def pending_retry_job_ids(job_ids)
+    return Set.new if job_ids.empty?
+
+    AutoRetryAttempt.where(job_id: job_ids, performed_at: nil, skipped_reason: nil).distinct.pluck(:job_id).to_set
   end
 
   def outcome_transition_times(job_ids)
@@ -164,7 +181,7 @@ class ChatJobSummary
   end
 
   def pending_retry?(job)
-    job.auto_retry_attempts.any? { |attempt| attempt.performed_at.nil? && attempt.skipped_reason.nil? }
+    @pending_retry_job_ids.include?(job.id)
   end
 
   def newer_than_read?(finished_at, read_at)

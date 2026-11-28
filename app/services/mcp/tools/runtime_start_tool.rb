@@ -81,6 +81,9 @@ module Mcp::Tools
         if current&.fetch("state", nil) == "active"
           return Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
         end
+        # A running session is already started; starting it again would run a
+        # second provider process for it (F147).
+        return Mcp::Tools.success(runtime_session_payload(runtime_session.reload)) if runtime_session.reload.state == "running"
 
         runtime_session.update!(state: "starting", last_error: nil)
         operation = RuntimeSessions::Operation.new(session: runtime_session, kind: :startup)
@@ -90,6 +93,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("failed to start runtime session: #{result.error.message}") if result.error && !result.timed_out?
         return Mcp::Tools.invalid(result.error) if result.timed_out?
 
+        Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
+      rescue RuntimeSessions::Operation::AlreadyActive
         Mcp::Tools.success(runtime_session_payload(runtime_session.reload))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

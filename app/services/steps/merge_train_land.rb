@@ -207,7 +207,8 @@ module Steps
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       branch = train.integration_branch
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_push", log: method(:log)) do |push_url|
-        git.run("push", *push_lease_args(git, chdir, branch, push_url), push_url, "HEAD:refs/heads/#{branch}", chdir: chdir)
+        lease_args = integration_push_lease_args(git, chdir, branch, push_url, train: train, context: "merge_train_land")
+        git.run("push", *lease_args, push_url, "HEAD:refs/heads/#{branch}", chdir: chdir)
       end
       git.run("rev-parse", "HEAD", chdir: chdir).strip
     rescue GithubPushProtection::Rejected => e
@@ -227,23 +228,11 @@ module Steps
     # trains died that way (5115, 5117, 5238, 5239), each one clearing its
     # members' approvals on the way out.
     #
-    # So state the lease explicitly, the way Steps::ForcePush already does.
-    # `ls-remote` is the source of truth for what we are overwriting; no remote
-    # branch means there is nothing to protect and a plain push creates it.
-    def push_lease_args(git, chdir, branch, push_url)
-      expected = remote_branch_sha(git, chdir, branch, push_url)
-      return [] if expected.blank?
-
-      [ "--force-with-lease=refs/heads/#{branch}:#{expected}" ]
-    end
-
-    def remote_branch_sha(git, chdir, branch, push_url)
-      output = git.run("ls-remote", "--heads", push_url, "refs/heads/#{branch}", chdir: chdir)
-      GitRunner.remote_ref_sha(output, "refs/heads/#{branch}")
-    rescue GitRunner::GitError => e
-      log("merge_train: could not read the remote tip of #{branch} (#{e.message.to_s.lines.first.to_s.strip}); pushing without a lease")
-      nil
-    end
+    # So state the lease explicitly: MergeTrainStep#integration_push_lease_args
+    # reads the remote tip with `ls-remote` and leases on it only once it is a
+    # head the train recorded or Syrus published, or one BranchTruth proves
+    # this push already contains. No remote branch means there is nothing to
+    # protect and a plain push creates it.
 
     # The integration merge commit represents the whole train landing, not
     # any single member — recorded against the Epic (Epic-backed) or the

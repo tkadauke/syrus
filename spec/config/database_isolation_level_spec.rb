@@ -33,8 +33,23 @@ RSpec.describe "database transaction isolation" do
     end
   end
 
+  # NY45: the primary (and cache, which inherits it) runs at READ COMMITTED
+  # too. Under REPEATABLE READ every plain read in a transaction answers from
+  # the snapshot its first read fixed, which Lineage.lock! takes before it
+  # waits on the row locks, so a check made after a lock could miss a
+  # transaction that committed meanwhile (F149).
+  it "pins the primary and cache connections to READ COMMITTED" do
+    %w[primary cache].each do |name|
+      cfg = production_config.fetch(name)
+
+      expect(cfg["adapter"]).to eq("mysql2")
+      expect(cfg.dig("variables", "transaction_isolation")).to eq("READ-COMMITTED"),
+        "#{name} does not pin transaction_isolation to READ-COMMITTED"
+    end
+  end
+
   it "keeps the lock-wait ceiling and UTC time zone alongside the new isolation level" do
-    %w[queue cable].each do |name|
+    %w[primary cache queue cable].each do |name|
       cfg = production_config.fetch(name)
 
       expect(cfg.dig("variables", "innodb_lock_wait_timeout")).to eq(10),

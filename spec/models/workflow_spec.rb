@@ -1693,6 +1693,25 @@ RSpec.describe Workflow, :ci_only do
       expect(LandingQueueProcessor).to have_received(:try_land!).with(job)
     end
 
+    # Regression, found by the paused-stack-rebase simulator scenario: the
+    # stack rebase's hook had the same bug, launching the stack's Epic merge
+    # train while holding the stack rebase Workflow.
+    it "re-dispatches a stack rebase's approved members only once its success transaction commits" do
+      job = landing_job
+      stack_wf = described_class.create!(job: job, trigger_kind: "stack_rebase", state: "running")
+      stack_wf.set_artifact!(StackRebasePlan::STACK_ARTIFACT, [ { "job_id" => job.id } ])
+
+      allow(LandingQueueProcessor).to receive(:try_land!)
+
+      described_class.transaction do
+        stack_wf.succeed!
+        stack_wf.save!
+        expect(LandingQueueProcessor).not_to have_received(:try_land!)
+      end
+
+      expect(LandingQueueProcessor).to have_received(:try_land!).with(job)
+    end
+
     it "skips LandingQueueProcessor.try_land! when the succeeding workflow is not a rebase" do
       job = landing_job
       initial_wf = described_class.create!(job: job, trigger_kind: "initial", state: "running")

@@ -79,8 +79,6 @@ module TestInsights
       heartbeat!
       refresh_runtime_summaries(touched_test_identity_ids)
       heartbeat!
-      refresh_search_index(touched_test_identity_ids)
-      heartbeat!
       test_run
     end
 
@@ -94,10 +92,14 @@ module TestInsights
       log_enrichment_failure("wip repair failure classification", e)
     end
 
+    # Enqueued, and the job then indexes for search: see
+    # RefreshTestIdentitiesJob for why this no longer runs inside the grader.
     def refresh_test_identities(test_identity_ids)
-      TestIdentity.refresh_many!(test_identity_ids)
+      return if test_identity_ids.empty?
+
+      RefreshTestIdentitiesJob.perform_later(test_identity_ids)
     rescue StandardError => e
-      log_enrichment_failure("test identity refresh", e)
+      log_enrichment_failure("test identity refresh enqueue", e)
     end
 
     def refresh_runtime_summaries(test_identity_ids)
@@ -106,17 +108,6 @@ module TestInsights
       RefreshTestRuntimeSummariesJob.perform_later(test_identity_ids, @grader_name)
     rescue StandardError => e
       log_enrichment_failure("runtime summary refresh enqueue", e)
-    end
-
-    # Enqueued rather than written here: ingestion runs inside a grader step on
-    # the `runs` queue, which on a split deployment is a compute node with no
-    # access to the search database.
-    def refresh_search_index(test_identity_ids)
-      return if test_identity_ids.empty?
-
-      IndexTestIdentitiesJob.perform_later(test_identity_ids)
-    rescue StandardError => e
-      log_enrichment_failure("search indexing", e)
     end
 
     def log_enrichment_failure(stage, error)

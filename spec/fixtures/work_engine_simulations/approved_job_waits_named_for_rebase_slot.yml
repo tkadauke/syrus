@@ -1,0 +1,77 @@
+# An approved Job's PR is behind its base while every rebase slot of the
+# repository is held by runnable rebases of other Jobs. The landing queue
+# cannot land it (GitHub says it needs a rebase) and the merge-state poll
+# declines to start its rebase at the cap, and its queue entry used to carry
+# no reason at all (formal/SyrusModel/ApprovedProgress.lean). It now waits
+# with `waiting_rebase_slot`, and lands once the other rebases finish and the
+# mergeability refresh reports the PR clean.
+name: approved job waits named for a rebase slot
+max_ticks: 40
+repository:
+  owner: simulation
+  name: approved-job-waits-named-for-rebase-slot
+  auto_merge_enabled: true
+jobs:
+  target:
+    title: Approved Job whose PR is behind its base
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-target
+    pr_number: 7101
+    pr_checks_state: passing
+    github_mergeable_state: behind
+    github_mergeable: true
+    mergeability_checked_at: "2026-01-01 00:00:00"
+    approved_at: "2026-01-01 00:00:00"
+    approved_via: operator
+  first_holder:
+    title: First Job rebasing
+    state: implemented
+    branch_name: syrus/direct-first-holder
+    pr_number: 7102
+    workflow:
+      template: true
+      kind: rebase
+  second_holder:
+    title: Second Job rebasing
+    state: implemented
+    branch_name: syrus/direct-second-holder
+    pr_number: 7103
+    workflow:
+      template: true
+      kind: rebase
+  third_holder:
+    title: Third Job rebasing
+    state: implemented
+    branch_name: syrus/direct-third-holder
+    pr_number: 7104
+    workflow:
+      template: true
+      kind: rebase
+events:
+  - name: target waits for a named rebase slot
+    once: true
+    when:
+      queue:
+        landing_blocked_reasons:
+          target: waiting_rebase_slot
+    do: {}
+outcomes:
+  default: success
+expect:
+  jobs:
+    target:
+      - closed
+    first_holder:
+      - implemented
+    second_holder:
+      - implemented
+    third_holder:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - "event target waits for a named rebase slot"
+    - "mergeability poll answered clean for"

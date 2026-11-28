@@ -68,8 +68,8 @@ class BaseRefreshRetryEnqueuer
     # artifacts are written after, and a Job state change refreshes its Epic.
     Job.transaction do
       Lineage.lock_all!([ job, source ])
-      job.reload
-      source.reload
+      job.reload(lock: true)
+      source.reload(lock: true)
       if (existing = reserved_retry_for(source, checkpoint))
         return [ existing, true ]
       end

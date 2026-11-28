@@ -13,6 +13,25 @@ RSpec.describe "native macOS worker scripts" do
   let(:pinned_node) { File.read(File.join(root, ".node-version")).strip }
   let(:system_path) { "/usr/bin:/bin:/usr/sbin:/sbin" }
 
+  # The system directories are the grading host's own, and a Linux grader
+  # image ships playwright-mcp in /usr/bin. Mirror them without the named
+  # tools so a "missing tool" example means the same thing on every host.
+  def system_path_without(dir, *tools)
+    mirror = File.join(dir, "system-bin")
+    FileUtils.mkdir_p(mirror)
+    system_path.split(":").each do |source|
+      next unless File.directory?(source)
+
+      Dir.each_child(source) do |name|
+        target = File.join(mirror, name)
+        next if tools.include?(name) || File.exist?(target)
+
+        File.symlink(File.join(source, name), target)
+      end
+    end
+    mirror
+  end
+
   def toolchain_pin(key)
     File.read(File.join(root, "config/macos_worker_toolchain.env"))[/^#{key}=(.+)$/, 1]
   end
@@ -91,6 +110,17 @@ RSpec.describe "native macOS worker scripts" do
     prefix
   end
 
+  # XcodeGen as bin/macos-runtime-env installs it: the release archive's bin/
+  # and share/xcodegen, under one prefix per pinned version.
+  def install_fake_xcodegen(tools_root)
+    version = toolchain_pin("XCODEGEN_VERSION")
+    prefix = File.join(tools_root, "xcodegen", version)
+    FileUtils.mkdir_p([ File.join(prefix, "bin"), File.join(prefix, "share", "xcodegen", "SettingPresets") ])
+    File.write(File.join(prefix, "bin", "xcodegen"), "#!/usr/bin/env bash\necho Version: #{version}\n")
+    File.chmod(0o755, File.join(prefix, "bin", "xcodegen"))
+    prefix
+  end
+
   def with_stubbed_host_bin(dir, xcode_select_path: "/Applications/Xcode.app/Contents/Developer", ruby_version: pinned_ruby,
                             node_version: pinned_node)
     bin_dir = File.join(dir, "bin")
@@ -106,6 +136,7 @@ RSpec.describe "native macOS worker scripts" do
     write_stub(File.join(bin_dir, "codex"), "#!/usr/bin/env bash\necho codex-cli 0.160.0\n")
     write_stub(File.join(bin_dir, "claude"), "#!/usr/bin/env bash\necho 2.1.289\n")
     write_stub(File.join(bin_dir, "playwright-mcp"), "#!/usr/bin/env bash\nexit 0\n")
+    write_stub(File.join(bin_dir, "xcodegen"), "#!/usr/bin/env bash\necho Version: #{toolchain_pin("XCODEGEN_VERSION")}\n")
     install_fake_browser_tools(File.join(dir, "tools"))
     write_stub(File.join(bin_dir, "xcode-select"), "#!/usr/bin/env bash\necho #{xcode_select_path}\n")
     write_stub(File.join(bin_dir, "xcodebuild"), "#!/usr/bin/env bash\necho Xcode 16.4\necho Build version 16F6\n")
@@ -473,7 +504,7 @@ RSpec.describe "native macOS worker scripts" do
       FileUtils.rm_rf(File.join(dir, "tools", "playwright"))
 
       stdout, _stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{system_path}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{system_path_without(dir, "playwright-mcp")}", "HOME" => ENV.fetch("HOME") },
         "bash", check, "--env-file", env_file,
         unsetenv_others: true
       )

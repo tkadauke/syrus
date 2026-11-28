@@ -99,7 +99,7 @@ module Runs
 
       attempt = nil
       workflow.with_lock do
-        workflow.reload
+        workflow.reload(lock: true)
         return false if workflow.auto_retry_attempts.unskipped.where(run: run).exists?
 
         attempt_number = [

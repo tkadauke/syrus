@@ -93,6 +93,8 @@
       "backlogged_jobs": "Backlog",
       "pinned": "Affixa",
       "in_progress": "In Progressu",
+      "waiting_for_answer": "Responsum Tuum Exspectat",
+      "investigations": "Investigationes",
       "paused": "Pausata",
       "queued": "In Ordine",
       "triaging": "Discernitur",
@@ -401,6 +403,7 @@
     "title": "Quaestiones",
     "close": "Claudere",
     "empty": "Nulla quaestio responsum exspectat.",
-    "arrived": "{{count}} nova quaestio advenit."
+    "arrived_one": "{{count}} nova quaestio advenit.",
+    "arrived_other": "{{count}} novae quaestiones advenerunt."
   }
 }

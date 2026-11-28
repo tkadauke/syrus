@@ -67,8 +67,15 @@ class ImmutableSourceCheckout
       materialize!(snapshot) unless restored_from_prepare_cache || restored_from_archive || valid_checkout?(snapshot)
     end
     verify_head!(snapshot)
-    ensure_base_ref!
-    ensure_exclude_entry
+    # Both restore paths already fetched the base ref, pruned stale refs and
+    # wrote the exclude entries into this exact checkout, and nothing has
+    # touched it since. Doing it again cost every grader a second hosting
+    # fetch of the base branch (5-13 seconds in production) for a ref that
+    # had just been verified against the same expected SHA.
+    unless restored_from_prepare_cache || restored_from_archive
+      ensure_base_ref!
+      ensure_exclude_entry
+    end
     prepare_cache = build_prepare_cache(snapshot)
     record_prepare_fingerprint!(snapshot, prepare_cache)
     if restored_from_prepare_cache && prepare_cache.hit?
@@ -287,13 +294,24 @@ class ImmutableSourceCheckout
     source_branch_name = source_branch(source_snapshot)
     keep << remote_tracking_ref("origin", source_branch_name) if source_branch_name.present?
     refs = @git.run("for-each-ref", "--format=%(refname) %(symref)", "refs/remotes", chdir: path.to_s).lines.map(&:split)
-    refs.each do |name, symref_target|
+    stale = refs.filter_map do |name, symref_target|
       next if keep.include?(name)
       next if symref_target.present? && keep.include?(symref_target)
 
-      @git.run("update-ref", "--no-deref", "-d", name, chdir: path.to_s)
-      log("[immutable_source_checkout] removed stale remote-tracking ref #{name}")
+      name
     end
+    return if stale.empty?
+
+    # One transaction for all of them. A prepared layer carries every branch
+    # its workspace ever saw -- hundreds -- and deleting them one `git
+    # update-ref` (and one synchronous log line) at a time cost a production
+    # grader over a minute before its command started.
+    @git.run(
+      "update-ref", "--no-deref", "--stdin",
+      chdir: path.to_s,
+      stdin_data: stale.map { |name| "delete #{name}\n" }.join
+    )
+    log("[immutable_source_checkout] removed #{stale.size} stale remote-tracking ref(s): #{stale.first(5).join(', ')}#{', ...' if stale.size > 5}")
   rescue GitRunner::GitError => e
     raise_infrastructure!("immutable source checkout could not prune stale remote refs: #{e.message}")
   end

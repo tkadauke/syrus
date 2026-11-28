@@ -68,6 +68,38 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(blocked.work_unit.work_unit_locks.active).to be_empty
   end
 
+  # A cannot-proceed block also files an operator question on the blocked
+  # Run. Retiring the blocked Workflow's unit without closing that question
+  # let a later answer resume the old Workflow -- without its WorkUnit or job
+  # lock -- beside the retry that replaced it.
+  it "closes the blocked Workflow's open question so a later answer cannot resume it" do
+    blocked = job.latest_workflow
+    run = job.current_run
+    run.start! if run.may_start?
+    run.update_columns(state: "blocked", finished_at: Time.current)
+    blocked.first_step.update_columns(state: "blocked", finished_at: Time.current)
+    blocked.update_columns(state: "blocked", finished_at: Time.current)
+    blocked.set_artifact!("cannot_proceed", { "reason" => "Prerequisite not met" })
+    blocked.work_unit.update_columns(state: "blocked")
+    question = run.agent_questions.create!(
+      questions: [ { "question" => "The agent reported it cannot proceed: Prerequisite not met", "options" => nil, "multiple" => false } ],
+      asked_at: Time.current
+    )
+
+    result = described_class.call(job: job, provider_validation: :none, automatic: true)
+    expect(result).to be_success
+    # The retry finishes, releasing the job lock, before anyone answers.
+    result.workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    result.workflow.work_unit.mark_terminal!("succeeded")
+
+    question.reload.answer!(answers: [ "Carry on" ], answered_by: user, source: "operator")
+
+    expect(blocked.reload).to be_blocked
+    expect(run.reload).to be_blocked
+    expect(blocked.work_unit.reload.state).to eq("cancelled")
+    expect(job.workflows.where(state: %w[queued running])).to be_empty
+  end
+
   it "does not carry branch-divergence artifacts into retry workflows" do
     finish_current_run!
 

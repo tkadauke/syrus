@@ -2481,6 +2481,36 @@ RSpec.describe SyrusYml do
         parse("external_prs:\n  ingest: true\n")
       }.to raise_error(SyrusYml::ParseError, /external_prs\.ingest: must be a mapping/)
     end
+
+    it "defaults bot_prs to repair, a 30-day refresh, and no drift limit" do
+      bot_prs = parse("external_prs: {}\n").external_prs.bot_prs
+
+      expect(bot_prs).to have_attributes(review_feedback: "repair", stale_action: "refresh", max_age_days: 30, max_commits_behind: nil)
+      expect(bot_prs).to be_repair
+    end
+
+    it "parses an explicit bot_prs policy" do
+      bot_prs = parse(<<~YAML).external_prs.bot_prs
+        external_prs:
+          bot_prs:
+            review_feedback: wait
+            stale_action: close
+            max_age_days: 0
+            max_commits_behind: 400
+      YAML
+
+      expect(bot_prs).to have_attributes(review_feedback: "wait", stale_action: "close", max_age_days: 0, max_commits_behind: 400)
+      expect(bot_prs).not_to be_repair
+    end
+
+    it "rejects an unknown bot_prs action" do
+      expect {
+        parse("external_prs:\n  bot_prs:\n    stale_action: explode\n")
+      }.to raise_error(SyrusYml::ParseError, /external_prs\.bot_prs\.stale_action: must be one of refresh, close, wait/)
+      expect {
+        parse("external_prs:\n  bot_prs:\n    max_age_days: soon\n")
+      }.to raise_error(SyrusYml::ParseError, /external_prs\.bot_prs\.max_age_days: must be an integer/)
+    end
   end
 
   describe "project: key" do

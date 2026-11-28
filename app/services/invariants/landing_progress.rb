@@ -96,6 +96,12 @@ module Invariants
 
     def named_landing_blocker(job)
       return "manual_pause" if job.manual_paused?
+      # A requested-changes or unapplied-feedback hold keeps the Job out of the
+      # landing queue altogether (queue_candidates drops it), so the queue never
+      # persists a reason for it. It is the blocker blockage_for names for the
+      # same attention reason; reading the column keeps this check query-free.
+      attention_key = LandingQueueProcessor::ATTENTION_BLOCKER_KEYS[job.needs_attention_reason]
+      return attention_key if attention_key
 
       reason = job.landing_queue_blocked_reason
       if reason.present?

@@ -30,7 +30,7 @@ class JobStateRepair
 
     def with_job_lock
       job.with_lock do
-        job.reload
+        job.reload(lock: true)
         yield
       end
     end
@@ -164,13 +164,13 @@ class JobStateRepair
 
       ApplicationRecord.transaction do
         job.lock!
-        job.reload
+        job.reload(lock: true)
         guard = "may_#{event}?"
         raise ArgumentError, "#{job.slug} cannot apply #{event} from #{job.state}" unless job.public_send(guard)
 
         from_state = job.state
         job.cancel_active_execution!(reason: Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON) if terminal_event?
-        job.reload
+        job.reload(lock: true)
         raise ArgumentError, "#{job.slug} cannot apply #{event} from #{job.state} after runtime cleanup" unless job.public_send(guard)
 
         StateTransition.with_source("reconciler") do
@@ -179,7 +179,7 @@ class JobStateRepair
 
           job.save!
         end
-        job.reload
+        job.reload(lock: true)
         unless EXPECTED_STATES.fetch(event).include?(job.state)
           raise ArgumentError, "#{job.slug} applied #{event} but reached unexpected state #{job.state}"
         end

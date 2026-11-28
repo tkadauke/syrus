@@ -31,7 +31,7 @@ describe("JobQuestionPanel", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Question eagerness: collaborative (set by repository).")).toBeInTheDocument()
+    expect(await screen.findByText("Question eagerness: Collaborative (set by the repository).")).toBeInTheDocument()
     expect(screen.getByText("Creates a repair Job and resumes this Job after the repair lands.")).toBeInTheDocument()
     expect(screen.getByText("Cancels the active attempt and closes this Job as cancelled.")).toBeInTheDocument()
     const recovery = screen.getByText("Other recovery options").closest("details")
@@ -52,5 +52,34 @@ describe("JobQuestionPanel", () => {
       path: "/api/v1/app/jobs/3/retry_implementation",
       confirm: "Cancel this attempt, withdraw the question, and start a new implementation attempt?"
     })
+  })
+
+  it("hides an already-cached question once the Job no longer has an open question", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["agent-questions", "job", 3], {
+      questions: [{ id: 7, questions: [{ question: "Which path?", options: ["Safe"], multiple: false }], app_answer_path: "/answer" }]
+    })
+    const props = {
+      command: { mutate: vi.fn(), isPending: false } as never,
+      onNotice: () => {},
+      paths: { app_run_again_path: "/retry", app_cancel_path: "/cancel" } as never
+    }
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <JobQuestionPanel {...props} job={{ id: 3, has_open_agent_question: true } as never} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.getByText("Which path?")).toBeInTheDocument()
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <JobQuestionPanel {...props} job={{ id: 3, has_open_agent_question: false } as never} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.queryByText("Which path?")).not.toBeInTheDocument()
   })
 })

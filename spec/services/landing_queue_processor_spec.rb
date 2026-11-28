@@ -174,6 +174,66 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     )
   end
 
+  # Regression: a transient landing failure (a prepare that failed on a worker
+  # missing a native library) relaunched the landing on every queue pass, 46
+  # full prepares in eight hours for one production Job.
+  describe "backing off repeated transient landing failures" do
+    def fail_landing!(job, finished_at:)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "auto_merge",
+        state: "failed",
+        finished_at: finished_at,
+        failure_reason: "prepare command failed (exit 5): bundle install"
+      )
+    end
+
+    let!(:flaky) { queue_job(issue_number: 1, approved_at: 2.hours.ago) }
+    let!(:ready) { queue_job(issue_number: 2, approved_at: 1.minute.ago) }
+
+    before do
+      flaky.update!(
+        landing_failure_reason: "prepare command failed (exit 5): bundle install",
+        landing_failure_code: LandingFailureCode::TRANSIENT_BLOCKER
+      )
+    end
+
+    it "relaunches at once after the first transient failures" do
+      fail_landing!(flaky, finished_at: 3.minutes.ago)
+      fail_landing!(flaky, finished_at: 1.minute.ago)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(flaky)
+    end
+
+    it "holds the Job, still approved, once the same kind of failure keeps recurring" do
+      fail_landing!(flaky, finished_at: 40.minutes.ago)
+      fail_landing!(flaky, finished_at: 20.minutes.ago)
+      last = 2.minutes.ago
+      fail_landing!(flaky, finished_at: last)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(ready)
+      expect(flaky.reload).to be_approved
+      entry = described_class.entries(Job.where(id: flaky.id)).first
+      expect(entry.blocked_reason).to eq(
+        { key: "landing_start_blocked_retrying", params: { retry_at: (last + 10.minutes).iso8601 } }
+      )
+    end
+
+    it "ignores landing failures from before the current approval" do
+      fail_landing!(flaky, finished_at: 3.hours.ago)
+      fail_landing!(flaky, finished_at: 150.minutes.ago)
+      fail_landing!(flaky, finished_at: 1.minute.ago)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(flaky)
+    end
+  end
+
   it "does not let a stale landing row block the recurring queue tick" do
     stale_landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     stale_landing.start_landing!
@@ -760,6 +820,63 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(job.reload).to be_approved
     entry = described_class.entries(Job.where(id: job.id)).first
     expect(entry.blocked_reason).to eq({ key: "rebase_cap_reached" })
+  end
+
+  # Regression: an approved Job whose PR needs a rebase while every rebase
+  # slot of the repository is held by runnable work had no blocked_reason --
+  # `land` rolled back on mergeability and the merge-state poll declined at
+  # the cap with only a log line (formal/SyrusModel/ApprovedProgress.lean).
+  describe "waiting for a rebase slot" do
+    def hold_rebase_slots!(count)
+      count.times.map do |index|
+        other = Factories.job_record(user: user, repository: repository, issue_number: 100 + index,
+                                     pr_number: 100 + index, state: "implemented",
+                                     branch_name: "syrus/issue-#{100 + index}")
+        RebaseWorkflowSelector.instantiate(job: other)
+      end
+    end
+
+    %w[behind dirty].each do |mergeable_state|
+      it "names the wait for a #{mergeable_state} PR while every rebase slot is held" do
+        job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+        job.update!(github_mergeable_state: mergeable_state, mergeability_checked_at: Time.current)
+        hold_rebase_slots!(PollRebaseJob::CONCURRENT_REBASES_PER_REPO)
+
+        entry = described_class.entries(Job.where(id: job.id)).first
+        cap = PollRebaseJob::CONCURRENT_REBASES_PER_REPO
+        expect(entry.blocked_reason).to eq({ key: "waiting_rebase_slot", params: { held: cap, cap: cap } })
+        expect {
+          expect(described_class.call).to be_nil
+        }.not_to change { job.workflows.where(trigger_kind: "auto_merge").count }
+        expect(job.reload).to be_approved
+        expect(job.landing_queue_blocked_reason).to eq({ "key" => "waiting_rebase_slot", "params" => { "held" => cap, "cap" => cap } })
+      end
+    end
+
+    it "has no slot wait while a rebase slot is free" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(github_mergeable_state: "behind", mergeability_checked_at: Time.current)
+      hold_rebase_slots!(PollRebaseJob::CONCURRENT_REBASES_PER_REPO - 1)
+
+      expect(described_class.entries(Job.where(id: job.id)).first.blocked_reason).to be_nil
+    end
+
+    it "does not count paused rebases as holding a slot" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update!(github_mergeable_state: "behind", mergeability_checked_at: Time.current)
+      hold_rebase_slots!(PollRebaseJob::CONCURRENT_REBASES_PER_REPO).each do |workflow|
+        workflow.work_unit.update!(state: "blocked", blocked_reason: WorkUnits::Gates::ManualPause::REASON)
+      end
+
+      expect(described_class.entries(Job.where(id: job.id)).first.blocked_reason).to be_nil
+    end
+
+    it "does not name a slot wait for a clean PR" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      hold_rebase_slots!(PollRebaseJob::CONCURRENT_REBASES_PER_REPO)
+
+      expect(described_class.entries(Job.where(id: job.id)).first.blocked_reason).to be_nil
+    end
   end
 
   it "clears a stale landing failure reason when a Job starts landing again" do

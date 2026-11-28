@@ -65,21 +65,52 @@ module Steps
       push_after_remote_refresh!(git, push_url)
     end
 
+    # The push was rejected, so the remote moved. BranchTruth decides which
+    # copy is true:
+    # - the remote already holds this workflow's work: adopt it, push nothing;
+    # - local holds every remote patch on a base at least as fresh (a repair
+    #   that deliberately rebased the branch): replace the observed remote
+    #   tip under a lease. Rebasing that correct history back onto the stale
+    #   remote would replay every base commit;
+    # - otherwise (the remote was rebased under us, or holds other work):
+    #   replay the local commits onto it, which drops the patch-equivalent
+    #   ones, and push the result as a fast-forward.
     def push_after_remote_refresh!(git, push_url)
       branch = workspace.branch_name
-      remote_ref = "refs/remotes/origin/#{branch}"
+      remote_sha = workflow.artifact("push_rebase_remote_sha")
+      truth = BranchTruth.classify(git: git, chdir: workspace.path, local: "HEAD", remote: remote_sha, base: push_base_ref(git, push_url))
+      workflow.set_artifact!("push_branch_truth", truth.to_h)
+      log("push: #{branch} remote=#{remote_sha.to_s.first(9)} is #{truth.relation} -> #{truth.outcome}")
 
-      if rebased_external_pr_preserves_remote_patches?(git, remote_ref)
-        remote_sha = workflow.artifact("push_rebase_remote_sha")
-        log("push: local external PR branch preserves the remote patches after rebasing; replacing the observed remote tip with force-with-lease")
+      if truth.up_to_date? || truth.adopt_remote?
+        git.run("reset", "--hard", remote_sha, chdir: workspace.path.to_s)
+        workflow.set_artifact!(BranchTruth::ADOPTED_ARTIFACT, truth.to_h.merge("branch" => branch, "context" => "push", "adopted_at" => Time.current.iso8601))
+        log("push: the remote branch already holds this workflow's work (#{truth.relation}); adopting it instead of pushing")
+      elsif truth.publish?
+        log("push: local branch preserves the remote patches on a base at least as fresh; replacing the observed remote tip with force-with-lease")
         git.run(
-          "push", "--force-with-lease=refs/heads/#{branch}:#{remote_sha}",
+          "push", "--force-with-lease=refs/heads/#{branch}:#{truth.lease_sha}",
           push_url, "HEAD:refs/heads/#{branch}", chdir: workspace.path.to_s
         )
       else
         run_rebase_onto_remote_branch!(git, branch)
         git.run("push", push_url, "HEAD:refs/heads/#{branch}", chdir: workspace.path.to_s)
       end
+    end
+
+    # The branch's intended base, so BranchTruth can tell base commits from
+    # the branch's own work and see which side was rebased later. Without it
+    # the rule assumes the remote is the fresher copy.
+    def push_base_ref(git, push_url)
+      base = RebaseTarget.branch_for(job: job, workflow: workflow).presence
+      return nil if base.blank? || base == workspace.branch_name
+
+      ref = "refs/remotes/origin/#{base}"
+      git.run("fetch", push_url, "+refs/heads/#{base}:#{ref}", chdir: workspace.path.to_s)
+      ref
+    rescue StandardError => e
+      log("push: could not fetch the branch base for classification (#{e.class}); classifying without it", kind: "system")
+      nil
     end
 
     def rebase_onto_remote_branch!(git, push_url)
@@ -90,19 +121,6 @@ module Steps
       workflow.set_artifact!("push_rebase_remote_sha", git.run("rev-parse", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s).strip)
       workflow.set_artifact!("push_rebase_branch", branch)
       workflow.set_artifact!("push_rebase_started_at", Time.current.iso8601)
-    end
-
-    # A repair may intentionally rebase a same-repository external PR onto the
-    # current base. Its original remote commit is then no longer an ancestor,
-    # even though the rebased branch contains the same patch. Rebasing that
-    # correct local history back onto the stale remote tip replays every base
-    # commit. `git cherry` gives us proof that every remote-only commit already
-    # has a patch-equivalent local commit before we replace it under a lease.
-    def rebased_external_pr_preserves_remote_patches?(git, remote_ref)
-      return false unless job.external_pr? && !job.external_pr_fork?
-
-      remote_only = git.run("cherry", "HEAD", remote_ref, chdir: workspace.path.to_s).lines.map(&:strip).reject(&:blank?)
-      remote_only.present? && remote_only.all? { |line| line.start_with?("-") }
     end
 
     def run_rebase_onto_remote_branch!(git, branch)

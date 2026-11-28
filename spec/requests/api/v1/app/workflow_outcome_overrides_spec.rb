@@ -33,6 +33,31 @@ RSpec.describe "workflow outcome overrides", type: :request do
     expect(WorkflowOutcomeOverride.last.permission_decision).to include("confirmation" => "explicit_ui_confirmation")
   end
 
+  it "refuses an override from a read-only repository collaborator" do
+    reader = Factories.user
+    repository.repository_memberships.create!(user: reader, role: "read")
+    get "/api/v1/app/jobs/#{job.id}/workflow_outcome_overrides"
+    digest = JSON.parse(response.body).fetch("candidates").sole.fetch("fingerprint_digest")
+    sign_in_as(reader)
+
+    get "/api/v1/app/jobs/#{job.id}/workflow_outcome_overrides"
+    expect(JSON.parse(response.body).fetch("candidates").sole).to include("policy" => "deny")
+
+    post "/api/v1/app/jobs/#{job.id}/workflow_outcome_overrides", params: {
+      fingerprint_digest: digest, reason: "Read-only member"
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(WorkflowOutcomeOverride.count).to eq(0)
+  end
+
+  it "accepts the Job display reference the route allows" do
+    get "/api/v1/app/jobs/JOB-#{job.id}/workflow_outcome_overrides"
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body).fetch("candidates")).to contain_exactly(include("gate_kind" => "implementation_grader"))
+  end
+
   it "refuses stale evidence" do
     post "/api/v1/app/jobs/#{job.id}/workflow_outcome_overrides", params: {
       fingerprint_digest: "stale", reason: "No longer exact"

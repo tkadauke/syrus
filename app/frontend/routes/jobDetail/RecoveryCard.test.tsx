@@ -40,6 +40,26 @@ describe("RecoveryCard", () => {
     expect(screen.getByText("Workflow 9")).not.toBeVisible()
   })
 
+  it("labels an unnamed excluded infrastructure failure through i18n", () => {
+    render(
+      <RecoveryCard
+        command={command()}
+        payload={payload({
+          recovery_decision: {
+            kind: "infrastructure_only",
+            recommended_action: "rerun_unchanged",
+            mode: "failed_step",
+            explanation: "No verdict.",
+            inconclusive_infrastructure_failures: [{ name: null, classification: null, affected_decision: false } as never],
+            evidence: {}
+          },
+          retry_failed_step_action: { key: "retry_failed_step", label: "Retry", path: "/retry" }
+        })}
+      />
+    )
+    expect(screen.getByText("Infrastructure execution failure")).toBeVisible()
+  })
+
   it("requires and prefills guidance for no-progress repair", () => {
     render(
       <RecoveryCard

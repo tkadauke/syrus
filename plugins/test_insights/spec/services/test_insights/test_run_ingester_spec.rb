@@ -72,7 +72,8 @@ RSpec.describe TestInsights::Ingester do
   end
 
   it "creates durable test identities and links executions to them" do
-    expect { ingester.ingest! }.to change(TestInsights::TestIdentity, :count).by(3)
+    expect { perform_enqueued_jobs(only: RefreshTestIdentitiesJob) { ingester.ingest! } }
+      .to change(TestInsights::TestIdentity, :count).by(3)
 
     test_case = TestInsights::TestCase.find_by!(name: "fail_0")
     identity = test_case.test_identity
@@ -97,13 +98,26 @@ RSpec.describe TestInsights::Ingester do
   it "indexes durable test identities instead of individual test cases" do
     # Indexing is enqueued rather than written inline: ingestion runs on the
     # compute tier, which has no access to the search database.
-    perform_enqueued_jobs(only: IndexTestIdentitiesJob) { ingester.ingest! }
+    perform_enqueued_jobs(only: [ RefreshTestIdentitiesJob, IndexTestIdentitiesJob ]) { ingester.ingest! }
 
     expect(TestInsights::SearchIndex.search("fail_0", user_id: repo.user_id).map { |row| row[:test_identity_id] }).to eq([ TestInsights::TestIdentity.find_by!(name: "fail_0").id ])
   end
 
   it "enqueues search indexing onto the indexing queue rather than writing inline" do
-    expect { ingester.ingest! }.to have_enqueued_job(IndexTestIdentitiesJob).on_queue("plugin_test_insights")
+    expect { perform_enqueued_jobs(only: RefreshTestIdentitiesJob) { ingester.ingest! } }
+      .to have_enqueued_job(IndexTestIdentitiesJob).on_queue("plugin_test_insights")
+  end
+
+  # Regression: the identity summary refresh's aggregate reads were most of a
+  # production ingestion -- 56 to 286 seconds after the test command exited,
+  # inside the grader Step and so on every landing round's critical path.
+  it "leaves the identity summary refresh to a plugin-queue job instead of the grader" do
+    allow(TestInsights::TestIdentity).to receive(:refresh_many!).and_call_original
+
+    expect { ingester.ingest! }
+      .to have_enqueued_job(RefreshTestIdentitiesJob).on_queue("plugin_test_insights")
+    expect(TestInsights::TestIdentity).not_to have_received(:refresh_many!)
+    expect(TestInsights::TestCase.where(test_run: TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")).count).to eq(3)
   end
 
   it "refreshes bounded runtime summaries for each identity and grader" do
@@ -191,7 +205,7 @@ RSpec.describe TestInsights::Ingester do
   end
 
   it "keeps one durable identity when replacing a TestInsights::TestRun" do
-    ingester.ingest!
+    perform_enqueued_jobs(only: RefreshTestIdentitiesJob) { ingester.ingest! }
     identity_id = TestInsights::TestIdentity.find_by!(name: "fail_0").id
 
     second = described_class.new(
@@ -199,7 +213,7 @@ RSpec.describe TestInsights::Ingester do
       grader_name: "rspec",
       parsed_run: parsed_run(passed: 1, failed: 0, skipped: 0, error: 0)
     )
-    second.ingest!
+    perform_enqueued_jobs(only: RefreshTestIdentitiesJob) { second.ingest! }
 
     expect(TestInsights::TestIdentity.where(id: identity_id)).to exist
     expect(TestInsights::TestIdentity.find(identity_id).last_status).to eq("failed")
@@ -358,7 +372,7 @@ RSpec.describe TestInsights::Ingester do
   it "preserves primary test result rows when search indexing fails" do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
 
-    expect { perform_enqueued_jobs(only: IndexTestIdentitiesJob) { ingester.ingest! } }
+    expect { perform_enqueued_jobs(only: [ RefreshTestIdentitiesJob, IndexTestIdentitiesJob ]) { ingester.ingest! } }
       .to change(TestInsights::TestRun, :count).by(1)
       .and change(TestInsights::TestCase, :count).by(3)
 

@@ -27,7 +27,7 @@ module Permissions
 
       permanent_rule = nil
       ready = request.with_lock do
-        unless request.pending? && item.reload.actionable?
+        unless request.pending? && item.reload(lock: true).actionable?
           raise SmartDecision::AlreadyDecided, I18n.t("api.permission_requests.smart_decision.stale") if smart
 
           return Result.new(request:, execution_enqueued: false)
@@ -63,7 +63,7 @@ module Permissions
           false
         else
           issue_invocation!(item, authority: rule) if item.kind == "operation"
-          request.reload.ready_for_authorized_invocation?
+          request.reload(lock: true).ready_for_authorized_invocation?
         end
       end
       enqueued = ready && request.enqueue_confirmation!(user: user)

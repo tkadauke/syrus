@@ -3,15 +3,15 @@
 # the WorkUnits and releases their locks) and returns the Job to the waiting
 # state. Its PR and branch are untouched.
 #
-# Used by the `hold_job` pending action and by dependency edits that opt in
-# with `hold_running: true`.
+# Used only by the confirmed `hold_job` pending action (which the dependency
+# tools' `hold_running: true` requests, carrying their edit).
 class JobHold
   Result = Struct.new(:cancelled_run_ids, :cancelled_workflow_ids, :state, keyword_init: true)
 
   class << self
     # Why the Job cannot be held, as operator-facing messages naming the next
     # valid action. Empty when a hold is allowed.
-    def blockers(job, to_backlog: false)
+    def blockers(job, to_backlog: false, pending_dependency_edit: false)
       return [ "#{job.slug} is closed; reopen it before holding it." ] if job.closed?
 
       blockers = []
@@ -23,7 +23,7 @@ class JobHold
         if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
           blockers << "#{job.slug} already has a PR and cannot be moved to backlog; hold it without to_backlog to wait on its dependencies."
         end
-      elsif !gate_unmet?(job)
+      elsif !pending_dependency_edit && !gate_unmet?(job)
         blockers << "All dependencies of #{job.slug} are satisfied, so there is nothing to wait for. " \
                     "Use cancel_stale_work to cancel stale work, or pass to_backlog to park the Job in backlog."
       end
@@ -74,7 +74,7 @@ class JobHold
             cancelled_workflows << workflow.id
           end
 
-          job.reload
+          job.reload(lock: true)
           job.retry_after_failure! if job.may_retry_after_failure?
           job.move_to_backlog! if to_backlog && job.may_move_to_backlog?
           job.save!

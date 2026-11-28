@@ -212,6 +212,41 @@ RSpec.describe Ruby::RspecGraderType do
       expect(last.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec [^;]* spec/migrations/})
     end
 
+    it "declares shard_cpu_min as the shards' admission minimum, leaving other modes at two" do
+      steps = described_class.grade_steps(
+        config: {
+          "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+          "parallel_rspec" => {
+            "enabled" => true, "rspec_modes" => [ "full", "ci" ], "exec_args" => "bin/rspec-worker",
+            "serial_paths" => [ "spec/migrations/" ], "shards" => 3, "serial_shard" => true, "shard_cpu_min" => 8
+          }
+        },
+        default_failures: "strict"
+      )
+      by_name = steps.index_by(&:name)
+
+      %w[rspec-ci-1-of-3 rspec-ci-2-of-3 rspec-ci-3-of-3].each do |name|
+        expect(by_name.fetch(name).resources).to have_attributes(cpu: "all", cpu_min: 8)
+      end
+      expect(by_name.fetch("rspec").resources).to have_attributes(cpu: "all", cpu_min: 2)
+      expect(by_name.fetch("rspec-ci-serial").resources&.cpu_min).not_to eq(8)
+    end
+
+    it "rejects a non-positive shard_cpu_min" do
+      expect do
+        described_class.grade_steps(
+          config: {
+            "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+            "parallel_rspec" => {
+              "enabled" => true, "rspec_modes" => [ "ci" ], "exec_args" => "bin/rspec-worker",
+              "serial_paths" => [ "spec/migrations/" ], "shards" => 2, "shard_cpu_min" => 0
+            }
+          },
+          default_failures: "strict"
+        )
+      end.to raise_error(ArgumentError, /shard_cpu_min/)
+    end
+
     it "runs the serial paths in a grader of their own with serial_shard" do
       steps = sharded_steps(serial_shard: true)
 

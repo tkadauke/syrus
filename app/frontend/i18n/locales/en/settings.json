@@ -2144,7 +2144,7 @@
     "slider": "Question eagerness level",
     "inherit": "Use default",
     "timeout": "Answer timeout (minutes)",
-    "timeout_help": "Optional. After this time the agent continues with its stated default.",
+    "timeout_help": "Optional, {{min}}–{{max}} minutes (1 hour to 4 weeks). After this time the agent continues with its stated default.",
     "levels": {
       "autonomous": { "label": "Autonomous", "description": "Ask only when work truly cannot continue." },
       "independent": { "label": "Independent", "description": "Also ask before costly-to-reverse decisions." },

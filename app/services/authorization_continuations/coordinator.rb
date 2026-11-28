@@ -18,7 +18,7 @@ module AuthorizationContinuations
       status = nil
       adapter = nil
       request.with_lock do
-        request.reload
+        request.reload(lock: true)
         unless request.checkpoint_state.in?(%w[waiting resume_failed])
           return Result.new(status: :already_claimed, request:, continuation: nil)
         end

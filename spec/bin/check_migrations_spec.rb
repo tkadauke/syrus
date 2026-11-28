@@ -123,6 +123,98 @@ RSpec.describe "bin/check-migrations", :ci_only do
     expect(stderr).to include("[rolling_deploy_rename] plugins/widgets/db/migrate/20261125120000_rename_widgets.rb:4")
   end
 
+  # A production worker that booted before a column drop ran kept selecting
+  # the column through its cached column list and failed every control-plane
+  # job for hours.
+  describe "dropped_column_not_ignored" do
+    def write_model(path, body)
+      write_migration(path, body)
+    end
+
+    let(:drop_migration) do
+      <<~RUBY
+        class RemoveColorFromWidgets < ActiveRecord::Migration[8.1]
+          def up
+            remove_column :widgets, :color if column_exists?(:widgets, :color)
+          end
+
+          def down
+            add_column :widgets, :color, :string unless column_exists?(:widgets, :color)
+          end
+        end
+      RUBY
+    end
+
+    it "rejects a drop whose model does not ignore the column" do
+      write_model("app/models/widget.rb", "class Widget < ApplicationRecord\nend\n")
+      write_migration("db/migrate/20261129120000_remove_color_from_widgets.rb", drop_migration)
+
+      _stdout, stderr, status = run_check("--all")
+
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include("[dropped_column_not_ignored] db/migrate/20261129120000_remove_color_from_widgets.rb:3")
+      expect(stderr).to include("self.ignored_columns += %w[color]")
+    end
+
+    it "accepts the drop once the model ignores the column, also through an explicit table_name" do
+      write_model("app/models/gizmo.rb", <<~RUBY)
+        class Gizmo < ApplicationRecord
+          self.table_name = "widgets"
+          self.ignored_columns += %w[size color]
+        end
+      RUBY
+      write_migration("db/migrate/20261129120000_remove_color_from_widgets.rb", drop_migration)
+
+      stdout, stderr, status = run_check("--all")
+
+      expect(stderr).not_to include("dropped_column_not_ignored")
+      expect(status).to be_success, stdout + stderr
+    end
+
+    it "finds plugin models and ignores removals in a down method" do
+      write_model("plugins/widgets/app/models/widgets/batch.rb", <<~RUBY)
+        module Widgets
+          class Batch < ApplicationRecord
+            self.table_name = "widget_batches"
+          end
+        end
+      RUBY
+      write_migration("plugins/widgets/db/migrate/20261129120000_add_label_to_widget_batches.rb", <<~RUBY)
+        class AddLabelToWidgetBatches < ActiveRecord::Migration[8.1]
+          def up
+            add_column :widget_batches, :label, :string unless column_exists?(:widget_batches, :label)
+          end
+
+          def down
+            remove_column :widget_batches, :label if column_exists?(:widget_batches, :label)
+          end
+        end
+      RUBY
+      write_migration("plugins/widgets/db/migrate/20261129130000_remove_kind_from_widget_batches.rb", <<~RUBY)
+        class RemoveKindFromWidgetBatches < ActiveRecord::Migration[8.1]
+          def up
+            remove_column :widget_batches, :kind if column_exists?(:widget_batches, :kind)
+          end
+        end
+      RUBY
+
+      _stdout, stderr, status = run_check("--all")
+
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include("[dropped_column_not_ignored] plugins/widgets/db/migrate/20261129130000_remove_kind_from_widget_batches.rb:3")
+      expect(stderr).not_to include("add_label_to_widget_batches")
+    end
+
+    it "leaves drops that predate the policy alone" do
+      write_model("app/models/widget.rb", "class Widget < ApplicationRecord\nend\n")
+      write_migration("db/migrate/20261125223740_remove_color_from_widgets.rb", drop_migration)
+
+      _stdout, stderr, _status = run_check("--all")
+
+      expect(stderr).not_to include("dropped_column_not_ignored")
+    end
+  end
+
   it "leaves renames that predate the rolling-deploy policy alone" do
     write_migration("db/migrate/20261123120000_rename_gadgets.rb", <<~RUBY)
       class RenameGadgets < ActiveRecord::Migration[8.0]

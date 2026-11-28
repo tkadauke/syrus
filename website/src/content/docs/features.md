@@ -481,7 +481,10 @@ operations; it is not a second input engine. Non-browser providers continue to
 use `runtime_input` with their advertised event types;
 chat tool cards show input delivery errors and provider event details, while
 typed text is masked by default and can only be revealed with an explicit
-control;
+control. The input audit kept in run logs and sent to the Runtime panel
+records text typed into a password or one-time-code field, at a terminal
+password prompt, or that looks like a token or other secret only as a
+redaction marker and its length, never verbatim;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. Terminal sessions expose semantic
 screen inspection with viewport text, cursor and generation state, optional
@@ -1830,7 +1833,10 @@ checks, provider availability, landing gates, and admission control still apply.
 Syrus also stops runaway Jobs automatically: 10 consecutive failed Workflows
 close the Job as `too_many_failed_workflows`, and 50 total Workflows close it
 as `too_many_workflows`. This prevents repeated queue wakeups or retries from
-creating hundreds of attempts for one Job.
+creating hundreds of attempts for one Job. Approving a runaway-protected Job
+buys it one automatic landing attempt: a transient landing failure sends it
+back for re-approval, and a failed merge train or job bundle containing it is
+not rebuilt or relaunched until an operator approves it again.
 State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do
@@ -3175,7 +3181,10 @@ the answer arrives. Operators can also list and answer these questions through
 Syrus chat and coworker tools.
 Write-authorized operators can also answer a workflow's existing
 cannot-proceed block as a free-text question, resuming that run and provider
-session. Waiting for an answer does not delay patient automatic rebases.
+session. Waiting for an answer does not delay patient automatic rebases. A
+cannot-proceed block nobody acts on for three days moves its Job from running to
+failed, still marked as needing attention, so it appears with the other Jobs
+waiting on an operator; answering the block brings the Job back to running.
 
 Syrus notifies the Job owner when a question is asked and links directly to
 the waiting question. Notification preferences can disable that notification.

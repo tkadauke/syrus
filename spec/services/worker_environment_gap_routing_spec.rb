@@ -49,6 +49,30 @@ RSpec.describe "worker environment gaps" do
       expect(described_class.failed_checks(hostname: "worker-b", repository_id: repository_id)).to eq({})
     end
 
+    # A gap found preparing one grader target (xcodegen for an iOS target) once
+    # kept a macOS worker off every step of the repository, so a landing train
+    # that never runs that target failed with no capable worker.
+    it "holds only work that runs the target whose prepare found the gap" do
+      described_class.record!(hostname: "mac", repository_id: repository_id, missing_kind: "executable",
+                              missing_name: "xcodegen", evidence: { "prepare_target" => "//ios:prepare" })
+
+      expect(described_class.failed_checks(hostname: "mac", repository_id: repository_id)).to eq({})
+      expect(described_class.failed_checks(hostname: "mac", repository_id: repository_id, prepare_targets: [ "//web:prepare" ])).to eq({})
+      expect(described_class.failed_checks(hostname: "mac", repository_id: repository_id, prepare_targets: [ "//ios:prepare" ]))
+        .to have_key("missing_executable:xcodegen")
+    end
+
+    it "keeps the prepare target a failed target install declared" do
+      run.update!(state: "failed")
+      run.spawned_processes.create!(workflow: workflow, kind: "prepare", command: "xcodegen generate", hostname: "mac", started_at: Time.current)
+
+      gap = described_class.record_from_run!(run, problem_evidence: {
+        "missing_kind" => "executable", "missing_name" => "xcodegen", "prepare_target" => "//ios:prepare"
+      })
+
+      expect(gap.prepare_target).to eq("//ios:prepare")
+    end
+
     it "stops counting once it expires, is cleared, or the worker restarted after it" do
       gap!(hostname: "worker-expired").update!(expires_at: 1.minute.ago)
       gap!(hostname: "worker-cleared")

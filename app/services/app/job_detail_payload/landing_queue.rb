@@ -21,12 +21,17 @@ module App
         }
       end
 
+      # A cold snapshot wakes the landing queue processor (which refreshes it
+      # every 30 seconds anyway) instead of being rebuilt inline. Rebuilding it
+      # here recomputed and rewrote the landing snapshot of every one of the
+      # user's Jobs from a GET -- p50 2.5 s / p95 14 s and ~430 queries in
+      # production, contending on job row locks with the processor itself --
+      # the same trade the dashboard already makes.
       def ensure_landing_queue_snapshot!
         return unless @job.approved? || @job.landing?
         return if @job.landing_queue_cached_at.present?
 
-        LandingQueueProcessor.refresh_snapshot!(@user.jobs)
-        @job.reload
+        LandingQueueProcessorJob.perform_later
       end
 
       def landing_queue_waiting_jobs

@@ -70,8 +70,8 @@ module Permissions
 
     def apply(item, authorization, digest)
       @request.with_lock do
-        item.reload
-        return stale(item) unless @request.reload.pending? && item.actionable?
+        item.reload(lock: true)
+        return stale(item) unless @request.reload(lock: true).pending? && item.actionable?
 
         record_evaluation!(item, authorization, digest)
         if authorization.allowed? then approve!(item, authorization)

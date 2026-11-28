@@ -3,6 +3,9 @@ import { useT } from "../hooks/useT"
 
 export const QUESTION_EAGERNESS_LEVELS = ["autonomous", "independent", "balanced", "collaborative", "inquisitive"] as const
 export type QuestionEagerness = (typeof QUESTION_EAGERNESS_LEVELS)[number]
+// Mirrors HasAgentQuestionPolicy: the server accepts 1 hour to 4 weeks.
+const MIN_TIMEOUT_MINUTES = 60
+const MAX_TIMEOUT_MINUTES = 4 * 7 * 24 * 60
 
 export function QuestionEagernessFields({
   eagerness,
@@ -45,13 +48,14 @@ export function QuestionEagernessFields({
             {t("question_eagerness.timeout")}
             <Input
               className="mt-1 w-40"
-              min={1}
+              max={MAX_TIMEOUT_MINUTES}
+              min={MIN_TIMEOUT_MINUTES}
               onChange={(event) => onChange(eagerness, event.target.value ? Number(event.target.value) * 60 : null)}
               type="number"
               value={timeoutSeconds == null ? "" : timeoutSeconds / 60}
             />
           </label>
-          <p className="text-xs text-text-muted">{t("question_eagerness.timeout_help")}</p>
+          <p className="text-xs text-text-muted">{t("question_eagerness.timeout_help", { min: MIN_TIMEOUT_MINUTES, max: MAX_TIMEOUT_MINUTES })}</p>
         </>
       ) : null}
     </fieldset>

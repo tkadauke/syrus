@@ -162,6 +162,48 @@ RSpec.describe RunJob, :ci_only do
       expect(attempts).to be >= 2
     end
 
+    # Regression: an auto-merge Run persisted its own failure successfully,
+    # then lost the landing-state update to a MySQL deadlock. That secondary
+    # write needs the same bounded retry as the surrounding lifecycle writes.
+    it "retries a deadlock while recording an auto-merge landing failure" do
+      landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 43,
+        pr_number: 124,
+        state: "implemented"
+      )
+      landing_job.approve!(via: "github_review")
+      landing_job.start_landing!
+      landing_job.save!
+      workflow = Workflows::AutoMerge.instantiate(job: landing_job)
+      run = workflow.steps.last.runs.create!(
+        job: landing_job,
+        trigger_kind: "auto_merge",
+        agent_provider: workflow.agent_provider,
+        state: "running",
+        started_at: Time.current
+      )
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, workflow)
+      run_job.instance_variable_set(:@job, landing_job)
+      attempts = 0
+      allow(LandingFailureHandler).to receive(:call).and_wrap_original do |original, **kwargs|
+        attempts += 1
+        raise ActiveRecord::Deadlocked, "deadlock found" if attempts == 1
+
+        original.call(**kwargs)
+      end
+
+      run_job.send(:handle_failure, Steps::Base::StepFailed.new("required grader failed"))
+
+      expect(attempts).to eq(2)
+      expect(landing_job.reload).to be_implemented
+      expect(landing_job.landing_failure_reason).to include("required grader failed")
+    end
+
     it "records recovered lock contention with queue and lifecycle context" do
       run = job.initial_run
       run_job = RunJob.new
@@ -1444,6 +1486,11 @@ RSpec.describe RunJob, :ci_only do
       # shared compute queue and ran them while Linux workers sat idle.
       it "hands back a Run whose placement this worker does not satisfy" do
         on_host(os: "macos", git_sha: "50d35be290")
+        ensure_solid_queue_test_tables!
+        SolidQueue::Process.create!(
+          hostname: "linux-worker", kind: "Worker", name: "linux-worker-1", pid: 123, last_heartbeat_at: Time.current,
+          metadata: { "queues" => "runs", "capabilities" => { "os" => [ "linux" ] }, "polling_interval" => 0.1, "pool_size" => 1 }
+        )
         expect(RunHostAdmission).not_to receive(:call)
 
         expect { RunJob.perform_now(run.id) }.to have_enqueued_job(RunJob).with(run.id)
@@ -1482,6 +1529,7 @@ RSpec.describe RunJob, :ci_only do
     # Regression: cancelling a workflow killed its running graders, and each
     # was recorded as a failed run with no exit status.
     it "records a run killed by its workflow's cancellation as cancelled, not failed" do
+      allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "os" => [ "linux" ] }, diagnostics: {})
       job
       wf = job.workflows.last
       run = wf.first_step.runs.first
@@ -1502,6 +1550,35 @@ RSpec.describe RunJob, :ci_only do
 
       expect(run.reload).to be_cancelled
       expect(wf.reload).to be_cancelled
+    end
+
+    # Regression: a Step cancelled on its own while it ran -- review evidence
+    # superseded by a new implementation HEAD cancels the running review with
+    # its cascade suppressed and leaves the Workflow running -- had its killed
+    # Run cancelled with the normal cascade, which cancelled the whole Workflow.
+    [ true, false ].each do |run_already_cancelled|
+      it "cancels a run whose step alone was cancelled without cancelling its workflow (run already cancelled: #{run_already_cancelled})" do
+        allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "os" => [ "linux" ] }, diagnostics: {})
+        job
+        wf = job.workflows.last
+        run = wf.first_step.runs.first
+        step = run.step
+        handler = Class.new do
+          define_method(:initialize) { |_run| }
+          define_method(:call) do
+            step.update_columns(state: "cancelled", finished_at: Time.current)
+            ::Run.find(run.id).cancel_without_step_cascade! if run_already_cancelled
+            raise Steps::Base::StepFailed, "grader frontend-lint failed (exit )"
+          end
+        end
+        allow(Steps).to receive(:handler_for).and_call_original
+        allow(Steps).to receive(:handler_for).with(step.kind).and_return(handler)
+        allow(RunHostAdmission).to receive(:call).and_return(RunHostAdmission::Decision.new(action: "admit", reason: nil, delay: nil, details: {}))
+
+        RunJob.perform_now(run.id)
+
+        expect([ run.reload.state, step.reload.state, wf.reload.state ]).to eq(%w[cancelled cancelled running])
+      end
     end
 
     # Regression: after a worker restart lost the workspace, a retried

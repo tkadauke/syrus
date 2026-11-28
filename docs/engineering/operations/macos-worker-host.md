@@ -117,6 +117,7 @@ installer only in these cases:
 | `/opt/syrus/rubies/<version>`, `/opt/syrus/nodes/<version>` | root | Ruby and Node pinned by `.ruby-version` and `.node-version`, installed by mise as prebuilt binaries |
 | `/opt/syrus/tools/mise/<version>` | root | Pinned mise binary |
 | `/opt/syrus/tools/mysql-client/<version>` | root | Oracle's MySQL client library, with its own OpenSSL, that `mysql2` links against |
+| `/opt/syrus/tools/xcodegen/<version>` | root | XcodeGen's release archive (`bin/xcodegen` and the `share/xcodegen` presets it reads relative to itself) |
 | `/opt/syrus/tools/playwright/<playwright>-mcp-<mcp>` | root | npm prefix with `playwright-mcp` (browser tools, visual review) and Playwright's headless Chromium shell, linked as `chromium-headless-shell` |
 | `/opt/syrus/agent-clis` | root | npm prefix holding the pinned Claude Code and Codex CLIs |
 | `/opt/syrus/shared/bundles/ruby-<ruby>-mysql-<client>` | worker | Bundler path shared by every release on that Ruby and client |
@@ -142,8 +143,8 @@ toolchain:
 
 - Ruby and Node in `.ruby-version` and `.node-version` (the same versions the
   Linux image uses);
-- mise and the MySQL client in `config/macos_worker_toolchain.env`, each with
-  a URL and a SHA-256;
+- mise, the MySQL client, and XcodeGen in `config/macos_worker_toolchain.env`,
+  each with a URL and a SHA-256;
 - Playwright and `@playwright/mcp` in the same file, matching the Dockerfile's
   `PLAYWRIGHT_VERSION` and `PLAYWRIGHT_MCP_VERSION` (a spec enforces it),
   installed from npm with the pinned Node.

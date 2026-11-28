@@ -93,7 +93,7 @@ class RetryWorkflowEnqueuer
     # refreshes its Epic. Then reloaded as with_lock would.
     Job.transaction do
       Lineage.lock!(job)
-      job.reload
+      job.reload(lock: true)
       eligibility = RetryWorkflowEligibility.call(job: job)
       reconcile_ready_pr! if eligibility.code == "pr_ready"
       if eligibility.eligible?
@@ -127,8 +127,14 @@ class RetryWorkflowEnqueuer
   # blocked attempt is retired here; otherwise the retry collides with its
   # lock and is refused as "already queued or running", which left an
   # agent-blocked Job unretryable by hand or by the reconciler.
+  #
+  # Its open operator questions are withdrawn with it (F143): a cannot-proceed
+  # block files one, and answering it would resume the replaced Workflow.
   def release_blocked_workflow_units!
     job.active_runtime_workflows.select(&:blocked?).each do |blocked_workflow|
+      AgentQuestion.active.where(run_id: blocked_workflow.runs.select(:id)).find_each do |question|
+        question.withdraw!(source: "retry")
+      end
       unit = blocked_workflow.work_unit
       unit.mark_terminal!("cancelled") if unit&.active?
     end

@@ -114,16 +114,19 @@ module RuntimeImages
       def succeed(attempt, image:, now: Time.current)
         locked(attempt) do |request, attempt|
           next request.result unless request.in_flight? && attempt.active?
+          image.with_lock do
+            raise BuildFailed.new("image #{image.digest} has no accepted verification attempt", code: "verification_incomplete") unless image.verified_candidate?
 
-          if request.cancel_requested?
-            attempt.update!(state: "canceled", finished_at: now, lease_expires_at: nil)
-            next cancel_now(request, now: now)
+            if request.cancel_requested?
+              attempt.update!(state: "canceled", finished_at: now, lease_expires_at: nil)
+              next cancel_now(request, now: now)
+            end
+
+            attempt.update!(state: "succeeded", finished_at: now, lease_expires_at: nil)
+            Telemetry.attempt("succeeded")
+            request.transition_to!("succeeded", finished_at: now)
+            finish(request, outcome: "succeeded", image: image, digest: image.digest, now: now)
           end
-
-          attempt.update!(state: "succeeded", finished_at: now, lease_expires_at: nil)
-          Telemetry.attempt("succeeded")
-          request.transition_to!("succeeded", finished_at: now)
-          finish(request, outcome: "succeeded", image: image, digest: image.digest, now: now)
         end
       end
 
@@ -242,7 +245,7 @@ module RuntimeImages
       def locked(attempt)
         request = attempt.request
         request.with_lock do
-          attempt.reload
+          attempt.reload(lock: true)
           yield request, attempt
         end
       end

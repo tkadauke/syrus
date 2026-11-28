@@ -30,5 +30,11 @@ export const examples: ToolCardExample[] = [
     label: "No current dependencies",
     input: { job_id: 50 },
     parsedResult: { job_id: 50, depends_on_job_ids: [], depends_on_epic_ids: [], dependencies: [] }
+  },
+  {
+    id: "hold_requested",
+    label: "Hold requested for a running Job",
+    input: { job_id: 50, depends_on_job_id: 49, hold_running: true },
+    parsedResult: { pending_action_id: 812, state: "pending", job_id: 50, message: "Hold JOB-50?" }
   }
 ]

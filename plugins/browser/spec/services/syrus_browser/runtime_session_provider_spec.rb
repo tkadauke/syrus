@@ -233,18 +233,85 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       SyrusBrowser::SessionRegistry.reset!
     end
 
-    it "rejects coordinate-only pointer input with compatibility guidance after validating the lease" do
+    it "delivers coordinate pointer input through Playwright's mouse and records it on the lease" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      lease = RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "user", owner_ref: "operator:#{user.id}", mode: "input", reason: "manual input")
+      recorded = []
+      allow_any_instance_of(RuntimeControlLease).to receive(:record_input!) { |record, event| recorded << [ record.id, event ] }
+
+      result = provider.input(runtime_session.id, {
+        type: "pointer", action: "click", x: 40, y: 60, normalized_x: 0.25, normalized_y: 0.5,
+        pointer_type: "mouse", button: 0, ctrl_key: true, shift_key: true, "_runtime_control_owner" => "user"
+      })
+
+      expect(result[:error]).to be false
+      expect(result[:delivered]).to be true
+      expect(browser_session).to have_received(:call_tool) do |name:, arguments:|
+        expect(name).to eq("browser_run_code_unsafe")
+        code = arguments.fetch("code")
+        expect(code).to include("page.mouse.click", "page.keyboard.down", '"normalized_x":0.25', '"modifiers":["Control","Shift"]', '"button":"left"')
+      end
+      expect(recorded).to include([ lease.id, hash_including(normalized_x: 0.25, tool: "browser_pointer_at") ])
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "taps through Playwright's touchscreen for touch pointer input" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "tap")
+
+      result = provider.input(runtime_session.id, { type: "touch", action: "click", x: 5, y: 6, "_runtime_control_owner" => "agent" })
+
+      expect(result[:error]).to be false
+      expect(browser_session).to have_received(:call_tool) do |name:, arguments:|
+        expect(name).to eq("browser_run_code_unsafe")
+        expect(arguments.fetch("code")).to include("page.touchscreen.tap", '"pointer_type":"touch"', '"x":5.0')
+      end
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "pastes target-less text into the focused element through Playwright's keyboard" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "user", owner_ref: "operator:#{user.id}", mode: "input", reason: "manual input")
+
+      result = provider.input(runtime_session.id, { type: "text", text: "he said \"hi\"", "_runtime_control_owner" => "user" })
+
+      expect(result[:error]).to be false
+      expect(browser_session).to have_received(:call_tool) do |name:, arguments:|
+        expect(name).to eq("browser_run_code_unsafe")
+        expect(arguments.fetch("code")).to include('page.keyboard.insertText("he said \\"hi\\"")')
+      end
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "carries held keyboard modifiers as a Playwright chord" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "save")
+
+      provider.input(runtime_session.id, { type: "keyboard", key: "s", ctrl_key: true, shift_key: true, "_runtime_control_owner" => "agent" })
+      provider.input(runtime_session.id, { type: "keyboard", key: "Shift", shift_key: true, "_runtime_control_owner" => "agent" })
+
+      expect(browser_session).to have_received(:call_tool).with(name: "browser_press_key", arguments: { "key" => "Control+Shift+s" })
+      expect(browser_session).to have_received(:call_tool).with(name: "browser_press_key", arguments: { "key" => "Shift" })
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "rejects pointer input with neither a target nor coordinates after recording it on the lease" do
       lease = RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
       allow(runtime_session).to receive(:active_agent_input_lease).and_return(lease)
-      expect(lease).to receive(:record_input!).with(hash_including("type" => "pointer", "x" => 40))
+      expect(lease).to receive(:record_input!).with(hash_including("type" => "pointer"))
 
-      result = provider.input(
-        runtime_session,
-        { type: "pointer", action: "click", x: 40, y: 60, normalized_x: 0.25, normalized_y: 0.5, "_runtime_control_owner" => "agent" }
-      )
+      result = provider.input(runtime_session, { type: "pointer", action: "click", "_runtime_control_owner" => "agent" })
 
       expect(result[:error]).to be true
-      expect(result[:content].first[:text]).to include("coordinate-only input is unsupported")
+      expect(result[:content].first[:text]).to include("either a stable target/ref or viewport coordinates")
     end
 
     it "records unsupported input attempts on the active lease before returning an error" do

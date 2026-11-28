@@ -9,7 +9,7 @@ module AgentQuestions
       fix = Job.transaction do
         Lineage.lock_active_work!(job)
         lock_active_questions!(job, expected_question_workflow_id) if expected_question_workflow_id
-        job.reload
+        job.reload(lock: true)
 
         retry_mode = question_retry_mode(job)
         if expected_question_workflow_id && !retry_mode

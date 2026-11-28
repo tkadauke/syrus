@@ -1,0 +1,78 @@
+name: stack rebase after the parent landed targets the branch it merged into
+# Regression: right after the parent landed, its branch was deleted on merge,
+# but StackRebasePlan still recorded the parent's branch as the child's
+# rebase base. The stack rebase fetched a ref that no longer existed, failed,
+# and left the child unlanded. In the git world the parent's PR is really
+# merged (rebase method, branch deleted, the child's PR retargeted to main),
+# so a stack rebase that targets the deleted branch fails exactly where the
+# real fetch would. The stack rebase here is dispatched without a PR
+# snapshot, as the chat rebase action does.
+runner:
+  global_reconcile: true
+repository:
+  owner: simulation
+  name: stack-rebase-after-parent-landed
+  auto_merge_enabled: true
+git:
+  commits:
+    base: {}
+    parent_1: { parents: [ base ], paths: [ lib/parent.rb ] }
+    child_1: { parents: [ parent_1 ], paths: [ lib/child.rb ] }
+    grandchild_1: { parents: [ child_1 ], paths: [ lib/grandchild.rb ] }
+    teammate: { parents: [ base ], paths: [ lib/other.rb ] }
+  branches:
+    main: teammate
+    syrus/parent: parent_1
+    syrus/child: child_1
+    syrus/grandchild: grandchild_1
+  pull_requests:
+    parent:
+      state: merged
+jobs:
+  parent:
+    title: Parent that just landed
+    state: closed
+    closure_reason: pr_merged
+    branch_name: syrus/parent
+    pr_number: 801
+  child:
+    title: Child approved behind its landed parent
+    state: approved
+    approved_at: "2026-11-20 12:00:00"
+    approved_via: operator
+    parent_job: parent
+    branch_name: syrus/child
+    pr_number: 802
+    pr_checks_state: passing
+    workflow:
+      template: true
+      kind: stack_rebase
+  grandchild:
+    title: Grandchild stacked on the child
+    state: implemented
+    parent_job: child
+    branch_name: syrus/grandchild
+    pr_number: 803
+    pr_checks_state: passing
+outcomes:
+  default: success
+max_ticks: 60
+expect:
+  jobs:
+    child:
+      - closed
+    grandchild:
+      - implemented
+  git:
+    pull_requests:
+      child: merged
+    branches:
+      main:
+        contains_patches: [ parent_1, child_1 ]
+      syrus/grandchild:
+        descends_from: [ main ]
+  events:
+    - "stack_auto_rebase syrus/child onto main: rebased"
+    - merged PR #802 into main
+  absent_events:
+    - couldn't find remote ref

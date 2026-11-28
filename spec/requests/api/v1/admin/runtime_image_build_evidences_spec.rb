@@ -34,4 +34,25 @@ RSpec.describe "API: /api/v1/admin/runtime_image_build_requests/:id/evidence", t
     get "/api/v1/admin/runtime_image_build_requests/#{build_request.id}/evidence", headers: { "Authorization" => "Bearer #{non_admin_token}" }
     expect(response).to have_http_status(:forbidden)
   end
+
+  it "returns exact policy remediation only through the restricted endpoint" do
+    provider = SyntheticRuntimeImageProvider.new
+    service = RuntimeImages::Service.new(provider: provider)
+    image = service.publish(namespace: namespace, source_kind: "test", source_ref: "revision", platform: "linux/amd64", payload: "image")
+    verification = image.runtime_image_verification_attempts.create!(number: 1, image_digest: image.digest, state: "rejected",
+      decision: "rejected", policy_snapshot: {}, policy_digest: "sha256:" + ("a" * 64), started_at: Time.current, finished_at: Time.current)
+    policy_evidence = verification.create_policy_evidence!(image_digest: image.digest,
+      safe_summary: { "finding_count" => 1, "codes" => { "secret_detected" => 1 } },
+      report_digest: "sha256:" + ("b" * 64), scanned_at: Time.current)
+    policy_evidence.report.attach(io: StringIO.new(JSON.generate("secret_scan" => { "location" => "Dockerfile:9" })),
+                                  filename: "policy.json", content_type: "application/json")
+    build_request.update_columns(state: "succeeded", finished_at: Time.current)
+    RuntimeImageBuildResult.create!(request: build_request, runtime_image: image, outcome: "succeeded", finished_at: Time.current)
+
+    get "/api/v1/admin/runtime_image_build_requests/#{build_request.id}/evidence", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+    policy = JSON.parse(response.body).fetch("verification_policy")
+    expect(policy.fetch("safe_summary")).to eq("finding_count" => 1, "codes" => { "secret_detected" => 1 })
+    expect(policy.dig("report", "secret_scan", "location")).to eq("Dockerfile:9")
+  end
 end

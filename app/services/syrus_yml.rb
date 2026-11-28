@@ -56,6 +56,14 @@ class SyrusYml
   DEFAULT_EXTERNAL_PR_UNKNOWN_ACTION = "review_and_grade".freeze
   DEFAULT_EXTERNAL_PR_JOB_EXPORT_ACTION = "attach_or_create_job".freeze
   DEFAULT_EXTERNAL_PR_BRANCH_EXPORT_ACTION = "create_epic".freeze
+  # Bot-authored external PRs (Dependabot, Renovate, other GitHub Apps) never
+  # act on review feedback, so waiting for their author dead-ends. See
+  # ExternalPrBotPolicy.
+  EXTERNAL_BOT_PR_REVIEW_FEEDBACK_ACTIONS = %w[repair wait].freeze
+  EXTERNAL_BOT_PR_STALE_ACTIONS = %w[refresh close wait].freeze
+  DEFAULT_EXTERNAL_BOT_PR_REVIEW_FEEDBACK_ACTION = "repair".freeze
+  DEFAULT_EXTERNAL_BOT_PR_STALE_ACTION = "refresh".freeze
+  DEFAULT_EXTERNAL_BOT_PR_MAX_AGE_DAYS = 30
 
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
@@ -147,7 +155,25 @@ class SyrusYml
   # (`ExternalPrIngestions::Base.for`), so these exist for
   # documentation/audit parity with the plan rather than to select between
   # multiple real behaviors.
-  ExternalPrsConfig = Data.define(:ingest)
+  ExternalPrsConfig = Data.define(:ingest, :bot_prs) do
+    def initialize(ingest:, bot_prs: nil)
+      super(ingest: ingest, bot_prs: bot_prs || SyrusYml::ExternalBotPrsConfig.default)
+    end
+  end
+  # `max_age_days` / `max_commits_behind` of 0 (or nil) disable that
+  # staleness signal.
+  ExternalBotPrsConfig = Data.define(:review_feedback, :stale_action, :max_age_days, :max_commits_behind) do
+    def self.default
+      new(
+        review_feedback: SyrusYml::DEFAULT_EXTERNAL_BOT_PR_REVIEW_FEEDBACK_ACTION,
+        stale_action: SyrusYml::DEFAULT_EXTERNAL_BOT_PR_STALE_ACTION,
+        max_age_days: SyrusYml::DEFAULT_EXTERNAL_BOT_PR_MAX_AGE_DAYS,
+        max_commits_behind: nil
+      )
+    end
+
+    def repair? = review_feedback == "repair"
+  end
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
   MergeTrainConfig = Data.define(:failure_policy, :failure_rungs)
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
@@ -1559,7 +1585,31 @@ class SyrusYml
     return nil if raw.nil?
     raise ParseError, "external_prs: must be a mapping" unless raw.is_a?(Hash)
 
-    ExternalPrsConfig.new(ingest: parse_external_prs_ingest(raw["ingest"]))
+    ExternalPrsConfig.new(
+      ingest: parse_external_prs_ingest(raw["ingest"]),
+      bot_prs: parse_external_bot_prs(raw["bot_prs"])
+    )
+  end
+
+  def parse_external_bot_prs(raw)
+    return ExternalBotPrsConfig.default if raw.nil?
+    raise ParseError, "external_prs.bot_prs: must be a mapping" unless raw.is_a?(Hash)
+
+    review_feedback = raw.fetch("review_feedback", DEFAULT_EXTERNAL_BOT_PR_REVIEW_FEEDBACK_ACTION).to_s.strip
+    unless review_feedback.in?(EXTERNAL_BOT_PR_REVIEW_FEEDBACK_ACTIONS)
+      raise ParseError, "external_prs.bot_prs.review_feedback: must be one of #{EXTERNAL_BOT_PR_REVIEW_FEEDBACK_ACTIONS.join(", ")}"
+    end
+    stale_action = raw.fetch("stale_action", DEFAULT_EXTERNAL_BOT_PR_STALE_ACTION).to_s.strip
+    unless stale_action.in?(EXTERNAL_BOT_PR_STALE_ACTIONS)
+      raise ParseError, "external_prs.bot_prs.stale_action: must be one of #{EXTERNAL_BOT_PR_STALE_ACTIONS.join(", ")}"
+    end
+
+    ExternalBotPrsConfig.new(
+      review_feedback: review_feedback,
+      stale_action: stale_action,
+      max_age_days: raw.key?("max_age_days") ? parse_non_negative_integer(raw["max_age_days"], "external_prs.bot_prs.max_age_days") : DEFAULT_EXTERNAL_BOT_PR_MAX_AGE_DAYS,
+      max_commits_behind: raw.key?("max_commits_behind") ? parse_non_negative_integer(raw["max_commits_behind"], "external_prs.bot_prs.max_commits_behind") : nil
+    )
   end
 
   def parse_merge_train(raw)

@@ -131,6 +131,7 @@ func newJobResumeCommand() *cobra.Command {
 
 func newJobWorkflowActionCommand(name string, action string, short string, message string) *cobra.Command {
 	var workflowID string
+	var guidance string
 	cmd := &cobra.Command{
 		Use:   name + " JOB-ID --workflow WORKFLOW-ID",
 		Short: short,
@@ -144,7 +145,13 @@ func newJobWorkflowActionCommand(name string, action string, short string, messa
 			if err != nil {
 				return err
 			}
-			if err := client.RunJobWorkflowAction(cmd.Context(), args[0], workflowID, action); err != nil {
+			guidance = strings.TrimSpace(guidance)
+			if guidance != "" {
+				err = client.RunJobWorkflowActionWithPayload(cmd.Context(), args[0], workflowID, action, map[string]string{"retry_context": guidance})
+			} else {
+				err = client.RunJobWorkflowAction(cmd.Context(), args[0], workflowID, action)
+			}
+			if err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s %s.\n", jobSlug(args[0]), strings.TrimSuffix(strings.ToLower(message), "."))
@@ -152,6 +159,11 @@ func newJobWorkflowActionCommand(name string, action string, short string, messa
 		},
 	}
 	cmd.Flags().StringVar(&workflowID, "workflow", "", "workflow ID")
+	if action == "retry_step" {
+		// A grader loop that stopped making progress is only retried with
+		// operator guidance; the server rejects a bare retry for it.
+		cmd.Flags().StringVar(&guidance, "guidance", "", "operator guidance for the retried step (required when a grader loop stopped making progress)")
+	}
 	return cmd
 }
 

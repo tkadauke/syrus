@@ -5,7 +5,7 @@ RSpec.describe "Mcp::Tools::HoldJobTool" do
   after(:all) { drop_solid_queue_test_tables! }
   before { clear_solid_queue_test_tables! }
 
-  let(:admin) { Factories.user(admin: true, email_address: "admin@example.com") }
+  let!(:admin) { Factories.user(admin: true, email_address: "admin@example.com") }
   let(:member) { Factories.user(email_address: "member@example.com") }
   let(:repository) { Factories.repository(user: admin) }
   let(:admin_session) { ChatSession.create!(user: admin, repository: repository) }
@@ -75,13 +75,30 @@ RSpec.describe "Mcp::Tools::HoldJobTool" do
     expect(ChatPendingAction.where(action: "hold_job")).to be_empty
   end
 
-  it "refuses non-admin chat sessions" do
+  it "lets a non-admin owner request a hold of their own Job" do
+    member_repository = Factories.repository(user: member)
+    own_job = Factories.job_record(state: "running", repository: member_repository, user: member, issue_number: 901)
+    own_prerequisite = Factories.job_record(state: "running", repository: member_repository, user: member, issue_number: 902)
+    workflow = Workflow.create!(job: own_job, trigger_kind: "initial", agent_provider: "claude", state: "running")
+    attach_work_unit(workflow, state: "running")
+    Run.create!(job: own_job, user: member, trigger_kind: "initial", agent_provider: "claude", state: "running")
+    JobDependency.create!(job: own_job, depends_on_job: own_prerequisite, source: "manual")
+    session = ChatSession.create!(user: member, repository: member_repository)
+
+    response = call_tool(session, job_id: own_job.id, reason: "ahead of its turn")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(ChatPendingAction.where(action: "hold_job").sole.payload).to include("job_id" => own_job.id)
+  end
+
+  it "refuses a non-admin who does not own the Job" do
     make_holdable
     session = ChatSession.create!(user: member, repository: Factories.repository(user: member))
 
     response = call_tool(session, job_id: job.id, reason: "x")
 
     expect(response.dig(:result, :isError)).to be true
+    expect(text(response)).to include("not owned")
     expect(ChatPendingAction.where(action: "hold_job")).to be_empty
   end
 end

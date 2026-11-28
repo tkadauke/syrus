@@ -175,6 +175,17 @@ RSpec.describe "Syrus grader configuration" do
     expect(shards.map { |grader| grader.resources.memory_bytes }).to eq([ 4.gigabytes ] * 3)
   end
 
+  # Regression: undeclared, each shard counted as one serial core, so
+  # whole-host RSpec shards were admitted beside all three browser shards on
+  # one six-core worker and browser specs timed out mid-flow.
+  it "declares the e2e shards' cores so whole-host graders see a host running them as booked" do
+    shards = RepoGradePlan.for(Rails.root).graders.select { |grader| grader.name.start_with?("e2e-") }
+
+    expect(shards.map { |grader| grader.resources.cpu }).to eq([ 3 ] * 3)
+    expect(shards.map { |grader| grader.resources.unbounded_cpu? }).to all(be(false))
+    expect(shards.sum { |grader| grader.resources.cpu }).to be >= 6
+  end
+
   it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
     shards = RepoGradePlan.for(Rails.root).graders.select { |entry| entry.name.start_with?("rspec-ci-") }
 

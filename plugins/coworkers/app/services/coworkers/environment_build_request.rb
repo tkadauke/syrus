@@ -28,7 +28,7 @@ class Coworkers::EnvironmentBuildRequest
     environment = revision.environment
 
     environment.with_lock do
-      revision.reload
+      revision.reload(lock: true)
       return Result.new(revision:, build_request: revision.build_request) if revision.build_request
 
       manifest = revision.source_manifest.fetch("files")
@@ -65,6 +65,7 @@ class Coworkers::EnvironmentBuildRequest
     { "coworker_id" => @coworker.id, "owner_user_id" => @coworker.owner_user_id,
       "source_digest" => manifest_digest(manifest), "base_digest" => base.digest,
       "runtime_abi" => base.runtime_abi, "network_classes" => Array(environment_manifest["network_classes"]).sort,
+      "smoke_test" => environment_manifest.fetch("smoke_test"),
       "resources" => environment_manifest["resources"] || {}, "reason" => reason.presence || environment_manifest["reason"],
       "requested_by_user_id" => created_by&.id }
   end

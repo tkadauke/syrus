@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "react-router-dom"
-import { fetchLandingLanes, type LandingLane, type LandingLanesPayload, type LandingLanesRepository } from "../api/landingLanes"
+import { Link, useLocation } from "react-router-dom"
+import { fetchLandingLanes, landingLaneSections, type LandingLane, type LandingLanesPayload, type LandingLanesRepository } from "../api/landingLanes"
 import { readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { PageHeading } from "../components/Heading"
 import { Notice, Page, PageHeading as UiPageHeading, Section, Surface, Text } from "../components/ui"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
-import { withRoutePrefix } from "../lib/routing"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 export function LandingLanesRoute() {
   if (!useLandingLanesEnabled()) return <LandingLanesUnavailable />
@@ -50,8 +50,15 @@ export function LandingLanesPage({ payload }: { payload: LandingLanesPayload }) 
   )
 }
 
+function useRoutePrefixedPath() {
+  const prefix = routePrefix(useLocation().pathname)
+  return (path: string) => withRoutePrefix(path, prefix)
+}
+
 function RepositoryLanes({ repository }: { repository: LandingLanesRepository }) {
   const { t } = useT("dashboard")
+  const prefixed = useRoutePrefixedPath()
+  const sections = landingLaneSections(repository)
   return (
     <Section.Root>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -59,14 +66,19 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
         <div className="text-sm text-muted">
           {t("landing_lanes.repository_summary", {
             busy: repository.busy_lane_count,
-            total: repository.landing_concurrency,
+            total: sections.reduce((sum, section) => sum + section.lanes.length, 0),
             waiting: repository.approved_backlog.length
           })}
         </div>
       </div>
-      <div className="space-y-3">
-        {repository.lanes.map((lane) => (
-          <LaneCard key={lane.number} lane={lane} repositorySlug={repository.slug} />
+      <div className="space-y-4">
+        {sections.map((section) => (
+          <div className="space-y-3" key={section.branch ?? ""}>
+            {section.branch ? <h3 className="text-sm font-semibold text-default">{t("landing_lanes.branch", { branch: section.branch })}</h3> : null}
+            {section.lanes.map((lane) => (
+              <LaneCard key={lane.number} lane={lane} repositorySlug={section.branch ? `${repository.slug} ${section.branch}` : repository.slug} />
+            ))}
+          </div>
         ))}
       </div>
       <div className="mt-4">
@@ -77,7 +89,7 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
           <ol className="mt-2 flex flex-wrap gap-2">
             {repository.approved_backlog.map((job) => (
               <li key={job.id}>
-                <Link className="text-sm font-medium text-link hover:underline" to={job.app_path}>
+                <Link className="text-sm font-medium text-link hover:underline" to={prefixed(job.app_path)}>
                   {job.position}. {job.slug}
                 </Link>
               </li>
@@ -91,6 +103,7 @@ function RepositoryLanes({ repository }: { repository: LandingLanesRepository })
 
 function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug: string }) {
   const { t } = useT("dashboard")
+  const prefixed = useRoutePrefixedPath()
   if (lane.empty) {
     return (
       <Surface className="border-dashed px-4 py-4">
@@ -111,7 +124,7 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
             <span className="font-semibold text-default">{t("landing_lanes.lane", { number: lane.number })}</span>
             {lane.anchor_job ? <JobLink job={lane.anchor_job} /> : null}
             {lane.workflow ? (
-              <Link className="text-link hover:underline" to={lane.workflow.app_path}>
+              <Link className="text-link hover:underline" to={prefixed(lane.workflow.app_path)}>
                 {lane.workflow.slug}
               </Link>
             ) : null}
@@ -163,8 +176,9 @@ function LaneCard({ lane, repositorySlug }: { lane: LandingLane; repositorySlug:
 }
 
 function JobLink({ job }: { job: { id: number; slug: string; app_path: string } }) {
+  const prefixed = useRoutePrefixedPath()
   return (
-    <Link className="font-medium text-link hover:underline" to={job.app_path}>
+    <Link className="font-medium text-link hover:underline" to={prefixed(job.app_path)}>
       {job.slug}
     </Link>
   )
@@ -271,16 +285,21 @@ function EnabledLandingLanesStrip({ prefix = "" }: { prefix?: string }) {
         {query.data.repositories.map((repository) => (
           <div key={repository.id}>
             <div className="mb-1 text-xs font-semibold text-muted">{repository.slug}</div>
-            <div className="space-y-1">
-              {repository.lanes.map((lane) => (
-                <div className="grid grid-cols-[4rem_minmax(6rem,1fr)_minmax(5rem,auto)_minmax(5rem,1fr)_auto] items-center gap-2 text-xs" key={lane.number}>
-                  <span>{t("landing_lanes.lane", { number: lane.number })}</span>
-                  <span className="truncate font-medium">{lane.empty ? t("landing_lanes.empty") : lane.anchor_job?.slug}</span>
-                  <span className="truncate text-muted">{lane.empty ? "" : phaseLabel(lane, t)}</span>
-                  <LaneProgress lane={lane} repositorySlug={repository.slug} />
-                  <span className="whitespace-nowrap text-muted">
-                    {lane.empty ? "" : t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}
-                  </span>
+            <div className="space-y-2">
+              {landingLaneSections(repository).map((section) => (
+                <div className="space-y-1" key={section.branch ?? ""}>
+                  {section.branch ? <div className="text-xs text-muted">{t("landing_lanes.branch", { branch: section.branch })}</div> : null}
+                  {section.lanes.map((lane) => (
+                    <div className="grid grid-cols-[4rem_minmax(6rem,1fr)_minmax(5rem,auto)_minmax(5rem,1fr)_auto] items-center gap-2 text-xs" key={lane.number}>
+                      <span>{t("landing_lanes.lane", { number: lane.number })}</span>
+                      <span className="truncate font-medium">{lane.empty ? t("landing_lanes.empty") : lane.anchor_job?.slug}</span>
+                      <span className="truncate text-muted">{lane.empty ? "" : phaseLabel(lane, t)}</span>
+                      <LaneProgress lane={lane} repositorySlug={section.branch ? `${repository.slug} ${section.branch}` : repository.slug} />
+                      <span className="whitespace-nowrap text-muted">
+                        {lane.empty ? "" : t("landing_lanes.best_case", { minutes: bestCaseMinutes(lane.best_case_remaining_seconds) })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

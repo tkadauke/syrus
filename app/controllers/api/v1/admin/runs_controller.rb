@@ -25,8 +25,7 @@ module Api
         # Pagination:
         #   ?page (1-indexed), ?per (default 50, max 100)
         def index
-          scope = Run.includes(:run_diagnostic, :run_failure_classification, step: :workflow)
-                     .order(id: :desc)
+          scope = Run.all
           scope = scope.where(state: params[:state])               if params[:state].present?
           scope = scope.where(trigger_kind: params[:trigger_kind]) if params[:trigger_kind].present?
           scope = scope.where(job_id: params[:job_id])             if params[:job_id].present?
@@ -36,7 +35,14 @@ module Api
           per   = (params[:per].presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
           page  = [ params[:page].to_i, 1 ].max
           total = scope.count
-          rows  = scope.offset((page - 1) * per).limit(per).to_a
+          # Page over ids first, then load only that page's rows. OFFSET over
+          # whole runs rows dragged every skipped row's prompt and diff
+          # through MySQL (a page-102 request took 111 s in production).
+          page_ids = scope.order(id: :desc).offset((page - 1) * per).limit(per).pluck(:id)
+          rows  = Run.where(id: page_ids)
+                     .includes(:run_diagnostic, :run_failure_classification, step: :workflow)
+                     .order(id: :desc)
+                     .to_a
 
           render json: {
             count: rows.size,

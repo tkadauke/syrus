@@ -43,7 +43,7 @@ module MaintenanceTasks
 
     def dismiss!
       @task.with_lock do
-        @task.reload
+        @task.reload(lock: true)
         return @task if @task.state == "dismissed"
 
         @task.update!(state: "dismissed", dismissed_at: Time.current, dismissed_by_user: @user)
@@ -56,7 +56,7 @@ module MaintenanceTasks
 
     def transition_to_running!(verb)
       @task.with_lock do
-        @task.reload
+        @task.reload(lock: true)
         raise TransitionConflict, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
 
         # Definitions may inspect worker-local storage. The web process handling

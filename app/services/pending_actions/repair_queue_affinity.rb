@@ -66,11 +66,11 @@ module PendingActions
           # The Run's ancestry, top down (NY40): clearing the routing affinity
           # writes the Workflow.
           Lineage.lock!(run)
-          run.reload
+          run.reload(lock: true)
           return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
 
           workflow = run.workflow
-          workflow.reload
+          workflow.reload(lock: true)
           return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
           validate_unsatisfied_affinity!(run, queue_jobs)
 

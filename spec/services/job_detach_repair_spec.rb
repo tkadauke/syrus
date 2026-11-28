@@ -118,6 +118,19 @@ RSpec.describe JobDetachRepair do
     expect(job.reload.parent_job).to be_nil
   end
 
+  # Regression: with no resolvable former parent, the cleanup matched
+  # depends_on_job_id IS NULL and destroyed every Epic and pending dependency.
+  it "keeps Epic and pending dependencies when no former parent can be resolved" do
+    job.update!(parent_job: nil)
+    dependency.destroy!
+    epic = Factories.epic(user: owner, repository: repository)
+    epic_dependency = JobDependency.create!(job: job, depends_on_epic: epic, source: "manual", satisfaction_mode: "success")
+
+    described_class.finalize!(job: job, destination_base: "main", expected_head: head, reason: "Retry partial repair.", client: client)
+
+    expect(epic_dependency.reload).to be_present
+  end
+
   it "fails postcondition verification instead of reporting success on stale live state" do
     allow(client).to receive(:branch_head_sha).and_return("d" * 40)
 

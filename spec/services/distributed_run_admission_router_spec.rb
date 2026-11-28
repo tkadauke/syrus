@@ -152,6 +152,30 @@ RSpec.describe DistributedRunAdmissionRouter do
       .to include("pending_dispatch_depth" => 4, "committed_load" => 4, "healthy_headroom" => false)
   end
 
+  # Regression: headroom was judged against the CPU count of the worker that
+  # refused the Run, not the candidate's own, so a small host judged a large
+  # one full and a large host stacked a burst onto a small one.
+  it "judges a candidate's headroom by the candidate's own published CPU count" do
+    big = worker("worker-b", "storage-b").merge(
+      "capability_diagnostics" => { "admission_capacity" => { "host_compute_capacity" => 16 } }
+    )
+    small = worker("worker-c", "storage-c").merge(
+      "capability_diagnostics" => { "admission_capacity" => { "host_compute_capacity" => 1 } }
+    )
+    resolver_with(big, small)
+    sample("worker-b")
+    sample("worker-c")
+    dispatch_depths("worker-b" => 6, "worker-c" => 2)
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.details["routed_worker"]).to eq("worker-b")
+    considered = decision.details["healthy_alternatives_considered"].index_by { |entry| entry["hostname"] }
+    expect(considered.fetch("worker-b")).to include("host_compute_capacity" => 16, "healthy_headroom" => true)
+    expect(considered.fetch("worker-c")).to include("host_compute_capacity" => 1, "healthy_headroom" => false)
+  end
+
   # Falling through to defer is not a dead end: RunJob#defer_run re-enqueues
   # through RunQueueResolver, which puts a placement-agnostic Run back on the
   # shared capability queue where any host with room can claim it.

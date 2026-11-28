@@ -164,6 +164,14 @@ module Steps
     # concurrent update is never clobbered.
     def rollback_stale_publication!(git)
       branch = workspace.branch_name
+      # An adopted head is another writer's publication; this workflow pushed
+      # nothing, so there is nothing of its own to take back. Restoring the
+      # tip it saw before a rejected push would erase that writer's work
+      # (F151).
+      if @adopted_remote_publication
+        log("pr_open: parent moved after #{branch} adopted the remote head; nothing of this workflow's to roll back")
+        return
+      end
       pushed = current_head_sha(git)
       previous = @pre_push_remote_sha
       refspec = previous.present? ? "#{previous}:refs/heads/#{branch}" : ":refs/heads/#{branch}"
@@ -253,24 +261,66 @@ module Steps
       branch = workspace.branch_name
       remote_sha = fetch_remote_branch!(git, push_url)
       @pre_push_remote_sha = remote_sha
-      if remote_sha.present? && !ancestor?(git, remote_sha, "HEAD") && !remote_patches_preserved?(git, branch)
+      truth = classify_publication(git, remote_sha)
+      return if truth.up_to_date?
+      return adopt_remote_publication!(git, truth, context: "stack rebase publication") if truth.adopt_remote?
+
+      unless truth.publish?
         record_branch_divergence!(git, "remote branch holds work the stack rebase did not preserve", remote_sha: remote_sha)
         raise BranchDiverged, branch_divergence_message
       end
 
-      git.run("push", "--force-with-lease=refs/heads/#{branch}:#{remote_sha}", push_url,
+      git.run("push", "--force-with-lease=refs/heads/#{branch}:#{truth.lease_sha}", push_url,
               "HEAD:refs/heads/#{branch}", chdir: workspace.path.to_s)
     rescue GitRunner::GitError => e
       raise unless push_rejected?(e)
 
-      record_branch_divergence!(git, "push lease rejected: remote branch moved during stack rebase publication")
-      raise BranchDiverged, branch_divergence_message
+      reclassify_rejected_publication!(git, push_url, "push lease rejected: remote branch moved during stack rebase publication")
     end
 
-    def remote_patches_preserved?(git, branch)
-      remote_only = git.run("cherry", "HEAD", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
-        .lines.map(&:strip).reject(&:blank?)
-      remote_only.all? { |line| line.start_with?("-") }
+    # The one decision rule for "which copy of this branch is true" (see
+    # BranchTruth). The base is the effective PR base as last fetched, so a
+    # stack rebase's recreated parent commits never count as this branch's
+    # work on either side.
+    def classify_publication(git, remote_sha)
+      @branch_truth = BranchTruth.classify(
+        git: git, chdir: workspace.path, local: "HEAD", remote: remote_sha, base: publication_base_ref(git)
+      )
+      log("pr_open: #{workspace.branch_name} remote=#{remote_sha.to_s.first(9).presence || 'absent'} is #{@branch_truth.relation} -> #{@branch_truth.outcome}")
+      @branch_truth
+    end
+
+    def publication_base_ref(git)
+      @publication_base_ref ||= fetch_pr_base_ref!(git, pr_base_branch)
+    rescue GitRunner::GitError => e
+      log("pr_open: could not fetch the PR base for branch classification (#{e.message.to_s.lines.first.to_s.strip}); classifying without it", kind: "system")
+      nil
+    end
+
+    # The remote already holds this workflow's work (it descends from local,
+    # or carries the same patches on a base at least as fresh). Publishing
+    # would only rewrite it back, so take it as the published head instead.
+    def adopt_remote_publication!(git, truth, context:)
+      git.run("reset", "--hard", truth.remote_sha, chdir: workspace.path.to_s)
+      @adopted_remote_publication = true
+      @pre_push_remote_sha = truth.remote_sha
+      workflow.set_artifact!(BranchTruth::ADOPTED_ARTIFACT, truth.to_h.merge(
+        "branch" => workspace.branch_name, "context" => context, "adopted_at" => Time.current.iso8601
+      ))
+      log("pr_open: #{workspace.branch_name} already holds this workflow's work at #{truth.remote_sha.first(9)} (#{truth.relation}); adopting it instead of pushing")
+      :adopted_remote
+    end
+
+    # A push was rejected because the remote moved after Syrus looked at it.
+    # Look again: the writer may have published exactly this work (a parallel
+    # stack rebase), which is not a conflict.
+    def reclassify_rejected_publication!(git, push_url, message)
+      remote_sha = fetch_remote_branch!(git, push_url)
+      truth = classify_publication(git, remote_sha)
+      return adopt_remote_publication!(git, truth, context: "rejected publication") if truth.adopt_remote? || truth.up_to_date?
+
+      record_branch_divergence!(git, message, remote_sha: remote_sha)
+      raise BranchDiverged, branch_divergence_message
     end
 
     def verify_coding_handoff_snapshot!
@@ -461,7 +511,7 @@ module Steps
         if published_review_branch?
           outcome = verify_existing_pr_branch_not_diverged!(git, push_url)
           return :superseded if outcome == :superseded
-          next if outcome == :replaced_own_publication
+          next if outcome.in?(%i[replaced_own_publication adopted_remote published_over_remote])
         end
         push_branch_to_remote(git, push_url)
       end
@@ -496,9 +546,9 @@ module Steps
 
       if args&.any? { |arg| arg.start_with?("--force-with-lease") }
         # The branch moved after we observed it; replacing it would silently
-        # discard that writer's update, so surface the divergence instead.
-        record_branch_divergence!(git, "push lease rejected: remote branch moved during stacked publication")
-        raise BranchDiverged, branch_divergence_message
+        # discard that writer's update. Adopt it when it already holds this
+        # work, surface the divergence otherwise.
+        return reclassify_rejected_publication!(git, push_url, "push lease rejected: remote branch moved during stacked publication")
       end
 
       force_push_unopened_publication_branch!(git, push_url, e)
@@ -698,15 +748,33 @@ module Steps
       remote_sha = fetch_remote_branch!(git, push_url)
       return if remote_sha.blank?
 
-      local_sha = current_head_sha(git)
-      return if remote_sha == local_sha
-      return if ancestor?(git, remote_sha, "HEAD")
+      truth = classify_publication(git, remote_sha)
+      # Identical or a fast-forward: the ordinary push publishes it.
+      return if truth.up_to_date? || (truth.publish? && !truth.rewrites_remote?)
 
+      local_sha = truth.local_sha.presence || current_head_sha(git)
       return supersede_stale_publication!("remote PR branch moved because a newer workflow updated it", remote_sha: remote_sha, local_sha: local_sha) if stale_publication_workflow?
+      return adopt_remote_publication!(git, truth, context: "existing PR branch") if truth.adopt_remote?
+      return publish_over_remote!(git, push_url, truth) if truth.publish?
       return replace_own_publication!(git, push_url, remote_sha: remote_sha, local_sha: local_sha) if replaceable_own_publication?(remote_sha)
 
       record_branch_divergence!(git, "remote PR branch moved before push", remote_sha: remote_sha, local_sha: local_sha)
       raise BranchDiverged, branch_divergence_message
+    end
+
+    # Every remote-only patch is already in local, and local sits on a base
+    # at least as fresh: replacing the remote loses nothing. Leased on the
+    # classified head, so a writer that moves it in between is not erased.
+    def publish_over_remote!(git, push_url, truth)
+      branch = workspace.branch_name
+      log("pr_open: #{branch} remote #{truth.remote_sha.first(9)} holds no work this workflow lacks (#{truth.relation}); replacing it")
+      git.run("push", "--force-with-lease=refs/heads/#{branch}:#{truth.lease_sha}", push_url, "HEAD:refs/heads/#{branch}", chdir: workspace.path.to_s)
+      workflow.set_artifact!("pr_open_published_over_remote", truth.to_h.merge("branch" => branch, "published_at" => Time.current.iso8601))
+      :published_over_remote
+    rescue GitRunner::GitError => e
+      raise unless push_rejected?(e)
+
+      reclassify_rejected_publication!(git, push_url, "push lease rejected: remote PR branch moved during publication")
     end
 
     # An implementation retry rebuilds the work from the base on purpose, so
@@ -769,7 +837,11 @@ module Steps
         # only moment both sides are cheaply readable. The operator who has to
         # choose between these branches may see this hours later on a different
         # worker, where neither side can be recomputed.
-        "comparison" => divergence_comparison(git, resolved_remote, resolved_local)
+        "comparison" => divergence_comparison(git, resolved_remote, resolved_local),
+        # Why this is the genuinely ambiguous case, and the named recovery
+        # (retry from the current PR branch) the reconciler performs for it.
+        "branch_truth" => (@branch_truth.to_h if @branch_truth&.remote_sha == resolved_remote),
+        "recommended_recovery" => BranchTruth::AMBIGUOUS_RECOVERY
       }.compact)
       artifact = workflow.artifact("branch_divergence")
       log("pr_open: branch diverged for #{workspace.branch_name}; remote=#{artifact['remote_sha']} local=#{artifact['local_sha']}")

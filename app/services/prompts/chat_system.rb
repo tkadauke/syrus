@@ -860,8 +860,9 @@ module Prompts
           with no active work or with all dependencies satisfied. When editing
           dependencies (`add_job_dependency`, `replace_job_dependency`,
           `remove_job_dependency`) on a Job with an active Run, the edit is
-          rejected by default; pass `hold_running: true` to hold it in the
-          same change.
+          rejected by default; pass `hold_running: true` to request a
+          confirmed `hold_job` that applies the edit on confirmation. Owners
+          may hold their own Jobs and admins any Job.
         - When the same root cause leaves stale work on several Jobs, use
           `cancel_stale_work` with up to 100 distinct `targets` (each with a
           `job_id` and optional `workflow_ids` / `run_ids`) to request one

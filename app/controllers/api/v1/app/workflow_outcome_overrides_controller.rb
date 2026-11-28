@@ -5,11 +5,16 @@ module Api
         def index
           job = find_job
           candidates = WorkflowOutcomeOverrides::CandidateResolver.for_job(job)
-          render json: { candidates: candidates.map { |candidate| candidate.as_json.merge(policy: policy_for(job, candidate).policy) } }
+          writable = JobPolicy.new(Current.user, job).write?
+          render json: { candidates: candidates.map { |candidate|
+            candidate.as_json.merge(policy: writable ? policy_for(job, candidate).policy : :deny)
+          } }
         end
 
         def create
           job = find_job
+          return unless authorize_job_mutation!(job)
+
           candidate = WorkflowOutcomeOverrides::CandidateResolver.new(job).find!(params.require(:fingerprint_digest))
           decision = policy_for(job, candidate)
           return render_error("outcome_override_denied", t("api.workflow_outcome_overrides.denied"), status: :forbidden) if decision.deny?
@@ -31,7 +36,7 @@ module Api
 
         private
 
-        def find_job = Job.visible_to(Current.user).find(params[:job_id])
+        def find_job = find_job_by_ref(Job.visible_to(Current.user), params[:job_id])
 
         def policy_for(job, candidate)
           WorkflowOutcomeOverrides::Authority.call(user: Current.user, repository: job.repository, arguments: {

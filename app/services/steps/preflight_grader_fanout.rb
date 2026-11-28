@@ -398,10 +398,12 @@ module Steps
     end
 
     def target_fingerprints_for(grader)
+      @target_file_digests ||= TargetGraph::FileDigests.new(workspace.path)
       TargetGraph::Fingerprints.for_target(
         workspace_path: workspace.path,
         graph: target_graph,
-        label: target_label_for(grader)
+        label: target_label_for(grader),
+        file_digests: @target_file_digests
       )
     end
 

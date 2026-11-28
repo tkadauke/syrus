@@ -40,6 +40,22 @@ placement or target contract. Compare the requirement shown on the blocked Run
 with live worker capabilities and distinguish a missing/misconfigured worker
 from a requirement no pool is intended to satisfy.
 
+## Tools on macOS workers
+
+Besides Xcode and its simulators, every macOS worker puts these on the `PATH`
+that prepare commands, agents, and graders run with: Ruby, Node and npm, mise,
+the Claude Code and Codex CLIs, and XcodeGen. Projects that generate their
+`.xcodeproj` from a `project.yml` can therefore generate it in `prepare`
+before anything builds:
+
+```yaml
+prepare:
+  - xcodegen generate
+```
+
+The versions are pinned by Syrus and updated with each deploy; a project does
+not need to install them, and should not install them with Homebrew.
+
 Mac worker installation, environment files, updates, and troubleshooting
 live behind the [macOS workers
 hub](../../docs/engineering/operations/macos-workers.md); iOS Jobs and

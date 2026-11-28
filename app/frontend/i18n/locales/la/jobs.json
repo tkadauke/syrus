@@ -1112,6 +1112,7 @@
   "recovery_title_restart_from_base": "Nova implementatio requiritur",
   "recovery_measured_failures": "Defectiones mensuratae quae consilium statuerunt",
   "recovery_excluded_failures": "Defectiones infrastructurae a consilio exclusae",
+  "recovery_unnamed_infrastructure_failure": "Defectio exsecutionis infrastructurae",
   "recovery_attempt_timeline": "Series conatuum",
   "recovery_original_execution": "Executio originalis · Workflow {{workflow}}",
   "recovery_terminal_decision": "Consilium: {{decision}}",
@@ -1140,5 +1141,11 @@
   "question_give_up": "Desistere",
   "question_give_up_confirm": "Ab hoc conatu desistere et Opus cancellare?",
   "question_give_up_consequence": "Conatum activum cancellat et hoc Opus ut cancellatum claudit.",
-  "question_policy_effective": "Studium interrogandi: {{level}} (fons: {{source}})."
+  "question_policy_effective": "Studium interrogandi: {{level}} (fons: {{source}}).",
+  "question_policy_source": {
+    "job": "hoc opus",
+    "repository": "repositorium",
+    "user": "ratio tua",
+    "default": "praefinitio"
+  }
 }

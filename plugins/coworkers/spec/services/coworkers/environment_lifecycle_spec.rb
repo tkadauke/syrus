@@ -14,7 +14,7 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
   let(:image) do
     RuntimeImage.create!(runtime_image_namespace: namespace, digest: "sha256:#{'a' * 64}",
                          platform: "linux/amd64", source_kind: "coworker_environment", source_ref: "revision-1",
-                         availability: "available", published_at: Time.current)
+                         availability: "available", verification_state: "candidate", published_at: Time.current)
   end
   let(:request) do
     RuntimeImageBuildRequest.create!(runtime_image_namespace: namespace, state: "succeeded", platform: "linux/amd64",
@@ -98,6 +98,18 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     expect(Syrus::Events).to have_received(:publish).with(
       "coworker_environment.build_failed", hash_including(revision_id: revision.id)
     )
+  end
+
+  it "persists the rejection when publishing a candidate that became incompatible" do
+    described_class.new(environment).reconcile_build!(revision)
+    allow(Syrus::Host::RuntimeImages).to receive(:active_base).and_return(base.with(runtime_abi: 9))
+
+    expect { described_class.new(environment).publish!(revision, actor: "operator") }
+      .to raise_error(Coworkers::EnvironmentRevision::InvalidTransition)
+
+    expect(revision.reload).to be_rejected
+    expect(environment.reload).to have_attributes(state: "failed", candidate_revision_id: nil,
+                                                   last_error_code: described_class::INCOMPATIBLE)
   end
 
   it "fails closed when the image ABI is incompatible" do

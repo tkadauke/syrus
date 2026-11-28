@@ -214,6 +214,76 @@ RSpec.describe TargetGraph::Fingerprints do
     expect(fingerprints.metadata.dig("worker_environment", "capabilities")).to eq("os" => [ "linux" ])
   end
 
+  describe "shared file digests" do
+    before do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: everything
+            run: bin/check
+          - name: models
+            run: bin/rspec
+            when_files_changed: ["app/**/*.rb"]
+          - name: frontend
+            run: npm test
+            when_files_changed: ["src/**/*.ts"]
+      YAML
+      write("app/models/user.rb", "class User; end\n")
+      write("app/models/team.rb", "class Team; end\n")
+      write("src/index.ts", "export const value = 1\n")
+    end
+
+    let(:labels) { %w[//:grade/everything //:grade/models //:grade/frontend] }
+
+    it "produces byte-identical fingerprints to unshared computation" do
+      graph = TargetGraph::Compiler.compile(@dir)
+      digests = TargetGraph::FileDigests.new(@dir)
+
+      labels.each do |label|
+        shared = described_class.for_target(workspace_path: @dir, graph: graph, label: TargetGraph::Label.parse(label), file_digests: digests)
+        unshared = described_class.for_target(workspace_path: @dir, graph: graph, label: TargetGraph::Label.parse(label))
+
+        expect(shared.to_h).to eq(unshared.to_h)
+      end
+    end
+
+    # Regression: a fan-out fingerprinting every target hashed the whole tree
+    # once per target (twice, counting the metadata counts), which was three
+    # to four minutes of each production fan-out.
+    it "hashes each file once across every target that shares the digests" do
+      graph = TargetGraph::Compiler.compile(@dir)
+      digests = TargetGraph::FileDigests.new(@dir)
+      hashed = Hash.new(0)
+      allow(Digest::SHA256).to receive(:file).and_wrap_original do |original, path|
+        hashed[Pathname.new(path).relative_path_from(@dir).to_s] += 1
+        original.call(path)
+      end
+
+      labels.each do |label|
+        described_class.for_target(workspace_path: @dir, graph: graph, label: TargetGraph::Label.parse(label), file_digests: digests)
+      end
+
+      expect(hashed.keys).to include("app/models/user.rb", "src/index.ts", ".syrus.yml")
+      expect(hashed.values).to all(eq(1))
+    end
+
+    it "hashes a target's source files once even without shared digests" do
+      graph = TargetGraph::Compiler.compile(@dir)
+      allow(Digest::SHA256).to receive(:file).and_call_original
+
+      described_class.for_target(workspace_path: @dir, graph: graph, label: TargetGraph::Label.parse("//:grade/models"))
+
+      expect(Digest::SHA256).to have_received(:file).with(@dir.join("app/models/user.rb")).once
+    end
+
+    it "refuses digests recorded for a different workspace" do
+      Dir.mktmpdir("syrus-other-workspace") do |other|
+        expect do
+          described_class.new(workspace_path: @dir, graph: TargetGraph::Compiler.compile(@dir), file_digests: TargetGraph::FileDigests.new(other))
+        end.to raise_error(ArgumentError, /cannot fingerprint/)
+      end
+    end
+  end
+
   def fingerprints_for(label)
     described_class.for_target(
       workspace_path: @dir,

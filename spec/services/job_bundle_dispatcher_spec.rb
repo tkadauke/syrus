@@ -18,6 +18,42 @@ RSpec.describe JobBundleDispatcher do
     allow(StepDispatcher).to receive(:start_workflow)
   end
 
+  # Regression: bundle dispatch, like Epic merge trains, launched without
+  # consulting runaway protection, so a runaway-protected member whose bundle
+  # failed and deferred it back to :approved was relaunched indefinitely.
+  describe "runaway protection" do
+    def fail_bundle_for!(members, created_at:)
+      train = MergeTrain.create!(repository: repository, base_branch: repository.default_branch, priority: "medium",
+                                 state: "failed", failure_reason: "merge_train: base moved; rebuild required",
+                                 finished_at: created_at + 1.minute, created_at: created_at)
+      members.each_with_index { |job, index| MergeTrainMember.create!(merge_train: train, job: job, position: index, state: "failed") }
+      train
+    end
+
+    it "holds the bundle once a runaway-protected member's approval was spent on a failed bundle" do
+      a = approved_job(1)
+      b = approved_job(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 5.hours.ago, approved_at: 4.hours.ago)
+      fail_bundle_for!([ a, b ], created_at: 3.hours.ago)
+
+      expect(described_class.blocker_reason(repository)).to start_with("runaway protection holds #{b.slug}")
+      expect(described_class.try_dispatch!(repository)).to be_nil
+      expect(StepDispatcher).not_to have_received(:start_workflow)
+    end
+
+    it "holds a rebuild too, and lets an operator's later approval buy an attempt" do
+      a = approved_job(1)
+      b = approved_job(2)
+      b.update_columns(runaway_protection: "too_many_failed_workflows", runaway_protection_at: 5.hours.ago, approved_at: 4.hours.ago)
+      fail_bundle_for!([ a, b ], created_at: 3.hours.ago)
+
+      expect(described_class.try_dispatch!(repository, bypass_cooldown: true)).to be_nil
+
+      b.update_columns(approved_at: 1.hour.ago, approved_by_user_id: user.id)
+      expect(described_class.try_dispatch!(repository, bypass_cooldown: true)).to be_present
+    end
+  end
+
   it "creates a bundle-backed train, locks members into :landing, and starts the workflow" do
     a = approved_job(1)
     b = approved_job(2)

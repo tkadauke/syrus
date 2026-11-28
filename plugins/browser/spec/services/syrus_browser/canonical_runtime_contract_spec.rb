@@ -147,6 +147,11 @@ RSpec.describe "Browser canonical Runtime Session contract" do
   end
 
   it "drives a real form and captures evidence through the same Runtime Session in both contexts" do
+    # This contract genuinely needs a real browser: the playwright-mcp binary
+    # and the Chromium it drives. Worker images ship both; a developer machine
+    # usually has neither. Say so instead of failing with a spawn error that
+    # reads like a regression.
+    skip_without_real_browser_runtime!
     SyrusBrowser::SessionRegistry.reset!
     SyrusBrowser::SessionRegistry.session_factory = ->(session_key) { SyrusBrowser::Session.spawn_stdio(session_key) }
     launcher = instance_double(Syrus::Host::PreviewProcessLauncher)
@@ -210,6 +215,18 @@ RSpec.describe "Browser canonical Runtime Session contract" do
       run: { runtime: run_runtime, tool_set: SyrusBrowser::McpToolSet.new,
              context: { run_id: run.id }, session: browser_sessions.fetch(run_key) }
     }
+  end
+
+  def skip_without_real_browser_runtime!
+    command = SyrusBrowser::Session::DEFAULT_COMMAND
+    on_path = ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? do |dir|
+      path = File.join(dir, command)
+      File.file?(path) && File.executable?(path)
+    end
+    skip("requires the #{command} binary on PATH (real browser contract; not installed on this host)") unless on_path
+
+    browser = SyrusBrowser::Session.browser_executable_path
+    skip("requires a Chromium executable at #{browser} (set SYRUS_BROWSER_EXECUTABLE_PATH)") unless File.executable?(browser)
   end
 
   def real_surfaces

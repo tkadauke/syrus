@@ -32,8 +32,13 @@ export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: stri
   const questions = useOpenAgentQuestions()
   const openQuestions = questions.data?.questions ?? []
   const count = openQuestions.length
+  const loaded = questions.data !== undefined
 
   useEffect(() => {
+    // The first answer is the baseline, not an arrival: before it, the empty
+    // list only means "not fetched yet", and counting from it announced every
+    // question already waiting as new on each page load.
+    if (!loaded) return
     if (previousCount.current != null && count > previousCount.current) {
       clearTimeout(clearAnnouncementTimeout.current)
       setAnnouncement(t("question_inbox.arrived", { count: count - previousCount.current }))
@@ -43,13 +48,13 @@ export function QuestionInboxDrawer({ prefix = "", onNavigate }: { prefix?: stri
       setAnnouncement("")
     }
     previousCount.current = count
-  }, [count, t])
+  }, [count, loaded, t])
 
   useEffect(() => () => clearTimeout(clearAnnouncementTimeout.current), [])
 
   async function answer(question: WorkflowAgentQuestion, answers: ChatAgentQuestionAnswer[]) {
     const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
-    await client.invalidateQueries({ queryKey: openQuestionsQueryKey })
+    await client.invalidateQueries({ queryKey: ["agent-questions"] })
     return result
   }
 
@@ -126,7 +131,7 @@ export function QuestionsActivityPanel({ navigateTo, prefix }: { navigateTo: (to
   const [notice, setNotice] = useState<string | null>(null)
   async function answer(question: WorkflowAgentQuestion, answers: ChatAgentQuestionAnswer[]) {
     const result = await answerWorkflowAgentQuestion(question.app_answer_path, answers)
-    await client.invalidateQueries({ queryKey: openQuestionsQueryKey })
+    await client.invalidateQueries({ queryKey: ["agent-questions"] })
     return result
   }
   return (

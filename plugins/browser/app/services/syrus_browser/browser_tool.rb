@@ -71,10 +71,11 @@ module SyrusBrowser
         return error(missing_arguments_message(missing)) if missing.any?
 
         context = SessionContext.resolve(server_context)
-        lease_error = enforce_input_lease(context, owner: server_context[:runtime_control_owner], event: params)
+        lease, lease_error = enforce_input_lease(context, owner: server_context[:runtime_control_owner])
         return lease_error if lease_error
 
         session = SessionRegistry.fetch(context.session_key)
+        lease&.record_input!(params.merge(tool: tool_name), sensitive: sensitive_input?(session, params))
         response = session.call_tool(name: upstream_tool_name, arguments: upstream_arguments(params))
         translate(response, artifact_sink: context.artifact_sink, metadata: capture_metadata(session, params))
       rescue SessionContext::NoActiveSessionError => e
@@ -95,32 +96,35 @@ module SyrusBrowser
 
       private
 
-      # Returns an error Response when this tool requires an input lease and
-      # the calling RuntimeSession's agent does not currently hold one; nil
-      # (proceed) otherwise, including for any call that does not target a
-      # RuntimeSession at all (the workflow Run path).
-      def enforce_input_lease(context, owner: nil, event: {})
-        return nil unless requires_input_lease?
+      # Returns [lease, nil] when this tool requires an input lease and the
+      # caller holds one (the caller records the input once the browser
+      # session is available), [nil, error Response] when it does not, and
+      # [nil, nil] for any call that needs no lease, including every call
+      # that does not target a RuntimeSession at all (the workflow Run path).
+      def enforce_input_lease(context, owner: nil)
+        return [ nil, nil ] unless requires_input_lease?
 
         runtime_session = context.owner
-        return nil unless runtime_session.is_a?(Syrus::Host::RuntimeSessionRecord)
+        return [ nil, nil ] unless runtime_session.is_a?(Syrus::Host::RuntimeSessionRecord)
         owner = owner.to_s == "user" ? "user" : "agent"
         lease = if owner == "user"
           runtime_session.runtime_control_leases.active.held_by("user").for_mode("input").first
         else
           runtime_session.active_agent_input_lease
         end
-        if lease
-          lease.record_input!(event.merge(tool: tool_name))
-          return nil
-        end
+        return [ lease, nil ] if lease
 
         Syrus::Host::RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: { tool: tool_name })
-        error(
+        [ nil, error(
           "lease_required: the #{owner} must hold an active runtime_acquire_control(mode: \"input\") " \
           "lease on this Runtime Session before calling #{tool_name}."
-        )
+        ) ]
       end
+
+      # Whether the recorded copy of this input must hide its typed text even
+      # when the text itself does not look like a secret. Tools that type text
+      # override this with a check of the target element.
+      def sensitive_input?(_session, _params) = false
 
       def missing_required_arguments(params)
         required = Array(input_schema_value.to_h.dig(:required))

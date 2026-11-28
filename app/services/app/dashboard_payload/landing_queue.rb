@@ -135,6 +135,7 @@ module App
         waiting_epic_merge_train
         waiting_epicless_bundle
         blocked_by_active_landing_unit
+        waiting_rebase_slot
       ].freeze
 
       def normal_landing_queue_wait_reason?(reason)
@@ -564,6 +565,8 @@ module App
             "Landing queue is waiting for an Epic merge-train."
           when "waiting_epicless_bundle"
             "Landing queue is waiting for a Job bundle."
+          when LandingQueueProcessor::REBASE_SLOT_WAIT_KEY
+            "Landing queue is waiting for a rebase slot."
           else
             "Landing queue is waiting."
           end
@@ -573,6 +576,10 @@ module App
             "#{landing_queue_unit_label(jobs)} is approved, but its Epic is not ready to land yet."
           when "waiting_epicless_bundle"
             "#{landing_queue_unit_label(jobs)} is approved, but its Job bundle is not ready to land yet."
+          when LandingQueueProcessor::REBASE_SLOT_WAIT_KEY
+            params = reason.to_h["params"] || reason.to_h[:params] || {}
+            "#{landing_queue_unit_label(jobs)} is approved, but its PR needs a rebase and every rebase slot in the " \
+              "repository is in use (#{params['held'] || params[:held]}/#{params['cap'] || params[:cap]}); it rebases once one frees up."
           else
             "#{landing_queue_unit_label(jobs)} is approved, but this landing unit is not ready to land yet."
           end

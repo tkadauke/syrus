@@ -14,6 +14,15 @@ describe("QuestionEagernessFields", () => {
     expect(onChange).toHaveBeenCalledWith("balanced", 5400)
   })
 
+  it("bounds the timeout input to the range the server accepts", () => {
+    render(<QuestionEagernessFields eagerness="balanced" onChange={vi.fn()} timeoutSeconds={null} />)
+
+    const input = screen.getByLabelText("Answer timeout (minutes)")
+    expect(input).toHaveAttribute("min", "60")
+    expect(input).toHaveAttribute("max", "40320")
+    expect(screen.getByText(/60–40320 minutes \(1 hour to 4 weeks\)/)).toBeInTheDocument()
+  })
+
   it("supports inheriting the parent setting", () => {
     const onChange = vi.fn()
     render(<QuestionEagernessFields eagerness="autonomous" onChange={onChange} timeoutSeconds={null} />)

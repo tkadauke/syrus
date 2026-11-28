@@ -291,6 +291,20 @@ RSpec.describe "App API runtime sessions", type: :request do
       expect(parse_body.dig("error", "code")).to eq("validation_failed")
     end
 
+    it "does not record a typed secret verbatim in rejected-input audit evidence" do
+      sign_in_as(user)
+      run = Factories.run
+      session = build_runtime_session(job: run.job, workflow: run.workflow, run: run)
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/input",
+        params: { event: { type: "fill", target: "e4", autocomplete: "current-password", text: "correct horse battery" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      chunk = run.reload.job_logs.order(:sequence).last.chunk
+      expect(chunk).to include("action=input_rejected", '"text":"[redacted]"', '"text_length":21')
+      expect(chunk).not_to include("correct horse battery")
+    end
+
     it "delivers user input through the provider while the operator lease is active" do
       sign_in_as(user)
       session = build_runtime_session

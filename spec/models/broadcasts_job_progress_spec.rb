@@ -285,6 +285,25 @@ RSpec.describe BroadcastsJobProgress do
       )
     end
 
+    # Regression: the chat status query raised (MySQL "Out of sort memory")
+    # from this after-commit broadcast, and the exception escaped into the
+    # Run whose state change had already committed -- production graders
+    # failed on a UI hint.
+    it "does not fail the change it describes when the chat status query raises" do
+      job.update!(kind: "direct", issue_number: nil, linked_chat_id: chat_session.id)
+      allow(ChatJobStatusQuery).to receive(:call)
+        .and_raise(ActiveRecord::StatementInvalid, "Mysql2::Error: Out of sort memory")
+
+      workflow = nil
+      expect { workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback") }.not_to raise_error
+
+      expect(workflow).to be_persisted
+      expect(AppUserChannel).not_to have_received(:broadcast_to).with(
+        user,
+        hash_including("type" => "chat.updated")
+      )
+    end
+
     it "broadcasts to each distinct chat session exactly once when multiple proposals link the same session" do
       2.times do |i|
         ChatProposal.create!(

@@ -1344,15 +1344,27 @@ module Steps
       @target_fingerprints_by_label[label] ||= TargetGraph::Fingerprints.for_target(
         workspace_path: workspace.path,
         graph: target_graph,
-        label: label
+        label: label,
+        file_digests: target_file_digests
       )
+    end
+
+    # One set of file digests for every fingerprint this fan-out computes: the
+    # CI-phase parity manifest fingerprints every target in the plan, and the
+    # target-health checks fingerprint the selected ones again. Hashing the
+    # tree once per target took three to four minutes of each fan-out in
+    # production. The workspace does not change during the fan-out -- the
+    # per-label memo above already relies on that.
+    def target_file_digests
+      @target_file_digests ||= TargetGraph::FileDigests.new(workspace.path)
     end
 
     def target_health_reuse
       @target_health_reuse ||= TargetHealthReuse.new(
         repository: repository,
         graph: target_graph,
-        workspace_path: workspace.path
+        workspace_path: workspace.path,
+        file_digests: target_file_digests
       )
     end
 

@@ -224,6 +224,19 @@ RSpec.describe Workflows::ExternalPrMerge do
           .with(anything, anything, hash_including(body: include("rspec")))
       end
 
+      # Regression: a same-repository PR whose first grading pass failed and
+      # whose landing_fix repair pass went green still got a review asking its
+      # (bot) author to fix the checks, which then held it forever.
+      it "does not post a review when a later repaired grading pass succeeded" do
+        workflow.steps.create!(kind: "landing_fix", state: "succeeded", position: 101)
+        workflow.steps.create!(kind: "grader_collect", state: "succeeded", position: 102)
+        allow(client).to receive(:pull_request).and_return(pr(is_fork: false))
+
+        described_class.after_fail(workflow)
+
+        expect(client).not_to have_received(:create_pr_review)
+      end
+
       it "still calls LandingFailureHandler even when review posting fails" do
         allow(client).to receive(:pull_request).and_raise(StandardError, "network error")
 

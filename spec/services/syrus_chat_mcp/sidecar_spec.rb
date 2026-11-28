@@ -145,8 +145,9 @@ RSpec.describe Mcp::Sidecar do
         ask_user_question
         mark_goal_completed
         mark_goal_blocked
+        hold_job
       ])
-      expect(tool_names.size).to eq(34)
+      expect(tool_names.size).to eq(35)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

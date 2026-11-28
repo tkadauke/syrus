@@ -500,6 +500,7 @@ class MainHealthChangedService
       next if Syrus::Host::RebaseWorkflowSelector.active_for_stack?(job)
       next if Syrus::Host::RebaseWorkflowSelector.active_merge_train_for_stack?(job)
       next if permanently_blocked_from_rebase?(job)
+      next if already_rebased_onto_recovered_main?(job)
 
       workflow = Syrus::Host::RebaseWorkflowSelector.instantiate(
         job: job,
@@ -520,6 +521,28 @@ class MainHealthChangedService
     end
 
     rebased
+  end
+
+  # The sweep rebases to give GitHub a new SHA to check. When the Job's latest
+  # rebase was already a no-op onto the very commit main recovered at, another
+  # one is a no-op too: no push, no new checks, the PR still reads failing,
+  # and the next recovery sweeps it again. Main health flapping on one commit
+  # did exactly that to a production Job -- 34 no-op rebases in 73 minutes.
+  def already_rebased_onto_recovered_main?(job)
+    main_sha = @repository.last_health_checked_sha.to_s.presence
+    return false unless main_sha
+
+    latest = job.workflows.where(trigger_kind: "rebase").reorder(id: :desc).first
+    return false unless latest&.state == "succeeded"
+
+    result = latest.artifact("auto_rebase_result")
+    return false unless result.is_a?(Hash) && result["changed"] == false && result["base_sha"] == main_sha
+
+    Rails.logger.info(
+      "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
+      "its last rebase was already a no-op onto #{main_sha.first(12)}"
+    )
+    true
   end
 
   def permanently_blocked_from_rebase?(job)

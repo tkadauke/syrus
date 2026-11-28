@@ -53,7 +53,7 @@ module WorkUnits
       # reloaded as with_lock would.
       Workflow.transaction do
         Lineage.lock!(workflow)
-        workflow.reload
+        workflow.reload(lock: true)
         if workflow.may_cancel? || workflow.may_dismiss?
           workflow.artifacts = workflow.artifacts.to_h.merge(staged_changes).merge(artifacts.to_h.deep_stringify_keys)
           # Root-cause event is recorded before cancel! kicks off terminal cleanup.

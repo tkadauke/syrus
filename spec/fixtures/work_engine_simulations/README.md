@@ -266,8 +266,13 @@ expect:
     - merge_train_land
 ```
 
+`merge_train_counts: { epic_key: n }` pins how many merge trains an Epic ever
+had, for proving that a failed train was not relaunched.
+
 Event conditions currently support `job`, `workflow`, `work_unit`, and `queue`,
-plus `all`, `any`, and `not` composition. Job references can use YAML fixture
+plus `all`, `any`, and `not` composition. `queue: { landing_blocked_reasons:
+{ job_key: reason_key } }` matches the landing-queue entry's blocked reason key,
+like the expectation of the same name. Job references can use YAML fixture
 keys; the loader translates them to database IDs after seeding.
 
 Run fixtures can include a `solid_queue:` block when the exact queue evidence
@@ -283,6 +288,11 @@ run:
     claimed: true
 ```
 
+Mark a running Run `wedged: true` to model a thread hung inside a worker that
+is otherwise alive: the simulator never drives that Run, so only the
+reconciler can notice and recover it. Pair it with a claimed `solid_queue:`
+block to keep the worker's queue claim and process heartbeat live.
+
 Use `host_admission_deferral:` when the reconciler must see repeated
 host-admission deferrals for the Run. The loader stamps the created Run,
 Step, and Workflow ids into `workflow.artifacts["run_host_admission"]`:
@@ -295,6 +305,85 @@ run:
     deferral_count: 40
 ```
 
+## Git topology and pull requests
+
+By default git is faked away and every PR is cleanly mergeable. A scenario
+with a top-level `git:` block instead gets a small deterministic model
+(`WorkEngine::Simulation::GitWorld`) of the branch DAG and of GitHub's view
+of each PR, so incidents that depend on mergeability, rebases, force-pushes,
+or deleted branches can be expressed:
+
+```yaml
+git:
+  delete_branch_on_merge: true   # default; merging deletes the head and
+                                 # retargets PRs based on it (GitHub's behavior)
+  merge_method: rebase           # default (PullRequestMerger's); also merge, squash
+  commits:                       # label -> parents, paths touched, patch id
+    base: {}
+    parent_old: { parents: [ base ], paths: [ lib/parent.rb ] }
+    child_1: { parents: [ parent_old ], paths: [ lib/child.rb ] }
+    parent_new: { parents: [ base ], paths: [ lib/parent.rb ], patch: parent-edited }
+  branches:
+    main: base
+    syrus/parent: parent_new
+  checkouts:                     # a Job's local workspace (unpublished work)
+    child: child_1
+  pull_requests:                 # optional per-Job PR overrides
+    parent: { base: main, checks: passing, unknown_reads: 0, state: open }
+```
+
+A commit is an abstract id with parent pointers, a *patch* id (defaults to
+its label) and the *paths* it touches. Rebasing drops a commit whose patch
+the target already holds (patch-equivalent) and conflicts when the target's
+new commits touch one of its paths with a different patch. A PR's
+`mergeable_state` is derived from that: `clean` (head contains the base tip,
+checks pass), `blocked` (checks failing), `behind`, `dirty` (merging would
+conflict), or `unknown` for `unknown_reads` reads. Every seeded Job with a
+`pr_number` and a branch the model knows gets an open PR, based on its open
+stack parent's branch or the default branch. `git:<label>` anywhere else in
+the scenario (job columns, workflow `artifacts:`) is replaced by that
+commit's id.
+
+With a git world:
+
+- `GithubClient.for` answers from the model and the real `PollMergeStateJob`
+  runs for every poll the landing queue enqueues, and (standing in for
+  `PollAllMergeStatesJob`) for every open Job with a PR whenever the git
+  world or the Job's state changed since its last poll. Mergeability
+  recording, `AutoMergeGate`, and every rebase dispatch guard run for real.
+- Steps move branches: agentic implementation steps commit to the Job's
+  checkout; `pr_open` runs the real `StackBaseFreshness` barrier over a
+  simulated git checkout (with `Steps::PrOpen`'s failure mapping), pushes,
+  and opens the PR; `auto_rebase` / `stack_auto_rebase` rebase onto the base
+  the real `RebaseTarget` / `StackRebasePlan` recorded (a conflict falls
+  through to the agent step, a missing branch fails like the fetch would);
+  `agent_rebase` / `stack_agent_rebase` resolve conflicts; push steps
+  publish; `auto_merge` and merge trains merge the PRs.
+- GitHub calls the model does not cover raise a `StandardError` and are
+  named in the event log.
+
+Events: `advance_branch: { branch:, paths:, label:, patch: }`;
+`pr_becomes_dirty: job` (the PR's base gains a change overlapping it);
+`pr_mergeability_unknown: { job:, reads: }`;
+`rewrite_branch: { branch: | job:, onto:, patch_equivalent: true }`
+(rebased and force-pushed; `patch_equivalent: false` also edits its
+patches); `force_push_branch: { branch: | job:, to: <ref> }`;
+`delete_branch: { branch: | job: }`. `advance_main`, `merge_pr`,
+`set_pr_checks` and `rewrite_stack_parent` act on the model too. Conditions
+accept `pull_request: { job:, state:, base:, mergeable_state: }`, and
+`expect.git` asserts the final topology:
+
+```yaml
+expect:
+  git:
+    pull_requests:
+      child: merged                  # or { state: open, base: main }
+    branches:
+      main: { contains_patches: [ child_1 ] }
+      syrus/child: { descends_from: [ syrus/parent ], excludes: [ parent_old ] }
+      syrus/parent: { exists: false }
+```
+
 ## Invariant assertions
 
 Every scenario asserts the invariant monitor (`app/services/invariants/`)
@@ -304,7 +393,7 @@ zeroes them and asserts persistence instead: a violation fails the scenario
 (status `violated`) once the same fingerprint has held for its sustain
 window of consecutive ticks (`landing_progress` 10, `slot_holders` 3,
 `retry_storms` 1, `failed_blockers` 5, `abandoned_blockers` 5,
-`zombie_workflows` 5, `wait_cycles` 3), or at once if it
+`zombie_workflows` 5, `wait_cycles` 3, `paused_rebase_holds` 3), or at once if it
 is still present when the scenario ends quiescent (`waiting`, or `stuck`
 because nothing changed). A scenario that deliberately models a violating
 state declares it, with a reason:
@@ -362,7 +451,8 @@ perturbations from a catalog -- worker death, transient failures, a grader
 killed by a deploy, operator pause and unpause, main moving, breaking and
 healing, provider outages, CI flakes, external merges and closes, a provider
 switch, spurious wakes and deferred-phase resumes, stack parent rewrites,
-worker and storage loss -- scheduled at ticks inside the seed's own
+worker and storage loss, and (for seeds with a `git:` block) a PR going
+dirty and a branch rewritten with or without patch equivalence -- scheduled at ticks inside the seed's own
 timeline. Everything is derived from `--seed` and the iteration index, so
 an iteration replays exactly.
 
@@ -391,4 +481,5 @@ attempts are; a scenario that models those wakes with explicit
 `resume_deferred_phase` events can opt out with
 `runner: { phase_admission_jobs: false }`. `PollMergeStateJob`s the landing
 queue enqueues on stale mergeability evidence are answered with the injected
-fact that the PR is cleanly mergeable at its recorded head.
+fact that the PR is cleanly mergeable at its recorded head -- or, in a
+scenario with a `git:` block, run for real against the modeled PR.

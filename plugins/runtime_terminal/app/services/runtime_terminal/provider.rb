@@ -165,10 +165,12 @@ module RuntimeTerminal
       event = event.to_h.symbolize_keys
       delivered = Syrus::Host::RuntimeControlLease.with_agent_input_control(runtime_session) do |lease|
         terminal_session = relay_ready_terminal_session_for(runtime_session)
+        sensitive = false
         with_fresh_relay_client(runtime_session, terminal_session) do |client|
+          sensitive = secret_prompt?(client)
           client.input(event)
         end
-        lease.record_input!(event)
+        lease.record_input!(event, sensitive: sensitive)
         true
       end
 
@@ -220,6 +222,20 @@ module RuntimeTerminal
         client.input(type: "stdin", data: "#{command}\n")
       end
       { delivered: true, operation: operation, command: command }
+    end
+
+    # Text typed while the cursor sits on a password-style prompt is recorded
+    # as a redaction marker and length (RuntimeControlLease#record_input!).
+    # Text matching a known secret pattern is redacted regardless.
+    SECRET_PROMPT = /(?:pass(?:word|phrase|code)|\bpin\b|one[- ]?time|\botp\b|verification code|token|secret|api[ _-]?key)[^:]*:\s*\z/i
+
+    def secret_prompt?(client)
+      snapshot = client.capture_screen
+      row = snapshot.dig(:cursor, :row).to_i
+      line = Array(snapshot[:lines])[row]
+      line.is_a?(Hash) && line[:text].to_s.rstrip.match?(SECRET_PROMPT)
+    rescue StandardError
+      false
     end
 
     def inspect_client(client, mode, options)

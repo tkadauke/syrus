@@ -33,7 +33,7 @@ class PostImplementationReviewRecovery
     return failure(warning, "Only post-implementation review warnings can be skipped.") unless eligible?(warning)
 
     warning.with_lock do
-      warning.reload
+      warning.reload(lock: true)
       return Result.new(workflow: nil, run: nil, warning: warning, error: nil) unless warning.pending?
 
       warning.update!(

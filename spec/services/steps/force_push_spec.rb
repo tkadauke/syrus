@@ -395,6 +395,80 @@ RSpec.describe Steps::ForcePush do
     )
   end
 
+  describe "classifying the remote head it would overwrite" do
+    let(:remote_sha) { "a" * 40 }
+    let(:push_url) { "https://push.example/repo.git" }
+    let(:handler) { described_class.new(run) }
+    let(:git) { instance_double(GitRunner) }
+
+    before do
+      workflow.set_artifact!("auto_rebase_result", { "reason" => "error", "succeeded" => false })
+      workspace = instance_double(WorkflowWorkspace, setup: nil, branch_name: "syrus/issue-42", path: Pathname.new("/tmp/workspace"))
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+      allow(job.repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+      allow(git).to receive(:run)
+      allow(git).to receive(:run).with("ls-remote", "--heads", push_url, "refs/heads/syrus/issue-42", chdir: "/tmp/workspace")
+        .and_return("#{remote_sha}\trefs/heads/syrus/issue-42\n")
+      allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/syrus/issue-42", chdir: "/tmp/workspace").and_return("#{remote_sha}\n")
+    end
+
+    def classify_as(relation, outcome)
+      allow(BranchTruth).to receive(:classify).and_return(
+        BranchTruth::Result.new(relation: relation, outcome: outcome, local_sha: "b" * 40, remote_sha: remote_sha,
+                                base_sha: nil, local_fresh: nil, remote_fresh: nil, evidence: {})
+      )
+    end
+
+    it "leases on the head agent_rebase rewrote when auto_rebase recorded none" do
+      workflow.set_artifact!(Steps::AgentRebase::PRE_SHA_ARTIFACT, "c" * 40)
+      expect(BranchTruth).not_to receive(:classify)
+
+      handler.call
+
+      expect(git).to have_received(:run).with(
+        "push", "--force-with-lease=refs/heads/syrus/issue-42:#{"c" * 40}", push_url, "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/workspace"
+      )
+    end
+
+    # Regression: with no recorded protected head, the step leased on whatever
+    # the remote held when it looked -- force-pushing over a head nobody had
+    # classified, including another writer's newer work.
+    it "refuses to overwrite a live remote holding different work, naming the recovery" do
+      classify_as(:diverged, :ambiguous)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /refusing to overwrite/) { |e|
+        expect(e.problem.code).to eq("branch_diverged")
+      }
+      expect(git).not_to have_received(:run).with("push", any_args)
+      expect(workflow.reload.artifact("branch_divergence")).to include(
+        "remote_sha" => remote_sha, "recommended_recovery" => "retry_from_current_pr_branch"
+      )
+    end
+
+    it "adopts a live remote that already holds this rebase's work" do
+      classify_as(:equivalent, :adopt_remote)
+
+      handler.call
+
+      expect(git).not_to have_received(:run).with("push", any_args)
+      expect(git).to have_received(:run).with("reset", "--hard", remote_sha, chdir: "/tmp/workspace")
+      expect(workflow.reload.artifact(BranchTruth::ADOPTED_ARTIFACT)).to include("context" => "force_push")
+    end
+
+    it "adopts the remote after a lease rejection when a parallel rebase published the same work" do
+      workflow.set_artifact!("auto_rebase_result", { "reason" => "conflict", "pre_sha" => "c" * 40 })
+      classify_as(:equivalent, :adopt_remote)
+      allow(git).to receive(:run).with("push", any_args)
+        .and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] HEAD -> syrus/issue-42 (stale info)"))
+
+      expect { handler.call }.not_to raise_error
+
+      expect(workflow.reload.artifact(BranchTruth::ADOPTED_ARTIFACT)).to include("remote_sha" => remote_sha)
+    end
+  end
+
   it "fails visibly when the lease-protected push is rejected" do
     workflow.set_artifact!("auto_rebase_result", {
       "reason" => "conflict",

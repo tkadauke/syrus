@@ -299,8 +299,10 @@ RSpec.describe ChatJobStatusQuery do
 
       sql_count = count_sql { described_class.call(session) }
 
-      # One statement is the main_branch_health plugin's repository-state preload.
-      expect(sql_count).to be <= 13
+      # One statement is the main_branch_health plugin's repository-state preload;
+      # two are ChatAssociatedJobs' indexed id lookups, which replaced a full
+      # scan of jobs. The count stays flat in the number of jobs.
+      expect(sql_count).to be <= 15
     end
   end
 

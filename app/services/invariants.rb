@@ -33,7 +33,8 @@ module Invariants
       Invariants::FailedBlockers,
       Invariants::AbandonedBlockers,
       Invariants::ZombieWorkflows,
-      Invariants::WaitCycles
+      Invariants::WaitCycles,
+      Invariants::PausedRebaseHolds
     ].freeze
   end
 

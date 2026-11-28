@@ -25,21 +25,24 @@ module Steps
       verify_latest_coding_handoff_fix!
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      adopted = false
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_force_push", log: method(:log)) do |push_url|
-        git.run("push", force_with_lease_arg(git, push_url), push_url,
-                "HEAD:refs/heads/#{workspace.branch_name}",
-                chdir: workspace.path.to_s)
+        adopted = publish_rebased_branch!(git, push_url) == :adopted_remote
       end
 
       record_accepted_push!
       persist_rebase_diff_review_version!
-      carry_forward_landing_validation!
+      # An adopted head is somebody else's publication, not this clean rebase.
+      carry_forward_landing_validation! unless adopted
       finalize_job_detach!
     rescue GithubPushProtection::Rejected => e
       handle_push_protection_rejection!(e) do
         git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
         GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_force_push_protection_repair", log: method(:log)) do |push_url|
-          git.run("-c", "core.hooksPath=/dev/null", "push", force_with_lease_arg(git, push_url), push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
+          lease = publication_lease(git, push_url)
+          next if lease == :adopted_remote
+
+          git.run("-c", "core.hooksPath=/dev/null", "push", "--force-with-lease=refs/heads/#{workspace.branch_name}:#{lease}", push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
         end
       end
       persist_rebase_diff_review_version!
@@ -233,9 +236,73 @@ module Steps
       result.is_a?(Hash) && result["changed"] == false && result["reason"] == "rebased"
     end
 
-    def force_with_lease_arg(git, push_url)
-      expected_sha = expected_remote_sha || current_remote_sha(git, push_url)
-      "--force-with-lease=refs/heads/#{workspace.branch_name}:#{expected_sha}"
+    # Force-pushes only over a remote head that is classified: the protected
+    # head this rebase started from (recorded by auto_rebase or agent_rebase),
+    # or a live head BranchTruth says this rebase may replace. A lease
+    # rejection is classified again, since the writer that moved the branch
+    # may have published exactly this rebase.
+    def publish_rebased_branch!(git, push_url)
+      lease = publication_lease(git, push_url)
+      return :adopted_remote if lease == :adopted_remote
+
+      git.run("push", "--force-with-lease=refs/heads/#{workspace.branch_name}:#{lease}", push_url,
+              "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
+      :pushed
+    rescue GitRunner::GitError => e
+      raise unless push_rejected?(e)
+
+      truth = classify_live_remote(git, push_url, fetch_remote_branch!(git, push_url))
+      return adopt_remote_head!(git, truth) if truth&.adopt_remote? || truth&.up_to_date?
+
+      raise
+    end
+
+    def publication_lease(git, push_url)
+      protected_head = expected_remote_sha || workflow.artifact(AgentRebase::PRE_SHA_ARTIFACT).presence
+      return protected_head if protected_head
+
+      live = current_remote_sha(git, push_url)
+      return "" if live.blank?
+
+      fetch_remote_branch!(git, push_url)
+      truth = classify_live_remote(git, push_url, live)
+      return live if truth.publish?
+      return adopt_remote_head!(git, truth) if truth.adopt_remote? || truth.up_to_date?
+
+      workflow.set_artifact!("branch_divergence", truth.to_h.slice("remote_sha", "local_sha", "relation", "outcome", "recommended_recovery").merge(
+        "branch" => workspace.branch_name, "detected_at" => Time.current.iso8601, "message" => I18n.t("services.force_push.remote_holds_unrebased_work")
+      ))
+      fail_with!(:branch_diverged,
+                 "force_push: #{workspace.branch_name} moved to #{live.first(9)} (#{truth.relation}); refusing to overwrite work this rebase does not carry",
+                 evidence: truth.to_h)
+    end
+
+    def classify_live_remote(git, _push_url, live)
+      return nil if live.blank?
+
+      truth = BranchTruth.classify(
+        git: git, chdir: workspace.path, local: "HEAD", remote: live,
+        base: rebase_base_sha, rewritten_from: [ expected_remote_sha ].compact
+      )
+      log("force_push: #{workspace.branch_name} remote=#{live.first(9)} is #{truth.relation} -> #{truth.outcome}")
+      truth
+    end
+
+    def adopt_remote_head!(git, truth)
+      git.run("reset", "--hard", truth.remote_sha, chdir: workspace.path.to_s)
+      workflow.set_artifact!(BranchTruth::ADOPTED_ARTIFACT, truth.to_h.merge(
+        "branch" => workspace.branch_name, "context" => "force_push", "adopted_at" => Time.current.iso8601
+      ))
+      log("force_push: #{workspace.branch_name} already holds this rebase's work at #{truth.remote_sha.first(9)} (#{truth.relation}); adopting it instead of pushing")
+      :adopted_remote
+    end
+
+    def fetch_remote_branch!(git, push_url)
+      branch = workspace.branch_name
+      git.run("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+      git.run("rev-parse", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s).to_s.strip.presence
+    rescue GitRunner::GitError
+      nil
     end
 
     def current_remote_sha(git, push_url)

@@ -1112,6 +1112,7 @@
   "recovery_title_restart_from_base": "A fresh implementation is required",
   "recovery_measured_failures": "Measured failures that determined this outcome",
   "recovery_excluded_failures": "Infrastructure failures excluded from the decision",
+  "recovery_unnamed_infrastructure_failure": "Infrastructure execution failure",
   "recovery_attempt_timeline": "Attempt timeline",
   "recovery_original_execution": "Original execution · Workflow {{workflow}}",
   "recovery_terminal_decision": "Decision: {{decision}}",
@@ -1140,5 +1141,11 @@
   "question_give_up": "Give up",
   "question_give_up_confirm": "Give up on this attempt and cancel the Job?",
   "question_give_up_consequence": "Cancels the active attempt and closes this Job as cancelled.",
-  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}})."
+  "question_policy_effective": "Question eagerness: {{level}} (set by {{source}}).",
+  "question_policy_source": {
+    "job": "this Job",
+    "repository": "the repository",
+    "user": "your account",
+    "default": "the default"
+  }
 }

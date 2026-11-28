@@ -49,6 +49,15 @@ Proved here:
   `release_*_blocked_landing_slots!` for `main_branch_health` and
   `urgent_job_active`). A new block reason that holds a lane and has no
   wake-up is exactly the rebase-slot bug again.
+* Paused rebases and merge trains, `paused_blocks_train` /
+  `paused_named` / `must_finish_clears`: a paused rebase gives its *slot* back
+  but still blocks a merge train or job bundle for its stack
+  (`RebaseWorkflowSelector.active_for_jobs?` counts `ACTIVE_STATES`) --
+  resumed, it would force-push member branches under the integration build.
+  The dispatchers' reason names it as paused and needing an operator
+  (`RebaseWorkflowSelector.paused_for_jobs`); "must finish" is reported only
+  when every blocking rebase is runnable or blocked on a reason that clears
+  by itself. `before_paused_must_finish` is the old reason.
 -/
 
 namespace SyrusModel
@@ -309,6 +318,69 @@ theorem paused_inflight_frees_lane :
     of the wake-up jobs, outside this model. -/
 def LaneHoldingReasonsClear (eventuallyClears : Reason → Prop) : Prop :=
   ∀ r, externallyCleared r = false → eventuallyClears r
+
+/-! ## Paused rebases and merge trains -/
+
+/-- A rebase unit of the train's stack: its state, and whether it is blocked on
+    `manual_pause`. -/
+structure SUnit where
+  state : UState
+  paused : Bool
+  deriving DecidableEq, Repr
+
+/-- What `MergeTrainDispatcher#blocker_reason` (and `JobBundleDispatcher`'s)
+    reports about the stack's rebases. -/
+inductive TrainRebase where
+  | clear | paused | mustFinish
+  deriving DecidableEq, Repr
+
+def pausedUnit (u : SUnit) : Bool := u.state == .blocked && u.paused
+
+/-- After the fix: `paused_for_jobs` first, then `active_for_jobs`. -/
+def trainRebase (us : List SUnit) : TrainRebase :=
+  if us.any pausedUnit then .paused
+  else if us.any (fun u => active u.state) then .mustFinish
+  else .clear
+
+/-- Before: only `active_for_jobs`. -/
+def trainRebaseBefore (us : List SUnit) : TrainRebase :=
+  if us.any (fun u => active u.state) then .mustFinish else .clear
+
+theorem pausedUnit_active {u : SUnit} (h : pausedUnit u = true) : active u.state = true := by
+  obtain ⟨s, p⟩ := u
+  cases s <;> simp_all [pausedUnit, active]
+
+/-- Safety is unchanged: the train never starts while a paused rebase of its
+    stack could resume and force-push. -/
+theorem paused_blocks_train (us : List SUnit) (h : ∃ u ∈ us, pausedUnit u = true) :
+    trainRebase us ≠ .clear := by
+  obtain ⟨u, hu, hp⟩ := h
+  have : us.any pausedUnit = true := List.any_eq_true.mpr ⟨u, hu, hp⟩
+  simp [trainRebase, this]
+
+/-- A paused rebase is always named as paused, never as "must finish". -/
+theorem paused_named (us : List SUnit) (h : ∃ u ∈ us, pausedUnit u = true) :
+    trainRebase us = .paused := by
+  obtain ⟨u, hu, hp⟩ := h
+  have : us.any pausedUnit = true := List.any_eq_true.mpr ⟨u, hu, hp⟩
+  simp [trainRebase, this]
+
+/-- "Must finish" is reported only when no blocking rebase is paused: each one
+    is runnable or blocked on a reason that clears by itself. -/
+theorem must_finish_clears (us : List SUnit) (h : trainRebase us = .mustFinish) :
+    ∀ u ∈ us, active u.state = true → pausedUnit u = false := by
+  intro u hu _
+  cases hp : pausedUnit u
+  · rfl
+  · have : us.any pausedUnit = true := List.any_eq_true.mpr ⟨u, hu, hp⟩
+    simp [trainRebase, this] at h
+
+/-- The old reason: a stack whose only rebase is paused was told the rebase
+    "must finish", which it never does without an operator. -/
+theorem before_paused_must_finish :
+    trainRebaseBefore [{ state := .blocked, paused := true }] = .mustFinish ∧
+      trainRebase [{ state := .blocked, paused := true }] = .paused := by
+  decide
 
 end SlotCapacity
 end SyrusModel

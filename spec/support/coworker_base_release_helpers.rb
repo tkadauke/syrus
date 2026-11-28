@@ -17,7 +17,8 @@ module CoworkerBaseReleaseHelpers
     provenance = { "recipe_digest" => recipe_digest }
     provenance[RuntimeImages::RuntimeAbi::ATTESTATION_KEY] = RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) if signed
     base_service.publish(namespace: base_namespace, source_kind: RuntimeImages::CoworkerBase::SOURCE_KIND, source_ref: "coworker-base/generation-1",
-                         source_digest: source_digest, platform: platform, provenance: provenance, payload: payload)
+                         source_digest: source_digest, platform: platform, provenance: provenance, payload: payload,
+                         verification_state: "candidate")
   end
 
   def candidate(**args) = base_releases.register(publish_base(**args))
@@ -28,6 +29,7 @@ module CoworkerBaseReleaseHelpers
   def publish_environment(release, payload: SecureRandom.hex(8))
     base_service.publish(namespace: RuntimeImageNamespace.find_or_create_by!(name: "env", owner_kind: "coworker", owner_ref: "1", provider_key: base_provider.key),
                          source_kind: "coworker_environment", source_ref: "rev-#{payload}", platform: release.platform, payload: payload,
-                         provenance: { "base_images" => [ { "reference" => "base@#{release.digest}", "pinned" => true, "digest" => release.digest } ] })
+                         provenance: { "base_images" => [ { "reference" => "base@#{release.digest}", "pinned" => true, "digest" => release.digest } ] },
+                         verification_state: "candidate")
   end
 end

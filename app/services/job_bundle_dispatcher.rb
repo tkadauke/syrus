@@ -46,6 +46,7 @@ class JobBundleDispatcher
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all?(&:eligible_for_landing_dispatch?)
       raise ActiveRecord::Rollback unless members.all? { |job| LandingApprovalGate.satisfied?(job, policy: delivery_policy) }
+      raise ActiveRecord::Rollback if runaway_hold_reason(members)
       base_branch = landing_branch_result_for(members).base_branch
       raise ActiveRecord::Rollback if base_branch.blank?
       landing_lane = WorkDefinitions.free_landing_lane_for(members.last, policy: delivery_policy)
@@ -131,6 +132,9 @@ class JobBundleDispatcher
     return candidate_exclusion_reason || readiness.reason unless readiness.ready?
 
     return "landing queue is paused" if landing_queue_paused?(readiness.members)
+    if (runaway = runaway_hold_reason(readiness.members))
+      return runaway
+    end
     landing_branch_result = landing_branch_result_for(readiness.members)
     return landing_branch_result.reason unless landing_branch_result.ok?
 
@@ -142,6 +146,11 @@ class JobBundleDispatcher
       return active_member_lock_reason(active_lock)
     end
 
+    # Same rule as MergeTrainDispatcher#blocker_reason: a paused rebase blocks
+    # the bundle and is named as needing an operator.
+    if (paused = RebaseWorkflowSelector.paused_for_jobs(readiness.members).order(:id).first)
+      return RebaseWorkflowSelector.paused_rebase_reason(paused, "job bundle")
+    end
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)
       return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
     end
@@ -299,6 +308,11 @@ class JobBundleDispatcher
 
   def landing_queue_paused?(jobs)
     jobs.any? { |job| job.user.landing_paused? || job.owner_user&.landing_paused? }
+  end
+
+  # Same rule as MergeTrainDispatcher#runaway_hold_reason.
+  def runaway_hold_reason(members)
+    MergeTrains::RunawayHold.reason_for(members)
   end
 
   def active_member_work?(members)

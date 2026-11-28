@@ -31,7 +31,7 @@ module ChatAttachments
     def call
       @created = []
       owner.with_lock do
-        owner.reload
+        owner.reload(lock: true)
         rewrite_inline_attachments
       end
     rescue StandardError
