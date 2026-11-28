@@ -35,14 +35,41 @@ module Api
         end
 
         def serialize_policy_evidence(image)
-          evidence = image&.runtime_image_verification_attempts&.order(number: :desc)&.first&.policy_evidence
-          return nil unless evidence
+          attempt = image&.runtime_image_verification_attempts&.order(number: :desc)&.first
+          policy_evidence = attempt&.policy_evidence
+          scan_evidence = attempt&.scan_evidence
+          return nil unless attempt
+
+          (serialize_image_policy(policy_evidence) || {}).merge(
+            "attestation" => serialize_attestation(attempt.attestation),
+            "supply_chain" => serialize_supply_chain(scan_evidence)
+          )
+        rescue JSON::ParserError
+          (policy_evidence&.slice(*%w[image_digest safe_summary report_digest scanned_at]) || {}).merge(
+            "attestation" => serialize_attestation(attempt&.attestation),
+            "supply_chain" => scan_evidence&.slice(*%w[image_digest scanner_name scanner_version database_version sbom_digest report_digest finding_summary scanned_at])
+          )
+        end
+
+        def serialize_attestation(attestation)
+          attestation&.slice(*%w[image_digest policy_digest evidence_digest outcome safe_summary vulnerability_database_version issued_at expires_at invalidated_at invalidation_reason exact_evidence_purged_at])
+        end
+
+        def serialize_image_policy(evidence)
+          return unless evidence
 
           evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge(
             "report" => evidence.report.attached? ? JSON.parse(evidence.report.download) : nil
           )
-        rescue JSON::ParserError
-          evidence.slice(*%w[image_digest safe_summary report_digest scanned_at]).merge("report" => nil)
+        end
+
+        def serialize_supply_chain(evidence)
+          return unless evidence
+
+          evidence.slice(*%w[image_digest scanner_name scanner_version database_version sbom_format sbom_digest report_digest finding_summary exemptions decision_evidence scanned_at]).merge(
+            "sbom" => evidence.sbom.attached? ? JSON.parse(evidence.sbom.download) : nil,
+            "report" => evidence.scan_report.attached? ? JSON.parse(evidence.scan_report.download) : nil
+          )
         end
       end
     end

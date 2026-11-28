@@ -12,7 +12,7 @@ module RuntimeImages
 
       def call(image)
         @built_images.acquire_for_verification(image) do |reference|
-          identity = json_command([ "trivy", "version", "--format", "json" ])
+          identity = scanner_identity
           sbom = json_command([ "trivy", "image", "--quiet", "--format", "cyclonedx", reference ])
           report = json_command([ "trivy", "image", "--quiet", "--format", "json", "--scanners", "vuln", "--list-all-pkgs", reference ])
           Scan.new(sbom: sbom, report: report, scanner_name: "trivy",
@@ -23,7 +23,15 @@ module RuntimeImages
         raise ProviderError, "scanner identity is incomplete: #{e.key}"
       end
 
+      def current_database_version
+        database_version(scanner_identity)
+      rescue KeyError => e
+        raise ProviderError, "scanner identity is incomplete: #{e.key}"
+      end
+
       private
+
+      def scanner_identity = json_command([ "trivy", "version", "--format", "json" ])
 
       def json_command(argv)
         output, status = @runner.call(argv)

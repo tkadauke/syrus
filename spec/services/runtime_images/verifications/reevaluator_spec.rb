@@ -1,0 +1,53 @@
+require "rails_helper"
+require "support/synthetic_runtime_image_provider"
+
+RSpec.describe RuntimeImages::Verifications::Reevaluator do
+  let(:provider) { SyntheticRuntimeImageProvider.new }
+  let(:namespace) { RuntimeImageNamespace.create!(name: "reevaluator/spec", owner_kind: "test", owner_ref: "1", provider_key: provider.key) }
+  let(:image) { RuntimeImages::Service.new(provider: provider).publish(namespace: namespace, source_kind: "test", source_ref: "1", platform: "linux/amd64", payload: "image") }
+  let(:old_policy) { { "checks" => [ { "key" => "manifest", "required" => true } ], "version" => 1 } }
+  let(:attempt) do
+    image.runtime_image_verification_attempts.create!(number: 1, image_digest: image.digest, state: "accepted", decision: "candidate",
+      policy_snapshot: old_policy, policy_digest: RuntimeImages::Verifications::CanonicalJson.digest(old_policy),
+      started_at: 1.hour.ago, finished_at: 1.hour.ago)
+  end
+  let(:attestation) do
+    attempt.create_attestation!(runtime_image: image, image_digest: image.digest, policy_digest: attempt.policy_digest,
+      evidence_digest: image.digest, outcome: "accepted", vulnerability_database_version: "db-1",
+      issued_at: 1.hour.ago, expires_at: 1.day.from_now)
+  end
+  let(:orchestrator) { instance_double(RuntimeImages::Verifications::Orchestrator) }
+  let(:build_runner) { instance_double(RuntimeImages::Builds::Runner) }
+  subject(:reevaluator) { described_class.new(orchestrator: orchestrator, build_runner: build_runner) }
+
+  it "detects required-check and vulnerability database changes" do
+    changed = old_policy.deep_dup
+    changed["checks"] << { "key" => "image_policy", "required" => true }
+
+    expect(reevaluator.due?(attestation, policy: changed, database_version: "db-1")).to be(true)
+    expect(reevaluator.due?(attestation, policy: old_policy, database_version: "db-2")).to be(true)
+    expect(reevaluator.due?(attestation, policy: old_policy, database_version: "db-1")).to be(false)
+  end
+
+  it "passes the selected policy to the build-backed verification path" do
+    policy = old_policy.merge("version" => 2)
+    request = instance_double(RuntimeImageBuildRequest, evidences: double(order: double(last: :evidence)))
+    result = instance_double(RuntimeImageBuildResult, request: request)
+    allow(build_runner).to receive(:verify_candidate).and_return(:replacement)
+
+    expect(reevaluator.call(attestation, policy: policy, database_version: "db-1", build_result: result)).to eq(:replacement)
+    expect(build_runner).to have_received(:verify_candidate).with(request, image, :evidence, policy: policy)
+  end
+
+  it "uses the same effective build policy for comparison and verification" do
+    request = instance_double(RuntimeImageBuildRequest)
+    result = instance_double(RuntimeImageBuildResult, request: request)
+    effective = old_policy.merge("checks" => old_policy["checks"] + [ { "key" => "image_policy", "required" => true } ])
+    allow(build_runner).to receive(:verification_policy).with(request, base_policy: old_policy).and_return(effective)
+    RuntimeImageVerificationAttestation.where(id: attestation.id)
+      .update_all(policy_digest: RuntimeImages::Verifications::CanonicalJson.digest(effective))
+    attestation.reload
+
+    expect(reevaluator.due?(attestation, policy: old_policy, database_version: "db-1", build_result: result)).to be(false)
+  end
+end

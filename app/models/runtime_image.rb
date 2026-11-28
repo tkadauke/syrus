@@ -18,7 +18,9 @@ class RuntimeImage < ApplicationRecord
   class InvalidTransition < StandardError; end
 
   belongs_to :runtime_image_namespace
+  has_many :runtime_image_revocation_candidates, dependent: :destroy
   has_many :runtime_image_verification_attempts, dependent: :destroy
+  has_many :runtime_image_verification_attestations, dependent: :destroy
   attr_readonly :runtime_image_namespace_id, :digest, :platform, :source_kind, :source_ref, :source_digest
 
   validates :digest, presence: true, format: { with: DIGEST_FORMAT }
@@ -34,7 +36,12 @@ class RuntimeImage < ApplicationRecord
 
   scope :available, -> { where(availability: "available") }
   scope :revoked, -> { where(availability: "revoked") }
-  scope :pullable, -> { available.where(revoked_at: nil, verification_state: "candidate") }
+  scope :pullable, lambda {
+    available.where(revoked_at: nil, verification_state: "candidate")
+      .joins(:runtime_image_verification_attestations)
+      .merge(RuntimeImageVerificationAttestation.valid_at)
+      .distinct
+  }
   # Garbage-collection candidates before age is applied: stored images that
   # no retention hold protects. Age, namespace overrides, and the "keep the
   # newest image" rule are applied by RuntimeImages::Collector.
@@ -49,11 +56,11 @@ class RuntimeImage < ApplicationRecord
     define_method(:"#{name}?") { availability == name }
   end
 
-  def pullable? = available? && revoked_at.nil? && verification_state == "candidate"
+  def pullable? = available? && revoked_at.nil? && verified_candidate?
   def candidate? = verification_state == "candidate"
   def verified_candidate?
     latest_attempt = runtime_image_verification_attempts.where(image_digest: digest).order(number: :desc).first
-    candidate? && latest_attempt&.accepted?
+    candidate? && latest_attempt&.attestation&.valid_at?
   end
   def retained?(now = Time.current) = retention_state == "retained" && (retain_until.nil? || retain_until > now)
 

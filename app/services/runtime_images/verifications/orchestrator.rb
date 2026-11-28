@@ -25,7 +25,7 @@ module RuntimeImages
       def verify(image, policy: DEFAULT_POLICY, context: {}, now: Time.current)
         attempt_number_retries = 0
         begin
-          snapshot = canonical(policy)
+          snapshot = CanonicalJson.value(policy)
           attempt = create_attempt(image, snapshot, now)
           checks = Array(snapshot.fetch("checks"))
           checks = [ { "key" => "policy_checks_missing", "required" => true } ] if checks.empty?
@@ -55,7 +55,7 @@ module RuntimeImages
           RuntimeImageVerificationAttempt.create!(
             runtime_image: image, number: image.runtime_image_verification_attempts.maximum(:number).to_i + 1,
             image_digest: image.digest, state: "running", policy_snapshot: snapshot,
-            policy_digest: "sha256:#{Digest::SHA256.hexdigest(JSON.generate(snapshot))}", started_at: now
+            policy_digest: CanonicalJson.digest(snapshot), started_at: now
           )
         end
       end
@@ -89,22 +89,13 @@ module RuntimeImages
           end
           # A slower, older re-verification must never overwrite the decision
           # of a newer attempt for the same immutable digest.
-          if image.runtime_image_verification_attempts.maximum(:number) == attempt.number
+          current = image.runtime_image_verification_attempts.maximum(:number) == attempt.number
+          if current
             image.update!(verification_state: attempt.accepted? ? "candidate" : attempt.state)
           end
+          Attestor.new.issue!(attempt, current: current, now: now)
         end
         attempt
-      end
-
-      def canonical(value)
-        case value
-        when Hash
-          value.stringify_keys.sort.to_h { |key, item| [ key, canonical(item) ] }
-        when Array
-          value.map { |item| canonical(item) }
-        else
-          value
-        end
       end
     end
   end

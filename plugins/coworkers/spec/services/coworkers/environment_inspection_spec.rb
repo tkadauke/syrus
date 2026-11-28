@@ -18,9 +18,20 @@ RSpec.describe Coworkers::EnvironmentInspection do
                          availability: "available", retention_state:, published_at: Time.current)
   end
 
+  def attest(image)
+    image.update!(verification_state: "candidate")
+    policy = { "checks" => [] }
+    attempt = image.runtime_image_verification_attempts.create!(number: 1, image_digest: image.digest, state: "accepted",
+      decision: "candidate", policy_snapshot: policy, policy_digest: RuntimeImages::Verifications::CanonicalJson.digest(policy),
+      started_at: Time.current, finished_at: Time.current)
+    attempt.create_attestation!(runtime_image: image, image_digest: image.digest, policy_digest: attempt.policy_digest,
+      evidence_digest: image.digest, outcome: "accepted", issued_at: Time.current, expires_at: 1.day.from_now)
+  end
+
   it "serializes source, build, candidate, active, rollback, and compatibility state without restricted evidence" do
     active_image = image("a")
     rollback_image = image("b", retention_state: "retained")
+    attest(rollback_image)
     candidate_image = image("c")
     active = Coworkers::EnvironmentRevision.create!(environment:, number: 1, state: "active",
                                                      source_digest: "sha256:#{'1' * 64}", runtime_image: active_image,

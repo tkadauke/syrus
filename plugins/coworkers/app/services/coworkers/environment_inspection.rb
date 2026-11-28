@@ -12,7 +12,7 @@ class Coworkers::EnvironmentInspection
   def call
     environment = @environment.reload
     revisions = environment.revisions
-      .includes(:runtime_image, build_request: [ :result, { evidences: :attempt } ])
+      .includes({ runtime_image: { runtime_image_verification_attempts: :attestation } }, build_request: [ :result, { evidences: :attempt } ])
       .reorder(number: :desc).to_a
     revisions_by_id = revisions.index_by(&:id)
     active = revisions_by_id[environment.active_revision_id]

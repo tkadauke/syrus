@@ -94,6 +94,16 @@ RSpec.describe RuntimeImages::BuiltImages do
     expect(worker_b.find(**identity)).to be_nil
   end
 
+  it "does not find or acquire an image after its verification attestation expires" do
+    store_a.build!("local-build", { manifest: "{}", blobs: {} })
+    image = worker_a.publish_local(local_reference: "local-build", **identity)
+    RuntimeImageVerificationAttestation.where(id: image.runtime_image_verification_attestations.last.id)
+      .update_all(expires_at: 1.second.ago)
+
+    expect(worker_b.find(**identity)).to be_nil
+    expect { service.pull(image) }.to raise_error(RuntimeImages::NotPullable)
+  end
+
   it "keeps images of different owners in different namespaces" do
     store_a.build!("local-build", { manifest: "{}", blobs: {} })
     worker_a.publish_local(local_reference: "local-build", **identity)

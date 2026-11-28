@@ -46,6 +46,14 @@ RSpec.describe "API: /api/v1/admin/runtime_image_build_requests/:id/evidence", t
       report_digest: "sha256:" + ("b" * 64), scanned_at: Time.current)
     policy_evidence.report.attach(io: StringIO.new(JSON.generate("secret_scan" => { "location" => "Dockerfile:9" })),
                                   filename: "policy.json", content_type: "application/json")
+    scan_evidence = verification.create_scan_evidence!(image_digest: image.digest, scanner_name: "trivy", scanner_version: "1",
+      database_version: "db-1", sbom_format: "cyclonedx-json", sbom_digest: "sha256:" + ("c" * 64),
+      report_digest: "sha256:" + ("d" * 64), finding_summary: { "high" => 1 }, scanned_at: Time.current)
+    scan_evidence.scan_report.attach(io: StringIO.new(JSON.generate("Results" => [ { "Vulnerabilities" => [ "exact" ] } ])),
+                                     filename: "scan.json", content_type: "application/json")
+    verification.create_attestation!(runtime_image: image, image_digest: image.digest, policy_digest: verification.policy_digest,
+      evidence_digest: "sha256:" + ("e" * 64), outcome: "rejected", safe_summary: { "high" => 1 },
+      vulnerability_database_version: "db-1", issued_at: Time.current, expires_at: 1.day.from_now)
     build_request.update_columns(state: "succeeded", finished_at: Time.current)
     RuntimeImageBuildResult.create!(request: build_request, runtime_image: image, outcome: "succeeded", finished_at: Time.current)
 
@@ -54,5 +62,7 @@ RSpec.describe "API: /api/v1/admin/runtime_image_build_requests/:id/evidence", t
     policy = JSON.parse(response.body).fetch("verification_policy")
     expect(policy.fetch("safe_summary")).to eq("finding_count" => 1, "codes" => { "secret_detected" => 1 })
     expect(policy.dig("report", "secret_scan", "location")).to eq("Dockerfile:9")
+    expect(policy.dig("attestation", "evidence_digest")).to eq("sha256:" + ("e" * 64))
+    expect(policy.dig("supply_chain", "report", "Results", 0, "Vulnerabilities")).to eq([ "exact" ])
   end
 end
