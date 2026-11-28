@@ -302,6 +302,19 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).not_to eq("provider_transient")
   end
 
+  it "does not read a backtrace frame wrapped across lines as a transient provider failure" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "prepare command failed (exit 5): bundle install\n" \
+        "/opt/ruby/lib/bundler/settings.rb:159:in\n" \
+        "'Bundler::Settings#temporary'\n" \
+        "An error occurred while installing mysql2 (0.5.7), and Bundler cannot continue."
+    )
+
+    expect(classification.classification).not_to eq("provider_transient")
+  end
+
   it "classifies Claude transient provider failures from result text" do
     run.update!(state: "failed", agent_provider: "claude", agent_summary: "Claude is overloaded, please retry later.")
 

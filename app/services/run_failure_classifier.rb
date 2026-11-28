@@ -772,6 +772,9 @@ class RunFailureClassifier
   # frame) and Syrus's own "deferred landing after a transient failure" --
   # which, once written, made every later failure of the Job look transient.
   BACKTRACE_FRAME = /\.rb:\d+:in\b/
+  # Output tails wrap frames, putting the method label on its own line:
+  # ".../settings.rb:159:in" then "'Bundler::Settings#temporary'".
+  WRAPPED_BACKTRACE_FRAME = /\.rb:\d+:in\s*['`][^'`\n]*'/
 
   def provider_transient_text
     @provider_transient_text ||= [
@@ -780,7 +783,9 @@ class RunFailureClassifier
       diagnostic&.error_class,
       diagnostic&.error_message,
       recent_logs.reject { |log| log.kind.to_s == "system" }.map(&:chunk)
-    ].flatten.compact.join("\n").lines.grep_v(BACKTRACE_FRAME).join
+    ].flatten.compact.join("\n")
+      .gsub(WRAPPED_BACKTRACE_FRAME, "")
+      .lines.grep_v(BACKTRACE_FRAME).join
   end
 
   def recent_logs
