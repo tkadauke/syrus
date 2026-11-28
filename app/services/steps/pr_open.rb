@@ -164,6 +164,14 @@ module Steps
     # concurrent update is never clobbered.
     def rollback_stale_publication!(git)
       branch = workspace.branch_name
+      # An adopted head is another writer's publication; this workflow pushed
+      # nothing, so there is nothing of its own to take back. Restoring the
+      # tip it saw before a rejected push would erase that writer's work
+      # (F151).
+      if @adopted_remote_publication
+        log("pr_open: parent moved after #{branch} adopted the remote head; nothing of this workflow's to roll back")
+        return
+      end
       pushed = current_head_sha(git)
       previous = @pre_push_remote_sha
       refspec = previous.present? ? "#{previous}:refs/heads/#{branch}" : ":refs/heads/#{branch}"
@@ -294,6 +302,8 @@ module Steps
     # would only rewrite it back, so take it as the published head instead.
     def adopt_remote_publication!(git, truth, context:)
       git.run("reset", "--hard", truth.remote_sha, chdir: workspace.path.to_s)
+      @adopted_remote_publication = true
+      @pre_push_remote_sha = truth.remote_sha
       workflow.set_artifact!(BranchTruth::ADOPTED_ARTIFACT, truth.to_h.merge(
         "branch" => workspace.branch_name, "context" => context, "adopted_at" => Time.current.iso8601
       ))

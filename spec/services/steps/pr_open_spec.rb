@@ -1966,6 +1966,37 @@ RSpec.describe Steps::PrOpen, :ci_only do
           expect(workflow.reload.artifact("branch_divergence")).to be_nil
         end
 
+        # The adopted head is another writer's publication (a parallel stack
+        # rebase, plus whatever was pushed on top). This workflow pushed
+        # nothing, so when the parent then moves there is nothing of its own
+        # to roll back; restoring the tip it saw before its rejected push
+        # erased the other writer's work (F151).
+        it "does not roll an adopted remote back when the parent then moves" do
+          observed_sha = "a" * 40
+          allow(handler).to receive(:fetch_remote_branch!).and_return(observed_sha, remote_sha)
+          allow(git).to receive(:run).with("push", any_args)
+            .and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] (stale info)"))
+          allow(git).to receive(:run).with("reset", "--hard", remote_sha, chdir: "/tmp/ws")
+          allow(BranchTruth).to receive(:classify).and_return(
+            branch_truth_result(:local_contains_remote, :publish, remote_sha: observed_sha),
+            branch_truth_result(:remote_ahead, :adopt_remote, remote_sha: remote_sha)
+          )
+          expect(handler.send(:push_stack_rebased_branch, git, "https://x/y")).to eq(:adopted_remote)
+
+          allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
+          allow(handler).to receive(:ancestor?).and_return(false)
+          allow(handler).to receive(:current_head_sha).and_return(remote_sha)
+          allow(handler).to receive(:authenticated_git).and_yield("https://x/y")
+
+          expect { handler.send(:confirm_published_stack_base!) }.to raise_error(described_class::AwaitingStableBase)
+
+          expect(git).not_to have_received(:run).with(
+            "push", "--force-with-lease=refs/heads/syrus/issue-42:#{remote_sha}", "https://x/y",
+            "#{observed_sha}:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+          )
+          expect(workflow.reload.artifact("stale_publication_rolled_back")).to be_nil
+        end
+
         it "reports divergence when the lease is rejected and the new remote holds other work" do
           classify_as(:local_contains_remote, :publish)
           allow(handler).to receive(:record_branch_divergence!)

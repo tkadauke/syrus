@@ -5055,6 +5055,60 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F152. A Run cancel committed during RunJob's success was read from the old snapshot — fixed
+
+**Invariant.** A committed cancel wins over a success recorded after it: a
+Step never succeeds from a cancelled Run.
+
+**Counterexample.** Main's `e50aec7fa3`/`e4e766f411` made
+`RunJob#commit_run_and_step_success!` compare the Run's committed state with
+the state it saw before the lock, but read it with a plain
+`Run.where(id:).pick(:state)`. Under REPEATABLE READ that answers from the
+snapshot Lineage's discovery reads took before waiting on the locks.
+Terminal cleanup (`cancel_stale_terminal_descendants!`) cancels a Run before
+its Step, outside one transaction: when the Run's cancel commits while the
+success waits, the plain read still says running, `@run.succeed!` no-ops from
+cancelled, and `@step.succeed!` succeeds the still-running Step and advances
+the chain from a cancelled Run.
+
+**Fix.** The guard is a locking read (`Run.lock.where(id:).pick(:state)`) of a
+row the transaction already holds. Spec first: "keeps a Run cancel that
+committed while the success waited, even when plain reads are stale" (plain
+Run state reads staged to answer from the snapshot) failed with the Step
+succeeded.
+
+## F151. A stack publish that adopted another writer's head could roll it back — fixed
+
+**Invariant.** Publishing never loses work on the remote: a force push only
+replaces what this workflow published itself.
+
+**Counterexample.** Main's `ae5c88ba1a` (one BranchTruth rule before every
+publish) adopts the remote when a leased stack-rebase push is rejected because
+a parallel writer published the same work (`reclassify_rejected_publication!`
+then `reset --hard` to the new remote). It left `@pre_push_remote_sha` at the
+tip seen before the rejected push. When the parent then moved,
+`confirm_published_stack_base!` called `rollback_stale_publication!`, which
+pushed that old tip back, leased on the adopted head: the lease matched, and
+the other writer's publication (and anything pushed on top, such as a human
+commit) was erased although this workflow had pushed nothing. The adoption on
+a rejected lease was new in that commit.
+
+**Fix.** Adopting a remote head marks the publication as adopted and records
+the adopted head as the pre-push tip; the rollback does nothing for an adopted
+head. Spec first: "does not roll an adopted remote back when the parent then
+moves" failed with the rollback push issued.
+
+Notes from the same sweep, not fixed: `auto_rebase.rb`, `external_pr_merge.rb`,
+`force_push.rb` and the operator divergence override still lease without
+`BranchTruth`, each on a protected or observed head (the `:rewrite` case);
+no loss was found through them. `RetryFailedStepEnqueuer` keeps two plain
+reads after its lock (`Step.find`, `runs.active.exists?`), masked because its
+`workflow.failed?` guard is a locking read; `Resume` reads
+`workflow.job&.closed?` plainly, which matters only on the blocked path. Main's
+`ee34188080` extends Lead L20 to grader prepare targets: a change that drops
+the devDependency providing a tool its target runs is declared a worker
+environment gap there too.
+
 ## F150. A handed-back Run no worker could take spun on its queue — fixed
 
 **Invariant.** A Run that no live worker can satisfy waits visibly: it is
@@ -8612,7 +8666,28 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   latest committed rows, needs row-based binlogs (MySQL 8's default), and
   takes fewer gap locks. Recommended: yes.
 
-Checked through main `9d514f82d0`. Each loop iteration continues from there:
+- Main through `fb30ed3e65` (60 commits, about twenty of them engine
+  commits read by a sweep and re-checked by hand). Main independently closed
+  several of this branch's leads and findings: L17 (awaiting-answer work
+  retired when its Workflow ends, awaiting Runs cancellable), L18 (consumed
+  overrides kept on collector reruns), the break-glass rewind (forced ref
+  updates destructive, canonical paths), atomic question resume, and the
+  REPEATABLE READ class (`64029a2f2b`: `Lineage.lock_all!` refreshes the held
+  records from the locked rows). Fixed here: F151 (an adopted stack
+  publication rolled back) and F152 (a cancel read from the old snapshot in
+  RunJob's success). Holds, each with its reason checked: the workflow patch
+  reads its graph under a locking reload; keeping a Workflow running when only
+  its running Step was cancelled cascades only on a Workflow cancel; the
+  emergency-land unit's stale threshold covers the merge-lock wait; detach
+  with no former parent deletes no dependency; skipping landed stack members
+  only skips closed PRs; "retry already ran" keys on a successful perform; the
+  landing backoff counts since approval (bounded per hour, not terminating);
+  the no-op recovery rebase skips only a succeeded rebase onto the same SHA;
+  runaway trains are held under the dispatch transaction; hold and cancel
+  authority is checked on every path; idle connection reaping only takes
+  checked-in connections.
+
+Checked through main `fb30ed3e65`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
