@@ -30,12 +30,13 @@ class BaseRevisionRetry
     new(...).call
   end
 
-  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:)
+  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:, command: nil)
     @workflow = workflow
     @grader_step = grader_step
     @base_sha = base_sha.to_s
     @failed_cases = Array(failed_cases)
     @log = log
+    @command_override = command.to_s.strip.presence
   end
 
   def call
@@ -151,7 +152,7 @@ class BaseRevisionRetry
   end
 
   def run_full_command
-    command = @grader_step.details.to_h["command"].to_s.strip
+    command = @command_override || @grader_step.details.to_h["command"].to_s.strip
     return skipped("no_grader_command") if command.blank?
 
     output = +""

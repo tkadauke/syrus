@@ -39,6 +39,18 @@ class Coworkers::GrantUpdate
   private
 
   def normalized_constraints
+    if @capability.in?(Coworkers::JobAutonomy::CAPABILITIES.values)
+      defaults = Coworkers::JobAutonomy::DEFAULTS
+      result = defaults.slice("max_open_jobs", "max_self_approvals_per_day", "max_feedback_rounds_per_job").each_with_object({}) do |(key, fallback), memo|
+        value = Integer(@constraints[key] || @constraints[key.to_sym] || fallback, exception: false)
+        raise ArgumentError, "#{key} must be a positive integer" unless value&.positive?
+        memo[key] = value
+      end
+      result["allow_sensitive_changes"] = ActiveModel::Type::Boolean.new.cast(
+        @constraints.fetch("allow_sensitive_changes", @constraints.fetch(:allow_sensitive_changes, defaults["allow_sensitive_changes"]))
+      )
+      return result
+    end
     if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])
       defaults = {
         "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,
@@ -65,6 +77,12 @@ class Coworkers::GrantUpdate
     return false if @approval_policy == "off"
     return false unless entry
     return false if entry[:approval_policy] == "off"
+    if @capability.in?(Coworkers::JobAutonomy::CAPABILITIES.values)
+      current = Coworkers::JobAutonomy::DEFAULTS.merge(entry[:constraints].to_h)
+      target = normalized_constraints
+      return true if %w[max_open_jobs max_self_approvals_per_day max_feedback_rounds_per_job].any? { |key| target.fetch(key) > current.fetch(key).to_i }
+      return target["allow_sensitive_changes"] && !ActiveModel::Type::Boolean.new.cast(current["allow_sensitive_changes"])
+    end
     if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])
       current = {
         "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,

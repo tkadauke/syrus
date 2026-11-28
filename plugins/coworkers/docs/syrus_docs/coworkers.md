@@ -680,6 +680,26 @@ persistence. Until the agent sandbox supplies a true read-only mount, a hostile
 process running as the checkout owner could restore its own mode bits; that
 remaining gap belongs to sandbox enforcement.
 
+## Job autonomy guardrails
+
+Repository-scoped coworker permissions can allow a coworker to file Jobs and
+act on Jobs it filed itself. The permission editor configures maximum open
+self-filed Jobs, self-approvals per day, and feedback rounds per Job. Reaching
+a limit never discards the action: it creates an operator-confirmation request
+whose evidence names the exceeded limit.
+
+Self-approval excludes sensitive diffs by default. A deterministic classifier
+recognizes migrations and the schema dump, permission or security code,
+default-setting changes, grader configuration in `.syrus.yml`, and top-level
+JSON API version changes. Owners may explicitly disable this carve-out for a
+coworker's repository permission. Required reviews must still approve the
+current implementation HEAD.
+
+Jobs explicitly filed as bug fixes have an additional regression-proof gate.
+A newly added regression spec must pass in the implemented branch and fail
+when rerun at the base revision. The proof is cached against the exact base and
+implementation HEAD; advancing the implementation invalidates it.
+
 ## Coworker page payload limits
 
 The coworkers UI loads the lightweight list and identity records first, then

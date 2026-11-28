@@ -423,7 +423,9 @@ module Api
         end
 
         def grant_constraints
-          params.permit(constraints: [ :max_spawns_per_run, :max_spawns_per_day, { confirm_paths: [] } ])[:constraints]&.to_h || {}
+          params.permit(constraints: [ :max_spawns_per_run, :max_spawns_per_day, :max_open_jobs,
+            :max_self_approvals_per_day, :max_feedback_rounds_per_job, :allow_sensitive_changes,
+            { confirm_paths: [] } ])[:constraints]&.to_h || {}
         end
 
         def grant_scope_argument

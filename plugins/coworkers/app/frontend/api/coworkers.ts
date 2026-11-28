@@ -24,7 +24,15 @@ export type CoworkerDetail = CoworkerSummary & {
   grants: {
     capability: string
     approval_policy: string
-    constraints: { confirm_paths?: string[]; max_spawns_per_run?: number; max_spawns_per_day?: number }
+    constraints: {
+      confirm_paths?: string[]
+      max_spawns_per_run?: number
+      max_spawns_per_day?: number
+      max_open_jobs?: number
+      max_self_approvals_per_day?: number
+      max_feedback_rounds_per_job?: number
+      allow_sensitive_changes?: boolean
+    }
     scope?: unknown
   }[]
   grant_catalog: {

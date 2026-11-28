@@ -41,6 +41,19 @@ module Workflows
       end
     end
 
+    def self.required_reviews_satisfied?(workflow)
+      snapshots = required_snapshots(workflow)
+      return true if snapshots.empty?
+
+      sha = reviewed_head_sha(workflow)
+      return false if sha.blank?
+
+      snapshots.all? do |snapshot|
+        evidence = terminal_evidence(workflow, snapshot.fetch("step_kind"), sha)
+        evidence&.succeeded? && approved_evidence?(workflow, evidence, snapshot)
+      end
+    end
+
     # A review budget is runaway protection, not a reason to discard a
     # successful final repair. Preserve the immutable-HEAD boundary by
     # recording an explicit exception for this gate and exact repaired HEAD;
