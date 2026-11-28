@@ -924,7 +924,7 @@ class RunJob < ApplicationJob
       error_message: error.message,
       sql_fingerprint: (PerformanceLogging.fingerprint_sql(sql) if sql.present?),
       causal_exception_class: causal_exception&.class&.name,
-      causal_exception_message: causal_exception&.message,
+      causal_exception_message: (CommandRedactor.redact(causal_exception.message) if causal_exception),
       error_backtrace: (error.backtrace if exhausted)
     }.compact.to_json)
   end

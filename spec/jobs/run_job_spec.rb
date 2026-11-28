@@ -229,7 +229,9 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@step, run.step)
       run_job.instance_variable_set(:@workflow, workflow)
       run_job.instance_variable_set(:@job, landing_job)
-      semantic_failure = Steps::Base::StepFailed.new("required grader failed")
+      semantic_failure_message =
+        "required grader failed at https://x-access-token:github_pat_secret123@github.com/example/repo"
+      semantic_failure = Steps::Base::StepFailed.new(semantic_failure_message)
       deadlock = ActiveRecord::Deadlocked.new("Deadlock found when trying to get lock")
       allow(deadlock).to receive(:sql).and_return("UPDATE jobs SET state = 'implemented' WHERE id = 44")
       allow(LandingFailureHandler).to receive(:call).and_raise(deadlock)
@@ -256,7 +258,8 @@ RSpec.describe RunJob, :ci_only do
         "exhausted" => true,
         "error_class" => "ActiveRecord::Deadlocked",
         "causal_exception_class" => "Steps::Base::StepFailed",
-        "causal_exception_message" => "required grader failed"
+        "causal_exception_message" =>
+          "required grader failed at https://x-access-token:[REDACTED]@github.com/example/repo"
       )
       expect(evidence.fetch("sql_fingerprint"))
         .to eq("UPDATE jobs SET state = ? WHERE id = ?")
@@ -264,7 +267,7 @@ RSpec.describe RunJob, :ci_only do
       expect(run.reload).to be_failed
       expect(run.run_diagnostic).to have_attributes(
         error_class: "Steps::Base::StepFailed",
-        error_message: "required grader failed"
+        error_message: semantic_failure_message
       )
     end
 
