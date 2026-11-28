@@ -74,10 +74,42 @@ RSpec.describe ManualAgenticRun::GithubAccess do
       expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/pulls/9?notify=false", '{"state":"closed"}')).to be(true)
       expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets?audit=repair", '{"archived":true}')).to be(true)
       expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/issues/9/lock?reason=repair", "")).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/git/refs/heads/main", '{"sha":"abc","force":true}')).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/git/refs/heads/main", "sha=abc&force=true")).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/git/refs/heads/repair", '{"sha":"abc"}')).to be(false)
       deletion = "0" * 4 + ("a" * 40) + " " + ("0" * 40) + " refs/heads/repair\0 report-status\n"
       expect(proxy.send(:destructive_request?, "POST", "/acme/widgets.git/git-receive-pack", deletion)).to be(true)
     ensure
       proxy&.stop
+    end
+  end
+
+  it "grants break-glass access only to the manual repair step, not later agent steps" do
+    summarize_step = Step.create!(workflow: workflow, kind: "summarize_amend", position: 1)
+    summarize_run = Run.create!(job: job, step: summarize_step, trigger_kind: workflow.trigger_kind, agent_provider: "codex")
+
+    expect(access).to be_enabled
+    expect(described_class.new(summarize_run)).not_to be_enabled
+    expect(described_class.new(summarize_run).environment).to eq({})
+  end
+
+  it "keeps earlier runs' audit entries when a later run collects its own" do
+    second_run = Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind, agent_provider: "codex")
+    first_broker = instance_double(described_class::Broker, audit_entries: [ { "command" => "gh", "run_id" => run.id } ])
+    second_broker = instance_double(described_class::Broker, audit_entries: [])
+    described_class::REGISTRY_MUTEX.synchronize do
+      described_class::REGISTRY[run.id] = first_broker
+      described_class::REGISTRY[second_run.id] = second_broker
+    end
+
+    described_class.new(run).collect_audit!
+    described_class.new(second_run).collect_audit!
+
+    expect(workflow.reload.artifact("manual_agentic_run_github_audit")).to contain_exactly(include("command" => "gh", "run_id" => run.id))
+  ensure
+    described_class::REGISTRY_MUTEX.synchronize do
+      described_class::REGISTRY.delete(run.id)
+      described_class::REGISTRY.delete(second_run.id)
     end
   end
 

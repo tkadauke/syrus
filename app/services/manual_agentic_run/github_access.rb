@@ -34,7 +34,11 @@ module ManualAgenticRun
       @repository = @job.repository
     end
 
-    def enabled? = @workflow.artifact("manual_agentic_run_github_access") == true
+    # The grant belongs to the operator-requested manual repair step only;
+    # later agent steps in the same Workflow (summarize, amend) run without it.
+    STEP_KIND = "manual_agentic_run"
+
+    def enabled? = @run.step.kind == STEP_KIND && @workflow.artifact("manual_agentic_run_github_access") == true
 
     def environment
       return {} unless enabled?
@@ -68,7 +72,11 @@ module ManualAgenticRun
     def collect_audit!
       broker = self.class::REGISTRY_MUTEX.synchronize { self.class::REGISTRY[@run.id] }
       entries = broker&.audit_entries || []
-      @workflow.set_artifact!("manual_agentic_run_github_audit", entries.map { |entry| entry.merge("actor_user_id" => @job.user_id, "repository" => @repository.slug) })
+      # Repair iterations each collect their own broker's entries; earlier
+      # iterations' audit evidence is kept rather than replaced.
+      recorded = Array(@workflow.reload.artifact("manual_agentic_run_github_audit"))
+      @workflow.set_artifact!("manual_agentic_run_github_audit",
+        recorded + entries.map { |entry| entry.merge("actor_user_id" => @job.user_id, "repository" => @repository.slug) })
       entries
     end
 
@@ -357,6 +365,9 @@ module ManualAgenticRun
         return true if %w[DELETE PUT].include?(method)
         return true if path.include?("/git-receive-pack")
         return true if method == "POST" && path.match?(%r{/repos/#{Regexp.escape(@repository)}/issues/\d+/lock\z})
+        if method == "PATCH" && path.match?(%r{\A/repos/#{Regexp.escape(@repository)}/git/refs/.+\z})
+          return ActiveModel::Type::Boolean.new.cast(parse_body(body)["force"]) == true
+        end
         if method == "PATCH" && path == "/repos/#{@repository}"
           return ActiveModel::Type::Boolean.new.cast(parse_body(body)["archived"])
         end
