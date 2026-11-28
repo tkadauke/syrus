@@ -90,13 +90,15 @@ module RecordsStateTransitions
     reason_key = StateTransition.reason_key_for(self)
     metadata = StateTransition.transition_metadata_for(self)
     metadata["reason_key"] = reason_key if reason_key.present?
+    source, provenance = state_transition_provenance(source: StateTransition.current_source, from:, to:)
+    metadata = provenance.merge(metadata)
 
     StateTransition.create!(
       subject: self,
       from_state: from,
       to_state: to,
       event_name: machine.current_event.to_s.chomp("!"),
-      source: StateTransition.current_source,
+      source: source,
       user_id: StateTransition.current_user&.id,
       run_id: StateTransition.current_run_id,
       metadata: metadata
@@ -108,5 +110,9 @@ module RecordsStateTransitions
       "[state_transition] failed to record #{self.class.name}##{id} " \
       "#{aasm.from_state} → #{aasm.to_state}: #{e.class}: #{e.message}"
     )
+  end
+
+  def state_transition_provenance(source:, from:, to:)
+    [ source, {} ]
   end
 end

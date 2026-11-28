@@ -123,10 +123,27 @@ RSpec.describe StateTransition do
       job.save!
 
       transition = described_class.for_subject(job).recent.first
+      expect(transition).to have_attributes(source: "system", user: nil)
       expect(transition.metadata).to include(
         "reason_key" => "not_needed",
-        "closure_reason" => "not_needed"
+        "closure_reason" => "not_needed",
+        "actor_type" => "system",
+        "via" => "automation_rule"
       )
+    end
+
+    it "preserves explicit close provenance while filling its via" do
+      job.workflows.destroy_all
+      job.runs.destroy_all
+      job.update!(state: "implemented", closure_reason: "not_needed")
+
+      described_class.with_source("tool", user: job.user, metadata: { "actor_type" => "agent" }) do
+        job.close!
+      end
+
+      transition = described_class.for_subject(job).recent.first
+      expect(transition).to have_attributes(source: "tool", user: job.user)
+      expect(transition.metadata).to include("actor_type" => "agent", "via" => "tool")
     end
 
     it "cross-links to the in-flight Run when one is set on the thread" do

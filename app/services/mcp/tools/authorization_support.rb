@@ -195,10 +195,12 @@ module Mcp::Tools
         end
         raise AuthorizationError, "tool has no permission descriptor" unless capability_descriptor
 
-        Permissions::CoworkerAuthorizationRequest.new(
+        result = Permissions::CoworkerAuthorizationRequest.new(
           context:, descriptor: capability_descriptor, arguments:,
           purpose: "Invoke #{descriptor.tool_name}", request_on_ask: false
         ).call
+        server_context[:coworker_permission_authorizations] ||= {}
+        server_context[:coworker_permission_authorizations][descriptor.tool_name] = result.decision.allow?
       end
 
       def normalized_coworker_workspace_path(path)

@@ -355,9 +355,11 @@ Coworkers receive the ordinary chat-agent Job lifecycle tools, including
 `close_job_successfully` and `submit_chat_feedback`. Canonical `syrus.jobs` policy decides
 whether each invocation runs, asks for confirmation, or is denied; sharing the
 tool registration does not bypass its Job-state or authorization checks.
-Cancellation requires a reason, and duplicate cancellations may link a
-canonical replacement Job in the same repository. The state history records
-the coworker, chat, prior and resulting states, reason, time, and replacement.
+With `auto` permission, a coworker may close a Job it proposed immediately when
+the registered reason allows autonomous agent use. Declined reasons still
+require confirmation, and Jobs proposed by anyone else retain the normal
+confirmation boundary. The state history records the coworker, chat, prior and
+resulting states, reason, time, and replacement.
 Jobs with landing or deployment evidence are refused.
 
 Feedback submission uses the same permission policy, Job-state checks, and

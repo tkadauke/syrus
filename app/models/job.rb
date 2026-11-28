@@ -1230,6 +1230,18 @@ class Job < ApplicationRecord
 
   # Closing refreshes the Epic's state, so the Epic is locked before the Job
   # row is written (NY40, parents before children).
+  def state_transition_provenance(source:, from:, to:)
+    return super unless to == "closed"
+
+    [
+      source == "aasm" ? "system" : source,
+      {
+        "actor_type" => StateTransition.current_user ? "human" : "system",
+        "via" => source == "aasm" ? "automation_rule" : source
+      }
+    ]
+  end
+
   def close_with_reason!(reason, references: [], note: nil)
     definition = ClosureReason.fetch(reason)
     references = Array(references).map { |reference| reference.to_h.stringify_keys }

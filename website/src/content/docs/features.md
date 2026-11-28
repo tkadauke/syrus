@@ -1454,11 +1454,15 @@ cleanup, state transitions, execution-placement overrides, and CI-repair
 reruns. These batches are capped and deduplicated. Each target is revalidated
 when confirmed and reports its own applied, ineligible, or failed outcome, so
 one changed target does not roll back successful repairs for the others.
-Successful Job close is separate from cancellation: `close_job_successfully`
-records a successful closure reason such as `not_needed`, which satisfies
+Semantic Job close is separate from an unreasoned human cancellation:
+`close_job_successfully` records a registered closure reason such as
+`not_needed`, which satisfies
 dependencies and Epic progress; declined and replacement reasons remain non-successful. When
 the Job has a tracked PR, Syrus can post the supplied explanation and close the
-PR after confirmation; any GitHub cleanup failure is reported in chat.
+PR after confirmation; any GitHub cleanup failure is reported in chat. A
+coworker with autonomous Job-lifecycle permission may close a Job it proposed
+without operator confirmation when that reason permits autonomous agent use.
+Declined reasons always require confirmation.
 On the Job detail page, implementation retries can also be enqueued with any
 other agent provider the operator has configured. That retry-with-provider
 choice is one-shot for the retry workflow. The Job detail page also has a

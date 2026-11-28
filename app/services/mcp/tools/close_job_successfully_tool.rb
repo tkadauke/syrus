@@ -12,12 +12,15 @@ module Mcp::Tools
     description <<~DESC
       Request that one or more Syrus Jobs be closed with a registered semantic
       reason. Agents must always supply a reason. Pass job_id for a single Job
-      single-confirmation behavior) or job_ids for multiple Jobs, which
+      (normally retaining single-confirmation behavior) or job_ids for multiple Jobs, which
       creates one grouped pending action the operator confirms or rejects
       together -- every Job in the group is closed with the same
       closure_reason; use separate calls if different Jobs need different
       reasons. The Job(s) and any tracked PR are not changed until the
       operator confirms the pending action.
+      A coworker with autonomous lifecycle permission may immediately close a
+      Job it proposed when the reason permits autonomous agent use. Declined
+      reasons always remain subject to operator confirmation.
     DESC
 
     input_schema(
@@ -66,7 +69,7 @@ module Mcp::Tools
 
         jobs = ids.map { |id| find_job!(id) }
         jobs.each do |job|
-          return Mcp::Tools.invalid("#{job.slug} is already closed.") if job.closed?
+          return Mcp::Tools.invalid("#{job.slug} is already closed. Reopen it before requesting another closure.") if job.closed?
           return Mcp::Tools.invalid("#{job.slug} cannot be closed from #{job.state}.") unless job.may_close?
         end
 
@@ -85,6 +88,17 @@ module Mcp::Tools
             requested_by: "agent",
             subject: McpToolContext.from_server_context(server_context).agent_actor
           )
+
+          if autonomous_coworker_close?(server_context:, job:, definition:)
+            pending_action.confirm!
+            return Mcp::Tools.success(
+              pending_action_id: pending_action.id,
+              state: pending_action.reload.state,
+              job_id: job.id,
+              closure_reason: closure_reason.to_s,
+              message: "#{job.slug} was closed under the coworker's autonomous lifecycle permission."
+            )
+          end
 
           return Mcp::Tools.success(
             pending_action_id: pending_action.id,
@@ -114,6 +128,17 @@ module Mcp::Tools
         bulk_action_response(group: group, message: "Close #{jobs.size} Jobs as #{closure_reason}?")
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      end
+
+      private
+
+      def autonomous_coworker_close?(server_context:, job:, definition:)
+        context = McpToolContext.from_server_context(server_context)
+        return false unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        return false unless definition.agent_allowed
+        return false unless context.agent_actor && job.proposer == context.agent_actor
+
+        server_context.dig(:coworker_permission_authorizations, tool_name) == true
       end
     end
   end

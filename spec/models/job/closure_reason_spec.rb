@@ -11,6 +11,12 @@ RSpec.describe Job::ClosureReason do
     expect(described_class.by_reason).not_to have_key("pr_approved")
   end
 
+  it "uses agent policy metadata to distinguish autonomous from confirmed reasons" do
+    expect(described_class.fetch("not_needed").agent_allowed).to be(true)
+    expect(described_class.fetch("obsolete").agent_allowed).to be(false)
+    expect(described_class.fetch("cancelled").agent_allowed).to be(false)
+  end
+
   it "validates required references and notes when closing" do
     job = Factories.job(state: "implemented")
 

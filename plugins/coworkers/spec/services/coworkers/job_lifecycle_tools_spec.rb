@@ -34,41 +34,83 @@ RSpec.describe "coworker Job lifecycle tools" do
     expect(coworker_tools).to include("close_job_successfully", "approve_job", "retry_job")
   end
 
-  it "uses the shared lifecycle descriptor and mandatory cancellation pending action" do
+  it "uses the shared lifecycle descriptor and keeps replacement closes pending" do
     allow_job_lifecycle!
     duplicate = Factories.job_record(user: owner, repository:, state: "implemented")
     canonical = Factories.job_record(user: owner, repository:, state: "implemented", issue_number: 43)
 
-    response = Mcp::Tools::CancelJobTool.call(
-      job_id: duplicate.id,
-      reason: "QA confirmed the newer Job covers this work.",
-      canonical_job_id: canonical.id,
+    response = Mcp::Tools::CloseJobSuccessfullyTool.call(
+      job_id: duplicate.id, closure_reason: "duplicate",
+      references: [ { type: "Job", id: canonical.id } ],
+      note: "QA confirmed the newer Job covers this work.",
       server_context:
     )
 
     result = payload(response)
     action = chat.pending_actions.find(result.fetch("pending_action_id"))
-    entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == Mcp::Tools::CancelJobTool }
+    entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == Mcp::Tools::CloseJobSuccessfullyTool }
     expect(entry.descriptor).to have_attributes(
       capability: Permissions::JobLifecycle::JOBS,
-      operation: "syrus.jobs/cancel@v1",
+      operation: "syrus.jobs/close@v1",
       defaults: include(AgentRole::COWORKER_CHAT => :ask)
     )
     expect(action).to have_attributes(
-      action: "cancel_job", subject: coworker, reason: "QA confirmed the newer Job covers this work."
+      action: "close_job_successfully", subject: coworker
     )
-    expect(action.payload).to include("job_id" => duplicate.id, "canonical_job_id" => canonical.id)
+    expect(action.payload).to include(
+      "job_id" => duplicate.id,
+      "closure_reason" => "duplicate",
+      "references" => [ { "type" => "Job", "id" => canonical.id } ]
+    )
     expect(duplicate.reload).to be_implemented
 
     action.confirm!(user: owner)
 
-    expect(duplicate.reload).to have_attributes(state: "closed", closure_reason: "duplicate", canonical_job_id: canonical.id)
+    expect(duplicate.reload).to have_attributes(state: "closed", closure_reason: "duplicate")
     transition = StateTransition.for_subject(duplicate).recent.first
-    expect(transition).to have_attributes(from_state: "implemented", to_state: "closed", source: "operator")
+    expect(transition).to have_attributes(from_state: "implemented", to_state: "closed", source: "tool")
     expect(transition.metadata).to include(
       "actor_type" => "Coworkers::Coworker", "actor_id" => coworker.id, "chat_session_id" => chat.id,
-      "human_reason" => "QA confirmed the newer Job covers this work.", "canonical_job_id" => canonical.id
+      "references" => [ { "type" => "Job", "id" => canonical.id } ]
     )
+  end
+
+  it "closes its own Job without operator confirmation under autonomous lifecycle permission" do
+    allow_job_lifecycle!
+    job = Factories.job_record(
+      user: owner, repository:, proposer: coworker, state: "implemented", kind: "coworker_task", issue_number: nil
+    )
+
+    response = Mcp::Tools::CloseJobSuccessfullyTool.call(
+      job_id: job.id, closure_reason: "not_needed", server_context:
+    )
+
+    result = payload(response)
+    action = chat.pending_actions.find(result.fetch("pending_action_id"))
+    expect(result).to include("state" => "confirmed", "job_id" => job.id, "closure_reason" => "not_needed")
+    expect(action).to have_attributes(state: "confirmed", subject: coworker)
+    expect(job.reload).to have_attributes(state: "closed", closure_reason: "not_needed")
+    transition = StateTransition.for_subject(job).recent.first
+    expect(transition).to have_attributes(source: "tool", user: owner)
+    expect(transition.metadata).to include(
+      "actor_type" => "Coworkers::Coworker", "actor_id" => coworker.id, "chat_session_id" => chat.id
+    )
+  end
+
+  it "keeps declined reasons pending despite autonomous lifecycle permission" do
+    allow_job_lifecycle!
+    job = Factories.job_record(
+      user: owner, repository:, proposer: coworker, state: "implemented", kind: "coworker_task", issue_number: nil
+    )
+
+    response = Mcp::Tools::CloseJobSuccessfullyTool.call(
+      job_id: job.id, closure_reason: "obsolete", server_context:
+    )
+
+    result = payload(response)
+    expect(result).to include("state" => "pending")
+    expect(chat.pending_actions.find(result.fetch("pending_action_id"))).to be_pending
+    expect(job.reload).to be_implemented
   end
 
   it "rejects inaccessible Jobs without creating a pending action" do
@@ -85,7 +127,7 @@ RSpec.describe "coworker Job lifecycle tools" do
   it "enforces a canonical deny rule before creating the lifecycle pending action" do
     job = Factories.job_record(user: owner, repository:, state: "implemented")
     descriptor = McpToolRegistry.entries(surface: :coworker)
-      .find { |entry| entry.tool == Mcp::Tools::CancelJobTool }.descriptor
+      .find { |entry| entry.tool == Mcp::Tools::CloseJobSuccessfullyTool }.descriptor
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
       subject_selector_type: "agent", subject_selector_id: coworker.id.to_s, subject_role_keys: [],
@@ -94,7 +136,9 @@ RSpec.describe "coworker Job lifecycle tools" do
       policy: "deny", policy_layer: "agent", source: "operator", provenance: {}
     )
 
-    response = Mcp::Tools::CancelJobTool.call(job_id: job.id, reason: "Obsolete.", server_context:)
+    response = Mcp::Tools::CloseJobSuccessfullyTool.call(
+      job_id: job.id, closure_reason: "obsolete", server_context:
+    )
 
     expect(response).to be_error
     expect(chat.pending_actions).to be_empty
