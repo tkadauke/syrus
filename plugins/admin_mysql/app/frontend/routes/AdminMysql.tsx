@@ -244,7 +244,9 @@ function SlowSqlEventsPanel({ payload, t }: { payload: MysqlSnapshot; t: ReturnT
     <Section.Root className="min-w-0 overflow-hidden p-0">
       <div className="border-b border-border px-4 py-3">
         <SectionHeading>{t("slow_sql_events")}</SectionHeading>
-        <Text variant="caption" tone="muted">{t("slow_sql_events_description")}</Text>
+        <Text variant="caption" tone="muted">
+          {t("slow_sql_events_description")}
+        </Text>
       </div>
       {!payload.slow_sql_events.available ? (
         <UnavailablePanel fallback={t("slow_sql_events_unavailable")} error={payload.slow_sql_events.error} />
@@ -412,8 +414,18 @@ function slowSqlEventColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventL
       sort: "occurred_at",
       sortValue: (row) => row.occurred_at || ""
     },
-    { key: "duration_ms", header: t("col_duration"), render: (row) => `${formatValue(row.duration_ms)} ms`, sort: "duration_ms", sortValue: (row) => row.duration_ms },
-    { key: "source", header: t("col_source"), render: (row) => row.controller ? `${row.controller}#${row.action || "?"}` : row.job_class || row.phase || row.name || "-" },
+    {
+      key: "duration_ms",
+      header: t("col_duration"),
+      render: (row) => `${formatValue(row.duration_ms)} ms`,
+      sort: "duration_ms",
+      sortValue: (row) => row.duration_ms
+    },
+    {
+      key: "source",
+      header: t("col_source"),
+      render: (row) => (row.controller ? `${row.controller}#${row.action || "?"}` : row.job_class || row.phase || row.name || "-")
+    },
     {
       key: "sql",
       header: "SQL",
