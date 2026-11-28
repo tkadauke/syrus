@@ -62,11 +62,15 @@ models:
   - path: app/services/work_engine/repair_executor.rb
     owner: CancelSupersededCiRepair
     method: perform
-    sha: 761af84553510d84
+    sha: 7fb8c0eb58db138b
   - path: app/services/work_engine/reconciler.rb
     owner: Reconciler
     method: superseded_ci_repair_start_block?
-    sha: 01e6c41c4cc8649a
+    sha: 59ba9ff6fae76652
+  - path: app/services/work_units/gates/ci_repair_safety.rb
+    owner: CiRepairSafety
+    method: self.moot_block?
+    sha: 20fa67127d5bc5d5
 - model: AbandonedReplication.lean
   mirrors:
   - path: plugins/local_backups/app/services/local_backups/abandoned_replication_sweep.rb

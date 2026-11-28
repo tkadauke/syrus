@@ -1388,7 +1388,11 @@ module WorkEngine
           )
         end
 
-        if workflow.queued? && older_than?(workflow.created_at, ORPHAN_RUN_GRACE_PERIOD) && queued_without_first_run?(workflow)
+        # The grace period spares a Workflow whose first Run is about to be
+        # created. A CI repair whose recorded start block is already moot is
+        # not about to start, and holding it only holds its Job's own work.
+        if workflow.queued? && queued_without_first_run?(workflow) &&
+            (older_than?(workflow.created_at, ORPHAN_RUN_GRACE_PERIOD) || superseded_ci_repair_start_block?(workflow))
           if landing_start_blocked_workflow?(workflow)
             reason = start_block_reason(workflow)
             check_after = start_block_next_check_at(workflow)
@@ -4097,9 +4101,13 @@ module WorkEngine
     def superseded_ci_repair_start_block?(workflow)
       return false unless workflow.work_unit&.kind == "ci_failure" || workflow.trigger_kind == "ci_failure"
       return false unless start_block_reason(workflow).to_s == WorkUnits::Gates::CiRepairSafety::REASON
-      return false unless WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(ci_repair_start_block_kind(workflow))
 
-      WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, ci_repair_start_block_base_sha(workflow), since: workflow.created_at)
+      WorkUnits::Gates::CiRepairSafety.moot_block?(
+        workflow.job,
+        ci_repair_start_block_kind(workflow),
+        ci_repair_start_block_base_sha(workflow),
+        since: workflow.created_at
+      )
     end
 
     def ci_repair_start_block_kind(workflow)

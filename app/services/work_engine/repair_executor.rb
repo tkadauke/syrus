@@ -1088,10 +1088,12 @@ module WorkEngine
           # for an old base to be graded, or behind a main repair of that old
           # base -- which kept an approved Job's CI repair parked all afternoon
           # after main had moved four commits on.
-          return nil unless gate.blocked? && WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(gate.details["kind"])
+          # A branch behind its base is moot the same way: it must be rebased
+          # first, and the rebase preempts the repair.
+          return nil unless gate.blocked?
 
           base_sha = gate.details["base_sha"]
-          return nil unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
+          return nil unless WorkUnits::Gates::CiRepairSafety.moot_block?(workflow.job, gate.details["kind"], base_sha, since: workflow.created_at)
           return nil unless workflow.may_cancel?
 
           with_transition_reason do
@@ -1528,15 +1530,16 @@ module WorkEngine
           unless unit.blocked_reason == WorkUnits::Gates::CiRepairSafety::REASON
             return skipped("#{work_unit_label(unit)} is blocked on #{unit.blocked_reason}, not ci_repair_safety")
           end
-          unless WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(ci_repair_block_kind(workflow))
-            return skipped("CI repair block is #{ci_repair_block_kind(workflow)}, not one a superseded base makes moot")
+
+          kind = ci_repair_block_kind(workflow)
+          behind_base = WorkUnits::Gates::CiRepairSafety::BEHIND_BASE_BLOCK_KINDS.include?(kind)
+          unless behind_base || WorkUnits::Gates::CiRepairSafety::SUPERSEDABLE_BLOCK_KINDS.include?(kind)
+            return skipped("CI repair block is #{kind}, not one a superseded base makes moot")
           end
 
           base_sha = ci_repair_block_base_sha(workflow)
-          return skipped("CI repair base SHA is missing") if base_sha.blank?
-          unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
-            return skipped("CI repair base #{base_sha} is still current")
-          end
+          return skipped("CI repair base SHA is missing") if base_sha.blank? && !behind_base
+          return skipped(still_current_message(base_sha, behind_base)) unless moot?(workflow, kind, base_sha)
 
           current_base_sha = WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
           # Ancestry first, top down (NY40): cancelling rolls up to the Job.
@@ -1545,9 +1548,7 @@ module WorkEngine
             workflow.reload(lock: true)
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
-            unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
-              return skipped("CI repair base #{base_sha} is still current")
-            end
+            return skipped(still_current_message(base_sha, behind_base)) unless moot?(workflow, kind, base_sha)
 
             with_transition_reason do
               WorkUnits::WorkflowCancellation.cancel!(
@@ -1556,17 +1557,41 @@ module WorkEngine
                 artifacts: {
                   "cancelled_reason" => WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
                   "cancelled_by_reconciler_at" => Time.current.iso8601,
+                  "superseded_ci_repair_block_kind" => kind,
                   "superseded_ci_repair_base_sha" => base_sha,
                   "superseded_ci_repair_current_base_sha" => current_base_sha
                 }
               )
             end
+            hand_failure_back_to_poller!(workflow) if behind_base
           end
+
+          return success("cancelled #{workflow_label(workflow)} because its branch is behind base and must be rebased before any CI repair") if behind_base
 
           success("cancelled #{workflow_label(workflow)} because CI repair base #{base_sha} was superseded by #{current_base_sha}")
         end
 
         private
+
+        def moot?(workflow, kind, base_sha)
+          WorkUnits::Gates::CiRepairSafety.moot_block?(workflow.job, kind, base_sha, since: workflow.created_at)
+        end
+
+        def still_current_message(base_sha, behind_base)
+          behind_base ? "branch is no longer behind base" : "CI repair base #{base_sha} is still current"
+        end
+
+        # The poller answers "failing and behind base" by rebasing first, but
+        # only for a head it has not handled yet. Un-handle the cancelled
+        # repair's head so the next poll applies that rule instead of reading
+        # the failure as already answered.
+        def hand_failure_back_to_poller!(workflow)
+          job = workflow.job
+          head_sha = workflow.artifact("head_sha").presence
+          return unless job && head_sha && job.last_ci_handled_sha == head_sha
+
+          job.update!(last_ci_handled_sha: nil)
+        end
 
         def ci_repair_block_kind(workflow)
           ci_repair_block_details(workflow)["kind"].presence

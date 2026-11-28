@@ -1096,7 +1096,11 @@ module WorkEngine
             return automatic_plan(
               "cancel_superseded_ci_repair",
               primary_workflow,
-              "The CI repair was blocked on a base SHA that is no longer the Job's current base, so no future health check can make this workflow meaningful.",
+              if WorkUnits::Gates::CiRepairSafety::BEHIND_BASE_BLOCK_KINDS.include?(issue.evidence["ci_repair_block_kind"])
+                "The CI repair is blocked because its branch is behind base; only a rebase clears that, and a rebase preempts the repair, so it can never run as dispatched."
+              else
+                "The CI repair was blocked on a base SHA that is no longer the Job's current base, so no future health check can make this workflow meaningful."
+              end,
               execution_steps: [ "WorkUnits::WorkflowCancellation.cancel!" ],
               preconditions: {
                 workflow_state: "queued",
