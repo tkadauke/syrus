@@ -322,8 +322,10 @@ class Workflow < ApplicationRecord
     true
   end
 
+  # A Step parked on an operator question is neither active nor terminal,
+  # but the Workflow is not done while it waits.
   def active_descendants?
-    runs.active.exists? || projected_active_steps.any?
+    runs.active.exists? || projected_active_steps.any? || steps.where(state: "awaiting_answer").exists?
   end
 
   def terminal_cleanup_active_descendants?
