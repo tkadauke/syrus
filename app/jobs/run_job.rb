@@ -653,7 +653,10 @@ class RunJob < ApplicationJob
         PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
         return
       end
-      if @workflow.artifact("cannot_proceed").to_h["disposition"] == "failed"
+      # The handler persists the report through its own Workflow instance.
+      # Re-read it here rather than classifying from the copy loaded before
+      # the handler ran.
+      if @workflow.reload.artifact("cannot_proceed").to_h["disposition"] == "failed"
         fail_after_transient_cannot_proceed!(e.reason)
       else
         block_after_cannot_proceed!(e.reason)
@@ -1375,6 +1378,11 @@ class RunJob < ApplicationJob
     held_ids = Array(Thread.current[::Run::INLINE_HELD_RUN_IDS])
     return nil if held_ids.empty?
 
+    # Failure handling can rewrite this Step's successor (a Try branch or a
+    # newly materialized loop iteration). The execution claim loaded @step
+    # before that rewrite, so discard any cached next_step association before
+    # walking the continuation.
+    @step.reload
     cursor = @step.next_step
     while cursor
       queued = cursor.runs.where(state: "queued", id: held_ids).order(:created_at).last
