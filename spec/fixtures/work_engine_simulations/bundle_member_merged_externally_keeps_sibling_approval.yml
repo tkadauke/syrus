@@ -1,0 +1,56 @@
+# Found by the simulator fuzzer: one member of a two-Job bundle train is
+# merged on GitHub by hand while the train is grading. The reconciler cancels
+# the train because its Job closed, and the train's failure handler sent the
+# other member through fail_landing -- back to implemented with its approval
+# cleared -- although nothing about that member's work was judged. An operator
+# had to re-approve it. A sibling closing is a reason to rebuild the train
+# without it, so the remaining member keeps its approval and lands alone.
+name: bundle member merged externally keeps sibling approval
+app_settings:
+  beta_mode_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: bundle-member-merged-externally-keeps-sibling-approval
+  auto_merge_enabled: true
+jobs:
+  alpha:
+    title: First approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6601
+    approved_at: "2026-09-24 10:12:00"
+  beta:
+    title: Second approved bundle member, merged by hand mid-train
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6602
+    approved_at: "2026-09-24 10:13:00"
+events:
+  - name: beta merged on GitHub while the train grades
+    once: true
+    when:
+      all:
+        - tick: { at_least: 4 }
+        - job: { id: beta, has_pr: true }
+    do:
+      merge_pr:
+        job: beta
+        merged: true
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    active_runs: empty
+    landing: empty
+  events:
+    - merged PR for
+    - cancel_workflow_for_closed_job -> applied

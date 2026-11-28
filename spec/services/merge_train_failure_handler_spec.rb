@@ -117,6 +117,37 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(client).to have_received(:delete_branch).with(repository.slug, train.integration_branch)
     end
 
+    # Regression (found by the simulator fuzzer): a member's PR merged by
+    # hand mid-train closes its Job, and the reconciler cancels the train for
+    # it. The other members went through fail_landing and lost their approval
+    # although nothing about their work was judged.
+    it "keeps the other members' approval when the train is cancelled because a member's Job closed" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(train, b, state: "cancelled")
+      b.update_columns(state: "closed", closure_reason: "pr_merged")
+      workflow.set_artifact!("cancelled_reason", "job_closed")
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, delete_branch: true))
+
+      described_class.call(workflow: workflow, cancelled: true)
+
+      expect(a.reload.state).to eq("approved")
+      expect(a.landing_failure_code).to eq(LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED)
+      expect(b.reload.state).to eq("closed")
+    end
+
+    it "still fails the members' landing when the train is cancelled for any other reason" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, state: "cancelled", failure_reason: "merge_train: some genuine failure")
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, delete_branch: true))
+
+      described_class.call(workflow: workflow, cancelled: true)
+
+      expect(a.reload.state).to eq("implemented")
+    end
+
     it "still reverts members when the branch cannot be deleted" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

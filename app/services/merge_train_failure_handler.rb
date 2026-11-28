@@ -82,6 +82,18 @@ class MergeTrainFailureHandler
         next
       end
 
+      # The train was cancelled because a member's Job closed -- its PR was
+      # merged or closed on GitHub by hand mid-train. That ends the train for
+      # the closed member, not for the others: nothing about their work was
+      # judged, so they go back to the queue with their approval and the next
+      # train is built without it. fail_landing made an operator re-approve
+      # every remaining member.
+      if cancelled_for_closed_member? && job.landing?
+        defer_torn_down_member!(job, "merge_train cancelled: another member's Job closed; rebuild the train without it")
+        member.update!(state: "failed", reason: reason.truncate(500))
+        next
+      end
+
       # LandingFailureHandler classifies the reason: transient/infra
       # blockers defer_landing (stay approved, auto-retry), genuine
       # failures fail_landing (-> implemented, approval cleared, requires
@@ -92,6 +104,11 @@ class MergeTrainFailureHandler
   end
 
   private
+
+  # CancelWorkflowForClosedJob stamps `cancelled_reason: job_closed`.
+  def cancelled_for_closed_member?
+    @cancelled && @workflow.artifact("cancelled_reason") == "job_closed"
+  end
 
   def defer_torn_down_member!(job, reason)
     return unless job.may_defer_landing?
