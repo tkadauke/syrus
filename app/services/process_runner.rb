@@ -712,6 +712,9 @@ class ProcessRunner
     @on_spawned_process = on_spawned_process
     @workload_policy = workload_policy
     @initial_resource_attribution = resource_attribution.deep_stringify_keys
+    if @workload_policy&.respond_to?(:runtime_image_digest) && @workload_policy.runtime_image_digest.present?
+      @initial_resource_attribution["runtime_image_digest"] = @workload_policy.runtime_image_digest
+    end
     @backend = backend
     @last_authorization_checkpoint_check = nil
 

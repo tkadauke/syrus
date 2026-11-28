@@ -46,6 +46,10 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
         }
       ]
     },
+    coworker_environment_recovery: {
+      rollback_retention_count: 2,
+      launch_failure_threshold: 3
+    },
     ...overrides
   }
 }

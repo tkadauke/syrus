@@ -109,3 +109,9 @@ The standard coworker base moves candidate → active → retired (kept pullable
 - `POST /:id/revoke` (`reason`, `severity` = `standard` or `severe`) withdraws the base. New launches are blocked with `base_revoked`/`no_active_base` until another base is promoted or rolled back to; a severe revocation is also the termination signal for running executions.
 
 Rebuild discovery lists environments built on a revoked, support-ended, or ABI-incompatible base. A base that is itself out of support is never offered as the replacement; such environments are reported as blocked until a supported base is active. All changes are audited.
+
+## Coworker environment recovery
+
+Publishing a verified coworker environment retains the active image and, by default, the two newest compatible verified rollback images. Administrators configure both that count and the repeated startup-failure threshold on **Admin → Retention Settings**. A failure before the agent process starts counts against the exact activation; ordinary provider failures after startup do not.
+
+Once the threshold is reached, the publication authority recorded for the immediately previous compatible activation authorizes an atomic automatic rollback. Revoked, unavailable, expired-evidence, and ABI-incompatible images are never selected. A revoked digest is rejected at new-turn admission. Severe revocation additionally requests immediate termination of every live agent process whose recorded runtime-image digest matches the affected image; both rollback and termination are audited.
