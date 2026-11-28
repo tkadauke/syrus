@@ -49,7 +49,7 @@ class WorkflowPatch
       # read under the lock: a patch that committed while this one waited
       # would otherwise be overwritten by a graph computed before it.
       Lineage.lock!(@workflow)
-      @workflow.reload
+      @workflow.reload(lock: true)
       validate!
       patched = patched_graph
       materialize_live_steps!
