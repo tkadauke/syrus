@@ -13,7 +13,17 @@ class Coworkers::ChatTurnLifecycle
   def admission
     result = Coworkers::PrivilegedGrantGate.turn_admission(coworker)
     result[:message] ||= I18n.t("coworkers.confinement_unavailable", locale: @chat_session.user.locale) if result[:outcome].present?
+    @environment_selection = resolve_environment_selection unless result[:outcome].present?
     result
+  end
+
+  def execution_workload_policy(policy)
+    return policy unless @environment_selection
+
+    Syrus::Host::AgentRuntime.chat_workload_policy(
+      runtime_image: @environment_selection.runtime_image,
+      runtime_image_digest: @environment_selection.image_digest
+    )
   end
 
   def context = @chat_session
@@ -26,4 +36,11 @@ class Coworkers::ChatTurnLifecycle
   private
 
   def coworker = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: @chat_session.id).coworker
+
+  def resolve_environment_selection
+    return unless Feature.coworker_custom_environments_enabled?
+    return unless coworker.environment
+
+    Coworkers::EnvironmentActiveSelection.resolve(coworker.environment)
+  end
 end
