@@ -19,6 +19,7 @@ module WorkEngine
         mergeability_head_sha mergeability_checked_at github_mergeable github_mergeable_state
         local_mergeable local_mergeable_state
         triaging_reason classifier_attempts created_at updated_at runaway_protection
+        needs_attention needs_attention_reason
       ].freeze
       WORKFLOW_UPDATE_KEYS = %w[
         worker_hostname worker_storage_key started_at finished_at cleaned_up_at

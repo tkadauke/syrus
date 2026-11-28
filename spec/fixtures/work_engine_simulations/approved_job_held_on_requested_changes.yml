@@ -1,0 +1,36 @@
+# An approved Job whose PR has a review requesting changes. The landing queue
+# drops it from its candidates while that hold stands, so it never persists a
+# landing-queue reason for it -- and landing_progress used to read the Job as
+# approved with "no named landing blocker" although the queue computes
+# `review_requested_changes` for exactly this attention reason. (Production
+# hit it on an external Dependabot PR; the hold and the queue path are the
+# same for any Job kind.)
+#
+# The hold is named, and only the PR poll (a new review, a repair, or a
+# closure) moves the Job on, so the scenario ends waiting with the Job still
+# approved and no invariant violated.
+name: approved job held on requested changes
+max_ticks: 20
+repository:
+  owner: simulation
+  name: approved-job-held-on-requested-changes
+  auto_merge_enabled: true
+jobs:
+  held:
+    title: Approved Job whose PR has requested changes
+    state: approved
+    branch_name: syrus/direct-held
+    pr_number: 7301
+    pr_checks_state: passing
+    approved_at: "2026-01-01 00:00:00"
+    approved_via: github_review
+    needs_attention: true
+    needs_attention_reason: upstream_pr_changes_requested
+outcomes:
+  default: success
+success_states:
+  held:
+    - closed
+wait_states:
+  held:
+    - approved
