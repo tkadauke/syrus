@@ -1357,9 +1357,29 @@ module WorkEngine
       end
 
       def execute_active_runs!(tick)
+        hand_back_runs_no_worker_can_run!(tick)
         active_runs.each do |run|
           execute_run!(run, tick)
         end
+      end
+
+      # A queued Run no live worker can run any more (its capable worker left
+      # after it was enqueued) is claimed by an incapable worker and handed
+      # back, which records the no_capable_worker hold (RunJob.hand_back_incapable!).
+      # The simulation has no queue workers, so it performs that hand-back once.
+      def hand_back_runs_no_worker_can_run!(tick)
+        Run.joins(step: :workflow)
+          .where(job_id: job_ids, state: "queued", steps: { state: %w[queued running] }, workflows: { state: %w[queued running] })
+          .includes(step: { workflow: :work_unit })
+          .each do |run|
+            next unless queued_run_held_for_worker_environment?(run)
+
+            unit = run.workflow&.work_unit
+            next if unit&.blocked? && unit.blocked_reason == RunQueueResolver::BLOCKED_OUTCOME
+
+            RunJob.hand_back_incapable!(run) { nil }
+            events << "tick #{tick}: #{run.slug} #{run.step&.kind} handed back: no live worker can run it"
+          end
       end
 
       def execute_run!(run, tick)
@@ -2393,8 +2413,18 @@ module WorkEngine
         )
       end
 
+      # A Job's state, suffixed with the operator-cleared hold that explains a
+      # stop the state alone does not: a manual pause, or a WorkUnit held
+      # because no live worker can run its next step.
       def final_states
-        Job.where(id: job_ids).order(:id).to_h { |job| [ job.slug, job.manual_paused? ? "#{job.state}:manual_paused" : job.state ] }
+        Job.where(id: job_ids).order(:id).to_h do |job|
+          hold = if job.manual_paused?
+            "manual_paused"
+          elsif job.latest_workflow&.work_unit&.then { |unit| unit.blocked? && unit.blocked_reason == RunQueueResolver::BLOCKED_OUTCOME }
+            RunQueueResolver::BLOCKED_OUTCOME
+          end
+          [ job.slug, hold ? "#{job.state}:#{hold}" : job.state ]
+        end
       end
 
       def success(ticks)

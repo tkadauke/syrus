@@ -1517,6 +1517,32 @@ RSpec.describe RunJob, :ci_only do
         expect(run.reload).to be_queued
       end
 
+      # Regression (found by the simulator fuzzer): the last capable worker
+      # left after the Run was enqueued, and incapable workers kept handing it
+      # back every few seconds with no hold recorded anywhere.
+      it "records the no_capable_worker hold instead of handing back a Run no live worker can run" do
+        decision = RunQueueResolver.resolve(run: run)
+        blocked = decision.with(blocked_reason: RunQueueResolver::ENVIRONMENT_CHECK_BLOCKED_REASON)
+        allow(RunQueueResolver).to receive(:resolve).and_return(blocked)
+        allow(run).to receive(:hold_for_missing_capable_worker!)
+        handed_back = false
+
+        RunJob.hand_back_incapable!(run) { handed_back = true }
+
+        expect(handed_back).to be(false)
+        expect(run).to have_received(:hold_for_missing_capable_worker!).with(blocked)
+      end
+
+      it "hands back a Run another live worker can run" do
+        allow(run).to receive(:hold_for_missing_capable_worker!)
+        handed_back = false
+
+        RunJob.hand_back_incapable!(run) { handed_back = true }
+
+        expect(handed_back).to be(true)
+        expect(run).not_to have_received(:hold_for_missing_capable_worker!)
+      end
+
       it "runs a Run whose placement this worker satisfies" do
         on_host(os: "linux", git_sha: "50d35be290")
         job_instance = RunJob.new(run.id)

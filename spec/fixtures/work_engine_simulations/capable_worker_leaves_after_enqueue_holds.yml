@@ -1,0 +1,70 @@
+# Found by the simulator fuzzer. One worker lacks zstd, so this repository's
+# install cannot run there; the other is provisioned. After prepare reroutes to
+# the provisioned worker, that worker is lost while the next step's Run sits in
+# the queue. The Run was enqueued while a capable worker was live, so nothing
+# recorded a no_capable_worker hold: the incapable worker claimed it, handed it
+# back, and claimed it again every few seconds, while the Workflow and WorkUnit
+# read as running with nothing named. The hand-back now records the hold when
+# no live worker can run the Run, and the phase-admission recheck starts it
+# once a provisioned worker joins.
+name: capable worker leaves after enqueue holds
+max_ticks: 60
+repository:
+  owner: simulation
+  name: capable-worker-leaves-after-enqueue-holds
+runtime:
+  workers:
+    - worker-unprovisioned
+    - worker-provisioned
+runner:
+  auto_retry_failed_jobs: false
+jobs:
+  needs_zstd:
+    title: mysql2 links zstd
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: the provisioned worker is lost mid-workflow
+    once: true
+    when: { tick: { at_least: 6 } }
+    do:
+      leave_worker: { hostname: worker-provisioned }
+  - name: a provisioned replacement joins
+    once: true
+    when: { tick: { at_least: 10 } }
+    do:
+      join_worker: { hostname: worker-replacement }
+outcomes:
+  default: success
+  steps:
+    prepare:
+      - status: failure
+        worker: worker-unprovisioned
+        problem_code: worker_environment_missing
+        problem_evidence:
+          missing_kind: library
+          missing_name: zstd
+          command: bundle install
+        error_message: "prepare command failed (exit 5): bundle install\nOutput tail:\nld: library 'zstd' not found\nAn error occurred while installing mysql2 (0.5.7), and Bundler cannot continue."
+      - status: success
+expect:
+  jobs:
+    needs_zstd:
+      - implemented
+  workflow_artifacts:
+    - job: needs_zstd
+      values:
+        run_queue_blocked:
+          reason: worker_environment_check_failed
+  events_ordered:
+    - "the provisioned worker is lost mid-workflow"
+    - "handed back: no live worker can run it"
+    - "a provisioned replacement joins"
+  absent_events:
+    - "retry_workflow"
+success_states:
+  needs_zstd:
+    - implemented

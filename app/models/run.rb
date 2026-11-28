@@ -430,6 +430,10 @@ class Run < ApplicationRecord
     workflow ? workflow.solid_queue_priority : job.solid_queue_priority
   end
 
+  # RunJob.hand_back_incapable! records the hold enqueue_run_job records, when
+  # the last capable worker left after this Run was enqueued.
+  def hold_for_missing_capable_worker!(decision) = block_for_missing_capable_worker!(decision)
+
   private
 
   def default_user_from_job

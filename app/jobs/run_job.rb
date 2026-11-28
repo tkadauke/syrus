@@ -328,21 +328,25 @@ class RunJob < ApplicationJob
     return false if RunQueueResolver.locally_satisfied?(run: @run)
 
     Rails.logger.info("[RunJob] this worker does not satisfy Run ##{@run.id}'s placement requirements - handing it back")
-    # No live worker satisfies it either (the last capable one failed a smoke
-    # check after the Run was enqueued): block it with the resolver's reason
-    # and a recheck, as the first enqueue does. Re-enqueueing it onto the same
-    # queue let this worker claim and hand it back every few seconds with no
-    # reason recorded (F150).
-    decision = RunQueueResolver.resolve(run: @run)
-    if decision.blocked?
-      @run.send(:block_for_missing_capable_worker!, decision)
-    else
-      defer_run(@run.id, CAPABILITY_HANDBACK_DELAY)
-    end
+    self.class.hand_back_incapable!(@run) { defer_run(@run.id, CAPABILITY_HANDBACK_DELAY) }
     true
   rescue StandardError => e
     Rails.logger.warn("[RunJob] capability check failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
     false
+  end
+
+  # Hand a Run this worker cannot run back to the queue -- unless no live
+  # worker can. The Run was enqueued while a capable worker was live; once the
+  # last one leaves, handing it back only bounces it between incapable workers
+  # every few seconds with nothing named anywhere: the Workflow and WorkUnit
+  # read as running while nothing runs. Record the same no_capable_worker hold
+  # Run#enqueue_run_job records when the gap exists at enqueue time; the
+  # phase-admission recheck starts the Run once a capable worker is back.
+  def self.hand_back_incapable!(run)
+    decision = RunQueueResolver.resolve(run: run)
+    return run.hold_for_missing_capable_worker!(decision) if decision.blocked?
+
+    yield
   end
 
   def hand_back_unknown_step_kind?

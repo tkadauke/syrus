@@ -39,6 +39,9 @@ module WorkEngine
       # holding it is the silent stall the fuzzer hunts.
       module Oracle
         SETTLED_JOB_STATES = %w[implemented approved landing closed failed no_change_needed].freeze
+        # Holds only an operator clears (Runner#final_states suffixes them): a
+        # manual pause, or no live worker able to run the next step.
+        OPERATOR_HOLDS = [ ":manual_paused", ":#{RunQueueResolver::BLOCKED_OUTCOME}" ].freeze
 
         # nil when the run passes, otherwise a short failure signature that
         # stays stable while shrinking.
@@ -55,7 +58,7 @@ module WorkEngine
         end
 
         def self.settled?(result)
-          result.final_states.present? && result.final_states.values.all? { |state| SETTLED_JOB_STATES.include?(state) || state.end_with?(":manual_paused") }
+          result.final_states.present? && result.final_states.values.all? { |state| SETTLED_JOB_STATES.include?(state) || state.end_with?(*OPERATOR_HOLDS) }
         end
       end
 
