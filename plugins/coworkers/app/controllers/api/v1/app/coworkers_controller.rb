@@ -58,6 +58,20 @@ module Api
           render json: { schedules: schedules_json(coworker) }
         end
 
+        def environment
+          coworker = authorized_coworker
+          record = coworker.environment
+          render json: {
+            environment: record && Coworkers::EnvironmentPageSerializer.new(record, coworker:).as_json,
+            feature_enabled: Feature.coworker_custom_environments_enabled?,
+            source: {
+              repository: coworker.workspace_repo,
+              branch: "coworkers/#{coworker.handle}",
+              path: "environment/"
+            }
+          }
+        end
+
         def review_context
           coworker = Coworkers::Coworker.find(params[:id])
           unless Syrus::Host::Current.user.admin? || coworker.owner_user_id == Syrus::Host::Current.user.id
