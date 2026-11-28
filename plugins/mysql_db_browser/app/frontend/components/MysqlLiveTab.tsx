@@ -69,7 +69,9 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
       {statementSummariesUnavailable ? (
         <Surface variant="inset">
           <Text variant="heading-sm">{t("live_statement_digests_unavailable")}</Text>
-          <Text className="mt-1" tone="muted">{t("live_statement_digests_unavailable_hint")}</Text>
+          <Text className="mt-1" tone="muted">
+            {t("live_statement_digests_unavailable_hint")}
+          </Text>
         </Surface>
       ) : live.isError ? (
         <Text role="alert" tone="danger">
