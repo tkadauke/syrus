@@ -138,7 +138,8 @@ class StackBaseFreshness
     drivers = GitMergeDrivers.register!(git: @git, path: @path)
     original_head = @git.run("rev-parse", "HEAD", chdir: @path).strip
     replaying = false
-    if prepared.present? && commit_available?(prepared) && descends_from?(prepared)
+    prepared = replay_base(prepared)
+    if prepared.present?
       if merges_since?(prepared, live)
         replaying = true
         replay_own_commits!(live, prepared)
@@ -155,6 +156,42 @@ class StackBaseFreshness
       "rebasing completed work onto #{@parent_ref} (#{short(live)}) failed: #{e.message}",
       evidence: evidence(prepared, live, history).merge("conflicted_files" => conflicts)
     )
+  end
+
+  CONFLICT_ARTIFACT = "stack_base_rebase_conflict".freeze
+
+  # The base to replay the child's own commits from: the recorded prepared
+  # SHA when HEAD descends from it, otherwise the nearest base any of this
+  # Job's workflows recorded that HEAD does descend from.
+  #
+  # A retry inherited a prepared SHA naming the parent's *rewritten* head
+  # while its workspace still held the work built on the parent's old head.
+  # HEAD did not descend from it, so the plain-rebase fallback replayed the
+  # parent's superseded commits too, and they collided add/add with their
+  # rewritten versions on every retry. The old head was still on record in an
+  # earlier workflow's conflict evidence.
+  def replay_base(prepared)
+    return prepared if usable_base?(prepared)
+
+    recorded_bases.select { |sha| usable_base?(sha) }
+      .min_by { |sha| @git.run("rev-list", "--count", "#{sha}..HEAD", chdir: @path).to_i }
+  end
+
+  def usable_base?(sha)
+    sha.present? && commit_available?(sha) && descends_from?(sha)
+  end
+
+  def recorded_bases
+    workflows = @workflow.job ? @workflow.job.workflows.where.not(id: @workflow.id).order(id: :desc).limit(20) : []
+    [ @workflow, *workflows ].flat_map do |workflow|
+      prepared = workflow.artifact(PREPARED_ARTIFACT)
+      conflict = workflow.artifact(CONFLICT_ARTIFACT)
+      [
+        prepared.is_a?(Hash) ? prepared["sha"] : nil,
+        conflict.is_a?(Hash) ? conflict["prepared_sha"] : nil,
+        workflow.artifact("stack_parent_head_sha")
+      ]
+    end.compact_blank.uniq
   end
 
   def merges_since?(prepared, live)
