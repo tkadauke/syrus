@@ -42,7 +42,7 @@ module WorkflowOutcomeOverrides
           # cancelled one, rewriting its repair to skipped past AASM left a
           # blocked attempt that an answer could no longer resume, and the
           # continuation's Run was queued under a terminal Workflow.
-          if workflow.reload.terminal?
+          if workflow.reload(lock: true).terminal?
             raise Resumer::ResumeFailed, "Workflow ##{workflow.id} is #{workflow.state}; its review loop can no longer be resumed"
           end
           source, descendants, loop_continuation, active_runs = locked_loop_segment

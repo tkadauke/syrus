@@ -5055,6 +5055,50 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F149. Re-reads after a lineage lock answered from a stale snapshot — fixed (NY45)
+
+**Invariant.** A check made under a row lock sees the row as the last
+committer left it: that is what the lock is for.
+
+**Counterexample.** `Lineage.lock!` (and `lock_all!`, `lock_subtree!`,
+`Job#lock_active_work!`) collects a record's ancestry with plain reads, then
+takes the row locks top down. Under MySQL's REPEATABLE READ the first plain
+read fixes the transaction's snapshot, before the lock waits. The NY40
+conversion replaced `record.with_lock` (whose re-read is a locking read) with
+`Lineage.lock!(record); record.reload`, and a plain `reload` answers from
+that snapshot: a concurrent transaction that committed while this one waited
+for the locks is invisible. Main found one instance in production, a grader
+fan-out Run executed twice, and fixed `RunJob`'s claim with locking reads and
+a compare-and-set (`0fe5a73b5b`). The same shape was in 39 places, among them
+`StepDispatcher.create_run_and_enqueue` (one Run per Step), the loop and Try
+funnels, `RetryFailedStepEnqueuer`, `WorkflowCancellation`,
+`TerminalWorkflowSync`, `ImmutableReviewHeadBarrier.refresh_required_reviews!`,
+`ResetJobs` and a dozen repair actions, and in this branch's own F142, F143 and
+F146 rechecks, which on MySQL would not have seen the claim, cancellation or
+retry they were written to catch.
+
+**Fix.** Every re-read right after a lineage lock is a locking read
+(`reload(lock: true)`, `Model.lock.find`); the rows are already held, so the
+lock order is unchanged and the checker counts them as re-locks. A new
+architecture spec (`lineage_locking_reads_spec.rb`) fails on a plain
+`reload` within three lines of a lineage lock. Spec first: the starved-grader
+recheck, with plain reloads staged to answer from the snapshot
+(`spec/support/repeatable_read_snapshot.rb`), failed with the claimed Run
+cancelled.
+
+The full suite on this branch also showed a dozen RunJob examples failing
+only on a macOS machine: main's hand-back of Runs the worker does not satisfy
+(`48e88782fb`) saw the test worker's probed `macos` against the default Linux
+placement. The suite's worker now reports Linux, as in CI, unless a spec stubs
+the probe. Main's own CI is red on three examples independent of this branch
+(the coworker scheduled-task retry count and two browser runtime contract
+examples).
+
+**Not fixed by this.** Other plain reads after the lock (association loads,
+`exists?` queries) still answer from the snapshot. NY45 asks whether to run
+the application's MySQL sessions at READ COMMITTED, where each statement
+reads the latest committed rows and the whole class goes away.
+
 ## F148. A Job detach rewrote the branch under the Job's running work — fixed
 
 **Invariant.** Nothing rewrites a Job's branch while work holding the Job's
@@ -8504,7 +8548,25 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   gate that exact SHA. Should an approval be cleared when a feedback Workflow
   advances HEAD after it?
 
-Checked through main `4b70b2c635`. Each loop iteration continues from there:
+- Main through `9d514f82d0`: main added three Lean models (slot capacity,
+  approved-work progress, retry termination) with its own F140 and F141, so
+  this branch's findings from the previous sweep are F142 to F148. Main's
+  `0fe5a73b5b` (a Run executed twice through a stale snapshot) generalizes to
+  F149. The Epic-member landing move now locks its lineage top down
+  (`d2fbf1472a`, its re-read now a locking read); a rebase's landing
+  re-dispatch runs after commit, outside the rebase's locks (`1a20b6c1ed`).
+  Both hold.
+  NY45 (operator): should Syrus's MySQL sessions run at READ COMMITTED?
+  Under the default REPEATABLE READ every plain read in a transaction answers
+  from the snapshot taken at its first read, which `Lineage.lock!` takes
+  before waiting on the row locks. F149 makes the re-reads right after a lock
+  locking reads, but association loads and `exists?` checks after a lock are
+  still stale. READ COMMITTED (`variables: { transaction_isolation:
+  "READ-COMMITTED" }` in `config/database.yml`) makes every statement read the
+  latest committed rows, needs row-based binlogs (MySQL 8's default), and
+  takes fewer gap locks. Recommended: yes.
+
+Checked through main `9d514f82d0`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

@@ -1396,6 +1396,25 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       expect(StepDispatcher).not_to have_received(:advance_from)
     end
 
+    # Under MySQL's REPEATABLE READ the recheck's plain reload answered from
+    # the snapshot Lineage.lock! took before waiting on the claim's locks, so
+    # it still saw the Run queued; the recheck reads with locking reads.
+    it "sees the claim even when plain re-reads answer from a snapshot" do
+      allow(StepDispatcher).to receive(:advance_from)
+      stage_repeatable_read_snapshot!(Run, Step, Workflow)
+      allow(Step).to receive(:suppress_cancel_cascade).and_wrap_original do |original, &block|
+        Run.where(id: starved_run.id).update_all(state: "running", started_at: Time.current)
+        Step.where(id: starved_grader.id).update_all(state: "running")
+        original.call(&block)
+      end
+
+      reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(Run.find(starved_run.id)).to be_running
+      expect(Step.find(starved_grader.id)).to be_running
+      expect(StepDispatcher).not_to have_received(:advance_from)
+    end
+
     it "hands the settled grader_collect to the dispatcher" do
       # A running train has finished everything before its graders.
       workflow.steps.where("position < ?", failed_grader.position).update_all(state: "succeeded", finished_at: 1.hour.ago)

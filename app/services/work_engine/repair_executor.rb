@@ -898,9 +898,12 @@ module WorkEngine
           cancelled = Step.suppress_cancel_cascade do
             Workflow.transaction do
               Lineage.lock!(run)
-              run.reload
-              step.reload
-              next false unless run.queued? && run.started_at.nil? && step.queued? && step.workflow&.running?
+              # Locking reads: a plain reload answers from the snapshot
+              # Lineage.lock! took before waiting on the claim's locks.
+              run.reload(lock: true)
+              step.reload(lock: true)
+              workflow = Workflow.lock.find_by(id: step.workflow_id)
+              next false unless run.queued? && run.started_at.nil? && step.queued? && workflow&.running?
 
               with_transition_reason do
                 run.cancel_without_step_cascade!

@@ -3952,6 +3952,32 @@
       ],
       "recommendation": "A. It reuses every part of the lock that already works (release on terminal units, reconciler repair, first-come ordering), and an emergency land is rare enough that a short-lived unit costs nothing.",
       "decision": "A (2026-11-24, answered on the lean-plan site): a short-lived WorkUnit under a new emergency_land work definition holds the merge lock for the emergency merge. Implemented on the branch (F133, 2026-11-25)."
+    },
+    {
+      "id": "NY44",
+      "item": "landing-queue-order",
+      "title": "Should an approval be cleared when a feedback Workflow advances HEAD after it?",
+      "context": "Approving an implemented Job during active work is now allowed by design (main's 103787e46f). A PR comment that arrives while, say, a rebase runs queues a pr_comment Workflow behind it without clearing an approval that does not exist yet. If the operator then approves (or a GitHub approval on the old HEAD is recorded), the Job stays approved while the feedback Workflow runs and pushes a new HEAD, and nothing un-approves it: the Job lands a response the approver never saw. Graders and required reviews still gate that exact SHA; only the human approval is stale. auto_merge copies the Syrus approval onto the new HEAD on GitHub.",
+      "options": [
+        "A. Clear the approval (and stop landing) when a feedback Workflow that started after the approval advances HEAD, as feedback creation already does; the operator re-approves the new HEAD.",
+        "B. Refuse an approval while a feedback Workflow is queued or running for the Job, so an approval always follows the last feedback round.",
+        "C. Keep it: an approval given with feedback pending means 'land whatever the agent does with it', and graders plus required reviews are the gate for the new HEAD."
+      ],
+      "recommendation": "A. It keeps approval-during-work (the point of 103787e46f) and restores the rule that an approval covers the HEAD the approver saw, using the path feedback creation already has (ApprovalUnapprover under the Job lock).",
+      "decision": null
+    },
+    {
+      "id": "NY45",
+      "item": "terminal-states-absorbing",
+      "title": "Should Syrus's MySQL sessions run at READ COMMITTED?",
+      "context": "Under MySQL's default REPEATABLE READ every plain read in a transaction answers from the snapshot fixed by its first plain read. Lineage.lock! makes plain reads to collect a record's ancestry before it waits on the row locks, so anything read plainly after the lock can miss a transaction that committed meanwhile. That produced a production double execution of one Run (fixed on main in 0fe5a73b5b) and the same shape was in 39 places (F149, fixed by making the re-read right after a lock a locking read, with an architecture spec guarding it). Association loads and exists? checks after a lock are still stale under REPEATABLE READ.",
+      "options": [
+        "A. Run the application's sessions at READ COMMITTED (variables: { transaction_isolation: 'READ-COMMITTED' } in config/database.yml for production). Every statement then reads the latest committed rows, so a check after a lock sees the committed state, and InnoDB takes fewer gap locks (fewer deadlocks). Needs row-based binlogs, MySQL 8's default. One configuration change plus a deploy.",
+        "B. Stay on REPEATABLE READ and keep converting reads after locks to locking reads case by case, guarded by architecture specs. No configuration change, but every new check-after-lock must remember it.",
+        "C. Have Lineage.lock! collect the ancestry outside the transaction (or with locking reads only) so the snapshot is taken after the locks. Narrower than A, but any plain read before Lineage.lock! in the same transaction still fixes the snapshot early."
+      ],
+      "recommendation": "A, keeping F149's locking reads as belt and braces. READ COMMITTED is the usual setting for Rails on MySQL, and it removes the whole class instead of one site at a time.",
+      "decision": null
     }
   ]
 }
