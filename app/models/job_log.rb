@@ -48,17 +48,41 @@ class JobLog < ApplicationRecord
       sequence = advance_sequence(run.id, sequence)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
-      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata,
-                            after: sequence - 1)
+      append_with_run_lock_or_drop!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata,
+                                    after: sequence - 1)
     rescue ActiveRecord::RecordInvalid => e
       raise unless e.record.errors.of_kind?(:sequence, :taken)
       sequence = advance_sequence(run.id, sequence)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
-      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata,
-                            after: sequence - 1)
+      append_with_run_lock_or_drop!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata,
+                                    after: sequence - 1)
     end
   end
+
+  Syrus::Metrics.declare do
+    counter :job_log_dropped_appends_total, tags: %i[reason], cluster: true,
+            comment: "Run log lines dropped because every sequence slot tried was taken by a concurrent writer"
+  end
+
+  # Logging is not the work. A line that still collides after every retry is
+  # dropped with a warning instead of raising into the Step it describes: a
+  # production grader fan-out failed on its own log line and wasted a whole
+  # landing round.
+  def self.append_with_run_lock_or_drop!(run_id:, chunk:, kind:, tool_metadata:, after:)
+    append_with_run_lock!(run_id: run_id, chunk: chunk, kind: kind, tool_metadata: tool_metadata, after: after)
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+    raise if e.is_a?(ActiveRecord::RecordInvalid) && !e.record.errors.of_kind?(:sequence, :taken)
+
+    forget_next_sequence!(run_id)
+    Syrus::Metrics.counter(:syrus_job_log_dropped_appends_total).increment(tags: { reason: "sequence_collision" })
+    Rails.logger.warn(
+      "[JobLog] dropped a log line for Run ##{run_id} after #{MAX_APPEND_ATTEMPTS * 2} sequence collisions: " \
+        "#{e.class}: #{e.message.to_s.truncate(200)}; line: #{chunk.to_s.truncate(200)}"
+    )
+    nil
+  end
+  private_class_method :append_with_run_lock_or_drop!
 
   # A collision means another writer holds this slot. Re-reading MAX(sequence)
   # is not enough to find the next free one: when append! runs inside a

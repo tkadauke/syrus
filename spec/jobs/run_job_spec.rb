@@ -2404,6 +2404,13 @@ RSpec.describe RunJob, :ci_only do
   describe "inline successor routing" do
     include ActiveJob::TestHelper
 
+    around do |example|
+      prior = Thread.current[Run::INLINE_HELD_RUN_IDS]
+      example.run
+    ensure
+      Thread.current[Run::INLINE_HELD_RUN_IDS] = prior
+    end
+
     it "defers a queued collect run until every grader dependency is terminal" do
       repository.update!(distributed_workflow_dag_enabled: true)
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
@@ -2507,6 +2514,8 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@run, current_run)
       allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-grader")
       allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+      # Created while this perform drove the workflow, so it holds the Run.
+      Thread.current[Run::INLINE_HELD_RUN_IDS] = [ collect_run.id ]
 
       clear_enqueued_jobs
       result = nil
@@ -2552,6 +2561,7 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@step, build)
       run_job.instance_variable_set(:@run, current_run)
       allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-main")
+      Thread.current[Run::INLINE_HELD_RUN_IDS] = [ collect_run.id ]
 
       clear_enqueued_jobs
 

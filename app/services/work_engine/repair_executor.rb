@@ -1415,6 +1415,14 @@ module WorkEngine
 
           step_runs = step.runs.to_a
           return skipped("Step has no Runs") if step_runs.empty?
+          # The classifier's own guard, re-checked now: a plan made while the
+          # Step was still running with a failed Run, applied after a retry
+          # failed and reopened it, failed the reopened Step again and its
+          # retry reopened it a second time -- two Runs of one Step executing
+          # at once.
+          if step.queued? && reopened_after_latest_terminal_run?(step, step_runs)
+            return skipped("Step was reopened after its latest terminal Run")
+          end
 
           with_transition_reason do
             @sync_result = Steps::StateSynchronizer.from_latest_terminal_run!(step, runs: step_runs)
@@ -1425,6 +1433,11 @@ module WorkEngine
             StepDispatcher.advance_from(step.reload)
           end
           success(@sync_result.reason)
+        end
+
+        def reopened_after_latest_terminal_run?(step, step_runs)
+          terminal_run = Steps::StateProjection.for(step, runs: step_runs).latest_terminal_run
+          StateTransition.step_reopened_since?(step, terminal_run&.finished_at)
         end
 
         def advance_after_reconciled_failure?(step)

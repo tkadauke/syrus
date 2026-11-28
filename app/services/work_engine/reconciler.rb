@@ -1077,15 +1077,7 @@ module WorkEngine
     # summarize Step -- and its publication tail -- a minute after an
     # operator's retry, and the Workflow failed again once grading passed.
     def reopened_since?(step, finished_at)
-      return false if finished_at.blank?
-
-      StateTransition
-        .where(event_name: "reopen", created_at: finished_at..)
-        .where(
-          "(subject_type = 'Workflow' AND subject_id = ?) OR (subject_type = 'Step' AND subject_id = ?)",
-          step.workflow_id, step.id
-        )
-        .exists?
+      StateTransition.step_reopened_since?(step, finished_at)
     end
 
     def classify_succeeded_review_steps_without_required_repair

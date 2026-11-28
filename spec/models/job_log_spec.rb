@@ -105,14 +105,31 @@ RSpec.describe JobLog do
       expect(run.reload.job_logs.order(:sequence).pluck(:chunk).last).to eq("from the landing queue")
     end
 
-    it "gives up rather than looping when the gap exceeds its budget" do
+    # Regression: a concurrent writer kept taking every slot tried, the final
+    # collision raised into the grader fan-out the line was describing, and
+    # the Step failed on its own log.
+    it "drops the line instead of raising when the gap exceeds its budget" do
       30.times { |index| JobLog.create!(run: run, chunk: "existing #{index}", sequence: index) }
       pin_reported_max(0)
+      warnings = []
+      allow(Rails.logger).to receive(:warn) { |message| warnings << message }
 
-      # Either shape is correct here: the model's uniqueness validation
-      # usually loses the race first, the index catches what it misses.
-      expect { described_class.append!(run: run, chunk: "doomed", kind: "system") }
-        .to raise_error(ActiveRecord::ActiveRecordError)
+      result = nil
+      expect { result = described_class.append!(run: run, chunk: "doomed", kind: "system") }
+        .not_to raise_error
+
+      expect(result).to be_nil
+      expect(run.job_logs.where(chunk: "doomed")).to be_empty
+      expect(warnings).to include(a_string_including("dropped a log line for Run ##{run.id}"))
+      samples = Syrus::Metrics.counter(:syrus_job_log_dropped_appends_total).samples.to_h
+      expect(samples.fetch(reason: "sequence_collision")).to be >= 1
+    end
+
+    it "still raises errors that are not sequence collisions" do
+      allow(described_class).to receive(:create!).and_raise(ActiveRecord::StatementInvalid, "disk full")
+
+      expect { described_class.append!(run: run, chunk: "line", kind: "system") }
+        .to raise_error(ActiveRecord::StatementInvalid, "disk full")
     end
   end
 

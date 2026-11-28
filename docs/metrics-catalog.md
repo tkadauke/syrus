@@ -41,6 +41,7 @@ are computed at read time with `rate()`.
 | `syrus_global_queue_ready_count` | gauge | `queue` | no | Jobs ready to be claimed (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_queue_sample_age_seconds` | gauge | — | no | Age of the cached queue sample; large means the sampler has stopped |
 | `syrus_instance_versions` | gauge | `role`, `version` | no | Live pods by role and git SHA -- two versions during a rollout is expected (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_job_log_dropped_appends_total` | counter | `reason` | no | Run log lines dropped because every sequence slot tried was taken by a concurrent writer |
 | `syrus_job_state` | gauge | `state` | no | Jobs grouped by state (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_jobs_landed_total` | counter | — | no | Jobs whose PR reached the base branch |
 | `syrus_landing_queue_depth` | gauge | `blocked_reason` | no | Approved/landing Jobs by why they are not landing yet, "none" meaning eligible (GLOBAL -- aggregate with max by, never sum) |
