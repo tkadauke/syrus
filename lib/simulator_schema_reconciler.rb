@@ -28,6 +28,11 @@ module SimulatorSchemaReconciler
 
     stale.each do |config|
       log.call("[simulator] #{config.name} database #{config.database} was built from a different db/#{config.schema_dump} -- reloading the schema")
+      # Purge first: loading over the stale file failed with "index ...
+      # already exists" whenever the old schema held an index the new one
+      # re-creates outside its table's force-recreated definition, and the
+      # simulator could not start until someone deleted the file by hand.
+      ActiveRecord::Tasks::DatabaseTasks.purge(config)
       ActiveRecord::Tasks::DatabaseTasks.load_schema(config, :ruby)
     end
 
