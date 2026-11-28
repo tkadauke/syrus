@@ -137,6 +137,26 @@ la:
       telemetry:
         message: "Exitus Workflow defecit, superatus"
         transcript: "Exitus Workflow defecit, superatus: %{gate_kind} %{gate_identity} apud %{candidate_head_sha} (testimonium %{evidence_digest})."
+    invariants:
+      landing_progress:
+        title: "Opus probatum et appulsurum progreditur"
+        violation: "%{job} iam %{hours} horas %{state} est sine Run activo, sine WorkUnit activa, sine impedimento appulsus nominato."
+      slot_holders:
+        title: "Loci concurrentes tantum ab opere currere potente tenentur"
+        violation: "%{unit} locum %{slot} in %{repository} tenet, sed currere non potest (%{reason})."
+      retry_storms:
+        title: "Errores certi non ut transitorii iterantur"
+        violation: "%{job} gradum %{step} %{count} vicibus intra %{window_minutes} minuta eodem errore defecit (%{classification})."
+      failed_blockers:
+        title: "Jobs defecti aliud opus clam non impediunt"
+        violation: "%{job} iam %{hours} horas defecit et %{count} Job(s) impedit: %{blocked}."
+      zombie_workflows:
+        title: "Status Workflow et Job verum opus describunt"
+        violation: "%{subject} %{state} est, sed nihil id per %{hours} horas promovit (%{condition})."
+      alert:
+        title: "Invariantia Syrus violata sunt."
+        message: "%{count} violationes invariantium apertae: %{summary}."
+        action: "Inspice GET /api/v1/admin/invariants ad res affectas et earum testimonia."
 
   errors:
     messages:
@@ -588,6 +608,8 @@ la:
     user_time_zones:
       invalid_mode: "modus automatic vel manual esse debet"
     admin:
+      invariants:
+        unknown_invariant: "Invarians ignota: %{key}. Invariantia nota: %{known}."
       plugin_disable:
         workflow_steps_in_flight: "Workflow nondum finitus gradus a %{plugin} possessos continet. Exspecta dum absolvatur antequam plugin inhabiles."
     chat_shell_commands:

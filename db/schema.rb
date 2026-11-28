@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_27_190107) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_041716) do
 
   create_table "achievements_acknowledgments", force: :cascade do |t|
     t.bigint "unlock_id", null: false
@@ -2002,6 +2002,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_190107) do
     t.index ["finished_at"], name: "index_instance_versions_on_finished_at"
     t.index ["hostname", "role"], name: "index_instance_versions_on_hostname_and_role", unique: true
     t.index ["last_heartbeat_at"], name: "index_instance_versions_on_last_heartbeat_at"
+  end
+
+  create_table "invariant_violations", force: :cascade do |t|
+    t.string "invariant_key", limit: 64, null: false
+    t.string "fingerprint", limit: 255, null: false
+    t.string "open_fingerprint", limit: 255
+    t.string "severity", limit: 16, null: false
+    t.string "subject_type", limit: 64, null: false
+    t.bigint "subject_id"
+    t.json "message_params"
+    t.json "details"
+    t.json "affected_ids"
+    t.datetime "violating_since"
+    t.datetime "first_detected_at", null: false
+    t.datetime "last_detected_at", null: false
+    t.datetime "resolved_at"
+    t.integer "detection_count", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["open_fingerprint"], name: "index_invariant_violations_on_open_fingerprint", unique: true
+    t.index ["resolved_at", "invariant_key"], name: "index_invariant_violations_on_resolved_at_and_invariant_key"
+    t.index ["subject_type", "subject_id"], name: "index_invariant_violations_on_subject_type_and_subject_id"
   end
 
   create_table "invitations", force: :cascade do |t|

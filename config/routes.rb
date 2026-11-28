@@ -648,6 +648,8 @@ Rails.application.routes.draw do
         get "stuck",    to: "overview#stuck"
         get "activity", to: "workflow_activity#index"
         get "reconciler_activity", to: "reconciler_activity#index"
+        # Invariant monitor: live evaluation of every invariant check.
+        get "invariants", to: "invariants#index"
         get "browser_errors", to: "browser_errors#index"
         get "backend_exceptions", to: "backend_exceptions#index"
         get "worker_health", to: "worker_health#show"

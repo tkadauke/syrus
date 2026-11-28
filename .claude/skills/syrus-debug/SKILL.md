@@ -177,6 +177,7 @@ in-flight Runs.
 |---|---|
 | `GET /api/v1/admin/activity` | Recent workflow activity feed |
 | `GET /api/v1/admin/reconciler_activity` | Recent `WorkEngine::Reconciler` repair activity |
+| `GET /api/v1/admin/invariants` | Live invariant-monitor evaluation: stranded approved/landing Jobs, slots held by non-runnable work, retry storms, failed Jobs blocking others, zombie workflows. `?only=key,...`, `?job_id=id,...`, `?include_resolved=true`; each violation carries `first_detected_at` from the recurring monitor. Start an hourly failure sweep here. |
 | `GET /api/v1/admin/worker_health` | Per-worker CPU/memory/disk samples. Filters: `hostname`, `since`, `until`, `sample_limit_per_host`, `minute_bucket_window_minutes` |
 | `GET /api/v1/admin/mcp_tool_usage` | MCP sidecar tool-call usage stats |
 | `GET /api/v1/admin/chats` / `GET /api/v1/admin/chats/:id` | Chat transcript diagnostics — compact list (filters `user`, `repo`, `since`) / full raw message dump (paginated via `?before=` + `?per=`) |

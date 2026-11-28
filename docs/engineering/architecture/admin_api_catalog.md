@@ -26,6 +26,7 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | GET | `/api/v1/admin/epics` | `api/v1/admin/epics#index` |
 | core | POST | `/api/v1/admin/epics` | `api/v1/admin/epics#create` |
 | core | GET | `/api/v1/admin/epics/:id` | `api/v1/admin/epics#show` |
+| core | GET | `/api/v1/admin/invariants` | `api/v1/admin/invariants#index` |
 | core | GET | `/api/v1/admin/jobs` | `api/v1/admin/jobs#index` |
 | core | POST | `/api/v1/admin/jobs` | `api/v1/admin/jobs#create` |
 | core | GET | `/api/v1/admin/jobs/:id` | `api/v1/admin/jobs#show` |

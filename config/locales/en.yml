@@ -167,6 +167,26 @@ en:
       telemetry:
         message: "Workflow outcome failed, overridden"
         transcript: "Workflow outcome failed, overridden: %{gate_kind} %{gate_identity} at %{candidate_head_sha} (evidence %{evidence_digest})."
+    invariants:
+      landing_progress:
+        title: "Approved and landing work progresses"
+        violation: "%{job} has been %{state} for %{hours}h with no active Run, no active WorkUnit, and no named landing blocker."
+      slot_holders:
+        title: "Concurrency slots are held only by runnable work"
+        violation: "%{unit} holds the %{slot} slot in %{repository} but cannot run (%{reason})."
+      retry_storms:
+        title: "Deterministic failures are not retried as transient"
+        violation: "%{job} failed its %{step} step %{count} times in %{window_minutes} minutes with the same failure (%{classification})."
+      failed_blockers:
+        title: "Failed Jobs do not silently block other work"
+        violation: "%{job} has been failed for %{hours}h and blocks %{count} Job(s): %{blocked}."
+      zombie_workflows:
+        title: "Workflow and Job state describe real work"
+        violation: "%{subject} is %{state}, but nothing has advanced it for %{hours}h (%{condition})."
+      alert:
+        title: "Syrus invariants are violated."
+        message: "%{count} invariant violation(s) are open: %{summary}."
+        action: "Inspect GET /api/v1/admin/invariants for the affected records and their evidence."
 
   errors:
     messages:
@@ -648,6 +668,8 @@ en:
     user_time_zones:
       invalid_mode: "mode must be automatic or manual"
     admin:
+      invariants:
+        unknown_invariant: "Unknown invariant: %{key}. Known invariants: %{known}."
       plugin_disable:
         workflow_steps_in_flight: "A non-terminal workflow contains steps owned by %{plugin}. Wait for it to finish before disabling the plugin."
     chat_shell_commands:

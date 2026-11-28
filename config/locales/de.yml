@@ -137,6 +137,26 @@ de:
       telemetry:
         message: "Workflow-Ergebnis fehlgeschlagen, übersteuert"
         transcript: "Workflow-Ergebnis fehlgeschlagen, übersteuert: %{gate_kind} %{gate_identity} bei %{candidate_head_sha} (Nachweis %{evidence_digest})."
+    invariants:
+      landing_progress:
+        title: "Freigegebene und landende Arbeit kommt voran"
+        violation: "%{job} ist seit %{hours} h %{state}, ohne aktiven Lauf, ohne aktive WorkUnit und ohne benannten Landeblocker."
+      slot_holders:
+        title: "Nebenläufigkeits-Slots werden nur von lauffähiger Arbeit belegt"
+        violation: "%{unit} belegt den Slot %{slot} in %{repository}, kann aber nicht laufen (%{reason})."
+      retry_storms:
+        title: "Deterministische Fehler werden nicht als vorübergehend wiederholt"
+        violation: "%{job} ist im Schritt %{step} %{count}-mal in %{window_minutes} Minuten mit demselben Fehler gescheitert (%{classification})."
+      failed_blockers:
+        title: "Fehlgeschlagene Jobs blockieren keine andere Arbeit unbemerkt"
+        violation: "%{job} ist seit %{hours} h fehlgeschlagen und blockiert %{count} Job(s): %{blocked}."
+      zombie_workflows:
+        title: "Workflow- und Job-Zustand beschreiben echte Arbeit"
+        violation: "%{subject} ist %{state}, aber seit %{hours} h treibt nichts es voran (%{condition})."
+      alert:
+        title: "Syrus-Invarianten sind verletzt."
+        message: "%{count} offene Invariantenverletzung(en): %{summary}."
+        action: "Prüfe GET /api/v1/admin/invariants für die betroffenen Datensätze und ihre Belege."
 
   errors:
     messages:
@@ -588,6 +608,8 @@ de:
     user_time_zones:
       invalid_mode: "Der Modus muss automatic oder manual sein"
     admin:
+      invariants:
+        unknown_invariant: "Unbekannte Invariante: %{key}. Bekannte Invarianten: %{known}."
       plugin_disable:
         workflow_steps_in_flight: "Ein noch nicht beendeter Workflow enthält Schritte von %{plugin}. Warte, bis er abgeschlossen ist, bevor du das Plugin deaktivierst."
     chat_shell_commands:

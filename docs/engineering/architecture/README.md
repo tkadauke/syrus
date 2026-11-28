@@ -56,6 +56,8 @@ system-wide overview and routes here for detail.
 - [Worker activity timeline](worker_activity_timeline.md) — core worker
   activity data and its boundary with the worker-timeline plugin.
 - [Work-engine reconciler](work_engine_reconciler.md)
+- [Invariant monitor](invariant_monitor.md) — codified invariants over work-engine
+  state, the recurring monitor, and `GET /api/v1/admin/invariants`.
 - [Persistent MCP sidecar](persistent_mcp_sidecar.md)
 - [MCP bridge](mcp_bridge.md) — the chat tool surface over HTTP for external MCP clients
 - [Agent conversation](agent_conversation.md)

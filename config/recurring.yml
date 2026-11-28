@@ -97,6 +97,11 @@ default: &default
     class: SyncEnabledForksJob
     queue: low_priority_maintenance
     schedule: every 15 minutes
+  # The codified failure sweep: see app/services/invariants.rb.
+  monitor_invariants:
+    class: InvariantMonitorJob
+    queue: low_priority_maintenance
+    schedule: every 15 minutes
   reap_stale_runs:
     class: ReapStaleRunsJob
     queue: control_plane
