@@ -18,6 +18,5 @@ module Coworkers
     private
 
     attr_reader :revision, :now
-
   end
 end
