@@ -97,7 +97,6 @@ module RuntimeImages
         end
         attempt
       end
-
     end
   end
 end
