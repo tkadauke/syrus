@@ -72,4 +72,19 @@ describe("installStaleChunkRecovery", () => {
     expect(event.defaultPrevented).toBe(false)
     storage.mockRestore()
   })
+
+  it("leaves a failure during background warm-up to the warm-up queue instead of reloading", () => {
+    const reload = vi.fn()
+    let backgroundOnly = true
+    uninstall = installStaleChunkRecovery(reload, { backgroundOnlyInFlight: () => backgroundOnly })
+
+    const background = dispatchPreloadError()
+    expect(reload).not.toHaveBeenCalled()
+    expect(background.defaultPrevented).toBe(false)
+
+    backgroundOnly = false
+    const onDemand = dispatchPreloadError()
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(onDemand.defaultPrevented).toBe(true)
+  })
 })

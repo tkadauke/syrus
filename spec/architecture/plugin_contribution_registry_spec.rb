@@ -19,6 +19,11 @@ RSpec.describe "plugin frontend contribution registry" do
 
   ALLOWED_PLUGIN_GLOB_FILES = %w[
     app/frontend/builtInPluginContributions.ts
+    app/frontend/builtInPluginAgentProviderConnectPanels.ts
+    app/frontend/builtInPluginArtifactRenderers.ts
+    app/frontend/builtInPluginChatMessageRenderers.ts
+    app/frontend/builtInPluginRuntimeSessionViews.ts
+    app/frontend/builtInPluginToolCards.ts
     app/frontend/i18n/index.ts
     app/frontend/test/setup.ts
   ].freeze

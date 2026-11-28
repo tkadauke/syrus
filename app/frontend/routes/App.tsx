@@ -1,7 +1,7 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type ReactNode, useEffect, useState } from "react"
-import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
+import { Link, matchRoutes, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { fetchMe, type MePayload } from "../api/me"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
@@ -15,69 +15,81 @@ import { NotificationsRoute } from "../components/Notifications"
 import { ConnectionStatusRoute } from "../components/ConnectionStatus"
 import { useAppEvents } from "../lib/useAppEvents"
 import { ConnectionContext } from "../lib/connectionContext"
-import { AdminConsole } from "./AdminConsole"
-import { AdminBackendExceptions } from "./AdminBackendExceptions"
-import { AdminBrowserErrors } from "./AdminBrowserErrors"
 import { AppChromeV2 } from "./AppChromeV2"
-import { AdminGithubAppConfirm, AdminGithubAppRegister } from "./AdminGithubApp"
-import { AdminInvitations } from "./AdminInvitations"
-import { AdminInstallations } from "./AdminInstallations"
-import { AdminOverview, AdminResourceAdmission, AdminScopedChatEvents } from "./AdminOverview"
-import { AdminPluginDetail, AdminPlugins } from "./AdminPlugins"
-import { AdminQueueRoute } from "./AdminQueue"
-import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
-import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
-import { AdminWorkUnits } from "./AdminWorkUnits"
-import { AdminMaintenanceTaskDetail, AdminMaintenanceTasks } from "./AdminMaintenanceTasks"
-import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
-import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
-import { AdminSettings } from "./AdminSettings"
-import { RetentionSettings } from "./RetentionSettings"
-import { AdminStuck } from "./AdminStuck"
-import { AdminTranscript } from "./AdminTranscript"
-import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
-import { AdminTeamDetailRoute, AdminTeamsIndex } from "./AdminTeams"
-import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
-import { ChatSearchRoute } from "./ChatSearch"
-import { ChatRoute, SharedChatRoute } from "./Chat"
-import { CredentialsRoute } from "./Credentials"
 import { DashboardRoute } from "./Dashboard"
-import { LandingLanesRoute } from "./LandingLanes"
-import { DesignSystemRoute } from "./DesignSystem"
-import { DirectJobNewRoute } from "./DirectJobNew"
-import { AdminFeatures } from "./AdminFeatures"
-import { EpicDetailRoute } from "./EpicDetail"
-import { EpicFormRoute } from "./EpicForm"
-import { JobDetailRoute } from "./JobDetail"
-import { NotificationsSettingsRoute } from "./NotificationsSettings"
-import { OnboardingRoute } from "./Onboarding"
-import { PersonalDocumentsRoute } from "./PersonalDocuments"
-import { AccountProfileRoute } from "./Profile"
-import { PreferencesRoute } from "./Preferences"
-import { RepositoriesIndex } from "./Repositories"
-import { RepositoryDetailRoute } from "./RepositoryDetail"
-import { RepositoryCognitiveDebtRoute } from "./RepositoryCognitiveDebt"
-import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
-import { RepositoryFormRoute } from "./RepositoryForm"
-import { RepositorySkillNewRoute } from "./RepositorySkillNew"
-import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
-import { Tags } from "./Tags"
-import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
-import { ThemesSettingsRoute } from "./ThemesSettings"
-import { PermissionsSettingsRoute } from "./PermissionsSettings"
-import { PermissionInboxRoute } from "./PermissionInbox"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
 import { isAuthPath } from "./appChromeV2/helpers"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
-import { AdminPluginServices } from "@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"
 import { UiEngagementTelemetry } from "../lib/uiEngagement"
 import { useBrowserTimeZone } from "../hooks/useBrowserTimeZone"
 import { TimeZoneProvider } from "../contexts/TimeZoneContext"
 import { validTimeZone } from "../lib/relativeTime"
 import { pluginContributionsRequirePreload, preloadPluginContributions } from "../pluginContributionRegistry"
+import { lazyRoute, preloadLazyRouteElement, RouteSuspense } from "./lazyRoute"
+import { routeChunks } from "./routeChunks"
+
+const AccountProfileRoute = lazyRoute(routeChunks.profile, "AccountProfileRoute")
+const AdminBackendExceptions = lazyRoute(routeChunks.adminBackendExceptions, "AdminBackendExceptions")
+const AdminBrowserErrors = lazyRoute(routeChunks.adminBrowserErrors, "AdminBrowserErrors")
+const AdminConsole = lazyRoute(routeChunks.adminConsole, "AdminConsole")
+const AdminFeatures = lazyRoute(routeChunks.adminFeatures, "AdminFeatures")
+const AdminGithubAppConfirm = lazyRoute(routeChunks.adminGithubApp, "AdminGithubAppConfirm")
+const AdminGithubAppRegister = lazyRoute(routeChunks.adminGithubApp, "AdminGithubAppRegister")
+const AdminInstallations = lazyRoute(routeChunks.adminInstallations, "AdminInstallations")
+const AdminInvitations = lazyRoute(routeChunks.adminInvitations, "AdminInvitations")
+const AdminMaintenanceTaskDetail = lazyRoute(routeChunks.adminMaintenanceTasks, "AdminMaintenanceTaskDetail")
+const AdminMaintenanceTasks = lazyRoute(routeChunks.adminMaintenanceTasks, "AdminMaintenanceTasks")
+const AdminMcpToolUsage = lazyRoute(routeChunks.adminMcpToolUsage, "AdminMcpToolUsage")
+const AdminOverview = lazyRoute(routeChunks.adminOverview, "AdminOverview")
+const AdminPluginDetail = lazyRoute(routeChunks.adminPlugins, "AdminPluginDetail")
+const AdminPluginServices = lazyRoute(routeChunks.adminPluginServices, "AdminPluginServices")
+const AdminPlugins = lazyRoute(routeChunks.adminPlugins, "AdminPlugins")
+const AdminProcessDetail = lazyRoute(routeChunks.adminProcesses, "AdminProcessDetail")
+const AdminProcessesIndex = lazyRoute(routeChunks.adminProcesses, "AdminProcessesIndex")
+const AdminQueueRoute = lazyRoute(routeChunks.adminQueue, "AdminQueueRoute")
+const AdminReconcilerActivity = lazyRoute(routeChunks.adminReconcilerActivity, "AdminReconcilerActivity")
+const AdminResourceAdmission = lazyRoute(routeChunks.adminOverview, "AdminResourceAdmission")
+const AdminScopedChatEvents = lazyRoute(routeChunks.adminOverview, "AdminScopedChatEvents")
+const AdminSettings = lazyRoute(routeChunks.adminSettings, "AdminSettings")
+const AdminStuck = lazyRoute(routeChunks.adminStuck, "AdminStuck")
+const AdminTeamDetailRoute = lazyRoute(routeChunks.adminTeams, "AdminTeamDetailRoute")
+const AdminTeamsIndex = lazyRoute(routeChunks.adminTeams, "AdminTeamsIndex")
+const AdminTranscript = lazyRoute(routeChunks.adminTranscript, "AdminTranscript")
+const AdminUserDetailRoute = lazyRoute(routeChunks.adminUsers, "AdminUserDetailRoute")
+const AdminUsersIndex = lazyRoute(routeChunks.adminUsers, "AdminUsersIndex")
+const AdminWorkUnits = lazyRoute(routeChunks.adminWorkUnits, "AdminWorkUnits")
+const AdminWorkflowActivity = lazyRoute(routeChunks.adminWorkflowActivity, "AdminWorkflowActivity")
+const AgentSettingsRoute = lazyRoute(routeChunks.agentSettings, "AgentSettingsRoute")
+const ChatRoute = lazyRoute(routeChunks.chat, "ChatRoute")
+const ChatSearchRoute = lazyRoute(routeChunks.chatSearch, "ChatSearchRoute")
+const ConnectedPlatformsRoute = lazyRoute(routeChunks.connectedPlatforms, "ConnectedPlatformsRoute")
+const CredentialsRoute = lazyRoute(routeChunks.credentials, "CredentialsRoute")
+const DesignSystemRoute = lazyRoute(routeChunks.designSystem, "DesignSystemRoute")
+const DirectJobNewRoute = lazyRoute(routeChunks.directJobNew, "DirectJobNewRoute")
+const EpicDetailRoute = lazyRoute(routeChunks.epicDetail, "EpicDetailRoute")
+const EpicFormRoute = lazyRoute(routeChunks.epicForm, "EpicFormRoute")
+const JobDetailRoute = lazyRoute(routeChunks.jobDetail, "JobDetailRoute")
+const LandingLanesRoute = lazyRoute(routeChunks.landingLanes, "LandingLanesRoute")
+const NotificationsSettingsRoute = lazyRoute(routeChunks.notificationsSettings, "NotificationsSettingsRoute")
+const OnboardingRoute = lazyRoute(routeChunks.onboarding, "OnboardingRoute")
+const PermissionInboxRoute = lazyRoute(routeChunks.permissionInbox, "PermissionInboxRoute")
+const PermissionsSettingsRoute = lazyRoute(routeChunks.permissionsSettings, "PermissionsSettingsRoute")
+const PersonalDocumentsRoute = lazyRoute(routeChunks.personalDocuments, "PersonalDocumentsRoute")
+const PreferencesRoute = lazyRoute(routeChunks.preferences, "PreferencesRoute")
+const RepositoriesIndex = lazyRoute(routeChunks.repositories, "RepositoriesIndex")
+const RepositoryCognitiveDebtRoute = lazyRoute(routeChunks.repositoryCognitiveDebt, "RepositoryCognitiveDebtRoute")
+const RepositoryDetailRoute = lazyRoute(routeChunks.repositoryDetail, "RepositoryDetailRoute")
+const RepositoryDocumentsRoute = lazyRoute(routeChunks.repositoryDocuments, "RepositoryDocumentsRoute")
+const RepositoryFormRoute = lazyRoute(routeChunks.repositoryForm, "RepositoryFormRoute")
+const RepositorySkillNewRoute = lazyRoute(routeChunks.repositorySkillNew, "RepositorySkillNewRoute")
+const RepositoryTargetGraphRoute = lazyRoute(routeChunks.repositoryTargetGraph, "RepositoryTargetGraphRoute")
+const RetentionSettings = lazyRoute(routeChunks.retentionSettings, "RetentionSettings")
+const SharedChatRoute = lazyRoute(routeChunks.chat, "SharedChatRoute")
+const Tags = lazyRoute(routeChunks.tags, "Tags")
+const ThemesSettingsRoute = lazyRoute(routeChunks.themesSettings, "ThemesSettingsRoute")
 
 type AppRouteDefinition = {
   path: string
@@ -468,13 +480,42 @@ function publicCta(publicState: NonNullable<BootstrapPayload["public"]>, prefix:
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
   return appRouteDefinitions
     .flatMap(({ path, element }) => [
-      <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={path} path={path} />,
-      <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+      <Route element={<LazyAppRoute>{element}</LazyAppRoute>} key={path} path={path} />,
+      <Route element={<LazyAppRoute>{element}</LazyAppRoute>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
     ])
     .concat([
       <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
       <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
     ])
+}
+
+// Lazy route chunks suspend inside the route's error boundary: a chunk that
+// fails to load (a tab left open across a deploy) shows the boundary's reload
+// action in the page body while the shell stays up.
+function LazyAppRoute({ children }: { children: ReactNode }) {
+  return (
+    <LocationKeyedRouteErrorBoundary>
+      <RouteSuspense>{children}</RouteSuspense>
+    </LocationKeyedRouteErrorBoundary>
+  )
+}
+
+const preloadableRoutes = appRouteDefinitions.flatMap((definition) => [
+  { path: definition.path, definition },
+  { path: `/app-shell${definition.path}`, definition }
+])
+
+/**
+ * Starts loading the chunk of the route the URL names before React renders,
+ * so it downloads alongside the rest of startup instead of after the first
+ * commit. Uses the same loader React.lazy will, so nothing is fetched twice.
+ */
+export function preloadRouteChunkForPath(pathname: string) {
+  const match = matchRoutes(preloadableRoutes, pathname)?.at(-1)
+  const pending = normalizedAppPath(pathname) === "/onboarding" ? routeChunks.onboarding() : match && preloadLazyRouteElement(match.route.definition.element)
+  pending?.catch(() => {
+    // handled-error-expected: the route's own lazy render retries this load and owns failure recovery.
+  })
 }
 
 // /setup is retired — it now just lands the operator on the onboarding page.
@@ -502,7 +543,11 @@ function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayl
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
 
-  return <OnboardingRoute bootstrap={bootstrap.data ?? initialBootstrap} />
+  return (
+    <RouteSuspense>
+      <OnboardingRoute bootstrap={bootstrap.data ?? initialBootstrap} />
+    </RouteSuspense>
+  )
 }
 
 /**
@@ -604,7 +649,9 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
           )}
         </nav>
       </aside>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1">
+        <RouteSuspense>{children}</RouteSuspense>
+      </div>
     </div>
   )
 }

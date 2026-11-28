@@ -78,7 +78,6 @@ import {
   TimelinePanel,
   AttachmentPreview,
   AttachmentCard,
-  MergeablePill,
   JobStateBadge,
   PendingJobTitle,
   JobSourceLink,
@@ -89,6 +88,7 @@ import {
   jobSourceLabel
 } from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
+import { MergeablePill } from "../components/MergeablePill"
 import { canSubmitFeedbackDirectly, ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
 import {

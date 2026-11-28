@@ -18,13 +18,6 @@ const vendorChunkPackages = {
 } as const
 
 const lazyVendorPackagePaths = ["/@excalidraw/", "/mermaid/", "/cytoscape", "/d3", "/@shikijs/", "/katex/"] as const
-const eagerPluginContributionPaths = [
-  "/tool_cards/",
-  "/chat_message_renderers/",
-  "/artifact_renderers/",
-  "/agentProviderConnectPanels/",
-  "/runtimeSessionViews/"
-] as const
 
 function packageChunkName(normalizedId: string) {
   const modulePath = normalizedId.split("/node_modules/").at(-1)
@@ -40,9 +33,10 @@ function manualVendorChunk(id: string) {
   // The cross-surface event registry is large and changes independently from
   // most route code, so keep it cacheable outside the startup entry.
   if (normalizedId.endsWith("/app/frontend/lib/appEvents.ts")) return "app-events"
-  if (normalizedId.includes("/plugins/") && eagerPluginContributionPaths.some((path) => normalizedId.includes(path))) {
-    return "builtin-plugin-contributions"
-  }
+  // Application code, built-in plugin contributions included, is left to the
+  // dynamic-import graph. A manual chunk also captures the modules it depends
+  // on, so the old "builtin-plugin-contributions" group pulled the whole chat
+  // tool-card tree (and React DOM) into a chunk startup had to load.
   if (!normalizedId.includes("/node_modules/")) return undefined
   // Leave route-only packages to Rollup's dynamic-import graph. Assigning a
   // manual chunk here can make a lazy package eager through a shared module

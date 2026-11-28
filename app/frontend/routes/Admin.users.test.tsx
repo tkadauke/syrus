@@ -130,7 +130,7 @@ describe("App admin users", () => {
         </QueryClientProvider>
       )
 
-      expect(screen.getByRole("main", { name: "Admin users" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Admin users" })).toBeInTheDocument()
       expect(await screen.findByText("Operator")).toBeInTheDocument()
       const disclosure = mobileFiltersSummary("Rate limit low").closest("details")
       expect(disclosure).not.toHaveAttribute("open")

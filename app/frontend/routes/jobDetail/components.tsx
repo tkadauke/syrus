@@ -767,12 +767,6 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   )
 }
 
-export function MergeablePill({ value }: { value: boolean | null }) {
-  if (value === true) return <StatusPill state="mergeable" />
-  if (value === false) return <StatusPill state="unmergeable" />
-  return <StatusPill state="unknown" />
-}
-
 export function JobStateBadge({ state }: { state: string }) {
   const normalized = state.toLowerCase()
   const isFail = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel")

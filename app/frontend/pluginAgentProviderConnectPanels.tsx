@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react"
 import { getEagerPluginContributions } from "./pluginContributionRegistry"
 import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
-import "./builtInPluginContributions"
+import "./builtInPluginAgentProviderConnectPanels"
 
 export type AgentProviderConnectPanelProps = {
   autoFocus?: boolean

@@ -62,7 +62,7 @@ describe("App admin transcript", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin transcript" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin transcript" })).toBeInTheDocument()
     expect(await screen.findByText("Run #4 · transcript")).toBeInTheDocument()
     expect(screen.getByText(/claude-sonnet-4-6/)).toBeInTheDocument()
     expect(screen.getAllByText("Bash").length).toBeGreaterThan(0)
