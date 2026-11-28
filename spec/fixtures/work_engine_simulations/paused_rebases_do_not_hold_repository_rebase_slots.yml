@@ -1,0 +1,102 @@
+name: paused rebases do not hold the repository's rebase slots
+# Regression: three manually paused rebases held all of the repository's
+# CONCURRENT_REBASES_PER_REPO slots, so PollMergeStateJob silently declined
+# to rebase an approved Job whose PR GitHub reported `dirty`, and it never
+# landed. The git world makes the conflict real (main gained an overlapping
+# change), the merge-state poll runs for real against the modeled PR, and the
+# rebase that dispatches once the slots are free resolves the conflict, so
+# the PR turns clean and lands.
+repository:
+  owner: simulation
+  name: paused-rebases-hold-slots
+  auto_merge_enabled: true
+git:
+  commits:
+    base: {}
+    feature_1: { parents: [ base ], paths: [ lib/feature.rb ] }
+    teammate_edit: { parents: [ base ], paths: [ lib/feature.rb ] }
+    paused_a_1: { parents: [ base ], paths: [ lib/a.rb ] }
+    paused_b_1: { parents: [ base ], paths: [ lib/b.rb ] }
+    paused_c_1: { parents: [ base ], paths: [ lib/c.rb ] }
+  branches:
+    main: teammate_edit
+    syrus/feature: feature_1
+    syrus/paused-a: paused_a_1
+    syrus/paused-b: paused_b_1
+    syrus/paused-c: paused_c_1
+jobs:
+  feature:
+    title: Approved job whose PR conflicts with main
+    state: approved
+    approved_at: "2026-11-20 12:00:00"
+    approved_via: operator
+    branch_name: syrus/feature
+    pr_number: 701
+    pr_checks_state: passing
+  paused_a:
+    title: Paused rebase A
+    state: implemented
+    manual_paused: true
+    branch_name: syrus/paused-a
+    pr_number: 702
+    workflow:
+      kind: rebase
+      state: queued
+      steps:
+        - kind: auto_rebase
+        - kind: agent_rebase
+        - kind: force_push
+      work_unit:
+        state: blocked
+        blocked_reason: manual_pause
+  paused_b:
+    title: Paused rebase B
+    state: implemented
+    manual_paused: true
+    branch_name: syrus/paused-b
+    pr_number: 703
+    workflow:
+      kind: rebase
+      state: queued
+      steps:
+        - kind: auto_rebase
+        - kind: agent_rebase
+        - kind: force_push
+      work_unit:
+        state: blocked
+        blocked_reason: manual_pause
+  paused_c:
+    title: Paused rebase C
+    state: implemented
+    manual_paused: true
+    branch_name: syrus/paused-c
+    pr_number: 704
+    workflow:
+      kind: rebase
+      state: queued
+      steps:
+        - kind: auto_rebase
+        - kind: agent_rebase
+        - kind: force_push
+      work_unit:
+        state: blocked
+        blocked_reason: manual_pause
+outcomes:
+  default: success
+max_ticks: 40
+expect:
+  jobs:
+    feature:
+      - closed
+  git:
+    pull_requests:
+      feature: merged
+    branches:
+      main:
+        contains_patches: [ feature_1, teammate_edit ]
+      syrus/feature:
+        exists: false
+  events:
+    - merge-state poll for
+    - agent_rebase resolved syrus/feature onto main
+    - merged PR #701 into main

@@ -1,0 +1,70 @@
+name: an approved PR that goes dirty is rebased before it lands
+# The git world end to end: a Job opens its PR, GitHub is still computing
+# mergeability on the first reads, the operator approves, and main then gains
+# a change overlapping the PR. The real merge-state poll sees `dirty`,
+# dispatches a rebase, the agent resolves the conflict, and only then does
+# the PR land.
+repository:
+  owner: simulation
+  name: approved-pr-goes-dirty
+  auto_merge_enabled: true
+git:
+  commits:
+    base: {}
+  branches:
+    main: base
+jobs:
+  feature:
+    title: Feature whose PR goes dirty after approval
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+max_ticks: 80
+events:
+  - name: GitHub computes mergeability lazily
+    when:
+      job:
+        id: feature
+        has_pr: true
+    do:
+      pr_mergeability_unknown:
+        job: feature
+        reads: 2
+  - name: approve once implemented
+    when:
+      job:
+        id: feature
+        state: implemented
+    do:
+      approve: feature
+  - name: main gains an overlapping change
+    when:
+      job:
+        id: feature
+        state: approved
+    do:
+      pr_becomes_dirty: feature
+  - name: observe the conflict
+    when:
+      pull_request:
+        job: feature
+        mergeable_state: dirty
+    do:
+      wake: all
+expect:
+  jobs:
+    feature:
+      - closed
+  git:
+    pull_requests:
+      feature: merged
+  events_ordered:
+    - event approve once implemented
+    - event main gains an overlapping change
+    - event observe the conflict
+    - "-> dirty"
+    - agent_rebase resolved
+    - "-> clean"
+    - merged PR #
