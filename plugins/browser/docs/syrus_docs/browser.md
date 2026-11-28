@@ -159,6 +159,13 @@ loopback-only, upload authority fingerprints exact paths without exposing
 them in approval copy, and page-affecting Coding Mode calls still require the
 active Runtime input lease.
 
+Each leased interaction is recorded in the run's input audit. `browser_fill`
+text typed into a password field, a field whose autocomplete is
+`current-password`, `new-password`, or `one-time-code`, or a field that cannot
+be inspected is recorded only as a redaction marker and its length, as is any
+typed text that looks like a token or other secret. The page still receives
+the real text.
+
 Browser navigation is scoped to loopback preview URLs regardless of
 transport (`LoopbackGuard`, enforced by `NavigateTool` before any tool call
 reaches `Session`). The service-backed path does not change that: the guard

@@ -130,8 +130,9 @@ class RuntimeControlLease < ApplicationRecord
 
   # Audits an input event rejected for lack of an active lease — there is no
   # lease row to attach it to, so this writes directly against the session.
-  def self.audit_input_rejected!(runtime_session:, event:)
-    audit!(runtime_session: runtime_session, action: "input_rejected", details: event)
+  def self.audit_input_rejected!(runtime_session:, event:, sensitive: false)
+    audit!(runtime_session: runtime_session, action: "input_rejected",
+           details: RuntimeInputRedaction.call(event, sensitive: sensitive))
   end
 
   def active?
@@ -192,9 +193,14 @@ class RuntimeControlLease < ApplicationRecord
     self
   end
 
-  def record_input!(event)
-    self.class.send(:audit!, runtime_session: runtime_session, action: "input", lease: self, details: event)
-    notify_channel(event: "input", details: event)
+  # Records audit evidence for a delivered input event. Typed text that is or
+  # may be a secret is recorded as a redaction marker plus its length
+  # (RuntimeInputRedaction); pass sensitive: true when the provider knows the
+  # target is a credential field or prompt.
+  def record_input!(event = nil, sensitive: false, **fields)
+    details = RuntimeInputRedaction.call(event || fields, sensitive: sensitive)
+    self.class.send(:audit!, runtime_session: runtime_session, action: "input", lease: self, details: details)
+    notify_channel(event: "input", details: details)
     self
   end
 

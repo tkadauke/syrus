@@ -383,6 +383,50 @@ RSpec.describe RuntimeControlLease, type: :model do
       expect(entry.chunk).to include("action=input", "lease=#{lease.id}")
     end
 
+    it "records secret-looking typed text as a redaction marker and length, in the JobLog and the channel" do
+      run = Factories.run
+      session = build_session(job: run.job, workflow: run.workflow, run: run)
+      lease = described_class.acquire!(runtime_session: session, owner: "agent", mode: "input")
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast) { |_stream, payload| broadcasts << payload }
+      secret = "ghp_#{'a' * 36}"
+
+      lease.record_input!(type: "fill", target: "e4", text: secret)
+
+      chunk = run.reload.job_logs.order(:sequence).last.chunk
+      expect(chunk).not_to include(secret)
+      expect(chunk).to include('"text":"[redacted]"', %("text_length":#{secret.length}))
+      details = broadcasts.find { |payload| payload[:type] == "input" }[:details]
+      expect(details).to include("text" => "[redacted]", "text_length" => secret.length, "target" => "e4")
+    end
+
+    it "redacts typed text whenever the target is a credential field" do
+      run = Factories.run
+      session = build_session(job: run.job, workflow: run.workflow, run: run)
+      lease = described_class.acquire!(runtime_session: session, owner: "agent", mode: "input")
+
+      lease.record_input!({ type: "fill", target: "e1", text: "hunter2" }, sensitive: true)
+      lease.record_input!(type: "fill", target: "e2", autocomplete: "current-password", text: "hunter3")
+      lease.record_input!(type: "fill", target: "e3", input_type: "password", text: "hunter4")
+      lease.record_input!(type: "fill", target: "e5", element: "One-time code", text: "123456")
+      lease.record_input!(type: "fill", target: "e6", element: "Search", text: "kittens")
+
+      chunks = run.reload.job_logs.order(:sequence).map(&:chunk).join("\n")
+      expect(chunks).not_to include("hunter2", "hunter3", "hunter4", "123456")
+      expect(chunks).to include('"text":"kittens"')
+    end
+
+    it "redacts typed secrets in rejected input evidence" do
+      run = Factories.run
+      session = build_session(job: run.job, workflow: run.workflow, run: run)
+
+      described_class.audit_input_rejected!(runtime_session: session, event: { type: "stdin", data: "export API_KEY=supersecretvalue\n" })
+
+      chunk = run.reload.job_logs.order(:sequence).last.chunk
+      expect(chunk).not_to include("supersecretvalue")
+      expect(chunk).to include('"data":"[redacted]"')
+    end
+
     it "writes an input_rejected JobLog entry via .audit_input_rejected!" do
       run = Factories.run
       session = build_session(job: run.job, workflow: run.workflow, run: run)

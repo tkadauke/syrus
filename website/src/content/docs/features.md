@@ -481,7 +481,10 @@ operations; it is not a second input engine. Non-browser providers continue to
 use `runtime_input` with their advertised event types;
 chat tool cards show input delivery errors and provider event details, while
 typed text is masked by default and can only be revealed with an explicit
-control;
+control. The input audit kept in run logs and sent to the Runtime panel
+records text typed into a password or one-time-code field, at a terminal
+password prompt, or that looks like a token or other secret only as a
+redaction marker and its length, never verbatim;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. Terminal sessions expose semantic
 screen inspection with viewport text, cursor and generation state, optional

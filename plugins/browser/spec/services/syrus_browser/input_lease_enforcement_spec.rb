@@ -106,6 +106,55 @@ RSpec.describe "SyrusBrowser input-lease enforcement (DOC-17)" do
       expect(session).to have_received(:call_tool).with(name: "browser_click", arguments: { "target" => "e1" })
     end
 
+    describe "recorded fill text" do
+      let(:run) { Factories.run }
+      let(:runtime_session) do
+        RuntimeSession.create!(
+          repository: repository, chat_session: chat_session, job: run.job, workflow: run.workflow, run: run,
+          workspace_ref: "/workspace/chat-1", provider_key: "browser", display_name: "Browser", state: "running"
+        )
+      end
+      let(:field) { { "type" => "text", "autocomplete" => "" } }
+      let(:session) { instance_double(SyrusBrowser::Session, close: nil) }
+
+      before do
+        allow(session).to receive(:call_tool) do |name:, arguments:|
+          next { "result" => { "content" => [] } } unless name == "browser_evaluate"
+
+          { "result" => { "content" => [ { "type" => "text", "text" => "### Result\n#{field.to_json}" } ] } }
+        end
+        RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "sign in")
+      end
+
+      def audit_chunks = run.reload.job_logs.order(:sequence).map(&:chunk).join("\n")
+
+      it "records a password field's text as a redaction marker and length" do
+        field.merge!("type" => "password")
+
+        response = SyrusBrowser::FillTool.call(target: "e7", element: "Field", text: "hunter2!", server_context: { runtime_session: runtime_session })
+
+        expect(response).not_to be_error
+        expect(session).to have_received(:call_tool).with(name: "browser_type", arguments: hash_including("text" => "hunter2!"))
+        expect(audit_chunks).to include('"text":"[redacted]"', '"text_length":8')
+        expect(audit_chunks).not_to include("hunter2!")
+      end
+
+      it "redacts a credential-autocomplete field reached through runtime_input" do
+        field.merge!("autocomplete" => "one-time-code")
+
+        SyrusBrowser::RuntimeSessionProvider.new.input(runtime_session.id, { "type" => "fill", "target" => "e8", "text" => "424242" })
+
+        expect(audit_chunks).not_to include("424242")
+        expect(audit_chunks).to include('"text":"[redacted]"', '"text_length":6')
+      end
+
+      it "keeps ordinary field text readable" do
+        SyrusBrowser::FillTool.call(target: "e9", element: "Search", text: "kittens", server_context: { runtime_session: runtime_session })
+
+        expect(audit_chunks).to include('"text":"kittens"')
+      end
+    end
+
     it "allows browser_drag and browser_evaluate once the agent holds an active input lease" do
       RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "reorder a list")
 
