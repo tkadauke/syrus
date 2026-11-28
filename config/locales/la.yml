@@ -419,6 +419,7 @@ la:
         workflow_not_found: "Workflow non inventum est."
         workflow_not_failed: "Workflow in statu defecto non est."
         workspace_cleaned_up: "Workspace iam purgatum est - utere Start over."
+        active_work_lock: "Praesto erit postquam opus activum finitum erit."
         no_failed_step: "Nullus gradus defectus iterandus est."
         workspace_unavailable: "Workspace huic workflow praesto non est."
         diagnose_requires_active_run: "Diagnosis solum Runs activis praesto est."

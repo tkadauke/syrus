@@ -209,6 +209,17 @@ module Api
             mode.execute
           end
           unless result.success?
+            if result.active_work_lock?
+              blocker = RetryFailedStepEnqueuer.preflight(workflow: workflow)
+              render json: {
+                error: {
+                  code: RetryFailedStepEnqueuer::ACTIVE_WORK_LOCK_ERROR,
+                  message: blocker&.message || t("api.job_run_commands.errors.active_work_lock"),
+                  blocker: blocker&.as_json
+                }.compact
+              }, status: :conflict
+              return
+            end
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return
           end

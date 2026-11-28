@@ -419,6 +419,7 @@ de:
         workflow_not_found: "Workflow nicht gefunden."
         workflow_not_failed: "Der Workflow ist nicht fehlgeschlagen."
         workspace_cleaned_up: "Der Workspace wurde bereits bereinigt - verwende Neu starten."
+        active_work_lock: "Verfügbar, sobald die aktive Arbeit abgeschlossen ist."
         no_failed_step: "Kein fehlgeschlagener Schritt zum erneuten Ausführen gefunden."
         workspace_unavailable: "Der Workspace ist für diesen Workflow nicht verfügbar."
         diagnose_requires_active_run: "Die Diagnose ist nur für aktive Läufe verfügbar."

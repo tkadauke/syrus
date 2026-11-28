@@ -21,6 +21,7 @@ module App
         recovery_decision: RecoveryContract.for_job(job, workflow: latest_workflow)[:decision],
         recovery_timeline: recovery_timeline,
         failed_step: failed_step_action,
+        failed_step_blocker: failed_step_blocker&.as_json,
         implementation: implementation_action
       }
     end
@@ -62,6 +63,7 @@ module App
       return unless failed_step
       return if RetryFailedStepEnqueuer.fresh_workflow_required_for?(failed_step)
       return if merge_train_dispatch_blocked?
+      return if failed_step_blocker
 
       {
         key: "retry_failed_step",
@@ -72,6 +74,10 @@ module App
         step_label: Step::Kind.label_for(failed_step.kind),
         path: "/api/v1/app/jobs/#{job.id}/workflows/#{latest_workflow.id}/retry_step"
       }
+    end
+
+    def failed_step_blocker
+      @failed_step_blocker ||= RetryFailedStepEnqueuer.preflight(workflow: latest_workflow) if failed_step
     end
 
     def implementation_action

@@ -1286,6 +1286,7 @@ module App
         can_write: writable,
         recovery_decision: retry_actions[:recovery_decision],
         recovery_timeline: retry_actions[:recovery_timeline],
+        retry_failed_step_blocker: retry_actions[:failed_step_blocker],
         can_override_planned_execution: writable && planned_execution_override_json[:eligible],
         planned_execution_override_blocked_reason: planned_execution_override_json[:refusal_reason],
         can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),

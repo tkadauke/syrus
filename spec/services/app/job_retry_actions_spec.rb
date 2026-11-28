@@ -124,6 +124,27 @@ RSpec.describe App::JobRetryActions do
     end
   end
 
+  it "preserves the recovery decision while active work temporarily blocks its action" do
+    job = Factories.job_record(user: user, repository: repo, state: "failed")
+    workflow, = build_failed_workflow(job)
+    blocker = RetryFailedStepEnqueuer::Blocker.new(
+      reason_code: "active_work_lock", workflow_id: 123, workflow_slug: "WF-123", work_unit_id: 456
+    )
+    allow(RetryFailedStepEnqueuer).to receive(:preflight).with(workflow: workflow).and_return(blocker)
+
+    actions = actions_for(job)
+
+    expect(actions[:failed_step]).to be_nil
+    expect(actions[:failed_step_blocker]).to include(
+      reason_code: "active_work_lock", workflow_slug: "WF-123", work_unit_id: 456,
+      message: "Available after WF-123 finishes."
+    )
+    expect(actions[:recovery_decision]).to be_present
+
+    allow(RetryFailedStepEnqueuer).to receive(:preflight).with(workflow: workflow).and_return(nil)
+    expect(actions_for(job)[:failed_step]).to include(workflow_id: workflow.id)
+  end
+
   describe "when a grade loop failed" do
     it "labels the action as a guided repair" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")

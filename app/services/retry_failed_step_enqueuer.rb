@@ -6,12 +6,31 @@ class RetryFailedStepEnqueuer
   WORKSPACE_CLEANED_UP_MESSAGE = "Workspace already cleaned up - use Start over.".freeze
   ACTIVE_WORK_LOCK_ERROR = "active_work_lock".freeze
 
+  Blocker = Data.define(:reason_code, :workflow_id, :workflow_slug, :work_unit_id) do
+    def message
+      identity = workflow_slug.presence || ("WorkUnit ##{work_unit_id}" if work_unit_id)
+      identity ? "Available after #{identity} finishes." : "Available after active work finishes."
+    end
+
+    def as_json(*)
+      {
+        reason_code: reason_code,
+        workflow_id: workflow_id,
+        workflow_slug: workflow_slug,
+        work_unit_id: work_unit_id,
+        message: message
+      }.compact
+    end
+  end
+
   Result = Data.define(:run, :workflow, :step, :error) do
     def success? = run.present?
     def active_work_lock? = error.to_s.start_with?("#{ACTIVE_WORK_LOCK_ERROR}:")
   end
 
   def self.call(...) = new(...).call
+
+  def self.preflight(workflow:) = new(workflow: workflow).active_work_blocker
 
   def self.fresh_workflow_required_for?(step)
     classification = step&.latest_run&.run_failure_classification&.classification
@@ -191,16 +210,13 @@ class RetryFailedStepEnqueuer
     remediation = remediation_for(failed_step)
     return rebuild_merge_train if remediation.rebuild_unit?
     return failure("Failed step requires a new workflow attempt.") unless remediation.resume_step?
-    if (lock_error = active_work_lock_error)
-      return failure(lock_error)
+    if (blocker = active_work_blocker)
+      return failure("#{ACTIVE_WORK_LOCK_ERROR}: #{blocker.message}")
     end
     # A linear Epic implements one child at a time. A failed child does not
     # hold the turn, so a sibling may be running; reopening this Workflow now
     # would run both at once. Reported as an active-work lock so auto-retry
     # reschedules instead of giving up.
-    if (sibling = StepDispatcher.epic_sibling_implementation_running(workflow))
-      return failure("#{ACTIVE_WORK_LOCK_ERROR}: Epic sibling Workflow ##{sibling.id} is implementing")
-    end
     # One active Run per Step. A Step can be failed while its Run is still
     # live; retrying it would run the Step twice at once.
     if failed_step.runs.active.exists?
@@ -288,16 +304,31 @@ class RetryFailedStepEnqueuer
     Problem::Kind.resolve(failed_step.details.to_h["failure_code"])&.then { |entry| Problem[entry.code] }
   end
 
-  def active_work_lock_error
+  public
+
+  def active_work_blocker
     lock_keys_for_retry.each do |lock_key|
       owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
       next unless owner
       next if same_runtime_lock_owner?(owner)
 
-      return "#{ACTIVE_WORK_LOCK_ERROR}: active WorkUnit ##{owner.id} already owns #{lock_key}"
+      return blocker_for(work_unit: owner)
     end
 
-    nil
+    sibling = StepDispatcher.epic_sibling_implementation_running(workflow)
+    blocker_for(workflow: sibling, work_unit: sibling&.work_unit) if sibling
+  end
+
+  private
+
+  def blocker_for(workflow: nil, work_unit: nil)
+    workflow ||= Workflow.find_by(id: work_unit&.workflow_id)
+    Blocker.new(
+      reason_code: ACTIVE_WORK_LOCK_ERROR,
+      workflow_id: workflow&.id,
+      workflow_slug: workflow&.slug,
+      work_unit_id: work_unit&.id
+    )
   end
 
   # Takes the Step's row lock, the same one StepDispatcher.create_run_and_enqueue
