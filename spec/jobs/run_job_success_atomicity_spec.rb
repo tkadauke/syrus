@@ -47,6 +47,27 @@ RSpec.describe RunJob, "recording a successful step" do
   # record_successful_step! reloads and checks the states before it takes the
   # Lineage lock; a cancel can commit in between. The success must then not
   # overwrite it from the pre-lock attributes.
+  # The Run has done all its work by now; losing the commit to row-lock
+  # contention from a fan-out finishing together threw away a passing grader.
+  it "keeps retrying a contended success commit past the ordinary lifecycle budget" do
+    attempts = 0
+    allow(Lineage).to receive(:lock!).and_wrap_original do |original, *args, &block|
+      attempts += 1
+      raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts <= RunJob::LIFECYCLE_LOCK_RETRY_ATTEMPTS + 2
+
+      original.call(*args, &block)
+    end
+
+    run_job = described_class.new
+    run_job.instance_variable_set(:@run, run)
+    run_job.instance_variable_set(:@step, step)
+    run_job.instance_variable_set(:@workflow, workflow)
+    run_job.send(:record_successful_step!)
+
+    expect(run.reload).to be_succeeded
+    expect(step.reload).to be_succeeded
+  end
+
   it "keeps a cancel that committed before the success took its lock" do
     allow(Lineage).to receive(:lock!).and_wrap_original do |original, record|
       result = original.call(record)

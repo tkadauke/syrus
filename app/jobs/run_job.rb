@@ -35,6 +35,13 @@ class RunJob < ApplicationJob
     ActiveRecord::LockWaitTimeout
   ].freeze
   LIFECYCLE_LOCK_RETRY_ATTEMPTS = 3
+  # Recording a success comes after the Run did all its work: losing it to
+  # row-lock contention threw away a passing grader, and a grader fan-out
+  # finishing together contends on the same Workflow and Job rows. The
+  # commit is guarded by the states it expects, so retrying it longer, with
+  # growing jittered backoff (about half a minute in all), is safe.
+  RECORD_SUCCESS_LOCK_RETRY_ATTEMPTS = 8
+  LIFECYCLE_LOCK_MAX_BACKOFF_SECONDS = 8.0
 
   Syrus::Metrics.declare do
     counter :run_lifecycle_lock_retries_total, tags: %i[kind queue outcome], cluster: true,
@@ -802,7 +809,7 @@ class RunJob < ApplicationJob
   end
 
   def record_successful_step!
-    with_lifecycle_lock_retry("record_success") do
+    with_lifecycle_lock_retry("record_success", max_attempts: RECORD_SUCCESS_LOCK_RETRY_ATTEMPTS) do
       @run.reload
       @step.reload
       @workflow.reload
@@ -855,7 +862,7 @@ class RunJob < ApplicationJob
     end
   end
 
-  def with_lifecycle_lock_retry(operation)
+  def with_lifecycle_lock_retry(operation, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS)
     attempts = 0
 
     begin
@@ -864,14 +871,14 @@ class RunJob < ApplicationJob
       result
     rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
       attempts += 1
-      exhausted = attempts >= LIFECYCLE_LOCK_RETRY_ATTEMPTS
-      log_lifecycle_lock_conflict(operation, e, attempts:, exhausted:)
+      exhausted = attempts >= max_attempts
+      log_lifecycle_lock_conflict(operation, e, attempts:, exhausted:, max_attempts:)
       if exhausted
         record_lifecycle_lock_outcome(operation, "exhausted")
         raise
       end
 
-      sleep(0.05 * attempts) unless Rails.env.test?
+      sleep(lifecycle_lock_backoff(attempts)) unless Rails.env.test?
       @run&.reload
       @step&.reload
       @workflow&.reload
@@ -880,7 +887,12 @@ class RunJob < ApplicationJob
     end
   end
 
-  def log_lifecycle_lock_conflict(operation, error, attempts:, exhausted:)
+  def lifecycle_lock_backoff(attempts)
+    base = [ 0.05 * (2**(attempts - 1)), LIFECYCLE_LOCK_MAX_BACKOFF_SECONDS ].min
+    base + rand(0.0..base)
+  end
+
+  def log_lifecycle_lock_conflict(operation, error, attempts:, exhausted:, max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS)
     Rails.logger.warn({
       event: "run_lifecycle_persistence_contention",
       operation: operation,
@@ -890,7 +902,7 @@ class RunJob < ApplicationJob
       step_id: @step&.id,
       run_id: @run&.id,
       attempt: attempts,
-      max_attempts: LIFECYCLE_LOCK_RETRY_ATTEMPTS,
+      max_attempts: max_attempts,
       exhausted: exhausted,
       error_class: error.class.name,
       error_message: error.message,
