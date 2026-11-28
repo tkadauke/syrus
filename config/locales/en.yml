@@ -163,6 +163,12 @@ en:
         terminal_states_mutually_exclusive: "an override cannot be both consumed and invalidated"
 
   services:
+    runtime_images:
+      verifications:
+        reevaluator:
+          abandoned: "Verification attempt was abandoned."
+        supply_chain_policy:
+          blocked: "Supply-chain policy blocked vulnerability findings: %{vulnerability_count}; prohibited packages: %{package_count}."
     workflow_outcome_overrides:
       telemetry:
         message: "Workflow outcome failed, overridden"
@@ -1137,11 +1143,6 @@ en:
       owner_assigned: "Job owner assigned."
       choose_owner: "Choose an owner."
       owner_not_found: "Owner user not found."
-  services:
-    runtime_images:
-      verifications:
-        supply_chain_policy:
-          blocked: "Supply-chain policy blocked vulnerability findings: %{vulnerability_count}; prohibited packages: %{package_count}."
   plugin_repository_configuration:
     absent_legacy_owner: "%{key} belongs to absent plugin %{owner}"
     provider_not_installed: "configuration provider %{owner} is not installed"

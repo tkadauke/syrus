@@ -35,7 +35,8 @@ module RuntimeImages
             if latest.state == "running"
               return false if latest.started_at > now - STALE_ATTEMPT_AFTER
               latest.update!(state: "blocked", decision: "blocked", failure_class: "infrastructure",
-                failure_code: "verification_interrupted", message: "verification attempt was abandoned", finished_at: now)
+                failure_code: "verification_interrupted",
+                message: I18n.t("services.runtime_images.verifications.reevaluator.abandoned"), finished_at: now)
             end
           end
           image.update!(verification_state: "unverified")

@@ -152,6 +152,7 @@ RSpec.describe RuntimeImages::CoworkerBase do
       image = service.publish(
         namespace: namespace, source_kind: "syrus_base", source_ref: described_class.source_ref, source_digest: source_digest,
         platform: "linux/amd64", payload: "base",
+        verification_state: "candidate",
         provenance: { "recipe_digest" => recipe_digest, RuntimeImages::RuntimeAbi::ATTESTATION_KEY =>
           RuntimeImages::RuntimeAbi.attest(source_digest: source_digest, recipe_digest: recipe_digest) }
       )

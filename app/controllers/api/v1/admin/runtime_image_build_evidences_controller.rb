@@ -14,7 +14,7 @@ module Api
             source_digest: request_record.source_digest, recipe_digest: request_record.recipe_digest,
             platform: request_record.platform, result: serialize_result(request_record.result),
             attempts: request_record.evidences.includes(:attempt).map { |evidence| serialize(evidence) },
-            verification_policy: serialize_policy_evidence(request_record.result&.runtime_image)
+            "verification_policy" => serialize_policy_evidence(request_record.result&.runtime_image)
           }
         end
 
