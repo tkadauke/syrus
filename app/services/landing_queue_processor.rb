@@ -884,7 +884,7 @@ class LandingQueueProcessor
     # Job in :approved with a clear reason instead of letting it try to
     # land solo — JobBundleDispatcher picks the group up atomically.
     check_blocker.call(epicless_bundle_wait_reason(job)) if bundle_eligible_epicless_job?(job)
-    if (retry_after = landing_start_blocker_retry_after(job))
+    if (retry_after = landing_start_blocker_retry_after(job) || transient_landing_retry_after(job))
       return blocked({ key: "landing_start_blocked_retrying", params: { retry_at: retry_after.iso8601 } })
     end
     # The last landing could not place a step on any live worker: do not
@@ -1127,6 +1127,32 @@ class LandingQueueProcessor
       .detect { |wf| WorkUnits::StartBlock.for(wf).landing_start_blocker? }
     retry_after = workflow ? WorkUnits::StartBlock.for(workflow).next_check_at : nil
     retry_after if retry_after&.future?
+  end
+
+  # A transient landing failure keeps the Job approved and lets the next pass
+  # relaunch it, which is right for a GitHub blip and wrong for a cause that
+  # outlives the pass: a production Job relaunched its landing 46 times in
+  # eight hours, every one a full prepare that failed the same way on a
+  # worker missing a native library. Back off by how many landings have
+  # failed since the Job was approved, so a blip still retries at once and a
+  # persistent cause costs one attempt an hour.
+  TRANSIENT_LANDING_BACKOFFS = [ 0, 0, 10.minutes, 30.minutes, 1.hour ].freeze
+
+  def transient_landing_retry_after(job)
+    return unless job.landing_failure_code == LandingFailureCode::TRANSIENT_BLOCKER
+
+    failed = job.workflows
+      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds, state: "failed")
+      .where.not(finished_at: nil)
+    failed = failed.where("finished_at > ?", job.approved_at) if job.approved_at
+    count = failed.count
+    return if count.zero?
+
+    backoff = TRANSIENT_LANDING_BACKOFFS[[ count, TRANSIENT_LANDING_BACKOFFS.size ].min - 1]
+    return if backoff.zero?
+
+    retry_after = failed.maximum(:finished_at) + backoff
+    retry_after if retry_after.future?
   end
 
   def active_landing_start_blocker_retry_after(job)
