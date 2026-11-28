@@ -255,6 +255,27 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_unit_for_lock_key("landing:repository:#{job.repository_id}")).to eq(unit)
   end
 
+  it "reports active units for persisted lock keys in one batch" do
+    first_job = Factories.job_record(issue_number: 298)
+    second_job = Factories.job_record(repository: first_job.repository, issue_number: 299)
+    first_workflow = Workflow.create!(job: first_job, trigger_kind: "initial", state: "running")
+    second_workflow = Workflow.create!(job: second_job, trigger_kind: "initial", state: "running")
+    first_unit = attach_work_unit(first_workflow, member_jobs: [ first_job ], kind: "initial")
+    second_unit = attach_work_unit(second_workflow, member_jobs: [ second_job ], kind: "initial")
+    first_unit.work_unit_locks.create!(lock_key: "job:#{first_job.id}")
+    second_unit.work_unit_locks.create!(lock_key: "job:#{second_job.id}")
+
+    owners = described_class.active_units_for_lock_keys(
+      [ "job:#{second_job.id}", "missing", "job:#{first_job.id}" ]
+    )
+
+    expect(owners).to eq(
+      "job:#{first_job.id}" => first_unit,
+      "job:#{second_job.id}" => second_unit
+    )
+    expect(owners.values.map(&:workflow)).to contain_exactly(first_workflow, second_workflow)
+  end
+
   it "reports blocked job ids while excluding landing units by default" do
     blocked = Factories.job_record(issue_number: 301)
     landing = Factories.job_record(repository: blocked.repository, issue_number: 302)

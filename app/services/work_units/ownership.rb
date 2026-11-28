@@ -183,6 +183,21 @@ module WorkUnits
       scope.order(created_at: :desc, id: :desc).first
     end
 
+    def self.active_units_for_lock_keys(lock_keys, kinds: nil)
+      keys = Array(lock_keys).map(&:to_s).reject(&:blank?).uniq
+      return {} if keys.empty?
+
+      scope = WorkUnitLock
+        .joins(:work_unit)
+        .where(lock_key: keys, released_at: nil, work_units: { state: ACTIVE_STATES })
+        .includes(work_unit: :workflow)
+      scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
+
+      scope.order("work_units.created_at DESC, work_units.id DESC").each_with_object({}) do |lock, owners|
+        owners[lock.lock_key] ||= lock.work_unit
+      end
+    end
+
     def self.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
       return false unless owner&.kind == "main_branch_repair"
 
