@@ -31,7 +31,7 @@ module Ios
     end
 
     def command
-      cached_command = "#{shell_join(command_parts + compilation_cache_build_settings)} COMPILATION_CACHE_CAS_PATH=\"$COMPILATION_CACHE_CAS_PATH\""
+      cached_command = "#{shell_join(command_parts + compilation_cache_build_settings)} COMPILATION_CACHE_CAS_PATH=\"$syrus_xcode_cache_path\""
       uncached_command = shell_join(command_parts)
 
       <<~BASH
@@ -96,7 +96,7 @@ module Ios
             fi
           done
         syrus_xcode_cache_note "enabled; path=$syrus_xcode_cache_path; retention=#{cache_retention_days}d; diagnostic remarks enabled"
-        COMPILATION_CACHE_CAS_PATH="$syrus_xcode_cache_path" #{cached_command} 2>&1 | tee -a #{shell_join([ cache_diagnostic_path ])}
+        #{cached_command} 2>&1 | tee -a #{shell_join([ cache_diagnostic_path ])}
         syrus_xcode_status=${PIPESTATUS[0]}
         if [ "$syrus_xcode_status" -ne 0 ] && grep -Eiq '(CAS|compilation cache).*(error|failed|corrupt|unavailable)|(error|failed).*(CAS|compilation cache)' #{shell_join([ cache_diagnostic_path ])}; then
           syrus_xcode_cache_note 'cache became unhealthy; retrying once with native caching disabled'
