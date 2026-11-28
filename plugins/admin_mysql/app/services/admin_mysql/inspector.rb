@@ -3,8 +3,6 @@ module AdminMysql
     MAX_LIMIT = 200
     DEFAULT_LIMIT = 50
     DIAGNOSTIC_SELECT_TIMEOUT_MS = 1_000
-    SLOW_LOG_SELECT_TIMEOUT_MS = 250
-    SLOW_LOG_LOOKBACK = 2.hours
 
     class Unavailable < StandardError; end
 
@@ -24,7 +22,7 @@ module AdminMysql
       "UPDATE performance_schema.setup_consumers SET ENABLED = 'YES' WHERE NAME LIKE 'events_stages_%';"
     ].freeze
 
-    def snapshot(limit: DEFAULT_LIMIT, include_slow_log: false, sections: SECTIONS, include_idle: false)
+    def snapshot(limit: DEFAULT_LIMIT, sections: SECTIONS, include_idle: false)
       require_mysql!
       limit = clamp_limit(limit)
       requested = Array(sections).map(&:to_s) & SECTIONS
@@ -46,7 +44,8 @@ module AdminMysql
           payload.merge!(storage: storage(limit: [ limit, STORAGE_TABLE_LIMIT ].min))
         end
         if requested.include?("diagnostics")
-          payload.merge!(statement_digests: statement_digests(limit: [ limit, 25 ].min), slow_log: slow_log(limit: [ limit, 25 ].min, include_rows: include_slow_log))
+          diagnostics_limit = [ limit, 25 ].min
+          payload.merge!(statement_digests: statement_digests(limit: diagnostics_limit), slow_sql_events: slow_sql_events(limit: diagnostics_limit))
         end
         payload
       end
@@ -391,85 +390,25 @@ module AdminMysql
       end
     end
 
-    def slow_log(limit:, include_rows:)
-      config = variables.slice("slow_query_log", "log_output", "long_query_time")
-      rows = include_rows ? slow_log_rows(limit: limit) : slow_log_rows_not_requested
-
+    def slow_sql_events(limit:)
       {
-        available: rows[:available],
-        config: config,
-        rows: rows.fetch(:rows, []),
-        error: rows[:error]
-      }.compact
-    end
-
-    def slow_log_rows_not_requested
-      {
-        available: false,
-        rows: [],
-        error: {
-          message: "slow-log rows are loaded on demand",
-          hint: "Reading mysql.slow_log can be expensive on busy instances, so the live MySQL snapshot only loads row data when explicitly requested."
-        }
+        available: true,
+        rows: Syrus::Host::PerformanceLogging.recent_slow_sql(limit: limit).map do |event|
+          {
+            occurred_at: event["occurred_at"],
+            duration_ms: float(event["duration_ms"]),
+            name: event["name"],
+            phase: event["phase"],
+            sql: redact_sql(event["sql"]),
+            fingerprint: event["fingerprint"],
+            controller: event["controller"],
+            action: event["action"],
+            job_class: event["job_class"]
+          }.compact
+        end
       }
-    end
-
-    def slow_log_rows(limit:)
-      unless variables["slow_query_log"].to_s.upcase == "ON"
-        return {
-          available: false,
-          rows: [],
-          error: {
-            message: "slow_query_log is off",
-            hint: "Enable MySQL slow query logging to collect live slow-log rows.",
-            setup_sql: [
-              "SET GLOBAL slow_query_log = 'ON';",
-              "SET GLOBAL long_query_time = 1;"
-            ]
-          }
-        }
-      end
-
-      unless variables["log_output"].to_s.upcase.include?("TABLE")
-        return {
-          available: false,
-          rows: [],
-          error: {
-            message: "log_output does not include TABLE",
-            hint: "Syrus can only read slow-log rows through mysql.slow_log. Add TABLE to log_output, then grant read access.",
-            setup_sql: [
-              "SET GLOBAL log_output = 'TABLE';",
-              "GRANT SELECT ON mysql.slow_log TO CURRENT_USER;"
-            ]
-          }
-        }
-      end
-
-      safe_section do
-        rows = select_all_with_timeout(<<~SQL.squish, timeout_ms: SLOW_LOG_SELECT_TIMEOUT_MS)
-          SELECT start_time, user_host, query_time, lock_time, rows_sent, rows_examined, db, LEFT(sql_text, 1000) AS sql_text
-          FROM mysql.slow_log
-          WHERE start_time >= #{connection.quote(SLOW_LOG_LOOKBACK.ago)}
-          ORDER BY start_time DESC
-          LIMIT #{limit}
-        SQL
-
-        {
-          available: true,
-          rows: rows.map do |row|
-            {
-              start_time: row["start_time"]&.iso8601,
-              user_host: row["user_host"],
-              query_time: row["query_time"].to_s,
-              lock_time: row["lock_time"].to_s,
-              rows_sent: row["rows_sent"].to_i,
-              rows_examined: row["rows_examined"].to_i,
-              database: row["db"],
-              sql_text: redact_sql(row["sql_text"])
-            }
-          end
-        }
-      end
+    rescue StandardError => error
+      { available: false, rows: [], error: error_payload(error) }
     end
 
     def redact_sql(value)
@@ -507,10 +446,6 @@ module AdminMysql
         payload[:message] = "The Syrus MySQL user cannot read Performance Schema statement digests."
         payload[:hint] = "Grant SELECT on performance_schema.events_statements_summary_by_digest to show aggregate statement timing."
         payload[:setup_sql] = [ "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO CURRENT_USER;" ]
-      elsif message.include?("command denied") && (message.include?("mysql.slow_log") || message.include?("slow_log"))
-        payload[:message] = "The Syrus MySQL user cannot read mysql.slow_log."
-        payload[:hint] = "Grant SELECT on mysql.slow_log to show table-backed slow query log rows."
-        payload[:setup_sql] = [ "GRANT SELECT ON mysql.slow_log TO CURRENT_USER;" ]
       end
 
       payload

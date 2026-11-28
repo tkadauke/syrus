@@ -6,8 +6,7 @@ module Api
 
         def show
           render json: Syrus::Host::PerformanceLogging.suppress {
-            ::AdminMysql::Inspector.new.snapshot(limit: params[:limit], include_slow_log: boolean_param(:include_slow_log),
-              include_idle: boolean_param(:include_idle), sections: params[:sections].to_s.split(","))
+            ::AdminMysql::Inspector.new.snapshot(limit: params[:limit], include_idle: boolean_param(:include_idle), sections: params[:sections].to_s.split(","))
           }
         rescue ::AdminMysql::Inspector::Unavailable => e
           render_error("mysql_unavailable", e.message, status: :unprocessable_entity)

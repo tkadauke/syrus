@@ -131,7 +131,7 @@
   "query_truncated": "results truncated",
   "live_process_list": "Process List",
   "live_global_status": "Global Status",
-  "live_slow_log": "Slow Log",
+  "live_statement_digests": "Statement Summaries",
   "live_auto_refresh": "Refreshes every 10 seconds",
   "foreign_keys_heading": "Foreign Keys",
   "no_foreign_keys": "No foreign keys.",

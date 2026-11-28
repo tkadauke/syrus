@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe PerformanceLogging do
+  describe ".recent_slow_sql" do
+    it "filters the recent event stream and applies the requested limit" do
+      allow(described_class::Store).to receive(:recent).with(limit: described_class::Store::MAX_EVENTS).and_return([
+        { "event" => described_class::SLOW_REQUEST_EVENT, "occurred_at" => "2026-11-28T10:02:00Z" },
+        { "event" => described_class::SLOW_SQL_EVENT, "sql" => "SELECT 1" },
+        { "event" => described_class::SLOW_SQL_EVENT, "sql" => "SELECT 2" }
+      ])
+
+      expect(described_class.recent_slow_sql(limit: 1)).to eq([ { "event" => described_class::SLOW_SQL_EVENT, "sql" => "SELECT 1" } ])
+    end
+  end
+
   let(:cache_store) { ActiveSupport::Cache::MemoryStore.new }
 
   before do

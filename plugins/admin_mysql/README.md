@@ -1,12 +1,12 @@
 # Admin MySQL
 
-Admin MySQL exposes the live state of a Syrus instance's MySQL server: process list, connection pressure, slow-log configuration, statement digests, and targeted query termination. It is intentionally operator-facing and disabled by default because it surfaces database internals and control actions.
+Admin MySQL exposes the live state of a Syrus instance's MySQL server: process list, connection pressure, statement digests, recent Syrus slow-SQL events, and targeted query termination. It is intentionally operator-facing and disabled by default because it surfaces database internals and control actions.
 
 Use this plugin when a deployment runs against MySQL and needs real-time production diagnosis without shelling into the database pod. SQLite-backed installations do not need it.
 
 ## What It Adds
 
-- Admin pages for current MySQL process state, connection limits, slow-log settings, statement digests, and live query inspection.
+- Admin pages for current MySQL process state, connection limits, statement digests, recent slow-SQL events, and live query inspection.
 - Admin API endpoints for the same live MySQL state.
 - Workflow and chat MCP tools that let authorized Syrus-development agents inspect MySQL pressure and kill a bad query when appropriate.
 

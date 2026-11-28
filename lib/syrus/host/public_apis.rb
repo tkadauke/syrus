@@ -570,7 +570,7 @@ module Syrus
         AppAdminController: [ "Bases authenticated plugin admin API controllers; core filters are not promised.", %w[params render] ],
         ProcessRunner: [ "Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised.", %w[new run capture start mounts agent_mounts probe_mounts forwarded_env] ],
         OperationalLogging: [ "Emits structured plugin diagnostic events; subscribers and storage are not promised.", %w[ingest] ],
-        PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
+        PerformanceLogging: [ "Times named plugin phases and exposes recent slow-SQL observations without exposing event storage internals.", %w[phase recent_slow_sql] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram registry] ],
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register register_direct providers_for capability_providers providers_with_owner_for extension_point?] ],
         PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
