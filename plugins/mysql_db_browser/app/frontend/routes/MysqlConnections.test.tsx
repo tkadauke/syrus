@@ -50,7 +50,10 @@ function stagingConnection(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function setupFetchMock(initial = [stagingConnection()], options: { createDelay?: Promise<void>; createError?: boolean } = {}) {
+function setupFetchMock(
+  initial = [stagingConnection()],
+  options: { createDelay?: Promise<void>; createError?: boolean; statementSummariesUnavailable?: boolean } = {}
+) {
   let connections = initial
   let nextId = Math.max(0, ...initial.map((connection) => connection.id)) + 1
   const calls: { body?: Record<string, unknown>; method: string; url: string }[] = []
@@ -413,6 +416,18 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
       )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/query$/.test(url) && method === "POST") {
+      if (options.statementSummariesUnavailable && querySql(body)?.includes("events_statements_summary_by_digest")) {
+        return Promise.resolve(
+          jsonResponse({
+            available: false,
+            statement: querySql(body),
+            read_only: true,
+            duration_ms: 1,
+            generated_at: "2026-01-01T00:00:00Z",
+            error: { class: "Mysql2::Error", message: "SELECT command denied" }
+          })
+        )
+      }
       return Promise.resolve(
         jsonResponse({
           available: true,
@@ -1177,6 +1192,20 @@ describe("MysqlConnections", () => {
       expect(querySql(digestCall?.body)).toContain("SUM_TIMER_WAIT")
       expect(querySql(digestCall?.body)).toContain("AVG_TIMER_WAIT")
       expect(querySql(digestCall?.body)).not.toContain("slow_log")
+    })
+
+    it("shows a neutral empty state when statement summaries are unavailable", async () => {
+      setupFetchMock([stagingConnection()], { statementSummariesUnavailable: true })
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByRole("tab", { name: "Live" }))
+      fireEvent.click(screen.getByRole("tab", { name: "Statement Summaries" }))
+
+      expect(await screen.findByText("Statement summaries are unavailable for this connection.")).toBeInTheDocument()
+      expect(screen.getByText(/Performance Schema may be disabled/)).toBeInTheDocument()
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+      expect(screen.queryByText("SELECT command denied")).not.toBeInTheDocument()
     })
   })
 })

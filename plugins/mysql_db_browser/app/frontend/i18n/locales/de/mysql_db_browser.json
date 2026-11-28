@@ -132,6 +132,8 @@
   "live_process_list": "Prozessliste",
   "live_global_status": "Globaler Status",
   "live_statement_digests": "Statement-Zusammenfassungen",
+  "live_statement_digests_unavailable": "Statement-Zusammenfassungen sind für diese Verbindung nicht verfügbar.",
+  "live_statement_digests_unavailable_hint": "Performance Schema ist möglicherweise deaktiviert oder der MySQL-Benutzer darf Statement-Zusammenfassungen nicht lesen.",
   "live_auto_refresh": "Aktualisiert alle 10 Sekunden",
   "foreign_keys_heading": "Fremdschlüssel",
   "no_foreign_keys": "Keine Fremdschlüssel.",
