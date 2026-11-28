@@ -182,7 +182,7 @@ class StackBaseFreshness
   end
 
   def recorded_bases
-    workflows = @workflow.job ? @workflow.job.workflows.where.not(id: @workflow.id).order(id: :desc).limit(20) : []
+    workflows = @workflow.job ? @workflow.job.workflows.where.not(id: @workflow.id).reorder(id: :desc).limit(20) : []
     [ @workflow, *workflows ].flat_map do |workflow|
       prepared = workflow.artifact(PREPARED_ARTIFACT)
       conflict = workflow.artifact(CONFLICT_ARTIFACT)
