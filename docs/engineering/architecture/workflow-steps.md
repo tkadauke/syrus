@@ -421,6 +421,47 @@ did not run. Unknown, stale, failed, timed-out, cancelled, or inconclusive
 health records are misses, so required graders still materialize and run.
 
 
+## Which copy of a branch is true (`BranchTruth`)
+
+Every step that publishes a branch -- `pr_open` (existing PR branch, stack
+rebased branch, lease rejections), `push`, `force_push`, `stack_force_push`,
+and merge-train integration publishes (`MergeTrainStep#integration_push_lease_args`,
+used by `merge_train_rebase`, `merge_train_agent_rebase`, `merge_train_agent`,
+`landing_fix` and `merge_train_land`) -- asks `BranchTruth.classify` what the
+local head is to the remote head before it pushes, and acts on its `outcome`
+instead of an ad-hoc ancestry check:
+
+| relation | outcome |
+|---|---|
+| `absent`, `fast_forward` | `publish` |
+| `rewrite` (remote is the protected head local was rewritten from) | `publish` under a lease on it |
+| `identical` | `up_to_date` |
+| `remote_ahead` | `adopt_remote` |
+| `equivalent` (same patch content, or same tree) | `adopt_remote`; `publish` when only local is on the fresh base |
+| `remote_contains_local` | `adopt_remote`; `ambiguous` when the remote's extra content is on a stale base |
+| `local_contains_remote` | `publish`; `rebase_onto_remote` when the remote is on a fresher base (it was rebased under us) |
+| `diverged`, `unknown` | `ambiguous` |
+
+Patch content is compared with `git cherry` patch ids, ignoring commits already
+on the branch's base (reachable from it or patch-equivalent to it), so a stack
+rebase's recreated parent commits never read as either side's work. Unmatched
+merge commits count as unprovable content. A side is "fresh" when the base is
+its ancestor; with no base the rule assumes the remote is at least as fresh,
+so it never overwrites a remote it cannot prove stale. Any git error is
+`unknown`, which fails closed.
+
+Adopting resets the workspace to the remote head and records
+`branch_truth_adopted_remote`; nothing is pushed. The `ambiguous` outcome is
+the one real conflict: `pr_open` records `branch_divergence` with the
+classification under `branch_truth` and `recommended_recovery:
+retry_from_current_pr_branch`, which the reconciler performs (now even when
+the PR branch moved again after the failure); `force_push` fails with
+`branch_diverged`; an integration branch fails with
+`merge_train_rebuild_required`. Lease targets are always classified heads: a
+recorded protected head (`auto_rebase_result`, `agent_rebase_pre_sha`, a stack
+entry's `pre_sha`, the train's `integration_sha` or a head Syrus published to
+the integration branch), or a live head `BranchTruth` said may be replaced.
+
 ## Publication checkpoint and divergence internals
 
 Before doing anything else, `pr_open` restores the validated implementation from

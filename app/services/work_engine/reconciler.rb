@@ -3348,10 +3348,12 @@ module WorkEngine
         # or failure), so a genuinely failed recovery attempt still leaves
         # retry_workflow free to run on the next pass.
         next if workflow&.artifact("branch_divergence_recovery_pending").present?
-        next unless divergence_current_pr_head?(job, divergence)
 
         latest = latest_workflow_for_job(job)
-        if workflow == latest && job.failed? && !active_runtime_work_for_job?(job)
+        retryable = retry_from_current_pr_branch_applies?(job, workflow, divergence, latest: latest)
+        next unless retryable || divergence_current_pr_head?(job, divergence)
+
+        if retryable
           issue(
             kind: :branch_diverged_pr_open,
             severity: :warning,
@@ -4449,9 +4451,25 @@ module WorkEngine
     end
 
     def recoverable_branch_divergence?(run)
-      branch_diverged_pr_open_run?(run) &&
-        run.workflow&.artifact("branch_divergence_recovery").blank? &&
-        divergence_current_pr_head?(run.job, run.workflow&.artifact("branch_divergence"))
+      return false unless branch_diverged_pr_open_run?(run)
+      return false if run.workflow&.artifact("branch_divergence_recovery").present?
+
+      divergence = run.workflow&.artifact("branch_divergence")
+      divergence_current_pr_head?(run.job, divergence) ||
+        retry_from_current_pr_branch_applies?(run.job, run.workflow, divergence, latest: latest_workflow_for_job(run.job))
+    end
+
+    # The genuinely ambiguous branch divergence (BranchTruth) is repaired by
+    # retrying from the *current* PR branch, whatever head it has reached.
+    # Requiring it to still equal the head recorded at failure skipped the
+    # repair whenever the branch moved again -- a second stack rebase -- and
+    # left the Job failed for a human. Only the latest failed workflow with no
+    # runtime work in flight qualifies, and the PR head must be known.
+    def retry_from_current_pr_branch_applies?(job, workflow, divergence, latest:)
+      return false unless job&.pr_number.present? && divergence.is_a?(Hash)
+      return false if current_pr_head_sha(job).blank?
+
+      workflow == latest && job.failed? && !active_runtime_work_for_job?(job)
     end
 
     def branch_divergence_recovered_by_current_pr_branch?(workflow)

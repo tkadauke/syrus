@@ -1021,6 +1021,21 @@ force push leased on the observed head) and records
 pushed, such as a commit a person pushed, still stops for branch divergence
 review.
 
+Before any publication (`pr_open`, `push`, `force_push`, `stack_force_push`,
+and merge-train integration pushes), Syrus compares the branch it is about to
+publish with the remote branch by commits and patch content. When the remote
+already holds the workflow's work -- someone pushed on top of it, or a stack
+rebase republished the same commits onto a moved parent -- Syrus takes the
+remote branch as the result and pushes nothing. When the workflow's branch
+holds every remote commit's change on a base at least as fresh, it replaces
+the remote under a lease. Only when the two sides hold different work does
+publication stop; the recorded divergence then names *retry from the current
+PR branch* as the recovery, and Syrus performs that retry automatically for
+the latest failed workflow even if the PR branch moved again in the meantime.
+A rebase workflow never force-pushes over a remote head it has not
+classified, and a merge-train integration branch holding work the train did
+not build fails with "rebuild required" instead of being overwritten.
+
 **Branch divergence review.** When the remote PR branch moved and no newer
 workflow published it, `pr_open` records a `branch_divergence` artifact and the
 Job page offers four choices: retry from the current PR branch, replace the

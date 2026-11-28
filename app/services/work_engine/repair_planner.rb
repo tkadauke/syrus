@@ -1038,10 +1038,19 @@ module WorkEngine
             execution_steps: [ "RetryWorkflowEnqueuer.call" ],
             preconditions: {
               classification: classification&.classification,
-              current_pr_head_matches_divergence: true,
+              # The retry starts from the current PR branch, so it need not
+              # still be at the head recorded when pr_open failed.
+              current_pr_head_matches_divergence: current_pr_head_matches_divergence?,
               retry_budget_available: true
             }
           )
+        end
+
+        private
+
+        def current_pr_head_matches_divergence?
+          recorded = issue.evidence.dig("branch_divergence", "remote_sha")
+          recorded.present? && recorded == issue.evidence["current_pr_head_sha"]
         end
       end
 

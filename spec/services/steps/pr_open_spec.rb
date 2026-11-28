@@ -9,6 +9,30 @@ RSpec.describe Steps::PrOpen, :ci_only do
   let!(:implement_step) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
   let!(:pr_open_step) { Step.create!(workflow: workflow, kind: "pr_open", position: 1) }
 
+  def branch_truth_result(relation, outcome, remote_sha:, local_sha: nil)
+    BranchTruth::Result.new(
+      relation: relation, outcome: outcome, local_sha: local_sha, remote_sha: remote_sha, base_sha: nil,
+      local_fresh: nil, remote_fresh: nil, evidence: {}
+    )
+  end
+
+  # Examples that drive pr_open through a scripted GitRunner double cannot run
+  # BranchTruth's real git reads. Those examples script a remote that is
+  # neither the local head nor its ancestor, so classify it as the different-
+  # content divergence they assert on; BranchTruth itself is covered on real
+  # repositories in spec/services/branch_truth_spec.rb, and the examples below
+  # stub the other outcomes explicitly.
+  before do
+    allow(BranchTruth).to receive(:classify).and_wrap_original do |original, **kwargs|
+      if kwargs[:git].is_a?(RSpec::Mocks::TestDouble)
+        branch_truth_result(:diverged, :ambiguous, remote_sha: kwargs[:remote])
+      else
+        original.call(**kwargs)
+      end
+    end
+    allow_any_instance_of(described_class).to receive(:publication_base_ref).and_return(nil)
+  end
+
   def composed_body_for(provider:, turns:)
     Run.create!(
       job: job,
@@ -1225,6 +1249,88 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler.send(:restore_validated_implementation_if_missing!)
   end
 
+  describe "an existing PR branch that moved before push" do
+    let(:remote_sha) { "a" * 40 }
+    let(:local_sha) { "b" * 40 }
+    let(:branch) { "syrus/issue-42-#{job.id}" }
+    let(:path) { Pathname.new("/tmp/syrus-pr-open-spec") }
+    let(:git) { instance_double(GitRunner) }
+    let(:push_url) { repository.authenticated_push_url("token") }
+    let(:pr_open_run) { Run.create!(job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
+    let(:handler) { described_class.new(pr_open_run) }
+
+    before do
+      job.update!(state: "running", pr_number: 77)
+      workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path, base_ref: "origin/main")
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:persist_pushed_all_changes_version!)
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+      allow(git).to receive(:run).with("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("")
+      allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("#{remote_sha}\n")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("#{local_sha}\n")
+      allow(git).to receive(:run).with("reset", "--hard", remote_sha, chdir: path.to_s).and_return("")
+      allow(git).to receive(:run).with("push", any_args).and_return("")
+      allow(git).to receive(:run).with("log", any_args).and_return("")
+      allow(git).to receive(:run).with("diff", any_args).and_return("")
+      allow(RunCheckpointPublisher).to receive(:publish!)
+    end
+
+    def classify_as(relation, outcome)
+      allow(BranchTruth).to receive(:classify).and_return(
+        branch_truth_result(relation, outcome, remote_sha: remote_sha, local_sha: local_sha)
+      )
+    end
+
+    # Regression: an Epic-wide stack rebase rewrote the PR branch onto the
+    # moved parent while this workflow held the pre-rebase output. The remote
+    # carried every one of the workflow's patches, yet pr_open failed with
+    # "PR branch changed before Syrus could push".
+    it "adopts a remote that holds the same patches on the fresher base" do
+      classify_as(:equivalent, :adopt_remote)
+
+      expect(handler.send(:push_branch)).to eq(:pushed)
+
+      expect(git).to have_received(:run).with("reset", "--hard", remote_sha, chdir: path.to_s)
+      expect(git).not_to have_received(:run).with("push", any_args)
+      expect(workflow.reload.artifact("branch_divergence")).to be_nil
+      expect(workflow.artifact(BranchTruth::ADOPTED_ARTIFACT)).to include("relation" => "equivalent", "context" => "existing PR branch")
+    end
+
+    it "adopts a remote someone advanced on top of the workflow's output" do
+      classify_as(:remote_ahead, :adopt_remote)
+
+      expect(handler.send(:push_branch)).to eq(:pushed)
+      expect(git).not_to have_received(:run).with("push", any_args)
+      expect(workflow.reload.artifact("branch_divergence")).to be_nil
+    end
+
+    it "replaces, under a lease, a remote whose every patch the workflow already carries" do
+      classify_as(:local_contains_remote, :publish)
+
+      expect(handler.send(:push_branch)).to eq(:pushed)
+
+      expect(git).to have_received(:run).with(
+        "push", "--force-with-lease=refs/heads/#{branch}:#{remote_sha}", push_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s
+      ).once
+      expect(workflow.reload.artifact("branch_divergence")).to be_nil
+      expect(workflow.artifact("pr_open_published_over_remote")).to include("relation" => "local_contains_remote")
+    end
+
+    it "does not overwrite a remote that was rebased onto a fresher base, and names the recovery" do
+      classify_as(:local_contains_remote, :rebase_onto_remote)
+
+      expect { handler.send(:push_branch) }.to raise_error(described_class::BranchDiverged)
+
+      expect(git).not_to have_received(:run).with("push", any_args)
+      expect(workflow.reload.artifact("branch_divergence")).to include(
+        "remote_sha" => remote_sha,
+        "recommended_recovery" => "retry_from_current_pr_branch",
+        "branch_truth" => include("relation" => "local_contains_remote", "outcome" => "rebase_onto_remote")
+      )
+    end
+  end
+
   # Choosing between these two branches is destructive and irreversible, and the
   # operator usually faces the choice hours later on a worker that no longer has
   # the workspace. Capture what each side holds while both are still readable,
@@ -1809,40 +1915,88 @@ RSpec.describe Steps::PrOpen, :ci_only do
         expect { handler.send(:confirm_published_stack_base!) }.not_to raise_error
       end
 
-      it "publishes a rebased branch under a lease on the observed remote tip" do
-        allow(handler).to receive(:fetch_remote_branch!).and_return("f" * 40)
-        allow(handler).to receive(:ancestor?).and_return(false)
-        allow(handler).to receive(:remote_patches_preserved?).and_return(true)
+      describe "publishing a branch the stack rebase rewrote" do
+        let(:remote_sha) { "f" * 40 }
 
-        expect(git).to receive(:run).with(
-          "push", "--force-with-lease=refs/heads/syrus/issue-42:#{"f" * 40}", "https://x/y",
-          "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
-        )
+        before do
+          allow(handler).to receive(:fetch_remote_branch!).and_return(remote_sha)
+        end
 
-        handler.send(:push_stack_rebased_branch, git, "https://x/y")
-      end
+        def classify_as(relation, outcome)
+          allow(BranchTruth).to receive(:classify).and_return(branch_truth_result(relation, outcome, remote_sha: remote_sha))
+        end
 
-      it "reports divergence instead of silently succeeding when the push lease is rejected" do
-        allow(handler).to receive(:fetch_remote_branch!).and_return("f" * 40)
-        allow(handler).to receive(:ancestor?).and_return(false)
-        allow(handler).to receive(:remote_patches_preserved?).and_return(true)
-        allow(handler).to receive(:record_branch_divergence!)
-        allow(handler).to receive(:branch_divergence_message).and_return("diverged")
-        allow(git).to receive(:run).and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] (stale info)"))
+        it "publishes under a lease on the classified remote tip" do
+          classify_as(:local_contains_remote, :publish)
 
-        expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
-        expect(handler).to have_received(:record_branch_divergence!)
-      end
+          expect(git).to receive(:run).with(
+            "push", "--force-with-lease=refs/heads/syrus/issue-42:#{remote_sha}", "https://x/y",
+            "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+          )
 
-      it "refuses to overwrite remote work the rebase did not preserve" do
-        allow(handler).to receive(:fetch_remote_branch!).and_return("f" * 40)
-        allow(handler).to receive(:ancestor?).and_return(false)
-        allow(handler).to receive(:remote_patches_preserved?).and_return(false)
-        allow(handler).to receive(:record_branch_divergence!)
-        allow(handler).to receive(:branch_divergence_message).and_return("diverged")
-        expect(git).not_to receive(:run)
+          handler.send(:push_stack_rebased_branch, git, "https://x/y")
+        end
 
-        expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
+        # Regression: an Epic-wide stack rebase had already published this
+        # Job's work onto the moved parent; pushing the workflow's own copy
+        # would only rewrite it back, and reporting it as divergence failed
+        # pr_open with "PR branch changed before Syrus could push".
+        it "adopts a remote that already holds the same work" do
+          classify_as(:equivalent, :adopt_remote)
+          expect(git).to receive(:run).with("reset", "--hard", remote_sha, chdir: "/tmp/ws")
+          expect(git).not_to receive(:run).with("push", any_args)
+
+          expect(handler.send(:push_stack_rebased_branch, git, "https://x/y")).to eq(:adopted_remote)
+          expect(workflow.reload.artifact(BranchTruth::ADOPTED_ARTIFACT)).to include(
+            "relation" => "equivalent", "remote_sha" => remote_sha, "context" => "stack rebase publication"
+          )
+        end
+
+        it "adopts the remote when the lease is rejected because a parallel writer published the same work" do
+          classify_as(:local_contains_remote, :publish)
+          allow(git).to receive(:run).with("push", any_args)
+            .and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] (stale info)"))
+          allow(git).to receive(:run).with("reset", "--hard", remote_sha, chdir: "/tmp/ws")
+          allow(BranchTruth).to receive(:classify).and_return(
+            branch_truth_result(:local_contains_remote, :publish, remote_sha: remote_sha),
+            branch_truth_result(:remote_ahead, :adopt_remote, remote_sha: remote_sha)
+          )
+
+          expect(handler.send(:push_stack_rebased_branch, git, "https://x/y")).to eq(:adopted_remote)
+          expect(workflow.reload.artifact("branch_divergence")).to be_nil
+        end
+
+        it "reports divergence when the lease is rejected and the new remote holds other work" do
+          classify_as(:local_contains_remote, :publish)
+          allow(handler).to receive(:record_branch_divergence!)
+          allow(handler).to receive(:branch_divergence_message).and_return("diverged")
+          allow(git).to receive(:run).and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] (stale info)"))
+          allow(BranchTruth).to receive(:classify).and_return(
+            branch_truth_result(:local_contains_remote, :publish, remote_sha: remote_sha),
+            branch_truth_result(:diverged, :ambiguous, remote_sha: remote_sha)
+          )
+
+          expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
+          expect(handler).to have_received(:record_branch_divergence!)
+        end
+
+        it "refuses to overwrite remote work the rebase did not preserve" do
+          classify_as(:diverged, :ambiguous)
+          allow(handler).to receive(:record_branch_divergence!)
+          allow(handler).to receive(:branch_divergence_message).and_return("diverged")
+          expect(git).not_to receive(:run)
+
+          expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
+        end
+
+        it "refuses to overwrite a remote rebased onto a fresher base than the local copy" do
+          classify_as(:local_contains_remote, :rebase_onto_remote)
+          allow(handler).to receive(:record_branch_divergence!)
+          allow(handler).to receive(:branch_divergence_message).and_return("diverged")
+          expect(git).not_to receive(:run)
+
+          expect { handler.send(:push_stack_rebased_branch, git, "https://x/y") }.to raise_error(described_class::BranchDiverged)
+        end
       end
     end
   end

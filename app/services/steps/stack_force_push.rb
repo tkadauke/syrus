@@ -12,7 +12,8 @@ module Steps
 
       update_pull_request_bases
       refresh_stack_footers
-      verify_publication!(pushes)
+      # Re-read: a branch whose moved remote was adopted now expects that head.
+      verify_publication!(Array(workflow.reload.artifact(StackRebasePlan::AGENT_PUSHES_ARTIFACT)))
     end
 
     private
@@ -40,11 +41,53 @@ module Steps
           raise StepFailed.new("stack_force_push: provider failed while pushing #{branch}: #{e.message}", evidence: publication_failure_artifact)
         end
 
+        truth = classify_moved_remote(git, entry)
+        if truth&.up_to_date? || truth&.adopt_remote?
+          adopt_moved_remote!(entry, truth)
+          next
+        end
+
         message = "stack_force_push: lease rejected for #{branch}; remote branch moved after Syrus fetched it. Refusing to overwrite newer remote work."
-        record_publication_failure!(entry, "lease_rejected", e)
+        record_publication_failure!(entry, "lease_rejected", e, truth ? { "branch_truth" => truth.to_h } : {})
         log(message)
         raise StepFailed.new(message, evidence: publication_failure_artifact)
       end
+    end
+
+    # The lease named the head this stack rebase started from and the remote
+    # is somewhere else now. A parallel writer (another stack rebase of the
+    # same Epic) may already have published exactly this rewrite; BranchTruth
+    # tells that apart from newer work that must not be overwritten.
+    def classify_moved_remote(git, entry)
+      branch = entry.fetch("branch_name")
+      remote_sha = nil
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_stack_force_push_refetch", log: method(:log)) do |url|
+        git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+        remote_sha = git.run("rev-parse", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s).to_s.strip.presence
+      end
+      return nil if remote_sha.blank?
+
+      truth = BranchTruth.classify(
+        git: git, chdir: workspace.path, local: entry.fetch("post_sha"), remote: remote_sha,
+        base: entry["base_sha"].presence, rewritten_from: [ entry["pre_sha"] ].compact
+      )
+      log("stack_force_push: #{branch} remote=#{remote_sha.first(9)} is #{truth.relation} -> #{truth.outcome}")
+      truth
+    rescue StandardError => e
+      log("stack_force_push: could not classify the moved remote for #{branch}: #{e.class}: #{e.message}", kind: "system")
+      nil
+    end
+
+    # The remote is now the expected published head for this entry, so the
+    # publication postcondition verifies against what is really there.
+    def adopt_moved_remote!(entry, truth)
+      pushes = Array(workflow.artifact(StackRebasePlan::AGENT_PUSHES_ARTIFACT)).map do |candidate|
+        next candidate unless candidate["job_id"] == entry["job_id"] && candidate["branch_name"] == entry["branch_name"]
+
+        candidate.merge("post_sha" => truth.remote_sha, "rebased_sha" => entry["post_sha"], "adopted_remote" => truth.to_h)
+      end
+      workflow.set_artifact!(StackRebasePlan::AGENT_PUSHES_ARTIFACT, pushes)
+      log("stack_force_push: #{entry['branch_name']} already holds this rewrite at #{truth.remote_sha.first(9)} (#{truth.relation}); adopting it")
     end
 
     def force_with_lease_arg(entry)

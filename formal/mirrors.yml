@@ -272,7 +272,7 @@ models:
   - path: app/services/work_engine/repair_planner.rb
     owner: BranchDivergedPrOpen
     method: plan
-    sha: bf67fd6f8631cd24
+    sha: 6ca9a5286696ff0d
 - model: RetryTermination.lean
   mirrors:
   - path: app/models/auto_retry_attempt.rb

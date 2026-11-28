@@ -87,18 +87,39 @@ module Steps
       head_sha = ensure_integration_branch_ref_at_head!(git, train, chdir: chdir, context: context)
 
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: operation_type, log: method(:log)) do |url|
-        git.run("push", *integration_push_lease_args(git, chdir, branch, url), url, "HEAD:refs/heads/#{branch}", chdir: chdir)
+        lease_args = integration_push_lease_args(git, chdir, branch, url, train: train, context: context)
+        git.run("push", *lease_args, url, "HEAD:refs/heads/#{branch}", chdir: chdir)
       end
       git.run("update-ref", "refs/remotes/origin/#{branch}", head_sha, chdir: chdir)
       workflow.set_artifact!(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT, branch)
       head_sha
     end
 
-    def integration_push_lease_args(git, chdir, branch, push_url)
+    # The integration branch is Syrus's alone, so the heads it may be
+    # overwritten from are the train's recorded head and any head Syrus
+    # published to it. Any other remote head is classified with BranchTruth
+    # first: only a head this publication already contains (or equals) is
+    # replaced; one carrying work the train never built is neither overwritten
+    # nor adopted into the train's evidence -- the train is rebuilt.
+    def integration_push_lease_args(git, chdir, branch, push_url, train: nil, context: "merge_train")
       expected = remote_integration_branch_sha(git, chdir, branch, push_url)
       return [] if expected.blank?
+      return [ "--force-with-lease=refs/heads/#{branch}:#{expected}" ] if protected_integration_head?(train, branch, expected)
 
-      [ "--force-with-lease=refs/heads/#{branch}:#{expected}" ]
+      git.run("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: chdir)
+      truth = BranchTruth.classify(git: git, chdir: chdir, local: "HEAD", remote: expected)
+      log("#{context}: integration branch #{branch} remote=#{expected.first(9)} is #{truth.relation} -> #{truth.outcome}", kind: "system")
+      return [ "--force-with-lease=refs/heads/#{branch}:#{expected}" ] if truth.publish? || truth.up_to_date?
+
+      fail_with!(:merge_train_rebuild_required,
+                 "#{context}: integration branch #{branch} holds #{expected.first(9)}, which neither the train recorded " \
+                 "nor Syrus published, and which carries work this publication lacks (#{truth.relation}); rebuild required",
+                 evidence: truth.to_h.merge("context" => context, "integration_branch" => branch,
+                                            "integration_sha" => train&.integration_sha))
+    end
+
+    def protected_integration_head?(train, branch, sha)
+      sha == train&.integration_sha.presence || BranchPublication.published?(branch_name: branch, sha: sha)
     end
 
     def remote_integration_branch_sha(git, chdir, branch, push_url)
