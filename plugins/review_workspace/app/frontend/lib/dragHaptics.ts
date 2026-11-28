@@ -27,7 +27,13 @@ export class DragHapticQuantizer {
   private readonly minIntervalMs: number
   private readonly now: () => number
 
-  constructor({ increment = DRAG_HAPTIC_INCREMENT, max = Number.POSITIVE_INFINITY, hysteresis, minIntervalMs = DEFAULT_MIN_INTERVAL_MS, now }: DragHapticOptions = {}) {
+  constructor({
+    increment = DRAG_HAPTIC_INCREMENT,
+    max = Number.POSITIVE_INFINITY,
+    hysteresis,
+    minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
+    now
+  }: DragHapticOptions = {}) {
     this.increment = increment > 0 ? increment : DRAG_HAPTIC_INCREMENT
     this.max = max
     this.hysteresis = Math.min(hysteresis ?? DEFAULT_HYSTERESIS, this.increment / 2)
