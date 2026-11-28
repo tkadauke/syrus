@@ -16,6 +16,17 @@ function formatBytes(bytes: number | null) {
   return `${Math.round(bytes / 1024)} KB`
 }
 
+function formatTiming(timing: Record<string, unknown> | null, labels: { request: string; response: string; end: string }) {
+  if (!timing) return null
+  const values: Array<[string, unknown]> = [
+    [labels.request, timing.request_start_ms],
+    [labels.response, timing.response_start_ms],
+    [labels.end, timing.response_end_ms]
+  ]
+  const formatted = values.flatMap(([label, value]) => typeof value === "number" ? [`${label} ${Math.round(value)} ms`] : [])
+  return formatted.length ? formatted.join(" · ") : null
+}
+
 export function AdminSpaLoader() {
   const { t } = useT("syrus_dev")
   usePageTitle(t("spa_loader.heading"))
@@ -30,6 +41,7 @@ export function AdminSpaLoader() {
   ]
   const entries = snapshot.warmup.entries.filter((entry) => (!filters.state || entry.state === filters.state) && (!filters.group || entry.group === filters.group))
   const startup = snapshot.startup
+  const queuedEntries = snapshot.warmup.queue.map((id) => snapshot.warmup.entries.find((entry) => entry.id === id)).filter((entry) => entry !== undefined)
 
   return (
     <Page.Root gutter="responsive" size="wide">
@@ -50,7 +62,7 @@ export function AdminSpaLoader() {
         <Section.Body className="space-y-2">
           <Text>{t("spa_loader.loading_now")}: {snapshot.warmup.loading ?? t("spa_loader.none")}</Text>
           <Text>{t("spa_loader.pause_reasons")}: {snapshot.warmup.pauseReasons.length ? snapshot.warmup.pauseReasons.map((reason) => t(`spa_loader.reasons.${reason}`)).join(", ") : t("spa_loader.none")}</Text>
-          <Text>{t("spa_loader.queued_order")}: {snapshot.warmup.queue.join(" → ") || t("spa_loader.none")}</Text>
+          <Text>{t("spa_loader.queued_order")}: {queuedEntries.map((entry) => t("spa_loader.queue_entry", { id: entry.id, group: entry.group ?? t("spa_loader.none"), priority: entry.priority })).join(" → ") || t("spa_loader.none")}</Text>
           {snapshot.warmup.stoppedAfterFailure ? <Text tone="danger">{t("spa_loader.stopped")}</Text> : null}
         </Section.Body>
       </Section.Root>
@@ -72,11 +84,15 @@ export function AdminSpaLoader() {
         <DiagnosticSection title={t("spa_loader.timeline")} rows={[
           ...(startup?.milestones ?? []).map((item) => [item.name, `${Math.round(item.at_ms)} ms`]),
           ...(startup?.progress_samples ?? []).map((item) => [t("spa_loader.progress_sample"), `${Math.round(item.at)} ms · ${formatBytes(item.bytes)}`]),
-          ...(startup?.progress?.speed ? [[t("spa_loader.speed"), `${formatBytes(startup.progress.speed)}/s`]] : [])
+          ...(startup?.progress?.speed ? [[t("spa_loader.speed"), `${formatBytes(startup.progress.speed)}/s`]] : []),
+          ...(startup?.revision.changed ? [[t("spa_loader.revision_change"), `${startup.revision.previous ?? t("spa_loader.none")} → ${startup.revision.page}`]] : [])
         ]} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.startup_assets")} rows={[
           ...(startup?.budget ? [[t("spa_loader.budget"), `${formatBytes(startup.assets.reduce((total, asset) => total + (asset.budget_size ?? 0), 0))} / ${formatBytes(startup.budget.bytes)}`]] : []),
-          ...(startup?.assets ?? []).map((item) => [item.path, `${formatBytes(item.bytes)} / ${formatBytes(item.wire_size)}${item.budget_size !== null && startup?.budget ? ` · ${Math.round((item.budget_size / startup.budget.bytes) * 100)}%` : ""} · ${item.source}`])
+          ...(startup?.assets ?? []).map((item) => {
+            const timing = formatTiming(item.timing, { request: t("spa_loader.timing_request"), response: t("spa_loader.timing_response"), end: t("spa_loader.timing_end") })
+            return [item.path, `${formatBytes(item.bytes)} / ${formatBytes(item.wire_size)}${item.budget_size !== null && startup?.budget ? ` · ${Math.round((item.budget_size / startup.budget.bytes) * 100)}%` : ""} · ${item.source}${timing ? ` · ${timing}` : ""}`]
+          })
         ]} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.service_worker")} rows={startup ? [[t("spa_loader.present"), String(startup.service_worker.present)], [t("spa_loader.controlled"), String(startup.service_worker.controlled)], [t("spa_loader.registration"), startup.service_worker.registration?.active ?? startup.service_worker.registration?.waiting ?? startup.service_worker.registration?.installing ?? t("spa_loader.none")], [t("spa_loader.revision"), `${startup.service_worker.worker_revision ?? "?"} / ${startup.revision.page}`], [t("spa_loader.counted"), startup.service_worker.counted_requests.join(", ") || t("spa_loader.none")]] : []} empty={t("spa_loader.no_data")} />
         <DiagnosticSection title={t("spa_loader.recovery")} rows={(startup?.events ?? []).map((item) => [item.kind, [item.outcome ? t(`spa_loader.outcomes.${item.outcome}`) : null, item.attempt ? `#${item.attempt}` : null, item.revision ?? null, `${Math.round(item.at_ms)} ms`].filter(Boolean).join(" · ")])} empty={t("spa_loader.no_events")} />

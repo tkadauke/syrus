@@ -98,6 +98,20 @@ describe("ChunkWarmupQueue", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
+  it("cancels a scheduled warm-up when its in-tab state is cleared", async () => {
+    const env = fakeEnvironment()
+    const queue = new ChunkWarmupQueue(env.environment)
+    const load = vi.fn(async () => ({}))
+    queue.register("chat", load, { priority: 0 })
+
+    queue.start()
+    queue.clearWarmupState()
+    await env.flush()
+
+    expect(load).not.toHaveBeenCalled()
+    expect(queue.snapshot().entries[0].state).toBe("not_loaded")
+  })
+
   it("does not collect timing diagnostics when nobody subscribes", async () => {
     const env = fakeEnvironment()
     const queue = new ChunkWarmupQueue(env.environment)

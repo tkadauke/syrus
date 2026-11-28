@@ -32,7 +32,7 @@ function snapshot(state = "queued") {
     },
     startup: {
       milestones: [{ name: "shell_loaded", at_ms: 4 }],
-      assets: [{ path: "/assets/spa.js", bytes: 1024, size: 1024, wire_size: 512, budget_size: 600, source: "service_worker", timing: null }],
+      assets: [{ path: "/assets/spa.js", bytes: 1024, size: 1024, wire_size: 512, budget_size: 600, source: "service_worker", timing: { request_start_ms: 10, response_start_ms: 25, response_end_ms: 40 } }],
       progress_samples: [], progress: null, events: [{ kind: "auto_retry", at_ms: 9000, attempt: 1 }, { kind: "stale_chunk_failure", at_ms: 9100, outcome: "reload", revision: "new" }],
       lazy_chunks: { "app/frontend/routes/Chat.tsx": { file: "spa-Chat.js", size: 8192 } },
       revision: { page: "new", previous: "old", changed: true },
@@ -53,11 +53,14 @@ describe("AdminSpaLoader", () => {
     render(<MemoryRouter initialEntries={["/admin/spa_loader"]}><AdminSpaLoader /></MemoryRouter>)
 
     expect(screen.getByText("chat-route", { selector: "td" })).toBeInTheDocument()
+    expect(screen.getByText(/chat-route \(routes, priority 1\)/)).toBeInTheDocument()
     expect(screen.getByText("shell_loaded")).toBeInTheDocument()
     expect(screen.getByText("/assets/spa.js", { selector: "dt" })).toBeInTheDocument()
     expect(screen.getByText("auto_retry")).toBeInTheDocument()
     expect(screen.getByText(/Reloaded page.*new.*9100 ms/)).toBeInTheDocument()
     expect(screen.getByText("8 KB")).toBeInTheDocument()
+    expect(screen.getByText(/request 10 ms.*first byte 25 ms.*complete 40 ms/)).toBeInTheDocument()
+    expect(screen.getByText("old → new")).toBeInTheDocument()
     expect(screen.getByText("new / new")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Warm everything now" }))
     fireEvent.click(screen.getByRole("button", { name: "Clear warm-up state" }))

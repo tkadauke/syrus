@@ -312,7 +312,7 @@ export class ChunkWarmupQueue {
   }
 
   private pump() {
-    if (this.stoppedReason || this.backgroundInFlight || this.demandsInFlight > 0) return
+    if (!this.started || this.stoppedReason || this.backgroundInFlight || this.demandsInFlight > 0) return
     if (this.environment().isHidden()) return
     const entry = this.nextEntry()
     if (!entry) return
