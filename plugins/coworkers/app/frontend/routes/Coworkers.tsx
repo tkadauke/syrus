@@ -505,7 +505,9 @@ function CoworkerPage({ id }: { id: string }) {
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
       {tab === "environment" ? <CoworkerEnvironment id={id} /> : null}
       {tab === "activity" ? <CoworkerActivity id={id} /> : null}
-      {!["chat", "capabilities", "approvals", "schedule", "workspace", "environment", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
+      {!["chat", "capabilities", "approvals", "schedule", "workspace", "environment", "activity"].includes(tab) ? (
+        <PanelMessage>{t("coming_later")}</PanelMessage>
+      ) : null}
     </Page.Root>
   )
 }
@@ -537,12 +539,20 @@ function CoworkerEnvironment({ id }: { id: string }) {
         </Section.Header>
         <Section.Body>
           <DescriptionList.Root>
-            <DescriptionList.Item label={t("environment.source_location")}><Text variant="mono">{sourcePath}</Text></DescriptionList.Item>
+            <DescriptionList.Item label={t("environment.source_location")}>
+              <Text variant="mono">{sourcePath}</Text>
+            </DescriptionList.Item>
             <DescriptionList.Item label={t("environment.current_source")}>
-              {environment?.current_source_revision ? t("environment.revision", { number: environment.current_source_revision.number }) : t("environment.not_configured")}
+              {environment?.current_source_revision
+                ? t("environment.revision", { number: environment.current_source_revision.number })
+                : t("environment.not_configured")}
             </DescriptionList.Item>
             <DescriptionList.Item label={t("environment.source_digest")}>
-              {environment?.current_source_revision ? <CodeSurface code={environment.current_source_revision.digest} mode="command" /> : t("environment.not_available")}
+              {environment?.current_source_revision ? (
+                <CodeSurface code={environment.current_source_revision.digest} mode="command" />
+              ) : (
+                t("environment.not_available")
+              )}
             </DescriptionList.Item>
           </DescriptionList.Root>
         </Section.Body>
@@ -561,7 +571,9 @@ function CoworkerEnvironment({ id }: { id: string }) {
             <Link className={buttonClasses("secondary", "sm")} to={withRoutePrefix(environment.main_chat_path, prefix)}>
               {t("environment.open_chat")}
             </Link>
-          ) : <Text muted>{t("environment.no_recovery")}</Text>}
+          ) : (
+            <Text muted>{t("environment.no_recovery")}</Text>
+          )}
         </Section.Body>
       </Section.Root>
     </Stack>
@@ -574,20 +586,34 @@ function EnvironmentStatus({ environment }: { environment: CoworkerEnvironmentPa
   const verification = environment.latest_safe_findings || environment.candidate_verification_summary
   return (
     <Section.Root>
-      <Section.Header><Section.Title>{t("environment.status_title")}</Section.Title></Section.Header>
+      <Section.Header>
+        <Section.Title>{t("environment.status_title")}</Section.Title>
+      </Section.Header>
       <Section.Body>
         <DescriptionList.Root>
-          <DescriptionList.Item label={t("environment.build_state")}><Pill>{environment.build_status?.state || t("environment.not_started")}</Pill></DescriptionList.Item>
-          <DescriptionList.Item label={t("environment.verification_state")}><Pill>{environment.verification_state || t("environment.not_started")}</Pill></DescriptionList.Item>
-          <DescriptionList.Item label={t("environment.publication_state")}><Pill>{t(`environment.publication.${environment.publication_state}`)}</Pill></DescriptionList.Item>
-          <DescriptionList.Item label={t("environment.compatibility_state")}><Pill>{t(`environment.compatibility.${environment.compatibility.status}`)}</Pill></DescriptionList.Item>
+          <DescriptionList.Item label={t("environment.build_state")}>
+            <Pill>{environment.build_status?.state || t("environment.not_started")}</Pill>
+          </DescriptionList.Item>
+          <DescriptionList.Item label={t("environment.verification_state")}>
+            <Pill>{environment.verification_state || t("environment.not_started")}</Pill>
+          </DescriptionList.Item>
+          <DescriptionList.Item label={t("environment.publication_state")}>
+            <Pill>{t(`environment.publication.${environment.publication_state}`)}</Pill>
+          </DescriptionList.Item>
+          <DescriptionList.Item label={t("environment.compatibility_state")}>
+            <Pill>{t(`environment.compatibility.${environment.compatibility.status}`)}</Pill>
+          </DescriptionList.Item>
           <DescriptionList.Item label={t("environment.active_digest")}>
             {environment.active_digest ? <CodeSurface code={environment.active_digest} mode="command" /> : t("environment.standard_base")}
           </DescriptionList.Item>
           <DescriptionList.Item label={t("environment.current_base_digest")}>
             {environment.current_base_digest ? <CodeSurface code={environment.current_base_digest} mode="command" /> : t("environment.not_available")}
           </DescriptionList.Item>
-          {environment.error_code ? <DescriptionList.Item label={t("environment.safe_failure")}><Text tone="danger">{environment.error_code}</Text></DescriptionList.Item> : null}
+          {environment.error_code ? (
+            <DescriptionList.Item label={t("environment.safe_failure")}>
+              <Text tone="danger">{environment.error_code}</Text>
+            </DescriptionList.Item>
+          ) : null}
           <DescriptionList.Item label={t("environment.safe_findings")}>
             {verification ? <CodeSurface code={JSON.stringify(verification, null, 2)} mode="multiline" /> : t("environment.no_findings")}
           </DescriptionList.Item>
@@ -601,24 +627,34 @@ function EnvironmentHistory({ environment }: { environment: CoworkerEnvironmentP
   const { t } = useT("coworkers")
   return (
     <Section.Root>
-      <Section.Header><Section.Title>{t("environment.history_title")}</Section.Title></Section.Header>
+      <Section.Header>
+        <Section.Title>{t("environment.history_title")}</Section.Title>
+      </Section.Header>
       <Section.Body padding="none">
         <DataTable.Root>
-          <DataTable.Header><DataTable.Row>
-            <DataTable.HeadCell>{t("environment.history_revision")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("environment.history_state")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("environment.history_build")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("environment.history_digest")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("environment.history_retention")}</DataTable.HeadCell>
-          </DataTable.Row></DataTable.Header>
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("environment.history_revision")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("environment.history_state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("environment.history_build")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("environment.history_digest")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("environment.history_retention")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
           <DataTable.Body>
-            {environment?.revisions.map((revision) => <DataTable.Row key={revision.id}>
-              <DataTable.Cell>{t("environment.revision", { number: revision.number })}</DataTable.Cell>
-              <DataTable.Cell><Pill>{revision.state}</Pill></DataTable.Cell>
-              <DataTable.Cell>{revision.build_state || t("environment.not_started")}</DataTable.Cell>
-              <DataTable.Cell><Text variant="mono">{revision.image_digest || revision.source_digest}</Text></DataTable.Cell>
-              <DataTable.Cell>{revision.rollback_eligible ? t("environment.rollback_available") : t("environment.audit_retained")}</DataTable.Cell>
-            </DataTable.Row>)}
+            {environment?.revisions.map((revision) => (
+              <DataTable.Row key={revision.id}>
+                <DataTable.Cell>{t("environment.revision", { number: revision.number })}</DataTable.Cell>
+                <DataTable.Cell>
+                  <Pill>{revision.state}</Pill>
+                </DataTable.Cell>
+                <DataTable.Cell>{revision.build_state || t("environment.not_started")}</DataTable.Cell>
+                <DataTable.Cell>
+                  <Text variant="mono">{revision.image_digest || revision.source_digest}</Text>
+                </DataTable.Cell>
+                <DataTable.Cell>{revision.rollback_eligible ? t("environment.rollback_available") : t("environment.audit_retained")}</DataTable.Cell>
+              </DataTable.Row>
+            ))}
             {!environment?.revisions.length ? <DataTable.Empty colSpan={5}>{t("environment.no_history")}</DataTable.Empty> : null}
           </DataTable.Body>
         </DataTable.Root>
