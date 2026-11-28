@@ -8348,6 +8348,7 @@ function renderRouteWithMobileChromeContext(overrides: Partial<MobileChatHeaderC
     hidden: false,
     hideHeader: vi.fn(),
     offset: 0,
+    offsetTransform: "translateY(0px)",
     reportScrollDelta: vi.fn(),
     revealHeader: vi.fn(),
     setContentHeight: vi.fn(),

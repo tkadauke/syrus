@@ -12,6 +12,8 @@ const CONTROL_CLASS = "relative inline-flex h-9 w-9 items-center justify-center 
 const HALO_CLASS =
   "pointer-events-none absolute inset-0 rounded-full bg-warning/30 motion-safe:animate-approval-waiting-halo motion-reduce:ring-2 motion-reduce:ring-warning-border"
 const BADGE_CLASS = "absolute -right-1 -top-1 min-w-5 rounded-full bg-warning px-1.5 py-0.5 text-center text-2xs font-semibold leading-none text-surface"
+// iOS black-translucent status glyphs require an invariant dark backing in every theme.
+const STATUS_BAR_BACKING_CLASS = "bg-gray-950"
 const NEWLY_BLOCKED_PING_MS = 1_000
 
 export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?: () => void; prefix?: string }) {
@@ -77,30 +79,34 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
         ? createPortal(
             <aside
               aria-label={t("approval_inbox.drawer_title")}
-              className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-border bg-surface p-4 shadow-xl"
+              className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border shadow-xl ${STATUS_BAR_BACKING_CLASS}`}
+              data-testid="permission-inbox-drawer"
             >
-              <header className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">{t("approval_inbox.drawer_title")}</h2>
-                <button className="text-sm text-text-secondary" onClick={() => setOpen(false)} type="button">
-                  {t("approval_inbox.close")}
-                </button>
-              </header>
-              <div className="space-y-3">
-                {pending.slice(0, 5).map((request) => (
-                  <PermissionRequestCard key={request.id} request={request} />
-                ))}
+              <div aria-hidden="true" className="h-[env(safe-area-inset-top)] shrink-0" data-testid="permission-inbox-safe-area" />
+              <div className="min-h-0 flex-1 overflow-y-auto bg-surface p-4" data-testid="permission-inbox-content">
+                <header className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold">{t("approval_inbox.drawer_title")}</h2>
+                  <button className="text-sm text-text-secondary" onClick={() => setOpen(false)} type="button">
+                    {t("approval_inbox.close")}
+                  </button>
+                </header>
+                <div className="space-y-3">
+                  {pending.slice(0, 5).map((request) => (
+                    <PermissionRequestCard key={request.id} request={request} />
+                  ))}
+                </div>
+                {!pendingCount ? <p className="text-sm text-text-muted">{t("approval_inbox.empty_pending")}</p> : null}
+                <Link
+                  className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
+                  onClick={() => {
+                    setOpen(false)
+                    onNavigate?.()
+                  }}
+                  to={withRoutePrefix("/permissions/inbox", prefix)}
+                >
+                  {t("approval_inbox.view_all")}
+                </Link>
               </div>
-              {!pendingCount ? <p className="text-sm text-text-muted">{t("approval_inbox.empty_pending")}</p> : null}
-              <Link
-                className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
-                onClick={() => {
-                  setOpen(false)
-                  onNavigate?.()
-                }}
-                to={withRoutePrefix("/permissions/inbox", prefix)}
-              >
-                {t("approval_inbox.view_all")}
-              </Link>
             </aside>,
             document.body
           )

@@ -1592,10 +1592,11 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       })
 
       const header = screen.getByTestId("mobile-app-header")
+      expect(header).toHaveClass("pt-[calc(0.75rem+env(safe-area-inset-top))]", "before:h-[env(safe-area-inset-top)]", "before:bg-gray-950")
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
-      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-72px)" })
+      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(calc(-72px - env(safe-area-inset-top)))" })
       expect(header).not.toHaveStyle({ marginBottom: "-72px" })
       const hiddenButton = screen.getByTestId("mobile-chat-hidden-header-sidebar-button")
       expect(hiddenButton).toHaveAccessibleName("Open sidebar")
@@ -1605,7 +1606,7 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 120 } })
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(header).toHaveStyle({ transform: "translateY(calc(-72px - env(safe-area-inset-top)))" })
       fireEvent.click(screen.getByTestId("chat-message-stream"))
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
     } finally {
@@ -1631,10 +1632,10 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(stream, { target: { scrollTop: 100 } })
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(header).toHaveStyle({ transform: "translateY(calc(-72px - env(safe-area-inset-top)))" })
 
       fireEvent.scroll(stream, { target: { scrollTop: 94 } })
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(header).toHaveStyle({ transform: "translateY(calc(-72px - env(safe-area-inset-top)))" })
 
       fireEvent.scroll(stream, { target: { scrollTop: 40 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
@@ -1711,19 +1712,19 @@ describe("AppChromeV2 mobile header pinning", () => {
       expect(topBar).toHaveClass("bg-white", "dark:bg-gray-950", "shadow-[0_1px_0_0_#fff]", "dark:shadow-[0_1px_0_0_#030712]")
       expect(scrollPane).toHaveClass("overflow-auto")
       expect(scrollPane).not.toHaveClass("overflow-hidden")
-      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("72px")
+      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("calc(72px + env(safe-area-inset-top))")
 
       fireEvent.wheel(scrollPane, { deltaY: 100 })
       fireEvent.scroll(scrollPane, { target: { scrollTop: 100 } })
 
-      expect(screen.getByTestId("mobile-app-header")).toHaveStyle({ opacity: "0", transform: "translateY(-72px)" })
+      expect(screen.getByTestId("mobile-app-header")).toHaveStyle({ opacity: "0", transform: "translateY(calc(-72px - env(safe-area-inset-top)))" })
       expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("0px")
 
       fireEvent.wheel(scrollPane, { deltaY: -100 })
       fireEvent.scroll(scrollPane, { target: { scrollTop: 20 } })
 
       expect(screen.getByTestId("mobile-app-header")).toHaveStyle({ transform: "translateY(-0px)" })
-      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("72px")
+      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("calc(72px + env(safe-area-inset-top))")
     } finally {
       restoreMatchMedia()
     }
@@ -1783,7 +1784,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
-  it("keeps mobile chat content at the viewport top under the absolute header", () => {
+  it("keeps mobile chat content at the viewport top and includes the safe area in the unmeasured header fallback", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
     try {
@@ -1807,7 +1808,7 @@ describe("AppChromeV2 mobile header pinning", () => {
       })
 
       const scrollPane = screen.getByTestId("app-scroll-pane")
-      expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
+      expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-height")).toBe("calc(72px + env(safe-area-inset-top))")
 
       const contentLayer = screen.getByTestId("mobile-chat-content-shell")
       expect(contentLayer).toHaveClass("flex", "min-h-0", "flex-1", "flex-col")
@@ -1881,6 +1882,8 @@ describe("AppChromeV2 mobile header pinning", () => {
 
       const drawer = document.querySelector(".fixed.inset-0.z-40") as HTMLElement
       expect(drawer).not.toBeNull()
+      expect(drawer).toHaveAttribute("data-testid", "mobile-sidebar-drawer")
+      expect(drawer).toHaveClass("bg-gray-950", "pt-[env(safe-area-inset-top)]")
       expect(within(drawer).getByText("Syrus").closest("div")?.querySelector("svg")).not.toBeNull()
     } finally {
       restoreMatchMedia()

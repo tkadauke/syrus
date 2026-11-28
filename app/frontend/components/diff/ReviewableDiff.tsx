@@ -897,8 +897,9 @@ function MobileChangedFilesModal({
   const modalRef = useDismissiblePopup<HTMLDivElement>(true, onClose)
 
   return (
-    <div className="fixed inset-0 z-[60] flex h-[100dvh] w-[100dvw] flex-col bg-white font-mono text-xs dark:bg-gray-950" ref={modalRef} role="dialog">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+    <div className="fixed inset-0 z-[60] flex h-[100dvh] w-[100dvw] flex-col bg-gray-950 font-mono text-xs" ref={modalRef} role="dialog">
+      <div aria-hidden="true" className="h-[env(safe-area-inset-top)] shrink-0" data-testid="changed-files-safe-area" />
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
         <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">{t("diff_review.changed_files")}</p>
         <button
           aria-label={t("diff_review.close_changed_files")}
@@ -909,7 +910,7 @@ function MobileChangedFilesModal({
           <CloseIcon className="h-5 w-5" />
         </button>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950" data-testid="changed-files-content">
         <ChangedFilesList
           commentCounts={commentCounts}
           density={density}
@@ -2037,7 +2038,7 @@ export function UnifiedDiffTable({
             </Button>
           </div>
           {onDiscussComposing ? <p className="text-xs text-gray-600 dark:text-gray-400">{t("diff_review_composer.discuss_hint")}</p> : null}
-          {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
+          {composingError ? <p className="text-xs text-danger-text">{t("diff_review_composer.create_error")}</p> : null}
           {composingDiscussError ? <p className="text-xs text-danger-text">{t("diff_review_composer.discuss_error")}</p> : null}
         </div>
       </div>
