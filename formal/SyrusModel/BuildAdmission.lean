@@ -8,7 +8,7 @@ create the attempt that adds one. The recurring `RuntimeImageBuildDispatchJob`
 only skips while another run is *pending*, so two dispatch runs can be claiming
 at the same time.
 
-Each claimer runs `acquire`, `check`, `admit`, `release`. A claimer may only
+Each claimer runs `acquire`, `check`, admission (`admits`), `release`. A claimer may only
 hold a lock no one else holds. Before the fix each claim held only its own
 namespace's lock; after it, every claim first takes one instance-wide lock
 (the AppSetting row).
@@ -17,7 +17,7 @@ This file enumerates every interleaving of two claimers in different
 namespaces with a global cap of one:
 
 * `per_namespace_lock_oversubscribes`: with namespace locks only, both check
-  the count at zero and both admit, so two builds run under a cap of one;
+  the count at zero and both are admitted, so two builds run under a cap of one;
 * `global_lock_respects_cap`: with the instance-wide lock, no interleaving
   ever admits more than the cap.
 -/

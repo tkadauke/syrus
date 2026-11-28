@@ -36,7 +36,8 @@ def RuntimeIndependent (path : Job → Job) : Prop :=
 
 theorem approve_runtime_independent : RuntimeIndependent approve := by
   intro j activity feedback checks
-  simp [approve]
+  unfold approve
+  by_cases h : j.state = .implemented <;> simp [h]
 
 theorem implemented_approves_regardless_of_runtime
     (activity feedback checks : Bool) :
