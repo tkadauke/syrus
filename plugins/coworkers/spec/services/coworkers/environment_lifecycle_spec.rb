@@ -29,6 +29,26 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
   end
   let(:base) { RuntimeImages::BuildRequests::Base.new(id: 1, digest: "sha256:#{'e' * 64}", runtime_abi: 3, compat_min: 2, compat_max: 4) }
 
+  def accepted_attestation(runtime_image)
+    policy = RuntimeImages::Builds::Runner.new.verification_policy(
+      request, base_policy: RuntimeImages::Verifications::Policy.current
+    )
+    attempt = runtime_image.runtime_image_verification_attempts.create!(
+      number: 1, image_digest: runtime_image.digest, state: "accepted", decision: "candidate",
+      policy_snapshot: policy, policy_digest: RuntimeImages::Verifications::CanonicalJson.digest(policy),
+      started_at: Time.current, finished_at: Time.current
+    )
+    attempt.create_attestation!(
+      runtime_image:, image_digest: runtime_image.digest, policy_digest: attempt.policy_digest,
+      evidence_digest: runtime_image.digest, outcome: "accepted", issued_at: Time.current, expires_at: 1.day.from_now
+    )
+  end
+
+  def publication_authority(candidate)
+    subject = Struct.new(:revision_id, :image_digest).new(candidate.id, candidate.runtime_image.digest)
+    Struct.new(:subject, :lease, :inherited_from) { def allow? = true }.new(subject, nil, nil)
+  end
+
   before do
     Feature.create!(slug: "coworker_custom_environments", category: "Labs", name: "x", enabled: true, experimental: true)
     allow(AppSetting).to receive(:beta_mode_enabled?).and_return(true)
@@ -56,18 +76,59 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
                                                        source_digest: "sha256:#{'f' * 64}", runtime_image: image)
     described_class.new(environment).reconcile_build!(revision)
     environment.update!(state: "candidate", active_revision: previous, active_runtime_image: image)
+    attestation = accepted_attestation(image)
 
-    described_class.new(environment).publish!(revision, actor: "operator")
+    described_class.new(environment).publish!(revision, actor: "operator", authority: publication_authority(revision))
 
     expect(previous.reload).to be_retired
     expect(revision.reload).to be_active
     expect(environment.reload).to have_attributes(state: "active", active_revision_id: revision.id,
-                                                   candidate_revision_id: nil)
+                                                   candidate_revision_id: nil, active_activation_id: be_present)
+    expect(environment.active_activation).to have_attributes(
+      revision: revision, runtime_image: image, verification_attestation: attestation,
+      source_digest: revision.source_digest, image_digest: image.digest, authority_kind: "permission"
+    )
+    expect(Coworkers::EnvironmentActiveSelection.resolve(environment)).to have_attributes(
+      activation_id: environment.active_activation_id, revision_id: revision.id,
+      runtime_image_id: image.id, image_digest: image.digest
+    )
     expect(Syrus::Host::RuntimeImages).to have_received(:retain).with(image, reason: "active coworker environment", actor: "operator")
     expect(Syrus::Events).to have_received(:publish).with(
       "coworker_environment.activated", hash_including(revision_id: revision.id,
                                                         inspection: hash_including("active_digest" => image.digest))
     )
+  end
+
+  it "fails closed when active pointers do not match the immutable activation" do
+    described_class.new(environment).reconcile_build!(revision)
+    accepted_attestation(image)
+    described_class.new(environment).publish!(revision, authority: publication_authority(revision))
+    environment.update_column(:active_runtime_image_id, nil)
+
+    expect { Coworkers::EnvironmentActiveSelection.resolve(environment) }
+      .to raise_error(Coworkers::EnvironmentActiveSelection::InconsistentPointer)
+  end
+
+  it "rolls the entire publication back when activation history cannot be recorded" do
+    described_class.new(environment).reconcile_build!(revision)
+    accepted_attestation(image)
+    authority = publication_authority(revision)
+
+    expect { described_class.new(environment).publish!(revision, authority:, actor: "") }
+      .to raise_error(ActiveRecord::RecordInvalid)
+
+    expect(revision.reload).to be_candidate
+    expect(environment.reload.active_revision_id).to be_nil
+  end
+
+  it "rejects authority bound to another immutable digest" do
+    described_class.new(environment).reconcile_build!(revision)
+    accepted_attestation(image)
+    authority = publication_authority(revision)
+    authority.subject.image_digest = "sha256:#{'9' * 64}"
+
+    expect { described_class.new(environment).publish!(revision, authority:) }
+      .to raise_error(Coworkers::EnvironmentRevision::InvalidTransition, /authority does not match/)
   end
 
   it "rejects a succeeded build whose image record is missing" do
