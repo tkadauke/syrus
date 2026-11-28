@@ -36,6 +36,14 @@ module RuntimeImages
       base_launch(platform:).base
     end
 
+    def base_for_rebuild(id)
+      release = CoworkerBaseRelease.find_by(id: id)
+      return unless release&.supported?
+
+      Base.new(id: release.id, digest: release.digest, runtime_abi: release.runtime_abi,
+               compat_min: release.compat_min, compat_max: release.compat_max)
+    end
+
     def base_launch(platform: BuiltImages::DEFAULT_PLATFORM)
       launch = BaseReleases.new.launch_state(platform: platform)
       return BaseLaunch.new(state: launch.state, code: launch.code, message: launch.message,

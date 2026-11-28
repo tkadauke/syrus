@@ -62,6 +62,10 @@ module Coworkers
       revision = Coworkers::EnvironmentRevision.includes(:base_release).find(active.revision_id)
       unavailable!("the active environment revision is no longer active") unless revision.active?
       unavailable!("the active environment base has been revoked or expired") unless revision.base_release&.supported?
+      unless Syrus::Host::RuntimeImages.current_launch_contract?(active.runtime_image,
+        provider: user_message.chat_session.effective_chat_provider)
+        unavailable!("the active environment provider contract is incompatible")
+      end
       unless revision.compatible_with?(base_launch.base.runtime_abi)
         unavailable!("the active environment is incompatible with runtime ABI #{base_launch.base.runtime_abi}")
       end
