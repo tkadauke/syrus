@@ -815,9 +815,11 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
     )
   )
   const [jobLimits, setJobLimits] = useState<Record<string, typeof DEFAULT_JOB_LIMITS>>(() =>
-    Object.fromEntries(coworker.grants.filter((grant) => JOB_CAPABILITIES.has(grant.capability)).map((grant) => [
-      grant.capability, { ...DEFAULT_JOB_LIMITS, ...grant.constraints }
-    ]))
+    Object.fromEntries(
+      coworker.grants
+        .filter((grant) => JOB_CAPABILITIES.has(grant.capability))
+        .map((grant) => [grant.capability, { ...DEFAULT_JOB_LIMITS, ...grant.constraints }])
+    )
   )
   const [scopes, setScopes] = useState<Record<string, unknown>>(() => Object.fromEntries(coworker.grants.map((grant) => [grant.capability, grant.scope])))
   const mutation = useMutation({
@@ -837,7 +839,7 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
             ? spawnCaps[capability] || DEFAULT_SPAWN_CAPS
             : JOB_CAPABILITIES.has(capability)
               ? jobLimits[capability] || DEFAULT_JOB_LIMITS
-            : {},
+              : {},
         confirmed,
         scope
       ),
@@ -886,7 +888,8 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
   function saveJobLimits(grant: CoworkerDetail["grants"][number]) {
     const next = jobLimits[grant.capability] || DEFAULT_JOB_LIMITS
     const current = { ...DEFAULT_JOB_LIMITS, ...grant.constraints }
-    const escalation = next.max_open_jobs > current.max_open_jobs ||
+    const escalation =
+      next.max_open_jobs > current.max_open_jobs ||
       next.max_self_approvals_per_day > current.max_self_approvals_per_day ||
       next.max_feedback_rounds_per_job > current.max_feedback_rounds_per_job ||
       (next.allow_sensitive_changes && !current.allow_sensitive_changes)
@@ -971,23 +974,46 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                     {(["max_open_jobs", "max_self_approvals_per_day", "max_feedback_rounds_per_job"] as const).map((key) => (
                       <label className="block text-xs text-text-secondary" key={key}>
                         {t(`capabilities.${key}`)}
-                        <Input className="mt-1" min={1} type="number" value={(jobLimits[capability] || DEFAULT_JOB_LIMITS)[key]}
-                          onChange={(event) => setJobLimits((current) => ({ ...current, [capability]: {
-                            ...(current[capability] || DEFAULT_JOB_LIMITS), [key]: Math.max(1, Number.parseInt(event.target.value, 10) || 1)
-                          } }))} />
+                        <Input
+                          className="mt-1"
+                          min={1}
+                          type="number"
+                          value={(jobLimits[capability] || DEFAULT_JOB_LIMITS)[key]}
+                          onChange={(event) =>
+                            setJobLimits((current) => ({
+                              ...current,
+                              [capability]: {
+                                ...(current[capability] || DEFAULT_JOB_LIMITS),
+                                [key]: Math.max(1, Number.parseInt(event.target.value, 10) || 1)
+                              }
+                            }))
+                          }
+                        />
                       </label>
                     ))}
                     {capability === "coworker.jobs.approve" ? (
                       <div className="sm:col-span-3">
-                        <Checkbox checked={(jobLimits[capability] || DEFAULT_JOB_LIMITS).allow_sensitive_changes}
+                        <Checkbox
+                          checked={(jobLimits[capability] || DEFAULT_JOB_LIMITS).allow_sensitive_changes}
                           label={t("capabilities.allow_sensitive_changes")}
-                          onChange={(event) => setJobLimits((current) => ({ ...current, [capability]: {
-                            ...(current[capability] || DEFAULT_JOB_LIMITS), allow_sensitive_changes: event.target.checked
-                          } }))} />
+                          onChange={(event) =>
+                            setJobLimits((current) => ({
+                              ...current,
+                              [capability]: {
+                                ...(current[capability] || DEFAULT_JOB_LIMITS),
+                                allow_sensitive_changes: event.target.checked
+                              }
+                            }))
+                          }
+                        />
                       </div>
                     ) : null}
-                    <button className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50 sm:col-span-3"
-                      disabled={!grant || mutation.isPending} onClick={() => grant && saveJobLimits(grant)} type="button">
+                    <button
+                      className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50 sm:col-span-3"
+                      disabled={!grant || mutation.isPending}
+                      onClick={() => grant && saveJobLimits(grant)}
+                      type="button"
+                    >
                       {t("capabilities.save_job_limits")}
                     </button>
                   </div>

@@ -817,13 +817,33 @@ it("surfaces and saves Job autonomy budgets and the sensitive-change carve-out",
   const payload = {
     coworker: {
       ...detailPayload.coworker,
-      grants: [{ capability: "coworker.jobs.approve", approval_policy: "auto", constraints: {
-        max_open_jobs: 2, max_self_approvals_per_day: 4, max_feedback_rounds_per_job: 3, allow_sensitive_changes: false
-      }, scope: [11] }],
-      grant_catalog: [...detailPayload.coworker.grant_catalog, {
-        name: "coworker.jobs.approve", label: "Approve own Jobs", description: "Approve Jobs", default_policy: "confirm",
-        maximum_policy: "auto", tools: ["approve_job"], scopeable: true, scope_options: [{ value: 11, label: "widgets" }], default_enabled: false
-      }]
+      grants: [
+        {
+          capability: "coworker.jobs.approve",
+          approval_policy: "auto",
+          constraints: {
+            max_open_jobs: 2,
+            max_self_approvals_per_day: 4,
+            max_feedback_rounds_per_job: 3,
+            allow_sensitive_changes: false
+          },
+          scope: [11]
+        }
+      ],
+      grant_catalog: [
+        ...detailPayload.coworker.grant_catalog,
+        {
+          name: "coworker.jobs.approve",
+          label: "Approve own Jobs",
+          description: "Approve Jobs",
+          default_policy: "confirm",
+          maximum_policy: "auto",
+          tools: ["approve_job"],
+          scopeable: true,
+          scope_options: [{ value: 11, label: "widgets" }],
+          default_enabled: false
+        }
+      ]
     }
   }
   const confirm = vi.fn(() => true)
@@ -839,9 +859,15 @@ it("surfaces and saves Job autonomy budgets and the sensitive-change carve-out",
   fireEvent.click(screen.getByRole("button", { name: "Save autonomy limits" }))
 
   expect(confirm).toHaveBeenCalledOnce()
-  await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/grants", expect.objectContaining({
-    method: "PATCH", body: expect.stringContaining('"allow_sensitive_changes":true')
-  })))
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"allow_sensitive_changes":true')
+      })
+    )
+  )
 })
 
 it("shows pending approvals with the originating run and tool input and allows rejection", async () => {

@@ -473,7 +473,7 @@ module Syrus
         MemoryStore: "Syrus::Plugin::MemoryStore",
         ExecutionLocal: "Execution::Local",
         BackendExceptionLogging: "BackendExceptionLogging",
-        SkipIfPending: "SkipIfPending",
+        SkipIfPending: "SkipIfPending"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -843,7 +843,7 @@ module Syrus
         ExecutionLocal: [ "Runs an execution request on the local worker; process implementation details are not promised.", %w[new run] ],
         BackendExceptionLogging: [ "Records a background-job exception through the host error pipeline; storage and reporting are not promised.", %w[ingest_job] ],
         SkipIfPending: [ "Prevents duplicate queued instances of a plugin job; queue-lock implementation details are not promised.", %w[] ],
-        MemoryStore: [ "Marks a class as the plugin-provided agent memory store; store orchestration is not promised.", %w[] ],
+        MemoryStore: [ "Marks a class as the plugin-provided agent memory store; store orchestration is not promised.", %w[] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {
