@@ -162,6 +162,9 @@ la:
         headline: "Denuo incipe a basi efficaci"
         explanation: "Nullum certum restitutionis propositum resumendum manet; a basi efficaci denuo incipe."
     runtime_images:
+      revocation:
+        recovery_guidance: "Imaginem congruentem neque revocatam promove aut restitue antequam cursum iterum temptes."
+        termination_requested: "Revocatio gravis imaginis runtime terminationem processuum per classem postulavit."
       verifications:
         reevaluator:
           abandoned: "Conatus verificationis desertus est."

@@ -192,6 +192,9 @@ en:
         headline: "Restart from the effective base"
         explanation: "No trustworthy resumable recovery target remains; restart from the effective base."
     runtime_images:
+      revocation:
+        recovery_guidance: "Promote or roll back to a compatible non-revoked image before retrying the turn."
+        termination_requested: "Severe runtime image revocation requested fleet process termination."
       verifications:
         reevaluator:
           abandoned: "Verification attempt was abandoned."
