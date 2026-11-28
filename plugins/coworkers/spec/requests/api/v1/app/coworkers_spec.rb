@@ -45,20 +45,24 @@ RSpec.describe "API: coworkers", type: :request do
     )
   end
 
-  it "bounds the environment history to the newest revisions" do
+  it "bounds environment history while retaining an older eligible rollback revision" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "History", handle: "bounded-environment-ui",
                                             workspace_repo: "https://github.com/acme/history.git")
     environment = Coworkers::Environment.create!(coworker:, state: "draft")
-    51.times do |index|
-      environment.revisions.create!(number: index + 1, source_digest: "sha256:#{(index + 1).to_s(16).rjust(64, '0')}")
+    revisions = 51.times.map do |index|
+      environment.revisions.create!(number: index + 1,
+                                    source_digest: "sha256:#{(index + 1).to_s(16).rjust(64, '0')}")
     end
+    allow_any_instance_of(Coworkers::EnvironmentRecovery).to receive(:eligible_rollback_revision)
+      .and_return(revisions.first)
     sign_in_as(owner)
 
     get "/api/v1/app/coworkers/#{coworker.id}/environment"
 
     revisions = response.parsed_body.dig("environment", "revisions")
     expect(revisions.size).to eq(Coworkers::EnvironmentInspection::HISTORY_LIMIT)
-    expect(revisions.pluck("number")).to eq((2..51).to_a.reverse)
+    expect(revisions.pluck("number")).to eq((3..51).to_a.reverse + [ 1 ])
+    expect(revisions.last).to include("number" => 1, "rollback_eligible" => true)
   end
 
   it "keeps coworker provenance out of slim navigation rows" do

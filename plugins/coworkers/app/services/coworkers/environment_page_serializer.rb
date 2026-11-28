@@ -32,7 +32,7 @@ class Coworkers::EnvironmentPageSerializer
 
   def revisions(snapshot)
     rollback_ids = snapshot.rollback_revisions.map(&:id).to_set
-    snapshot.revisions.first(Coworkers::EnvironmentInspection::HISTORY_LIMIT).map do |revision|
+    history_revisions(snapshot, rollback_ids:).map do |revision|
       request = revision.build_request
       {
         "id" => revision.id,
@@ -48,6 +48,14 @@ class Coworkers::EnvironmentPageSerializer
         "created_at" => revision.created_at&.iso8601
       }.compact
     end
+  end
+
+  def history_revisions(snapshot, rollback_ids:)
+    limit = Coworkers::EnvironmentInspection::HISTORY_LIMIT
+    required = snapshot.rollback_revisions.first(limit)
+    recent = snapshot.revisions.reject { |revision| rollback_ids.include?(revision.id) }
+      .first(limit - required.length)
+    (recent + required).sort_by { |revision| -revision.number }
   end
 
   def main_chat_path
