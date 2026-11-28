@@ -1919,10 +1919,18 @@ class Job < ApplicationRecord
     broadcast_app_job_event("updated")
   end
 
+  # A UI hint, sent after commit from Job, Workflow, Step and Run saves. The
+  # status query behind it reads a lot of rows, and when it raised (MySQL
+  # "Out of sort memory") the exception escaped into whatever saved the
+  # record -- production grader Runs failed after their own state change had
+  # already committed. Like AppEvents' unsequenced fallback, the broadcast is
+  # dropped, never the work.
   def broadcast_app_chat_job_status_updates
     ChatSession.where(id: chat_session_ids_for_status_updates).find_each do |chat_session|
       chat_session.broadcast_app_job_status_update(id)
     end
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn("[Job] dropped chat status broadcast for #{slug}: #{e.class}: #{e.message.to_s.truncate(200)}")
   end
   public :broadcast_app_chat_job_status_updates
 
