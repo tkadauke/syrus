@@ -43,7 +43,9 @@ module WorkEngine
         "slot_holders" => 3,
         "retry_storms" => 1,
         "failed_blockers" => 5,
-        "zombie_workflows" => 5
+        "abandoned_blockers" => 5,
+        "zombie_workflows" => 5,
+        "wait_cycles" => 3
       }.freeze
       # Options that keep their production value in simulation (see above).
       KEEP_DURATION_OPTIONS = { "retry_storms" => %i[window] }.freeze

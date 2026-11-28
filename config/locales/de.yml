@@ -153,6 +153,12 @@ de:
       zombie_workflows:
         title: "Workflow- und Job-Zustand beschreiben echte Arbeit"
         violation: "%{subject} ist %{state}, aber seit %{hours} h treibt nichts es voran (%{condition})."
+      abandoned_blockers:
+        title: "Abhängigkeiten, die nicht mehr gelingen können, blockieren keine Arbeit unbemerkt"
+        violation: "%{blocker} wurde vor %{hours} h ohne Erfolg beendet und blockiert noch %{count} Job(s): %{blocked}."
+      wait_cycles:
+        title: "Blockierte Arbeit wartet nicht auf sich selbst"
+        violation: "%{units} warten im Kreis aufeinander (%{reasons}); keine davon kann starten."
       alert:
         title: "Syrus-Invarianten sind verletzt."
         message: "%{count} offene Invariantenverletzung(en): %{summary}."

@@ -153,6 +153,12 @@ la:
       zombie_workflows:
         title: "Status Workflow et Job verum opus describunt"
         violation: "%{subject} %{state} est, sed nihil id per %{hours} horas promovit (%{condition})."
+      abandoned_blockers:
+        title: "Dependentiae quae iam succedere non possunt opus clam non impediunt"
+        violation: "%{blocker} ante %{hours} horas sine successu finitum est et adhuc %{count} Job(s) impedit: %{blocked}."
+      wait_cycles:
+        title: "Opus impeditum se ipsum non exspectat"
+        violation: "%{units} in circulo inter se exspectant (%{reasons}); nullum incipere potest."
       alert:
         title: "Invariantia Syrus violata sunt."
         message: "%{count} violationes invariantium apertae: %{summary}."

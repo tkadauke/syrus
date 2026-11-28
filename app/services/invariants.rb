@@ -31,7 +31,9 @@ module Invariants
       Invariants::SlotHolders,
       Invariants::RetryStorms,
       Invariants::FailedBlockers,
-      Invariants::ZombieWorkflows
+      Invariants::AbandonedBlockers,
+      Invariants::ZombieWorkflows,
+      Invariants::WaitCycles
     ].freeze
   end
 

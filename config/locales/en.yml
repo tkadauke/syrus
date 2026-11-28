@@ -183,6 +183,12 @@ en:
       zombie_workflows:
         title: "Workflow and Job state describe real work"
         violation: "%{subject} is %{state}, but nothing has advanced it for %{hours}h (%{condition})."
+      abandoned_blockers:
+        title: "Dependencies that can no longer succeed do not silently block work"
+        violation: "%{blocker} finished without succeeding %{hours}h ago and still blocks %{count} Job(s): %{blocked}."
+      wait_cycles:
+        title: "Blocked work does not wait on itself"
+        violation: "%{units} wait on each other in a cycle (%{reasons}); none of them can start."
       alert:
         title: "Syrus invariants are violated."
         message: "%{count} invariant violation(s) are open: %{summary}."

@@ -303,7 +303,8 @@ wall-clock hours, which never elapse in a simulated tick, so the simulator
 zeroes them and asserts persistence instead: a violation fails the scenario
 (status `violated`) once the same fingerprint has held for its sustain
 window of consecutive ticks (`landing_progress` 10, `slot_holders` 3,
-`retry_storms` 1, `failed_blockers` 5, `zombie_workflows` 5), or at once if it
+`retry_storms` 1, `failed_blockers` 5, `abandoned_blockers` 5,
+`zombie_workflows` 5, `wait_cycles` 3), or at once if it
 is still present when the scenario ends quiescent (`waiting`, or `stuck`
 because nothing changed). A scenario that deliberately models a violating
 state declares it, with a reason:
