@@ -6,7 +6,8 @@ RSpec.describe Coworkers::RegressionProof do
   let(:workflow) { Workflow.create!(job:, trigger_kind: "initial") }
   let(:grader) do
     Step.create!(workflow:, kind: "grader", state: "succeeded", position: 2,
-      details: { "name" => "rspec", "command" => "bundle exec rspec" })
+      details: { "name" => "rspec", "command" => "bundle exec rspec",
+        "base_retry" => { "strategy" => "plugin" } })
   end
 
   before do
@@ -28,7 +29,8 @@ RSpec.describe Coworkers::RegressionProof do
 
     expect(result).to be_proven
     expect(Syrus::Host::BaseRevisionRetry).to have_received(:call).with(hash_including(
-      workflow:, grader_step: grader, base_sha: "base", command: "bundle exec rspec spec/services/fix_spec.rb"
+      workflow:, grader_step: grader, base_sha: "base", command: "bundle exec rspec spec/services/fix_spec.rb",
+      require_candidate_pass: true
     ))
   end
 
@@ -39,5 +41,25 @@ RSpec.describe Coworkers::RegressionProof do
     )
 
     expect(described_class.call(job)).not_to be_proven
+  end
+
+  it "refuses when the new regression spec fails on both branch and base" do
+    allow(Syrus::Host::BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(ran: true, inherited: false, reason: "candidate_command_failed", command: "",
+        base_failed_identities: [], introduced_failed_identities: [], output: "", method: "candidate_command")
+    )
+
+    expect(described_class.call(job)).not_to be_proven
+  end
+
+  it "does not cache an infrastructure failure before the proof ran" do
+    allow(Syrus::Host::BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(ran: false, inherited: false, reason: "base_retry_timed_out", command: "",
+        base_failed_identities: [], introduced_failed_identities: [], output: "", method: nil)
+    )
+
+    described_class.call(job)
+
+    expect(workflow.artifact("coworker_regression_proof")).to be_nil
   end
 end

@@ -26,8 +26,10 @@ module Permissions
       )
     end
 
-    def self.events_for(coworker)
-      Syrus::Host::AdminActions.where(action: EVENTS).order(:id).select do |action|
+    def self.events_for(coworker, since: nil)
+      scope = Syrus::Host::AdminActions.where(action: EVENTS)
+      scope = scope.where(performed_at: since..) if since
+      scope.order(:id).select do |action|
         action.params.is_a?(Hash) && action.params["coworker_id"] == coworker.id
       end
     end

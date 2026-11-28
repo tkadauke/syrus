@@ -45,8 +45,8 @@ module Coworkers
         count = Syrus::Host::Jobs.where(filed_by_coworker_id: coworker.id, repository_id: repository.id, state: OPEN_STATES).count
         return "Open self-filed Job budget reached (#{limits.fetch('max_open_jobs')})." if count >= limits.fetch("max_open_jobs")
       elsif name == "approve_job"
-        count = Permissions::CoworkerAudit.events_for(coworker).count do |event|
-          event.performed_at >= Time.current.beginning_of_day && event.params["repository_id"] == repository.id &&
+        count = Permissions::CoworkerAudit.events_for(coworker, since: Time.current.beginning_of_day).count do |event|
+          event.params["repository_id"] == repository.id &&
             event.params["autonomous_action"] == "approve_job"
         end
         return "Daily self-approval budget reached (#{limits.fetch('max_self_approvals_per_day')})." if count >= limits.fetch("max_self_approvals_per_day")

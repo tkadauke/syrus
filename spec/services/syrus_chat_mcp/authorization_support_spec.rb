@@ -255,6 +255,18 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       expect(ChatPendingAction.find(request_id).authorization_items.pluck(:kind)).to eq([ "operation" ])
     end
 
+    it "clears an autonomy refusal left by a preceding tool call" do
+      server_context = { chat_session:, coworker_job_autonomy_refusal: "Previous budget refusal" }
+
+      response = described_class.pending_coworker_approval(
+        coworker_tool, server_context, { query: "customers" }
+      )
+      request_id = JSON.parse(response.content.first[:text]).fetch("pending_action_id")
+
+      expect(server_context).not_to have_key(:coworker_job_autonomy_refusal)
+      expect(ChatPendingAction.find(request_id).payload).not_to have_key("autonomy_refusal_reason")
+    end
+
     it "enforces policy without creating a generic request for tools whose effect is an approval card" do
       allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(
         Mcp::CoworkerToolCatalog::Descriptor.new(

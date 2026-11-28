@@ -14,27 +14,35 @@ module Coworkers
       head = workflow && Syrus::Host::ImmutableReviewHeadBarrier.reviewed_head_sha(workflow)
       cached = workflow&.artifact("coworker_regression_proof").to_h
       if cached["head_sha"] == head && cached["base_sha"] == version&.base_sha
-        return Result.new(cached["base_failed"] == true && cached["branch_passed"] == true, cached["reason"])
+        return Result.new(cached["proven"] == true, cached["reason"])
       end
 
       paths = added_spec_paths(version)
-      grader = workflow&.steps&.where(kind: "grader", state: "succeeded")&.reorder(:position, :id)&.last
+      grader = regression_grader(workflow)
       command = focused_command(paths)
       return Result.new(false, "missing_regression_spec") if paths.empty? || grader.nil? || command.nil? || head.blank?
 
       retry_result = Syrus::Host::BaseRevisionRetry.call(workflow:, grader_step: grader, base_sha: version.base_sha,
-        command:, log: ->(message) { Rails.logger.info(message) })
+        command:, require_candidate_pass: true, log: ->(message) { Rails.logger.info(message) })
       proven = retry_result.ran && retry_result.inherited
-      workflow.set_artifact!("coworker_regression_proof", {
-        "head_sha" => head, "base_sha" => version.base_sha, "spec_paths" => paths,
-        "branch_passed" => true, "base_failed" => proven, "reason" => retry_result.reason
-      })
+      if retry_result.ran
+        workflow.set_artifact!("coworker_regression_proof", {
+          "head_sha" => head, "base_sha" => version.base_sha, "spec_paths" => paths,
+          "proven" => proven, "reason" => retry_result.reason
+        })
+      end
       Result.new(proven, retry_result.reason)
     end
 
     private
 
     attr_reader :job
+
+    def regression_grader(workflow)
+      workflow&.steps&.where(kind: "grader", state: "succeeded")&.reorder(position: :desc, id: :desc)&.find do |step|
+        step.details.to_h["base_retry"].present?
+      end
+    end
 
     def added_spec_paths(version)
       Array(version&.files_snapshot).filter_map do |file|
