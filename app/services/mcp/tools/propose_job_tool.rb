@@ -270,9 +270,12 @@ module Mcp::Tools
         Mcp::Tools.broadcast_proposal_created(chat_session, proposal)
         autonomy = server_context[:coworker_job_autonomy]
         if autonomy
-          result = ChatProposalFiler.new(user: chat_session.user, repository: repository).file!([ proposal ])
-          job = result.jobs.sole
-          job.update!(filed_by_coworker_id: autonomy.fetch("coworker_id"))
+          job = ApplicationRecord.transaction do
+            result = ChatProposalFiler.new(user: chat_session.user, repository: repository).file!([ proposal ])
+            result.jobs.sole.tap do |filed_job|
+              filed_job.update!(filed_by_coworker_id: autonomy.fetch("coworker_id"))
+            end
+          end
           actor = context.agent_actor
           actor.record_job_autonomy!(authorization: autonomy, job:) if actor&.respond_to?(:record_job_autonomy!)
           Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal.reload).merge(job_id: job.id, job_slug: job.slug))
