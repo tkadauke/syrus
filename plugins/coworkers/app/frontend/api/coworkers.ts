@@ -76,7 +76,19 @@ export type CoworkerEnvironmentPayload = {
     current_base_digest: string | null
     latest_safe_findings: Record<string, unknown> | null
     main_chat_path: string | null
-    revisions: { id: number; number: number; state: string; source_digest: string; image_digest?: string; base_digest?: string; runtime_abi?: number; build_state?: string; error_code?: string; rollback_eligible: boolean; created_at: string }[]
+    revisions: {
+      id: number
+      number: number
+      state: string
+      source_digest: string
+      image_digest?: string
+      base_digest?: string
+      runtime_abi?: number
+      build_state?: string
+      error_code?: string
+      rollback_eligible: boolean
+      created_at: string
+    }[]
   }
 }
 export type CoworkerConversation = {
@@ -279,8 +291,7 @@ export function fetchCoworkerWorkspace(id: string, search: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${search}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
-export const fetchCoworkerEnvironment = (id: string) =>
-  getJson<CoworkerEnvironmentPayload>(`/api/v1/app/coworkers/${id}/environment`)
+export const fetchCoworkerEnvironment = (id: string) => getJson<CoworkerEnvironmentPayload>(`/api/v1/app/coworkers/${id}/environment`)
 export function fetchCoworkerActivity(id: string, search = "", cursors?: { jobs?: string | null; sideChats?: string | null }) {
   const query = new URLSearchParams(search)
   query.delete("tab")
