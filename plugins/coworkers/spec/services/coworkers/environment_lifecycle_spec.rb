@@ -36,6 +36,7 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     allow(Syrus::Host::RuntimeImages).to receive(:retain)
     allow(Syrus::Events).to receive(:publish)
     RuntimeImageBuildResult.create!(request: request, runtime_image: image, outcome: "succeeded", finished_at: Time.current)
+    allow_any_instance_of(Coworkers::EnvironmentPublicationAuthority).to receive(:valid_grant?).and_return(true)
   end
 
   it "projects a verified successful build into a candidate" do
@@ -57,7 +58,7 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
     described_class.new(environment).reconcile_build!(revision)
     environment.update!(state: "candidate", active_revision: previous, active_runtime_image: image)
 
-    described_class.new(environment).publish!(revision, actor: "operator")
+    described_class.new(environment).publish!(revision, actor: "operator", authority: :confirmed)
 
     expect(previous.reload).to be_retired
     expect(revision.reload).to be_active
@@ -68,6 +69,17 @@ RSpec.describe Coworkers::EnvironmentLifecycle do
       "coworker_environment.activated", hash_including(revision_id: revision.id,
                                                         inspection: hash_including("active_digest" => image.digest))
     )
+  end
+
+  it "never treats a successful build as publication authority" do
+    described_class.new(environment).reconcile_build!(revision)
+    allow_any_instance_of(Coworkers::EnvironmentPublicationAuthority).to receive(:valid_grant?).and_return(false)
+
+    expect {
+      described_class.new(environment).publish!(revision, actor: "builder", authority: nil)
+    }.to raise_error(ArgumentError, /requires current authority/)
+    expect(revision.reload).to be_candidate
+    expect(environment.reload.active_revision).to be_nil
   end
 
   it "rejects a succeeded build whose image record is missing" do

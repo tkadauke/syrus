@@ -7,6 +7,7 @@ require "syrus/host/agent_runtime"
 require "syrus/host/agent_prompts"
 require "syrus/host/skill_catalog"
 require "syrus/host/runtime_images"
+require "syrus/host/permission_authorization"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
 require "syrus/host/work_gate"
@@ -941,6 +942,7 @@ module Syrus
       }.freeze
 
       FACADE_CONTRACTS = {
+        PermissionAuthorization: [ "Evaluates a registered permission descriptor for a plugin-owned operation and reports the effective decision and lease expiry; rule and lease storage are not promised.", %w[call Result] ],
         AgentRoles: [ "Names the agent role identifiers plugins may compare against or declare; role-to-tool exposure is not promised.", %w[CHAT_PLANNER COWORKER_CHAT COWORKER AGENT_INSIGHT WORKFLOW_SUMMARY_TEST_PLAN WORKFLOW_COWORKER_REVIEWER WORKFLOW_MANUAL WORKFLOW_ROLES] ],
         ChatMessages: [ "Reads chat messages and installs or removes one after-commit-on-create observer; persistence and other callbacks are not promised.", %w[find find_by where active none install_after_commit_on_create remove_after_commit_on_create] ],
         ChatPendingActions: [ "Reads chat pending actions; creation, confirmation, and state transitions are not promised.", %w[where pending] ],

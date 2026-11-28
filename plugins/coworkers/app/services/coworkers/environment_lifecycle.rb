@@ -24,12 +24,15 @@ class Coworkers::EnvironmentLifecycle
     end
   end
 
-  def publish!(revision = @environment.candidate_revision, actor: "system")
+  def publish!(revision = @environment.candidate_revision, actor: "system", authority:)
     raise Coworkers::EnvironmentRevision::InvalidTransition, "no candidate revision is available" unless revision
     raise Coworkers::EnvironmentBuildRequest::Disabled, "coworker custom environments are not enabled" unless Feature.coworker_custom_environments_enabled?
 
     @environment.with_lock do
       revision.reload
+      unless Coworkers::EnvironmentPublicationAuthority.new(@environment).valid_grant?(authority, revision)
+        raise ArgumentError, "publication requires current authority bound to this candidate and its verification evidence"
+      end
       image = revision.runtime_image
       unless revision.candidate? && image&.pullable?
         raise Coworkers::EnvironmentRevision::InvalidTransition, "only a pullable candidate can be published"
