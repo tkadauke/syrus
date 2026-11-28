@@ -4,6 +4,9 @@ module PendingActions
 
     def execute
       job = Job.visible_to(user).find(payload.fetch("job_id"))
+      unless JobPolicy.new(user, job).write?
+        raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "outcome overrides require write access to the Job"
+      end
       decision = WorkflowOutcomeOverrides::Authority.call(user:, repository: job.repository, arguments: {
         job_id: job.id, fingerprint_digest: payload.fetch("fingerprint_digest"),
         gate_kind: payload.fetch("gate_kind"), gate_identity: payload.fetch("gate_identity")
