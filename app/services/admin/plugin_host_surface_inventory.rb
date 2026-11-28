@@ -275,10 +275,13 @@ module Admin
     end
 
     def parse(path)
-      result = Prism.parse_file(path.to_s)
-      raise ArgumentError, "could not parse #{relative(path)}: #{result.errors.map(&:message).join(', ')}" unless result.success?
+      @collectors ||= {}
+      @collectors[Pathname.new(path).expand_path] ||= begin
+        result = Prism.parse_file(path.to_s)
+        raise ArgumentError, "could not parse #{relative(path)}: #{result.errors.map(&:message).join(', ')}" unless result.success?
 
-      ConstantCollector.new.tap { |collector| collector.visit(result.value) }
+        ConstantCollector.new.tap { |collector| collector.visit(result.value) }
+      end
     end
 
     def relative(path) = Pathname.new(path).relative_path_from(@root).to_s
