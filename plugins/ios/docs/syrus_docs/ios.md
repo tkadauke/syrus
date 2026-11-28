@@ -21,6 +21,8 @@ grade:
     destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
     derived_data_path: .syrus/DerivedData/mobile
     result_bundle_path: build/syrus/MobileApp.xcresult
+    compilation_cache: true
+    compilation_cache_retention_days: 21
     junit_output: build/syrus/junit/mobile.xml
     timeout_minutes: 45
 ```
@@ -31,6 +33,29 @@ The command removes the configured result bundle before running because
 tests. If a repository needs signing, keep Keychain/provisioning setup in the
 macOS worker runbook and repository-owned scripts; do not put secrets in
 `.syrus.yml`.
+
+The typed grader enables Xcode's native compilation cache by default. Set
+`compilation_cache: false` to opt out. Syrus probes the selected Xcode and
+Swift compiler with a short timeout before enabling it; an older, unsupported,
+or unhealthy toolchain runs the same build without caching. A native CAS error
+also causes one uncached retry. This is not the `build_cache` plugin's sccache
+integration and its diagnostics are reported separately.
+
+The cache lives under
+`$SYRUS_XCODE_COMPILATION_CACHE_ROOT` (default
+`$SYRUS_DATA_ROOT/cache/xcode-compilation`, with `/var/lib/syrus` as the data
+root fallback) rather than DerivedData or a Workflow checkout.
+Toolchain-specific weekly generations allow concurrent Xcode builds
+to use CAS's native concurrency while old, inactive generations are removed
+after `compilation_cache_retention_days` (21 by default, configurable from 1
+through 90). The generated diagnostic log reports whether caching was enabled,
+unsupported, disabled, or retried, the effective path, and Xcode's native
+hit/miss remarks.
+
+Reuse is host-local. Cache keys remain sensitive to the Xcode/Swift toolchain,
+SDK, build settings, inputs, and—in toolchains without suitable prefix
+mapping—absolute checkout paths. Syrus does not claim reuse across different
+Mac workers and does not persist or share whole DerivedData directories.
 
 Use `-workspace` when the app has a workspace (especially with CocoaPods or
 Swift packages that generate one) and `-project` only for project-only apps.
@@ -76,8 +101,9 @@ capabilities:
   runtime: ios_simulator
 ```
 
-The generated metadata records the `.xcresult` bundle and DerivedData/SwiftPM
-build directory as artifacts. If the command or wrapper emits JUnit XML, set
+The generated metadata records the `.xcresult` bundle, DerivedData/SwiftPM
+build directory, and a distinct Xcode compilation-cache diagnostic log as
+artifacts. If the command or wrapper emits JUnit XML, set
 `junit_output:` so normal test-result ingestion and target health signals can
 consume structured results. Leave it unset when the command only emits
 `xcodebuild` logs and an `.xcresult` bundle.
