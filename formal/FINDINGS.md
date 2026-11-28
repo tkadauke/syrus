@@ -5055,6 +5055,31 @@ inside the rebase's success transition, out of the row-lock order -- the bug
 too.
 
 ---
+## F143. Break-glass GitHub access could move a branch without destructive authority — fixed
+
+**Invariant.** In scoped break-glass mode, any write to a branch needs the
+separately confirmed destructive authority: the Git wrapper refuses every
+`git push` without it, and the credential proxy treats `git-receive-pack` as
+destructive.
+
+**Counterexample.** The REST routes that do the same thing were not covered.
+The proxy's `destructive_request?` and the `gh` wrapper's `DESTRUCTIVE_GH`
+looked only at DELETE and PUT (plus a few closes and locks), so
+`gh api -X PATCH repos/o/r/git/refs/heads/main -F force=true -f sha=<old>`
+rewound `main` through a non-destructive grant, and `POST .../git/refs` and
+`POST .../merges` created or advanced branches. `gh api` with fields sends a
+POST without naming a method, so a method-only check cannot see it.
+
+**Fix.** Any non-GET to `git/refs`, `merges` or `merge-upstream` is
+destructive at the proxy, and the wrapper infers `gh api`'s method (named, or
+POST when fields are given) before checking the same routes. Spec first: the
+proxy and wrapper examples for force PATCH, ref creation and merges failed
+before the change; reads and issue comments stay allowed.
+
+`github_access_spec.rb:24` fails on this machine independently of the change:
+the wrapper cannot find the real `gh` (Homebrew) on its PATH and exits 127.
+
+
 ## F142. Two Epic splices after the same Job could fork the chain — fixed
 
 **Invariant.** An Epic's children form one chain and never run in parallel.

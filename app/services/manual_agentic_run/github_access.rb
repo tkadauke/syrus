@@ -18,6 +18,11 @@ module ManualAgenticRun
 
     def self.for(run) = new(run)
 
+    # REST routes that create, move or merge into a branch (F143).
+    def self.branch_write_path?(path, repository)
+      path.match?(%r{\A/repos/#{Regexp.escape(repository)}/(?:git/refs(?:/|\z)|merges\z|merge-upstream\z)})
+    end
+
     def self.cleanup(run)
       REGISTRY_MUTEX.synchronize { REGISTRY.delete(run.id) }&.stop
       dir = run.step.workflow.artifact("manual_agentic_run_github_wrapper_dir")
@@ -185,6 +190,7 @@ module ManualAgenticRun
         raise "access is restricted to #{@repository}" if explicit.any? { |candidate| !candidate.casecmp?(@repository) }
         validate_api!(args)
         raise "this destructive GitHub operation requires separately confirmed destructive authority" if joined.match?(DESTRUCTIVE_GH) && !@destructive
+        raise "this destructive GitHub operation requires separately confirmed destructive authority" if branch_write?(args) && !@destructive
       end
 
       def authorized_cwd(requested)
@@ -195,6 +201,22 @@ module ManualAgenticRun
         raise "working directory is restricted to the workflow workspace" unless cwd == root || cwd.to_s.start_with?("#{root}/")
 
         cwd
+      end
+
+      # gh api sends POST when fields are given and no method is named.
+      def branch_write?(args)
+        endpoint = "/" + args.drop(1).find { |arg| arg.start_with?("/", "repos/") }.to_s.delete_prefix("/")
+        method_index = args.index { |arg| %w[-X --method].include?(arg) }
+        method = if method_index
+          args[method_index + 1]
+        elsif (inline = args.find { |arg| arg.start_with?("--method=", "-X=") })
+          inline.split("=", 2).last
+        elsif args.any? { |arg| %w[-f -F --field --raw-field --input].include?(arg) || arg.start_with?("--field=", "--raw-field=", "--input=") }
+          "POST"
+        else
+          "GET"
+        end
+        !method.to_s.casecmp?("GET") && GithubAccess.branch_write_path?(endpoint, @repository)
       end
 
       def validate_api!(args)
@@ -387,6 +409,9 @@ module ManualAgenticRun
         path = URI.parse(path).path
         return true if %w[DELETE PUT].include?(method)
         return true if path.include?("/git-receive-pack")
+        # A push needs destructive authority, so creating, moving or merging
+        # into a branch through REST does too (F143).
+        return true if method != "GET" && GithubAccess.branch_write_path?(path, @repository)
         return true if method == "POST" && path.match?(%r{/repos/#{Regexp.escape(@repository)}/issues/\d+/lock\z})
         if method == "PATCH" && path.match?(%r{\A/repos/#{Regexp.escape(@repository)}/git/refs/.+\z})
           return ActiveModel::Type::Boolean.new.cast(parse_body(body)["force"]) == true

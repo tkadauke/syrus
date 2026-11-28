@@ -113,6 +113,37 @@ RSpec.describe ManualAgenticRun::GithubAccess do
     end
   end
 
+  # A push needs destructive authority, so the REST routes that move or
+  # create a branch must too: a force PATCH of a ref rewinds it (F143).
+  it "treats REST writes to branches as destructive at the credential proxy" do
+    Dir.mktmpdir do |dir|
+      proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
+
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/git/refs/heads/main", '{"sha":"abc","force":true}')).to be(true)
+      expect(proxy.send(:destructive_request?, "PATCH", "/repos/acme/widgets/git/refs/heads/repair", '{"sha":"abc"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/git/refs", '{"ref":"refs/heads/x","sha":"abc"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/merges", '{"base":"main","head":"repair"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/merge-upstream", '{"branch":"main"}')).to be(true)
+      expect(proxy.send(:destructive_request?, "GET", "/repos/acme/widgets/git/refs/heads/main", "")).to be(false)
+      expect(proxy.send(:destructive_request?, "POST", "/repos/acme/widgets/issues/9/comments", '{"body":"hi"}')).to be(false)
+    ensure
+      proxy&.stop
+    end
+  end
+
+  it "rejects a gh api branch write without separate authority" do
+    env = access.environment
+    wrapper = File.join(env.fetch("PATH").split(":").first, "gh")
+
+    [ [ "api", "repos/acme/widgets/git/refs/heads/main", "-X", "PATCH", "-F", "force=true", "-f", "sha=abc" ],
+      [ "api", "repos/acme/widgets/git/refs", "-f", "ref=refs/heads/x", "-f", "sha=abc" ],
+      [ "api", "repos/acme/widgets/merges", "-f", "base=main", "-f", "head=repair" ] ].each do |args|
+      _out, err, status = Open3.capture3(env, wrapper, *args)
+      expect(status.exitstatus).to eq(78), args.join(" ")
+      expect(err).to include("separately confirmed destructive authority")
+    end
+  end
+
   it "forwards the authenticated REST request shape used by gh api" do
     Dir.mktmpdir do |dir|
       proxy = described_class::CredentialProxy.new(dir:, token: "ghs_top_secret", repository: repository.slug, destructive: false).start
