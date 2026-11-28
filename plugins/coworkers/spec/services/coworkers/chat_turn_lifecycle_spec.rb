@@ -140,5 +140,4 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
 
     expect(recovery).not_to have_received(:record_launch_failure!)
   end
-
 end
