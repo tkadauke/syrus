@@ -22,6 +22,14 @@ module Steps
       Array(workflow.artifact(StackRebasePlan::STACK_ARTIFACT))
     end
 
+    # Members this workflow will close once it finishes (stack_auto_rebase
+    # found their work already on the base and closed their PR). Nothing is
+    # published for them: their recorded post_sha is an unpushed local rebase.
+    def published_stack_entries
+      closing_ids = workflow.pending_job_closures_by_id.keys
+      stack_entries.reject { |entry| closing_ids.include?(entry["job_id"].to_i) }
+    end
+
     def push_agent_rebased_branches(pushes)
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
 
@@ -100,7 +108,7 @@ module Steps
 
     def update_pull_request_bases
       client = GithubClient.for(repository: repository, user: job.user)
-      stack_entries.each do |entry|
+      published_stack_entries.each do |entry|
         pr_number = entry["pr_number"]
         stack_job = Job.find_by(id: entry["job_id"])
         next if stack_job&.closed?
@@ -150,7 +158,7 @@ module Steps
     def verify_publication!(pushes)
       StackPublicationVerifier.new(workflow: workflow, repository: repository, user: job.user)
         .verify!(
-          entries: stack_entries,
+          entries: published_stack_entries,
           expected_heads: expected_heads(pushes),
           publication_mode: pushes.empty? ? "already_correct" : "rewritten"
         )

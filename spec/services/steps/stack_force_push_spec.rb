@@ -246,5 +246,30 @@ RSpec.describe Steps::StackForcePush do
       )
       expect(LandingQueueProcessor).to have_received(:refresh_snapshot!)
     end
+
+    # stack_auto_rebase found this member's work already on the base: it
+    # closed the PR and requested the Job's closure, which applies only when
+    # the workflow finishes. Its "post_sha" is the unpublished local rebase
+    # (the base tip), so it must not be treated as an intended publication.
+    it "does not verify or retarget a member whose work stack_auto_rebase found already landed" do
+      workflow.set_artifact!(StackRebasePlan::RESULTS_ARTIFACT, [
+        {
+          "job_id" => child.id,
+          "result" => { "succeeded" => true, "reason" => AutoRebase::ALREADY_LANDED_REASON, "changed" => false,
+                        "pre_sha" => head_sha, "post_sha" => base_sha }
+        }
+      ])
+      workflow.request_job_closure!(child, "pr_merged")
+      allow(client).to receive(:branch_head_sha).and_return(head_sha)
+      allow(client).to receive(:pull_request).and_return(OpenStruct.new(
+        state: "closed", head: OpenStruct.new(sha: head_sha), base: OpenStruct.new(ref: "main", sha: base_sha)
+      ))
+      allow(CommitsBehindCalculator).to receive(:call).and_return(0)
+
+      handler.call
+
+      expect(client).not_to have_received(:update_pull_request_base)
+      expect(workflow.reload.artifact("stack_publication")).to include("status" => "verified", "members" => [])
+    end
   end
 end
