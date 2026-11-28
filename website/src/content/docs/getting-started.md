@@ -353,7 +353,12 @@ Externally filed PRs follow the same approval gate. If a labeled issue
 already has a linked external PR, Syrus creates the issue-backed Job as
 implemented and points it at that PR for review. Before merge, Syrus reruns
 required checks, can repair same-repository PR branches, and requests changes
-on fork PRs when contributors need to push fixes themselves.
+on fork PRs when contributors need to push fixes themselves. Dependency bots
+such as Dependabot and Renovate never answer review feedback, so on their
+same-repository PRs Syrus addresses requested changes itself, asks Dependabot
+to recreate a PR that has gone stale, and closes PRs a newer bot PR
+superseded, instead of waiting; `external_prs.bot_prs` in `.syrus.yml` tunes
+this (see [Configuration](/docs/configuration#external_prsbot_prs)).
 
 The first-run guide is complete when your first Epic lands (all of its
 child Jobs merge); the **Setup** tab then drops off the navigation.

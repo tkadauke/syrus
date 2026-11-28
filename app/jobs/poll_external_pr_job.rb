@@ -32,6 +32,8 @@ class PollExternalPrJob < ApplicationJob
       return unless @job.external_pr?
 
       react_to_pr_reviews
+      return if @job.reload.closed?
+
       ingest_pr_comments
     end
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
@@ -57,6 +59,7 @@ class PollExternalPrJob < ApplicationJob
   def react_to_pr_reviews
     reviews = @client.pr_reviews(@slug, @job.external_pr_number)
     react_to_review_state(reviews)
+    return if @job.reload.closed?
 
     approvals = reviews.select { |review| review.state == "APPROVED" }
     return if approvals.empty?
@@ -69,6 +72,13 @@ class PollExternalPrJob < ApplicationJob
       return if ExternalPrReviewRecovery.call(job: @job, pr: @pr, client: @client, reviews: reviews)
 
       @job.set_needs_attention!(reason: "upstream_pr_changes_requested")
+      # A bot author never answers the review: Syrus repairs, refreshes, or
+      # closes instead of waiting (human authors keep the wait).
+      outcome = ExternalPrBotPolicy.call(
+        job: @job, pr: @pr, client: @client,
+        changes_requested: latest_per_reviewer(reviews).select { |review| review.state == "CHANGES_REQUESTED" }
+      )
+      Rails.logger.info("[PollExternalPrJob] #{@job.slug}: bot PR policy #{outcome}") unless outcome == :not_applicable
     elsif @job.needs_attention_reason == "upstream_pr_changes_requested"
       @job.clear_needs_attention!
     end
@@ -113,6 +123,7 @@ class PollExternalPrJob < ApplicationJob
   def ingest_pr_comments
     cutoff = @job.last_seen_comment_at
     all_issue_comments = reject_syrus_bot_comments(@client.pr_issue_comments(@slug, @job.external_pr_number))
+                         .reject { |comment| ExternalPrBotPolicy.bot_command?(comment.body) }
     all_review_comments = reject_syrus_bot_comments(@client.pr_review_comments(@slug, @job.external_pr_number))
     issue_comments = new_since(all_issue_comments, cutoff)
     review_comments = new_since(all_review_comments, cutoff)

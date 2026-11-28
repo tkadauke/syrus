@@ -98,6 +98,7 @@ the rest of the tree.
 | `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
 | `deploy:` | Repository deploy command. | Parsed as ordinary config, but deploy workflows are repository-level; keep deploy config in the root file. |
 | `merge_train:` | Repository merge-train escalation semantics. | Parsed as ordinary config, but merge trains are repository-level; keep escalation policy in the root file. |
+| `external_prs:` | Ingest classification and the bot-authored PR policy (`external_prs.bot_prs`, see `external_pr_ingestion.md`). | Parsed, but only the root file's policy is read. |
 | `target_graph.imports:` | Explicit build-system graph imports. | Not imported from nested files; declare imports at the root. |
 
 ### merge_train
