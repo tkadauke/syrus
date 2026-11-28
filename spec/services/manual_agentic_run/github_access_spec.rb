@@ -11,15 +11,29 @@ RSpec.describe ManualAgenticRun::GithubAccess do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind, agent_provider: "codex") }
   let(:access) { described_class.new(run) }
 
+  # The wrapped "real" gh/git must exist on every host: /bin/true is absent on
+  # macOS (it lives at /usr/bin/true there), so a hard-coded path made the
+  # wrapper exit 127. A stub executable created here is host-independent.
+  let(:real_command_dir) { Dir.mktmpdir("github-access-real-command") }
+  let(:real_command) do
+    File.join(real_command_dir, "true").tap do |path|
+      File.write(path, "#!/bin/sh\nexit 0\n")
+      File.chmod(0o755, path)
+    end
+  end
+
   before do
     workflow.set_artifact!("manual_agentic_run_github_access", true)
     allow_any_instance_of(Installation).to receive(:scoped_token).and_return(token: "ghs_top_secret", expires_at: 30.minutes.from_now)
-    allow(access).to receive(:real_command).with("gh").and_return("/bin/true")
-    allow(access).to receive(:real_command).with("git").and_return("/bin/true")
+    allow(access).to receive(:real_command).with("gh").and_return(real_command)
+    allow(access).to receive(:real_command).with("git").and_return(real_command)
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Rails.root)
   end
 
-  after { described_class.cleanup(run) }
+  after do
+    described_class.cleanup(run)
+    FileUtils.rm_rf(real_command_dir)
+  end
 
   it "does not place the credential in the ambient agent environment or audit evidence" do
     env = access.environment
