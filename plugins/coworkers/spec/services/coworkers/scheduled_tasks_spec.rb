@@ -291,6 +291,7 @@ RSpec.describe "Coworker scheduled tasks" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
     journaling.update_columns(last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9))
     allow(Coworkers::JournalingFailureAlert).to receive(:call)
+    allow(journaling).to receive(:system_schedule_definition).and_return(Coworkers::Prompts::Journaling.new)
 
     [ Time.utc(2026, 11, 4, 1, 15), Time.utc(2026, 11, 4, 2, 15), Time.utc(2026, 11, 4, 3, 15) ].each do |time|
       journaling.record_fire_failure!(RuntimeError.new("workspace locked"), at: time)
