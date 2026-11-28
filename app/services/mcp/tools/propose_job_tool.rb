@@ -131,6 +131,7 @@ module Mcp::Tools
         },
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
         investigation: { type: "boolean", description: "When true, confirming this proposal creates a standalone read-only investigation Job (no PR expected) instead of a normal implementation Job. Use this for exploratory spike, audit-only, discovery-only, or investigation-style work rather than placing that work inside an Epic. Defaults to false." },
+        bug_fix: { type: "boolean", description: "Mark this as a bug fix. Autonomous coworker approval then requires a regression spec that fails on the base revision and passes on the branch." },
         provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
         priority: { type: "string", enum: Job::PRIORITIES, description: "Operator-only scheduling decision. Pass only when the operator explicitly specified urgent, high, medium, or low; severity, impact, recency, incident status, or your own recommendation do not authorize it. Otherwise omit this field and accept the system default (medium)." },
         question_eagerness: { type: "string", enum: QuestionEagerness::Base::LEVELS, description: "Optional operator-agreed question eagerness override. Leave unset unless discussed with the operator; question_eagerness_reason is required when set." },
@@ -155,7 +156,7 @@ module Mcp::Tools
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", question_eagerness: nil, question_eagerness_reason: nil, planned_execution: nil, for_active_goal: false, insert_after_job_id: nil)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, bug_fix: false, provider: nil, priority: "medium", question_eagerness: nil, question_eagerness_reason: nil, planned_execution: nil, for_active_goal: false, insert_after_job_id: nil)
         # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
         context = McpToolContext.from_server_context(server_context)
         response_chat = context.chat_session
@@ -273,7 +274,7 @@ module Mcp::Tools
           job = ApplicationRecord.transaction do
             result = ChatProposalFiler.new(user: chat_session.user, repository: repository).file!([ proposal ])
             result.jobs.sole.tap do |filed_job|
-              filed_job.update!(filed_by_coworker_id: autonomy.fetch("coworker_id"))
+              filed_job.update!(filed_by_coworker_id: autonomy.fetch("coworker_id"), bug_fix: ActiveModel::Type::Boolean.new.cast(bug_fix))
             end
           end
           actor = context.agent_actor

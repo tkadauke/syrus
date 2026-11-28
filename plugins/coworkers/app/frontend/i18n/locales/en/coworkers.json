@@ -240,6 +240,11 @@
     "max_spawns_per_run": "Maximum per run",
     "max_spawns_per_day": "Maximum per day",
     "save_spawn_caps": "Save spawn limits",
+    "max_open_jobs": "Maximum open self-filed Jobs",
+    "max_self_approvals_per_day": "Maximum self-approvals per day",
+    "max_feedback_rounds_per_job": "Maximum feedback rounds per Job",
+    "allow_sensitive_changes": "Allow self-approval of sensitive changes",
+    "save_job_limits": "Save autonomy limits",
     "unavailable": {
       "confinement_unavailable": "Unavailable until a live worker verifies confined coworker execution.",
       "confinement_worker_unavailable": "Unavailable because no live worker can admit a confined coworker turn.",

@@ -115,6 +115,8 @@ RSpec.describe "coworker Job lifecycle tools" do
 
   it "autonomously approves its own Job under the repository rule and records the rule" do
     job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    workflow = Workflow.create!(job:, trigger_kind: "initial")
+    allow(Syrus::Host::ImmutableReviewHeadBarrier).to receive(:required_reviews_satisfied?).with(workflow).and_return(true)
     coworker.permission_rules.update!(
       capability: "coworker.jobs.approve", approval_policy: "auto", scope: repository.id, actor: owner
     )
@@ -129,6 +131,22 @@ RSpec.describe "coworker Job lifecycle tools" do
       "permission_rule_id" => rule.id, "job_id" => job.id,
       "autonomous_action" => "approve_job"
     )
+  end
+
+  it "falls back to operator confirmation with the guardrail reason when self-approval is refused" do
+    job = Factories.job_record(user: owner, repository:, state: "implemented", filed_by_coworker_id: coworker.id)
+    workflow = Workflow.create!(job:, trigger_kind: "initial")
+    allow(Syrus::Host::ImmutableReviewHeadBarrier).to receive(:required_reviews_satisfied?).with(workflow).and_return(false)
+    coworker.permission_rules.update!(capability: "coworker.jobs.approve", approval_policy: "auto",
+      scope: repository.id, actor: owner)
+
+    response = Mcp::Tools::ApproveJobTool.call(job_id: job.id, server_context:)
+
+    expect(response).not_to be_error
+    expect(job.reload).to be_implemented
+    action = chat.pending_actions.last
+    expect(action).to be_pending
+    expect(action.payload["autonomy_refusal_reason"]).to include("Required reviews")
   end
 
   it "keeps operator confirmation for an ungranted own Job" do

@@ -795,6 +795,8 @@ function CoworkerApprovals({ id }: { id: string }) {
 const POLICY_RANK = { off: 0, queue: 1, confirm: 2, auto: 3 } as const
 const SPAWN_CAPABILITIES = new Set(["coworker.spawn_chat", "syrus.spawn_chat"])
 const DEFAULT_SPAWN_CAPS = { max_spawns_per_run: 3, max_spawns_per_day: 10 }
+const JOB_CAPABILITIES = new Set(["coworker.jobs.propose", "coworker.jobs.approve", "coworker.jobs.feedback"])
+const DEFAULT_JOB_LIMITS = { max_open_jobs: 3, max_self_approvals_per_day: 5, max_feedback_rounds_per_job: 3, allow_sensitive_changes: false }
 
 function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
@@ -810,6 +812,13 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
             max_spawns_per_day: grant.constraints.max_spawns_per_day || DEFAULT_SPAWN_CAPS.max_spawns_per_day
           }
         ])
+    )
+  )
+  const [jobLimits, setJobLimits] = useState<Record<string, typeof DEFAULT_JOB_LIMITS>>(() =>
+    Object.fromEntries(
+      coworker.grants
+        .filter((grant) => JOB_CAPABILITIES.has(grant.capability))
+        .map((grant) => [grant.capability, { ...DEFAULT_JOB_LIMITS, ...grant.constraints }])
     )
   )
   const [scopes, setScopes] = useState<Record<string, unknown>>(() => Object.fromEntries(coworker.grants.map((grant) => [grant.capability, grant.scope])))
@@ -828,7 +837,9 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
             }
           : SPAWN_CAPABILITIES.has(capability)
             ? spawnCaps[capability] || DEFAULT_SPAWN_CAPS
-            : {},
+            : JOB_CAPABILITIES.has(capability)
+              ? jobLimits[capability] || DEFAULT_JOB_LIMITS
+              : {},
         confirmed,
         scope
       ),
@@ -870,6 +881,18 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
     const escalation =
       next.max_spawns_per_run > (grant.constraints.max_spawns_per_run ?? DEFAULT_SPAWN_CAPS.max_spawns_per_run) ||
       next.max_spawns_per_day > (grant.constraints.max_spawns_per_day ?? DEFAULT_SPAWN_CAPS.max_spawns_per_day)
+    if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
+    mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: escalation })
+  }
+
+  function saveJobLimits(grant: CoworkerDetail["grants"][number]) {
+    const next = jobLimits[grant.capability] || DEFAULT_JOB_LIMITS
+    const current = { ...DEFAULT_JOB_LIMITS, ...grant.constraints }
+    const escalation =
+      next.max_open_jobs > current.max_open_jobs ||
+      next.max_self_approvals_per_day > current.max_self_approvals_per_day ||
+      next.max_feedback_rounds_per_job > current.max_feedback_rounds_per_job ||
+      (next.allow_sensitive_changes && !current.allow_sensitive_changes)
     if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
     mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: escalation })
   }
@@ -943,6 +966,55 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                       type="button"
                     >
                       {t("capabilities.save_spawn_caps")}
+                    </button>
+                  </div>
+                ) : null}
+                {JOB_CAPABILITIES.has(capability) ? (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {(["max_open_jobs", "max_self_approvals_per_day", "max_feedback_rounds_per_job"] as const).map((key) => (
+                      <label className="block text-xs text-text-secondary" key={key}>
+                        {t(`capabilities.${key}`)}
+                        <Input
+                          className="mt-1"
+                          min={1}
+                          type="number"
+                          value={(jobLimits[capability] || DEFAULT_JOB_LIMITS)[key]}
+                          onChange={(event) =>
+                            setJobLimits((current) => ({
+                              ...current,
+                              [capability]: {
+                                ...(current[capability] || DEFAULT_JOB_LIMITS),
+                                [key]: Math.max(1, Number.parseInt(event.target.value, 10) || 1)
+                              }
+                            }))
+                          }
+                        />
+                      </label>
+                    ))}
+                    {capability === "coworker.jobs.approve" ? (
+                      <div className="sm:col-span-3">
+                        <Checkbox
+                          checked={(jobLimits[capability] || DEFAULT_JOB_LIMITS).allow_sensitive_changes}
+                          label={t("capabilities.allow_sensitive_changes")}
+                          onChange={(event) =>
+                            setJobLimits((current) => ({
+                              ...current,
+                              [capability]: {
+                                ...(current[capability] || DEFAULT_JOB_LIMITS),
+                                allow_sensitive_changes: event.target.checked
+                              }
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    <button
+                      className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50 sm:col-span-3"
+                      disabled={!grant || mutation.isPending}
+                      onClick={() => grant && saveJobLimits(grant)}
+                      type="button"
+                    >
+                      {t("capabilities.save_job_limits")}
                     </button>
                   </div>
                 ) : null}

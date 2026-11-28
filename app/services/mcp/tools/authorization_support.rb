@@ -73,11 +73,15 @@ module Mcp::Tools
         context = McpToolContext.from_server_context(server_context)
         return unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
+        server_context.delete(:coworker_job_autonomy_refusal)
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
         if autonomous_coworker_job_action?(tool, context, server_context, arguments)
           enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
           return
+        end
+        if server_context[:coworker_job_autonomy_refusal].present?
+          return create_coworker_pending_action(context:, server_context:, descriptor:, arguments:, always_pending: true)
         end
         if descriptor.ungated
           audit_essential!(context, coworker_capability_descriptor(descriptor), arguments)
@@ -106,7 +110,12 @@ module Mcp::Tools
         return false unless repository
 
         decision = actor.job_autonomy.authorize(tool_name:, repository:, job:)
-        return false unless decision.allowed?
+        unless decision.allowed?
+          if decision.rule.present? && decision.reason.present?
+            server_context[:coworker_job_autonomy_refusal] = decision.reason
+          end
+          return false
+        end
 
         server_context[:coworker_job_autonomy] = {
           "tool_name" => tool_name, "rule_id" => decision.rule.id,
@@ -296,6 +305,7 @@ module Mcp::Tools
             "origin_message_id" => server_context[:current_message]&.id,
             "approval_policy" => "queue",
             "approval_inbox" => true,
+            "autonomy_refusal_reason" => server_context[:coworker_job_autonomy_refusal],
             "actor" => approval_actor(context.agent_actor)
           }.compact
         ).call

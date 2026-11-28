@@ -813,6 +813,63 @@ it("surfaces and saves per-run and per-day Syrus chat spawn limits", async () =>
   )
 })
 
+it("surfaces and saves Job autonomy budgets and the sensitive-change carve-out", async () => {
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [
+        {
+          capability: "coworker.jobs.approve",
+          approval_policy: "auto",
+          constraints: {
+            max_open_jobs: 2,
+            max_self_approvals_per_day: 4,
+            max_feedback_rounds_per_job: 3,
+            allow_sensitive_changes: false
+          },
+          scope: [11]
+        }
+      ],
+      grant_catalog: [
+        ...detailPayload.coworker.grant_catalog,
+        {
+          name: "coworker.jobs.approve",
+          label: "Approve own Jobs",
+          description: "Approve Jobs",
+          default_policy: "confirm",
+          maximum_policy: "auto",
+          tools: ["approve_job"],
+          scopeable: true,
+          scope_options: [{ value: 11, label: "widgets" }],
+          default_enabled: false
+        }
+      ]
+    }
+  }
+  const confirm = vi.fn(() => true)
+  vi.stubGlobal("confirm", confirm)
+  const fetchSpy = vi.fn(async () => jsonResponse(payload))
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+
+  fireEvent.change(await screen.findByRole("spinbutton", { name: "Maximum self-approvals per day" }), { target: { value: "5" } })
+  fireEvent.click(screen.getByRole("checkbox", { name: "Allow self-approval of sensitive changes" }))
+  fireEvent.click(screen.getByRole("button", { name: "Save autonomy limits" }))
+
+  expect(confirm).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"allow_sensitive_changes":true')
+      })
+    )
+  )
+})
+
 it("shows pending approvals with the originating run and tool input and allows rejection", async () => {
   const invalidateQueries = vi.spyOn(QueryClient.prototype, "invalidateQueries")
   const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

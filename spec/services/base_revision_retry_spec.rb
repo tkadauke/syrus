@@ -590,6 +590,160 @@ RSpec.describe BaseRevisionRetry do
     )
   end
 
+  it "requires an explicit candidate command to pass before comparing it with the base" do
+    grader_step.update!(details: {
+      "name" => "rspec", "command" => "bundle exec rspec",
+      "base_retry" => { "strategy" => "full_command" }
+    })
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      require_candidate_pass: true, log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      expect(chdir).to eq(@workspace_path)
+      output << "1 example, 1 failure"
+      command_execution(success: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: true, inherited: false, reason: "candidate_command_failed",
+      method: "candidate_command")
+  end
+
+  it "uses an explicit command even when the grader normally uses focused plugin retries" do
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |command, _chdir, output|
+      expect(command).to eq("bundle exec rspec spec/regression_spec.rb")
+      output << "1 example, 1 failure"
+      command_execution(success: false)
+    end
+
+    expect(retry_check.call).to have_attributes(ran: true, inherited: true, method: "full_command")
+  end
+
+  it "compares the base only after the explicit candidate command passes" do
+    grader_step.update!(details: {
+      "name" => "rspec", "command" => "bundle exec rspec",
+      "base_retry" => { "strategy" => "full_command" }
+    })
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      require_candidate_pass: true, log: ->(_message) { }
+    )
+    calls = 0
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      calls += 1
+      if chdir == @workspace_path
+        command_execution
+      else
+        output << "1 example, 1 failure"
+        command_execution(success: false)
+      end
+    end
+
+    result = retry_check.call
+
+    expect(calls).to eq(2)
+    expect(result).to have_attributes(ran: true, inherited: true)
+  end
+
+  it "overlays a new candidate spec and requires its failed example as base evidence" do
+    spec_path = @workspace_path.join("spec/regression_spec.rb")
+    FileUtils.mkdir_p(spec_path.dirname)
+    spec_path.write("RSpec.describe('regression') { it('fails on base') { expect(fixed?).to be(true) } }\n")
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      require_candidate_pass: true, candidate_files: [ "spec/regression_spec.rb" ],
+      require_failed_test_evidence: true, log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:materialize_base_checkout!) do |checkout_path|
+      FileUtils.mkdir_p(checkout_path)
+      "linked"
+    end
+    calls = 0
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      calls += 1
+      if chdir == @workspace_path
+        command_execution
+      else
+        expect(chdir.join("spec/regression_spec.rb").read).to include("fails on base")
+        junit = chdir.join(".syrus/rspec-junit/regression.xml")
+        FileUtils.mkdir_p(junit.dirname)
+        junit.write(<<~XML)
+          <testsuite name="spec/regression_spec.rb">
+            <testcase classname="spec/regression_spec.rb" file="spec/regression_spec.rb" name="fails on base">
+              <failure message="expected fixed?">expected fixed?</failure>
+            </testcase>
+          </testsuite>
+        XML
+        output << "1 example, 1 failure"
+        command_execution(success: false)
+      end
+    end
+
+    result = retry_check.call
+
+    expect(calls).to eq(2)
+    expect(result).to have_attributes(ran: true, inherited: true)
+  end
+
+  it "refuses a base command failure without a failed test example" do
+    spec_path = @workspace_path.join("spec/regression_spec.rb")
+    FileUtils.mkdir_p(spec_path.dirname)
+    spec_path.write("RSpec.describe('regression') { it('runs') { expect(true).to be(true) } }\n")
+    retry_check = described_class.new(
+      workflow:, grader_step:, base_sha: "main123", command: "bundle exec rspec spec/regression_spec.rb",
+      candidate_files: [ "spec/regression_spec.rb" ], require_failed_test_evidence: true,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:materialize_base_checkout!) do |checkout_path|
+      FileUtils.mkdir_p(checkout_path)
+      stale_junit = checkout_path.join(".syrus/rspec-junit/stale.xml")
+      FileUtils.mkdir_p(stale_junit.dirname)
+      stale_junit.write(<<~XML)
+        <testsuite name="spec/regression_spec.rb">
+          <testcase classname="spec/regression_spec.rb" file="spec/regression_spec.rb" name="stale failure">
+            <failure message="stale">stale</failure>
+          </testcase>
+        </testsuite>
+      XML
+      "linked"
+    end
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "An error occurred while loading spec/regression_spec.rb: missing dependency"
+      command_execution(success: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true, inherited: false, reason: "base_retry_missing_failed_test_evidence"
+    )
+  end
+
+  it "refuses absolute and traversing configured artifact paths without deleting them" do
+    checkout_path = @workspace_path.join("cleanup-checkout")
+    FileUtils.mkdir_p(checkout_path)
+    protected_path = checkout_path.dirname.join("protected.xml")
+    protected_path.write("keep me")
+
+    [ protected_path.to_s, "../protected.xml" ].each do |junit_output|
+      grader_step.update!(details: grader_step.details.merge("junit_output" => junit_output))
+
+      expect {
+        retry_check = described_class.new(
+          workflow:, grader_step:, base_sha: "main123", log: ->(_message) { }
+        )
+        retry_check.send(:clear_parse_artifacts!, checkout_path)
+      }.to raise_error(ArgumentError, /artifact path must stay inside/)
+      expect(protected_path.read).to eq("keep me")
+    end
+  end
+
   it "kills a hung base command when the timeout expires", :allow_host_execution do
     stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
     child_pid_path = @workspace_path.join("child.pid")

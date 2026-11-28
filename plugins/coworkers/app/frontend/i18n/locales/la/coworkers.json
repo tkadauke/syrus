@@ -246,6 +246,11 @@
     "max_spawns_per_run": "Maximum per cursum",
     "max_spawns_per_day": "Maximum per diem",
     "save_spawn_caps": "Limites creationis serva",
+    "max_open_jobs": "Maximum operum propriorum apertorum",
+    "max_self_approvals_per_day": "Maximum approbationum propriarum per diem",
+    "max_feedback_rounds_per_job": "Maximum circuituum responsionis per opus",
+    "allow_sensitive_changes": "Approbationem propriam mutationum sensibilium permitte",
+    "save_job_limits": "Limites autonomiae serva",
     "unavailable": {
       "confinement_unavailable": "Non praesto donec operarius vivus executionem collegae clausam comprobet.",
       "confinement_worker_unavailable": "Non praesto quia nullus operarius vivus vicem collegae clausam admittere potest.",
